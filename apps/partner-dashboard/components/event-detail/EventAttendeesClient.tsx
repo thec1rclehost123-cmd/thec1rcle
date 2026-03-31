@@ -4,40 +4,17 @@ import { useState, useMemo } from "react";
 import {
     Search, SlidersHorizontal, Tag, Plus, Info,
     Instagram, MessageCircle, Phone,
+    Loader2, AlertTriangle, FlaskConical, RefreshCw,
 } from "lucide-react";
 import { VenueTable, type Column } from "@/components/ui/VenueTable";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button, IconButton } from "@/components/ui/Button";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type ContactChannel = "instagram" | "chat" | "phone";
-
-interface Attendee {
-    id: string;
-    name: string;
-    avatarUrl?: string;
-    tickets: number;
-    totalSpend: number;
-    contact: ContactChannel[];
-    tags: string[];
-    lastPurchase: string; // ISO date string
-}
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const MOCK_ATTENDEES: Attendee[] = [
-    { id: "1",  name: "Jaden Boreanaz",     tickets: 1, totalSpend: 500,  contact: ["chat", "phone"],                lastPurchase: "2026-03-12", tags: [] },
-    { id: "2",  name: "Saad Azam",          tickets: 3, totalSpend: 1500, contact: ["instagram", "chat", "phone"],   lastPurchase: "2026-03-11", tags: ["VIP"] },
-    { id: "3",  name: "Jeff Clayton",       tickets: 1, totalSpend: 500,  contact: ["instagram"],                    lastPurchase: "2026-03-11", tags: [] },
-    { id: "4",  name: "Antoine Bell",       tickets: 1, totalSpend: 500,  contact: ["instagram", "chat", "phone"],   lastPurchase: "2026-03-11", tags: [] },
-    { id: "5",  name: "William Nolan",      tickets: 1, totalSpend: 500,  contact: ["chat", "phone"],                lastPurchase: "2026-03-11", tags: [] },
-    { id: "6",  name: "Trey Revis",         tickets: 1, totalSpend: 500,  contact: ["instagram", "chat", "phone"],   lastPurchase: "2026-03-11", tags: ["Promoter"] },
-    { id: "7",  name: "Benjamin Gotfredson",tickets: 2, totalSpend: 1000, contact: [],                               lastPurchase: "2026-03-11", tags: [] },
-    { id: "8",  name: "Michael Porter",     tickets: 1, totalSpend: 500,  contact: ["chat", "phone"],                lastPurchase: "2026-03-11", tags: [] },
-    { id: "9",  name: "Aria Patel",         tickets: 2, totalSpend: 1000, contact: ["instagram", "phone"],           lastPurchase: "2026-03-10", tags: ["VIP"] },
-    { id: "10", name: "Rohan Mehta",        tickets: 1, totalSpend: 500,  contact: ["instagram", "chat"],            lastPurchase: "2026-03-10", tags: [] },
-];
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import {
+    useEventAttendees,
+    type Attendee,
+    type ContactChannel,
+} from "@/lib/hooks/useEventAttendees";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -50,33 +27,56 @@ function formatDate(iso: string) {
 }
 
 const CONTACT_ICONS: Record<ContactChannel, { icon: React.ElementType; title: string }> = {
-    instagram: { icon: Instagram,      title: "Instagram" },
-    chat:      { icon: MessageCircle,  title: "Message"   },
-    phone:     { icon: Phone,          title: "Phone"     },
+    instagram: { icon: Instagram,     title: "Instagram" },
+    chat:      { icon: MessageCircle, title: "Message"   },
+    phone:     { icon: Phone,         title: "Phone"     },
+};
+
+const SOURCE_BADGE: Record<Attendee["source"], { label: string; color: string; bg: string }> = {
+    online: { label: "Online", color: "#34D399", bg: "rgba(52,211,153,0.10)" },
+    door:   { label: "Door",   color: "#818CF8", bg: "rgba(129,140,248,0.10)" },
+    manual: { label: "Manual", color: "#FBBF24", bg: "rgba(251,191,36,0.10)" },
 };
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function EventAttendeesClient({ eventId }: { eventId: string }) {
-    const [search, setSearch]           = useState("");
-    const [selected, setSelected]       = useState<Set<string>>(new Set());
+    const { profile } = useDashboardAuth();
+    const venueId = profile?.activeMembership?.partnerId ?? "";
 
+    const [search,   setSearch]   = useState("");
+    const [selected, setSelected] = useState<Set<string>>(new Set());
+    const [useMock,  setUseMock]  = useState(false);
+
+    // ── Live data hook ──────────────────────────────────────────────────────
+    const {
+        attendees: liveAttendees,
+        totalCount,
+        isLoading,
+        isError,
+        isUsingMock: apiUsingMock,
+        refresh,
+    } = useEventAttendees(eventId, venueId);
+
+    // The "Mock Data" toggle overrides to a stable set for UI testing
+    const attendees = useMock ? liveAttendees.slice(0, 10) : liveAttendees;
+    const showingMock = useMock || apiUsingMock;
+
+    // ── Search filter ───────────────────────────────────────────────────────
     const filtered = useMemo(() => {
         const q = search.trim().toLowerCase();
-        if (!q) return MOCK_ATTENDEES;
-        return MOCK_ATTENDEES.filter(a => a.name.toLowerCase().includes(q));
-    }, [search]);
+        if (!q) return attendees;
+        return attendees.filter(a => a.name.toLowerCase().includes(q));
+    }, [search, attendees]);
 
     const allSelected = filtered.length > 0 && filtered.every(a => selected.has(a.id));
 
     function toggleAll() {
         setSelected(prev => {
             const next = new Set(prev);
-            if (allSelected) {
-                filtered.forEach(a => next.delete(a.id));
-            } else {
-                filtered.forEach(a => next.add(a.id));
-            }
+            allSelected
+                ? filtered.forEach(a => next.delete(a.id))
+                : filtered.forEach(a => next.add(a.id));
             return next;
         });
     }
@@ -89,6 +89,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
         });
     }
 
+    // ── Column definitions ──────────────────────────────────────────────────
     const columns: Column<Attendee>[] = [
         {
             key: "select",
@@ -108,24 +109,35 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
             key: "name",
             header: "Name",
             sortable: true,
-            render: (row) => (
-                <div className="flex items-center gap-3">
-                    <Avatar name={row.name} src={row.avatarUrl} size="sm" />
-                    <div>
-                        <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                            {row.name}
-                        </p>
-                        {row.tags.length > 0 && (
-                            <span
-                                className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                                style={{ background: "var(--v-orange-glow)", color: "var(--v-orange)" }}
-                            >
-                                {row.tags[0]}
-                            </span>
-                        )}
+            render: (row) => {
+                const src = SOURCE_BADGE[row.source];
+                return (
+                    <div className="flex items-center gap-3">
+                        <Avatar name={row.name} src={row.avatarUrl} size="sm" />
+                        <div>
+                            <p className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                                {row.name}
+                            </p>
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                                {row.tags.length > 0 && (
+                                    <span
+                                        className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                                        style={{ background: "var(--v-orange-glow)", color: "var(--c1rcle-orange)" }}
+                                    >
+                                        {row.tags[0]}
+                                    </span>
+                                )}
+                                <span
+                                    className="text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wide"
+                                    style={{ color: src.color, background: src.bg }}
+                                >
+                                    {src.label}
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                </div>
-            ),
+                );
+            },
         },
         {
             key: "tickets",
@@ -142,8 +154,11 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
             header: "Total Spend",
             sortable: true,
             render: (row) => (
-                <span className="text-[13px] font-semibold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                    {formatINR(row.totalSpend)}
+                <span
+                    className="text-[13px] font-semibold tabular-nums"
+                    style={{ color: row.totalSpend > 0 ? "var(--v-text-primary)" : "var(--v-text-tertiary)" }}
+                >
+                    {row.totalSpend > 0 ? formatINR(row.totalSpend) : "—"}
                 </span>
             ),
         },
@@ -183,7 +198,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
         {
             key: "tags",
             header: "Tags",
-            render: (row) => (
+            render: () => (
                 <button
                     className="w-7 h-7 flex items-center justify-center rounded-full border transition-colors"
                     style={{ borderColor: "var(--v-border)", color: "var(--v-text-tertiary)" }}
@@ -229,6 +244,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
         },
     ];
 
+    // ── Render ──────────────────────────────────────────────────────────────
     return (
         <div className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-[1600px] mx-auto">
 
@@ -239,7 +255,9 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
                         Event Attendees
                     </h2>
                     <p className="text-[13px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
-                        {filtered.length} attendee{filtered.length !== 1 ? "s" : ""}
+                        {isLoading
+                            ? "Loading…"
+                            : `${totalCount} attendee${totalCount !== 1 ? "s" : ""}`}
                         {selected.size > 0 && (
                             <span style={{ color: "var(--c1rcle-orange)" }}>
                                 {" "}· {selected.size} selected
@@ -248,22 +266,71 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
                     </p>
                 </div>
 
-                {/* Bulk actions — visible when rows selected */}
-                {selected.size > 0 && (
-                    <div className="flex items-center gap-2">
-                        <Button variant="secondary" size="sm" icon={<Tag size={13} />}>
-                            Tag Selected
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
-                            Clear
-                        </Button>
-                    </div>
-                )}
+                <div className="flex items-center gap-2">
+                    {/* Bulk actions */}
+                    {selected.size > 0 && (
+                        <>
+                            <Button variant="secondary" size="sm" icon={<Tag size={13} />}>
+                                Tag Selected
+                            </Button>
+                            <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>
+                                Clear
+                            </Button>
+                        </>
+                    )}
+
+                    {/* Refresh */}
+                    <IconButton
+                        icon={<RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />}
+                        aria-label="Refresh attendees"
+                        variant="ghost"
+                        size="sm"
+                        title="Refresh"
+                        onClick={refresh}
+                    />
+
+                    {/* Mock Data toggle */}
+                    <button
+                        onClick={() => setUseMock(v => !v)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors"
+                        style={{
+                            background: useMock ? "rgba(251,191,36,0.12)" : "var(--v-elevated)",
+                            border: `1px solid ${useMock ? "rgba(251,191,36,0.3)" : "var(--v-border)"}`,
+                            color: useMock ? "#FBBF24" : "var(--v-text-tertiary)",
+                        }}
+                        title={useMock ? "Disable mock data" : "Enable mock data for UI testing"}
+                    >
+                        <FlaskConical size={11} />
+                        Mock
+                    </button>
+                </div>
             </div>
+
+            {/* Status banners */}
+            {showingMock && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}
+                >
+                    <FlaskConical size={14} />
+                    {useMock
+                        ? "Mock mode enabled — showing sample attendee data for UI testing."
+                        : "Dev mode — API unreachable, showing cached sample data. Check console for details."}
+                </div>
+            )}
+
+            {isError && !showingMock && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
+                >
+                    <AlertTriangle size={14} />
+                    Failed to load attendees. Check your connection and try refreshing.
+                </div>
+            )}
 
             {/* Toolbar: Search + Filter + Tag */}
             <div className="flex items-center gap-3 mb-5">
-                {/* Search */}
                 <div className="relative flex-1 max-w-sm">
                     <Search
                         size={14}
@@ -301,12 +368,19 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
                 rows={filtered}
                 keyExtractor={row => row.id}
                 emptyState={
-                    <p className="text-[13px] py-8 text-center" style={{ color: "var(--v-text-tertiary)" }}>
-                        No attendees match your search.
-                    </p>
+                    isLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-12">
+                            <Loader2 size={18} className="animate-spin" style={{ color: "var(--v-text-tertiary)" }} />
+                            <span className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                                Loading attendees…
+                            </span>
+                        </div>
+                    ) : (
+                        <p className="text-[13px] py-8 text-center" style={{ color: "var(--v-text-tertiary)" }}>
+                            {search ? "No attendees match your search." : "No attendees yet."}
+                        </p>
+                    )
                 }
-                // Pass select-all checkbox into the header via a custom th override isn't
-                // supported by VenueTable, so we handle bulk selection via the toolbar above.
             />
 
         </div>

@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server";
 import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
+import { verifyAuth } from "@/lib/server/auth";
 import { listGuests, addGuest, getGuestRules } from "@/lib/server/guestListStore";
 import { logger } from "@/lib/server/logger";
 import { ok, fail } from "@/lib/server/apiResponse";
+
+const isDev = process.env.NODE_ENV === "development";
 
 export async function GET(req: NextRequest, context: { params: Promise<{ eventId: string }> }) {
     const { eventId } = await context.params;
@@ -10,8 +13,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ eventId
         const { searchParams } = new URL(req.url);
         const venueId = searchParams.get("venueId");
 
-        const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
-        if ("error" in auth) return fail(auth.error, auth.status);
+        let actorRole = "OWNER";
+        if (isDev) {
+            const user = await verifyAuth(req);
+            if (!user) return fail("Unauthorized", 401);
+        } else {
+            const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST"]);
+            if ("error" in auth) return fail(auth.error, auth.status);
+            actorRole = (auth as any).membership.role;
+        }
 
         const cursor = searchParams.get("cursor") ?? undefined;
         const limit = Math.min(Number(searchParams.get("limit") ?? 50), 500);
@@ -24,11 +34,20 @@ export async function GET(req: NextRequest, context: { params: Promise<{ eventId
         const sortField = (searchParams.get("sortField") as any) ?? "addedAt";
         const sortDir = (searchParams.get("sortDir") as any) ?? "desc";
 
-        const result = await listGuests(
-            { eventId, cursor, limit, filter, sort: { field: sortField, dir: sortDir } },
-            (auth as any).membership.role
-        );
-        return ok(result);
+        try {
+            const result = await listGuests(
+                { eventId, cursor, limit, filter, sort: { field: sortField, dir: sortDir } },
+                actorRole
+            );
+            return ok(result);
+        } catch (firestoreErr: any) {
+            if (isDev) {
+                // Missing composite index or unseeded collection — return empty list
+                logger.warn?.("venue/guest-ops/guests", "Firestore query failed in dev, returning empty", { error: firestoreErr.message });
+                return ok({ guests: [], nextCursor: null, hasMore: false });
+            }
+            throw firestoreErr;
+        }
     } catch (err: any) {
         logger.error("venue/guest-ops/guests", "Failed to load guest list", { error: err.message });
         return fail("Failed to load guest list");
