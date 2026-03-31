@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Link2, Settings, GripVertical, Trash2, X, AlertTriangle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus, Link2, Settings, GripVertical, Trash2, X, AlertTriangle, Loader2, FlaskConical } from "lucide-react";
 import { VenueTable, type Column } from "@/components/ui/VenueTable";
 import { Button, IconButton } from "@/components/ui/Button";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,16 +30,17 @@ interface TicketFormValues {
     endSale: string;
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Dev-mode mock fallback ───────────────────────────────────────────────────
+// Loaded automatically when the API is unreachable in local development so the
+// team can keep working on the UI without a live Firebase connection.
 
-const MOCK_TICKETS: TicketType[] = [
-    { id: "1", name: "GA — Early Bird",  status: "on_sale",  price: 500,  sold: 10,  capacity: 10,  openSale: null, endSale: null },
-    { id: "2", name: "GA — Tier 1",      status: "on_sale",  price: 800,  sold: 10,  capacity: 10,  openSale: null, endSale: null },
-    { id: "3", name: "GA — Tier 2",      status: "on_sale",  price: 1000, sold: 10,  capacity: 10,  openSale: null, endSale: null },
-    { id: "4", name: "GA — Tier 3",      status: "on_sale",  price: 1000, sold: 462, capacity: 462, openSale: null, endSale: null },
-    { id: "5", name: "GA — Last Chance", status: "on_sale",  price: 1500, sold: 50,  capacity: 50,  openSale: null, endSale: null },
-    { id: "6", name: "GA — Tier 4",      status: "on_sale",  price: 1200, sold: 70,  capacity: 100, openSale: null, endSale: null },
-    { id: "7", name: "Staff Comp Tkt",   status: "hidden",   price: null, sold: 30,  capacity: 50,  openSale: null, endSale: null },
+const DEV_MOCK_TICKETS: TicketType[] = [
+    { id: "mock-1", name: "GA — Early Bird",  status: "on_sale",   price: 500,  sold: 10, capacity: 100, openSale: null, endSale: null },
+    { id: "mock-2", name: "GA — Tier 1",      status: "on_sale",   price: 800,  sold: 35, capacity: 150, openSale: null, endSale: null },
+    { id: "mock-3", name: "GA — Tier 2",      status: "on_sale",   price: 1000, sold: 80, capacity: 200, openSale: null, endSale: null },
+    { id: "mock-4", name: "VIP",              status: "sold_out",  price: 2500, sold: 50, capacity: 50,  openSale: null, endSale: null },
+    { id: "mock-5", name: "GA — Last Chance", status: "scheduled", price: 1500, sold: 0,  capacity: 100, openSale: null, endSale: null },
+    { id: "mock-6", name: "Staff Comp",       status: "hidden",    price: null, sold: 10, capacity: 30,  openSale: null, endSale: null },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -84,10 +87,12 @@ const EMPTY_FORM: TicketFormValues = { name: "", price: "", quantity: "50", open
 
 function TicketFormModal({
     open,
+    saving,
     onClose,
     onSave,
 }: {
     open: boolean;
+    saving: boolean;
     onClose: () => void;
     onSave: (v: TicketFormValues) => void;
 }) {
@@ -102,7 +107,11 @@ function TicketFormModal({
         e.preventDefault();
         if (!form.name.trim()) return;
         onSave(form);
+    };
+
+    const handleClose = () => {
         setForm(EMPTY_FORM);
+        onClose();
     };
 
     const labelStyle: React.CSSProperties = {
@@ -129,7 +138,7 @@ function TicketFormModal({
         <div
             className="fixed inset-0 z-50 flex items-center justify-center p-4"
             style={{ background: "rgba(0,0,0,0.7)", backdropFilter: "blur(4px)" }}
-            onClick={onClose}
+            onClick={handleClose}
         >
             <form
                 onSubmit={handleSubmit}
@@ -153,7 +162,7 @@ function TicketFormModal({
                     </div>
                     <button
                         type="button"
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="w-8 h-8 flex items-center justify-center rounded-lg transition-colors"
                         style={{ color: "var(--v-text-tertiary)" }}
                         onMouseEnter={e => (e.currentTarget.style.background = "var(--v-elevated)")}
@@ -240,11 +249,16 @@ function TicketFormModal({
 
                 {/* Footer */}
                 <div className="flex items-center justify-end gap-2 mt-6">
-                    <Button variant="ghost" size="sm" type="button" onClick={onClose}>
+                    <Button variant="ghost" size="sm" type="button" onClick={handleClose} disabled={saving}>
                         Cancel
                     </Button>
-                    <Button variant="primary" size="sm" type="submit">
-                        Save Ticket
+                    <Button variant="primary" size="sm" type="submit" disabled={saving}>
+                        {saving ? (
+                            <span className="flex items-center gap-1.5">
+                                <Loader2 size={13} className="animate-spin" />
+                                Saving…
+                            </span>
+                        ) : "Save Ticket"}
                     </Button>
                 </div>
             </form>
@@ -255,29 +269,136 @@ function TicketFormModal({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TicketTypesClient({ eventId }: { eventId: string }) {
-    const [modalOpen, setModalOpen]       = useState(false);
-    const [tickets, setTickets]           = useState<TicketType[]>(MOCK_TICKETS);
-    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const { user, profile } = useDashboardAuth();
+    const venueId = profile?.activeMembership?.partnerId ?? "";
+    const queryClient = useQueryClient();
+    const isDev = process.env.NODE_ENV === "development";
 
-    function handleSave(form: TicketFormValues) {
-        const entry: TicketType = {
-            id: String(Date.now()),
-            name: form.name.trim(),
-            status: "scheduled",
-            price: form.price ? parseInt(form.price, 10) : null,
-            sold: 0,
-            capacity: parseInt(form.quantity, 10) || 50,
-            openSale: form.openSale || null,
-            endSale: form.endSale || null,
-        };
-        setTickets(prev => [...prev, entry]);
-        setModalOpen(false);
+    const [modalOpen, setModalOpen]               = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId]   = useState<string | null>(null);
+    const [usingMockData, setUsingMockData]       = useState(false);
+
+    // ── Missing eventId guard ───────────────────────────────────────────────
+    if (!eventId) {
+        return (
+            <div className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-[1600px] mx-auto flex flex-col items-center justify-center py-20 gap-3">
+                <p className="text-[15px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                    No event selected
+                </p>
+                <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                    Open an event from the Events list to manage its ticket types.
+                </p>
+            </div>
+        );
     }
 
-    function handleDelete(id: string) {
-        setTickets(prev => prev.filter(t => t.id !== id));
-        setDeleteConfirmId(null);
-    }
+    // Authenticated fetch helper
+    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+        const token = await user?.getIdToken();
+        return fetch(url, {
+            ...options,
+            headers: {
+                ...options.headers,
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                "Content-Type": "application/json",
+            },
+        });
+    }, [user]);
+
+    const baseUrl = `/api/venue/events/${eventId}/tickets?venueId=${venueId}`;
+
+    // ── Fetch ticket tiers ──────────────────────────────────────────────────
+    const { data, isLoading, isError } = useQuery<{ tiers: TicketType[] }>({
+        queryKey: ["venue-tickets", eventId, venueId],
+        queryFn: async () => {
+            // Don't attempt the call without a venueId — surface a clear message
+            if (!venueId) throw new Error("venueId not resolved — profile still loading");
+
+            let res: Response;
+            try {
+                res = await authedFetch(baseUrl);
+            } catch (networkErr: any) {
+                // Use warn in dev — console.error triggers the Next.js error overlay
+                if (isDev) {
+                    console.warn("[TicketTypes] Network error (dev fallback active):", networkErr);
+                    setUsingMockData(true);
+                    return { tiers: DEV_MOCK_TICKETS };
+                }
+                console.error("[TicketTypes] Network error fetching tiers:", networkErr);
+                throw networkErr;
+            }
+
+            if (!res.ok) {
+                const body = await res.json().catch(() => ({}));
+                // Use warn in dev so the Next.js error overlay doesn't fire
+                if (isDev) {
+                    console.warn(
+                        `[TicketTypes] API ${res.status} — using mock data (eventId=${eventId} venueId=${venueId}):`,
+                        body
+                    );
+                    setUsingMockData(true);
+                    return { tiers: DEV_MOCK_TICKETS };
+                }
+                console.error(
+                    `[TicketTypes] API error ${res.status} for eventId=${eventId} venueId=${venueId}:`,
+                    body
+                );
+                throw new Error(body.error || `HTTP ${res.status}: Failed to load ticket tiers`);
+            }
+
+            setUsingMockData(false);
+            return res.json();
+        },
+        // Wait for both ids before firing; profile may resolve slightly after mount
+        enabled: !!eventId && !!venueId,
+        staleTime: 5 * 60 * 1000,
+        gcTime: 15 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        retry: 1,
+    });
+
+    const tickets: TicketType[] = data?.tiers ?? [];
+
+    // ── Add ticket tier ─────────────────────────────────────────────────────
+    const addMutation = useMutation({
+        mutationFn: async (form: TicketFormValues) => {
+            const res = await authedFetch(baseUrl, {
+                method: "POST",
+                body: JSON.stringify({
+                    name: form.name.trim(),
+                    price: form.price,
+                    quantity: form.quantity,
+                    openSale: form.openSale || null,
+                    endSale: form.endSale || null,
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "Failed to create ticket");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["venue-tickets", eventId, venueId] });
+            setModalOpen(false);
+        },
+    });
+
+    // ── Delete ticket tier ──────────────────────────────────────────────────
+    const deleteMutation = useMutation({
+        mutationFn: async (tierId: string) => {
+            const res = await authedFetch(`${baseUrl}&tierId=${tierId}`, { method: "DELETE" });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error(err.error || "Failed to delete ticket");
+            }
+            return res.json();
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["venue-tickets", eventId, venueId] });
+            setDeleteConfirmId(null);
+        },
+    });
 
     // Build columns here so they close over state setters
     const columns: Column<TicketType>[] = [
@@ -303,7 +424,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
             key: "status",
             header: "Status",
             render: (row) => {
-                const cfg = STATUS_CONFIG[row.status];
+                const cfg = STATUS_CONFIG[row.status] ?? STATUS_CONFIG.scheduled;
                 return (
                     <span
                         className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-widest"
@@ -360,6 +481,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
             width: "w-40",
             render: (row) => {
                 const confirming = deleteConfirmId === row.id;
+                const deleting = deleteMutation.isPending && deleteMutation.variables === row.id;
 
                 if (confirming) {
                     return (
@@ -374,14 +496,16 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                             <button
                                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors"
                                 style={{ background: "rgba(248,113,113,0.15)", color: "#F87171" }}
-                                onClick={() => handleDelete(row.id)}
+                                onClick={() => deleteMutation.mutate(row.id)}
+                                disabled={deleting}
                             >
-                                Yes
+                                {deleting ? <Loader2 size={11} className="animate-spin" /> : "Yes"}
                             </button>
                             <button
                                 className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors"
                                 style={{ background: "var(--v-elevated)", color: "var(--v-text-secondary)" }}
                                 onClick={() => setDeleteConfirmId(null)}
+                                disabled={deleting}
                             >
                                 No
                             </button>
@@ -433,7 +557,9 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                         Ticket Types
                     </h2>
                     <p className="text-[13px] mt-0.5" style={{ color: "var(--v-text-tertiary)" }}>
-                        {tickets.length} ticket tier{tickets.length !== 1 ? "s" : ""} for this event
+                        {isLoading
+                            ? "Loading…"
+                            : `${tickets.length} ticket tier${tickets.length !== 1 ? "s" : ""} for this event`}
                     </p>
                 </div>
                 <Button
@@ -447,33 +573,76 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                 </Button>
             </div>
 
+            {/* Dev mock data banner */}
+            {usingMockData && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}
+                >
+                    <FlaskConical size={14} />
+                    Development mode — showing mock ticket data. API unreachable; check console for details.
+                </div>
+            )}
+
+            {/* Error state (only shown in production or when not using mock fallback) */}
+            {isError && !usingMockData && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
+                >
+                    <AlertTriangle size={14} />
+                    Failed to load ticket tiers. Please refresh and try again.
+                </div>
+            )}
+
+            {/* Mutation error */}
+            {(addMutation.isError || deleteMutation.isError) && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
+                >
+                    <AlertTriangle size={14} />
+                    {(addMutation.error as Error)?.message || (deleteMutation.error as Error)?.message}
+                </div>
+            )}
+
             {/* Table */}
             <VenueTable
                 columns={columns}
                 rows={tickets}
                 keyExtractor={(row) => row.id}
                 emptyState={
-                    <div className="flex flex-col items-center gap-3 py-8">
-                        <p className="text-[14px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
-                            No ticket types yet
-                        </p>
-                        <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={<Plus size={14} />}
-                            onClick={() => setModalOpen(true)}
-                        >
-                            Add your first ticket type
-                        </Button>
-                    </div>
+                    isLoading ? (
+                        <div className="flex items-center justify-center gap-2 py-12">
+                            <Loader2 size={18} className="animate-spin" style={{ color: "var(--v-text-tertiary)" }} />
+                            <span className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                                Loading ticket tiers…
+                            </span>
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center gap-3 py-8">
+                            <p className="text-[14px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>
+                                No ticket types yet
+                            </p>
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                icon={<Plus size={14} />}
+                                onClick={() => setModalOpen(true)}
+                            >
+                                Add your first ticket type
+                            </Button>
+                        </div>
+                    )
                 }
             />
 
             {/* Modal */}
             <TicketFormModal
                 open={modalOpen}
+                saving={addMutation.isPending}
                 onClose={() => setModalOpen(false)}
-                onSave={handleSave}
+                onSave={(form) => addMutation.mutate(form)}
             />
         </div>
     );
