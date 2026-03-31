@@ -4,7 +4,7 @@ import { useState, useEffect, forwardRef, memo, useCallback, useMemo, Suspense }
 import { VirtuosoGrid } from "react-virtuoso";
 import {
     Calendar, DollarSign, Search, Plus, CheckCircle2,
-    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause, List, CalendarDays,
+    AlertCircle, Edit, Loader2, ArrowRight, ShieldCheck, Play, Pause, List, CalendarDays,
     Clock, Archive, Radio, FileEdit,
 } from "lucide-react";
 import Link from "next/link";
@@ -69,7 +69,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
 
     const getPrimaryAction = (e: any) => {
         if (e.canApprove) return { label: "Review Submission", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={16} /> };
-        return { label: "View Analytics", href: `/venue/events/${e.id}/analytics`, icon: <BarChart3 size={16} /> };
+        return { label: "Explore Event", href: `/venue/events/${e.id}/analytics`, icon: <ArrowRight size={16} /> };
     };
 
     const secondaryActions: any[] = [];

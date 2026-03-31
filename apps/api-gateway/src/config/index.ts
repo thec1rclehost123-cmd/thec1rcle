@@ -12,12 +12,20 @@ const envSchema = z.object({
     FIREBASE_PROJECT_ID: z.string().min(1, 'FIREBASE_PROJECT_ID is required'),
     FIREBASE_CLIENT_EMAIL: z.string().optional(),
     FIREBASE_PRIVATE_KEY: z.string().optional(),
+    FIREBASE_STORAGE_BUCKET: z.string().optional(),
     REDIS_URL: z.string().url().default('redis://localhost:6379'),
     SENTRY_DSN: z.string().url().optional().or(z.literal('')),
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),
+    RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
+    MEILISEARCH_HOST: z.string().url().default('http://localhost:7700'),
+    MEILISEARCH_API_KEY: z.string().optional(),
+    MEILISEARCH_MASTER_KEY: z.string().optional(),
+    TICKET_SECRET: z.string().default('c1rcle-secret-2025'),
     QR_SECRET_KEY: z.string().optional(),
+    QUEUE_SECRET_KEY: z.string().default('c1rcle-surge-protection-2024'),
     SCANNER_SESSION_SECRET: z.string().optional(),
+    DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
     FRONTEND_URLS: z
         .string()
         .optional()
