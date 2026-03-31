@@ -1,5 +1,3 @@
-"use client";
-
 /**
  * useTicketSync — Bridges the event-creation wizard and the Ticket Types
  * management page via a shared localStorage layer.

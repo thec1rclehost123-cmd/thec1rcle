@@ -239,21 +239,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
     const [modalOpen, setModalOpen]             = useState(false);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-    // ── Missing eventId guard ───────────────────────────────────────────────
-    if (!eventId) {
-        return (
-            <div className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-[1600px] mx-auto flex flex-col items-center justify-center py-20 gap-3">
-                <p className="text-[15px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                    No event selected
-                </p>
-                <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
-                    Open an event from the Events list to manage its ticket types.
-                </p>
-            </div>
-        );
-    }
-
-    // ── Shared sync hook (API + localStorage bridge) ────────────────────────
+    // ── All hooks must be called before any early returns (Rules of Hooks) ──
     const {
         tiers: tickets,
         isLoading,
@@ -266,6 +252,20 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
         deleteMutationPending,
         deletingId,
     } = useTicketSync(eventId, venueId);
+
+    // ── Missing eventId guard (after all hooks) ─────────────────────────────
+    if (!eventId) {
+        return (
+            <div className="p-4 sm:p-6 lg:p-8 xl:p-10 max-w-[1600px] mx-auto flex flex-col items-center justify-center py-20 gap-3">
+                <p className="text-[15px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                    No event selected
+                </p>
+                <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>
+                    Open an event from the Events list to manage its ticket types.
+                </p>
+            </div>
+        );
+    }
 
     // Build columns here so they close over state setters
     const columns: Column<TicketType>[] = [
