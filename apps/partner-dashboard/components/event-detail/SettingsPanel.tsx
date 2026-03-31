@@ -503,10 +503,15 @@ function BrandingForm() {
                                 PNG, JPG or SVG — max 2 MB
                             </p>
                         </div>
-                        <label className="cursor-pointer">
-                            <Button variant="secondary" size="sm" as="span">
-                                Browse File
-                            </Button>
+                        <label
+                            className="cursor-pointer inline-flex items-center justify-center px-3.5 py-2 rounded-lg text-[13px] font-semibold border transition-all duration-150"
+                            style={{
+                                background: "transparent",
+                                border: "1px solid var(--v-border)",
+                                color: "var(--v-text-primary)",
+                            }}
+                        >
+                            Browse File
                             <input
                                 type="file"
                                 accept="image/*"
