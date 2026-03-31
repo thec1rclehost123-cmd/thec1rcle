@@ -32,15 +32,20 @@ type AuthedHandler<T> = (
 
 export function withAuth<T = any>(handler: (req: NextRequest, auth: any, ctx: { params: T }) => any): any {
     return (async (req: NextRequest, ctx: { params: Promise<T> }): Promise<NextResponse | Response> => {
-        const auth = await verifyAuth(req);
-        if (!auth) {
-            logger.warn("withAuth", "Unauthorized request rejected", { path: req.nextUrl.pathname, method: req.method });
-            return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        try {
+            const auth = await verifyAuth(req);
+            if (!auth) {
+                logger.warn("withAuth", "Unauthorized request rejected", { path: req.nextUrl.pathname, method: req.method });
+                return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+            }
+
+            // Next.js 15+ has Promise-based params. We resolve them here so handlers can use them synchronously.
+            const resolvedParams = await (ctx?.params || Promise.resolve({} as T));
+            return handler(req, auth, { params: resolvedParams });
+        } catch (err: any) {
+            logger.error("withAuth", "Unhandled error in route handler", { path: req.nextUrl.pathname, error: err?.message });
+            return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
         }
-        
-        // Next.js 15+ has Promise-based params. We resolve them here so handlers can use them synchronously.
-        const resolvedParams = await (ctx?.params || Promise.resolve({} as T));
-        return handler(req, auth, { params: resolvedParams });
     }) as any;
 }
 

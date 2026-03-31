@@ -196,9 +196,17 @@ export function NotificationCenter() {
             }
 
             setNotifications(incoming);
-        } catch (err) {
-            console.error("[NotificationCenter] fetch error:", err);
-            setError("Failed to load notifications");
+        } catch (err: any) {
+            const msg: string = err?.message || String(err);
+            // "Failed to fetch" is a transient dev/network error (Turbopack reload, offline, etc.)
+            // Use warn so it never triggers the Next.js dev error overlay.
+            if (process.env.NODE_ENV === "development" || msg === "Failed to fetch") {
+                console.warn("[NotificationCenter] fetch error (non-critical):", msg);
+            } else {
+                console.error("[NotificationCenter] fetch error:", err);
+            }
+            // Don't surface an error banner for silent background polling failures
+            if (notifications.length === 0) setError("Failed to load notifications");
         } finally {
             setLoading(false);
         }
