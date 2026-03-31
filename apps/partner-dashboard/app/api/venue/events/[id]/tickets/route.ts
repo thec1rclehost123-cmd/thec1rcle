@@ -35,7 +35,8 @@ export async function GET(
         if (!eventDoc.exists) return fail("Event not found", 404);
 
         const ev = eventDoc.data()!;
-        const tiers: any[] = ev.ticketTiers || ev.tiers || [];
+        // Wizard saves tickets under `tickets`; older events may use `ticketTiers` or `tiers`
+        const tiers: any[] = ev.ticketTiers || ev.tiers || ev.tickets || [];
 
         // Count completed orders per tier
         const ordersSnap = await db.collection("orders")
@@ -94,7 +95,7 @@ export async function POST(
         if (!eventDoc.exists) return fail("Event not found", 404);
 
         const ev = eventDoc.data()!;
-        const existingTiers: any[] = ev.ticketTiers || ev.tiers || [];
+        const existingTiers: any[] = ev.ticketTiers || ev.tiers || ev.tickets || [];
 
         const newTier = {
             id: `tier_${Date.now()}`,
@@ -144,7 +145,7 @@ export async function DELETE(
         if (!eventDoc.exists) return fail("Event not found", 404);
 
         const ev = eventDoc.data()!;
-        const existingTiers: any[] = ev.ticketTiers || ev.tiers || [];
+        const existingTiers: any[] = ev.ticketTiers || ev.tiers || ev.tickets || [];
         const updated = existingTiers.filter((t: any) => (t.id || t.name) !== tierId);
 
         if (updated.length === existingTiers.length) {

@@ -1,47 +1,11 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Plus, Link2, Settings, GripVertical, Trash2, X, AlertTriangle, Loader2, FlaskConical } from "lucide-react";
 import { VenueTable, type Column } from "@/components/ui/VenueTable";
 import { Button, IconButton } from "@/components/ui/Button";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type TicketStatus = "on_sale" | "hidden" | "sold_out" | "scheduled";
-
-interface TicketType {
-    id: string;
-    name: string;
-    status: TicketStatus;
-    price: number | null;
-    sold: number;
-    capacity: number;
-    openSale: string | null;
-    endSale: string | null;
-}
-
-interface TicketFormValues {
-    name: string;
-    price: string;
-    quantity: string;
-    openSale: string;
-    endSale: string;
-}
-
-// ─── Dev-mode mock fallback ───────────────────────────────────────────────────
-// Loaded automatically when the API is unreachable in local development so the
-// team can keep working on the UI without a live Firebase connection.
-
-const DEV_MOCK_TICKETS: TicketType[] = [
-    { id: "mock-1", name: "GA — Early Bird",  status: "on_sale",   price: 500,  sold: 10, capacity: 100, openSale: null, endSale: null },
-    { id: "mock-2", name: "GA — Tier 1",      status: "on_sale",   price: 800,  sold: 35, capacity: 150, openSale: null, endSale: null },
-    { id: "mock-3", name: "GA — Tier 2",      status: "on_sale",   price: 1000, sold: 80, capacity: 200, openSale: null, endSale: null },
-    { id: "mock-4", name: "VIP",              status: "sold_out",  price: 2500, sold: 50, capacity: 50,  openSale: null, endSale: null },
-    { id: "mock-5", name: "GA — Last Chance", status: "scheduled", price: 1500, sold: 0,  capacity: 100, openSale: null, endSale: null },
-    { id: "mock-6", name: "Staff Comp",       status: "hidden",    price: null, sold: 10, capacity: 30,  openSale: null, endSale: null },
-];
+import { useTicketSync, type TicketTier as TicketType, type TicketFormValues, type TicketStatus } from "@/lib/hooks/useTicketSync";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -269,14 +233,11 @@ function TicketFormModal({
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function TicketTypesClient({ eventId }: { eventId: string }) {
-    const { user, profile } = useDashboardAuth();
+    const { profile } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId ?? "";
-    const queryClient = useQueryClient();
-    const isDev = process.env.NODE_ENV === "development";
 
-    const [modalOpen, setModalOpen]               = useState(false);
-    const [deleteConfirmId, setDeleteConfirmId]   = useState<string | null>(null);
-    const [usingMockData, setUsingMockData]       = useState(false);
+    const [modalOpen, setModalOpen]             = useState(false);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
     // ── Missing eventId guard ───────────────────────────────────────────────
     if (!eventId) {
@@ -292,113 +253,19 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
         );
     }
 
-    // Authenticated fetch helper
-    const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-        const token = await user?.getIdToken();
-        return fetch(url, {
-            ...options,
-            headers: {
-                ...options.headers,
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                "Content-Type": "application/json",
-            },
-        });
-    }, [user]);
-
-    const baseUrl = `/api/venue/events/${eventId}/tickets?venueId=${venueId}`;
-
-    // ── Fetch ticket tiers ──────────────────────────────────────────────────
-    const { data, isLoading, isError } = useQuery<{ tiers: TicketType[] }>({
-        queryKey: ["venue-tickets", eventId, venueId],
-        queryFn: async () => {
-            // Don't attempt the call without a venueId — surface a clear message
-            if (!venueId) throw new Error("venueId not resolved — profile still loading");
-
-            let res: Response;
-            try {
-                res = await authedFetch(baseUrl);
-            } catch (networkErr: any) {
-                // Use warn in dev — console.error triggers the Next.js error overlay
-                if (isDev) {
-                    console.warn("[TicketTypes] Network error (dev fallback active):", networkErr);
-                    setUsingMockData(true);
-                    return { tiers: DEV_MOCK_TICKETS };
-                }
-                console.error("[TicketTypes] Network error fetching tiers:", networkErr);
-                throw networkErr;
-            }
-
-            if (!res.ok) {
-                const body = await res.json().catch(() => ({}));
-                // Use warn in dev so the Next.js error overlay doesn't fire
-                if (isDev) {
-                    console.warn(
-                        `[TicketTypes] API ${res.status} — using mock data (eventId=${eventId} venueId=${venueId}):`,
-                        body
-                    );
-                    setUsingMockData(true);
-                    return { tiers: DEV_MOCK_TICKETS };
-                }
-                console.error(
-                    `[TicketTypes] API error ${res.status} for eventId=${eventId} venueId=${venueId}:`,
-                    body
-                );
-                throw new Error(body.error || `HTTP ${res.status}: Failed to load ticket tiers`);
-            }
-
-            setUsingMockData(false);
-            return res.json();
-        },
-        // Wait for both ids before firing; profile may resolve slightly after mount
-        enabled: !!eventId && !!venueId,
-        staleTime: 5 * 60 * 1000,
-        gcTime: 15 * 60 * 1000,
-        refetchOnWindowFocus: false,
-        retry: 1,
-    });
-
-    const tickets: TicketType[] = data?.tiers ?? [];
-
-    // ── Add ticket tier ─────────────────────────────────────────────────────
-    const addMutation = useMutation({
-        mutationFn: async (form: TicketFormValues) => {
-            const res = await authedFetch(baseUrl, {
-                method: "POST",
-                body: JSON.stringify({
-                    name: form.name.trim(),
-                    price: form.price,
-                    quantity: form.quantity,
-                    openSale: form.openSale || null,
-                    endSale: form.endSale || null,
-                }),
-            });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Failed to create ticket");
-            }
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["venue-tickets", eventId, venueId] });
-            setModalOpen(false);
-        },
-    });
-
-    // ── Delete ticket tier ──────────────────────────────────────────────────
-    const deleteMutation = useMutation({
-        mutationFn: async (tierId: string) => {
-            const res = await authedFetch(`${baseUrl}&tierId=${tierId}`, { method: "DELETE" });
-            if (!res.ok) {
-                const err = await res.json().catch(() => ({}));
-                throw new Error(err.error || "Failed to delete ticket");
-            }
-            return res.json();
-        },
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["venue-tickets", eventId, venueId] });
-            setDeleteConfirmId(null);
-        },
-    });
+    // ── Shared sync hook (API + localStorage bridge) ────────────────────────
+    const {
+        tiers: tickets,
+        isLoading,
+        isError,
+        isLocalFallback,
+        isStale,
+        addTier,
+        deleteTier,
+        addMutationPending,
+        deleteMutationPending,
+        deletingId,
+    } = useTicketSync(eventId, venueId);
 
     // Build columns here so they close over state setters
     const columns: Column<TicketType>[] = [
@@ -481,7 +348,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
             width: "w-40",
             render: (row) => {
                 const confirming = deleteConfirmId === row.id;
-                const deleting = deleteMutation.isPending && deleteMutation.variables === row.id;
+                const deleting = deleteMutationPending && deletingId === row.id;
 
                 if (confirming) {
                     return (
@@ -496,7 +363,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                             <button
                                 className="px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors"
                                 style={{ background: "rgba(248,113,113,0.15)", color: "#F87171" }}
-                                onClick={() => deleteMutation.mutate(row.id)}
+                                onClick={() => { deleteTier(row.id); setDeleteConfirmId(null); }}
                                 disabled={deleting}
                             >
                                 {deleting ? <Loader2 size={11} className="animate-spin" /> : "Yes"}
@@ -573,36 +440,38 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                 </Button>
             </div>
 
-            {/* Dev mock data banner */}
-            {usingMockData && (
+            {/* Local fallback banner — API unreachable but localStorage data is shown */}
+            {isLocalFallback && (
                 <div
                     className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
                     style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}
                 >
                     <FlaskConical size={14} />
-                    Development mode — showing mock ticket data. API unreachable; check console for details.
+                    {process.env.NODE_ENV === "development"
+                        ? "Dev mode — showing locally cached ticket data. Check console for API details."
+                        : "Showing cached tickets — live data temporarily unavailable."}
                 </div>
             )}
 
-            {/* Error state (only shown in production or when not using mock fallback) */}
-            {isError && !usingMockData && (
+            {/* Stale indicator — local data visible while API fetch is in-flight */}
+            {isStale && (
+                <div
+                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
+                    style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", color: "#818CF8" }}
+                >
+                    <Loader2 size={13} className="animate-spin" />
+                    Syncing tickets with server…
+                </div>
+            )}
+
+            {/* Hard error — no data from API and nothing in localStorage */}
+            {isError && (
                 <div
                     className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
                     style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
                 >
                     <AlertTriangle size={14} />
                     Failed to load ticket tiers. Please refresh and try again.
-                </div>
-            )}
-
-            {/* Mutation error */}
-            {(addMutation.isError || deleteMutation.isError) && (
-                <div
-                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
-                    style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
-                >
-                    <AlertTriangle size={14} />
-                    {(addMutation.error as Error)?.message || (deleteMutation.error as Error)?.message}
                 </div>
             )}
 
@@ -640,9 +509,9 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
             {/* Modal */}
             <TicketFormModal
                 open={modalOpen}
-                saving={addMutation.isPending}
+                saving={addMutationPending}
                 onClose={() => setModalOpen(false)}
-                onSave={(form) => addMutation.mutate(form)}
+                onSave={async (form) => { await addTier(form); setModalOpen(false); }}
             />
         </div>
     );
