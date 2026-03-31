@@ -58,9 +58,9 @@ const DoorEntryBody = z.object({
     tierId: z.string(),
     tierName: z.string().optional(),
     entryType: z.string().optional(),
-    quantity: z.number().optional(),
-    unitPrice: z.number().optional(),
-    totalAmount: z.number().optional(),
+    quantity: z.number().int().min(1).max(20).optional(),
+    // SECURITY: unitPrice and totalAmount are NOT accepted from the client.
+    // Prices are always recalculated server-side from the event's ticket catalog.
     paymentMethod: z.string().optional(),
     gate: z.string().optional(),
     idempotencyKey: z.string().uuid().optional(),

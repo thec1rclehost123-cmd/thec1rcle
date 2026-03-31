@@ -915,8 +915,8 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     const order = await getOrderById(orderId);
     if (!order) throw new Error("Order not found");
 
-    if (order.status === "confirmed") {
-        return order; // Already confirmed
+    if (order.status === "confirmed" || order.status === "checked_in") {
+        return order; // Already confirmed — idempotent
     }
 
     const event = await getEvent(order.eventId);
@@ -942,7 +942,6 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
         if (index >= 0) {
             fallbackOrders[index] = { ...fallbackOrders[index], ...updates };
 
-            // Handle promoter conversion
             if (order.promoterLinkId) {
                 try {
                     const firstTicket = order.tickets[0];
@@ -957,9 +956,19 @@ export async function confirmOrder(orderId, paymentDetails = {}) {
     }
 
     const db = getAdminDb();
+    const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
 
     await db.runTransaction(async (transaction) => {
-        transaction.update(db.collection(ORDERS_COLLECTION).doc(orderId), updates);
+        // Re-read inside transaction to guard against concurrent confirmations (TOCTOU fix)
+        const freshSnap = await transaction.get(orderRef);
+        if (!freshSnap.exists) throw new Error("Order not found in transaction");
+        const freshStatus = freshSnap.data()?.status;
+        if (freshStatus === "confirmed" || freshStatus === "checked_in") {
+            // Already confirmed by a concurrent request — idempotent, no-op
+            return;
+        }
+
+        transaction.update(orderRef, updates);
 
         // MONEY LEDGER INTEGRATION (ATOMIC)
         const paymentId = paymentDetails.razorpayPaymentId || paymentDetails.id || "UNKNOWN";

@@ -13,30 +13,22 @@ const getAdminConfig = () => {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
   if (privateKey) {
-    // 1. Handle literal \n replacement
+    // Step 1: Unescape literal \n sequences from environment variable storage
     privateKey = privateKey.replace(/\\n/g, "\n");
 
-    // 2. Remove any surrounding quotes if they somehow got into the string
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
+    // Step 2: Strip surrounding quotes added by some env var tools (e.g. dotenv)
+    if (
+      (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+      (privateKey.startsWith("'") && privateKey.endsWith("'"))
+    ) {
       privateKey = privateKey.slice(1, -1);
+      // Re-unescape after quote strip in case the value was double-encoded
+      privateKey = privateKey.replace(/\\n/g, "\n");
     }
 
-    // 3. Robustly reconstruct the PEM
-    //    Remove header, footer first to isolate body
-    let body = privateKey
-      .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-      .replace(/-----END PRIVATE KEY-----/g, "");
-
-    //    Clean body: keep ONLY valid Base64 chars (A-Z, a-z, 0-9, +, /, =)
-    //    This aggressively strips whitespace, newlines, escaped newlines, and garbage chars like backslashes
-    body = body.replace(/[^a-zA-Z0-9+/=]/g, "");
-
-    //    Reformat body into 64-char lines
-    const formattedBody = body.match(/.{1,64}/g)?.join("\n");
-
-    if (formattedBody) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${formattedBody}\n-----END PRIVATE KEY-----\n`;
-    }
+    // DO NOT strip base64 body chars or reformat the PEM.
+    // The Firebase Admin SDK accepts a valid PEM string directly.
+    // Stripping chars corrupts the key material.
   }
 
   // Remove debug logs to avoid clutter/leaks

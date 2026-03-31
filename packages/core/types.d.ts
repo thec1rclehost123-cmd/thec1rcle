@@ -173,4 +173,213 @@ declare module '@c1rcle/core/cms-engine' {
     export function initializeVenueFacilities(db: any, venueId: string): Promise<any[]>;
 }
 
+declare module '@c1rcle/core/security-state' {
+    /**
+     * Increment the global auth failure velocity counter.
+     * Activates high-risk mode when >100 failures occur in a 60-second window.
+     * Call on every credential stuffing detection event.
+     */
+    export function recordGlobalAuthFailure(): Promise<void>;
+
+    /**
+     * Returns true when the system is in high-risk mode (distributed botnet detected).
+     * The adaptive rate limiter uses this to halve all limits system-wide.
+     */
+    export function isHighRiskMode(): Promise<boolean>;
+
+    export const TTL: {
+        IP_BLOCK: number;
+        USER_BLOCK: number;
+        ADMIN_SUSPENSION: number;
+        USER_FLAG: number;
+    };
+
+    export function blockIp(ip: string, reason: string, ttlSec?: number): Promise<void>;
+    export function unblockIp(ip: string): Promise<void>;
+    export function isIpBlocked(ip: string): Promise<{ blocked: boolean; reason?: string }>;
+
+    export function blockUser(uid: string, reason: string, ttlSec?: number): Promise<void>;
+    export function unblockUser(uid: string): Promise<void>;
+    export function isUserBlocked(uid: string): Promise<{ blocked: boolean; reason?: string }>;
+
+    export function flagUser(uid: string, reason: string): Promise<void>;
+    export function unflagUser(uid: string): Promise<void>;
+    export function isUserFlagged(uid: string): Promise<{ flagged: boolean; reason?: string }>;
+
+    export function suspendAdmin(adminId: string, reason: string, ttlSec?: number): Promise<void>;
+    export function clearAdminSuspension(adminId: string): Promise<void>;
+    export function isAdminSuspended(adminId: string): Promise<{ suspended: boolean; reason?: string }>;
+
+    export interface SecurityOverview {
+        blockedIps: string[];
+        blockedUsers: string[];
+        flaggedUsers: string[];
+        suspendedAdmins: string[];
+        recentAttacks: Record<string, unknown>[];
+        counts: {
+            blockedIps: number;
+            blockedUsers: number;
+            flaggedUsers: number;
+            suspendedAdmins: number;
+        };
+    }
+    export function getSecurityOverview(): Promise<SecurityOverview>;
+
+    // Hybrid fail strategy helpers
+    export function isRedisHealthy(): boolean;
+    export function memoryRateLimit(key: string, limit: number, windowMs?: number): {
+        allowed: boolean;
+        count: number;
+        remaining: number;
+    };
+    export function checkCriticalEndpoint(identifier: string, criticalLimit: number, windowMs?: number): {
+        allowed: boolean;
+        degraded: boolean;
+    };
+}
+
+declare module '@c1rcle/core/rate-limiter' {
+    export interface RateLimitResult {
+        success: boolean;
+        limit: number;
+        remaining: number;
+        reset: number;
+    }
+    export interface AdaptiveRateLimitResult extends RateLimitResult {
+        tier: string;
+        highRiskMode: boolean;
+    }
+    export function checkRateLimit(key: string, limit?: number, windowSeconds?: number): Promise<RateLimitResult>;
+    export function checkAdaptiveRateLimit(key: string, baseLimit: number, windowSeconds: number, reputationType: 'ip' | 'user' | 'admin', reputationId: string): Promise<AdaptiveRateLimitResult>;
+    export function clearRateLimit(key: string): Promise<void>;
+}
+
+declare module '@c1rcle/core/reputation' {
+    export const SCORE_EVENTS: {
+        AUTH_FAIL: number;
+        RATE_LIMIT: number;
+        PAYMENT_ANOMALY: number;
+        ADMIN_ABUSE: number;
+    };
+    export const RISK_TIERS: Array<{ minScore: number; multiplier: number; label: string }>;
+    export function getRiskTier(score: number): { minScore: number; multiplier: number; label: string };
+    export function addReputation(
+        type: "ip" | "user" | "admin",
+        id: string,
+        event: "AUTH_FAIL" | "RATE_LIMIT" | "PAYMENT_ANOMALY" | "ADMIN_ABUSE"
+    ): Promise<{ score: number; tier: string }>;
+    export function getReputationScore(type: "ip" | "user" | "admin", id: string): Promise<number>;
+    export function getAdaptiveLimit(
+        baseLimit: number,
+        type: "ip" | "user" | "admin",
+        id: string
+    ): Promise<{ limit: number; tier: string; score: number }>;
+    export function getTopRiskyEntities(
+        type: "ip" | "user" | "admin",
+        n?: number
+    ): Promise<Array<{ id: string; score: number; tier: string }>>;
+    export function recordAttackTrend(eventType: string, endpoint?: string): Promise<void>;
+    export function getAttackTrends(): Promise<{
+        trends: Record<string, Record<string, number>>;
+        mostTargetedEndpoints: Array<{ endpoint: string; count: number }>;
+    }>;
+}
+
+declare module '@c1rcle/core/pattern-detection' {
+    export interface DetectedPattern {
+        type: string;
+        detail: string;
+    }
+    export function recordAndCheckPatterns(
+        ip: string | null,
+        uid: string | null
+    ): Promise<DetectedPattern[]>;
+    export function checkActivitySpike(
+        uid: string,
+        eventLabel?: string
+    ): Promise<{ detected: boolean; count: number }>;
+    export function getIpTargetCount(ip: string): Promise<number>;
+}
+
+declare module '@c1rcle/core/security-logger' {
+    export function logSecurityEvent(type: string, data?: {
+        ip?: string | null;
+        uid?: string | null;
+        adminId?: string | null;
+        endpoint?: string | null;
+        reason?: string | null;
+        count?: number;
+        mitigated?: boolean;
+        mitigationAction?: string | null;
+        patterns?: string[];
+        metadata?: Record<string, unknown>;
+    }): void;
+
+    export function querySecurityEvents(opts?: {
+        limit?: number;
+        type?: string;
+        severity?: string;
+        mitigatedOnly?: boolean;
+        after?: unknown;
+    }): Promise<Array<{ id: string; [key: string]: unknown }>>;
+
+    export function createIncident(payload: {
+        entityType: 'user' | 'ip' | 'admin';
+        entityId: string;
+        severity?: 'low' | 'medium' | 'high' | 'critical';
+        reason: string;
+        evidence?: Record<string, unknown>;
+        linkedEventId?: string | null;
+        createdBy: string;
+    }): Promise<string>;
+
+    export function updateIncident(incidentId: string, updates: {
+        status?: 'flagged' | 'under_review' | 'resolved' | 'false_positive';
+        assignedTo?: string | null;
+        resolution?: string | null;
+        resolvedBy?: string | null;
+        severity?: string;
+    }): Promise<void>;
+
+    export function queryIncidents(opts?: {
+        status?: string;
+        severity?: string;
+        entityType?: string;
+        limit?: number;
+        after?: unknown;
+    }): Promise<Array<{ id: string; [key: string]: unknown }>>;
+
+    export function getIncident(incidentId: string): Promise<{ id: string; [key: string]: unknown } | null>;
+}
+
+declare module '@c1rcle/core/attack-detection' {
+    export interface DetectionResult {
+        detected: boolean;
+        reason: string | null;
+        count: number;
+        mitigated: boolean;
+        patterns?: string[];
+    }
+
+    export interface AbuseResult {
+        detected: boolean;
+        count: number;
+        mitigated: boolean;
+    }
+
+    export function checkCredentialStuffing(
+        ip: string | null,
+        uid: string | null,
+        endpoint?: string
+    ): Promise<DetectionResult>;
+    export function checkPaymentFraud(
+        uid: string | null,
+        ip: string | null,
+        endpoint?: string
+    ): Promise<DetectionResult>;
+    export function checkAdminAbuse(adminId: string, endpoint?: string): Promise<AbuseResult>;
+    export function recordRateLimitHit(ip: string | null, uid: string | null, endpoint?: string): Promise<void>;
+    export function peekCounter(key: string): Promise<number>;
+}
+
 

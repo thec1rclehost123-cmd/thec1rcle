@@ -1,0 +1,63 @@
+On branch staging
+Your branch is behind 'origin/staging' by 3 commits, and can be fast-forwarded.
+  (use "git pull" to update your local branch)
+
+Changes to be committed:
+  (use "git restore --staged <file>..." to unstage)
+	modified:   apps/admin-console/app/api/actions/route.js
+	modified:   apps/admin-console/lib/server/adminMiddleware.js
+	modified:   apps/admin-console/lib/server/adminStore.js
+	modified:   apps/admin-console/lib/server/auth.js
+	modified:   apps/admin-console/next-env.d.ts
+	modified:   apps/admin-console/tsconfig.json
+	modified:   apps/api-gateway/src/app.ts
+	modified:   apps/api-gateway/src/plugins/realtime.ts
+	modified:   apps/api-gateway/src/plugins/redis.ts
+	modified:   apps/api-gateway/src/routes/v1/scan.ts
+	modified:   apps/guest-portal/app/api/checkout/initiate/route.js
+	modified:   apps/guest-portal/app/api/checkout/reserve/route.js
+	modified:   apps/guest-portal/app/api/orders/[orderId]/cancel/route.js
+	modified:   apps/guest-portal/app/api/payments/route.js
+	modified:   apps/guest-portal/app/api/tickets/scan/route.js
+	modified:   apps/guest-portal/app/api/webhooks/payment/route.js
+	modified:   apps/guest-portal/instrumentation.js
+	modified:   apps/guest-portal/lib/server/auth.js
+	modified:   apps/guest-portal/lib/server/checkoutService.js
+	modified:   apps/guest-portal/lib/server/orderStore.js
+	modified:   apps/guest-portal/lib/server/rateLimit.js
+	modified:   apps/guest-portal/lib/server/ticketShareStore.js
+	modified:   apps/guest-portal/lib/server/verification.js
+	modified:   apps/guest-portal/next-env.d.ts
+	modified:   apps/partner-dashboard/instrumentation.js
+	modified:   apps/partner-dashboard/lib/server/auth.js
+	modified:   apps/partner-dashboard/lib/server/hostAuthMiddleware.ts
+	modified:   apps/partner-dashboard/lib/server/logger.ts
+	modified:   apps/partner-dashboard/lib/server/promoterAuthMiddleware.ts
+	modified:   packages/core/admin.js
+	modified:   packages/core/package.json
+	modified:   packages/core/rate-limiter.js
+	modified:   packages/core/types.d.ts
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	apps/admin-console/app/api/security/
+	apps/admin-console/app/security/
+	apps/admin-console/instrumentation.js
+	apps/admin-console/lib/server/logger.js
+	apps/admin-console/middleware.js
+	apps/api-gateway/src/lib/securityLogger.ts
+	apps/guest-portal/lib/server/logger.js
+	apps/guest-portal/middleware.js
+	apps/partner-dashboard/middleware.ts
+	clean_status.txt
+	git_status_full.txt
+	packages/core/attack-detection.js
+	packages/core/pattern-detection.js
+	packages/core/reputation.js
+	packages/core/security-logger.js
+	packages/core/security-state.js
+	packages/core/security.test.js
+	status.txt
+	tmp/
+	tmp_status.txt
+

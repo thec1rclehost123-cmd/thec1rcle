@@ -52,7 +52,6 @@ const server = Fastify({
     genReqId: function (req) {
         return (req.headers['x-request-id'] as string) || crypto.randomUUID();
     },
-    // ... (logger remains same)
     logger: {
         redact: ['req.headers.authorization', 'req.headers.cookie', 'req.headers["x-api-key"]'],
         serializers: {
@@ -64,13 +63,17 @@ const server = Fastify({
                 };
             }
         },
-        transport: {
-            target: 'pino-pretty',
-            options: {
-                translateTime: 'HH:MM:ss Z',
-                ignore: 'pid,hostname',
+        // Production: plain JSON lines (readable by Cloud Logging / Datadog / Loki)
+        // Development: pino-pretty for human-readable coloured output
+        ...(process.env.NODE_ENV !== 'production' ? {
+            transport: {
+                target: 'pino-pretty',
+                options: {
+                    translateTime: 'HH:MM:ss Z',
+                    ignore: 'pid,hostname',
+                },
             },
-        },
+        } : {}),
     },
 });
 
@@ -78,7 +81,8 @@ async function main() {
     // @ts-ignore - Sentry v10 types may have inconsistent dsn property in BaseNodeOptions
     Sentry.init({
         dsn: process.env.SENTRY_DSN || "",
-        tracesSampleRate: 1.0,
+        // 10% trace sampling in production — errors always captured at 100%
+        tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
         environment: process.env.NODE_ENV || "development",
     });
 

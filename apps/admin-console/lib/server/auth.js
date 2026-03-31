@@ -5,18 +5,15 @@ import { headers } from "next/headers";
 /**
  * Verify the Firebase ID token from the Authorization header.
  * Returns the decoded token if valid, or null if invalid/missing.
- * 
+ * SECURITY: Never returns a hardcoded fallback user. Fails closed.
+ * Admin routes: if Firebase is not configured this always returns null.
+ *
  * @param {Request} [request] - The incoming Next.js request object (optional for Server Actions)
  */
 export async function verifyAuth(request) {
     if (!isFirebaseConfigured()) {
-        if (process.env.NODE_ENV === "development") {
-            return {
-                uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1", // Use the actual dev UID for Aayush
-                email: "aayushdivase2020333@gmail.com",
-                name: "Aayush Divase"
-            };
-        }
+        // Admin console must never fall back to a fake user under any circumstances
+        console.error("[AdminAuth] CRITICAL: Firebase not configured — all admin requests rejected");
         return null;
     }
 
@@ -29,17 +26,10 @@ export async function verifyAuth(request) {
     }
 
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        if (process.env.NODE_ENV === "development") {
-            return {
-                uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-                email: "aayushdivase2020333@gmail.com",
-                name: "Aayush Divase"
-            };
-        }
         return null;
     }
 
-    const token = authHeader.split("Bearer ")[1];
+    const token = authHeader.slice(7);
 
     try {
         const app = getAdminApp();
@@ -47,14 +37,7 @@ export async function verifyAuth(request) {
         const decodedToken = await auth.verifyIdToken(token);
         return decodedToken;
     } catch (error) {
-        console.error("Auth verification failed:", error);
-        if (process.env.NODE_ENV === "development") {
-            return {
-                uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-                email: "aayushdivase2020333@gmail.com",
-                name: "Aayush Divase"
-            };
-        }
+        console.error("[AdminAuth] Token verification failed:", error.code || error.message);
         return null;
     }
 }

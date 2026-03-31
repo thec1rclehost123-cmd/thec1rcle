@@ -33,7 +33,8 @@ export async function writeAuditLog(
     hostId: string,
     uid: string,
     action: string,
-    payload: Record<string, unknown> = {}
+    payload: Record<string, unknown> = {},
+    delta?: { before?: Record<string, unknown>; after?: Record<string, unknown> }
 ): Promise<void> {
     try {
         const db = getAdminDb();
@@ -43,6 +44,9 @@ export async function writeAuditLog(
             uid,
             action,
             payload,
+            // Store before/after snapshots when provided so rogue admin actions
+            // are fully reconstructable from the audit trail
+            ...(delta ? { stateBefore: delta.before ?? null, stateAfter: delta.after ?? null } : {}),
             timestamp: Date.now(),
             createdAt: new Date().toISOString(),
         });
@@ -95,19 +99,6 @@ export async function requireHostAccess(
     }
 
     const uid = decodedToken.uid;
-
-    // Development bypass
-    if (process.env.NODE_ENV === "development" && uid === "dev-user-123") {
-        const devHostId =
-            explicitHostId || extractHostId(req) || "dev-host-001";
-        return {
-            uid,
-            hostId: devHostId,
-            role: "OWNER",
-            membershipId: "dev-membership",
-            displayName: "Dev Host",
-        };
-    }
 
     // 2. Resolve hostId from request
     const hostId = explicitHostId || extractHostId(req);

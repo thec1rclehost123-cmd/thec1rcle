@@ -25,6 +25,9 @@
       ],
       "@c1rcle/core": [
         "../../packages/core"
+      ],
+      "@c1rcle/core/*": [
+        "../../packages/core/*"
       ]
     },
     "plugins": [

@@ -3,11 +3,13 @@ import { verifyAuth } from "@/lib/server/auth";
 import { validateAndScanTicket, validateShortQR } from "@/lib/server/ticketShareStore";
 import { processEntryScan } from "@c1rcle/core/entitlement-engine";
 import { verifyQRPayload } from "@/lib/server/qrStore";
+import { logAuthEvent, logScanEvent } from "@/lib/server/logger";
 
 export async function POST(request) {
     try {
-        const user = await verifyAuth();
+        const user = await verifyAuth(request);
         if (!user) {
+            logAuthEvent("UNAUTHORIZED_SCAN_ATTEMPT", { path: "/api/tickets/scan" });
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
         }
 
@@ -48,6 +50,7 @@ export async function POST(request) {
                     });
                 }
 
+                logScanEvent("INVALID_QR_SIGNATURE", { eventId, scannerId: scannerId || user.uid });
                 return NextResponse.json({
                     status: "denied",
                     reason: "invalid_signature",
@@ -102,15 +105,21 @@ export async function POST(request) {
             }
         }
 
-        // LEGACY FALLBACK
-        const [ticketId, signature] = ticketPayload.split(":");
-        if (!ticketId || !signature) {
-            return NextResponse.json({
-                status: "denied",
-                reason: "invalid_format",
-                message: "Invalid ticket format"
-            });
+        // LEGACY FALLBACK — validate structure before splitting to prevent garbage input
+        if (typeof ticketPayload !== "string" || ticketPayload.length > 512) {
+            return NextResponse.json({ status: "denied", message: "Ticket denied" });
         }
+
+        const parts = ticketPayload.split(":");
+        // New format: ticketId:userId:issuedAt:signature (4 parts)
+        // Old format: ticketId:signature (2 parts) — still accepted during migration
+        if (parts.length < 2 || parts.some(p => !p)) {
+            console.warn("[Scan] Malformed legacy ticket payload — wrong number of parts:", parts.length);
+            return NextResponse.json({ status: "denied", message: "Ticket denied" });
+        }
+
+        const ticketId = parts[0];
+        const signature = parts[parts.length - 1]; // last part is always the signature
 
         const result = await validateAndScanTicket(ticketId, signature, eventId, scannerId || user.uid);
 
@@ -120,17 +129,11 @@ export async function POST(request) {
                 ticket: result.ticket
             });
         } else {
-            const reasonMap = {
-                invalid_signature: { status: "denied", message: "Invalid ticket (forged)" },
-                already_used: { status: "denied", message: "Already used" },
-                event_mismatch: { status: "denied", message: "Ticket is for a different event" },
-                order_not_found: { status: "denied", message: "Ticket not found" },
-                order_not_confirmed: { status: "denied", message: "Payment not confirmed" },
-                cancelled: { status: "denied", message: "Ticket cancelled" }
-            };
-
-            const response = reasonMap[result.reason] || { status: "denied", message: "Access denied" };
-            return NextResponse.json(response);
+            // SECURITY: Use a single generic denial message for all failure reasons.
+            // Specific reasons (invalid_signature, already_used, etc.) are logged
+            // server-side only — never exposed to scanners to prevent ticket enumeration.
+            logScanEvent("LEGACY_TICKET_DENIED", { reason: result.reason, ticketId, eventId });
+            return NextResponse.json({ status: "denied", message: "Ticket denied" });
         }
 
     } catch (error) {

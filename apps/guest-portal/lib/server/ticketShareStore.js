@@ -26,12 +26,62 @@ function generateToken(length = 16) {
 }
 
 /**
- * Sign a ticket payload for QR verification
+ * Sign a ticket payload for QR verification.
+ * Token format: ticketId:userId:issuedAt:hmac
+ * - Uses full 64-char HMAC (no truncation)
+ * - Binds signature to userId so stolen tokens are useless to others
+ * - issuedAt enables TTL expiry validation at scan time
+ * @param {string} ticketId
+ * @param {string} userId
+ * @returns {{ token: string, issuedAt: number }}
  */
-function signTicketPayload(ticketId) {
-    const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
-    const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-    return `${ticketId}:${signature}`;
+function signTicketPayload(ticketId, userId) {
+    const secret = process.env.TICKET_SECRET;
+    if (!secret) {
+        throw new Error("TICKET_SECRET env var is not configured");
+    }
+    const issuedAt = Date.now();
+    const payload = `${ticketId}:${userId}:${issuedAt}`;
+    const signature = createHmac("sha256", secret).update(payload).digest("hex"); // full 64 chars
+    return { token: `${ticketId}:${userId}:${issuedAt}:${signature}`, issuedAt };
+}
+
+/**
+ * Verify a signed ticket token.
+ * @param {string} token - The full token string from QR code
+ * @param {{ ttlMs?: number }} options
+ * @returns {{ valid: boolean, ticketId?: string, userId?: string, reason?: string }}
+ */
+export function verifyTicketToken(token, { ttlMs = 24 * 60 * 60 * 1000 } = {}) {
+    const secret = process.env.TICKET_SECRET;
+    if (!secret) return { valid: false, reason: "misconfigured" };
+
+    const parts = token?.split(":");
+    if (!parts || parts.length !== 4) return { valid: false, reason: "malformed" };
+
+    const [ticketId, userId, issuedAtStr, receivedSig] = parts;
+    const issuedAt = parseInt(issuedAtStr, 10);
+
+    if (!ticketId || !userId || isNaN(issuedAt) || !receivedSig) {
+        return { valid: false, reason: "malformed" };
+    }
+
+    // Check TTL
+    if (Date.now() - issuedAt > ttlMs) {
+        return { valid: false, reason: "expired" };
+    }
+
+    // Constant-time HMAC comparison
+    const expectedSig = createHmac("sha256", secret)
+        .update(`${ticketId}:${userId}:${issuedAt}`)
+        .digest("hex");
+    const expected = Buffer.from(expectedSig, "hex");
+    const received = Buffer.from(receivedSig.padEnd(64, "0"), "hex");
+    if (expected.length !== received.length || !expected.equals(received)) {
+        return { valid: false, reason: "invalid_signature" };
+    }
+
+    return { valid: true, ticketId, userId };
 }
 
 /**

@@ -1,6 +1,26 @@
 import { NextResponse } from "next/server";
 import { getAdminApp } from "../firebase/admin";
 import { getAuth } from "firebase-admin/auth";
+import { randomUUID, createHash } from "node:crypto";
+
+/**
+ * Derive a stable client fingerprint from request headers.
+ * Used when no real IP is available (no reverse proxy / direct connection).
+ * The "fp:" prefix distinguishes fingerprints from real IPs in logs and block keys.
+ * Not a substitute for a real IP — but ensures the client is trackable and blockable.
+ */
+function computeClientFingerprint(req) {
+    const raw = [
+        req.headers.get("user-agent")      || "",
+        req.headers.get("accept")          || "",
+        req.headers.get("accept-language") || "",
+        req.headers.get("accept-encoding") || "",
+        req.headers.get("sec-ch-ua")       || "",
+    ].join("|");
+    return "fp:" + createHash("sha256").update(raw).digest("hex").slice(0, 24);
+}
+import { logAuthEvent } from "./logger";
+import { isAdminSuspended, checkCriticalEndpoint } from "@c1rcle/core/security-state";
 
 /**
  * THE C1RCLE - Admin Authorization Middleware (Hardened)
@@ -29,6 +49,16 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             return genericNotFound();
         }
 
+        // Hybrid fail strategy: admin routes are critical — 5 req/min/IP in degraded mode
+        const reqIp = req.headers.get("x-real-ip")
+            || req.headers.get("x-forwarded-for")?.split(",").pop()?.trim()
+            || computeClientFingerprint(req);
+        const critical = checkCriticalEndpoint(`admin:ip:${reqIp}`, 5, 60_000);
+        if (!critical.allowed) {
+            logAuthEvent("REDIS_DEGRADED_RATE_LIMITED", { ip: reqIp, path: req.nextUrl?.pathname });
+            return genericNotFound();
+        }
+
         const token = authHeader.split('Bearer ')[1];
 
         try {
@@ -40,7 +70,12 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             const { role, admin_role, admin: isAdminClaim } = decodedToken;
 
             if (role !== 'admin' && isAdminClaim !== true) {
-                console.error(`[SECURITY] Unauthorized admin access attempt by UID: ${decodedToken.uid}. Role: ${role}, AdminClaim: ${isAdminClaim}`);
+                logAuthEvent("UNAUTHORIZED_ADMIN_ACCESS", {
+                    uid: decodedToken.uid,
+                    role,
+                    isAdminClaim,
+                    path: req.nextUrl?.pathname,
+                });
                 return genericNotFound();
             }
 
@@ -59,7 +94,12 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             const requiredRoleValue = hierarchy[requiredRole] || 100;
 
             if (userRoleValue < requiredRoleValue) {
-                console.error(`[SECURITY] Privileged escalation attempt. Admin ${decodedToken.uid} (${admin_role}) requested ${requiredRole} access.`);
+                logAuthEvent("PRIVILEGE_ESCALATION_ATTEMPT", {
+                    uid: decodedToken.uid,
+                    currentRole: admin_role,
+                    requiredRole,
+                    path: req.nextUrl?.pathname,
+                });
                 return genericNotFound();
             }
 
@@ -68,20 +108,49 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
                 const authTime = decodedToken.auth_time * 1000;
                 const threshold = Date.now() - (30 * 60 * 1000);
                 if (authTime < threshold) {
-                    console.error(`[SECURITY] Admin session stale (30m+). Re-auth required for UID: ${decodedToken.uid}`);
+                    logAuthEvent("STALE_ADMIN_SESSION", {
+                        uid: decodedToken.uid,
+                        authTime: new Date(authTime).toISOString(),
+                        path: req.nextUrl?.pathname,
+                    });
                     return genericNotFound();
                 }
             }
 
-            // --- 🕵️ REQUEST CONTEXT CAPTURE ---
-            const forwarded = req.headers.get("x-forwarded-for");
-            const ipAddress = forwarded ? forwarded.split(',')[0].trim() : (req.ip || "127.0.0.1");
-            const userAgent = req.headers.get("user-agent") || "unknown";
-            const requestId = `REQ_${Math.random().toString(36).substring(2, 15)}_${Date.now()}`;
-
             // Reject tokens missing admin_role claim — do not silently downgrade
             if (!admin_role) {
-                console.error(`[SECURITY] Admin token missing admin_role claim for UID: ${decodedToken.uid}`);
+                logAuthEvent("MISSING_ADMIN_ROLE_CLAIM", {
+                    uid: decodedToken.uid,
+                    path: req.nextUrl?.pathname,
+                });
+                return genericNotFound();
+            }
+
+            // --- 🕵️ REQUEST CONTEXT CAPTURE ---
+            // IP: read x-real-ip first (set by Vercel/Cloudflare, not user-controllable).
+            // Fallback to RIGHTMOST x-forwarded-for — leftmost is user-controllable.
+            const realIp = req.headers.get("x-real-ip");
+            const forwarded = req.headers.get("x-forwarded-for");
+            const resolvedIp = realIp?.trim()
+                || (forwarded ? forwarded.split(",").map(s => s.trim()).filter(Boolean).pop() : null);
+            // When no IP header is present (no reverse proxy), derive a fingerprint so
+            // the client is still trackable and blockable rather than silently ignored.
+            const ipAddress = resolvedIp || computeClientFingerprint(req);
+            const userAgent = req.headers.get("user-agent") || "unknown";
+            // Use x-request-id from upstream (API Gateway / Vercel) for correlation; generate if absent
+            const requestId = req.headers.get("x-request-id") || randomUUID();
+
+            // Active defense: reject suspended admins — checked AFTER token verify
+            // so we know the UID before consulting Redis
+            const suspensionStatus = await isAdminSuspended(decodedToken.uid);
+            if (suspensionStatus.suspended) {
+                logAuthEvent("SUSPENDED_ADMIN_REJECTED", {
+                    uid: decodedToken.uid,
+                    admin_role,
+                    reason: suspensionStatus.reason,
+                    path: req.nextUrl?.pathname,
+                    requestId,
+                });
                 return genericNotFound();
             }
 
@@ -96,7 +165,10 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
 
             return handler(req, ...args);
         } catch (error) {
-            console.error("[SECURITY] Admin Auth Failed:", error.code || error.message);
+            logAuthEvent("ADMIN_TOKEN_VERIFICATION_FAILED", {
+                errorCode: error.code || error.message,
+                path: req.nextUrl?.pathname,
+            });
             return genericNotFound();
         }
     };

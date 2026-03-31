@@ -50,16 +50,6 @@ export async function requirePromoterAccess(
 
     const uid = decodedToken.uid;
 
-    // Development bypass
-    if (process.env.NODE_ENV === "development" && uid === "dev-user-123") {
-        return {
-            uid,
-            promoterId: "dev-promoter-001",
-            role: "PROMOTER",
-            displayName: "Dev Promoter",
-        };
-    }
-
     // 2. Fast path — check JWT custom claims
     const claims = decodedToken as any;
     if (

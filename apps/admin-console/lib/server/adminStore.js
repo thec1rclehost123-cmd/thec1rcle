@@ -1,6 +1,7 @@
 import { getAdminDb, getAdminAuth } from "@/lib/firebase/admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { Resend } from "resend";
+import { getRedisClient } from "@c1rcle/core/redis";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const FROM_ADDR = process.env.NODE_ENV === "development"
@@ -600,19 +601,57 @@ export const adminStore = {
         return { success: true };
     },
 
-    // --- 🔁 Idempotency check: returns true if the same action was already executed within 5 minutes ---
+    // --- 🔁 Idempotency check (race-safe): returns true if this action was already submitted ---
+    //
+    // PRIMARY PATH — Redis SET NX (atomic):
+    //   SET NX is a single Redis command: "set this key only if it does not already exist".
+    //   Because it is atomic, only ONE of N concurrent requests wins the set.
+    //   All others receive null and are rejected as duplicates immediately — no TOCTOU window.
+    //
+    // FALLBACK PATH — Firestore transaction (when Redis is unavailable):
+    //   Firestore transactions use optimistic locking. If two concurrent transactions both
+    //   read the idempotency doc as "not found", one commits first and the other retries,
+    //   seeing the committed record on retry. Race-safe, but ~20-30ms slower.
+    //
     async checkRecentActionDuplicate(adminId, action, targetId, idempotencyKey) {
+        const IDEMPOTENCY_TTL_SEC = 300; // 5 minutes
+
+        // ── Primary: Redis SET NX ──────────────────────────────────────────────
+        try {
+            const redis = getRedisClient();
+            if (redis.status === "ready" || redis.status === "connecting") {
+                const key = `idempotent:admin:${adminId}:${action}:${idempotencyKey}`;
+                // 'OK'  → key was just created by this request → first submission, proceed
+                // null  → key already existed            → duplicate, reject
+                const result = await redis.set(key, '1', 'EX', IDEMPOTENCY_TTL_SEC, 'NX');
+                return result === null;
+            }
+        } catch (_) { /* Redis unavailable — fall through to Firestore */ }
+
+        // ── Fallback: Firestore transaction ───────────────────────────────────
         const db = getAdminDb();
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const snapshot = await db.collection('admin_audit_logs')
-            .where('adminId', '==', adminId)
-            .where('action', '==', action)
-            .where('targetId', '==', targetId)
-            .where('idempotencyKey', '==', idempotencyKey)
-            .where('timestamp', '>=', fiveMinutesAgo)
-            .limit(1)
-            .get();
-        return !snapshot.empty;
+        const docRef = db.collection('admin_idempotency').doc(
+            `${adminId}:${action}:${idempotencyKey}`
+        );
+        let duplicate = false;
+        try {
+            await db.runTransaction(async (tx) => {
+                const doc = await tx.get(docRef);
+                if (doc.exists) {
+                    const ageMs = Date.now() - (doc.data().createdAt?.toMillis?.() || 0);
+                    if (ageMs < IDEMPOTENCY_TTL_SEC * 1000) {
+                        duplicate = true;
+                        return; // do not write — just mark duplicate and exit
+                    }
+                    // Record exists but has expired — fall through to overwrite
+                }
+                tx.set(docRef, {
+                    adminId, action, targetId,
+                    createdAt: FieldValue.serverTimestamp(),
+                });
+            });
+        } catch (_) { /* Transaction error — fail open to avoid blocking legitimate actions */ }
+        return duplicate;
     },
 
     async executePayoutBatch(batchId, adminId, reason, evidence) {

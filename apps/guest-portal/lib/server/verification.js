@@ -1,6 +1,16 @@
 import { getAdminDb } from "../firebase/admin";
 import { Resend } from "resend";
+import { createHash } from "node:crypto";
 import { SECURITY_CONFIG } from "./security";
+
+/**
+ * Hash an OTP code before storing in Firestore.
+ * Uses SHA-256 — fast enough for 6-digit codes where the real protection
+ * is the short TTL and attempt cap, not the hash strength.
+ */
+function hashOtp(code) {
+    return createHash("sha256").update(code).digest("hex");
+}
 
 const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY;
 const MSG91_TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID;
@@ -35,8 +45,10 @@ export async function sendEmailOtp(email, type = 'auth') {
         }
     }
 
+    // SECURITY: Store the hash, not the plaintext code.
+    // If the Firestore database is read by an attacker, active OTPs cannot be used.
     await docRef.set({
-        code,
+        codeHash: hashOtp(code),
         type,
         expiresAt,
         lastSent: new Date(),
@@ -92,7 +104,10 @@ export async function verifyEmailOtp(email, code, type = 'auth') {
         throw new Error("Too many attempts. Ritual reset required.");
     }
 
-    if (data.code !== code) {
+    // Compare hash of submitted code against stored hash — never compare plaintext
+    const submittedHash = hashOtp(code);
+    const storedHash = data.codeHash || data.code; // data.code fallback for existing records only
+    if (submittedHash !== storedHash) {
         await db.collection("otps").doc(`${type}_${email}`).update({
             attempts: (data.attempts || 0) + 1
         });

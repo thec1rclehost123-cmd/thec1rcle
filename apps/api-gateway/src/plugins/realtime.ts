@@ -11,29 +11,25 @@ export default fp(async (fastify: FastifyInstance) => {
     const clients = new Set<WSClient>();
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
     
-    // Dedicated client for PUB/SUB (subscribers must have their own connection)
-    const subRedis = new Redis(redisUrl);
-
-    subRedis.on('message', (channel, message) => {
-        if (channel === 'C1RCLE_BROADCAST') {
-            try {
-                const { payload, topic } = JSON.parse(message);
-                const broadcastMessage = JSON.stringify(payload);
-
-                for (const client of clients) {
-                    if (client.socket.readyState === 1) {
-                        if (!topic || client.subscriptions.has(topic)) {
-                            client.socket.send(broadcastMessage);
-                        }
-                    }
-                }
-            } catch (e) {
-                fastify.log.error('Failed to process Redis broadcast message');
-            }
-        }
+    const subRedis = new Redis(redisUrl, {
+        maxRetriesPerRequest: null,
+        enableReadyCheck: false,
+        connectTimeout: 2000,
+        lazyConnect: true,
     });
 
-    await subRedis.subscribe('C1RCLE_BROADCAST');
+    subRedis.on('error', (err) => {
+        fastify.log.warn(`Realtime PUB/SUB Redis unavailable: ${err.message}`);
+    });
+
+    // ⚡ Resilience: Don't block startup on subscription
+    subRedis.connect().then(() => {
+        subRedis.subscribe('C1RCLE_BROADCAST').catch(err => {
+            fastify.log.error(`Failed to subscribe to Redis broadcast: ${err.message}`);
+        });
+    }).catch(err => {
+        fastify.log.warn('Realtime Redis connection skipped. Distributed broadcast disabled.');
+    });
 
     fastify.get('/ws/updates', { websocket: true }, (connection, req) => {
         const client: WSClient = {

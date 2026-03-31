@@ -2,13 +2,30 @@ import { NextResponse } from "next/server";
 import {
     createRazorpayOrder,
     verifyPaymentSignature,
+    fetchPayment,
     getRazorpayClientConfig
 } from "../../../lib/server/payments/razorpay";
 import { getOrderById, confirmOrder } from "../../../lib/server/orderStore";
 import { verifyAuth } from "../../../lib/server/auth";
 import { generateOrderQRCodes } from "../../../lib/server/qrStore";
+import { isUserBlocked } from "@c1rcle/core/security-state";
+import { logPaymentEvent, getRequestId } from "@/lib/server/logger";
 
 const PAYMENTS_COLLECTION = "payments";
+
+/**
+ * Extract real client IP — x-real-ip first (not user-controllable), then rightmost XFF.
+ */
+function getClientIp(request) {
+    const realIp = request.headers.get("x-real-ip");
+    if (realIp) return realIp.trim();
+    const forwarded = request.headers.get("x-forwarded-for");
+    if (forwarded) {
+        const ips = forwarded.split(",").map(s => s.trim()).filter(Boolean);
+        if (ips.length) return ips[ips.length - 1];
+    }
+    return "unknown";
+}
 
 /**
  * GET /api/payments
@@ -38,6 +55,21 @@ export async function POST(request) {
             return NextResponse.json(
                 { error: "Authentication required" },
                 { status: 401 }
+            );
+        }
+
+        // Active defense: block users flagged for payment fraud before any Razorpay call
+        const userStatus = await isUserBlocked(decodedToken.uid);
+        if (userStatus.blocked) {
+            logPaymentEvent("BLOCKED_USER_PAYMENT_ATTEMPT", {
+                requestId: getRequestId(request),
+                uid: decodedToken.uid,
+                ip: getClientIp(request),
+                reason: userStatus.reason,
+            });
+            return NextResponse.json(
+                { error: "Payment temporarily unavailable. Please contact support." },
+                { status: 403 }
             );
         }
 
@@ -132,7 +164,7 @@ export async function PATCH(request) {
             );
         }
 
-        // Verify signature
+        // Step 1: Verify HMAC signature (prevents tampered payload from client)
         const isValid = verifyPaymentSignature({
             razorpay_order_id,
             razorpay_payment_id,
@@ -147,7 +179,36 @@ export async function PATCH(request) {
             );
         }
 
-        // Get the order
+        // Step 2: Fetch payment directly from Razorpay API to verify status and amount
+        // This prevents replay attacks where a valid signature is reused with a different order
+        let rzpPayment;
+        try {
+            rzpPayment = await fetchPayment(razorpay_payment_id);
+        } catch (err) {
+            console.error("[Payments API] Failed to fetch payment from Razorpay:", err.message);
+            return NextResponse.json(
+                { error: "Could not verify payment with gateway" },
+                { status: 502 }
+            );
+        }
+
+        if (rzpPayment.status !== "captured") {
+            console.error("[Payments API] Payment not captured. Status:", rzpPayment.status);
+            return NextResponse.json(
+                { error: "Payment not captured" },
+                { status: 400 }
+            );
+        }
+
+        if (rzpPayment.order_id !== razorpay_order_id) {
+            console.error("[Payments API] Razorpay order_id mismatch");
+            return NextResponse.json(
+                { error: "Payment verification failed" },
+                { status: 400 }
+            );
+        }
+
+        // Step 3: Get our order and verify ownership + amount
         const order = await getOrderById(orderId);
         if (!order) {
             return NextResponse.json(
@@ -163,14 +224,24 @@ export async function PATCH(request) {
             );
         }
 
-        // Confirm the order (orderStore handles the rest)
+        // Verify amount paid matches order total (amounts are in paise from Razorpay)
+        const expectedPaise = Math.round(order.totalAmount * 100);
+        if (rzpPayment.amount !== expectedPaise) {
+            console.error(`[Payments API] Amount mismatch: expected ${expectedPaise} paise, got ${rzpPayment.amount}`);
+            return NextResponse.json(
+                { error: "Payment amount mismatch" },
+                { status: 400 }
+            );
+        }
+
+        // Step 4: Confirm the order
         const confirmedOrder = await confirmOrder(orderId, {
             paymentId: razorpay_payment_id,
             razorpayPaymentId: razorpay_payment_id,
             razorpayOrderId: razorpay_order_id,
             razorpaySignature: razorpay_signature,
             provider: "razorpay",
-            paymentMethod: "razorpay",
+            paymentMethod: rzpPayment.method || "razorpay",
             paidAt: new Date().toISOString()
         });
 

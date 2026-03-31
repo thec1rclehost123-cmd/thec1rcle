@@ -14,31 +14,48 @@ export default fp(async (fastify: FastifyInstance) => {
     try {
         const redis = new Redis(redisUrl, {
             maxRetriesPerRequest: 1,
-            connectTimeout: 2000, // ⚡ Failure Isolation: Don't hang if Redis is unreachable
+            connectTimeout: 2000,
+            lazyConnect: true, // ⚡ Optimization: Don't connect immediately
             retryStrategy: (times) => {
-                if (times > 3) return null; // Stop retrying after 3 attempts
-                return Math.min(times * 100, 2000);
+                return null; // Stop retrying immediately in dev
             }
         });
 
+        // 🛡️ Resilience: Handle connection errors without crashing the process
         redis.on('error', (err) => {
-            fastify.log.warn(`Redis connection error: ${err.message}`);
+            fastify.log.warn(`Redis unavailable: ${err.message}. Using mock fallback.`);
         });
 
-        redis.on('connect', () => {
-            fastify.log.info('Successfully connected to Redis');
+        // Decorate with a proxy that avoids crashing if redis is called while disconnected
+        const redisProxy = new Proxy(redis, {
+            get(target, prop) {
+                const val = target[prop as keyof Redis];
+                if (redis.status !== 'ready' && typeof val === 'function') {
+                    // Return a no-op function that logs a warning
+                    return (...args: any[]) => {
+                        fastify.log.debug(`Redis [${String(prop)}] skipped - client not ready`);
+                        return Promise.resolve(null);
+                    };
+                }
+                return val;
+            }
         });
 
-        fastify.decorate('redis', redis);
+        fastify.decorate('redis', redisProxy as any);
 
-        // Ensure clean shutdown
         fastify.addHook('onClose', async () => {
-            await redis.quit();
+            if (redis.status !== 'end') await redis.quit();
         });
 
     } catch (err) {
-        fastify.log.error(`Failed to initialize Redis: ${err}`);
-        // We don't exit process, allowing fallback to in-memory cache
+        fastify.log.error(`Critical Redis Plugin Error: ${err}`);
+        // Fallback to a bare-bones mock if even the constructor fails
+        fastify.decorate('redis', {
+            get: () => Promise.resolve(null),
+            set: () => Promise.resolve(null),
+            del: () => Promise.resolve(null),
+            status: 'end'
+        } as any);
     }
 });
 

@@ -101,11 +101,17 @@ export async function POST(request, { params }) {
                 refundPercentage = 75; // 75% refund if within 48h window
             }
 
-            // Check event-level cancellation policy
-            if (event.cancellationPolicy === "no_refund") {
+            // SECURITY: Read refund policy from the snapshot stored at order creation time,
+            // NOT from the live event document. Organizers cannot retroactively change
+            // the policy that applied when the customer purchased.
+            const policySource = order.cancellationPolicySnapshot || {
+                policy: event.cancellationPolicy,
+                refundPercent: event.cancellationRefundPercent
+            };
+            if (policySource.policy === "no_refund") {
                 refundPercentage = 0;
-            } else if (event.cancellationPolicy === "partial") {
-                refundPercentage = event.cancellationRefundPercent || 50;
+            } else if (policySource.policy === "partial") {
+                refundPercentage = policySource.refundPercent || 50;
             }
 
             // Free cancellation within 24h of purchase
@@ -265,10 +271,15 @@ export async function GET(request, { params }) {
                 refundPercentage = 75;
             }
 
-            if (event.cancellationPolicy === "no_refund") {
+            // Use policy snapshot stored at purchase time (same as POST handler)
+            const policySource = order.cancellationPolicySnapshot || {
+                policy: event.cancellationPolicy,
+                refundPercent: event.cancellationRefundPercent
+            };
+            if (policySource.policy === "no_refund") {
                 refundPercentage = 0;
-            } else if (event.cancellationPolicy === "partial") {
-                refundPercentage = event.cancellationRefundPercent || 50;
+            } else if (policySource.policy === "partial") {
+                refundPercentage = policySource.refundPercent || 50;
             }
 
             // Free cancellation within 24h of purchase

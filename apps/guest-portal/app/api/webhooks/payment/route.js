@@ -11,23 +11,23 @@ import { getEvent } from "@/lib/server/eventStore";
 import { sendTicketEmail } from "@/lib/email";
 import { notifyRefundProcessed } from "@/lib/server/notificationStore";
 import { isFirebaseConfigured } from "@/lib/firebase/admin";
+import { logPaymentEvent, getRequestId } from "@/lib/server/logger";
+import { checkPaymentFraud } from "@c1rcle/core/attack-detection";
 
 // Collection to track processed webhooks (idempotency)
 const WEBHOOK_LOGS_COLLECTION = "payment_webhook_logs";
 const fallbackWebhookLogs = new Map();
 
-// Verify Razorpay webhook signature
+// Verify Razorpay webhook signature — always required, no bypass
 function verifyWebhookSignature(body, signature, secret) {
-    if (!secret) {
-        console.warn('[Webhook] No secret configured, skipping signature verification');
-        return true; // Allow in development
-    }
-
     const expectedSignature = createHmac('sha256', secret)
         .update(body)
         .digest('hex');
-
-    return expectedSignature === signature;
+    // Constant-time comparison to prevent timing attacks
+    const expected = Buffer.from(expectedSignature, 'hex');
+    const received = Buffer.from(signature || '', 'hex');
+    if (expected.length !== received.length) return false;
+    return expected.equals(received);
 }
 
 // Check if webhook was already processed (Redis + Firestore Idempotency via orderStore)
@@ -54,23 +54,33 @@ export async function POST(request) {
         rawBody = await request.text();
         const payload = JSON.parse(rawBody);
 
-        // Verify signature in production
+        // Verify signature — ALWAYS required, no environment-based bypass
         const signature = request.headers.get("x-razorpay-signature");
         const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
 
-        if (process.env.NODE_ENV === 'production' && webhookSecret) {
-            if (!signature || !verifyWebhookSignature(rawBody, signature, webhookSecret)) {
-                console.error('[Webhook] Invalid signature');
-                return NextResponse.json(
-                    { error: "Invalid signature" },
-                    { status: 401 }
-                );
+        if (!webhookSecret) {
+            console.error('[Webhook] RAZORPAY_WEBHOOK_SECRET is not configured — rejecting all webhooks');
+            return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
+        }
+
+        if (!signature || !verifyWebhookSignature(rawBody, signature, webhookSecret)) {
+            const ip = request.headers.get("x-real-ip")
+                || request.headers.get("x-forwarded-for")?.split(",").pop()?.trim()
+                || "unknown";
+            const requestId = getRequestId(request);
+            logPaymentEvent("SIGNATURE_MISMATCH", { requestId, ip, path: "/api/webhooks/payment" });
+
+            // Attack detection: accumulate signature failures per IP
+            const fraud = await checkPaymentFraud(null, ip);
+            if (fraud.detected) {
+                logPaymentEvent("PAYMENT_FRAUD_PATTERN", { requestId, ip, reason: fraud.reason, count: fraud.count });
             }
+            return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
         }
 
         // Parse event type
         const eventType = payload.event || payload.type;
-        console.log(`[Webhook] Received event: ${eventType}`);
+        logPaymentEvent("WEBHOOK_RECEIVED", { webhookEvent: eventType });
 
         // Handle payment.captured event
         if (eventType === "payment.captured" || eventType === "payment_success") {
@@ -299,13 +309,8 @@ export async function POST(request) {
         });
 
     } catch (error) {
-        console.error("[Webhook] Error:", error);
-
-        // Return 200 even on error to prevent Razorpay from retrying
-        // Log the error for investigation
-        return NextResponse.json({
-            status: "error",
-            message: error.message
-        }, { status: 200 }); // Return 200 to acknowledge receipt
+        console.error("[Webhook] Unhandled error:", error.message);
+        // Return 500 so Razorpay retries — only return 200 after confirmed successful processing
+        return NextResponse.json({ status: "error" }, { status: 500 });
     }
 }

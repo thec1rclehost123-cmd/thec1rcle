@@ -270,6 +270,39 @@ export async function getReservation(reservationId) {
 export async function initiateCheckout(reservationId, userId, userDetails, options = {}) {
     const { promoCode = null, promoterCode = null } = options;
 
+    // ── RACE CONDITION GUARD ──────────────────────────────────────────────────
+    // Acquire a Redis distributed lock for this reservation so only one checkout
+    // request can run at a time. Without this, two concurrent browser tabs or
+    // network retries can both pass the expiry check and double-book the same slot.
+    let redisClient = null;
+    const lockKey = `checkout:lock:${reservationId}`;
+    const lockTtlSeconds = 30; // must complete checkout within 30s or lock auto-releases
+
+    try {
+        redisClient = (await import("@c1rcle/core/redis")).getRedisClient();
+        const acquired = await redisClient.set(lockKey, userId, "NX", "EX", lockTtlSeconds);
+        if (!acquired) {
+            return { success: false, error: 'Checkout is already in progress for this reservation. Please wait a moment and try again.' };
+        }
+    } catch (redisErr) {
+        // Redis unavailable — fall through without lock (best effort)
+        console.warn('[CheckoutService] Redis lock unavailable, proceeding without lock:', redisErr.message);
+        redisClient = null;
+    }
+
+    try {
+        return await _initiateCheckoutInner(reservationId, userId, userDetails, options, redisClient);
+    } finally {
+        // Always release the lock
+        if (redisClient) {
+            try { await redisClient.del(lockKey); } catch (_) { /* no-op */ }
+        }
+    }
+}
+
+async function _initiateCheckoutInner(reservationId, userId, userDetails, options, redisClient) {
+    const { promoCode = null, promoterCode = null } = options;
+
     const reservation = await getReservation(reservationId);
     if (!reservation) {
         return { success: false, error: 'Reservation not found' };
@@ -286,7 +319,7 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
         return { success: false, error: `Reservation is ${reservation.status}` };
     }
 
-    // Check if expired
+    // Check if expired — with lock held, this check is now race-condition-safe
     if (new Date(reservation.expiresAt) < new Date()) {
         await updateReservationStatus(reservationId, 'expired');
         return { success: false, error: 'Reservation has expired. Please select tickets again.' };
@@ -390,7 +423,14 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
             status: 'payment_pending',
             reservationId: reservation.id,
             promoterCode: promoterCode || null,
-            promoCodeId: pricing.discounts.find(d => d.type === 'promo')?.id || null
+            promoCodeId: pricing.discounts.find(d => d.type === 'promo')?.id || null,
+            // SECURITY: Snapshot the cancellation policy at purchase time so organizers
+            // cannot retroactively change it to deny legitimate refund requests.
+            cancellationPolicySnapshot: {
+                policy: event.cancellationPolicy || 'standard',
+                refundPercent: event.cancellationRefundPercent ?? null,
+                snapshotAt: new Date().toISOString()
+            }
         };
 
         const order = await createOrder(orderPayload);

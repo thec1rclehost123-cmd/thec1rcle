@@ -58,14 +58,38 @@ async function handler(request) {
             );
         }
 
-        // Validate items structure
+        // Validate items structure + enforce hard limits
+        const MAX_QUANTITY_PER_TIER = 10;
+        const MAX_TOTAL_TICKETS = 20;
+
+        let totalTickets = 0;
         for (const item of payload.items) {
             if (!item.tierId || !item.quantity || item.quantity < 1) {
                 return NextResponse.json(
-                    { error: "Each item must have a tierId and quantity" },
+                    { error: "Each item must have a tierId and a positive quantity" },
                     { status: 400 }
                 );
             }
+            if (!Number.isInteger(item.quantity)) {
+                return NextResponse.json(
+                    { error: "Ticket quantity must be a whole number" },
+                    { status: 400 }
+                );
+            }
+            if (item.quantity > MAX_QUANTITY_PER_TIER) {
+                return NextResponse.json(
+                    { error: `Maximum ${MAX_QUANTITY_PER_TIER} tickets per ticket type` },
+                    { status: 400 }
+                );
+            }
+            totalTickets += item.quantity;
+        }
+
+        if (totalTickets > MAX_TOTAL_TICKETS) {
+            return NextResponse.json(
+                { error: `Maximum ${MAX_TOTAL_TICKETS} tickets per order` },
+                { status: 400 }
+            );
         }
 
         // Create reservation

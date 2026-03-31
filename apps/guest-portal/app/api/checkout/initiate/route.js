@@ -35,16 +35,29 @@ async function handler(request) {
             );
         }
 
-        // User details
+        // User details — SECURITY: email and phone come ONLY from the verified Firebase token
+        // and Firestore user profile. Never from client payload to prevent ticket misdelivery fraud.
+        let profilePhone = "";
+        try {
+            const { getAdminDb } = await import("@/lib/firebase/admin");
+            const db = getAdminDb();
+            if (db) {
+                const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+                if (userDoc.exists) {
+                    profilePhone = userDoc.data()?.phone || userDoc.data()?.phoneNumber || "";
+                }
+            }
+        } catch (_) { /* non-critical — phone is optional */ }
+
         const userDetails = {
-            name: payload.userName || decodedToken.name || 'Guest',
-            email: decodedToken.email || payload.userEmail,
-            phone: payload.userPhone || ''
+            name: decodedToken.name || decodedToken.displayName || 'Guest',
+            email: decodedToken.email,   // ONLY from verified token — never from payload
+            phone: decodedToken.phone_number || profilePhone  // ONLY from token/Firestore
         };
 
         if (!userDetails.email) {
             return NextResponse.json(
-                { error: "Email is required" },
+                { error: "A verified email address is required to complete checkout" },
                 { status: 400 }
             );
         }
