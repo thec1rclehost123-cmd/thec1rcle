@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
     Bell,
     UserPlus,
@@ -144,6 +144,31 @@ export function NotificationCenter() {
     const [loading, setLoading]           = useState(false);
     const [error, setError]               = useState<string | null>(null);
 
+    // Track previous unread count to detect new notifications
+    const prevUnreadRef = useRef<number | null>(null);
+
+    // Play a soft double-chime using Web Audio API — no audio file needed
+    const playNotificationSound = useCallback(() => {
+        try {
+            const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const play = (freq: number, startAt: number) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(freq, ctx.currentTime + startAt);
+                gain.gain.setValueAtTime(0, ctx.currentTime + startAt);
+                gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + startAt + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startAt + 0.35);
+                osc.start(ctx.currentTime + startAt);
+                osc.stop(ctx.currentTime + startAt + 0.4);
+            };
+            play(880, 0);      // A5
+            play(1108, 0.18);  // C#6
+        } catch { /* AudioContext not available */ }
+    }, []);
+
     const fetchNotifications = useCallback(async () => {
         if (!partnerId) return;
         setLoading(true);
@@ -154,14 +179,23 @@ export function NotificationCenter() {
             );
             if (!res.ok) throw new Error(`${res.status}`);
             const data = await res.json();
-            setNotifications(data.notifications || []);
+            const incoming: Notification[] = data.notifications || [];
+            const newUnreadCount = incoming.filter(n => !n.isRead).length;
+
+            // Play sound when new unread notifications arrive (skip on very first load)
+            if (prevUnreadRef.current !== null && newUnreadCount > prevUnreadRef.current) {
+                playNotificationSound();
+            }
+            prevUnreadRef.current = newUnreadCount;
+
+            setNotifications(incoming);
         } catch (err) {
             console.error("[NotificationCenter] fetch error:", err);
             setError("Failed to load notifications");
         } finally {
             setLoading(false);
         }
-    }, [partnerId, roleConfig, authedFetch]);
+    }, [partnerId, roleConfig, authedFetch, playNotificationSound]);
 
     // Load on mount for badge count
     useEffect(() => {
@@ -172,6 +206,13 @@ export function NotificationCenter() {
     useEffect(() => {
         if (isOpen) fetchNotifications();
     }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Poll every 30 seconds in the background for new notifications
+    useEffect(() => {
+        if (!partnerId) return;
+        const interval = setInterval(fetchNotifications, 30_000);
+        return () => clearInterval(interval);
+    }, [partnerId, fetchNotifications]);
 
     const markRead = useCallback(async (ids: string[]) => {
         if (!ids.length) return;
