@@ -12,6 +12,15 @@ import { Timestamp } from "firebase-admin/firestore";
 import { listPromoterLinks } from "@/lib/server/promoterLinkStore";
 
 const COMMISSIONS_COLLECTION = "promoter_commissions";
+const SEEDED_ID_PREFIXES = [
+    "ORD-EPITOME-",
+    "RSVP-EPITOME-",
+    "user_seed_",
+    "promo_seed_",
+    "host_seed_",
+    "evt_epitome_",
+    "link_promo_seed_",
+];
 
 type TimelinePoint = {
     date: string;
@@ -73,28 +82,24 @@ function toIsoDate(value: any): string | null {
     return null;
 }
 
-function buildSyntheticTimeline(from: Date, range: string, totals: { clicks: number; sales: number; revenue: number }) {
-    const timelineDays: TimelinePoint[] = [];
-    const days = Math.max(1, Math.round((Date.now() - from.getTime()) / 86400000));
-    const points = range === "1d" ? 8 : Math.min(days, 14);
-    const step = Math.max(1, Math.floor(days / points));
+function hasSeededPrefix(value: unknown) {
+    const str = String(value || "");
+    return SEEDED_ID_PREFIXES.some((prefix) => str.startsWith(prefix));
+}
 
-    for (let index = 0; index < points; index += 1) {
-        const pointDate = new Date(from);
-        if (range === "1d") {
-            pointDate.setHours(pointDate.getHours() + index * 3, 0, 0, 0);
-        } else {
-            pointDate.setDate(pointDate.getDate() + index * step);
-        }
-        timelineDays.push({
-            date: pointDate.toISOString(),
-            clicks: Math.round(totals.clicks / points),
-            sales: Math.round(totals.sales / points),
-            revenue: Math.round(totals.revenue / points),
-        });
-    }
-
-    return timelineDays;
+function isSeededRecord(record: Record<string, any> | null | undefined, explicitId = "") {
+    if (hasSeededPrefix(explicitId)) return true;
+    return [
+        record?.id,
+        record?.eventId,
+        record?.orderId,
+        record?.userId,
+        record?.buyerId,
+        record?.promoterId,
+        record?.promoterRef,
+        record?.linkId,
+        record?.linkCode,
+    ].some(hasSeededPrefix);
 }
 
 function distributeClicks(timelineDays: TimelinePoint[], totalClicks: number) {
@@ -152,7 +157,9 @@ export async function GET(req: NextRequest) {
                 .catch(() => null),
         ]);
 
-        const normalizedLinks = links.map((link) => ({
+        const normalizedLinks = links
+            .filter((link) => !isSeededRecord(link, String(link.id || "")))
+            .map((link) => ({
             id: link.id,
             eventId: link.eventId,
             eventName: link.eventTitle || "Event",
@@ -190,6 +197,7 @@ export async function GET(req: NextRequest) {
             const byDate: Record<string, TimelinePoint> = {};
             for (const doc of ordersSnap.docs) {
                 const order = doc.data();
+                if (isSeededRecord(order, doc.id)) continue;
                 if (eventId && String(order.eventId || "") !== eventId) continue;
                 const createdAt = order.createdAt?.toDate?.();
                 if (!createdAt) continue;
@@ -201,14 +209,6 @@ export async function GET(req: NextRequest) {
                 byDate[key].revenue += Number(order.amount || order.total || 0);
             }
             timelineDays = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
-        }
-
-        if (timelineDays.length === 0) {
-            timelineDays = buildSyntheticTimeline(from, range, {
-                clicks: overview.totalClicks,
-                sales: overview.ticketsSold,
-                revenue: overview.revenue,
-            });
         }
 
         timelineDays = distributeClicks(timelineDays, overview.totalClicks);
@@ -232,6 +232,7 @@ export async function GET(req: NextRequest) {
 
         const salesActivities: ActivityItem[] = commissionSnap.docs.flatMap((doc) => {
             const item = doc.data() || {};
+            if (isSeededRecord(item, doc.id)) return [];
             if (eventId && String(item.eventId || "") !== eventId) return [];
             return [{
                 id: doc.id,
@@ -295,6 +296,8 @@ export async function GET(req: NextRequest) {
             timeline: timelineDays,
             topLinks,
             activities,
+        }, {
+            headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
         });
     } catch (err: any) {
         console.error("[partner/promoter/analytics] Error:", err.message);
