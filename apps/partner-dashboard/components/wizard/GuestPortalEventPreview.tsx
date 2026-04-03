@@ -66,6 +66,8 @@ type PreviewEvent = {
     image?: string;
     poster?: string;
     coverImage?: string;
+    hostName?: string;
+    host?: string;
     tickets?: PreviewTicket[];
 };
 

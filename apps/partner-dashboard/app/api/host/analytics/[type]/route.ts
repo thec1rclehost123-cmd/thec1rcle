@@ -27,7 +27,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ type: s
         let analytics;
         switch (type) {
             case "overview":
-                analytics = await getHostAnalytics(ctx.hostId, range, token);
+                analytics = await getHostAnalytics(ctx.hostId, range);
                 break;
             case "performance":
                 analytics = await getHostPerformanceAnalytics(ctx.hostId, token);
@@ -36,13 +36,13 @@ export async function GET(req: NextRequest, context: { params: Promise<{ type: s
                 analytics = await getHostAudienceAnalytics(ctx.hostId, token);
                 break;
             case "reliability":
-                analytics = await getHostReliabilityAnalytics(ctx.hostId, token);
+                analytics = await getHostReliabilityAnalytics(ctx.hostId);
                 break;
             case "partners":
-                analytics = await getHostPartnerAnalytics(ctx.hostId, range, token);
+                analytics = await getHostPartnerAnalytics(ctx.hostId, range);
                 break;
             case "strategy":
-                analytics = await getHostStrategyAnalytics(ctx.hostId, token);
+                analytics = await getHostStrategyAnalytics(ctx.hostId);
                 break;
             default:
                 return fail("Invalid analytics type", 400);

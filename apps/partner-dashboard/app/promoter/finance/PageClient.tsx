@@ -11,10 +11,11 @@ import { ConnectPayoutMethodModal } from "@/components/finance/ConnectPayoutMeth
 import { formatINR } from "@/lib/finance/definitions";
 
 interface PromoterBalance {
-    totalEarned: number;
-    available: number;
-    pending: number;
-    totalPaid: number;
+    totalEarned?: number;
+    available?: number;
+    pending?: number;
+    totalPaid?: number;
+    instantAvailable?: number;
 }
 
 interface PromoterPayout {

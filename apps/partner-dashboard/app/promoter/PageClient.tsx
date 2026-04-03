@@ -302,7 +302,7 @@ export default function PromoterDashboardHome() {
 
     const chartValues = useMemo(() => {
         const source = analyticsTimeline.length > 0 ? analyticsTimeline : buildZeroStateDates(range).map((date) => ({ date }));
-        return source.map((point) =>
+        return source.map((point: any) =>
             metric === "clicks" ? Number(point.clicks || 0) : Number(point.revenue || 0)
         );
     }, [analyticsTimeline, metric, range]);

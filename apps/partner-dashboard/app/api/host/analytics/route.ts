@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const range = searchParams.get("range") || "30d";
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const analytics = await getHostAnalytics(ctx.hostId, range, token);
+        const analytics = await getHostAnalytics(ctx.hostId, range);
         return ok(analytics);
     } catch (error: any) {
         console.error("[Host Analytics API] Error:", error);

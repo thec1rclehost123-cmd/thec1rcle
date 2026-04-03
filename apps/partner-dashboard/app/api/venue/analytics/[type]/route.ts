@@ -37,28 +37,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ type: strin
 
         switch (type) {
             case "overview":
-                analytics = await getVenueAnalytics(venueId, range, token);
+                analytics = await getVenueAnalytics(venueId, range);
                 break;
             case "audience":
-                analytics = await getVenueAudienceAnalytics(venueId, range, token);
+                analytics = await getVenueAudienceAnalytics(venueId, range);
                 break;
             case "reach":
             case "funnel":
-                analytics = await getVenueFunnelAnalytics(venueId, range, token);
+                analytics = await getVenueFunnelAnalytics(venueId, range);
                 break;
             case "engagement":
             case "ops":
-                analytics = await getVenueOpsAnalytics(venueId, range, token);
+                analytics = await getVenueOpsAnalytics(venueId, range);
                 break;
             case "revenue":
-                analytics = await getVenueAnalytics(venueId, range, token);
+                analytics = await getVenueAnalytics(venueId, range);
                 break;
             case "attribution":
             case "partners":
-                analytics = await getVenuePartnerAnalytics(venueId, range, token);
+                analytics = await getVenuePartnerAnalytics(venueId, range);
                 break;
             case "strategy":
-                analytics = await getVenueStrategyAnalytics(venueId, token);
+                analytics = await getVenueStrategyAnalytics(venueId);
                 break;
             case "timeline": {
                 const eventId = searchParams.get("eventId");

@@ -107,7 +107,7 @@ export async function POST(request: Request) {
             allowPlatformMessages,
             allowDirectContactShare,
             consentStatement,
-        } = body as Record<string, string | boolean>;
+        } = body as Record<string, any>;
 
         if (!name?.trim())         return NextResponse.json({ error: "Name is required" },           { status: 422 });
         if (!email?.trim())        return NextResponse.json({ error: "Email is required" },          { status: 422 });

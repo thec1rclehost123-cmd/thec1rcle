@@ -99,7 +99,7 @@ describe("POST /api/host/events/[id]/submit", () => {
 
         const result = await POST(makeRequest(), { params: Promise.resolve({ id: "evt_1" }) });
 
-        expect(result.success).toBe(true);
+        expect((result as any).success).toBe(true);
         expect(checkPartnershipMock).toHaveBeenCalledWith("host_1", "venue_1");
         expect(createSlotRequestMock).toHaveBeenCalledOnce();
         expect(eventUpdateMock).toHaveBeenCalledOnce();

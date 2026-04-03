@@ -125,7 +125,7 @@ export function NotificationCenter() {
     const { profile, user } = useDashboardAuth();
     const membership = profile?.activeMembership;
     const partnerId = membership?.partnerId;
-    const partnerType = membership?.partnerType;
+    const partnerType = (membership?.partnerType === 'club' ? 'venue' : membership?.partnerType) as NotificationPartnerType;
     const isMountedRef = useRef(false);
 
     const isVenue = partnerType === "venue";

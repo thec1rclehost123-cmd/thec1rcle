@@ -239,7 +239,7 @@ export default function EventsManagementPage() {
                 <div className="space-y-6">
                     {/* ── Filter bar ── */}
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} surface="flat" />
+                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
                         <div className="relative flex-1 sm:max-w-xs">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
                             <input

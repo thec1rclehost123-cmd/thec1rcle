@@ -16,6 +16,7 @@ import {
     Loader2,
     Star,
     Zap,
+    Search,
 } from "lucide-react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";
