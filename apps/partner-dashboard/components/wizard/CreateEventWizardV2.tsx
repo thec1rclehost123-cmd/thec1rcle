@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     Sparkles, Calendar, Music, Ticket, Wine, Percent,
     Image as ImageIcon, CheckCircle2, ChevronRight, ChevronLeft,
-    AlertCircle, Loader2, MapPin, Plus
+    AlertCircle, Loader2, MapPin, Plus, X
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -19,7 +19,13 @@ import { PromoterStep } from "./PromoterStep";
 import { PublishConfirmationModal } from "./PublishConfirmationModal";
 import { DetailedBreakdown } from "./components/DetailedBreakdown";
 import { WizardNavigation, SaveStatus, WizardStep, StepConfig } from "./WizardNavigation";
-import { EventCard, EventPage } from "@c1rcle/ui";
+import { GuestPortalEventPreview, GuestPortalPosterPreview } from "./GuestPortalEventPreview";
+
+type ScheduleAvailabilityState = {
+    checking: boolean;
+    available: boolean;
+    reason: string;
+};
 
 // Step Configuration
 const STEPS: StepConfig[] = [
@@ -81,6 +87,11 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const [completedSteps, setCompletedSteps] = useState<WizardStep[]>([]);
     const [localRecoveryData, setLocalRecoveryData] = useState<any>(null);
     const [showRecoveryBanner, setShowRecoveryBanner] = useState(false);
+    const [scheduleAvailability, setScheduleAvailability] = useState<ScheduleAvailabilityState>({
+        checking: false,
+        available: true,
+        reason: "",
+    });
     const [prefilledSlot, setPrefilledSlot] = useState<{
         venueId: string;
         venueName: string;
@@ -88,6 +99,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         startTime: string;
         endTime: string;
     } | null>(null);
+    const draftCreateInFlightRef = useRef<Promise<string | null> | null>(null);
 
     // Form Data
     const [formData, setFormData] = useState<any>(() => ({
@@ -108,6 +120,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         pincode: "",
         mapsLink: "",
         arrivalInstructions: "",
+        hostNote: "",
         capacity: 500,
         artists: [],
         genres: [],
@@ -151,6 +164,146 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     }));
 
     const currentStepIndex = STEPS.findIndex(s => s.id === currentStep);
+    const currentStepConfig = STEPS[currentStepIndex];
+    const previewHost = useMemo(() => ({
+        handle: profile?.activeMembership?.partnerName || "host",
+        name: profile?.activeMembership?.partnerName || "Host",
+        city: formData.city || "India",
+        bio: "Preview mode",
+    }), [formData.city, profile?.activeMembership?.partnerName]);
+
+    const checkScheduleAvailability = useCallback(async (venueId: string, startDate: string, startTime: string, endTime: string) => {
+        const params = new URLSearchParams({
+            startDate,
+            endDate: startDate,
+        });
+        const endpoint = role === "host"
+            ? `/api/host/venue-calendar?venueId=${venueId}&${params.toString()}`
+            : `/api/venues/${venueId}/calendar?${params.toString()}`;
+        const res = await authedFetch(endpoint);
+        const data = await res.json();
+
+        if (!res.ok) {
+            throw new Error(data.message || data.error || "Failed to check slot availability");
+        }
+
+        const day = (data.calendar || data.days || [])[0];
+        if (!day) return { available: true, reason: "" };
+        if (day.status === "blocked") {
+            return { available: false, reason: "This date is blocked on the venue calendar." };
+        }
+        if (day.status === "booked" && (!day.slots || day.slots.some((slot: any) => !slot.startTime || !slot.endTime))) {
+            return { available: false, reason: "This date is already occupied by another event." };
+        }
+
+        const toExtendedMinutes = (time: string) => {
+            const [hour, minute] = time.split(":").map(Number);
+            let total = hour * 60 + minute;
+            if (hour < 12) total += 24 * 60;
+            return total;
+        };
+
+        const requestedStart = toExtendedMinutes(startTime);
+        const requestedEnd = toExtendedMinutes(endTime);
+
+        const hasOverlap = (day.slots || []).some((slot: any) => {
+            if (!slot || slot.status === "available") return false;
+            if (!slot.startTime || !slot.endTime) return true;
+
+            const slotStart = toExtendedMinutes(slot.startTime);
+            const slotEnd = toExtendedMinutes(slot.endTime);
+            return requestedStart < slotEnd && slotStart < requestedEnd;
+        });
+
+        if (hasOverlap) {
+            return { available: false, reason: "The selected time overlaps with an existing blocked, pending, or booked slot." };
+        }
+
+        return { available: true, reason: "" };
+    }, [authedFetch, profile?.activeMembership?.partnerId, profile?.uid, role]);
+
+    useEffect(() => {
+        if (!formData.venueId || !formData.startDate || !formData.startTime || !formData.endTime) {
+            setScheduleAvailability({ checking: false, available: true, reason: "" });
+            return;
+        }
+
+        let cancelled = false;
+        setScheduleAvailability(prev => ({ ...prev, checking: true }));
+
+        const timer = setTimeout(async () => {
+            try {
+                const result = await checkScheduleAvailability(
+                    formData.venueId,
+                    formData.startDate,
+                    formData.startTime,
+                    formData.endTime
+                );
+
+                if (!cancelled) {
+                    setScheduleAvailability({
+                        checking: false,
+                        available: result.available,
+                        reason: result.reason,
+                    });
+                }
+            } catch (error: any) {
+                if (!cancelled) {
+                    setScheduleAvailability({
+                        checking: false,
+                        available: false,
+                        reason: error.message || "Failed to verify venue availability.",
+                    });
+                }
+            }
+        }, 300);
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timer);
+        };
+    }, [formData.venueId, formData.startDate, formData.startTime, formData.endTime, checkScheduleAvailability]);
+
+    const createDraftOnce = useCallback(async (payload: any) => {
+        if (savedDraftId) return savedDraftId;
+        if (draftCreateInFlightRef.current) return draftCreateInFlightRef.current;
+
+        draftCreateInFlightRef.current = (async () => {
+            const res = await authedFetch('/api/events/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    ...payload,
+                    creatorId: profile?.activeMembership?.partnerId || profile?.uid,
+                    creatorRole: role,
+                    lifecycle: 'draft'
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error(data.message || data.error || "Create failed");
+            }
+
+            const data = await res.json();
+            const draftId = data.event?.id || null;
+
+            if (draftId) {
+                setSavedDraftId(draftId);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('id', draftId);
+                router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+            }
+
+            return draftId;
+        })();
+
+        try {
+            return await draftCreateInFlightRef.current;
+        } finally {
+            draftCreateInFlightRef.current = null;
+        }
+    }, [authedFetch, profile?.activeMembership?.partnerId, profile?.uid, role, router, savedDraftId, searchParams]);
 
     // Validation per step
     const stepValidation = useMemo(() => {
@@ -183,6 +336,17 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             validation.scheduling.fieldErrors.startDate = "Required";
             validation.scheduling.isValid = false;
         }
+        if (formData.venueId && formData.startDate && formData.startTime && formData.endTime) {
+            if (scheduleAvailability.checking) {
+                validation.scheduling.issues.push("Checking venue availability...");
+                validation.scheduling.fieldErrors.scheduleAvailability = "Checking";
+                validation.scheduling.isValid = false;
+            } else if (!scheduleAvailability.available) {
+                validation.scheduling.issues.push(scheduleAvailability.reason || "Selected slot is unavailable");
+                validation.scheduling.fieldErrors.scheduleAvailability = scheduleAvailability.reason || "Unavailable";
+                validation.scheduling.isValid = false;
+            }
+        }
 
         // Ticketing validation
         const totalTickets = formData.tickets?.reduce((sum: number, t: any) => sum + (Number(t.quantity) || 0), 0) || 0;
@@ -197,8 +361,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             validation.media.issues.push("Adding a poster is recommended for better engagement");
         }
 
+        if (!scheduleAvailability.checking && !scheduleAvailability.available) {
+            validation.review.issues.push(scheduleAvailability.reason || "Selected slot is unavailable");
+            validation.review.fieldErrors.scheduleAvailability = scheduleAvailability.reason || "Unavailable";
+            validation.review.isValid = false;
+        }
+
         return validation;
-    }, [formData, role]);
+    }, [formData, role, scheduleAvailability]);
 
     // Grand Total Calculation
     const grandTotal = useMemo(() => {
@@ -226,7 +396,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (role === 'host' && profile?.activeMembership?.partnerId) {
             const fetchPartnerships = async () => {
                 try {
-                    const res = await authedFetch(`/api/venue/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
+                    const res = await authedFetch(`/api/host/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
                     const data = await res.json();
                     setPartnerships(data.partnerships || []);
                 } catch (err) {
@@ -236,6 +406,39 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             fetchPartnerships();
         }
     }, [role, profile?.activeMembership?.partnerId, authedFetch]);
+
+    useEffect(() => {
+        if (role !== "host" || partnerships.length === 0 || !formData.venueId) return;
+
+        const exactMatch = partnerships.find((partnership: any) => partnership.venueId === formData.venueId);
+        if (exactMatch) return;
+
+        const normalizedVenueName = String(formData.venueName || formData.venue || "").trim().toLowerCase();
+        if (!normalizedVenueName) return;
+
+        const nameMatches = partnerships.filter((partnership: any) =>
+            String(partnership.venueName || "").trim().toLowerCase() === normalizedVenueName
+        );
+
+        if (nameMatches.length !== 1) return;
+
+        const canonicalVenue = nameMatches[0];
+        setFormData((prev: any) => ({
+            ...prev,
+            venueId: canonicalVenue.venueId,
+            venueName: canonicalVenue.venueName || prev.venueName,
+            venue: canonicalVenue.venueName || prev.venue,
+        }));
+
+        const params = new URLSearchParams(searchParams.toString());
+        if (params.get("venue") === formData.venueId) {
+            params.set("venue", canonicalVenue.venueId);
+            if (canonicalVenue.venueName) {
+                params.set("venueName", canonicalVenue.venueName);
+            }
+            router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+        }
+    }, [role, partnerships, formData.venueId, formData.venueName, formData.venue, searchParams, router]);
 
     // Hydrate from URL params (when coming from venue calendar selection)
     useEffect(() => {
@@ -430,25 +633,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                         });
                         if (!res.ok) throw new Error("Update failed");
                     } else {
-                        const res = await authedFetch('/api/events/create', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                ...payload,
-                                creatorId: profile?.activeMembership?.partnerId || profile?.uid,
-                                creatorRole: role,
-                                lifecycle: 'draft'
-                            }),
-                        });
-                        if (res.ok) {
-                            const data = await res.json();
-                            if (data.event?.id) {
-                                setSavedDraftId(data.event.id);
-                                const params = new URLSearchParams(searchParams.toString());
-                                params.set('id', data.event.id);
-                                router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
-                            }
-                        }
+                        await createDraftOnce(payload);
                     }
                     setSaveState('saved');
                 } catch (e) {
@@ -458,7 +643,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             }
         }, 3000);
         return () => clearTimeout(timer);
-    }, [formData, savedDraftId, profile, role, router, currentStep, searchParams, authedFetch]);
+    }, [formData, savedDraftId, profile, role, currentStep, authedFetch, createDraftOnce]);
 
     const validateCurrentStep = (): boolean => {
         const validation = stepValidation[currentStep];
@@ -495,11 +680,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (!isDraft && !validateCurrentStep()) return;
         setIsSubmitting(true);
         try {
-            const endpoint = savedDraftId ? `/api/events/${savedDraftId}` : '/api/events/create';
-            const method = savedDraftId ? 'PATCH' : 'POST';
-
+            const pendingDraftId = !savedDraftId && draftCreateInFlightRef.current
+                ? await draftCreateInFlightRef.current
+                : null;
+            const effectiveDraftId = savedDraftId || pendingDraftId;
             const hostId = profile?.activeMembership?.partnerId || profile?.uid;
             const hostName = profile?.activeMembership?.partnerName || profile?.displayName || "C1RCLE Host";
+            const currentLifecycle = String(formData.lifecycle || "").toLowerCase();
+            const isResubmission = role === "host" && ["needs_changes", "denied"].includes(currentLifecycle);
 
             const payload: any = {
                 ...formData,
@@ -513,53 +701,65 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 creatorRole: formData.creatorRole || role,
                 lifecycle: isDraft ? 'draft' : (role === 'venue' ? 'scheduled' : 'submitted'),
                 status: 'active',
+                coverImage: formData.coverImage || formData.coverPhoto || formData.poster || formData.image || formData.images?.[0] || "",
+                coverPhoto: formData.coverPhoto || formData.coverImage || formData.poster || formData.image || formData.images?.[0] || "",
                 settings: { ...(formData.settings || {}), showGuestlist }
             };
+            const draftPayload = { ...payload, lifecycle: "draft" };
 
-            const res = await authedFetch(endpoint, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(method === 'PATCH' ? {
-                    actor: {
-                        uid: profile?.uid,
-                        role: role,
-                        partnerId: profile?.activeMembership?.partnerId
-                    },
-                    updates: payload,
-                    action: isDraft ? 'draft' : (role === 'venue' ? 'publish' : 'submit')
-                } : payload),
-            });
+            let res: Response;
+            if (role === "host" && !isDraft) {
+                let draftId = effectiveDraftId;
+                if (!draftId) {
+                    draftId = await createDraftOnce(draftPayload);
+                }
+                if (!draftId) throw new Error("Failed to prepare host event draft");
+
+                if (effectiveDraftId) {
+                    const saveRes = await authedFetch(`/api/events/${draftId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            actor: {
+                                uid: profile?.uid,
+                                role,
+                                partnerId: profile?.activeMembership?.partnerId
+                            },
+                            updates: draftPayload,
+                            action: "draft",
+                        }),
+                    });
+                    if (!saveRes.ok) {
+                        const data = await saveRes.json().catch(() => ({}));
+                        throw new Error(data.message || data.error || "Failed to update draft");
+                    }
+                }
+
+                res = await authedFetch(`/api/host/events/${draftId}/${isResubmission ? "resubmit" : "submit"}`, {
+                    method: isResubmission ? "PATCH" : "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ hostNote: payload.hostNote || null }),
+                });
+            } else {
+                const endpoint = effectiveDraftId ? `/api/events/${effectiveDraftId}` : '/api/events/create';
+                const method = effectiveDraftId ? 'PATCH' : 'POST';
+                res = await authedFetch(endpoint, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(method === 'PATCH' ? {
+                        actor: {
+                            uid: profile?.uid,
+                            role: role,
+                            partnerId: profile?.activeMembership?.partnerId
+                        },
+                        updates: payload,
+                        action: isDraft ? 'draft' : (role === 'venue' ? 'publish' : 'submit')
+                    } : payload),
+                });
+            }
 
             if (res.ok) {
                 const eventResult = await res.json();
-                const eventId = eventResult.event?.id || savedDraftId;
-
-                // For hosts: Create a slot request if this is a submission (not draft)
-                if (role === 'host' && !isDraft && eventId && formData.venueId) {
-                    try {
-                        const slotRequestPayload = {
-                            eventId,
-                            hostId,
-                            hostName,
-                            venueId: formData.venueId,
-                            venueName: formData.venueName || formData.venue || "Venue",
-                            requestedDate: formData.startDate,
-                            requestedStartTime: formData.startTime || "21:00",
-                            requestedEndTime: formData.endTime || "04:00",
-                            notes: formData.slotRequestNotes || "",
-                            priority: "normal"
-                        };
-
-                        await authedFetch('/api/slots', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(slotRequestPayload)
-                        });
-                    } catch (slotErr) {
-                        console.error("Failed to create slot request:", slotErr);
-                        // Don't fail the whole submission if slot request fails
-                    }
-                }
 
                 if (profile?.uid) {
                     const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
@@ -765,6 +965,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                                 validationErrors={validationErrors}
                                                 role={role}
                                                 profile={profile}
+                                                scheduleAvailability={scheduleAvailability}
                                             />
                                         )}
 
@@ -854,21 +1055,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                             {/* Preview Sidebar */}
                             <div className="w-full lg:w-[350px] lg:sticky lg:top-4 self-start space-y-3">
                                 <div className="flex items-center justify-between px-1">
-                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Live Preview</span>
+                                    <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Preview</span>
                                     <SaveStatus status={saveState} />
                                 </div>
 
                                 <div className="flex justify-center">
-                                    <div
-                                        className="w-[300px] h-[380px] rounded-[32px] overflow-hidden shadow-2xl cursor-pointer hover:scale-[1.02] transition-transform"
-                                        onClick={() => setIsFullPagePreviewOpen(true)}
-                                    >
-                                        <EventCard
-                                            event={formData}
-                                            isPreview={true}
-                                            device="desktop"
-                                            height="h-full"
-                                        />
+                                    <div onClick={() => setIsFullPagePreviewOpen(true)}>
+                                        <GuestPortalPosterPreview event={formData} host={previewHost} width={300} height={380} />
                                     </div>
                                 </div>
 
@@ -909,26 +1102,27 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                     className="flex items-center gap-2 text-text-primary hover:text-text-placeholder"
                                 >
                                     <ChevronLeft className="w-5 h-5" />
-                                    <span className="text-[11px] font-bold uppercase">Back to Wizard</span>
+                                    <span className="text-[11px] font-bold uppercase">
+                                        Back to {currentStepConfig?.shortLabel || "Wizard"}
+                                    </span>
                                 </button>
-                                <span className="text-[11px] font-bold uppercase text-text-primary/40">Preview Mode</span>
+                                <div className="flex items-center gap-4">
+                                    <span className="text-[11px] font-bold uppercase text-text-primary/40">Preview Mode</span>
+                                    <button
+                                        onClick={() => setIsFullPagePreviewOpen(false)}
+                                        aria-label="Close preview"
+                                        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-border-subtle text-text-primary/70 transition hover:bg-white/5 hover:text-text-primary"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-y-auto">
-                                <EventPage
-                                    event={{
-                                        ...formData,
-                                        id: "preview-id",
-                                        host: profile?.activeMembership?.partnerName || "Host",
-                                        settings: { showGuestlist }
-                                    }}
-                                    host={{
-                                        name: profile?.activeMembership?.partnerName || "Host",
-                                        avatar: "/events/holi-edit.svg",
-                                        followers: 0,
-                                        location: formData.city || "India",
-                                        bio: "Preview mode"
-                                    }}
-                                    isPreview={true}
+                                <GuestPortalEventPreview
+                                    event={{ ...formData, id: "preview-id" }}
+                                    host={previewHost}
+                                    onBack={() => setIsFullPagePreviewOpen(false)}
+                                    backLabel={`Back to ${currentStepConfig?.shortLabel || "Wizard"}`}
                                 />
                             </div>
                         </div>
@@ -944,6 +1138,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 isSubmitting={isSubmitting}
                 formData={formData}
                 role={role}
+                hostNote={formData.hostNote || ""}
+                onHostNoteChange={(value) => setFormData((prev: any) => ({ ...prev, hostNote: value }))}
             />
         </>
     );

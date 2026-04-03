@@ -7,13 +7,24 @@ import {
     Link2,
     Copy,
     CheckCircle2,
+    PencilLine,
     ChevronDown,
     Loader2
 } from "lucide-react";
 import { mapEventForClient } from "@c1rcle/core/events";
+import EditLinkModal from "./EditLinkModal";
+
+const GUEST_PORTAL_URL =
+    process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "";
 
 function sanitizeLabel(val: string) {
     return val.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "").slice(0, 32);
+}
+
+function getQRCodeUrl(data: string, size = 200) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&margin=10`;
 }
 
 interface GenerateLinkModalProps {
@@ -22,6 +33,8 @@ interface GenerateLinkModalProps {
     token?: string;
     onClose: () => void;
     onCreated: (link: any) => void;
+    initialEventId?: string;
+    lockEvent?: boolean;
 }
 
 export default function GenerateLinkModal({
@@ -29,22 +42,28 @@ export default function GenerateLinkModal({
     promoterName,
     token,
     onClose,
-    onCreated
+    onCreated,
+    initialEventId,
+    lockEvent = false,
 }: GenerateLinkModalProps) {
     const [events, setEvents] = useState<any[]>([]);
     const [eventsLoading, setEventsLoading] = useState(true);
-    const [selectedEventId, setSelectedEventId] = useState("");
+    const [selectedEventId, setSelectedEventId] = useState(initialEventId || "");
     const [campaignLabel, setCampaignLabel] = useState("");
+    const [selectedTicketTierIds, setSelectedTicketTierIds] = useState<string[]>([]);
     const [generating, setGenerating] = useState(false);
     const [generatedLink, setGeneratedLink] = useState<any>(null);
     const [isDuplicate, setIsDuplicate] = useState(false);
     const [copied, setCopied] = useState(false);
     const [eventDropdownOpen, setEventDropdownOpen] = useState(false);
+    const [editingGeneratedLink, setEditingGeneratedLink] = useState(false);
 
     useEffect(() => {
         async function loadEvents() {
             try {
-                const res = await fetch(`/api/promoter/events?promoterId=${promoterId}&limit=50`);
+                const headers: Record<string, string> = {};
+                if (token) headers["Authorization"] = `Bearer ${token}`;
+                const res = await fetch("/api/promoter/events?limit=50", { headers });
                 if (res.ok) {
                     const data = await res.json();
                     const mapped = (data.events || []).map((e: any) => mapEventForClient(e, e.id));
@@ -57,7 +76,17 @@ export default function GenerateLinkModal({
             }
         }
         loadEvents();
-    }, [promoterId]);
+    }, [promoterId, token]);
+
+    useEffect(() => {
+        if (initialEventId) {
+            setSelectedEventId(initialEventId);
+        }
+    }, [initialEventId]);
+
+    useEffect(() => {
+        setSelectedTicketTierIds([]);
+    }, [selectedEventId]);
 
     const handleGenerate = useCallback(async () => {
         if (!selectedEventId || !campaignLabel.trim()) return;
@@ -70,10 +99,10 @@ export default function GenerateLinkModal({
                 method: "POST",
                 headers,
                 body: JSON.stringify({
-                    promoterId,
                     promoterName: promoterName || "Promoter",
                     eventId: selectedEventId,
-                    campaignLabel: sanitizeLabel(campaignLabel)
+                    campaignLabel: sanitizeLabel(campaignLabel),
+                    ticketTierIds: selectedTicketTierIds,
                 })
             });
 
@@ -88,13 +117,14 @@ export default function GenerateLinkModal({
         } finally {
             setGenerating(false);
         }
-    }, [selectedEventId, campaignLabel, promoterId, promoterName, token, onCreated]);
+    }, [selectedEventId, campaignLabel, selectedTicketTierIds, promoterId, promoterName, token, onCreated]);
 
     const buildDisplayUrl = (link: any) => {
+        if (link.fullUrl) return link.fullUrl;
         const event = events.find(e => e.id === link.eventId);
         const slug = event?.slug || link.eventId;
         const ref = link.code || link.shortId || link.token || link.id;
-        return `https://c1rcle.app/e/${slug}?ref=${ref}&s=${link.channel || "organic"}`;
+        return `${GUEST_PORTAL_URL}/e/${slug}?ref=${ref}&s=${link.channel || "organic"}`;
     };
 
     const handleCopy = () => {
@@ -108,11 +138,25 @@ export default function GenerateLinkModal({
         setGeneratedLink(null);
         setIsDuplicate(false);
         setCopied(false);
+        setEditingGeneratedLink(false);
         setCampaignLabel("");
+        setSelectedTicketTierIds([]);
+        if (!lockEvent) {
+            setSelectedEventId(initialEventId || "");
+        }
     };
 
     const selectedEvent = events.find(e => e.id === selectedEventId);
+    const promoterEnabledTiers = (selectedEvent?.tickets || []).filter((tier: any) => tier.promoterEnabled !== false);
     const canGenerate = selectedEventId && campaignLabel.trim().length > 0 && !generating;
+
+    const toggleTicketTier = (tierId: string) => {
+        setSelectedTicketTierIds((current) =>
+            current.includes(tierId)
+                ? current.filter((id) => id !== tierId)
+                : [...current, tierId]
+        );
+    };
 
     return (
         <div
@@ -177,7 +221,9 @@ export default function GenerateLinkModal({
                                 </label>
                                 <div className="relative">
                                     <button
-                                        onClick={() => setEventDropdownOpen(v => !v)}
+                                        onClick={() => {
+                                            if (!lockEvent) setEventDropdownOpen(v => !v);
+                                        }}
                                         className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all"
                                         style={{
                                             background: "var(--v-elevated, #222226)",
@@ -195,10 +241,12 @@ export default function GenerateLinkModal({
                                                     ? (selectedEvent.name || selectedEvent.title)
                                                     : "Select an event"}
                                         </span>
-                                        <ChevronDown size={14} style={{ color: "var(--v-text-tertiary, #a1a1aa)", flexShrink: 0 }} />
+                                        {!lockEvent ? (
+                                            <ChevronDown size={14} style={{ color: "var(--v-text-tertiary, #a1a1aa)", flexShrink: 0 }} />
+                                        ) : null}
                                     </button>
 
-                                    {eventDropdownOpen && !eventsLoading && (
+                                    {eventDropdownOpen && !eventsLoading && !lockEvent && (
                                         <div
                                             className="absolute top-full left-0 right-0 mt-1 z-10 rounded-xl overflow-hidden"
                                             style={{
@@ -245,11 +293,11 @@ export default function GenerateLinkModal({
                             <div>
                                 <label className="text-[11px] font-semibold uppercase tracking-wider mb-1.5 block"
                                     style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
-                                    Label
+                                    Unique Link Label
                                 </label>
                                 <input
                                     type="text"
-                                    placeholder="e.g. story_mar17"
+                                    placeholder="e.g. epitome_story_1"
                                     value={campaignLabel}
                                     onChange={e => setCampaignLabel(e.target.value)}
                                     maxLength={42}
@@ -268,6 +316,53 @@ export default function GenerateLinkModal({
                                     </p>
                                 )}
                             </div>
+
+                            {/* Ticket targeting */}
+                            {promoterEnabledTiers.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between mb-1.5">
+                                        <label className="text-[11px] font-semibold uppercase tracking-wider block"
+                                            style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                            Ticket Tiers
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedTicketTierIds([])}
+                                            className="text-[10px] font-semibold uppercase tracking-wider"
+                                            style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}
+                                        >
+                                            All Tiers
+                                        </button>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {promoterEnabledTiers.map((tier: any) => {
+                                            const isSelected = selectedTicketTierIds.includes(tier.id);
+                                            const targetingAll = selectedTicketTierIds.length === 0;
+                                            return (
+                                                <button
+                                                    key={tier.id}
+                                                    type="button"
+                                                    onClick={() => toggleTicketTier(tier.id)}
+                                                    className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-[12px] transition-all"
+                                                    style={{
+                                                        background: isSelected ? "rgba(52,211,153,0.12)" : "var(--v-elevated, #222226)",
+                                                        border: isSelected ? "1px solid rgba(52,211,153,0.28)" : "1px solid var(--v-border, rgba(255,255,255,0.08))",
+                                                        color: isSelected || targetingAll ? "var(--v-text-primary, #fafafa)" : "var(--v-text-secondary, #d1d1d6)"
+                                                    }}
+                                                >
+                                                    <span>{tier.name}</span>
+                                                    <span style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                                        ₹{Number(tier.price || 0).toLocaleString("en-IN")}
+                                                    </span>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                    <p className="text-[10px] mt-1.5" style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                        Leave unselected to keep the link valid for all promoter-enabled tiers.
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Generate button */}
                             <button
@@ -313,6 +408,31 @@ export default function GenerateLinkModal({
                                 </p>
                             </div>
 
+                            <div className="rounded-xl p-4 flex flex-col items-center gap-3"
+                                style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--v-border, rgba(255,255,255,0.08))" }}>
+                                <p className="text-[10px] font-semibold uppercase tracking-wider"
+                                    style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                    QR Code
+                                </p>
+                                <img
+                                    src={getQRCodeUrl(buildDisplayUrl(generatedLink), 220)}
+                                    alt="Promoter link QR code"
+                                    className="h-44 w-44 rounded-2xl bg-white p-3"
+                                />
+                                <a
+                                    href={getQRCodeUrl(buildDisplayUrl(generatedLink), 512)}
+                                    download={`promoter-link-${generatedLink.code || generatedLink.id}.png`}
+                                    className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-center transition-all"
+                                    style={{
+                                        background: "var(--v-elevated, #222226)",
+                                        color: "var(--v-text-primary, #fafafa)",
+                                        border: "1px solid var(--v-border, rgba(255,255,255,0.08))"
+                                    }}
+                                >
+                                    Download QR
+                                </a>
+                            </div>
+
                             <button
                                 onClick={handleCopy}
                                 className="w-full py-3.5 rounded-xl text-[14px] font-bold transition-all flex items-center justify-center gap-2"
@@ -327,6 +447,19 @@ export default function GenerateLinkModal({
                                 ) : (
                                     <><Copy size={15} /> Copy Link</>
                                 )}
+                            </button>
+
+                            <button
+                                onClick={() => setEditingGeneratedLink(true)}
+                                className="w-full py-3 rounded-xl text-[14px] font-bold transition-all flex items-center justify-center gap-2"
+                                style={{
+                                    background: "var(--v-elevated, #222226)",
+                                    color: "var(--v-text-primary, #fafafa)",
+                                    border: "1px solid var(--v-border, rgba(255,255,255,0.08))"
+                                }}
+                            >
+                                <PencilLine size={15} />
+                                Edit Link
                             </button>
 
                             <button
@@ -345,6 +478,20 @@ export default function GenerateLinkModal({
                     )}
                 </AnimatePresence>
             </motion.div>
+
+            <AnimatePresence>
+                {editingGeneratedLink && generatedLink ? (
+                    <EditLinkModal
+                        link={generatedLink}
+                        token={token}
+                        onClose={() => setEditingGeneratedLink(false)}
+                        onSaved={(updatedLink) => {
+                            setGeneratedLink(updatedLink);
+                            onCreated(updatedLink);
+                        }}
+                    />
+                ) : null}
+            </AnimatePresence>
         </div>
     );
 }

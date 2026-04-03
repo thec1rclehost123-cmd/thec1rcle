@@ -1,28 +1,33 @@
 "use client";
 
-import { useState, useEffect, useMemo, memo, forwardRef } from "react";
-import { VirtuosoGrid } from "react-virtuoso";
-import { motion, AnimatePresence } from "framer-motion";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
     Calendar,
-    MapPin,
-    Ticket,
-    Percent,
-    Link as LucideLink,
+    CheckCircle2,
     Copy,
-    Check,
-    ExternalLink,
+    PencilLine,
+    Link as LinkIcon,
+    MapPin,
+    RefreshCw,
     Search,
-    Filter,
-    TrendingUp,
+    Sparkles,
+    Ticket,
     Users,
-    ChevronRight,
-    BarChart3
 } from "lucide-react";
-import NextLink from "next/link";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { ErrorState } from "@/components/ui/ErrorState";
 import { CITY_MAP } from "@c1rcle/core/events";
+import GenerateLinkModal from "@/components/promoter/links/GenerateLinkModal";
+import EditLinkModal from "@/components/promoter/links/EditLinkModal";
+
+const GUEST_PORTAL_URL =
+    process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "";
+
+type PromoterTab = "all" | "available" | "linked";
 
 interface PromoterEvent {
     id: string;
@@ -31,11 +36,15 @@ interface PromoterEvent {
     image: string;
     date: string;
     startDate: string;
+    startTime?: string;
     time: string;
     location: string;
     venue: string;
+    venueName?: string;
+    hostName?: string;
     city: string;
     category: string;
+    creatorRole?: string;
     priceRange: { min: number; max: number };
     commissionRate: number;
     tickets: { id: string; name: string; price: number; promoterEnabled: boolean }[];
@@ -52,322 +61,514 @@ interface PromoterLink {
     revenue: number;
     commission: number;
     isActive: boolean;
+    fullUrl?: string | null;
+    eventSlug?: string | null;
+    vanityPrefix?: string | null;
+    vanitySlug?: string | null;
+    vanityAlias?: string | null;
 }
 
-const GridContainer = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" />
-));
-GridContainer.displayName = "GridContainer";
+function formatINR(paiseOrRupees: number) {
+    const amount = Number(paiseOrRupees || 0);
+    if (!amount) return "₹0";
+    if (amount >= 100000) return `₹${(amount / 100000).toFixed(1)}L`;
+    if (amount >= 1000) return `₹${(amount / 1000).toFixed(1)}K`;
+    return `₹${Math.round(amount).toLocaleString("en-IN")}`;
+}
 
-const ItemContainer = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} className="h-full w-full" />
-));
-ItemContainer.displayName = "ItemContainer";
+function formatEventDate(startDate?: string) {
+    if (!startDate) {
+        return { day: "--", month: "---", weekday: "Schedule pending", full: "Date TBA" };
+    }
 
-const MemoizedPromoterEventCard = memo(({ event, myLinks, generateLink, generatingLink, copiedCode, copyLink }: any) => {
-    const hasExistingLink = myLinks.some((l: any) => l.eventId === event.id && l.isActive);
-    const eventLink = myLinks.find((l: any) => l.eventId === event.id && l.isActive);
+    return {
+        day: new Intl.DateTimeFormat("en-IN", { day: "2-digit", timeZone: "Asia/Kolkata" }).format(new Date(startDate)),
+        month: new Intl.DateTimeFormat("en-IN", { month: "short", timeZone: "Asia/Kolkata" }).format(new Date(startDate)).toUpperCase(),
+        weekday: new Intl.DateTimeFormat("en-IN", { weekday: "long", timeZone: "Asia/Kolkata" }).format(new Date(startDate)),
+        full: new Intl.DateTimeFormat("en-IN", {
+            weekday: "short",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+            timeZone: "Asia/Kolkata",
+        }).format(new Date(startDate)),
+    };
+}
 
+function buildLinkUrl(link: PromoterLink) {
+    if (link.fullUrl) return link.fullUrl;
+    const slug = link.eventSlug || link.eventId;
+    return `${GUEST_PORTAL_URL}/e/${slug}?ref=${link.code}`;
+}
+
+function resolveEventTime(event: PromoterEvent) {
+    if (event.time && event.time !== "Time TBA") return event.time;
+    if (event.startTime) {
+        const [rawHour = "0", rawMinute = "00"] = String(event.startTime).split(":");
+        const hour = Number(rawHour);
+        const minute = Number(rawMinute);
+        if (!Number.isNaN(hour) && !Number.isNaN(minute)) {
+            const suffix = hour >= 12 ? "PM" : "AM";
+            const normalizedHour = hour % 12 || 12;
+            return `${normalizedHour}:${String(minute).padStart(2, "0")} ${suffix}`;
+        }
+    }
+    if (event.startDate) {
+        const date = new Date(event.startDate);
+        if (!Number.isNaN(date.getTime())) {
+            return new Intl.DateTimeFormat("en-IN", {
+                hour: "numeric",
+                minute: "2-digit",
+                hour12: true,
+                timeZone: "Asia/Kolkata",
+            }).format(date);
+        }
+    }
+    return "Time TBA";
+}
+
+function LoadingCard() {
     return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-[32px] bg-surface-elevated border border-border-default overflow-hidden group hover:border-border-strong transition-all duration-200"
-        >
-            {/* Image */}
-            <div className="aspect-[4/3] bg-surface-tertiary relative overflow-hidden">
-                {event.image ? (
-                    <img
-                        src={event.image}
-                        alt={event.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                        <Calendar className="w-12 h-12 text-text-placeholder" />
-                    </div>
-                )}
-                {/* Commission Badge */}
-                <div className="absolute top-3 right-3 px-3 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-[11px] font-bold backdrop-blur-sm">
-                    {event.commissionRate}% Commission
-                </div>
-                {hasExistingLink && (
-                    <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-violet-500/20 border border-violet-500/30 text-violet-300 text-[11px] font-bold backdrop-blur-sm flex items-center gap-1">
-                        <Check className="w-3 h-3" /> Active Link
-                    </div>
-                )}
+        <div className="relative overflow-hidden rounded-[30px] border border-white/5 bg-[linear-gradient(180deg,rgba(35,35,40,0.98),rgba(24,24,28,0.98))] p-3.5">
+            <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.8s_infinite] bg-[linear-gradient(100deg,transparent,rgba(255,255,255,0.08),transparent)]" />
+            <div className="relative space-y-4">
+                <div className="aspect-[16/10] rounded-[24px] bg-white/[0.04]" />
+                <div className="h-6 w-2/3 rounded-xl bg-white/[0.05]" />
+                <div className="h-20 rounded-[20px] bg-white/[0.04]" />
+                <div className="h-14 rounded-[20px] bg-white/[0.04]" />
             </div>
-
-            {/* Content */}
-            <div className="p-5">
-                <span className="text-[10px] font-black uppercase tracking-widest text-violet-400">
-                    {event.category}
-                </span>
-                <h3 className="text-base font-bold text-text-primary mt-1 mb-3 line-clamp-1">
-                    {event.title}
-                </h3>
-
-                <div className="space-y-1.5 mb-4">
-                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
-                        <Calendar className="w-3.5 h-3.5 flex-shrink-0" />
-                        {event.startDate ? new Date(event.startDate).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—"} · {event.time ?? ""}
-                    </div>
-                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
-                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                        {[event.venue, event.city].filter(Boolean).join(", ") || "—"}
-                    </div>
-                    <div className="flex items-center gap-2 text-[12px] text-text-tertiary font-medium">
-                        <Ticket className="w-3.5 h-3.5 flex-shrink-0" />
-                        {event.priceRange ? `₹${event.priceRange.min}+ entry` : "Free entry"}
-                    </div>
-                </div>
-
-                {/* Stats strip */}
-                <div className="flex items-center gap-4 py-3 border-t border-border-subtle">
-                    <div className="flex items-center gap-1.5 text-[12px] text-text-tertiary font-medium">
-                        <Users className="w-3.5 h-3.5" />
-                        {event.stats?.interested ?? 0} interested
-                    </div>
-                    <div className="flex items-center gap-1.5 text-[12px] text-emerald-500 font-bold">
-                        <Percent className="w-3.5 h-3.5" />
-                        {event.commissionRate}% per sale
-                    </div>
-                </div>
-
-                {/* Action */}
-                {hasExistingLink && eventLink ? (
-                    <div className="space-y-2 mt-3">
-                        <div className="flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-surface-secondary border border-border-subtle">
-                            <LucideLink className="w-4 h-4 text-violet-400 flex-shrink-0" />
-                            <span className="flex-1 text-[12px] font-mono text-text-secondary truncate">
-                                {eventLink.code}
-                            </span>
-                            <button
-                                onClick={() => copyLink(eventLink.code)}
-                                className="p-1.5 rounded-xl hover:bg-surface-tertiary text-text-tertiary hover:text-violet-400 transition-colors"
-                            >
-                                {copiedCode === eventLink.code ? (
-                                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                ) : (
-                                    <Copy className="w-3.5 h-3.5" />
-                                )}
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-3 gap-2 text-center">
-                            {[
-                                { label: "Clicks", value: eventLink.clicks, color: "text-text-primary" },
-                                { label: "Sales", value: eventLink.conversions, color: "text-text-primary" },
-                                { label: "Earned", value: `₹${eventLink.commission}`, color: "text-emerald-400" },
-                            ].map(({ label, value, color }) => (
-                                <div key={label} className="py-2 rounded-2xl bg-surface-secondary">
-                                    <p className={`text-sm font-black tabular-nums ${color}`}>{value}</p>
-                                    <p className="text-[10px] text-text-placeholder uppercase tracking-wider mt-0.5">{label}</p>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="pt-2">
-                            <NextLink
-                                href={`/promoter/analytics/overview?eventId=${event.id}`}
-                                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 text-[11px] font-bold hover:bg-violet-500/20 transition-all"
-                            >
-                                <BarChart3 className="w-3.5 h-3.5" />
-                                View Performance Analytics
-                            </NextLink>
-                        </div>
-                    </div>
-                ) : (
-                    <button
-                        onClick={() => generateLink(event.id)}
-                        disabled={generatingLink === event.id}
-                        className="mt-3 w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-[12px] font-black uppercase tracking-wide disabled:opacity-50 transition-colors"
-                    >
-                        {generatingLink === event.id ? (
-                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                            <LucideLink className="w-4 h-4" />
-                        )}
-                        {generatingLink === event.id ? "Generating…" : "Get Your Link"}
-                    </button>
-                )}
-            </div>
-        </motion.div>
+        </div>
     );
-});
-MemoizedPromoterEventCard.displayName = "MemoizedPromoterEventCard";
+}
 
 export default function PromoterEventsPage() {
-    const { profile } = useDashboardAuth();
-    const [events, setEvents] = useState<PromoterEvent[]>([]);
-    const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [searchQuery, setSearchQuery] = useState("");
-    const [selectedCity, setSelectedCity] = useState("");
-    const [generatingLink, setGeneratingLink] = useState<string | null>(null);
-    const [copiedCode, setCopiedCode] = useState<string | null>(null);
-    const [fetchError, setFetchError] = useState<string | null>(null);
-
+    const { profile, user } = useDashboardAuth();
     const promoterId = profile?.activeMembership?.partnerId;
     const promoterName = profile?.displayName;
 
-    useEffect(() => {
-        if (promoterId) {
-            fetchEvents();
-            fetchMyLinks();
-        }
-    }, [promoterId]);
+    const [events, setEvents] = useState<PromoterEvent[]>([]);
+    const [myLinks, setMyLinks] = useState<PromoterLink[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
+    const [selectedCity, setSelectedCity] = useState("");
+    const [activeTab, setActiveTab] = useState<PromoterTab>("all");
+    const [copiedCode, setCopiedCode] = useState<string | null>(null);
+    const [fetchError, setFetchError] = useState<string | null>(null);
+    const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+    const [selectedEventIdForModal, setSelectedEventIdForModal] = useState<string | null>(null);
+    const [editingLink, setEditingLink] = useState<PromoterLink | null>(null);
+    const [authToken, setAuthToken] = useState("");
 
-    const fetchEvents = async () => {
-        setLoading(true);
+    const fetchPageData = useCallback(async (manualRefresh = false) => {
+        if (!promoterId) return;
+        if (manualRefresh) setRefreshing(true);
+        else setLoading(true);
+
         try {
+            const authToken = await user?.getIdToken();
+            if (authToken) setAuthToken(authToken);
+            const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
             const params = new URLSearchParams();
-            if (promoterId) params.set("promoterId", promoterId);
             if (selectedCity) params.set("city", selectedCity);
 
-            const res = await fetch(`/api/promoter/events?${params}`);
-            const data = await res.json();
-            setEvents(data.events || []);
+            const [eventsRes, linksRes] = await Promise.all([
+                fetch(`/api/promoter/events?${params.toString()}`, { headers }),
+                fetch("/api/promoter/links?isActive=true", { headers }),
+            ]);
+
+            if (!eventsRes.ok || !linksRes.ok) {
+                throw new Error("Failed to load promoter events");
+            }
+
+            const eventsData = await eventsRes.json();
+            const linksData = await linksRes.json();
+            setEvents(Array.isArray(eventsData.events) ? eventsData.events : []);
+            setMyLinks(Array.isArray(linksData.links) ? linksData.links : []);
             setFetchError(null);
-        } catch (err) {
-            console.error("Failed to fetch events:", err);
+            setRefreshedAt(new Date());
+        } catch (error) {
+            console.error("Failed to fetch promoter events:", error);
             setFetchError("Failed to load events. Please try again.");
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
-    };
+    }, [promoterId, selectedCity, user]);
 
-    const fetchMyLinks = async () => {
-        try {
-            const res = await fetch(`/api/promoter/links?promoterId=${promoterId}&isActive=true`);
-            const data = await res.json();
-            setMyLinks(data.links || []);
-        } catch (err) {
-            console.error("Failed to fetch links:", err);
-        }
-    };
+    useEffect(() => {
+        fetchPageData();
+    }, [fetchPageData]);
 
-    const generateLink = async (eventId: string) => {
-        setGeneratingLink(eventId);
-        try {
-            const res = await fetch("/api/promoter/links", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    promoterId,
-                    promoterName,
-                    eventId
-                })
-            });
-
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Failed to generate link");
-            }
-
-            const data = await res.json();
-            setMyLinks(prev => [data.link, ...prev]);
-        } catch (err: any) {
-            alert(err.message);
-        } finally {
-            setGeneratingLink(null);
-        }
-    };
-
-    const copyLink = (code: string) => {
-        const baseUrl = typeof window !== "undefined"
-            ? window.location.origin.replace("partner-dashboard", "guest-portal")
-            : "https://thec1rcle.in";
-        const link = myLinks.find(l => l.code === code);
-        if (link) {
-            navigator.clipboard.writeText(`${baseUrl}/e/${link.eventId}?ref=${code}`);
-            setCopiedCode(code);
-            setTimeout(() => setCopiedCode(null), 2000);
-        }
-    };
-
-    const hasLink = (eventId: string) => myLinks.some(l => l.eventId === eventId && l.isActive);
-    const getLink = (eventId: string) => myLinks.find(l => l.eventId === eventId && l.isActive);
+    const getActiveLink = useCallback((eventId: string) => {
+        return myLinks.find((link) => link.eventId === eventId && link.isActive);
+    }, [myLinks]);
 
     const filteredEvents = useMemo(() => {
-        return events.filter(event =>
-            (event.title ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (event.venue ?? "").toLowerCase().includes(searchQuery.toLowerCase())
-        );
-    }, [events, searchQuery]);
+        const query = searchQuery.trim().toLowerCase();
+        return events.filter((event) => {
+            const hasLink = Boolean(getActiveLink(event.id));
+            const matchesTab =
+                activeTab === "all" ||
+                (activeTab === "linked" && hasLink) ||
+                (activeTab === "available" && !hasLink);
+            const matchesSearch =
+                !query ||
+                [event.title, event.venue, event.city, event.category]
+                    .filter(Boolean)
+                    .some((value) => String(value).toLowerCase().includes(query));
+
+            return matchesTab && matchesSearch;
+        });
+    }, [activeTab, events, getActiveLink, searchQuery]);
+
+    const counts = useMemo(() => {
+        const linked = events.filter((event) => Boolean(getActiveLink(event.id))).length;
+        return {
+            all: events.length,
+            linked,
+            available: Math.max(events.length - linked, 0),
+        };
+    }, [events, getActiveLink]);
+
+    const copyLink = async (link: PromoterLink) => {
+        await navigator.clipboard.writeText(buildLinkUrl(link));
+        setCopiedCode(link.code);
+        window.setTimeout(() => setCopiedCode(null), 1500);
+    };
 
     return (
         <VenuePageShell
-            title="Discover Events"
-            subtitle="Find events to promote and earn commission on every sale"
-            filterBar={
-                <div className="flex items-center gap-3 w-full">
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+            title="Events"
+            actions={
+                <button
+                    onClick={() => fetchPageData(true)}
+                    disabled={refreshing || loading}
+                    className="flex items-center gap-2 px-5 py-3 bg-surface-elevated border border-border-default hover:border-border-strong text-text-secondary text-sm font-semibold rounded-xl transition-all disabled:opacity-60"
+                >
+                    <RefreshCw className={`h-4 w-4 ${(refreshing || loading) ? "animate-spin" : ""}`} />
+                    {refreshedAt ? refreshedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "Refresh"}
+                </button>
+            }
+        >
+            <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-2 p-1 bg-surface-secondary rounded-xl w-fit overflow-x-auto max-w-full scrollbar-hide">
+                    {[
+                        { id: "all", label: "All", count: counts.all },
+                        { id: "available", label: "Ready", count: counts.available },
+                        { id: "linked", label: "Linked", count: counts.linked },
+                    ].map((tab) => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as PromoterTab)}
+                            className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${activeTab === tab.id
+                                ? "bg-surface-elevated text-text-primary shadow-sm"
+                                : "text-text-tertiary hover:text-text-secondary"
+                                }`}
+                        >
+                            {tab.label}
+                            <span className={`ml-2 rounded-full px-1.5 py-0.5 text-[10px] font-black ${activeTab === tab.id ? "bg-[var(--c1rcle-orange,#F44A22)] text-white" : "bg-surface-tertiary text-text-secondary"}`}>
+                                {tab.count}
+                            </span>
+                        </button>
+                    ))}
+                </div>
+
+                <div className="flex flex-col gap-3 rounded-3xl border border-border-default bg-surface-elevated p-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="relative w-full lg:max-w-md">
+                        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
                         <input
                             type="text"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            placeholder="Search events or venues..."
-                            className="w-full pl-11 pr-4 py-2.5 rounded-2xl bg-surface-secondary border border-border-default text-sm text-text-primary placeholder:text-text-placeholder focus:outline-none focus:border-violet-500/50 transition-all"
+                            onChange={(event) => setSearchQuery(event.target.value)}
+                            placeholder="Search events, venues, or categories"
+                            className="w-full rounded-2xl border border-border-subtle bg-surface-secondary py-3 pl-11 pr-4 text-sm text-text-primary outline-none transition-all placeholder:text-text-tertiary focus:border-border-strong"
                         />
                     </div>
-                    <select
-                        value={selectedCity}
-                        onChange={(e) => { setSelectedCity(e.target.value); fetchEvents(); }}
-                        className="px-4 py-2.5 rounded-2xl bg-surface-secondary border border-border-default text-sm text-text-primary focus:outline-none focus:border-violet-500/50 transition-all appearance-none cursor-pointer"
-                    >
-                        <option value="">All Cities</option>
-                        {CITY_MAP.map(city => (
-                            <option key={city.key} value={city.label.split(',')[0]}>{city.label}</option>
-                        ))}
-                    </select>
-                </div>
-            }
-        >
-            {fetchError ? (
-                <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm font-medium">
-                    {fetchError}
-                </div>
-            ) : loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3, 4, 5, 6].map(i => (
-                        <div key={i} className="rounded-[32px] bg-surface-elevated border border-border-default animate-pulse">
-                            <div className="aspect-[4/3] bg-surface-tertiary rounded-t-[32px]" />
-                            <div className="p-5 space-y-3">
-                                <div className="h-4 w-3/4 bg-surface-tertiary rounded-lg" />
-                                <div className="h-3 w-1/2 bg-surface-tertiary rounded-lg" />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            ) : filteredEvents.length === 0 ? (
-                <div className="py-24 flex flex-col items-center text-center rounded-[32px] bg-surface-elevated border border-border-default border-dashed">
-                    <div className="w-16 h-16 rounded-3xl bg-surface-tertiary flex items-center justify-center mb-5">
-                        <Calendar className="w-7 h-7 text-text-placeholder" />
+                    <div className="flex items-center gap-3">
+                        <select
+                            value={selectedCity}
+                            onChange={(event) => setSelectedCity(event.target.value)}
+                            className="rounded-2xl border border-border-subtle bg-surface-secondary px-4 py-3 text-sm text-text-primary outline-none transition-all focus:border-border-strong"
+                        >
+                            <option value="">All Cities</option>
+                            {CITY_MAP.map((city) => (
+                                <option key={city.key} value={city.label.split(",")[0]}>
+                                    {city.label}
+                                </option>
+                            ))}
+                        </select>
                     </div>
-                    <h3 className="text-lg font-bold text-text-primary mb-2">No Events Available</h3>
-                    <p className="text-sm text-text-tertiary max-w-xs leading-relaxed">
-                        Connect with hosts and venues to get assigned to events and start earning commission.
+                </div>
+            </div>
+
+            {loading ? (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {[1, 2, 3, 4, 5, 6].map((item) => <LoadingCard key={item} />)}
+                </div>
+            ) : fetchError ? (
+                <ErrorState
+                    title="Failed to load events"
+                    message={fetchError}
+                    onRetry={() => fetchPageData()}
+                />
+            ) : filteredEvents.length === 0 ? (
+                <div className="relative overflow-hidden rounded-[34px] border border-white/5 bg-[linear-gradient(180deg,rgba(34,34,38,0.98),rgba(21,21,25,0.98))] p-12 text-center shadow-[0_24px_80px_rgba(0,0,0,0.16)]">
+                    <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+                    <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full border border-white/10 bg-[radial-gradient(circle_at_50%_35%,rgba(255,255,255,0.08),transparent_60%)]">
+                        <div className="relative flex h-14 w-14 items-center justify-center rounded-[18px] border border-white/10 bg-white/[0.04]">
+                            <Calendar className="h-7 w-7 text-white/75" />
+                            <Sparkles className="absolute -right-2 -top-2 h-4 w-4 text-amber-300/80" />
+                        </div>
+                    </div>
+                    <h3 className="mb-2 text-xl font-black tracking-[-0.03em] text-text-primary">No promotable events in this view</h3>
+                    <p className="mx-auto max-w-sm text-sm leading-6 text-text-tertiary">
+                        Try another city or search query. RSVP-only events and non-promotable ticket setups are intentionally excluded.
                     </p>
                 </div>
             ) : (
-                <VirtuosoGrid
-                    useWindowScroll
-                    data={filteredEvents}
-                    components={{ List: GridContainer, Item: ItemContainer }}
-                    itemContent={(index, event) => (
-                        <MemoizedPromoterEventCard
-                            key={event.id}
-                            event={event}
-                            myLinks={myLinks}
-                            generatingLink={generatingLink}
-                            copiedCode={copiedCode}
-                            generateLink={generateLink}
-                            copyLink={copyLink}
-                        />
-                    )}
-                />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {filteredEvents.map((event) => {
+                        const link = getActiveLink(event.id);
+                        const hasLink = Boolean(link);
+                        const dateParts = formatEventDate(event.startDate);
+                        const partnerLabel = event.creatorRole === "host" ? "Host" : "Venue";
+                        const partnerValue = event.creatorRole === "host"
+                            ? (event.hostName || event.venue || "Host")
+                            : (event.venueName || event.venue || "Venue");
+                        const eventTime = resolveEventTime(event);
+
+                        return (
+                            <motion.div
+                                key={event.id}
+                                layout
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="group relative rounded-[30px] transition-transform duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1"
+                            >
+                                {event.image ? (
+                                    <div
+                                        className="pointer-events-none absolute -inset-[10px] rounded-[38px] opacity-75 blur-3xl saturate-[1.6]"
+                                        style={{
+                                            backgroundImage: `url(${event.image})`,
+                                            backgroundSize: "cover",
+                                            backgroundPosition: "center",
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="pointer-events-none absolute -inset-[10px] rounded-[38px] bg-[radial-gradient(circle_at_center,rgba(203,132,255,0.34),transparent_62%)] blur-3xl opacity-100" />
+                                )}
+
+                                <div className="relative overflow-hidden rounded-[30px] border border-white/[0.04] bg-[linear-gradient(180deg,rgba(38,38,42,0.98),rgba(24,24,28,0.98))] p-3.5 shadow-[0_4px_16px_rgba(0,0,0,0.3),0_24px_80px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.06)]">
+                                    {event.image ? (
+                                        <div
+                                            className="pointer-events-none absolute inset-0 rounded-[30px] opacity-95"
+                                            style={{
+                                                backgroundImage: `url(${event.image})`,
+                                                backgroundSize: "cover",
+                                                backgroundPosition: "center",
+                                                filter: "saturate(1.7) brightness(1.2)",
+                                            }}
+                                        />
+                                    ) : (
+                                        <div className="pointer-events-none absolute inset-0 rounded-[30px] bg-[linear-gradient(180deg,rgba(244,196,255,0.98),rgba(214,144,255,0.94))] opacity-100 shadow-[0_0_22px_rgba(210,138,255,0.75),0_0_48px_rgba(182,97,255,0.42)]" />
+                                    )}
+                                    <div className="pointer-events-none absolute inset-[2px] rounded-[28px] bg-[linear-gradient(180deg,rgba(38,38,42,0.985),rgba(24,24,28,0.985))]" />
+                                    {event.image ? (
+                                        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[30px]">
+                                            <img
+                                                src={event.image}
+                                                alt=""
+                                                aria-hidden="true"
+                                                className="absolute inset-0 h-full w-full scale-110 object-cover opacity-[0.15] blur-[72px] saturate-150"
+                                            />
+                                            <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(18,18,20,0.58)_0%,rgba(18,18,20,0.88)_46%,rgba(18,18,20,0.98)_100%)]" />
+                                        </div>
+                                    ) : null}
+                                    <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.09),transparent_70%)]" />
+
+                                    <div className="relative flex h-full flex-col">
+                                        <div className="relative overflow-hidden rounded-[24px] bg-black/30">
+                                            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 flex items-center justify-between px-3 py-3">
+                                                <span className="inline-flex items-center gap-2 rounded-full bg-white/8 border border-white/10 px-3 py-1.5 text-xs font-bold text-white/90 shadow-sm">
+                                                    <span className={`h-1.5 w-1.5 rounded-full ${hasLink ? "bg-violet-400" : "bg-emerald-400"}`} />
+                                                    {hasLink ? "Link Active" : "Ready to Promote"}
+                                                </span>
+                                                <span className="rounded-full bg-black/35 px-3 py-1.5 text-[11px] font-bold text-emerald-300 backdrop-blur-md">
+                                                    {event.commissionRate}% commission
+                                                </span>
+                                            </div>
+
+                                            <div className="aspect-[16/10] w-full">
+                                                {event.image ? (
+                                                    <img
+                                                        src={event.image}
+                                                        alt={event.title}
+                                                        className="h-full w-full object-cover transition-transform duration-[6000ms] ease-out group-hover:scale-[1.06]"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-full w-full items-center justify-center bg-surface-secondary">
+                                                        <Calendar className="h-8 w-8 text-text-tertiary" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center_80%,transparent_40%,rgba(0,0,0,0.95)_100%)]" />
+                                            <div className="absolute inset-x-4 bottom-4">
+                                                <div className="text-[24px] font-black leading-[1.05] text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.6)] line-clamp-2">
+                                                    {event.title}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-2.5 flex flex-1 flex-col">
+                                            <div className="mb-2 flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-[11px] font-black uppercase tracking-[0.24em] text-violet-300">
+                                                        {partnerLabel}
+                                                    </p>
+                                                    <p className="line-clamp-1 text-[20px] font-black tracking-[-0.03em] text-text-primary">
+                                                        {partnerValue}
+                                                    </p>
+                                                    <p className="text-[11px] font-medium text-text-tertiary">
+                                                        {[event.venue, event.city].filter(Boolean).join(", ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-[20px] bg-black/18 p-3.5">
+                                                <div className="grid grid-cols-[auto_1px_minmax(0,1fr)] items-center gap-4">
+                                                    <div className="min-w-[64px] text-center">
+                                                        <div className="text-[52px] font-black leading-none text-text-primary">
+                                                            {dateParts.day}
+                                                        </div>
+                                                        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.3em] text-text-tertiary">
+                                                            {dateParts.month}
+                                                        </div>
+                                                    </div>
+                                                    <div className="h-14 w-px bg-white/10" />
+                                                    <div className="min-w-0">
+                                                        <div className="text-[25px] font-black leading-tight text-text-primary">
+                                                            {eventTime}
+                                                        </div>
+                                                        <div className="mt-1 text-[11px] font-bold uppercase tracking-[0.24em] text-text-tertiary">
+                                                            {dateParts.weekday}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-3">
+                                                    <div className="relative h-1 rounded-full bg-white/10">
+                                                        <div className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-teal-500" style={{ width: "100%" }} />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-2.5 grid grid-cols-3 gap-2">
+                                                <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                                                        <Users className="h-3.5 w-3.5" />
+                                                        Interest
+                                                    </div>
+                                                    <div className="mt-1 text-lg font-black text-text-primary">{event.stats?.interested ?? 0}</div>
+                                                </div>
+                                                <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                                                        <MapPin className="h-3.5 w-3.5" />
+                                                        Venue
+                                                    </div>
+                                                    <div className="mt-1 line-clamp-1 text-sm font-black text-text-primary">{event.venue || "TBA"}</div>
+                                                </div>
+                                                <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                    <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                                                        <Ticket className="h-3.5 w-3.5" />
+                                                        Starting
+                                                    </div>
+                                                    <div className="mt-1 text-lg font-black text-emerald-300">{event.priceRange?.min ? `₹${event.priceRange.min}` : "Paid"}</div>
+                                                </div>
+                                            </div>
+
+                                            {hasLink && link ? (
+                                                <div className="mt-2.5 space-y-2.5">
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">Clicks</div>
+                                                            <div className="mt-1 text-lg font-black text-text-primary">{link.clicks || 0}</div>
+                                                        </div>
+                                                        <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">Sales</div>
+                                                            <div className="mt-1 text-lg font-black text-text-primary">{link.conversions || 0}</div>
+                                                        </div>
+                                                        <div className="rounded-2xl bg-white/[0.04] px-3.5 py-2.5">
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">Earned</div>
+                                                            <div className="mt-1 text-lg font-black text-emerald-300">{formatINR(link.commission || 0)}</div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => copyLink(link)}
+                                                            className="flex flex-1 items-center justify-center gap-2 rounded-full bg-emerald-500/95 px-4 py-3 text-white shadow-[0_0_24px_rgba(16,185,129,0.3)] transition duration-300 hover:scale-[1.02] hover:bg-emerald-500 active:scale-[0.97]"
+                                                        >
+                                                            {copiedCode === link.code ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                                                            <div className="text-sm font-black">{copiedCode === link.code ? "Copied" : "Copy Link"}</div>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setEditingLink(link)}
+                                                            className="flex items-center justify-center gap-2 rounded-full border border-white/12 px-4 py-3 text-text-secondary transition duration-300 hover:bg-white/8 hover:text-text-primary active:scale-[0.97]"
+                                                        >
+                                                            <PencilLine className="h-4 w-4" />
+                                                            <div className="text-sm font-black">Edit</div>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <button
+                                                    onClick={() => setSelectedEventIdForModal(event.id)}
+                                                    className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-full bg-emerald-500/95 px-4 py-3 text-white shadow-[0_0_24px_rgba(16,185,129,0.3)] transition duration-300 hover:scale-[1.02] hover:bg-emerald-500 active:scale-[0.97] disabled:opacity-60"
+                                                >
+                                                    <LinkIcon className="h-4 w-4" />
+                                                    <div className="text-sm font-black">Get Your Link</div>
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        );
+                    })}
+                </div>
             )}
+
+            <AnimatePresence>
+                {selectedEventIdForModal ? (
+                    <GenerateLinkModal
+                        promoterId={promoterId || ""}
+                        promoterName={promoterName}
+                        token={authToken}
+                        initialEventId={selectedEventIdForModal}
+                        lockEvent
+                        onClose={() => setSelectedEventIdForModal(null)}
+                        onCreated={(link) => {
+                            setMyLinks((prev) => {
+                                const withoutEvent = prev.filter((item) => item.eventId !== link.eventId);
+                                return [link, ...withoutEvent];
+                            });
+                        }}
+                    />
+                ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {editingLink ? (
+                    <EditLinkModal
+                        link={editingLink}
+                        token={authToken}
+                        onClose={() => setEditingLink(null)}
+                        onSaved={(updatedLink) => {
+                            setMyLinks((prev) => prev.map((item) => item.id === updatedLink.id ? { ...item, ...updatedLink } : item));
+                            setEditingLink(updatedLink);
+                        }}
+                    />
+                ) : null}
+            </AnimatePresence>
         </VenuePageShell>
     );
 }

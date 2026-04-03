@@ -12,7 +12,7 @@ import { verifyAuth } from "../../../../../lib/server/auth";
  */
 export async function GET(request, { params }) {
     try {
-        const { venueId } = params;
+        const { venueId } = await params;
 
         const decodedToken = await verifyAuth(request);
         if (!decodedToken) {

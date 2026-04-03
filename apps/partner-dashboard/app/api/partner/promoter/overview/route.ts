@@ -13,14 +13,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { listPromoterLinks } from "@/lib/server/promoterLinkStore";
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function daysAgo(n: number): Date {
-    const d = new Date();
-    d.setDate(d.getDate() - n);
-    d.setHours(0, 0, 0, 0);
-    return d;
+function getSortableTimestamp(value: any): number {
+    if (!value) return 0;
+    const date = typeof value?.toDate === "function" ? value.toDate() : new Date(value);
+    const timestamp = date instanceof Date ? date.getTime() : Number.NaN;
+    return Number.isNaN(timestamp) ? 0 : timestamp;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -36,55 +35,55 @@ export async function GET(req: NextRequest) {
     const now = new Date();
 
     try {
-        // ── 1. Fetch promoter assignments ────────────────────────────────────
-        const assignmentsSnap = await db
-            .collection("promoter_assignments")
-            .where("promoterId", "==", promoterId)
-            .orderBy("createdAt", "desc")
-            .limit(50)
-            .get();
+        // ── 1. Fetch promoter links and events ──────────────────────────────
+        const [links, assignmentsSnap] = await Promise.all([
+            listPromoterLinks({ promoterId, limit: 100 }),
+            db.collection("promoter_assignments")
+                .where("promoterId", "==", promoterId)
+                .orderBy("createdAt", "desc")
+                .limit(50)
+                .get()
+                .catch(async (error) => {
+                    console.warn("[partner/promoter/overview] Falling back to unordered assignments query:", error?.message || error);
+                    return db.collection("promoter_assignments")
+                        .where("promoterId", "==", promoterId)
+                        .limit(50)
+                        .get();
+                }),
+        ]);
 
-        const assignments = assignmentsSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+        const assignments = assignmentsSnap.docs
+            .sort((a, b) => getSortableTimestamp(b.data().createdAt) - getSortableTimestamp(a.data().createdAt))
+            .map((d) => ({ id: d.id, ...d.data() })) as any[];
+        const eventIds = Array.from(new Set(links.map((link) => String(link.eventId || "")).filter(Boolean)));
+        const eventDocs = await Promise.all(eventIds.map((eventId) => db.collection("events").doc(eventId).get()));
+        const eventsById = eventDocs.reduce((map, doc) => {
+            if (doc.exists) map.set(doc.id, { id: doc.id, ...doc.data() });
+            return map;
+        }, new Map<string, any>());
 
-        // Active assignments = live/upcoming events
-        const activeAssignments: any[] = [];
-        let totalCommissionEarned = 0;
-        let totalTicketsSold = 0;
+        const linksByEventId = links.reduce((map, link) => {
+            const eventId = String(link.eventId || "");
+            if (!eventId) return map;
+            const current = map.get(eventId) || {
+                clicks: 0,
+                conversions: 0,
+                revenue: 0,
+                commission: 0,
+                commissionRate: Number(link.commissionRate || 0),
+            };
+            current.clicks += Number(link.clicks || 0);
+            current.conversions += Number(link.conversions || 0);
+            current.revenue += Number(link.revenue || 0);
+            current.commission += Number(link.commission || 0);
+            current.commissionRate = current.commissionRate || Number(link.commissionRate || 0);
+            map.set(eventId, current);
+            return map;
+        }, new Map<string, any>());
 
-        for (const asgn of assignments) {
-            const eventDate = asgn.eventDate?.toDate?.() ?? (asgn.eventDate ? new Date(asgn.eventDate) : null);
-            const status = (asgn.status || "active").toLowerCase();
-            const isUpcoming = eventDate && eventDate.getTime() > now.getTime();
-            const isActive = status === "active" || status === "live" || isUpcoming;
-
-            totalCommissionEarned += asgn.totalCommission || asgn.commissionEarned || 0;
-            totalTicketsSold += asgn.totalSales || asgn.ticketsSold || 0;
-
-            if (isActive && activeAssignments.length < 6) {
-                activeAssignments.push({
-                    id: asgn.id,
-                    eventId: asgn.eventId,
-                    eventName: asgn.eventName || asgn.eventTitle || "Untitled Event",
-                    eventDate: eventDate?.toISOString() || null,
-                    venueName: asgn.venueName || asgn.venue || "TBD",
-                    coverImage: asgn.coverImage || asgn.eventCover || null,
-                    status: asgn.status || "active",
-                    ticketsSold: asgn.totalSales || asgn.ticketsSold || 0,
-                    commission: asgn.totalCommission || asgn.commissionEarned || 0,
-                    commissionRate: asgn.commissionRate || 15,
-                });
-            }
-        }
-
-        // ── 2. Fetch promoter links for click data ──────────────────────────
-        const linksSnap = await db
-            .collection("promoter_links")
-            .where("promoterId", "==", promoterId)
-            .orderBy("clicks", "desc")
-            .limit(50)
-            .get();
-
-        const links = linksSnap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+        const activeAssignments = [];
+        let totalCommissionEarned = links.reduce((sum, link) => sum + Number(link.commission || 0), 0);
+        let totalTicketsSold = links.reduce((sum, link) => sum + Number(link.conversions || 0), 0);
 
         let totalClicks = 0;
         let topLink: any = null;
@@ -100,6 +99,37 @@ export async function GET(req: NextRequest) {
                     conversions: link.conversions || link.sales || 0,
                     revenue: link.revenue || 0,
                 };
+            }
+        }
+
+        for (const [eventId, metrics] of linksByEventId.entries()) {
+            if (activeAssignments.length >= 6) break;
+            const event = eventsById.get(eventId);
+            if (!event) continue;
+            const eventDate = event.startDate?.toDate?.() ?? (event.startDate ? new Date(event.startDate) : null);
+            const lifecycle = String(event.lifecycle || event.status || "").toLowerCase();
+            const isUpcoming = eventDate && eventDate.getTime() > now.getTime();
+            const isActive = ["scheduled", "live", "active", "upcoming"].includes(lifecycle) || isUpcoming;
+            if (!isActive) continue;
+
+            activeAssignments.push({
+                id: eventId,
+                eventId,
+                eventName: event.title || event.name || "Untitled Event",
+                eventDate: eventDate?.toISOString() || null,
+                venueName: event.venueName || event.venue || "TBD",
+                coverImage: event.coverImage || event.image || null,
+                status: lifecycle || "active",
+                ticketsSold: metrics.conversions || 0,
+                commission: metrics.commission || 0,
+                commissionRate: metrics.commissionRate || 15,
+            });
+        }
+
+        if (links.length === 0) {
+            for (const asgn of assignments) {
+                totalCommissionEarned += asgn.totalCommission || asgn.commissionEarned || 0;
+                totalTicketsSold += asgn.totalSales || asgn.ticketsSold || 0;
             }
         }
 

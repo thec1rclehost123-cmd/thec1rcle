@@ -1,4 +1,4 @@
-import PromoterFinancePageClient from "./PageClient";
+import PromoterFinancePageClient from "@/app/promoter/finance/PageClient";
 
 export const metadata = {
     title: "Finance | Promoter Dashboard",

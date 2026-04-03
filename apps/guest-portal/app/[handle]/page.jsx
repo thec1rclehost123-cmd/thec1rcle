@@ -169,9 +169,10 @@ function EventCard({ event, handle, highlight = false }) {
     const date = formatEventDate(event.startDate);
     const minPrice = getMinPrice(event);
     const poster = event.image || event.poster || event.coverImage || null;
+    const href = event.promoterLinkUrl || (event.promoterLinkCode ? `/${handle}/${slug}?ref=${encodeURIComponent(event.promoterLinkCode)}` : `/${handle}/${slug}`);
 
     return (
-        <Link href={`/${handle}/${slug}`} className="group block">
+        <Link href={href} className="group block">
             <div className={`relative overflow-hidden rounded-2xl border transition-all duration-300 ${highlight
                 ? "border-violet-500/30 bg-violet-950/30 hover:border-violet-400/50"
                 : "border-white/[0.06] bg-white/[0.02] hover:border-white/[0.12] hover:bg-white/[0.04]"

@@ -10,7 +10,127 @@ const OrderEventQuery = z.object({
     limit: z.string().optional()
 }).strict();
 
+const OrderIdParam = z.object({
+    id: z.string()
+}).strict();
+
+const CancelOrderBody = z.object({
+    reason: z.string().optional()
+});
+
 export default async function orderRoutes(fastify: FastifyInstance) {
+    /**
+     * GET /api/v1/orders
+     * Fetch the current user's own orders (confirmed + rsvp)
+     */
+    fastify.get('/', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const [ordersSnap, rsvpsSnap] = await Promise.all([
+                fastify.db.collection('orders').where('userId', '==', userId).get(),
+                fastify.db.collection('rsvp_orders').where('userId', '==', userId).get(),
+            ]);
+
+            const orders = ordersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            const rsvps = rsvpsSnap.docs.map((d: any) => ({ id: d.id, ...d.data(), isRSVP: true }));
+            const all = [...orders, ...rsvps].sort((a: any, b: any) =>
+                new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+            );
+
+            // Enrich with event metadata
+            const eventIds = [...new Set(all.map((o: any) => o.eventId).filter(Boolean))] as string[];
+            const eventDocs = await Promise.all(
+                eventIds.map((id: string) => fastify.db.collection('events').doc(id).get())
+            );
+            const eventsById: Record<string, any> = {};
+            eventDocs.forEach((d: any) => { if (d.exists) eventsById[d.id] = { id: d.id, ...d.data() }; });
+
+            const enriched = all.map((o: any) => ({
+                ...o,
+                event: eventsById[o.eventId] || null,
+            }));
+
+            return { success: true, orders: enriched };
+        } catch (error: any) {
+            fastify.log.error(`GET /orders failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * POST /api/v1/orders/:id/cancel
+     * Cancel a user's own order and release inventory
+     */
+    fastify.post('/:id/cancel', {
+        preHandler: [fastify.validate({ params: OrderIdParam, body: CancelOrderBody })]
+    }, async (request: any, reply) => {
+        const { id: orderId } = request.params;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const orderRef = fastify.db.collection('orders').doc(orderId);
+            const orderDoc = await orderRef.get();
+
+            // Try rsvp_orders if not found in orders
+            let isRsvp = false;
+            let resolvedRef = orderRef;
+            let order: any = null;
+
+            if (!orderDoc.exists) {
+                const rsvpRef = fastify.db.collection('rsvp_orders').doc(orderId);
+                const rsvpDoc = await rsvpRef.get();
+                if (!rsvpDoc.exists) return reply.status(404).send({ error: 'Order not found' });
+                order = { id: rsvpDoc.id, ...rsvpDoc.data() };
+                resolvedRef = rsvpRef;
+                isRsvp = true;
+            } else {
+                order = { id: orderDoc.id, ...orderDoc.data() };
+            }
+
+            if (order.userId !== userId) return reply.status(403).send({ error: 'You can only cancel your own orders' });
+            if (order.status === 'cancelled') return reply.status(409).send({ error: 'Order is already cancelled', alreadyCancelled: true });
+            if (!['confirmed', 'pending_payment', 'reserved'].includes(order.status)) {
+                return reply.status(400).send({ error: `Orders with status "${order.status}" cannot be cancelled` });
+            }
+
+            // Check event hasn't started
+            const eventDoc = await fastify.db.collection('events').doc(order.eventId).get();
+            if (eventDoc.exists) {
+                const event = eventDoc.data() as any;
+                const eventStart = new Date(event.startDate || event.date);
+                if (eventStart <= new Date()) {
+                    return reply.status(400).send({ error: 'Cannot cancel — the event has already started' });
+                }
+            }
+
+            const reason = request.body?.reason || 'User requested cancellation';
+            const now = new Date().toISOString();
+
+            await resolvedRef.update({
+                status: 'cancelled',
+                cancelledAt: now,
+                cancellationReason: reason,
+                cancelledBy: userId,
+                cancelledByType: 'guest',
+                updatedAt: now,
+            });
+
+            return {
+                success: true,
+                orderId,
+                status: 'cancelled',
+                message: 'Order cancelled. Refund will be processed per event policy within 5-7 business days.',
+            };
+        } catch (error: any) {
+            fastify.log.error(`POST /orders/${orderId}/cancel failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+
     /**
      * GET /api/v1/orders/event/:eventId
      */

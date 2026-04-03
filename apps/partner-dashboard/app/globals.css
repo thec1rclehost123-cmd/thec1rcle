@@ -8,6 +8,16 @@ html {
   scrollbar-gutter: stable;
 }
 
+:root {
+  color-scheme: light;
+  --dashboard-mobile-header: 56px;
+  --dashboard-desktop-header: 64px;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
 /* Landing page — lock viewport completely, no scroll, no shift */
 body {
   overflow-x: hidden;
@@ -205,6 +215,7 @@ body {
   font-weight: 400;
   letter-spacing: -0.011em;
   min-height: 100vh;
+  min-width: 320px;
   transition: background-color var(--transition-smooth), color var(--transition-smooth);
 }
 
@@ -995,9 +1006,9 @@ select option {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 14px 20px;
+  padding: 16px 20px;
   border-radius: var(--radius-xl);
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--text-secondary);
   transition: all var(--transition-smooth);
@@ -1029,8 +1040,8 @@ select option {
 }
 
 .nav-icon {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   opacity: 0.6;
   transition: opacity var(--transition-smooth);
 }
@@ -1745,15 +1756,24 @@ select option {
    ═══════════════════════════════════════════════════════════════════════════ */
 
 .venue-shell {
+  width: 100%;
+  min-width: 0;
+  isolation: isolate;
+  overflow-x: clip;
   /* ── Surfaces — off-white canvas, pure-white cards pop cleanly ── */
   --v-canvas:        #F9FAFB;
   --v-card:          #FFFFFF;
   --v-card-hover:    #F9FAFB;
   --v-hero:          #EAECF0;
   --v-elevated:      #FFFFFF;
+  --v-panel-bg:      var(--v-card);
+  --v-panel-hover:   var(--v-card-hover);
+  --v-panel-hero:    var(--v-hero);
   --v-border:        rgba(0,0,0,0.08);
   --v-border-strong: rgba(0,0,0,0.14);
   --v-divider:       rgba(0,0,0,0.05);
+  --v-panel-border:        var(--v-border);
+  --v-panel-border-strong: var(--v-border-strong);
 
   /* ── Typography — deep charcoal hierarchy ── */
   --v-text-primary:   #111827;
@@ -1802,6 +1822,8 @@ select option {
   --v-shadow-card:  0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
   --v-shadow-hover: 0 8px 24px rgba(0,0,0,0.10);
   --v-shadow-hero:  0 24px 64px rgba(0,0,0,0.08);
+  --v-panel-shadow-card: var(--v-shadow-card);
+  --v-panel-shadow-hero: var(--v-shadow-hero);
 
   /* ── Focus ── */
   --v-focus: #F44A22;
@@ -1838,6 +1860,27 @@ select option {
   --sidebar-border: rgba(0,0,0,0.09);
 }
 
+.venue-shell main,
+.venue-shell [data-page-shell],
+.venue-shell .v-bento,
+.venue-shell .v-hero-card,
+.venue-shell .card,
+.venue-shell .card-elevated {
+  min-width: 0;
+}
+
+.venue-shell img,
+.venue-shell svg,
+.venue-shell canvas,
+.venue-shell video {
+  max-width: 100%;
+}
+
+.venue-shell .overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
 /* ── Dark mode override ── */
 .dark .venue-shell {
   /* ── Surfaces ── */
@@ -1846,9 +1889,14 @@ select option {
   --v-card-hover:    #1e1e22;
   --v-hero:          #0D0D0F;
   --v-elevated:      #222226;
+  --v-panel-bg:      transparent;
+  --v-panel-hover:   transparent;
+  --v-panel-hero:    transparent;
   --v-border:        rgba(255,255,255,0.06);
   --v-border-strong: rgba(255,255,255,0.12);
   --v-divider:       rgba(255,255,255,0.04);
+  --v-panel-border:        rgba(255,255,255,0.06);
+  --v-panel-border-strong: rgba(255,255,255,0.08);
 
   /* ── Typography ── */
   --v-text-primary:   rgba(255,255,255,0.95);
@@ -1889,6 +1937,8 @@ select option {
   --v-shadow-card:  0 1px 3px rgba(0,0,0,0.40), 0 1px 2px rgba(0,0,0,0.30);
   --v-shadow-hover: 0 8px 24px rgba(0,0,0,0.50);
   --v-shadow-hero:  0 24px 64px rgba(0,0,0,0.60);
+  --v-panel-shadow-card: none;
+  --v-panel-shadow-hero: none;
 
   /* ── Skeleton ── */
   --v-skeleton:       #2a2a2e;
@@ -1923,10 +1973,15 @@ html:not(.dark) .venue-shell {
   --v-elevated:        #FFFFFF;      /* active tab, main cards — pure white      */
   --v-card-hover:      #EDF0F4;
   --v-hero:            #FFFFFF;
+  --v-panel-bg:        var(--v-card);
+  --v-panel-hover:     var(--v-card-hover);
+  --v-panel-hero:      var(--v-hero);
   --v-border:          #D1D5DB;      /* gray-300 — clearly visible everywhere    */
   --v-border-strong:   #9CA3AF;      /* gray-400 — hover + accent states         */
   --v-divider:         #E9EAEC;
   --v-neutral-bg:      rgba(0,0,0,0.04);
+  --v-panel-border:        var(--v-border);
+  --v-panel-border-strong: var(--v-border-strong);
 
   /* ── Venue-scoped typography ── */
   --v-text-primary:    #111827;
@@ -1942,6 +1997,8 @@ html:not(.dark) .venue-shell {
   --v-shadow-card:  0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
   --v-shadow-hover: 0 8px 24px rgba(0,0,0,0.09);
   --v-shadow-hero:  0 12px 40px rgba(0,0,0,0.07);
+  --v-panel-shadow-card: var(--v-shadow-card);
+  --v-panel-shadow-hero: var(--v-shadow-hero);
 
   /* ── Global surface tokens (sidebar, topbar, .card, nav-item) ── */
   --surface-base:      #F3F5F8;
@@ -2186,11 +2243,30 @@ html:not(.dark) .venue-shell > div {
   background: var(--v-border-strong);
   border-radius: 3px;
 }
+
 .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(0,0,0,0.20);
 }
 .dark .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255,255,255,0.20);
+}
+
+@media (max-width: 767px) {
+  .venue-shell .v-text-title {
+    font-size: clamp(24px, 7vw, 30px);
+  }
+
+  .venue-shell [class*="grid-cols-["]:not([class*="sm:grid-cols-["]):not([class*="md:grid-cols-["]):not([class*="lg:grid-cols-["]):not([class*="xl:grid-cols-["]) {
+    width: max-content;
+    min-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .venue-shell [class*="grid-cols-["]:not([class*="sm:grid-cols-["]):not([class*="md:grid-cols-["]):not([class*="lg:grid-cols-["]):not([class*="xl:grid-cols-["])::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Apple Typography helpers (scoped inside venue-shell via utility classes) */
@@ -2290,14 +2366,15 @@ html:not(.dark) .venue-shell > div {
 
 /* Bento base card */
 .v-bento {
-  background: var(--v-card);
+  background: var(--v-panel-bg);
+  border: 1px solid var(--v-panel-border);
   border-radius: var(--v-r-xl);
-  box-shadow: var(--v-shadow-card);
+  box-shadow: var(--v-panel-shadow-card);
   transition: background 120ms ease-out, box-shadow 120ms ease-out, transform 120ms ease-out;
 }
 
 .v-bento[data-interactive="true"]:hover {
-  background: var(--v-card-hover);
+  background: var(--v-panel-hover);
   box-shadow: var(--v-shadow-hover);
   transform: translateY(-2px);
   cursor: pointer;
@@ -2309,9 +2386,30 @@ html:not(.dark) .venue-shell > div {
 
 /* Hero card */
 .v-hero-card {
-  background: var(--v-hero);
+  background: var(--v-panel-hero);
+  border: 1px solid var(--v-panel-border);
   border-radius: var(--v-r-xl);
-  box-shadow: var(--v-shadow-hero);
+  box-shadow: var(--v-panel-shadow-hero);
+}
+
+.dark .venue-shell .card,
+.dark .venue-shell .card-elevated {
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Flatten the oversized dashboard canvases while leaving controls and drawers surfaced. */
+.dark .venue-shell main :is(div, section, article):is(
+  [class*='rounded-[26px]'],
+  [class*='rounded-[28px]'],
+  [class*='rounded-[2rem]'],
+  [class*='rounded-[2.5rem]'],
+  [class*='rounded-[32px]'],
+  [class*='rounded-[40px]'],
+  [class*='rounded-[56px]']
+):is([style*='var(--v-card)'], [class*='bg-[var(--v-card)]']) {
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Status pills inside venue shell */

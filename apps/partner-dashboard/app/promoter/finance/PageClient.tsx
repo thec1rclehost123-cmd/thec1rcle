@@ -1,34 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import {
-    TrendingUp,
-    Clock,
-    CheckCircle2,
-    Wallet,
-    ArrowRight,
-    RefreshCw,
-    Award,
-    IndianRupee,
-} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronDown, RefreshCw, ArrowUpRight, Landmark, ShieldCheck, Wallet2, X } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { CashflowChart } from "@/components/finance/CashflowChart";
-import { AnalyticsBridgeSection } from "@/components/finance/AnalyticsBridgeSection";
-import {
-    formatINR,
-    formatINRCompact,
-    pctChange,
-    SETTLEMENT_STATUS_CONFIG,
-    type CashflowDataPoint,
-} from "@/lib/finance/definitions";
-import { motion } from "framer-motion";
-import {
-    StatTrendCard,
-    BarChartPlaceholder,
-    DonutChartPlaceholder,
-} from "@/components/promoter/PlaceholderCharts";
+import { VenueActionButton, VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { PartnerFinanceSurface, type FinanceBankAccount, type FinancePayoutRow, type FinanceRow, type FinanceSettingRow } from "@/components/finance/PartnerFinanceSurface";
+import { ConnectPayoutMethodModal } from "@/components/finance/ConnectPayoutMethodModal";
+import { formatINR } from "@/lib/finance/definitions";
 
 interface PromoterBalance {
     totalEarned: number;
@@ -37,370 +17,467 @@ interface PromoterBalance {
     totalPaid: number;
 }
 
-interface CommissionTier {
-    label: string;
-    threshold: number;
-    rate: number;
-    isActive: boolean;
+interface PromoterPayout {
+    id: string;
+    amount: number;
+    status: string;
+    paymentMethod?: string;
+    requestedAt?: string;
+    completedAt?: string;
 }
 
-type Period = "7d" | "30d" | "90d" | "ytd";
+interface PromoterAccount {
+    id: string;
+    bankName: string;
+    last4: string;
+    isDefault?: boolean;
+    paymentType?: "bank_account" | "debit_card";
+}
 
-const mp = (delay: number) => ({
-    initial: { opacity: 0, y: 16 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },
-});
+interface PromoterFinanceResponse {
+    balance?: {
+        totalEarned?: number;
+        available?: number;
+        pending?: number;
+        totalPaid?: number;
+        instantAvailable?: number;
+    };
+    bankAccounts?: Array<{
+        id: string;
+        last4?: string;
+        bankName?: string;
+        isDefault?: boolean;
+        paymentType?: "bank_account" | "debit_card";
+    }>;
+    payouts?: PromoterPayout[];
+    commissionDetails?: Array<{
+        id: string;
+        eventName?: string;
+        buyerName?: string;
+        amount?: number;
+        status?: string;
+        date?: string | null;
+    }>;
+}
 
 export default function PromoterFinancePageClient() {
     const { profile, getIdToken } = useDashboardAuth() as any;
+    const router = useRouter();
     const promoterId = profile?.activeMembership?.partnerId;
 
-    const [period, setPeriod] = useState<Period>("30d");
     const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(false);
     const [balance, setBalance] = useState<PromoterBalance | null>(null);
-    const [cashflow, setCashflow] = useState<CashflowDataPoint[]>([]);
-    const [tiers, setTiers] = useState<CommissionTier[]>([]);
+    const [payouts, setPayouts] = useState<PromoterPayout[]>([]);
+    const [accounts, setAccounts] = useState<PromoterAccount[]>([]);
+    const [incomeItems, setIncomeItems] = useState<NonNullable<PromoterFinanceResponse["commissionDetails"]>>([]);
+    const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+    const [showAddBankModal, setShowAddBankModal] = useState(false);
+    const [showTransferModal, setShowTransferModal] = useState(false);
 
     const fetchData = useCallback(async () => {
         if (!promoterId) return;
+
         setLoading(true);
-        setError(false);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
-            // Fetch balance
-            const balRes = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, {
-                headers,
-            });
-            if (balRes.ok) {
-                const d = await balRes.json();
-                setBalance(d.balance || null);
+            const [financeRes, accountsRes] = await Promise.all([
+                fetch(`/api/partner/promoter/finance`, { headers }),
+                fetch("/api/promoter/finance/bank-accounts", { headers }),
+            ]);
+
+            if (financeRes.ok) {
+                const financeData = (await financeRes.json()) as PromoterFinanceResponse;
+                setBalance(financeData.balance ?? null);
+                setPayouts(financeData.payouts ?? []);
+                setIncomeItems(financeData.commissionDetails ?? []);
+            } else {
+                setBalance(null);
+                setPayouts([]);
+                setIncomeItems([]);
             }
 
-            // Fetch commissions (for cashflow approximation)
-            const commRes = await fetch(
-                `/api/promoter/commissions?promoterId=${promoterId}&period=${period}`,
-                { headers }
-            );
-            if (commRes.ok) {
-                const d = await commRes.json();
-                setCashflow(d.cashflow || []);
-                setTiers(d.tiers || []);
+            if (accountsRes.ok) {
+                const accountsData = await accountsRes.json();
+                setAccounts((accountsData.accounts ?? []).map((account: any) => ({
+                    id: account.id,
+                    bankName: account.bankName || "Bank Account",
+                    last4: account.last4 || "0000",
+                    isDefault: account.isDefault ?? false,
+                    paymentType: account.paymentType || "bank_account",
+                })));
+            } else {
+                setAccounts([]);
             }
-        } catch {
-            setError(true);
         } finally {
             setLoading(false);
+            setRefreshedAt(new Date());
         }
-    }, [promoterId, period, getIdToken]);
+    }, [getIdToken, promoterId]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
+    const balanceRows: FinanceRow[] = [
+        { label: "Available", value: loading ? "..." : formatINR(balance?.available || 0) },
+        { label: "Pending", value: loading ? "..." : formatINR(balance?.pending || 0), helpLabel: "Commissions clear after event settlement." },
+        { label: "Instant Available", value: loading ? "..." : formatINR(balance?.instantAvailable || 0), helpLabel: "Instant transfers are not enabled for promoters yet." },
+    ];
+
+    const settingsRows: FinanceSettingRow[] = [
+        { label: "Country", value: "India" },
+        { label: "Currency", value: "INR" },
+        { label: "Statement Descriptor", value: "C1RCLE" },
+        {
+            label: "Payout Schedule",
+            value: (
+                <span
+                    className="inline-flex items-center gap-2 rounded-[14px] px-3 py-2"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                >
+                    Weekly <ChevronDown size={14} />
+                </span>
+            ),
+        },
+    ];
+
+    const bankAccounts: FinanceBankAccount[] = accounts.map((account) => ({
+        id: account.id,
+        name: account.paymentType === "debit_card" ? `${account.bankName} Debit Card` : account.bankName,
+        detail: `${account.paymentType === "debit_card" ? "Card" : "Account"} •••• ${account.last4}`,
+        badge: account.isDefault ? "Default" : undefined,
+    }));
+
+    const payoutRows: FinancePayoutRow[] = incomeItems.map((item: any) => ({
+        id: item.id,
+        date: formatPayoutDate(item.date || null),
+        amount: formatINR(Math.abs(item.amount || 0)),
+        userName: item.buyerName || "Guest",
+        headline: `You received ${formatINR(Math.abs(item.amount || 0))}`,
+        subtitle: item.buyerName
+            ? `${item.buyerName} purchased through your promoter link${item.eventName ? ` for ${item.eventName}` : ""}`
+            : (item.eventName || "Promoter income"),
+        status: payoutStatusLabel(item.status),
+        statusTone: payoutStatusTone(item.status),
+    }));
+
     return (
         <VenuePageShell
             title="Finance"
-            subtitle="Your earnings, commissions, and payout status"
             actions={
                 <div className="flex items-center gap-3">
                     <VenueActionButton variant="secondary" onClick={fetchData}>
-                        <RefreshCw className="w-4 h-4" /> Refresh
+                        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
                     </VenueActionButton>
                     <Link href="/promoter/payouts">
-                        <VenueActionButton variant="primary">
-                            <Wallet className="w-4 h-4" /> Request Payout
-                        </VenueActionButton>
+                        <VenueActionButton variant="primary">Request Payout</VenueActionButton>
                     </Link>
                 </div>
             }
         >
-            {error ? (
-                <div className="flex flex-col items-center justify-center py-24 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
-                    <TrendingUp className="w-10 h-10 text-red-400" />
-                    <div>
-                        <p className="text-[16px] font-black text-text-primary">Failed to load financial data</p>
-                        <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your earnings. Check your connection and retry.</p>
-                    </div>
-                    <button
-                        onClick={fetchData}
-                        className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
-                    >
-                        Retry
-                    </button>
-                </div>
-            ) : (
-            <>{/* ── Hero: Total Earnings ── */}
-            <motion.div {...mp(0)}>
-                <div
-                    className="relative rounded-[32px] overflow-hidden px-8 py-10 flex flex-col sm:flex-row sm:items-end justify-between gap-6"
-                    style={{
-                        background:
-                            "linear-gradient(135deg, #150d2e 0%, #0d0920 50%, #080810 100%)",
-                        border: "1px solid rgba(124,58,237,0.25)",
+            <PartnerFinanceSurface
+                balanceRows={balanceRows}
+                settingsRows={settingsRows}
+                bankAccounts={bankAccounts}
+                payouts={payoutRows}
+                balanceVariant="wallet"
+                payoutsVariant="pill"
+                balanceActionLabel="Transfer"
+                onBalanceAction={() => setShowTransferModal(true)}
+                onRefresh={fetchData}
+                refreshing={loading}
+                lastUpdatedLabel={refreshedAt ? `Last updated ${refreshedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : null}
+                payoutsLoading={loading}
+                payoutsEmptyTitle="No earnings yet."
+                payoutsEmptyDescription="Commission rows will appear here once tickets are sold through your promoter links."
+                bankEmptyLabel="+ Add Bank Account"
+                onAddBank={() => setShowAddBankModal(true)}
+                leftFooter={
+                    !accounts.length ? (
+                        <p className="px-2 text-[12px]" style={{ color: "rgba(255,255,255,0.36)" }}>
+                            Link a payout destination from the payouts page when you are ready to withdraw.
+                        </p>
+                    ) : null
+                }
+            />
+
+            {showTransferModal ? (
+                <TransferConfirmationModal
+                    available={balance?.available || 0}
+                    pending={balance?.pending || 0}
+                    instantAvailable={balance?.instantAvailable || 0}
+                    payoutAccount={accounts.find((account) => account.isDefault) || accounts[0] || null}
+                    onClose={() => setShowTransferModal(false)}
+                    onConfirm={() => {
+                        setShowTransferModal(false);
+                        router.push("/promoter/payouts");
                     }}
-                >
+                    onAddPayoutMethod={() => {
+                        setShowTransferModal(false);
+                        setShowAddBankModal(true);
+                    }}
+                />
+            ) : null}
+
+            {showAddBankModal ? (
+                <ConnectPayoutMethodModal
+                    title="Connect Payout Method"
+                    endpoint="/api/promoter/finance/bank-accounts"
+                    getHeaders={async () => {
+                        const token = typeof getIdToken === "function" ? await getIdToken() : "";
+                        return {
+                            "Content-Type": "application/json",
+                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                        };
+                    }}
+                    onClose={() => setShowAddBankModal(false)}
+                    onAdded={fetchData}
+                />
+            ) : null}
+        </VenuePageShell>
+    );
+}
+
+function formatPayoutDate(value: string | null) {
+    if (!value) return "Upcoming payout";
+    return new Date(value).toLocaleDateString("en-IN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    });
+}
+
+function payoutStatusLabel(status?: string) {
+    switch ((status || "").toLowerCase()) {
+        case "cleared":
+        case "completed":
+        case "paid":
+            return "Paid";
+        case "processing":
+        case "in_transit":
+            return "In Transit";
+        case "failed":
+        case "cancelled":
+            return "Failed";
+        default:
+            return "Pending";
+    }
+}
+
+function payoutStatusTone(status?: string): FinancePayoutRow["statusTone"] {
+    switch ((status || "").toLowerCase()) {
+        case "cleared":
+        case "completed":
+        case "paid":
+            return "success";
+        case "processing":
+        case "in_transit":
+            return "info";
+        case "failed":
+        case "cancelled":
+            return "danger";
+        default:
+            return "warning";
+    }
+}
+
+function TransferConfirmationModal({
+    available,
+    pending,
+    instantAvailable,
+    payoutAccount,
+    onClose,
+    onConfirm,
+    onAddPayoutMethod,
+}: {
+    available: number;
+    pending: number;
+    instantAvailable: number;
+    payoutAccount: PromoterAccount | null;
+    onClose: () => void;
+    onConfirm: () => void;
+    onAddPayoutMethod: () => void;
+}) {
+    return (
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
+            <div
+                className="relative w-full max-w-[540px] overflow-hidden rounded-[30px]"
+                style={{
+                    background: "linear-gradient(180deg, rgba(20,22,31,0.96) 0%, rgba(15,16,22,0.98) 100%)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    boxShadow: "0 28px 80px rgba(0,0,0,0.5)",
+                }}
+            >
+                <div
+                    style={{
+                        position: "absolute",
+                        inset: 0,
+                        pointerEvents: "none",
+                        background: "radial-gradient(circle at 18% 0%, rgba(94,194,255,0.24) 0%, transparent 28%), radial-gradient(circle at 100% 0%, rgba(47,99,255,0.22) 0%, transparent 35%)",
+                    }}
+                />
+
+                <div className="relative p-6 sm:p-7">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <p className="text-[11px] font-black uppercase tracking-[0.24em]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                Confirm Transfer
+                            </p>
+                            <h2 className="mt-2 text-[28px] font-black tracking-[-0.03em] text-white">
+                                Review wallet details
+                            </h2>
+                        </div>
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex h-9 w-9 items-center justify-center rounded-full"
+                            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}
+                        >
+                            <X size={16} />
+                        </button>
+                    </div>
+
                     <div
-                        className="absolute top-0 left-0 w-64 h-64 rounded-full blur-3xl pointer-events-none"
-                        style={{ background: "rgba(124,58,237,0.12)" }}
-                    />
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-3">
-                            <Award className="w-4 h-4" style={{ color: "#f59e0b" }} />
-                            <span className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">
-                                Total Settled Commissions
+                        className="mt-6 overflow-hidden rounded-[26px] p-5"
+                        style={{
+                            background: "linear-gradient(145deg, rgba(94,194,255,0.34) 0%, rgba(47,99,255,0.3) 52%, rgba(21,50,184,0.28) 100%)",
+                            border: "1px solid rgba(255,255,255,0.16)",
+                            boxShadow: "inset 0 1px 0 rgba(255,255,255,0.2)",
+                            backdropFilter: "blur(20px)",
+                            WebkitBackdropFilter: "blur(20px)",
+                        }}
+                    >
+                        <div className="flex items-center justify-between">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/14 text-white">
+                                <Wallet2 size={18} />
+                            </div>
+                            <span className="rounded-full border border-white/20 bg-black/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-white/80">
+                                Available
                             </span>
                         </div>
-                        {loading ? (
-                            <div
-                                className="h-16 w-52 rounded-xl animate-pulse"
-                                style={{ background: "rgba(255,255,255,0.06)" }}
-                            />
-                        ) : (
-                            <p
-                                className="text-[52px] font-black leading-none tabular-nums tracking-tighter"
-                                style={{ color: "#fff" }}
-                            >
-                                {formatINR(balance?.totalPaid || 0)}
+                        <div className="mt-6">
+                            <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-white/62">
+                                Ready to transfer
                             </p>
-                        )}
-                    </div>
-                    <div className="flex flex-col gap-2 sm:items-end relative z-10">
-                        <Link href="/promoter/payouts">
-                            <button
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold"
-                                style={{ background: "#f44a22", color: "#fff" }}
-                            >
-                                Manage Payouts <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                        </Link>
-                        <Link href="/promoter/analytics/overview">
-                            <button
-                                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold"
-                                style={{
-                                    background: "rgba(255,255,255,0.06)",
-                                    color: "var(--v-text-secondary)",
-                                    border: "1px solid rgba(255,255,255,0.1)",
-                                }}
-                            >
-                                View Analytics <ArrowRight className="w-3.5 h-3.5" />
-                            </button>
-                        </Link>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* ── KPI Row ── */}
-            <motion.div {...mp(0.06)}>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                    <StatTrendCard
-                        label="Total Earned"
-                        value={loading ? "—" : formatINRCompact(balance?.totalEarned || 0)}
-                        trend="+18%"
-                        trendUp
-                        sparkData={[30, 45, 55, 50, 70, 65, 80]}
-                        color="#818cf8"
-                        icon={<TrendingUp className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Available"
-                        value={loading ? "—" : formatINRCompact(balance?.available || 0)}
-                        trendUp
-                        sparkData={[20, 35, 30, 50, 45, 60, 55]}
-                        color="#34d399"
-                        icon={<Wallet className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Pending"
-                        value={loading ? "—" : formatINRCompact(balance?.pending || 0)}
-                        sparkData={[15, 20, 18, 25, 22, 28, 24]}
-                        color="#f59e0b"
-                        icon={<Clock className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Total Paid"
-                        value={loading ? "—" : formatINRCompact(balance?.totalPaid || 0)}
-                        sparkData={[40, 55, 50, 70, 65, 80, 75]}
-                        color="#94a3b8"
-                        icon={<CheckCircle2 className="w-4 h-4" />}
-                    />
-                </div>
-            </motion.div>
-
-            {/* ── Cashflow chart ── */}
-            <motion.div {...mp(0.1)}>
-                <div
-                    className="rounded-[32px] p-6"
-                    style={{
-                        background: "var(--v-card, #1a1a1e)",
-                        border: "1px solid var(--v-border)",
-                    }}
-                >
-                    <div className="flex items-center justify-between mb-4">
-                        <span className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">
-                            Earnings Trend
-                        </span>
-                    </div>
-                    <CashflowChart
-                        data={cashflow}
-                        loading={loading}
-                        showSeriesToggle={false}
-                        showTimeRangePicker
-                        activeRange={period}
-                        onTimeRangeChange={(r) => setPeriod(r as Period)}
-                        height={220}
-                    />
-                </div>
-            </motion.div>
-
-            {/* ── Charts Row ── */}
-            <motion.div {...mp(0.14)}>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <BarChartPlaceholder
-                        title="Commission by Event"
-                        subtitle="Earnings breakdown per promoted event"
-                        color="#818cf8"
-                    />
-                    <DonutChartPlaceholder
-                        title="Commission Type Breakdown"
-                        segments={[
-                            { label: "Per-ticket flat", value: 52, color: "#818cf8" },
-                            { label: "Percentage-based", value: 31, color: "#7c3aed" },
-                            { label: "Bonus tier", value: 11, color: "#f59e0b" },
-                            { label: "Referral", value: 6, color: "#34d399" },
-                        ]}
-                    />
-                </div>
-            </motion.div>
-
-            {/* ── Commission tiers ── */}
-            {(tiers.length > 0 || !loading) && (
-                <motion.div {...mp(0.18)}>
-                    <div
-                        className="rounded-[32px] p-6"
-                        style={{
-                            background: "var(--v-card, #1a1a1e)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <p className="text-[11px] font-black uppercase tracking-widest mb-4 text-text-tertiary">
-                            Commission Tiers
-                        </p>
-                        {tiers.length === 0 ? (
-                            <p className="text-[13px] text-text-tertiary">
-                                Commission tier data will appear here once set up by your venue partner.
-                            </p>
-                        ) : (
-                            <div className="space-y-2">
-                                {tiers.map((tier) => (
-                                    <div
-                                        key={tier.label}
-                                        className="flex items-center justify-between px-4 py-3 rounded-xl"
-                                        style={{
-                                            background: tier.isActive
-                                                ? "rgba(129,140,248,0.08)"
-                                                : "var(--v-elevated)",
-                                            border: `1px solid ${
-                                                tier.isActive
-                                                    ? "rgba(129,140,248,0.2)"
-                                                    : "var(--v-border)"
-                                            }`,
-                                        }}
-                                    >
-                                        <div>
-                                            <p
-                                                className="text-[13px] font-semibold"
-                                                style={{
-                                                    color: tier.isActive
-                                                        ? "#818CF8"
-                                                        : "var(--v-text-secondary)",
-                                                }}
-                                            >
-                                                {tier.label}
-                                            </p>
-                                            <p
-                                                className="text-[11px]"
-                                                style={{ color: "var(--v-text-muted)" }}
-                                            >
-                                                From {formatINR(tier.threshold)} in sales
-                                            </p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p
-                                                className="text-[16px] font-black"
-                                                style={{
-                                                    color: tier.isActive
-                                                        ? "#818CF8"
-                                                        : "var(--v-text-primary)",
-                                                }}
-                                            >
-                                                {tier.rate}%
-                                            </p>
-                                            {tier.isActive && (
-                                                <span
-                                                    className="text-[10px] font-black px-2 py-0.5 rounded-full"
-                                                    style={{
-                                                        background: "rgba(129,140,248,0.15)",
-                                                        color: "#818CF8",
-                                                    }}
-                                                >
-                                                    Active
-                                                </span>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                            <div className="mt-2 text-[40px] font-black tracking-[-0.04em] text-white tabular-nums">
+                                {formatINR(available)}
                             </div>
-                        )}
+                        </div>
                     </div>
-                </motion.div>
-            )}
 
-            {/* ── Minimum payout notice ── */}
-            {!loading && balance && balance.available < 100 && balance.available > 0 && (
-                <motion.div {...mp(0.2)}>
-                    <div
-                        className="flex items-center gap-3 px-5 py-4 rounded-2xl"
-                        style={{
-                            background: "rgba(245,158,11,0.08)",
-                            border: "1px solid rgba(245,158,11,0.2)",
-                        }}
-                    >
-                        <Clock className="w-4 h-4 shrink-0" style={{ color: "#F59E0B" }} />
-                        <div>
-                            <p className="text-[13px] font-semibold" style={{ color: "#F59E0B" }}>
-                                Minimum payout: ₹100
-                            </p>
-                            <p className="text-[12px]" style={{ color: "rgba(245,158,11,0.7)" }}>
-                                You need {formatINR(100 - balance.available)} more to request a
-                                payout.
+                    <div className="mt-5 grid gap-3">
+                        <div
+                            className="rounded-[22px] p-4"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}
+                        >
+                            <div className="flex items-start gap-3">
+                                <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-full" style={{ background: "rgba(255,255,255,0.06)", color: "#93c5fd" }}>
+                                    <Landmark size={18} />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                        Payout destination
+                                    </p>
+                                    {payoutAccount ? (
+                                        <>
+                                            <p className="mt-2 text-[16px] font-semibold text-white">
+                                                {payoutAccount.bankName}
+                                            </p>
+                                            <p className="mt-1 text-[13px]" style={{ color: "rgba(255,255,255,0.56)" }}>
+                                                {payoutAccount.paymentType === "debit_card" ? "Debit Card" : "Bank Account"} ending in {payoutAccount.last4}
+                                            </p>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p className="mt-2 text-[16px] font-semibold text-white">
+                                                No payout method connected
+                                            </p>
+                                            <p className="mt-1 text-[13px]" style={{ color: "rgba(255,255,255,0.56)" }}>
+                                                Add a bank account or debit card before requesting a transfer.
+                                            </p>
+                                        </>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="rounded-[20px] p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                    Pending
+                                </p>
+                                <p className="mt-2 text-[22px] font-bold tabular-nums text-white">
+                                    {formatINR(pending)}
+                                </p>
+                            </div>
+                            <div className="rounded-[20px] p-4" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                    Instant
+                                </p>
+                                <p className="mt-2 text-[22px] font-bold tabular-nums text-white">
+                                    {formatINR(instantAvailable)}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div
+                            className="flex items-start gap-3 rounded-[20px] p-4"
+                            style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.16)" }}
+                        >
+                            <ShieldCheck size={18} style={{ color: "#86efac", flexShrink: 0, marginTop: 2 }} />
+                            <p className="text-[13px] leading-6" style={{ color: "rgba(255,255,255,0.72)" }}>
+                                Transfers are confirmed on the payouts page, where you can review the exact amount, destination, and request status before submission.
                             </p>
                         </div>
                     </div>
-                </motion.div>
-            )}
 
-            {/* ── Analytics bridge ── */}
-            <motion.div {...mp(0.22)}>
-                <div
-                    className="rounded-[32px] p-6"
-                    style={{
-                        background: "var(--v-card, #1a1a1e)",
-                        border: "1px solid var(--v-border)",
-                    }}
-                >
-                    <AnalyticsBridgeSection
-                        profileType="promoter"
-                        partnerId={promoterId}
-                        timeRange={period}
-                    />
+                    <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                        {payoutAccount ? (
+                            <button
+                                type="button"
+                                onClick={onConfirm}
+                                className="flex h-13 items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-[15px] font-bold"
+                                style={{
+                                    background: "linear-gradient(145deg, #4aa7ff 0%, #2f63ff 58%, #1b3fe6 100%)",
+                                    border: "1px solid rgba(101,170,255,0.45)",
+                                    color: "#fff",
+                                    boxShadow: "0 16px 32px rgba(47,99,255,0.24)",
+                                }}
+                            >
+                                Continue to Transfer
+                                <ArrowUpRight size={16} />
+                            </button>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={onAddPayoutMethod}
+                                className="flex h-13 items-center justify-center gap-2 rounded-[18px] px-4 py-3 text-[15px] font-bold"
+                                style={{
+                                    background: "linear-gradient(145deg, #4aa7ff 0%, #2f63ff 58%, #1b3fe6 100%)",
+                                    border: "1px solid rgba(101,170,255,0.45)",
+                                    color: "#fff",
+                                    boxShadow: "0 16px 32px rgba(47,99,255,0.24)",
+                                }}
+                            >
+                                Add Payout Method
+                                <ArrowUpRight size={16} />
+                            </button>
+                        )}
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex h-13 items-center justify-center rounded-[18px] px-4 py-3 text-[15px] font-bold"
+                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.88)" }}
+                        >
+                            Cancel
+                        </button>
+                    </div>
                 </div>
-            </motion.div>
-            </>
-            )}
-        </VenuePageShell>
+            </div>
+        </div>
     );
 }

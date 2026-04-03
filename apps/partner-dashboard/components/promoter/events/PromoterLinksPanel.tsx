@@ -2,6 +2,19 @@
 
 import { Link as LinkIcon, Copy, Plus, MoreVertical, TrendingUp, Activity } from "lucide-react";
 
+const GUEST_PORTAL_HOST = (() => {
+    const baseUrl =
+        process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        "";
+    if (!baseUrl) return "guest-portal";
+    try {
+        return new URL(baseUrl).host;
+    } catch {
+        return baseUrl.replace(/^https?:\/\//, "");
+    }
+})();
+
 function formatCurrencyInline(amount: number) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -41,7 +54,7 @@ export function PromoterLinksPanel({ links }: { links: any[] }) {
                         <div className="bg-surface-base border border-border-subtle rounded-xl px-3 py-2.5 flex items-center justify-between w-full text-sm font-mono text-text-secondary group-hover:border-border-hover transition-colors mb-5">
                             <div className="flex items-center overflow-hidden flex-1">
                                 <LinkIcon className="h-4 w-4 mr-2 text-emerald-500 shrink-0" />
-                                <span className="truncate">c1rcle.com/e/{link.code}</span>
+                                <span className="truncate">{GUEST_PORTAL_HOST}/e/{link.code}</span>
                             </div>
                             <button className="text-text-muted hover:text-white ml-3 shrink-0 bg-surface-tertiary hover:bg-surface-hover p-1.5 rounded-md transition-colors">
                                 <Copy className="h-3.5 w-3.5" />

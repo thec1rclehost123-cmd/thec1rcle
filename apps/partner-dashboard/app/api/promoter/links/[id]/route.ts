@@ -1,34 +1,42 @@
 import { NextRequest } from "next/server";
-import { deactivateLink, listPromoterLinks } from "@/lib/server/promoterLinkStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { deactivateLink, listPromoterLinks, reactivateLink, updatePromoterLinkAlias } from "@/lib/server/promoterLinkStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * PATCH /api/promoter/links/[id]
  * Deactivate a promoter link. Verifies ownership before acting.
  */
-export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
+
     try {
-        const linkId = ctx?.params?.id as string;
+        const { id: linkId } = await params;
         const body = await req.json();
 
-        if (body.action !== "deactivate") return fail("Invalid action", 400);
-
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        if (!["deactivate", "reactivate", "update_alias"].includes(body.action)) return fail("Invalid action", 400);
 
         // Ownership check — fetch link and confirm it belongs to this promoter
-        const links = await listPromoterLinks({ linkId }, token);
-        const link = Array.isArray(links) ? links.find((l: any) => l.id === linkId) : null;
+        const [link] = await listPromoterLinks({ linkId, promoterId: ctx.promoterId, limit: 1 });
 
-        if (link && link.promoterId && link.promoterId !== auth.uid) {
-            return fail("Forbidden", 403);
+        if (!link) return fail("Link not found", 404);
+
+        if (body.action === "deactivate") {
+            await deactivateLink(linkId);
+            return ok({});
         }
 
-        await deactivateLink(linkId, token);
+        if (body.action === "reactivate") {
+            await reactivateLink(linkId);
+            return ok({});
+        }
 
-        return ok({});
+        const updatedLink = await updatePromoterLinkAlias(linkId, ctx.promoterId, body.editableSlug);
+        return ok({ link: updatedLink });
     } catch (error: any) {
         console.error("[Promoter Links PATCH] Error:", error);
-        return fail("Failed to deactivate link");
+        if (error?.status) return fail(error.message || "Failed to update link", error.status);
+        return fail("Failed to update link");
     }
-});
+}

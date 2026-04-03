@@ -72,6 +72,7 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
         if (!promoterId) return;
         setSaving(true);
         try {
+            const normalizedHandle = formData.username.toLowerCase().replace(/[^a-z0-9_]/g, '');
             const token = await authUser?.getIdToken();
             const res = await fetch('/api/profile', {
                 method: 'POST',
@@ -89,7 +90,8 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                         instagram: formData.instagram,
                         bio: formData.bio,
                         city: formData.city,
-                        username: formData.username.toLowerCase().replace(/[^a-z0-9_]/g, ''),
+                        username: normalizedHandle,
+                        handle: normalizedHandle,
                         updatedAt: new Date().toISOString()
                     }
                 })
@@ -172,9 +174,6 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                                     <CheckCircle2 className="w-5 h-5 text-[var(--v-success)]" />
                                 </div>
                             </div>
-                            <p className="text-[14px] font-medium text-[var(--v-text-tertiary)] uppercase tracking-[0.2em]">
-                                Verified Promoter Identity — c1rcle Partner
-                            </p>
                         </div>
                         
                         <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
@@ -191,7 +190,6 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                 <BentoCard className="p-10 space-y-10">
                     <header className="space-y-1">
                         <h3 className="text-[18px] font-black text-white">Contact Details</h3>
-                        <p className="text-[13px] text-[var(--v-text-tertiary)]">How event hosts and venues can reach you.</p>
                     </header>
 
                     <div className="grid gap-6">
@@ -224,7 +222,6 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                 <BentoCard className="p-10 space-y-10 flex flex-col">
                     <header className="space-y-1">
                         <h3 className="text-[18px] font-black text-white">The Manifesto</h3>
-                        <p className="text-[13px] text-[var(--v-text-tertiary)]">Define your reach, audience, and value proposition.</p>
                     </header>
 
                     <div className="flex-1 min-h-[160px]">
@@ -239,7 +236,7 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                             <div className="h-full p-8 rounded-2xl bg-white/[0.02] border border-white/[0.04] flex items-center justify-center relative group">
                                 <div className="absolute top-4 left-6 text-4xl text-white/5 font-serif font-black">"</div>
                                 <p className="text-[15px] font-medium text-white/80 leading-relaxed text-center italic relative z-10 px-4">
-                                    {formData.bio || "No biography provided. Share your impact with potential partners!"}
+                                    {formData.bio || ""}
                                 </p>
                                 <div className="absolute bottom-4 right-6 text-4xl text-white/5 font-serif font-black translate-y-2">"</div>
                             </div>

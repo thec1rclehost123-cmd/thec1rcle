@@ -6,6 +6,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 
+function getOrderQuantity(order: Record<string, any>) {
+    if (Array.isArray(order.tickets) && order.tickets.length > 0) {
+        return order.tickets.reduce((sum, ticket) => sum + Number(ticket?.quantity || 1), 0);
+    }
+    return Number(order.quantity || 1);
+}
+
+function getPrimaryTicket(order: Record<string, any>) {
+    return Array.isArray(order.tickets) && order.tickets.length > 0 ? order.tickets[0] : null;
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const ctx = await requireHostAccess(req, "VIEW_GUESTLIST");
@@ -29,7 +40,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         // Fetch ticketed guests from orders
         const ordersSnap = await db.collection("orders")
             .where("eventId", "==", eventId)
-            .where("status", "==", "completed")
+            .where("status", "in", ["completed", "confirmed", "checked_in"])
             .limit(limit)
             .get();
 
@@ -37,14 +48,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
         for (const doc of ordersSnap.docs) {
             const o = doc.data();
+            const primaryTicket = getPrimaryTicket(o);
             guests.push({
                 id: doc.id,
-                displayName: o.buyerName || o.displayName || "Guest",
+                displayName: o.buyerName || o.userName || o.displayName || "Guest",
                 source: "ticket",
-                status: o.checkedIn ? "checked_in" : "registered",
+                status: o.checkedIn || o.scanned || o.status === "checked_in" ? "checked_in" : "registered",
                 addedAt: o.createdAt?.toDate?.()?.toISOString() ?? o.createdAt ?? null,
-                tierId: o.tierId || null,
-                tierName: o.tierName || null,
+                tierId: primaryTicket?.ticketId || o.tierId || null,
+                tierName: primaryTicket?.name || o.tierName || null,
+                quantity: getOrderQuantity(o),
             });
         }
 

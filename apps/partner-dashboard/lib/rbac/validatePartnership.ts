@@ -10,17 +10,14 @@
  *
  * Usage example (in a Next.js API route or server action):
  *
- *   const result = await validatePartnership(hostId, venueId, "trusted");
+ *   const result = await validatePartnership(hostId, venueId);
  *   if (!result.valid) return NextResponse.json({ error: result.reason }, { status: 403 });
  */
 
 import { getAdminDb } from "@/lib/firebase/admin";
 
-export type ContractTier = "trusted" | "standard";
-
 interface ValidationResult {
     valid: boolean;
-    tier?: ContractTier;
     reason?: string;
 }
 
@@ -29,12 +26,10 @@ interface ValidationResult {
  *
  * @param agentId    - Firestore ID of the host or promoter partner
  * @param venueId    - Firestore ID of the venue partner
- * @param requiredTier - Optional: enforce a minimum tier ("trusted" | "standard")
  */
 export async function validatePartnership(
     agentId: string,
-    venueId: string,
-    requiredTier?: ContractTier
+    venueId: string
 ): Promise<ValidationResult> {
     if (!agentId || !venueId) {
         return { valid: false, reason: "Missing agentId or venueId" };
@@ -69,18 +64,7 @@ export async function validatePartnership(
         };
     }
 
-    const tier = (doc.data().tier ?? "standard") as ContractTier;
-
-    // Enforce minimum tier if specified
-    if (requiredTier === "trusted" && tier !== "trusted") {
-        return {
-            valid: false,
-            tier,
-            reason: "Trusted tier required for this action. Contact the venue to upgrade your access.",
-        };
-    }
-
-    return { valid: true, tier };
+    return { valid: true };
 }
 
 /**
@@ -92,10 +76,4 @@ export async function validatePartnership(
  *   if (!valid) return NextResponse.json({ error: reason }, { status: 403 });
  *   // ... return calendar data
  * }
- *
- * Example: Guard event publish (requires Trusted tier)
- *
- *   const { valid, reason } = await validatePartnership(hostId, venueId, "trusted");
- *   if (!valid) return NextResponse.json({ error: reason }, { status: 403 });
- *   // ... auto-publish event
  */

@@ -46,8 +46,8 @@ const paddingClasses = {
 };
 
 const variantStyles: Record<string, React.CSSProperties> = {
-    default: { background: "var(--v-card)" },
-    dark:    { background: "var(--v-hero)" },
+    default: { background: "var(--v-panel-bg)" },
+    dark:    { background: "var(--v-panel-hero)" },
     accent:  { background: "var(--v-card)", border: "1px solid var(--v-orange)", boxShadow: "0 0 20px var(--v-orange-glow)" },
     ghost:   { background: "transparent", border: "1px solid var(--v-border)" },
 };
@@ -82,7 +82,7 @@ export function BentoCard({
     const containerStyle: React.CSSProperties = {
         ...variantStyles[variant],
         borderRadius: "var(--v-r-xl)",
-        boxShadow: variant === "accent" ? variantStyles.accent.boxShadow : "var(--v-shadow-card)",
+        boxShadow: variant === "accent" ? variantStyles.accent.boxShadow : "var(--v-panel-shadow-card)",
         minHeight,
         ...style,
     };

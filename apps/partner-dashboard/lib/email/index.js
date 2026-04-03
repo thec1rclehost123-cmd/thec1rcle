@@ -78,6 +78,30 @@ function formatEventTime(startTime, endTime) {
     return start;
 }
 
+function escapeHtml(value = '') {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function formatSlotRequestDate(date) {
+    if (!date) return '';
+    try {
+        return new Intl.DateTimeFormat('en-IN', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            timeZone: 'Asia/Kolkata',
+        }).format(new Date(date));
+    } catch {
+        return String(date);
+    }
+}
+
 /**
  * Send professional order confirmation email
  * 
@@ -246,6 +270,102 @@ export async function sendTicketEmail({
         return { success: true, data };
     } catch (error) {
         console.error(`[Email] ❌ Failed to send to ${to} for order ${orderId}:`, error);
+        return { success: false, error: error.message || error };
+    }
+}
+
+export async function sendVenueSlotRequestEmail({
+    to,
+    venueName,
+    hostName,
+    eventTitle,
+    requestedDate,
+    requestedStartTime,
+    requestedEndTime,
+    notes = "",
+    eventId = "",
+    slotRequestId = "",
+}) {
+    if (!to || (Array.isArray(to) && to.length === 0)) {
+        return { success: false, error: 'Missing recipients' };
+    }
+
+    if (!resend) {
+        console.warn('[Email] Resend API key not found. Skipping slot request email send.');
+        console.log('[Email] Would have sent slot request email to:', to, 'for slot request:', slotRequestId);
+        return { success: false, error: 'Missing API key' };
+    }
+
+    try {
+        const dashboardUrl = process.env.NEXT_PUBLIC_DASHBOARD_URL || 'https://dashboard.thec1rcle.com';
+        const requestsUrl = `${dashboardUrl}/venue/events/requests`;
+        const eventUrl = eventId ? `${dashboardUrl}/venue/events/${eventId}` : requestsUrl;
+        const displayDate = formatSlotRequestDate(requestedDate);
+        const displayTime = formatEventTime(requestedStartTime, requestedEndTime) || `${requestedStartTime} - ${requestedEndTime}`;
+
+        const html = `
+            <div style="margin:0;padding:32px;background:#08090b;font-family:Inter,Arial,sans-serif;color:#f5f5f5;">
+                <div style="max-width:620px;margin:0 auto;border:1px solid rgba(255,255,255,0.08);border-radius:24px;overflow:hidden;background:linear-gradient(180deg,#121316 0%,#0c0d10 100%);box-shadow:0 24px 80px rgba(0,0,0,0.45);">
+                    <div style="padding:28px 28px 20px;border-bottom:1px solid rgba(255,255,255,0.06);background:radial-gradient(circle at top right,rgba(244,74,34,0.22),transparent 46%),#121316;">
+                        <div style="display:inline-block;padding:7px 12px;border-radius:999px;background:rgba(244,74,34,0.12);color:#ff9a6b;font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;">
+                            New Slot Request
+                        </div>
+                        <h1 style="margin:16px 0 10px;font-size:30px;line-height:1.02;font-weight:900;letter-spacing:-0.04em;color:#ffffff;">
+                            ${escapeHtml(hostName || 'A host')} wants a date on your calendar.
+                        </h1>
+                        <p style="margin:0;font-size:15px;line-height:1.65;color:rgba(255,255,255,0.72);">
+                            ${escapeHtml(hostName || 'A host')} submitted a new slot request for <strong style="color:#ffffff;">${escapeHtml(eventTitle || 'an event')}</strong> at <strong style="color:#ffffff;">${escapeHtml(venueName || 'your venue')}</strong>.
+                        </p>
+                    </div>
+
+                    <div style="padding:24px 28px;">
+                        <div style="border:1px solid rgba(255,255,255,0.08);border-radius:20px;background:#0f1013;padding:20px 20px 16px;">
+                            <div style="font-size:12px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.42);margin-bottom:12px;">Request Summary</div>
+                            <div style="font-size:24px;font-weight:900;letter-spacing:-0.03em;color:#ffffff;margin-bottom:10px;">${escapeHtml(eventTitle || 'Untitled Event')}</div>
+                            <div style="font-size:14px;line-height:1.8;color:rgba(255,255,255,0.8);">
+                                <div><strong style="color:#ffffff;">Host:</strong> ${escapeHtml(hostName || 'Unknown Host')}</div>
+                                <div><strong style="color:#ffffff;">Requested Date:</strong> ${escapeHtml(displayDate)}</div>
+                                <div><strong style="color:#ffffff;">Requested Time:</strong> ${escapeHtml(displayTime)}</div>
+                            </div>
+                            ${notes ? `
+                                <div style="margin-top:16px;padding:14px 16px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);">
+                                    <div style="font-size:11px;font-weight:800;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.42);margin-bottom:8px;">Host Note</div>
+                                    <div style="font-size:14px;line-height:1.65;color:rgba(255,255,255,0.78);">${escapeHtml(notes)}</div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+                            <a href="${requestsUrl}" style="display:inline-block;padding:14px 22px;border-radius:14px;background:linear-gradient(135deg,#f97316,#ea580c);color:#ffffff;text-decoration:none;font-size:14px;font-weight:800;">
+                                Review Slot Requests
+                            </a>
+                            <a href="${eventUrl}" style="display:inline-block;padding:14px 22px;border-radius:14px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;">
+                                Open Event
+                            </a>
+                        </div>
+
+                        <p style="margin:22px 0 0;font-size:12px;line-height:1.7;color:rgba(255,255,255,0.48);">
+                            Review the request in your venue dashboard to approve, reject, or suggest a different slot.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        const data = await resend.emails.send({
+            from: process.env.EMAIL_FROM || 'THE C1RCLE <notifications@thec1rcle.com>',
+            to: Array.isArray(to) ? to : [to],
+            subject: `${hostName || 'A host'} requested a slot at ${venueName || 'your venue'}`,
+            html,
+            headers: {
+                'X-Entity-Ref-ID': slotRequestId || eventId || 'slot-request',
+            },
+        });
+
+        console.log(`[Email] ✅ Slot request notification sent for ${slotRequestId}`, data);
+        return { success: true, data };
+    } catch (error) {
+        console.error(`[Email] ❌ Failed to send slot request notification ${slotRequestId}:`, error);
         return { success: false, error: error.message || error };
     }
 }

@@ -62,11 +62,47 @@ const ROLE_PRESETS = {
             'devices:bind'
         ]
     },
+    MANAGER: {
+        name: 'Manager',
+        description: 'Full operations access including staff management',
+        permissions: [
+            'scan:read',
+            'scan:create',
+            'guestlist:read',
+            'guestlist:notes',
+            'incidents:create',
+            'incidents:read',
+            'staff:read',
+            'staff:invite',
+            'staff:update',
+            'devices:read',
+            'devices:bind'
+        ]
+    },
+    SECURITY: {
+        name: 'Security',
+        description: 'Can scan tickets, view guest list, and track incidents',
+        permissions: [
+            'scan:read',
+            'scan:create',
+            'guestlist:read',
+            'guestlist:notes',
+            'incidents:create',
+            'incidents:read'
+        ]
+    },
     owner: {
         name: 'Owner',
         description: 'Full access including billing and settings',
         permissions: [
             '*' // All permissions
+        ]
+    },
+    OWNER: {
+        name: 'Owner',
+        description: 'Full access including billing and settings',
+        permissions: [
+            '*'
         ]
     },
     // VenueRole-aligned presets (used by partner dashboard invite flow)

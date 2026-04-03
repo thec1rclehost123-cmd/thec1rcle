@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X, Smartphone, Building2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { formatINR } from "@/lib/utils/format";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import {
     validatePayoutAmount,
     validateUpiId,
@@ -23,6 +24,7 @@ export function PayoutRequestModal({
     onClose,
     onSuccess,
 }: PayoutRequestModalProps) {
+    const { getIdToken } = useDashboardAuth() as any;
     const [amount, setAmount] = useState(availableBalance);
     const [paymentMethod, setPaymentMethod] = useState("upi");
     const [upiId, setUpiId] = useState("");
@@ -59,9 +61,14 @@ export function PayoutRequestModal({
                 paymentDetails.accountName = accountName.trim();
             }
 
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+
             const res = await fetch("/api/promoter/payouts", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({ promoterId, amount, paymentMethod, paymentDetails }),
             });
             const data = await res.json();

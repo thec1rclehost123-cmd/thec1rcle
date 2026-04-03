@@ -56,7 +56,8 @@ export default function VenueDashboardHome() {
             return res.json();
         },
         enabled: !!venueId,
-        staleTime: 60000 // 1 min
+        staleTime: 60_000,
+        refetchOnMount: false,
     });
 
     // 2. Summary
@@ -67,7 +68,8 @@ export default function VenueDashboardHome() {
             return res.json();
         },
         enabled: !!venueId,
-        staleTime: 300000 // 5 mins
+        staleTime: 300_000,
+        refetchOnMount: false,
     });
 
     // 3. Events List
@@ -84,7 +86,8 @@ export default function VenueDashboardHome() {
             }));
         },
         enabled: !!venueId,
-        staleTime: 60000
+        staleTime: 300_000,
+        refetchOnMount: false,
     });
 
     const events = eventsData || [];
@@ -99,8 +102,10 @@ export default function VenueDashboardHome() {
             return res.json();
         },
         enabled: !!tonightEvent?.id,
-        refetchInterval: 30000, // Poll every 30s for live data
-        staleTime: 10000
+        refetchInterval: 60_000,
+        refetchIntervalInBackground: false,
+        staleTime: 60_000,
+        refetchOnMount: false,
     });
 
     const loading = summaryLoading || eventsLoading;
@@ -468,9 +473,9 @@ function AlertRow({ alert }: { alert: any }) {
             <div className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: !alert.isRead ? "var(--v-orange)" : "var(--v-text-muted)" }} />
             <div className="flex-1 min-w-0">
                 <p className="text-[13px] font-medium truncate" style={{ color: "var(--v-text-primary)" }}>{alert.title ?? "Notification"}</p>
-                <p className="text-[11px] truncate" style={{ color: "var(--v-text-tertiary)" }}>{alert.description ?? ""}</p>
+                <p className="text-[11px] truncate" style={{ color: "var(--v-text-tertiary)" }}>{alert.description ?? alert.message ?? ""}</p>
             </div>
-            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--v-text-muted)" }}>{alert.timestamp ?? ""}</span>
+            <span className="text-[10px] shrink-0 mt-0.5" style={{ color: "var(--v-text-muted)" }}>{alert.timestamp ?? alert.createdAt ?? ""}</span>
         </Wrapper>
     );
 }

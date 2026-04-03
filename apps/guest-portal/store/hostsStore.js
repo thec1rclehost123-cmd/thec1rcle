@@ -142,7 +142,7 @@ export const useHostsStore = create(
             invalidate: () => set({ cache: {} }),
         }),
         {
-            name: 'hosts-cache',
+            name: 'hosts-cache-v2',
             storage: createJSONStorage(() =>
                 typeof window !== "undefined" ? localStorage : undefined
             ),

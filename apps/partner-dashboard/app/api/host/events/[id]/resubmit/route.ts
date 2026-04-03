@@ -7,6 +7,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireHostAccess, writeAuditLog } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { checkPartnership } from "@/lib/server/partnershipStore";
+import { createSlotRequest, listSlotRequests } from "@/lib/server/slotStore";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
@@ -33,6 +35,30 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
         const body = await req.json().catch(() => ({}));
         const now = new Date();
+
+        const hasPartnership = await checkPartnership(hostId, ev.venueId);
+        if (!hasPartnership) {
+            return NextResponse.json({ error: "No active partnership with this venue. Access denied." }, { status: 403 });
+        }
+
+        const existingSlotRequests = await listSlotRequests({ venueId: ev.venueId, hostId, limit: 50 } as any);
+        const matchingActiveRequest = existingSlotRequests.find((request: any) =>
+            request.eventId === eventId && String(request.status || "").toLowerCase() !== "rejected"
+        );
+
+        if (!matchingActiveRequest) {
+            await createSlotRequest({
+                eventId,
+                hostId,
+                hostName: ev.hostName || ev.host || "",
+                venueId: ev.venueId,
+                venueName: ev.venueName || ev.venue || "",
+                requestedDate: String(ev.startDate || "").slice(0, 10),
+                requestedStartTime: ev.startTime,
+                requestedEndTime: ev.endTime,
+                notes: body.hostNote || `Event resubmission: ${ev.title || ev.name || eventId}`,
+            }, req.headers.get("authorization")?.split("Bearer ")[1] || "", { uid, role: "host" });
+        }
 
         await db.collection("events").doc(eventId).update({
             lifecycle: "submitted",

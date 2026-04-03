@@ -49,14 +49,19 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
             return fail("Unauthorized", 403);
         }
 
+        const normalizedAllowedPromoterIds = Array.isArray(allowedPromoterIds)
+            ? [...new Set(allowedPromoterIds.map((promoterId: string) => String(promoterId)).filter(Boolean))]
+            : (event.promoterSettings?.allowedPromoterIds ?? []);
+        const normalizedEnabled = Boolean(enabled ?? event.promoterSettings?.enabled);
         const updatedSettings = {
             ...event.promoterSettings,
-            enabled: enabled ?? event.promoterSettings?.enabled,
-            allowedPromoterIds: allowedPromoterIds ?? event.promoterSettings?.allowedPromoterIds ?? []
+            enabled: normalizedEnabled,
+            allowedPromoterIds: normalizedAllowedPromoterIds,
         };
 
         const updatedEvent = await updateEvent(ctx?.params?.id as string, {
             promoterSettings: updatedSettings,
+            promotersEnabled: normalizedEnabled,
             creatorId: actor.uid,
             creatorRole: actor.role
         });

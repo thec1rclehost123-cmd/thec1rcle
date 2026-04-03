@@ -7,9 +7,12 @@
 import Constants from "expo-constants";
 import { getFirebaseAuth } from "./firebase";
 
-// The guest-portal base URL — same backend used by the website
+// Fastify API Gateway base URL
 const API_BASE =
-    process.env.EXPO_PUBLIC_API_BASE_URL || "https://thec1rcle.com";
+    process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.thec1rcle.com";
+
+// All mobile HTTP calls go through the versioned gateway prefix
+const API_PREFIX = "/api/v1";
 
 /**
  * Get the current user's Firebase ID token for authenticated requests.
@@ -114,7 +117,7 @@ export interface ReserveResponse {
 export async function reserveTickets(
     payload: ReserveRequest
 ): Promise<ReserveResponse> {
-    return apiFetch<ReserveResponse>("/api/checkout/reserve", {
+    return apiFetch<ReserveResponse>(`${API_PREFIX}/checkout/reserve`, {
         method: "POST",
         body: JSON.stringify({
             eventId: payload.eventId,
@@ -165,7 +168,7 @@ export interface PricingResult {
 export async function calculatePricing(
     payload: CalculateRequest
 ): Promise<PricingResult> {
-    return apiFetch<PricingResult>("/api/checkout/calculate", {
+    return apiFetch<PricingResult>(`${API_PREFIX}/checkout/calculate`, {
         method: "POST",
         requireAuth: false,
         body: JSON.stringify(payload),
@@ -207,7 +210,7 @@ export interface InitiateCheckoutResponse {
 export async function initiateCheckout(
     payload: InitiateCheckoutRequest
 ): Promise<InitiateCheckoutResponse> {
-    return apiFetch<InitiateCheckoutResponse>("/api/checkout/initiate", {
+    return apiFetch<InitiateCheckoutResponse>(`${API_PREFIX}/checkout/initiate`, {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -233,7 +236,7 @@ export interface VerifyPaymentResponse {
 export async function verifyPayment(
     payload: VerifyPaymentRequest
 ): Promise<VerifyPaymentResponse> {
-    return apiFetch<VerifyPaymentResponse>("/api/payments", {
+    return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/payments/verify`, {
         method: "PATCH",
         body: JSON.stringify(payload),
     });
@@ -244,7 +247,7 @@ export async function verifyPayment(
  * Uses: POST /api/checkout/cancel
  */
 export async function cancelOrder(orderId: string): Promise<{ success: boolean }> {
-    return apiFetch("/api/checkout/cancel", {
+    return apiFetch(`${API_PREFIX}/checkout/cancel`, {
         method: "POST",
         body: JSON.stringify({ orderId }),
     });
@@ -272,7 +275,7 @@ export interface ValidatePromoResponse {
 export async function validatePromoCode(
     payload: ValidatePromoRequest
 ): Promise<ValidatePromoResponse> {
-    return apiFetch<ValidatePromoResponse>("/api/checkout/promo", {
+    return apiFetch<ValidatePromoResponse>(`${API_PREFIX}/checkout/promo`, {
         method: "POST",
         requireAuth: false,
         body: JSON.stringify(payload),
@@ -286,7 +289,7 @@ export async function validatePromoCode(
  * Uses: GET /api/orders
  */
 export async function getOrders(): Promise<{ orders: any[] }> {
-    return apiFetch("/api/orders");
+    return apiFetch(`${API_PREFIX}/orders`);
 }
 
 /**
@@ -294,7 +297,7 @@ export async function getOrders(): Promise<{ orders: any[] }> {
  * Uses: POST /api/orders/[orderId]/cancel
  */
 export async function cancelUserOrder(orderId: string): Promise<any> {
-    return apiFetch(`/api/orders/${orderId}/cancel`, {
+    return apiFetch(`${API_PREFIX}/orders/${orderId}/cancel`, {
         method: "POST",
     });
 }
@@ -316,7 +319,7 @@ export async function fetchEvents(params?: {
     if (params?.limit) searchParams.set("limit", params.limit.toString());
 
     const query = searchParams.toString();
-    return apiFetch(`/api/events${query ? `?${query}` : ""}`, {
+    return apiFetch(`${API_PREFIX}/events${query ? `?${query}` : ""}`, {
         requireAuth: false,
     });
 }
@@ -326,7 +329,7 @@ export async function fetchEvents(params?: {
  * Uses: GET /api/search
  */
 export async function searchEvents(query: string): Promise<{ results: any[] }> {
-    return apiFetch(`/api/search?q=${encodeURIComponent(query)}`, {
+    return apiFetch(`${API_PREFIX}/search?q=${encodeURIComponent(query)}`, {
         requireAuth: false,
     });
 }
@@ -338,7 +341,7 @@ export async function searchEvents(query: string): Promise<{ results: any[] }> {
  * Uses: GET /api/notifications
  */
 export async function getNotifications(): Promise<{ notifications: any[] }> {
-    return apiFetch("/api/notifications");
+    return apiFetch(`${API_PREFIX}/notifications`);
 }
 
 // ─── Ticket Sharing + Formal Transfers (guest-portal parity) ───────────────
@@ -348,7 +351,7 @@ export async function getNotifications(): Promise<{ notifications: any[] }> {
  * Uses: GET /api/tickets/claim?token=...
  */
 export async function getShareBundle(token: string): Promise<any> {
-    return apiFetch(`/api/tickets/claim?token=${encodeURIComponent(token)}`, {
+    return apiFetch(`${API_PREFIX}/tickets/claim?token=${encodeURIComponent(token)}`, {
         requireAuth: false,
     });
 }
@@ -358,7 +361,7 @@ export async function getShareBundle(token: string): Promise<any> {
  * Uses: POST /api/tickets/claim
  */
 export async function claimShareTicket(token: string): Promise<any> {
-    return apiFetch(`/api/tickets/claim`, {
+    return apiFetch(`${API_PREFIX}/tickets/claim/share`, {
         method: "POST",
         body: JSON.stringify({ token }),
     });
@@ -375,7 +378,7 @@ export async function createShareBundle(payload: {
     tierId: string;
     expiresAt?: string;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/share`, {
+    return apiFetch(`${API_PREFIX}/tickets/share`, {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -386,7 +389,7 @@ export async function createShareBundle(payload: {
  * Uses: GET /api/tickets/transfer?code=...
  */
 export async function getTransferDetails(code: string): Promise<any> {
-    return apiFetch(`/api/tickets/transfer?code=${encodeURIComponent(code)}`, {
+    return apiFetch(`${API_PREFIX}/tickets/transfer?code=${encodeURIComponent(code)}`, {
         requireAuth: false,
     });
 }
@@ -399,7 +402,7 @@ export async function initiateFormalTransfer(payload: {
     ticketId: string;
     recipientEmail?: string;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/transfer`, {
+    return apiFetch(`${API_PREFIX}/tickets/transfer`, {
         method: "POST",
         body: JSON.stringify(payload),
     });
@@ -412,7 +415,7 @@ export async function initiateFormalTransfer(payload: {
 export async function acceptFormalTransfer(payload: {
     transferCode: string;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/transfer`, {
+    return apiFetch(`${API_PREFIX}/tickets/transfer`, {
         method: "PATCH",
         body: JSON.stringify(payload),
     });
@@ -425,9 +428,8 @@ export async function acceptFormalTransfer(payload: {
 export async function cancelFormalTransfer(payload: {
     transferId: string;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/transfer`, {
+    return apiFetch(`${API_PREFIX}/tickets/transfer?transferId=${encodeURIComponent(payload.transferId)}`, {
         method: "DELETE",
-        body: JSON.stringify(payload),
     });
 }
 
@@ -436,7 +438,7 @@ export async function cancelFormalTransfer(payload: {
  * Uses: GET /api/tickets/transfer/pending
  */
 export async function getPendingFormalTransfers(): Promise<any> {
-    return apiFetch(`/api/tickets/transfer/pending`);
+    return apiFetch(`${API_PREFIX}/tickets/transfer/pending`);
 }
 
 /**
@@ -444,7 +446,7 @@ export async function getPendingFormalTransfers(): Promise<any> {
  * Uses: GET /api/tickets/share?orderId=...
  */
 export async function getTicketShares(orderId: string): Promise<any> {
-    return apiFetch(`/api/tickets/share?orderId=${encodeURIComponent(orderId)}`);
+    return apiFetch(`${API_PREFIX}/tickets/share?orderId=${encodeURIComponent(orderId)}`);
 }
 
 /**
@@ -455,7 +457,7 @@ export async function reclaimSharedTicket(payload: {
     bundleId: string;
     slotIndex: number;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/share`, {
+    return apiFetch(`${API_PREFIX}/tickets/share`, {
         method: "DELETE",
         body: JSON.stringify(payload),
     });
@@ -463,12 +465,12 @@ export async function reclaimSharedTicket(payload: {
 
 /**
  * Cancel an active share bundle entirely (auth required).
- * Uses: DELETE /api/tickets/share
+ * Uses: DELETE /api/v1/tickets/share
  */
 export async function cancelShareBundle(payload: {
     bundleId: string;
 }): Promise<any> {
-    return apiFetch(`/api/tickets/share`, {
+    return apiFetch(`${API_PREFIX}/tickets/share`, {
         method: "DELETE",
         body: JSON.stringify(payload),
     });

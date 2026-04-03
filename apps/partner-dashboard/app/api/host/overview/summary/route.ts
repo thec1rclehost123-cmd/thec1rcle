@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 const EMPTY_SUMMARY = {
@@ -54,10 +54,13 @@ function resolveWindow(
     return { windowStart, windowEnd, resolvedRange: r };
 }
 
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return ok({ error: ctx.error, status: ctx.status });
+
     try {
         const { searchParams } = new URL(req.url);
-        const hostId = searchParams.get("hostId");
+        const hostId = ctx.hostId || searchParams.get("hostId");
         if (!hostId) return fail("hostId is required", 400);
 
         const range = searchParams.get("range");
@@ -74,8 +77,8 @@ export const GET = withAuth(async (req: NextRequest) => {
         const db = getAdminDb();
 
         const [partnershipSnap, promoterConnSnap, eventsSnap, hostDoc] = await Promise.all([
-            db.collection("partnerships").where("hostId", "==", hostId).get(),
-            db.collection("promoter_connections").where("targetId", "==", hostId).get(),
+            db.collection("partnerships").where("hostId", "==", hostId).limit(50).get(),
+            db.collection("promoter_connections").where("targetId", "==", hostId).limit(50).get(),
             db.collection("events").where("hostId", "==", hostId).limit(100).get(),
             db.collection("hosts").doc(hostId).get(),
         ]);
@@ -158,4 +161,4 @@ export const GET = withAuth(async (req: NextRequest) => {
         console.error("[Host Summary API] Error:", error);
         return fail("Failed to fetch host summary");
     }
-});
+}

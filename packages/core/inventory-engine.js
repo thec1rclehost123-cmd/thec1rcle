@@ -22,6 +22,50 @@ const NUM_SHARDS = 10;
 const REDIS_RES_PREFIX = "res:data:";
 const REDIS_TIER_RES_PREFIX = "res:event:";
 
+function normalizeReservationItems(items = []) {
+    return items
+        .map((item) => ({
+            tierId: item?.tierId || item?.id || null,
+            quantity: Number(item?.quantity || 0)
+        }))
+        .filter((item) => item.tierId && item.quantity > 0)
+        .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
+}
+
+function reservationItemsMatch(left = [], right = []) {
+    const normalizedLeft = normalizeReservationItems(left);
+    const normalizedRight = normalizeReservationItems(right);
+    return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
+}
+
+function isReservationUsable(reservation) {
+    if (!reservation || reservation.status !== "active") return false;
+    if (!reservation.expiresAt) return true;
+    return new Date(reservation.expiresAt) > new Date();
+}
+
+async function removeTrackedReservation(redis, reservationId, reservation, userResKey = null) {
+    const multi = redis.multi();
+    multi.del(`${REDIS_RES_PREFIX}${reservationId}`);
+
+    for (const item of reservation?.items || []) {
+        if (!item?.tierId) continue;
+        multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
+    }
+
+    if (userResKey) {
+        multi.srem(userResKey, reservationId);
+    } else if (reservation?.customerId && reservation.customerId !== "anonymous" && reservation?.eventId) {
+        multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
+    }
+
+    try {
+        await multi.exec();
+    } catch (e) {
+        console.warn("[Redis] Failed to clean up stale reservation:", e.message);
+    }
+}
+
 /**
  * Calculate effective inventory for a tier.
  * Accounts for:
@@ -200,13 +244,29 @@ export async function createReservation(event, customerId, deviceId, items, opti
                 for (const existingId of existingResIds) {
                     const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
                     if (existingData) {
-                        throw new Error("You already have an active reservation for this event. Please complete or cancel your existing checkout first.");
+                        const existingReservation = JSON.parse(existingData);
+
+                        if (isReservationUsable(existingReservation) && reservationItemsMatch(existingReservation.items, items)) {
+                            return {
+                                success: true,
+                                reservationId: existingReservation.id,
+                                items: existingReservation.items,
+                                expiresAt: existingReservation.expiresAt,
+                                expiresInSeconds: Math.max(
+                                    0,
+                                    Math.floor((new Date(existingReservation.expiresAt) - new Date()) / 1000)
+                                )
+                            };
+                        }
+
+                        await removeTrackedReservation(redis, existingId, existingReservation, userResKey);
+                        continue;
                     }
+
                     // Stale entry from an expired reservation — remove it
                     await redis.srem(userResKey, existingId).catch(() => {});
                 }
             } catch (e) {
-                if (e.message.includes("already have an active reservation")) throw e;
                 console.warn("[Redis] Per-user check failed, skipping:", e.message);
             }
         }
@@ -294,6 +354,7 @@ export async function releaseReservation(reservationId) {
 export async function commitInventory(transaction, { event, items, reservationId = null }) {
     const eventRef = transaction.db.collection('events').doc(event.id);
     const updatedTickets = [...(event.tickets || event.ticketCatalog?.tiers || [])];
+    const shardReads = [];
 
     for (const item of items) {
         const ticketIndex = updatedTickets.findIndex(t => t.id === item.ticketId || t.id === item.tierId);
@@ -311,20 +372,8 @@ export async function commitInventory(transaction, { event, items, reservationId
             // For now, simpler random shard for 'sold' increment
             const shardId = Math.floor(Math.random() * 10).toString();
             const shardRef = shardsRef.doc(`${tier.id}_${shardId}`);
-
             const shardDoc = await transaction.get(shardRef);
-            if (reservationId && shardDoc.exists) {
-                transaction.update(shardRef, {
-                    lockedQuantity: Math.max(0, (shardDoc.data().lockedQuantity || 0) - quantity),
-                    soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
-                    updatedAt: new Date().toISOString()
-                });
-            } else {
-                transaction.update(shardRef, {
-                    soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
-                    updatedAt: new Date().toISOString()
-                });
-            }
+            shardReads.push({ shardRef, shardDoc, quantity });
         } else {
             // Standard update
             if (reservationId) {
@@ -339,6 +388,21 @@ export async function commitInventory(transaction, { event, items, reservationId
                     remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity)
                 };
             }
+        }
+    }
+
+    for (const { shardRef, shardDoc, quantity } of shardReads) {
+        if (reservationId && shardDoc.exists) {
+            transaction.update(shardRef, {
+                lockedQuantity: Math.max(0, (shardDoc.data().lockedQuantity || 0) - quantity),
+                soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
+                updatedAt: new Date().toISOString()
+            });
+        } else {
+            transaction.update(shardRef, {
+                soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
+                updatedAt: new Date().toISOString()
+            });
         }
     }
 

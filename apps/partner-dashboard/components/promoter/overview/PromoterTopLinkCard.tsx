@@ -2,6 +2,19 @@
 
 import { Link as LinkIcon } from "lucide-react";
 
+const GUEST_PORTAL_HOST = (() => {
+    const baseUrl =
+        process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        "";
+    if (!baseUrl) return "guest-portal";
+    try {
+        return new URL(baseUrl).host;
+    } catch {
+        return baseUrl.replace(/^https?:\/\//, "");
+    }
+})();
+
 export function PromoterTopLinkCard({ topLink }: { topLink?: any }) {
     return (
         <div className="bg-surface-elevated border border-border-subtle rounded-2xl p-6 flex flex-col h-[280px]">
@@ -13,7 +26,7 @@ export function PromoterTopLinkCard({ topLink }: { topLink?: any }) {
                             {topLink.event?.name}
                         </p>
                         <div className="bg-surface-tertiary px-3 py-2 rounded-lg font-mono text-sm break-all text-text-secondary">
-                            c1rcle.com/e/{topLink.linkCode ?? "—"}
+                            {GUEST_PORTAL_HOST}/e/{topLink.linkCode ?? "—"}
                         </div>
                         <p className="text-sm text-text-tertiary">
                             Driven <span className="font-bold text-text-primary tabular-nums">{topLink.attributedRevenue ?? "₹—"}</span> in sales

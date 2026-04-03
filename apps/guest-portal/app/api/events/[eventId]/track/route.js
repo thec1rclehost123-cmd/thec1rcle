@@ -31,24 +31,6 @@ export async function POST(request, { params }) {
             );
         }
 
-        // Increment promoter link clicks when a ref code is present
-        if (ref && typeof ref === "string" && ref.length <= 12) {
-            const snap = await db
-                .collection("promoter_links")
-                .where("code", "==", ref.toUpperCase())
-                .where("isActive", "==", true)
-                .limit(1)
-                .get();
-            if (!snap.empty) {
-                writes.push(
-                    snap.docs[0].ref.update({
-                        clicks: FieldValue.increment(1),
-                        updatedAt: new Date().toISOString(),
-                    })
-                );
-            }
-        }
-
         await Promise.allSettled(writes);
         return NextResponse.json({ ok: true });
     } catch {

@@ -1,26 +1,21 @@
 import { NextRequest } from "next/server";
-import { getPromoterAnalytics } from "@/lib/server/analyticsStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { getPromoterStats } from "@/lib/server/promoterLinkStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * GET /api/promoter/stats
  * Fetches combined stats and timeline for a promoter
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
+
     try {
-        const { searchParams } = new URL(req.url);
-        const promoterId = searchParams.get("promoterId");
-        const range = searchParams.get("range") || "30d";
-
-        if (!promoterId) return fail("promoterId is required", 400);
-
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-        const analytics = await getPromoterAnalytics(promoterId, range, token);
-
-        return ok(analytics);
+        const stats = await getPromoterStats(ctx.promoterId);
+        return ok(stats);
     } catch (error: any) {
         console.error("[Promoter Stats API] GET Error:", error);
         return fail("Failed to fetch stats");
     }
-});
+}

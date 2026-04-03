@@ -32,12 +32,13 @@ export function DashboardPanel({
     interactive = false,
     className,
     headerClassName,
+    style,
     ...props
 }: DashboardPanelProps) {
     const variantClasses = {
-        default: "bg-[var(--v-card)] border-[var(--v-border)]",
-        elevated: "bg-[var(--v-elevated)] border-[var(--v-border-strong)] shadow-sm",
-        hero: "bg-[var(--v-hero)] border-[var(--v-border-strong)] shadow-md",
+        default: "bg-[var(--v-panel-bg)] border-[var(--v-panel-border)] shadow-[var(--v-panel-shadow-card)]",
+        elevated: "bg-[var(--v-panel-bg)] border-[var(--v-panel-border-strong)] shadow-[var(--v-panel-shadow-card)]",
+        hero: "bg-[var(--v-panel-hero)] border-[var(--v-panel-border-strong)] shadow-[var(--v-panel-shadow-hero)]",
         ghost: "bg-transparent border-transparent",
         accent: "bg-[var(--v-orange-dim)] border-[var(--v-orange-glow)]",
     };
@@ -56,10 +57,11 @@ export function DashboardPanel({
             className={cn(
                 "rounded-[var(--v-r-xl)] border transition-all duration-200 overflow-hidden flex flex-col",
                 variantClasses[variant],
-                interactive && "hover:bg-[var(--v-card-hover)] hover:shadow-lg cursor-pointer active:scale-[0.99]",
+                interactive && "hover:bg-[var(--v-panel-hover)] hover:shadow-[var(--v-shadow-hover)] cursor-pointer active:scale-[0.99]",
                 fullHeight && "h-full",
                 className
             )}
+            style={style}
             {...(interactive ? {
                 whileHover: { y: -2 },
                 transition: { duration: 0.2 }
@@ -91,7 +93,7 @@ export function DashboardPanel({
 
             {/* Footer */}
             {footer && (
-                <div className="px-6 py-4 border-t border-[var(--v-divider)] bg-[var(--v-canvas)]/50">
+                <div className="px-6 py-4 border-t border-[var(--v-divider)] bg-transparent">
                     {footer}
                 </div>
             )}

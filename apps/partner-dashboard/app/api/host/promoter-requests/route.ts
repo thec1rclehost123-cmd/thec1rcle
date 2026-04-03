@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
     listIncomingRequests,
@@ -6,11 +6,10 @@ import {
     rejectConnectionRequest,
     revokeConnection,
 } from "@/lib/server/promoterConnectionStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 const RequestsQuery = z.object({
-    hostId: z.string().min(1, "hostId is required"),
     status: z.string().optional(),
 });
 
@@ -19,40 +18,43 @@ const UpdateRequestBody = z.object({
     action: z.enum(["approve", "reject", "revoke"], {
         error: "action must be 'approve', 'reject', or 'revoke'",
     }),
-    hostId: z.string().optional(),
-    hostName: z.string().optional(),
     reason: z.string().optional(),
 });
 
 /**
  * GET /api/host/promoter-requests
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const { searchParams } = new URL(req.url);
         const parsed = RequestsQuery.safeParse(Object.fromEntries(searchParams));
         if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { hostId, status } = parsed.data;
-        const requests = await listIncomingRequests(hostId, "host", status);
+        const requests = await listIncomingRequests(ctx.hostId, "host", parsed.data.status);
         return ok({ requests });
     } catch (error: any) {
         console.error("[GET /api/host/promoter-requests]", error);
         return fail("Failed to fetch requests");
     }
-});
+}
 
 /**
  * PATCH /api/host/promoter-requests
  */
-export const PATCH = withAuth(async (req: NextRequest) => {
+export async function PATCH(req: NextRequest) {
+    const ctx = await requireHostAccess(req, "MANAGE_STAFF");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const rawBody = await req.json();
         const parsed = UpdateRequestBody.safeParse(rawBody);
         if (!parsed.success) return fail(parsed.error.issues[0].message, 400);
 
-        const { connectionId, action, hostId, hostName, reason } = parsed.data;
-        const actor = { uid: hostId || "", name: hostName || "" };
+        const { connectionId, action, reason } = parsed.data;
+        const actor = { uid: ctx.hostId, name: ctx.displayName };
 
         switch (action) {
             case "approve":
@@ -71,4 +73,4 @@ export const PATCH = withAuth(async (req: NextRequest) => {
         console.error("[PATCH /api/host/promoter-requests]", error);
         return fail("Failed to update request", 400);
     }
-});
+}

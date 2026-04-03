@@ -2,16 +2,15 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
-    Building2, ChevronRight, CheckCircle2, Clock,
-    Search, Loader2, Handshake, X, Bell, Zap,
+    Building2, CheckCircle2, Clock,
+    Search, Loader2, X, Bell, Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
-import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
-import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
-import { formatMonthYear } from "@/lib/utils/format";
+import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
 
 type Tab = "discover" | "incoming" | "pending" | "active";
 
@@ -41,6 +40,7 @@ const mp = (delay: number) => ({
 });
 
 export default function HostNetworkPage() {
+    const router = useRouter();
     const { profile, user, getIdToken } = useDashboardAuth() as any;
     const hostId = profile?.activeMembership?.partnerId;
 
@@ -49,7 +49,6 @@ export default function HostNetworkPage() {
     const [promoterConnections, setPromoterConnections] = useState<PromoterConnection[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
@@ -103,7 +102,7 @@ export default function HostNetworkPage() {
         setProcessingId(connectionId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/venue/partnerships", {
+            await fetch("/api/host/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId: connectionId, action: "approve" }),
@@ -116,7 +115,7 @@ export default function HostNetworkPage() {
         setProcessingId(connectionId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/venue/partnerships", {
+            await fetch("/api/host/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId: connectionId, action: "reject" }),
@@ -155,7 +154,7 @@ export default function HostNetworkPage() {
 
     return (
         <VenuePageShell
-            title="Partner Network"
+            title="Partners"
             subtitle="Venues and promoters connected to your host profile"
             actions={
                 <div className="flex gap-3">
@@ -170,55 +169,26 @@ export default function HostNetworkPage() {
                 </div>
             }
         >
-            {/* Hero banner */}
-            <motion.div {...mp(0)}>
-                <div
-                    className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-5"
-                    style={{ background: "linear-gradient(135deg, #1a0e05 0%, #0f0a05 60%, #080808 100%)", border: "1px solid rgba(244,74,34,0.2)" }}
-                >
-                    <div className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none" style={{ background: "rgba(244,74,34,0.08)" }} />
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10" style={{ background: "rgba(244,74,34,0.15)", color: "#F44A22" }}>
-                        <Handshake className="w-6 h-6" />
-                    </div>
-                    <div className="relative z-10">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-1">Partner Network</p>
-                        <p className="text-[13px] font-medium text-text-secondary max-w-lg">
-                            Connect with venues and promoters to access production calendars, book slots, and grow your event portfolio.
-                        </p>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* Stats strip */}
-            <motion.div {...mp(0.06)}>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <StatTrendCard label="Active Venues" value={activeVenues.length} trendUp={activeVenues.length > 0} color="#34d399" icon={<CheckCircle2 className="w-4 h-4" />} />
-                    <StatTrendCard label="Active Promoters" value={activePromoters.length} trendUp={activePromoters.length > 0} color="#818cf8" icon={<Zap className="w-4 h-4" />} />
-                    <StatTrendCard label="Pending Requests" value={pendingVenues.length + pendingIncomingPromoters.length} color="#f59e0b" icon={<Clock className="w-4 h-4" />} />
-                    <StatTrendCard label="Total Connected" value={venues.length + promoterConnections.length} color="#F44A22" icon={<Building2 className="w-4 h-4" />} />
-                </div>
-            </motion.div>
-
             {/* Tab bar */}
-            <motion.div {...mp(0.1)}>
-                <div className="flex items-center p-1.5 rounded-2xl w-fit overflow-x-auto" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+            <motion.div {...mp(0)}>
+                <div className="flex items-center p-2 rounded-[28px] w-fit overflow-x-auto" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
                     {TABS.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all shrink-0"
+                            className="flex items-center gap-3 px-7 py-4 rounded-[24px] text-[17px] font-semibold transition-all shrink-0"
                             style={activeTab === tab.id
                                 ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
                                 : { color: "var(--v-text-tertiary)" }}
                         >
-                            {tab.id === "discover" && <Search className={`w-4 h-4 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
-                            {tab.id === "incoming" && <Bell className={`w-4 h-4 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
-                            {tab.id === "pending" && <Clock className={`w-4 h-4 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
-                            {tab.id === "active" && <CheckCircle2 className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
+                            {tab.id === "discover" && <Search className={`w-5 h-5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
+                            {tab.id === "incoming" && <Bell className={`w-5 h-5 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
+                            {tab.id === "pending" && <Clock className={`w-5 h-5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
+                            {tab.id === "active" && <CheckCircle2 className={`w-5 h-5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
                                 <span
-                                    className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
+                                    className="px-2 py-1 rounded-lg text-[12px] font-black min-w-[28px] text-center"
                                     style={activeTab === tab.id
                                         ? { background: "#F44A22", color: "#fff" }
                                         : { background: "rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}
@@ -235,7 +205,7 @@ export default function HostNetworkPage() {
             <div className="min-h-[500px]">
                 {error && (
                     <div className="flex flex-col items-center justify-center py-16 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
-                        <p className="text-[16px] font-black text-text-primary">Failed to load network</p>
+                        <p className="text-[16px] font-black text-text-primary">Failed to load partners</p>
                         <button onClick={fetchData} className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest">
                             Retry
                         </button>
@@ -246,7 +216,7 @@ export default function HostNetworkPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === "discover" ? (
                             <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                                <DiscoverDirectory allowedTypes={["venue"]} partnerId={hostId} role="host" />
+                                <DiscoverDirectory allowedTypes={["venue", "promoter"]} partnerId={hostId} role="host" />
                             </motion.div>
 
                         ) : activeTab === "incoming" ? (
@@ -427,12 +397,19 @@ export default function HostNetworkPage() {
                                                 {activePromoters.length > 0 && (
                                                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#34d399] pl-4">Venues</p>
                                                 )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                                     {activeVenues.map(v => (
-                                                        <VenueCard
+                                                        <BasePartnerCard
                                                             key={v.id}
-                                                            venue={v}
-                                                            onViewProfile={() => setProfileTarget({ id: v.id, type: "venue", name: v.name, city: v.city, connectionStatus: "active" })}
+                                                            partner={{
+                                                                id: v.id,
+                                                                type: "venue",
+                                                                name: v.name,
+                                                                eventsCount: 0,
+                                                                followersCount: 0,
+                                                                connectionStatus: "active",
+                                                            }}
+                                                            onViewProfile={() => router.push(`/host/partners/${v.id}`)}
                                                         />
                                                     ))}
                                                 </div>
@@ -443,12 +420,19 @@ export default function HostNetworkPage() {
                                                 {activeVenues.length > 0 && (
                                                     <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">Promoters</p>
                                                 )}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                                                     {activePromoters.map(p => (
-                                                        <PromoterCard
+                                                        <BasePartnerCard
                                                             key={p.id}
-                                                            promoter={p}
-                                                            onViewProfile={() => setProfileTarget({ id: p.id, type: "promoter" as any, name: p.name, city: "", connectionStatus: "active" })}
+                                                            partner={{
+                                                                id: p.id,
+                                                                type: "promoter",
+                                                                name: p.name,
+                                                                eventsCount: 0,
+                                                                followersCount: 0,
+                                                                connectionStatus: "active",
+                                                            }}
+                                                            onViewProfile={() => router.push(`/host/partners/${p.id}`)}
                                                         />
                                                     ))}
                                                 </div>
@@ -462,104 +446,7 @@ export default function HostNetworkPage() {
                 )}
             </div>
 
-            <AnimatePresence>
-                {profileTarget && (
-                    <NetworkProfileModal profile={profileTarget} onClose={() => setProfileTarget(null)} />
-                )}
-            </AnimatePresence>
         </VenuePageShell>
-    );
-}
-
-// ── Venue card (active grid) ───────────────────────────────────────────────────
-
-function VenueCard({ venue, onViewProfile }: { venue: VenuePartner; onViewProfile: () => void }) {
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{ background: "var(--v-card, #1a1a1e)", border: "1px solid var(--v-border)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(244,74,34,0.3)"}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)"}
-        >
-            <div className="flex items-start gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black" style={{ background: "rgba(244,74,34,0.12)", color: "#F44A22" }}>
-                    {venue.name[0]}
-                </div>
-                <div>
-                    <h3 className="text-[14px] font-bold text-text-primary group-hover:text-[#F44A22] transition-colors">
-                        {venue.name}
-                    </h3>
-                    <span className="flex items-center gap-1 text-[11px] text-text-tertiary mt-0.5">
-                        <Building2 className="w-3.5 h-3.5" />
-                        Venue{venue.city ? ` · ${venue.city}` : ""}
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">{formatMonthYear(venue.createdAt)}</span>
-                <span className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]" /> Active
-                </span>
-            </div>
-
-            <button
-                onClick={onViewProfile}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--v-text-secondary)" }}
-            >
-                View Network Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
-    );
-}
-
-// ── Promoter card (active grid) ────────────────────────────────────────────────
-
-function PromoterCard({ promoter, onViewProfile }: { promoter: PromoterConnection; onViewProfile: () => void }) {
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{ background: "var(--v-card, #1a1a1e)", border: "1px solid var(--v-border)" }}
-            onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.borderColor = "rgba(129,140,248,0.3)"}
-            onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)"}
-        >
-            <div className="flex items-start gap-3 mb-5">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black" style={{ background: "rgba(129,140,248,0.12)", color: "#818cf8" }}>
-                    {promoter.name[0]}
-                </div>
-                <div>
-                    <h3 className="text-[14px] font-bold text-text-primary group-hover:text-[#818cf8] transition-colors">
-                        {promoter.name}
-                    </h3>
-                    <span className="flex items-center gap-1 text-[11px] text-text-tertiary mt-0.5">
-                        <Zap className="w-3.5 h-3.5" />
-                        Promoter
-                    </span>
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">{formatMonthYear(promoter.createdAt)}</span>
-                <span className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg" style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399]" /> Active
-                </span>
-            </div>
-
-            <button
-                onClick={onViewProfile}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "var(--v-text-secondary)" }}
-            >
-                View Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
     );
 }
 

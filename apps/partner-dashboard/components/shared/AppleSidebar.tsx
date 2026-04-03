@@ -102,7 +102,13 @@ export function AppleSidebar({
             {/* Brand Header */}
             <div className={`p-6 ${isCollapsed ? "px-4" : "p-7"}`}>
                 <div className="flex items-center gap-4">
-                    <div className="w-11 h-11 min-w-[44px] rounded-2xl bg-text-primary flex items-center justify-center text-text-inverse font-bold text-xl shadow-lg ring-1 ring-white/10 shrink-0">
+                    <div
+                        className="w-11 h-11 min-w-[44px] rounded-2xl flex items-center justify-center font-black text-[20px] shrink-0"
+                        style={{
+                            background: "var(--c1rcle-orange)",
+                            color: "#fff",
+                        }}
+                    >
                         {brandLetter}
                     </div>
                     {!isCollapsed && (
@@ -149,8 +155,8 @@ export function AppleSidebar({
                                                     className={`nav-item relative group w-full ${isChildActive || expanded ? "text-text-primary" : ""}`}
                                                 >
                                                     <div className="relative z-10 flex items-center gap-4 w-full">
-                                                        <Icon className={`w-5 h-5 transition-colors ${isChildActive || expanded ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
-                                                        <span className="flex-1 text-left font-semibold">{item.label}</span>
+                                                        <Icon className={`h-6 w-6 transition-colors ${isChildActive || expanded ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                        <span className="flex-1 text-left text-[20px] font-semibold leading-none">{item.label}</span>
                                                         <ChevronDown className={`h-4 w-4 text-text-tertiary transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`} />
                                                     </div>
                                                 </button>
@@ -168,8 +174,8 @@ export function AppleSidebar({
                                                     )}
 
                                                     <div className="relative z-10 flex items-center gap-4 w-full justify-center lg:justify-start">
-                                                        <Icon className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
-                                                        {!isCollapsed && <span className="flex-1 text-left">{item.label}</span>}
+                                                        <Icon className={`h-6 w-6 min-w-[24px] transition-colors ${active ? "text-text-primary" : "text-text-tertiary/60 group-hover:text-text-primary/70"}`} />
+                                                        {!isCollapsed && <span className="flex-1 text-left text-[20px] leading-none">{item.label}</span>}
                                                         
                                                         {item.badge && !isCollapsed && (
                                                             <span className="px-2 py-0.5 rounded-full bg-c1rcle-orange/10 text-c1rcle-orange text-[9px] font-black uppercase tracking-widest ring-1 ring-c1rcle-orange/20">
@@ -182,7 +188,7 @@ export function AppleSidebar({
                                                         )}
 
                                                         {active && isCollapsed && (
-                                                            <div className="absolute right-0 w-1 h-4 bg-c1rcle-orange rounded-full" />
+                                                            <div className="absolute left-0 w-0.5 h-5 bg-c1rcle-orange rounded-full" />
                                                         )}
                                                     </div>
                                                 </Link>

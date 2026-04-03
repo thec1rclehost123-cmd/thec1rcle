@@ -10,11 +10,8 @@ import {
     Users,
     Handshake,
     UserCircle,
-    Settings,
     LogOut,
     ShieldCheck,
-    Bell,
-    Star,
     Layout,
     Banknote,
 } from "lucide-react";
@@ -58,7 +55,6 @@ export default function HostSidebar() {
             category: "personal",
             items: [
                 { icon: Layout, label: "presence", href: "/host/presence" },
-                { icon: Settings, label: "settings", href: "/host/settings" },
             ]
         }
     ];

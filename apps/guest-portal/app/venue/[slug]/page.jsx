@@ -3,6 +3,8 @@ import { getVenueBySlug, listVenues } from "../../../lib/server/venueStore";
 import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
 import { listEvents } from "../../../lib/server/eventStore";
 import VenuePageClient from "../../../components/venue/VenuePageClient";
+import PublicProfileUnavailable from "../../../components/profile/PublicProfileUnavailable";
+import { isPublicProfileEnabled } from "../../../lib/server/publicProfile";
 
 export const revalidate = 0; // Disable caching for real-time updates during debugging
 
@@ -16,6 +18,13 @@ export async function generateMetadata({ params }) {
     const { slug } = await params;
     const venue = await getVenueBySlug(slug);
     if (!venue) return { title: "Venue Not Found" };
+    if (!isPublicProfileEnabled(venue)) {
+        return {
+            title: `${venue.name || "Venue"} | Profile Offline`,
+            description: "This venue does not have a public profile right now.",
+            robots: { index: false, follow: true },
+        };
+    }
 
     return {
         title: `${venue.name} | THE C1RCLE`,
@@ -34,6 +43,9 @@ export default async function VenuePublicPage({ params }) {
     // Fetch venue details using slug (which contains venue_id)
     const venue = await getVenueBySlug(slug);
     if (!venue) notFound();
+    if (!isPublicProfileEnabled(venue)) {
+        return <PublicProfileUnavailable type="venue" name={venue.name} />;
+    }
 
     // Fetch all related data in parallel using venue.id
     const [highlights, stats, allEvents, allVenues] = await Promise.all([

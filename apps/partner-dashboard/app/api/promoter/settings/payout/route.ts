@@ -1,28 +1,35 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { upsertPayoutAccount } from "@/lib/server/promoterSettingsStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
-export const POST = withAuth(async (req: NextRequest, auth) => {
+/**
+ * POST /api/promoter/settings/payout
+ * Update or create promoter payout account details.
+ * promoterId resolved from RBAC — never accepted from request body.
+ */
+export async function POST(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const body = await req.json();
-        const { promoterId, reAuthToken, accountNumberChanged, ...fields } = body;
+        const { reAuthToken, accountNumberChanged, ...fields } = body;
+        const promoterId = ctx.promoterId;
+        const uid        = ctx.uid;
 
-        if (!promoterId) return fail("promoterId is required", 400);
-
-        // Re-auth token is required when account number is being changed
+        // Re-auth token required when account number is being changed
         if (accountNumberChanged && !reAuthToken) {
             return fail("Re-authentication required for account number changes", 403);
         }
 
-        // Validate the re-auth token (it must be a valid Firebase ID token from the same user)
         if (accountNumberChanged && reAuthToken) {
             const { getAdminApp, isFirebaseConfigured } = await import("@/lib/firebase/admin");
             if (isFirebaseConfigured()) {
                 const { getAuth } = await import("firebase-admin/auth");
                 try {
                     const decoded = await getAuth(getAdminApp()).verifyIdToken(reAuthToken, true);
-                    if (decoded.uid !== auth.uid) {
+                    if (decoded.uid !== uid) {
                         return fail("Re-auth token mismatch", 403);
                     }
                 } catch {
@@ -34,7 +41,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const payout = await upsertPayoutAccount(
             promoterId,
             fields,
-            { uid: auth.uid },
+            { uid },
             !!accountNumberChanged
         );
 
@@ -43,4 +50,4 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         console.error("[POST /api/promoter/settings/payout]", error);
         return fail("Failed to update payout account");
     }
-});
+}

@@ -7,12 +7,45 @@ const TransferBody = z.object({
     recipientEmail: z.string().email().optional()
 }).strict();
 
+const AcceptTransferBody = z.object({
+    transferCode: z.string()
+}).strict();
+
+const CancelTransferQuery = z.object({
+    transferId: z.string()
+}).strict();
+
 const ClaimBody = z.object({
     transferToken: z.string()
 }).strict();
 
 const TransferQuery = z.object({
     code: z.string()
+}).strict();
+
+const ShareBundleBody = z.object({
+    orderId: z.string(),
+    eventId: z.string(),
+    quantity: z.number().int().positive(),
+    tierId: z.string().optional(),
+    expiresAt: z.string().optional(),
+});
+
+const ShareBundleQuery = z.object({
+    orderId: z.string()
+}).strict();
+
+const ShareBundleDeleteBody = z.object({
+    bundleId: z.string(),
+    slotIndex: z.number().int().optional(),
+});
+
+const ClaimPreviewQuery = z.object({
+    token: z.string()
+}).strict();
+
+const ClaimShareBody = z.object({
+    token: z.string()
 }).strict();
 
 export default async function ticketRoutes(fastify: FastifyInstance) {
@@ -136,6 +169,338 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         const assignments = assignmentsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
         return { orders, assignments };
+    });
+
+    /**
+     * PATCH /api/v1/tickets/transfer
+     * Accept a pending formal ticket transfer
+     */
+    fastify.patch('/transfer', {
+        preHandler: [fastify.validate({ body: AcceptTransferBody })]
+    }, async (request: any, reply) => {
+        const { transferCode } = request.body;
+        const recipientId = request.user?.uid;
+        if (!recipientId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const snapshot = await fastify.db.collection('transfers')
+                .where('token', '==', transferCode)
+                .where('status', '==', 'pending')
+                .limit(1)
+                .get();
+
+            if (snapshot.empty) return reply.status(404).send({ error: 'Transfer not found or already claimed' });
+
+            const transferDoc = snapshot.docs[0];
+            const transfer = transferDoc.data() as any;
+
+            if (new Date(transfer.expiresAt) < new Date()) {
+                return reply.status(400).send({ error: 'Transfer has expired' });
+            }
+            if (transfer.senderId === recipientId) {
+                return reply.status(400).send({ error: 'Cannot accept your own transfer' });
+            }
+
+            const now = new Date().toISOString();
+            await fastify.db.runTransaction(async (tx) => {
+                tx.update(transferDoc.ref, { status: 'accepted', recipientId, acceptedAt: now });
+                // Create ticket assignment for the recipient
+                const assignRef = fastify.db.collection('ticket_assignments').doc();
+                tx.set(assignRef, {
+                    ticketId: transfer.ticketId,
+                    redeemerId: recipientId,
+                    originalOwnerId: transfer.senderId,
+                    eventId: transfer.eventId || null,
+                    source: 'transfer',
+                    status: 'active',
+                    createdAt: now,
+                });
+            });
+
+            fastify.broadcast({ type: 'TICKET_TRANSFER_ACCEPTED', payload: { ticketId: transfer.ticketId } }, `user:${transfer.senderId}`);
+            fastify.broadcast({ type: 'TICKET_RECEIVED', payload: { ticketId: transfer.ticketId } }, `user:${recipientId}`);
+
+            return { success: true, message: 'Transfer accepted. Ticket is now yours.' };
+        } catch (error: any) {
+            fastify.log.error(`PATCH /tickets/transfer failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * DELETE /api/v1/tickets/transfer
+     * Cancel a pending transfer (sender only)
+     */
+    fastify.delete('/transfer', {
+        preHandler: [fastify.validate({ querystring: CancelTransferQuery })]
+    }, async (request: any, reply) => {
+        const { transferId } = request.query as any;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const transferDoc = await fastify.db.collection('transfers').doc(transferId).get();
+            if (!transferDoc.exists) return reply.status(404).send({ error: 'Transfer not found' });
+
+            const transfer = transferDoc.data() as any;
+            if (transfer.senderId !== userId) return reply.status(403).send({ error: 'You can only cancel your own transfers' });
+            if (transfer.status !== 'pending') return reply.status(409).send({ error: `Transfer is already ${transfer.status}` });
+
+            await transferDoc.ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+            return { success: true, message: 'Transfer cancelled.' };
+        } catch (error: any) {
+            fastify.log.error(`DELETE /tickets/transfer failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * GET /api/v1/tickets/transfer/pending
+     * List all pending outbound transfers for the current user
+     */
+    fastify.get('/transfer/pending', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const snapshot = await fastify.db.collection('transfers')
+                .where('senderId', '==', userId)
+                .where('status', '==', 'pending')
+                .get();
+
+            const transfers = snapshot.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            return { success: true, transfers };
+        } catch (error: any) {
+            fastify.log.error(`GET /tickets/transfer/pending failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * POST /api/v1/tickets/share
+     * Create a share bundle (link-based ticket sharing)
+     */
+    fastify.post('/share', {
+        preHandler: [fastify.validate({ body: ShareBundleBody })]
+    }, async (request: any, reply) => {
+        const { orderId, eventId, quantity, tierId = null, expiresAt: customExpiresAt } = request.body;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            // Verify order ownership
+            const orderDoc = await fastify.db.collection('orders').doc(orderId).get();
+            if (!orderDoc.exists) return reply.status(404).send({ error: 'Order not found' });
+            const order = orderDoc.data() as any;
+            if (order.userId !== userId) return reply.status(403).send({ error: 'Unauthorized' });
+
+            const token = generateSecureToken(32);
+            const expiresAt = customExpiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            const now = new Date().toISOString();
+
+            const slots = Array.from({ length: quantity }, () => ({ status: 'unclaimed', claimedBy: null, claimedAt: null }));
+
+            const bundleRef = fastify.db.collection('ticket_shares').doc();
+            await bundleRef.set({
+                orderId,
+                ownerId: userId,
+                eventId,
+                tierId,
+                quantity,
+                slots,
+                token,
+                status: 'active',
+                expiresAt,
+                createdAt: now,
+            });
+
+            return {
+                success: true,
+                bundle: { id: bundleRef.id, token, expiresAt, quantity, slots },
+            };
+        } catch (error: any) {
+            fastify.log.error(`POST /tickets/share failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * GET /api/v1/tickets/share?orderId=...
+     * List share bundles + assignments for an order
+     */
+    fastify.get('/share', {
+        preHandler: [fastify.validate({ querystring: ShareBundleQuery })]
+    }, async (request: any, reply) => {
+        const { orderId } = request.query as any;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const [bundlesSnap, assignmentsSnap] = await Promise.all([
+                fastify.db.collection('ticket_shares').where('orderId', '==', orderId).where('ownerId', '==', userId).get(),
+                fastify.db.collection('ticket_assignments').where('orderId', '==', orderId).get(),
+            ]);
+
+            const bundles = bundlesSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            const assignments = assignmentsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+
+            return { success: true, bundles, assignments };
+        } catch (error: any) {
+            fastify.log.error(`GET /tickets/share failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * DELETE /api/v1/tickets/share
+     * Reclaim a slot or cancel entire share bundle
+     */
+    fastify.delete('/share', {
+        preHandler: [fastify.validate({ body: ShareBundleDeleteBody })]
+    }, async (request: any, reply) => {
+        const { bundleId, slotIndex } = request.body;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const bundleRef = fastify.db.collection('ticket_shares').doc(bundleId);
+            const bundleDoc = await bundleRef.get();
+            if (!bundleDoc.exists) return reply.status(404).send({ error: 'Share bundle not found' });
+
+            const bundle = bundleDoc.data() as any;
+            if (bundle.ownerId !== userId) return reply.status(403).send({ error: 'Unauthorized' });
+
+            if (slotIndex !== undefined) {
+                // Reclaim a specific unclaimed slot
+                const slots = [...(bundle.slots || [])];
+                if (!slots[slotIndex] || slots[slotIndex].status !== 'unclaimed') {
+                    return reply.status(400).send({ error: 'Slot is not reclaimable' });
+                }
+                slots[slotIndex] = { status: 'reclaimed', claimedBy: null, claimedAt: null };
+                await bundleRef.update({ slots });
+            } else {
+                // Cancel entire bundle
+                await bundleRef.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`DELETE /tickets/share failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * GET /api/v1/tickets/claim?token=...
+     * Preview a share bundle by token (public — no auth required)
+     */
+    fastify.get('/claim', {
+        config: { skipAuth: true },
+        preHandler: [fastify.validate({ querystring: ClaimPreviewQuery })]
+    }, async (request: any, reply) => {
+        const { token } = request.query as any;
+
+        try {
+            const snapshot = await fastify.db.collection('ticket_shares')
+                .where('token', '==', token)
+                .where('status', '==', 'active')
+                .limit(1)
+                .get();
+
+            if (snapshot.empty) return reply.status(404).send({ error: 'Invalid or expired share link' });
+
+            const bundle = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+            if (new Date(bundle.expiresAt) < new Date()) {
+                return reply.status(400).send({ error: 'Share link has expired' });
+            }
+
+            // Enrich with event metadata
+            let event: any = null;
+            if (bundle.eventId) {
+                const eventDoc = await fastify.db.collection('events').doc(bundle.eventId).get();
+                if (eventDoc.exists) {
+                    const ed = eventDoc.data() as any;
+                    event = { title: ed.title, image: ed.image, startDate: ed.startDate, venue: ed.venue };
+                }
+            }
+
+            const availableSlots = (bundle.slots || []).filter((s: any) => s.status === 'unclaimed').length;
+
+            return {
+                success: true,
+                bundle: {
+                    id: bundle.id,
+                    eventId: bundle.eventId,
+                    quantity: bundle.quantity,
+                    availableSlots,
+                    expiresAt: bundle.expiresAt,
+                    eventTitle: event?.title,
+                    eventImage: event?.image,
+                    eventDate: event?.startDate,
+                    eventLocation: event?.venue,
+                },
+            };
+        } catch (error: any) {
+            fastify.log.error(`GET /tickets/claim failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    /**
+     * POST /api/v1/tickets/claim (share bundle claim)
+     * Claim a slot from a share bundle token
+     */
+    fastify.post('/claim/share', {
+        preHandler: [fastify.validate({ body: ClaimShareBody })]
+    }, async (request: any, reply) => {
+        const { token } = request.body;
+        const redeemerId = request.user?.uid;
+        if (!redeemerId) return reply.status(401).send({ error: 'Authentication required to claim ticket' });
+
+        try {
+            const snapshot = await fastify.db.collection('ticket_shares')
+                .where('token', '==', token)
+                .where('status', '==', 'active')
+                .limit(1)
+                .get();
+
+            if (snapshot.empty) return reply.status(404).send({ error: 'Invalid or expired share link' });
+
+            const bundleDoc = snapshot.docs[0];
+            const bundle = bundleDoc.data() as any;
+
+            if (new Date(bundle.expiresAt) < new Date()) return reply.status(400).send({ error: 'Share link has expired' });
+            if (bundle.ownerId === redeemerId) return reply.status(400).send({ error: 'Cannot claim your own share link' });
+
+            const slots = [...(bundle.slots || [])];
+            const availableIdx = slots.findIndex((s: any) => s.status === 'unclaimed');
+            if (availableIdx === -1) return reply.status(409).send({ error: 'No tickets left in this share bundle' });
+
+            const now = new Date().toISOString();
+            slots[availableIdx] = { status: 'claimed', claimedBy: redeemerId, claimedAt: now };
+
+            const assignRef = fastify.db.collection('ticket_assignments').doc();
+
+            await fastify.db.runTransaction(async (tx) => {
+                tx.update(bundleDoc.ref, { slots });
+                tx.set(assignRef, {
+                    bundleId: bundleDoc.id,
+                    orderId: bundle.orderId,
+                    eventId: bundle.eventId,
+                    tierId: bundle.tierId,
+                    redeemerId,
+                    originalOwnerId: bundle.ownerId,
+                    source: 'share_bundle',
+                    status: 'active',
+                    createdAt: now,
+                });
+            });
+
+            return { success: true, assignmentId: assignRef.id, message: 'Ticket claimed successfully.' };
+        } catch (error: any) {
+            fastify.log.error(`POST /tickets/claim/share failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
     });
 
     /**

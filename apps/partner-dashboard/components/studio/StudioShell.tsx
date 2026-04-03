@@ -18,10 +18,11 @@ export interface SectionDef {
 interface StudioShellProps {
     children: ReactNode;
     title: string;
-    subtitle: string;
+    subtitle?: string;
     role: "venue" | "host" | "promoter";
     sections: SectionDef[];
     onEventChange?: (eventId: string | null) => void;
+    heroBackground?: "tinted" | "plain";
 }
 
 /* ── EventPickerModal ───────────────────────────────────────────────────── */
@@ -260,6 +261,7 @@ export default function StudioShell({
     subtitle,
     sections,
     onEventChange,
+    heroBackground = "tinted",
 }: StudioShellProps) {
     const searchParams = useSearchParams();
     const urlEventId = searchParams.get("eventId");
@@ -334,10 +336,18 @@ export default function StudioShell({
 
             {/* ── Hero header ─────────────────────────────────────────────── */}
             <div className="relative overflow-hidden">
-                <div className="absolute inset-0 pointer-events-none"
-                     style={{ background: "linear-gradient(135deg, rgba(244,74,34,0.08) 0%, rgba(129,140,248,0.05) 50%, rgba(52,211,153,0.04) 100%)" }} />
-                <div className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none"
-                     style={{ background: "radial-gradient(ellipse at top right, rgba(244,74,34,0.12) 0%, transparent 60%)" }} />
+                {heroBackground === "tinted" && (
+                    <>
+                        <div
+                            className="absolute inset-0 pointer-events-none"
+                            style={{ background: "linear-gradient(135deg, rgba(244,74,34,0.08) 0%, rgba(129,140,248,0.05) 50%, rgba(52,211,153,0.04) 100%)" }}
+                        />
+                        <div
+                            className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none"
+                            style={{ background: "radial-gradient(ellipse at top right, rgba(244,74,34,0.12) 0%, transparent 60%)" }}
+                        />
+                    </>
+                )}
 
                 <div className="relative px-6 sm:px-8 lg:px-10 pt-8 pb-6">
                     <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-6 flex-wrap">
@@ -351,9 +361,11 @@ export default function StudioShell({
                                     style={{ color: "var(--v-text-primary)" }}>
                                     {title}
                                 </h1>
-                                <p className="text-[14px] font-medium mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
-                                    {subtitle}
-                                </p>
+                                {subtitle ? (
+                                    <p className="text-[14px] font-medium mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                        {subtitle}
+                                    </p>
+                                ) : null}
                             </div>
                         </div>
 

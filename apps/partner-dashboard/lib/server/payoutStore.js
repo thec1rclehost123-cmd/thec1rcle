@@ -13,7 +13,7 @@ import { getApiClient } from "./apiClient";
 export async function getPromoterBalance(promoterId, token) {
     const client = getApiClient(token);
     try {
-        return await client.getPromoterBalance(promoterId);
+        return await client.getPromoterPayoutBalance(promoterId);
     } catch (error) {
         console.error("[PayoutStore] getPromoterBalance failed:", error.message);
         throw error;
@@ -25,7 +25,12 @@ export async function getPromoterBalance(promoterId, token) {
  */
 export async function requestPayout(payload, token) {
     const client = getApiClient(token);
-    return client.requestPromoterPayout(payload);
+    return client.requestPromoterPayout(
+        payload.amount,
+        payload.paymentMethod,
+        payload.paymentDetails,
+        payload.promoterId || null
+    );
 }
 
 /**
@@ -33,7 +38,7 @@ export async function requestPayout(payload, token) {
  */
 export async function listPromoterPayouts(promoterId, token) {
     const client = getApiClient(token);
-    return client.listPromoterPayouts(promoterId);
+    return client.request(`/payouts?partnerType=promoter&partnerId=${encodeURIComponent(promoterId)}`);
 }
 
 /**
@@ -75,4 +80,3 @@ export default {
     getPayoutById,
     cancelPayout
 };
-

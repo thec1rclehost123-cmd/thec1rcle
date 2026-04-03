@@ -2,20 +2,24 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BadgeCheck, TrendingUp, Share2, User, Heart } from "lucide-react";
+import { BadgeCheck, TrendingUp, Share2, User, Heart, ImageOff } from "lucide-react";
 import ShimmerImage from "../ShimmerImage";
 
 export default function HostCard({ host, onFollow, index }) {
     const nextEventDateLabel = host.nextEventDate
         ? new Date(host.nextEventDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'Asia/Kolkata' })
         : null;
+    const coverImage = typeof host.coverURL === "string" && host.coverURL.trim().length > 0
+        ? host.coverURL
+        : null;
+    const profileImage = host.photoURL || host.avatar || "/events/holi-edit.svg";
 
     const getGradient = (id) => {
         const palettes = [
-            "from-[#F44A22]/25 to-[#0A0A0A]",
-            "from-purple-600/20 to-[#0A0A0A]",
-            "from-indigo-600/20 to-[#0A0A0A]",
-            "from-rose-600/20 to-[#0A0A0A]",
+            "from-[#F44A22]/25 via-[#1A1A1A] to-[#0A0A0A]",
+            "from-[#9B3DFF]/20 via-[#18122B] to-[#0A0A0A]",
+            "from-[#245CFF]/20 via-[#10192F] to-[#0A0A0A]",
+            "from-[#FF4D6D]/20 via-[#24131A] to-[#0A0A0A]",
         ];
         const i = id ? id.split('').reduce((a, c) => a + c.charCodeAt(0), 0) % palettes.length : 0;
         return <div className={`absolute inset-0 bg-gradient-to-br ${palettes[i]}`} />;
@@ -32,17 +36,32 @@ export default function HostCard({ host, onFollow, index }) {
         >
             {/* Media */}
             <Link href={`/host/${host.slug || host.id}`} className="relative aspect-[3/4] w-full overflow-hidden block">
-                {host.cover || host.coverURL ? (
+                {coverImage ? (
                     <ShimmerImage
-                        src={host.cover || host.coverURL}
+                        src={coverImage}
                         alt={host.name || host.displayName}
                         fill
-                        className="object-cover transition-transform duration-700 group-hover:scale-105 opacity-60"
+                        className="object-cover transition-transform duration-700 group-hover:scale-105 opacity-70"
                     />
                 ) : (
-                    getGradient(host.id)
+                    <>
+                        {getGradient(host.id)}
+                        <div className="absolute inset-0 opacity-[0.18] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.16),transparent_35%),radial-gradient(circle_at_bottom_right,rgba(244,74,34,0.26),transparent_30%)]" />
+                        <div className="absolute inset-x-6 top-6 rounded-3xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur-sm">
+                            <div className="flex items-center gap-3 text-white/55">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
+                                    <ImageOff size={18} />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/70">Poster Pending</p>
+                                    <p className="mt-1 text-xs font-medium text-white/45">This host has not uploaded a cover yet.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 )}
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/45 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black via-black/90 to-transparent" />
 
                 {/* Badges */}
                 <div className="absolute top-4 right-4 flex gap-2 z-10">
@@ -58,37 +77,42 @@ export default function HostCard({ host, onFollow, index }) {
                     )}
                 </div>
 
-                {/* Center: avatar + identity */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-6">
-                    <div className="relative h-20 w-20 rounded-full overflow-hidden border-2 border-white/25 group-hover:border-white/50 transition-all duration-500 shadow-xl mb-4 flex-shrink-0">
-                        <ShimmerImage
-                            src={host.photoURL || host.avatar || "/events/holi-edit.svg"}
-                            alt={host.name || host.displayName}
-                            fill
-                            className="object-cover"
-                        />
-                    </div>
-
-                    <span className="px-2.5 py-0.5 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#F44A22] mb-2">
-                        {host.role ?? "Host"}
-                    </span>
-
-                    <h3 className="text-lg font-heading font-black uppercase tracking-tight text-white text-center leading-tight">
-                        {host.name ?? host.displayName ?? 'Unnamed Host'}
-                    </h3>
-                    {host.neighborhood && (
-                        <p className="mt-1 text-[9px] font-bold text-white/40 uppercase tracking-[0.2em]">{host.neighborhood}</p>
-                    )}
-
-                    {(host.genres || host.vibes || []).length > 0 && (
-                        <div className="flex flex-wrap justify-center gap-1.5 mt-3">
-                            {(host.genres || host.vibes || []).slice(0, 3).map(g => (
-                                <span key={g} className="px-2 py-0.5 rounded-md bg-white/10 text-[9px] font-bold uppercase tracking-widest text-white/55">
-                                    {g}
+                {/* Identity */}
+                <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-5">
+                    <div className="rounded-[28px] border border-white/10 bg-black/55 p-4 backdrop-blur-md shadow-[0_18px_50px_rgba(0,0,0,0.35)]">
+                        <div className="flex items-end gap-3">
+                            <div className="relative h-20 w-20 rounded-[24px] overflow-hidden border border-white/15 group-hover:border-white/40 transition-all duration-500 shadow-xl flex-shrink-0">
+                                <ShimmerImage
+                                    src={profileImage}
+                                    alt={host.name || host.displayName}
+                                    fill
+                                    className="object-cover"
+                                />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <span className="inline-flex max-w-full px-2.5 py-1 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/30 text-[9px] font-black uppercase tracking-widest text-[#FF8A6D]">
+                                    {host.role ?? "Host"}
                                 </span>
-                            ))}
+
+                                <h3 className="mt-3 text-[22px] font-heading font-black uppercase tracking-tight text-white leading-[0.95] break-words [text-wrap:balance]">
+                                    {host.name ?? host.displayName ?? 'Unnamed Host'}
+                                </h3>
+                                <p className="mt-1 truncate text-[10px] font-bold text-white/50 uppercase tracking-[0.22em]">
+                                    {host.neighborhood || host.location || host.handle || "The C1rcle"}
+                                </p>
+                            </div>
                         </div>
-                    )}
+
+                        {(host.genres || host.vibes || []).length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-1.5">
+                                {(host.genres || host.vibes || []).slice(0, 3).map(g => (
+                                    <span key={g} className="px-2 py-1 rounded-md bg-white/10 text-[9px] font-bold uppercase tracking-widest text-white/65">
+                                        {g}
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </Link>
 

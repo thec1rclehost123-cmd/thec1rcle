@@ -1,18 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { getFirebaseAuth } from "../../lib/firebase/client";
-import { sendPasswordResetEmail } from "firebase/auth";
+import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "../../lib/auth/passwordReset";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
-    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const initialEmail = searchParams.get("email");
+        if (initialEmail) setEmail(initialEmail);
+    }, [searchParams]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -28,19 +33,11 @@ export default function ForgotPasswordPage() {
 
         try {
             const auth = getFirebaseAuth();
-            await sendPasswordResetEmail(auth, email);
+            await sendOperationalPasswordResetEmail(auth, email);
             setSuccess(true);
         } catch (err) {
             console.error("Password reset error:", err);
-            if (err.code === "auth/user-not-found") {
-                setError("No account found with this email address");
-            } else if (err.code === "auth/invalid-email") {
-                setError("Invalid email address");
-            } else if (err.code === "auth/too-many-requests") {
-                setError("Too many requests. Please try again later");
-            } else {
-                setError("Failed to send reset email. Please try again");
-            }
+            setError(getPasswordResetErrorMessage(err));
         } finally {
             setLoading(false);
         }
@@ -95,7 +92,7 @@ export default function ForgotPasswordPage() {
                                 <button
                                     onClick={() => {
                                         setSuccess(false);
-                                        setEmail("");
+                                        setError("");
                                     }}
                                     className="w-full rounded-full border border-white/20 px-6 py-3 text-xs font-bold uppercase tracking-[0.2em] text-white/80 transition hover:border-white/60"
                                 >

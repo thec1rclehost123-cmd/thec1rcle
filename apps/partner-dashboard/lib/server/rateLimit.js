@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { checkRateLimit } from "@c1rcle/core/rate-limiter";
+import { checkRateLimit as coreCheckRateLimit } from "@c1rcle/core/rate-limiter";
+
+export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
+    return coreCheckRateLimit(key, limit, windowSeconds);
+}
 
 /**
  * Distributed rate limiter (Redis-backed).
@@ -13,7 +17,7 @@ export async function rateLimit(request, limit = 20, windowSeconds = 60) {
     // unique key for this app's rate limiting
     const key = `partner-dashboard:${ip}`;
 
-    const result = await checkRateLimit(key, limit, windowSeconds);
+    const result = await coreCheckRateLimit(key, limit, windowSeconds);
     return result.success;
 }
 

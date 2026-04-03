@@ -1,893 +1,951 @@
 "use client";
 
+import Link from "next/link";
+import { type CSSProperties, type ReactNode, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
     CalendarDays,
-    Users,
-    Building2,
     ChevronRight,
-    ChevronDown,
-    ChevronUp,
-    Star,
-    Banknote,
-    Ticket,
-    AlertTriangle,
-    Radio,
-    Clock,
-    TrendingUp,
-    ArrowRight,
-    Bell,
-    Plus,
-    BarChart3,
-    Network,
-    Handshake,
-    Sparkles,
-    CalendarRange,
-    CheckCircle2,
-    X,
+    Image as ImageIcon,
+    Search,
+    ShoppingBag,
 } from "lucide-react";
-import Link from "next/link";
-import { motion, useReducedMotion, AnimatePresence } from "framer-motion";
-import { useState, useRef, useEffect } from "react";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { useHostOverviewSummary } from "@/lib/hooks/useHostQueries";
-import { formatINRCompact } from "@/lib/finance/definitions";
+import { motion } from "framer-motion";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { KPIBento } from "@/components/ui/BentoCard";
-import { cn } from "@/lib/utils";
+import VenueChart, { ChartSkeleton } from "@/components/ui/VenueChart";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { getPermissionsForRole } from "@/lib/rbac/types";
+import {
+    formatINRCompact,
+    formatNumber,
+} from "@/lib/utils/format";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+type OverviewRange = "1d" | "1w" | "1m" | "all";
+type OverviewMetric = "tickets" | "revenue";
 
-type RangeOption = "1d" | "7d" | "30d" | "90d" | "custom";
+type HostOrder = {
+    id: string;
+    orderNumber: string;
+    orderId: string;
+    attendeeId: string;
+    customerName: string;
+    eventId: string;
+    eventName: string;
+    amount: number;
+    ticketsCount: number;
+    createdAt: string;
+    status: string;
+    source: "ticket" | "rsvp";
+};
 
-interface UpcomingEvent {
+type HostOrdersResponse = {
+    orders: HostOrder[];
+    pagination?: {
+        page: number;
+        limit: number;
+        total: number;
+        hasMore: boolean;
+    };
+};
+
+type HostEvent = {
     id: string;
     title: string;
-    venueName: string;
-    startDate: string;
-    lifecycle: string;
+    startDate?: string;
+    date?: string;
+    lifecycle?: string;
+    status?: string;
+    venueName?: string;
+    hostName?: string;
     coverImage?: string;
-    ticketsSold?: number;
+    poster?: string;
+    bannerImage?: string;
+    image?: string;
+};
+
+type HostEventsResponse = {
+    events: HostEvent[];
+};
+
+type ChartPoint = {
+    label: string;
+    value: number;
+};
+
+type TimeSeriesPoint = {
+    date: string;
+    label: string;
+    value?: number;
     revenue?: number;
-    capacity?: number;
-}
-
-interface OverviewSummary {
-    pendingEventApprovals: number;
-    pendingSlotRequests: number;
-    activeVenuePartnerships: number;
-    activePromoterPartnerships: number;
-    upcomingEvents: UpcomingEvent[];
-    todayEvent: UpcomingEvent | null;
-    nextEvent: UpcomingEvent | null;
-    recentEarnings: number;
-    totalTicketsSold: number;
-    hostScore: number;
-    verificationStatus: "verified" | "pending" | "unverified";
-    profileCompletionPct: number;
-    range: string;
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function formatDate(dateStr: string): string {
-    if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    const today = new Date();
-    const tomorrow = new Date(today);
-    tomorrow.setDate(today.getDate() + 1);
-    if (d.toDateString() === today.toDateString()) return "Today";
-    if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-    return d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
-}
-
-function formatTime(dateStr: string): string {
-    if (!dateStr) return "";
-    return new Date(dateStr).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: true });
-}
-
-function daysUntil(dateStr: string): number {
-    const diff = new Date(dateStr).getTime() - Date.now();
-    return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
-function toDateInputValue(d: Date): string {
-    return d.toISOString().split("T")[0];
-}
-
-const RANGE_LABELS: Record<RangeOption, string> = {
-    "1d": "Today",
-    "7d": "7 Days",
-    "30d": "30 Days",
-    "90d": "90 Days",
-    "custom": "Custom",
+    ticketsSold?: number;
 };
 
-const LIFECYCLE_CONFIG: Record<string, { label: string; color: string }> = {
-    published: { label: "Live", color: "var(--v-success)" },
-    live:      { label: "Live", color: "var(--v-success)" },
-    pending:   { label: "Pending", color: "var(--v-warning)" },
-    draft:     { label: "Draft", color: "var(--v-text-tertiary)" },
-    completed: { label: "Done", color: "var(--v-text-secondary)" },
-    cancelled: { label: "Cancelled", color: "var(--v-error)" },
-    scheduled: { label: "Scheduled", color: "var(--v-info)" },
-    approved:  { label: "Approved", color: "var(--v-info)" },
+type TimeSeriesResponse = {
+    series: TimeSeriesPoint[];
+    total?: number;
+    range?: string;
+    metric?: string;
+    hostId?: string;
 };
 
-// ─── Date Range Selector ──────────────────────────────────────────────────────
+const RANGE_OPTIONS: Array<{ value: OverviewRange; label: string }> = [
+    { value: "1d", label: "1D" },
+    { value: "1w", label: "1W" },
+    { value: "1m", label: "1M" },
+    { value: "all", label: "ALL" },
+];
 
-function DateRangeSelector({
-    range,
-    customStart,
-    customEnd,
-    onRangeChange,
-    onCustomApply,
-}: {
-    range: RangeOption;
-    customStart: string;
-    customEnd: string;
-    onRangeChange: (r: RangeOption) => void;
-    onCustomApply: (start: string, end: string) => void;
-}) {
-    const [popoverOpen, setPopoverOpen] = useState(false);
-    const [localStart, setLocalStart] = useState(customStart);
-    const [localEnd, setLocalEnd] = useState(customEnd);
-    const popoverRef = useRef<HTMLDivElement>(null);
+const METRIC_OPTIONS: Array<{ value: OverviewMetric; label: string }> = [
+    { value: "tickets", label: "Tickets" },
+    { value: "revenue", label: "Revenue" },
+];
 
-    useEffect(() => {
-        const h = (e: MouseEvent) => {
-            if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-                setPopoverOpen(false);
-            }
-        };
-        if (popoverOpen) document.addEventListener("mousedown", h);
-        return () => document.removeEventListener("mousedown", h);
-    }, [popoverOpen]);
+const OVERVIEW_REFRESH_MS = 60_000;
+const OVERVIEW_ORDERS_STALE_MS = 2 * 60 * 1000;
+const OVERVIEW_EVENTS_STALE_MS = 5 * 60 * 1000;
+const OVERVIEW_SERIES_STALE_MS = 60_000;
 
-    const handleOptionClick = (r: RangeOption) => {
-        if (r === "custom") {
-            setPopoverOpen(true);
-        } else {
-            setPopoverOpen(false);
-            onRangeChange(r);
-        }
-    };
-
-    const handleApply = () => {
-        if (!localStart || !localEnd) return;
-        setPopoverOpen(false);
-        onCustomApply(localStart, localEnd);
-    };
-
-    const PRESETS: RangeOption[] = ["1d", "7d", "30d", "90d", "custom"];
-
-    return (
-        <div className="relative" ref={popoverRef}>
-            <div className="overflow-x-auto scrollbar-hide">
-            <div
-                className="flex items-center gap-0.5 p-1 rounded-2xl w-fit"
-                style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}
-            >
-                {PRESETS.map((r) => {
-                    const isActive = range === r;
-                    return (
-                        <button
-                            key={r}
-                            onClick={() => handleOptionClick(r)}
-                            className={cn(
-                                "px-3.5 py-1.5 rounded-xl text-[12px] font-bold uppercase tracking-wider transition-all duration-150 focus:outline-none",
-                                isActive ? "shadow-sm" : "hover:brightness-110"
-                            )}
-                            style={
-                                isActive
-                                    ? { background: "var(--v-orange)", color: "#fff" }
-                                    : { background: "transparent", color: "var(--v-text-tertiary)" }
-                            }
-                        >
-                            {r === "custom" && range === "custom"
-                                ? `${customStart.slice(5)} – ${customEnd.slice(5)}`
-                                : RANGE_LABELS[r]}
-                        </button>
-                    );
-                })}
-            </div>
-            </div>
-
-            {/* Custom date popover */}
-            <AnimatePresence>
-                {popoverOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 6, scale: 0.97 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 6, scale: 0.97 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute left-0 top-full mt-2 z-50 rounded-[20px] p-5 shadow-2xl w-[280px] max-w-[calc(100vw-2rem)]"
-                        style={{
-                            background: "var(--v-card)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <div className="flex items-center justify-between mb-4">
-                            <span className="text-[12px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                                Custom Range
-                            </span>
-                            <button onClick={() => setPopoverOpen(false)}>
-                                <X className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
-                            </button>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            <div>
-                                <label className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--v-text-tertiary)" }}>
-                                    From
-                                </label>
-                                <input
-                                    type="date"
-                                    value={localStart}
-                                    onChange={(e) => setLocalStart(e.target.value)}
-                                    max={localEnd || undefined}
-                                    className="w-full rounded-xl px-3 py-2 text-[13px] font-semibold focus:outline-none"
-                                    style={{
-                                        background: "var(--v-elevated)",
-                                        border: "1px solid var(--v-border)",
-                                        color: "var(--v-text-primary)",
-                                        colorScheme: "dark",
-                                    }}
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: "var(--v-text-tertiary)" }}>
-                                    To
-                                </label>
-                                <input
-                                    type="date"
-                                    value={localEnd}
-                                    onChange={(e) => setLocalEnd(e.target.value)}
-                                    min={localStart || undefined}
-                                    className="w-full rounded-xl px-3 py-2 text-[13px] font-semibold focus:outline-none"
-                                    style={{
-                                        background: "var(--v-elevated)",
-                                        border: "1px solid var(--v-border)",
-                                        color: "var(--v-text-primary)",
-                                        colorScheme: "dark",
-                                    }}
-                                />
-                            </div>
-                            <button
-                                onClick={handleApply}
-                                disabled={!localStart || !localEnd}
-                                className="mt-1 w-full rounded-xl py-2 text-[13px] font-black uppercase tracking-widest transition-all disabled:opacity-40"
-                                style={{ background: "var(--v-orange)", color: "#fff" }}
-                            >
-                                Apply
-                            </button>
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
-
-// ─── Live Event Section ───────────────────────────────────────────────────────
-
-function LiveEventSection({ todayEvent }: { todayEvent: UpcomingEvent | null }) {
-    const [expanded, setExpanded] = useState(!!todayEvent);
-
-    // Auto-collapse when there's no event today
-    useEffect(() => {
-        setExpanded(!!todayEvent);
-    }, [todayEvent]);
-
-    if (!todayEvent) {
-        return (
-            <div
-                className="rounded-[28px] flex items-center justify-between px-7 py-4"
-                style={{
-                    background: "rgba(255,255,255,0.02)",
-                    border: "1px solid var(--v-border)",
-                }}
-            >
-                <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-[var(--v-text-muted)] opacity-40" />
-                    <span className="text-[13px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                        No event tonight
-                    </span>
-                </div>
-                <span className="text-[12px] font-semibold" style={{ color: "var(--v-text-muted)" }}>
-                    Nothing scheduled for today
-                </span>
-            </div>
-        );
+function formatRangeLabel(date: Date, range: OverviewRange) {
+    if (range === "1d") {
+        return date.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            hour12: true,
+        });
     }
 
-    return (
-        <div
-            className="rounded-[28px] overflow-hidden"
-            style={{
-                background: "rgba(52, 211, 153, 0.04)",
-                border: "1px solid rgba(52,211,153,0.18)",
-            }}
-        >
-            {/* Header — always visible */}
-            <button
-                className="w-full flex items-center justify-between px-4 sm:px-7 py-4 transition-colors hover:bg-white/[0.02] gap-3"
-                onClick={() => setExpanded((v) => !v)}
-            >
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                    <span className="relative flex h-2.5 w-2.5 flex-shrink-0">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--v-success)] opacity-60" />
-                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[var(--v-success)]" />
-                    </span>
-                    <span className="text-[11px] sm:text-[13px] font-black uppercase tracking-widest flex-shrink-0" style={{ color: "var(--v-success)" }}>
-                        Live
-                    </span>
-                    <span className="text-[13px] font-bold truncate" style={{ color: "var(--v-text-primary)" }}>
-                        {todayEvent.title}
-                    </span>
-                    <span className="text-[11px] font-semibold hidden sm:inline flex-shrink-0" style={{ color: "var(--v-text-tertiary)" }}>
-                        · {formatTime(todayEvent.startDate)} · {todayEvent.venueName || "—"}
-                    </span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <Link
-                        href={`/host/analytics/overview?eventId=${todayEvent.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-[12px] font-black uppercase tracking-widest px-3 py-1 rounded-lg transition-all hover:opacity-80"
-                        style={{ background: "rgba(52,211,153,0.12)", color: "var(--v-success)" }}
-                    >
-                        View Analytics
-                    </Link>
-                    {expanded ? (
-                        <ChevronUp className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
-                    ) : (
-                        <ChevronDown className="w-4 h-4" style={{ color: "var(--v-text-tertiary)" }} />
-                    )}
-                </div>
-            </button>
-
-            {/* Expanded content */}
-            <AnimatePresence>
-                {expanded && (
-                    <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                    >
-                        <div className="px-4 sm:px-7 pb-5 grid grid-cols-3 gap-3 sm:gap-4 border-t" style={{ borderColor: "rgba(52,211,153,0.12)" }}>
-                            <LiveStatCell
-                                label="Tickets Sold"
-                                value={todayEvent.ticketsSold?.toString() ?? "—"}
-                                subtext={todayEvent.capacity ? `of ${todayEvent.capacity}` : undefined}
-                            />
-                            <LiveStatCell
-                                label="Revenue"
-                                value={todayEvent.revenue ? formatINRCompact(todayEvent.revenue) : "—"}
-                            />
-                            <LiveStatCell
-                                label="Fill Rate"
-                                value={
-                                    todayEvent.capacity && todayEvent.ticketsSold
-                                        ? `${Math.round((todayEvent.ticketsSold / todayEvent.capacity) * 100)}%`
-                                        : "—"
-                                }
-                            />
-                        </div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
-
-function LiveStatCell({ label, value, subtext }: { label: string; value: string; subtext?: string }) {
-    return (
-        <div className="pt-4">
-            <div className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--v-text-muted)" }}>
-                {label}
-            </div>
-            <div className="text-[22px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                {value}
-            </div>
-            {subtext && (
-                <div className="text-[11px] font-semibold mt-0.5" style={{ color: "var(--v-text-muted)" }}>
-                    {subtext}
-                </div>
-            )}
-        </div>
-    );
-}
-
-// ─── Next Event KPI Card ──────────────────────────────────────────────────────
-
-function NextEventCard({ nextEvent, loading }: { nextEvent: UpcomingEvent | null; loading: boolean }) {
-    if (loading) return <div className="v-skeleton rounded-[28px] h-full min-h-[140px]" />;
-
-    if (!nextEvent) {
-        return (
-            <div
-                className="rounded-[28px] p-7 flex flex-col justify-between min-h-[140px]"
-                style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
-            >
-                <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                    Next Event
-                </div>
-                <div className="text-[15px] font-bold" style={{ color: "var(--v-text-muted)" }}>
-                    No upcoming events
-                </div>
-            </div>
-        );
+    if (range === "all") {
+        return date.toLocaleDateString("en-US", {
+            month: "short",
+            year: "2-digit",
+        });
     }
 
-    const days = daysUntil(nextEvent.startDate);
-    const fillPct =
-        nextEvent.capacity && nextEvent.ticketsSold
-            ? Math.min(100, Math.round((nextEvent.ticketsSold / nextEvent.capacity) * 100))
-            : null;
-
-    return (
-        <div
-            className="rounded-[28px] p-7 flex flex-col justify-between min-h-[140px]"
-            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
-        >
-            <div className="flex items-start justify-between gap-2">
-                <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                    Next Event
-                </div>
-                <span
-                    className="text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg shrink-0"
-                    style={{
-                        background: days <= 1 ? "rgba(52,211,153,0.12)" : "rgba(129,140,248,0.1)",
-                        color: days <= 1 ? "var(--v-success)" : "var(--v-info)",
-                    }}
-                >
-                    {days <= 0 ? "Today" : days === 1 ? "Tomorrow" : `${days}d`}
-                </span>
-            </div>
-            <div>
-                <div className="text-[16px] font-black tracking-tight line-clamp-1 mb-1" style={{ color: "var(--v-text-primary)" }}>
-                    {nextEvent.title}
-                </div>
-                <div className="text-[12px] font-semibold mb-3" style={{ color: "var(--v-text-tertiary)" }}>
-                    {formatDate(nextEvent.startDate)} · {nextEvent.venueName || "—"}
-                </div>
-                {fillPct !== null && (
-                    <div>
-                        <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
-                                Fill Rate
-                            </span>
-                            <span className="text-[11px] font-black tabular-nums" style={{ color: "var(--v-text-secondary)" }}>
-                                {fillPct}%
-                            </span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "var(--v-elevated)" }}>
-                            <div
-                                className="h-full rounded-full transition-all"
-                                style={{
-                                    width: `${fillPct}%`,
-                                    background: fillPct >= 80 ? "var(--v-success)" : fillPct >= 50 ? "var(--v-orange)" : "var(--v-info)",
-                                }}
-                            />
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    );
-}
-
-// ─── Event Card ───────────────────────────────────────────────────────────────
-
-function EventMiniCard({ event }: { event: UpcomingEvent }) {
-    const lifecycle = event.lifecycle || "draft";
-    const cfg = LIFECYCLE_CONFIG[lifecycle] || LIFECYCLE_CONFIG.draft;
-    return (
-        <Link
-            href={`/host/analytics/overview?eventId=${event.id}`}
-            className="group p-6 rounded-[24px] flex items-center gap-5 transition-all hover:bg-[var(--v-elevated)] bg-[var(--v-canvas)] border border-[var(--v-border)]"
-        >
-            <div className="w-14 h-14 rounded-[16px] bg-[var(--v-card)] border border-[var(--v-border)] flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                {event.coverImage ? (
-                    <img src={event.coverImage} alt="" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-                ) : (
-                    <CalendarDays className="w-5 h-5" style={{ color: "var(--v-text-muted)" }} />
-                )}
-            </div>
-            <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-bold uppercase tracking-tight" style={{ color: "var(--v-text-tertiary)" }}>
-                    {formatDate(event.startDate)} · {event.venueName ?? "—"}
-                </p>
-                <p className="text-[15px] font-black line-clamp-1 leading-tight uppercase mt-0.5 tracking-tight" style={{ color: "var(--v-text-primary)" }}>
-                    {event.title ?? "Untitled Event"}
-                </p>
-                <div className="mt-2 flex items-center gap-3">
-                    <span
-                        className="text-[11px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border"
-                        style={{ color: cfg.color, borderColor: `${cfg.color}30`, background: `${cfg.color}10` }}
-                    >
-                        {cfg.label}
-                    </span>
-                    {event.ticketsSold !== undefined && event.ticketsSold > 0 && (
-                        <span className="text-[11px] font-semibold" style={{ color: "var(--v-text-muted)" }}>
-                            {event.ticketsSold} sold
-                        </span>
-                    )}
-                </div>
-            </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
-                <ChevronRight className="w-5 h-5 group-hover:translate-x-0.5 transition-transform" style={{ color: "var(--v-text-tertiary)" }} />
-                <span className="text-[10px] font-black uppercase tracking-widest" style={{ color: "var(--v-info)" }}>
-                    Analytics
-                </span>
-            </div>
-        </Link>
-    );
-}
-
-function QuickLink({ icon: Icon, label, href }: { icon: any; label: string; href: string }) {
-    return (
-        <Link
-            href={href}
-            className="group flex flex-col items-center justify-center p-7 rounded-[28px] transition-all hover:bg-[var(--v-elevated)] bg-[var(--v-card)] border border-[var(--v-border)] gap-3"
-        >
-            <div className="w-11 h-11 rounded-2xl bg-surface-tertiary flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Icon className="w-5 h-5 text-[var(--v-text-tertiary)] group-hover:text-[var(--v-orange)] transition-colors" />
-            </div>
-            <span className="text-[12px] font-black text-center uppercase tracking-widest text-[var(--v-text-tertiary)] group-hover:text-text-primary transition-colors">
-                {label}
-            </span>
-        </Link>
-    );
-}
-
-// ─── Main Component ────────────────────────────────────────────────────────────
-
-export default function HostOverviewPage() {
-    const { profile } = useDashboardAuth() as any;
-    const hostId = profile?.activeMembership?.partnerId;
-    const displayName = profile?.displayName || "Host";
-    const shouldReduceMotion = useReducedMotion();
-
-    // Date filter state
-    const [range, setRange] = useState<RangeOption>("7d");
-    const [customStart, setCustomStart] = useState<string>(() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 7);
-        return toDateInputValue(d);
+    return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
     });
-    const [customEnd, setCustomEnd] = useState<string>(toDateInputValue(new Date()));
+}
 
-    const { data: rawData, isLoading: loading, isError } = useHostOverviewSummary(
-        hostId,
-        range,
-        range === "custom" ? customStart : undefined,
-        range === "custom" ? customEnd : undefined
-    );
-    const summary: OverviewSummary | null = rawData ? (rawData.summary || rawData) : null;
+function buildEmptyRangeLabels(range: OverviewRange) {
+    const now = new Date();
 
-    const handleCustomApply = (start: string, end: string) => {
-        setCustomStart(start);
-        setCustomEnd(end);
-        setRange("custom");
-    };
-
-    const mp = (delay: number) =>
-        shouldReduceMotion
-            ? {}
-            : { initial: { opacity: 0, y: 14 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.32, ease: [0.25, 0.1, 0.25, 1], delay } };
-
-    const pendingTotal = (summary?.pendingEventApprovals ?? 0) + (summary?.pendingSlotRequests ?? 0);
-
-    const rangeLabel = range === "custom"
-        ? `${customStart.slice(5)} – ${customEnd.slice(5)}`
-        : RANGE_LABELS[range];
-
-    if (isError) {
-        return (
-            <VenuePageShell title="Overview">
-                <div className="flex flex-col items-center justify-center py-24 text-center gap-4">
-                    <AlertTriangle className="w-10 h-10 text-red-400" />
-                    <p className="text-[16px] font-semibold" style={{ color: "var(--v-text-primary)" }}>Failed to load host overview</p>
-                    <p className="text-[13px]" style={{ color: "var(--v-text-tertiary)" }}>Please refresh the page to try again.</p>
-                </div>
-            </VenuePageShell>
-        );
+    if (range === "1d") {
+        return Array.from({ length: 8 }, (_, index) => {
+            const point = new Date(now);
+            point.setHours(now.getHours() - (7 - index) * 3, 0, 0, 0);
+            return formatRangeLabel(point, range);
+        });
     }
 
+    if (range === "1w") {
+        return Array.from({ length: 7 }, (_, index) => {
+            const point = new Date(now);
+            point.setDate(now.getDate() - (6 - index));
+            return formatRangeLabel(point, range);
+        });
+    }
+
+    if (range === "1m") {
+        return Array.from({ length: 6 }, (_, index) => {
+            const point = new Date(now);
+            point.setDate(now.getDate() - (5 - index) * 5);
+            return formatRangeLabel(point, range);
+        });
+    }
+
+    return Array.from({ length: 6 }, (_, index) => {
+        const point = new Date(now);
+        point.setMonth(now.getMonth() - (5 - index));
+        return formatRangeLabel(point, range);
+    });
+}
+
+const STATUS_LABELS: Record<string, string> = {
+    live: "Live",
+    published: "Live",
+    scheduled: "Scheduled",
+    approved: "Approved",
+    pending: "Pending",
+    completed: "Completed",
+    cancelled: "Cancelled",
+    draft: "Draft",
+};
+
+const STATUS_STYLES: Record<string, { color: string; background: string }> = {
+    live: { color: "var(--v-success)", background: "var(--v-success-bg)" },
+    published: { color: "var(--v-success)", background: "var(--v-success-bg)" },
+    scheduled: { color: "var(--v-info)", background: "var(--v-info-bg)" },
+    approved: { color: "var(--v-info)", background: "var(--v-info-bg)" },
+    pending: { color: "var(--v-warning)", background: "var(--v-warning-bg)" },
+    completed: { color: "var(--v-text-secondary)", background: "var(--v-neutral-bg)" },
+    cancelled: { color: "var(--v-error)", background: "var(--v-error-bg)" },
+    draft: { color: "var(--v-text-tertiary)", background: "var(--v-neutral-bg)" },
+};
+
+function getOrderStatusBadge(order: HostOrder) {
+    const statusKey = String(order.status || "").trim().toLowerCase();
+
+    if (statusKey === "cancelled" || statusKey === "canceled") {
+        return {
+            label: "Cancelled",
+            style: {
+                color: "rgb(248, 113, 113)",
+                borderColor: "rgba(248, 113, 113, 0.3)",
+                background: "rgba(248, 113, 113, 0.1)",
+            },
+        };
+    }
+
+    if (statusKey === "refunded") {
+        return {
+            label: "Refunded",
+            style: {
+                color: "rgb(251, 191, 36)",
+                borderColor: "rgba(251, 191, 36, 0.3)",
+                background: "rgba(251, 191, 36, 0.1)",
+            },
+        };
+    }
+
+    return {
+        label: order.source === "rsvp" ? "RSVP" : "Ticket",
+        style: {
+            color: "rgb(96, 165, 250)",
+            borderColor: "rgba(96, 165, 250, 0.3)",
+            background: "rgba(96, 165, 250, 0.1)",
+        },
+    };
+}
+
+function cardStyle(): CSSProperties {
+    return {
+        background: "rgba(255,255,255,0.01)",
+        border: "1px solid rgba(255,255,255,0.04)",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.2)",
+    };
+}
+
+function startOfDay(date: Date) {
+    const next = new Date(date);
+    next.setHours(0, 0, 0, 0);
+    return next;
+}
+
+function toDate(value?: string) {
+    if (!value) return null;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getEventDate(event: HostEvent) {
+    return toDate(event.startDate || event.date);
+}
+
+function getEventImage(event: HostEvent) {
+    return event.coverImage || event.poster || event.bannerImage || event.image || "";
+}
+
+function getEventStatus(event: HostEvent) {
+    const key = (event.lifecycle || event.status || "scheduled").toLowerCase();
+    return {
+        label: STATUS_LABELS[key] || "Scheduled",
+        style: STATUS_STYLES[key] || STATUS_STYLES.scheduled,
+    };
+}
+
+function formatOrderDateTime(value: string) {
+    const date = toDate(value);
+    if (!date) return "Date unavailable";
+    return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+    });
+}
+
+function formatEventDateTime(value?: string) {
+    const date = toDate(value);
+    if (!date) return "Date to be announced";
+    return date.toLocaleString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+    });
+}
+
+function getInitials(name: string) {
+    const parts = name
+        .split(" ")
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .slice(0, 2);
+    if (parts.length === 0) return "C";
+    return parts.map((part) => part[0]?.toUpperCase() || "").join("");
+}
+
+function SectionHeader({
+    eyebrow,
+    title,
+    description,
+    trailing,
+}: {
+    eyebrow?: string;
+    title: string;
+    description?: string;
+    trailing?: ReactNode;
+}) {
     return (
-        <VenuePageShell
-            title="Overview"
-            subtitle={`Good ${getGreeting()}, ${displayName.split(" ")[0]}`}
-            actions={
-                <div className="flex items-center gap-3 flex-wrap">
-                    <DateRangeSelector
-                        range={range}
-                        customStart={customStart}
-                        customEnd={customEnd}
-                        onRangeChange={setRange}
-                        onCustomApply={handleCustomApply}
-                    />
-                    <Link href="/host/calendar">
+        <div className="flex items-start justify-between gap-4">
+            <div>
+                {eyebrow ? (
+                    <p
+                        className="text-[10px] font-black uppercase tracking-[0.24em] mb-2"
+                        style={{ color: "var(--v-text-muted)" }}
+                    >
+                        {eyebrow}
+                    </p>
+                ) : null}
+                <h2
+                    className="text-[24px] font-black tracking-[-0.04em]"
+                    style={{ color: "var(--v-text-primary)" }}
+                >
+                    {title}
+                </h2>
+                {description ? (
+                    <p
+                        className="text-[13px] mt-1"
+                        style={{ color: "var(--v-text-tertiary)" }}
+                    >
+                        {description}
+                    </p>
+                ) : null}
+            </div>
+            {trailing}
+        </div>
+    );
+}
+
+function SegmentedControl<T extends string>({
+    items,
+    value,
+    onChange,
+}: {
+    items: Array<{ value: T; label: string; disabled?: boolean }>;
+    value: T;
+    onChange: (next: T) => void;
+}) {
+    return (
+        <div
+            className="inline-flex items-center gap-1 rounded-2xl p-1"
+            style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}
+        >
+            {items.map((item) => {
+                const isActive = item.value === value;
+                return (
+                    <button
+                        key={item.value}
+                        type="button"
+                        disabled={item.disabled}
+                        onClick={() => onChange(item.value)}
+                        className="px-3.5 py-2 rounded-xl text-[11px] font-black uppercase tracking-[0.14em] transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                        style={
+                            isActive
+                                ? {
+                                      background: "var(--v-orange)",
+                                      color: "#fff",
+                                      boxShadow: "0 8px 18px rgba(244,74,34,0.22)",
+                                  }
+                                : {
+                                      background: "transparent",
+                                      color: "var(--v-text-tertiary)",
+                                  }
+                        }
+                    >
+                        {item.label}
+                    </button>
+                );
+            })}
+        </div>
+    );
+}
+
+async function fetchOrdersPage(
+    token: string,
+    hostId: string,
+    page: number,
+    limit: number,
+) {
+    const params = new URLSearchParams({
+        hostId,
+        page: String(page),
+        limit: String(limit),
+    });
+    const response = await fetch(`/api/host/orders?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error("Failed to fetch host orders");
+    return response.json() as Promise<HostOrdersResponse>;
+}
+
+export default function HostDashboardStreaming() {
+    const { profile, user } = useDashboardAuth();
+    const hostId = profile?.activeMembership?.partnerId;
+    const membership = profile?.activeMembership;
+    const hostName = membership?.partnerName || "Host Overview";
+
+    const permissions = useMemo(() => {
+        if (!membership) return [];
+        return membership.permissions?.length
+            ? membership.permissions
+            : getPermissionsForRole(membership.partnerType, membership.role);
+    }, [membership]);
+
+    const canViewAnalytics = permissions.includes("VIEW_ANALYTICS");
+    const canViewOrders = permissions.includes("VIEW_GUESTLIST") || canViewAnalytics;
+    const canViewRevenue = permissions.includes("VIEW_FINANCIALS");
+
+    const [selectedRange, setSelectedRange] = useState<OverviewRange>("1m");
+    const [selectedMetric, setSelectedMetric] = useState<OverviewMetric>("tickets");
+    const [orderSearch, setOrderSearch] = useState("");
+
+    useEffect(() => {
+        if (selectedMetric === "revenue" && !canViewRevenue) {
+            setSelectedMetric("tickets");
+        }
+    }, [canViewRevenue, selectedMetric]);
+
+    const recentOrdersQuery = useQuery({
+        queryKey: ["host", hostId, "overview-orders-latest"],
+        enabled: Boolean(hostId && user && canViewOrders),
+        queryFn: async () => {
+            const token = await user!.getIdToken();
+            const payload = await fetchOrdersPage(token, hostId!, 1, 20);
+            return payload.orders || [];
+        },
+        staleTime: OVERVIEW_ORDERS_STALE_MS,
+        refetchOnMount: false,
+    });
+
+    const timeSeriesQuery = useQuery({
+        queryKey: ["host", hostId, "time-series", selectedRange, selectedMetric],
+        enabled: Boolean(hostId && user && canViewAnalytics),
+        queryFn: async (): Promise<TimeSeriesResponse> => {
+            const token = await user!.getIdToken();
+            const params = new URLSearchParams({
+                hostId: hostId!,
+                range: selectedRange,
+                metric: selectedMetric,
+            });
+            const res = await fetch(`/api/host/analytics/time-series?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!res.ok) throw new Error("Failed to fetch time-series data");
+            return res.json();
+        },
+        staleTime: OVERVIEW_SERIES_STALE_MS,
+        refetchOnMount: false,
+        refetchInterval: selectedRange === "1d" ? OVERVIEW_REFRESH_MS : false,
+        refetchIntervalInBackground: false,
+    });
+
+    const upcomingEventsQuery = useQuery({
+        queryKey: ["host", hostId, "overview-events"],
+        enabled: Boolean(hostId && user),
+        queryFn: async () => {
+            const token = await user!.getIdToken();
+            const params = new URLSearchParams({
+                hostId: hostId!,
+                limit: "20",
+            });
+            const response = await fetch(`/api/host/events?${params.toString()}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) throw new Error("Failed to fetch host events");
+            return response.json() as Promise<HostEventsResponse>;
+        },
+        staleTime: OVERVIEW_EVENTS_STALE_MS,
+        refetchOnMount: false,
+    });
+
+    const latestOrders = recentOrdersQuery.data || [];
+    const filteredLatestOrders = useMemo(() => {
+        const query = orderSearch.trim().toLowerCase();
+        if (!query) return latestOrders;
+        return latestOrders.filter((order) =>
+            [order.customerName, order.eventName, order.orderNumber]
+                .filter(Boolean)
+                .some((value) => value.toLowerCase().includes(query))
+        );
+    }, [latestOrders, orderSearch]);
+
+    const chartData = useMemo((): ChartPoint[] => {
+        const series = timeSeriesQuery.data?.series || [];
+        return series.map((pt) => ({
+            label: pt.label,
+            value: Number(
+                selectedMetric === "revenue"
+                    ? (pt.revenue ?? pt.value ?? 0)
+                    : (pt.ticketsSold ?? pt.value ?? 0)
+            ),
+        }));
+    }, [timeSeriesQuery.data, selectedMetric]);
+
+    const chartTotal = useMemo(
+        () => chartData.reduce((sum: number, point: ChartPoint) => sum + point.value, 0),
+        [chartData],
+    );
+    const emptyChartLabels = useMemo(
+        () => buildEmptyRangeLabels(selectedRange),
+        [selectedRange],
+    );
+
+    const upcomingEvents = useMemo(() => {
+        const now = startOfDay(new Date());
+        const items = (upcomingEventsQuery.data?.events || [])
+            .filter((event) => {
+                const eventDate = getEventDate(event);
+                return Boolean(eventDate && eventDate >= now);
+            })
+            .sort((left, right) => {
+                const leftDate = getEventDate(left)?.getTime() || 0;
+                const rightDate = getEventDate(right)?.getTime() || 0;
+                return leftDate - rightDate;
+            });
+        return items.slice(0, 8);
+    }, [upcomingEventsQuery.data]);
+
+    return (
+        <div className="pt-[3px] lg:pt-[6px]">
+            <VenuePageShell
+                title="Overview"
+                noPadding
+                actions={
+                    <Link href="/host/create/select-venue">
                         <VenueActionButton variant="primary">
-                            <Plus className="w-5 h-5 mr-2" />
-                            Secure Slot
+                            Create Event
                         </VenueActionButton>
                     </Link>
-                </div>
-            }
-        >
-            <div className="flex flex-col gap-5">
+                }
+            >
+                <div className="flex flex-col gap-2">
+                    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.85fr)_minmax(320px,0.95fr)] gap-6 xl:items-stretch">
+                        <section
+                            className="rounded-[32px] px-4 pt-4 pb-2 h-full"
+                            style={cardStyle()}
+                        >
+                            <div className="flex flex-col gap-1">
+                                <SectionHeader title="Performance" />
 
-                {/* Live Event Banner */}
-                <motion.div {...mp(0)}>
-                    <LiveEventSection todayEvent={summary?.todayEvent ?? null} />
-                </motion.div>
+                                <div className="flex flex-wrap items-end justify-between gap-4 mt-2 mb-2">
+                                    <SegmentedControl<OverviewMetric>
+                                        items={METRIC_OPTIONS.map((option) => ({
+                                            ...option,
+                                            disabled: option.value === "revenue" && !canViewRevenue,
+                                        }))}
+                                        value={selectedMetric}
+                                        onChange={(next) => setSelectedMetric(next)}
+                                    />
+                                    <div className="text-left sm:text-right leading-none min-w-[110px]">
+                                        <p
+                                            className="text-[10px] font-black uppercase tracking-[0.22em]"
+                                            style={{ color: "var(--v-text-muted)" }}
+                                        >
+                                            {selectedMetric === "revenue" ? "Revenue" : "Tickets"}
+                                        </p>
+                                        <p
+                                            className="text-[40px] font-black tracking-[-0.08em] leading-[0.82] mt-3 whitespace-normal break-words"
+                                            style={{ color: "var(--v-text-primary)" }}
+                                        >
+                                            {selectedMetric === "revenue"
+                                                ? formatINRCompact(chartTotal)
+                                                : formatNumber(chartTotal)}
+                                        </p>
+                                    </div>
+                                </div>
 
-                {/* Daily KPI Strip */}
-                <motion.div {...mp(0.06)} className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {/* Next Event */}
-                    <NextEventCard nextEvent={summary?.nextEvent ?? null} loading={loading} />
-
-                    {/* Revenue */}
-                    <div
-                        className="rounded-[28px] p-7 flex flex-col justify-between min-h-[140px]"
-                        style={{ background: "var(--v-card)", border: "1px solid var(--v-border)", borderLeftWidth: 3, borderLeftColor: "var(--v-orange)" }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                                Revenue
-                            </span>
-                            <Banknote className="w-4 h-4" style={{ color: "var(--v-orange)" }} />
-                        </div>
-                        <div>
-                            <div className="text-[28px] font-black tabular-nums tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
-                                {loading ? "—" : formatINRCompact(summary?.recentEarnings ?? 0)}
-                            </div>
-                            <div className="text-[11px] font-semibold mt-1 uppercase tracking-wider" style={{ color: "var(--v-text-muted)" }}>
-                                {rangeLabel}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tickets Sold */}
-                    <div
-                        className="rounded-[28px] p-7 flex flex-col justify-between min-h-[140px]"
-                        style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                                Tickets
-                            </span>
-                            <Ticket className="w-4 h-4" style={{ color: "var(--v-info)" }} />
-                        </div>
-                        <div>
-                            <div className="text-[28px] font-black tabular-nums tracking-tighter" style={{ color: "var(--v-text-primary)" }}>
-                                {loading ? "—" : (summary?.totalTicketsSold ?? 0).toLocaleString("en-IN")}
-                            </div>
-                            <div className="text-[11px] font-semibold mt-1 uppercase tracking-wider" style={{ color: "var(--v-text-muted)" }}>
-                                {rangeLabel}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Pending Actions */}
-                    <div
-                        className="rounded-[28px] p-7 flex flex-col justify-between min-h-[140px]"
-                        style={{
-                            background: pendingTotal > 0 ? "rgba(251,191,36,0.04)" : "var(--v-card)",
-                            border: `1px solid ${pendingTotal > 0 ? "rgba(251,191,36,0.2)" : "var(--v-border)"}`,
-                        }}
-                    >
-                        <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                                Pending
-                            </span>
-                            {pendingTotal > 0 && (
-                                <span className="w-2 h-2 rounded-full bg-[var(--v-warning)] animate-pulse" />
-                            )}
-                        </div>
-                        <div>
-                            <div
-                                className="text-[28px] font-black tabular-nums tracking-tighter"
-                                style={{ color: pendingTotal > 0 ? "var(--v-warning)" : "var(--v-text-primary)" }}
-                            >
-                                {loading ? "—" : pendingTotal}
-                            </div>
-                            <div className="text-[11px] font-semibold mt-1 uppercase tracking-wider" style={{ color: "var(--v-text-muted)" }}>
-                                {pendingTotal === 1 ? "Action required" : pendingTotal > 1 ? "Actions required" : "All clear"}
-                            </div>
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* Identity + Stats row */}
-                <motion.div {...mp(0.1)} className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* Identity Card */}
-                    <div
-                        className="lg:col-span-2 rounded-[32px] p-8 sm:p-10 flex flex-col justify-between min-h-[180px] relative overflow-hidden"
-                        style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
-                    >
-                        <div className="relative z-10 flex items-center gap-6">
-                            <div className="w-16 h-16 rounded-[20px] bg-gradient-to-br from-[var(--v-orange)] to-red-600 flex items-center justify-center text-white text-2xl font-black shadow-xl shrink-0 border-2 border-white/10">
-                                {profile?.photoURL ? (
-                                    <img src={profile.photoURL} alt="" className="w-full h-full rounded-[18px] object-cover" />
+                                {!canViewAnalytics ? (
+                                    <div
+                                        className="rounded-[28px] min-h-[360px] flex flex-col items-center justify-center text-center px-6"
+                                        style={{
+                                            background: "var(--v-neutral-bg)",
+                                            border: "1px dashed var(--v-border)",
+                                        }}
+                                    >
+                                        <ShoppingBag
+                                            className="w-8 h-8 mb-3"
+                                            style={{ color: "var(--v-text-muted)" }}
+                                        />
+                                        <p
+                                            className="text-[15px] font-semibold"
+                                            style={{ color: "var(--v-text-primary)" }}
+                                        >
+                                            Analytics access is required
+                                        </p>
+                                        <p
+                                            className="text-[12px] mt-2 max-w-sm"
+                                            style={{ color: "var(--v-text-tertiary)" }}
+                                        >
+                                            This graph is built from cross-event host performance data, so it only appears for roles with analytics access.
+                                        </p>
+                                    </div>
+                                ) : timeSeriesQuery.isLoading ? (
+                                    <ChartSkeleton height={360} />
                                 ) : (
-                                    displayName[0] ?? "H"
+                                    <VenueChart
+                                        type={selectedMetric === "tickets" ? "line" : "area"}
+                                        data={chartData}
+                                        config={{
+                                            dataKey: "value",
+                                            xKey: "label",
+                                            color: selectedMetric === "tickets" ? "var(--v-chart-2)" : "var(--v-chart-1)",
+                                            gradientId: `host-overview-${selectedMetric}-${selectedRange}`,
+                                        }}
+                                        title={`${selectedMetric} over ${selectedRange}`}
+                                        height={360}
+                                        empty={chartData.length === 0 || chartTotal === 0}
+                                        emptyLabels={emptyChartLabels}
+                                    />
+                                )}
+
+                                <div className="flex justify-end mt-2">
+                                    <SegmentedControl<OverviewRange>
+                                        items={RANGE_OPTIONS}
+                                        value={selectedRange}
+                                        onChange={(next) => setSelectedRange(next)}
+                                    />
+                                </div>
+                            </div>
+                        </section>
+
+                        <aside
+                            className="rounded-[32px] px-4 pt-4 pb-3 flex flex-col min-h-[500px] xl:h-[580px]"
+                            style={cardStyle()}
+                        >
+                            <SectionHeader
+                                title="Latest Orders"
+                                trailing={
+                                    <Link
+                                        href="/host/events"
+                                        className="inline-flex items-center px-4 py-1.5 rounded-full text-[11px] font-black uppercase tracking-widest transition-all hover:bg-white/5 active:scale-95 border border-white/5 hover:border-white/10"
+                                        style={{ color: "var(--v-text-tertiary)" }}
+                                    >
+                                        View more
+                                    </Link>
+                                }
+                            />
+
+                            <div className="mt-4 relative group">
+                                <Search
+                                    className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none transition-colors group-focus-within:text-orange-500"
+                                    style={{ color: "var(--v-text-muted)" }}
+                                />
+                                <input
+                                    type="text"
+                                    value={orderSearch}
+                                    onChange={(event) => setOrderSearch(event.target.value)}
+                                    placeholder="Search orders, customers, events..."
+                                    className="w-full h-12 rounded-[20px] pl-11 pr-4 text-[13px] font-medium outline-none transition-all placeholder:text-text-placeholder focus:ring-2 focus:ring-orange-500/20"
+                                    style={{
+                                        background: "rgba(255,255,255,0.02)",
+                                        border: "1px solid var(--v-divider)",
+                                        color: "var(--v-text-primary)",
+                                    }}
+                                />
+                            </div>
+
+                            <div className="mt-4 flex-1 overflow-y-auto pr-1 space-y-3 custom-scrollbar min-h-0">
+                                {!canViewOrders ? (
+                                    <div
+                                        className="rounded-[24px] px-5 py-8 text-center"
+                                        style={{
+                                            background: "var(--v-neutral-bg)",
+                                            border: "1px dashed var(--v-border)",
+                                        }}
+                                    >
+                                        <p
+                                            className="text-[13px] font-semibold"
+                                            style={{ color: "var(--v-text-primary)" }}
+                                        >
+                                            Orders are hidden for this role
+                                        </p>
+                                        <p
+                                            className="text-[12px] mt-2"
+                                            style={{ color: "var(--v-text-tertiary)" }}
+                                        >
+                                            Host order activity is only shown for roles with host analytics or guestlist access.
+                                        </p>
+                                    </div>
+                                ) : recentOrdersQuery.isLoading ? (
+                                    Array.from({ length: 5 }).map((_, index) => (
+                                        <div
+                                            key={index}
+                                            className="h-[88px] rounded-[24px] v-skeleton"
+                                        />
+                                    ))
+                                ) : filteredLatestOrders.length === 0 ? (
+                                    <div
+                                        className="rounded-[24px] px-5 py-10 text-center"
+                                        style={{
+                                            background: "var(--v-neutral-bg)",
+                                            border: "1px dashed var(--v-border)",
+                                        }}
+                                    >
+                                        <ShoppingBag
+                                            className="w-8 h-8 mx-auto mb-3"
+                                            style={{ color: "var(--v-text-muted)" }}
+                                        />
+                                        <p
+                                            className="text-[13px] font-semibold"
+                                            style={{ color: "var(--v-text-primary)" }}
+                                        >
+                                            {orderSearch.trim() ? "No matching orders" : "No recent orders"}
+                                        </p>
+                                    </div>
+                                ) : (
+                                    filteredLatestOrders.map((order) => {
+                                        const badge = getOrderStatusBadge(order);
+
+                                        return (
+                                            <Link
+                                                key={order.id}
+                                                href={`/host/events/${order.eventId}`}
+                                            >
+                                                <motion.div
+                                                    initial={{ opacity: 0, y: 10 }}
+                                                    animate={{ opacity: 1, y: 0 }}
+                                                    className="group relative rounded-[28px] p-4 transition-all hover:bg-white/[0.04] active:scale-[0.98] cursor-pointer"
+                                                    style={{
+                                                        background: "rgba(255,255,255,0.02)",
+                                                        border: "1px solid rgba(255,255,255,0.05)",
+                                                    }}
+                                                >
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="relative shrink-0">
+                                                            <div
+                                                                className="h-12 w-12 rounded-2xl flex items-center justify-center text-[14px] font-black tracking-tight transition-transform group-hover:scale-105"
+                                                                style={{
+                                                                    background: "linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.02))",
+                                                                    border: "1px solid rgba(255,255,255,0.08)",
+                                                                    color: "var(--v-text-primary)",
+                                                                    boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+                                                                }}
+                                                            >
+                                                                {getInitials(order.customerName)}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="min-w-0 flex-1">
+                                                            <p
+                                                                className="text-[14px] font-black truncate leading-none group-hover:text-orange-500 transition-colors"
+                                                                style={{ color: "var(--v-text-primary)" }}
+                                                            >
+                                                                {order.customerName}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-1.5 overflow-hidden">
+                                                                <span
+                                                                    className="text-[11px] font-bold uppercase tracking-widest bg-white/5 px-2 py-0.5 rounded-md"
+                                                                    style={{ color: "var(--v-text-tertiary)" }}
+                                                                >
+                                                                    {order.eventName}
+                                                                </span>
+                                                                <span className="shrink-0 w-1 h-1 rounded-full bg-white/20" />
+                                                                <span className="text-[11px] font-medium truncate" style={{ color: "var(--v-text-muted)" }}>
+                                                                    {formatOrderDateTime(order.createdAt).split(",")[0]}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="text-right shrink-0">
+                                                            <div
+                                                                className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest mb-2 border"
+                                                                style={badge.style}
+                                                            >
+                                                                {badge.label}
+                                                            </div>
+                                                            <p
+                                                                className="text-[16px] font-black tracking-[-0.04em] leading-none"
+                                                                style={{ color: "var(--v-text-primary)" }}
+                                                            >
+                                                                {canViewRevenue
+                                                                    ? formatINRCompact(order.amount)
+                                                                    : `${formatNumber(order.ticketsCount)} tix`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-orange-500/0 to-orange-500/[0.02] opacity-0 group-hover:opacity-100 transition-opacity rounded-[28px] pointer-events-none" />
+                                                </motion.div>
+                                            </Link>
+                                        );
+                                    })
                                 )}
                             </div>
-                            <div className="min-w-0">
-                                <h2 className="text-[28px] font-black tracking-tighter text-text-primary leading-none">
-                                    {displayName}
-                                </h2>
-                                <p className="text-[13px] font-bold mt-1.5" style={{ color: "var(--v-text-tertiary)" }}>
-                                    {summary?.verificationStatus === "verified"
-                                        ? "Verified C1RCLE Production Partner"
-                                        : "Verification Processing"}
-                                </p>
-                            </div>
-                        </div>
-                        <div className="flex items-center justify-between relative z-10 mt-7">
-                            <Link href="/host/profile">
-                                <VenueActionButton variant="secondary" className="h-10 px-5 text-[12px]">
-                                    Audit Identity
-                                </VenueActionButton>
-                            </Link>
-                            {summary?.hostScore !== undefined && summary.hostScore > 0 && (
-                                <div className="flex items-center gap-2.5 px-4 py-2 rounded-xl" style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)" }}>
-                                    <Star className="w-4 h-4 text-amber-400 fill-amber-400" />
-                                    <span className="text-[15px] font-black tabular-nums">{summary.hostScore.toFixed(1)}</span>
-                                    <span className="text-[11px] font-black uppercase" style={{ color: "var(--v-text-muted)" }}>Rating</span>
-                                </div>
-                            )}
-                        </div>
-                        <div className="absolute -right-16 -bottom-16 w-64 h-64 bg-[var(--v-orange)]/5 rounded-full blur-[80px] pointer-events-none" />
+                        </aside>
                     </div>
 
-                    {/* Partner stats */}
-                    <div className="grid grid-cols-2 lg:grid-cols-1 gap-4">
-                        <KPIBento
-                            label="VENUES"
-                            value={loading ? "—" : summary?.activeVenuePartnerships || 0}
-                            subtext="Active partners"
-                            icon={<Building2 className="w-5 h-5" />}
-                            className="!p-7 !rounded-[28px]"
-                            loading={loading}
-                        />
-                        <KPIBento
-                            label="PROMOTERS"
-                            value={loading ? "—" : summary?.activePromoterPartnerships || 0}
-                            subtext="Distribution"
-                            icon={<Users className="w-5 h-5" />}
-                            className="!p-7 !rounded-[28px]"
-                            loading={loading}
-                        />
+                    <div className="pt-1">
+                        <SectionHeader title="Upcoming Events" />
                     </div>
-                </motion.div>
 
-                {/* Production Schedule + Sidebar */}
-                <motion.div {...mp(0.14)} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                    {/* Upcoming schedule */}
-                    <div
-                        className="xl:col-span-2 rounded-[32px] p-8 sm:p-10"
-                        style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
+                    <section
+                        className="rounded-[32px] px-4 pt-4 pb-4"
+                        style={cardStyle()}
                     >
-                        <div className="flex items-center justify-between mb-7">
-                            <div>
-                                <h2 className="text-[20px] font-black text-text-primary tracking-tight">
-                                    Production Schedule
-                                </h2>
-                                <p className="text-[12px] font-semibold mt-0.5 uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>
-                                    Click any event to view analytics
-                                </p>
-                            </div>
-                            <Link href="/host/events">
-                                <VenueActionButton variant="secondary" className="h-9 px-4 text-[12px]">
-                                    All Events <ArrowRight className="ml-1.5 w-3.5 h-3.5" />
-                                </VenueActionButton>
-                            </Link>
-                        </div>
-
-                        {loading ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[...Array(4)].map((_, i) => <div key={i} className="v-skeleton rounded-[24px] h-28" />)}
-                            </div>
-                        ) : !summary?.upcomingEvents?.length ? (
-                            <div className="py-16 flex flex-col items-center text-center gap-5">
-                                <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
-                                    <CalendarDays className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
-                                </div>
-                                <div>
-                                    <h3 className="text-[18px] font-black text-text-primary">No events in this period</h3>
-                                    <p className="text-[13px] mt-1.5" style={{ color: "var(--v-text-tertiary)" }}>
-                                        Try a wider date range or secure a new slot.
+                        <div className="space-y-3">
+                            {upcomingEventsQuery.isLoading ? (
+                                Array.from({ length: 4 }).map((_, index) => (
+                                    <div
+                                        key={index}
+                                        className="h-[108px] rounded-[28px] v-skeleton"
+                                    />
+                                ))
+                            ) : upcomingEvents.length === 0 ? (
+                                <div
+                                    className="rounded-[28px] px-6 py-12 text-center"
+                                    style={{
+                                        background: "var(--v-neutral-bg)",
+                                        border: "1px dashed var(--v-border)",
+                                    }}
+                                >
+                                    <CalendarDays
+                                        className="w-8 h-8 mx-auto mb-3"
+                                        style={{ color: "var(--v-text-muted)" }}
+                                    />
+                                    <p
+                                        className="text-[14px] font-semibold"
+                                        style={{ color: "var(--v-text-primary)" }}
+                                    >
+                                        No upcoming events scheduled
                                     </p>
                                 </div>
-                                <Link href="/host/calendar">
-                                    <VenueActionButton variant="primary" className="h-11 px-7">
-                                        Secure Production Slot
-                                    </VenueActionButton>
-                                </Link>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {summary.upcomingEvents.slice(0, 8).map((event) => (
-                                    <EventMiniCard key={event.id} event={event} />
-                                ))}
-                            </div>
-                        )}
-                    </div>
+                            ) : (
+                                upcomingEvents.map((event) => {
+                                    const eventImage = getEventImage(event);
+                                    const status = getEventStatus(event);
 
-                    {/* Sidebar */}
-                    <div className="space-y-5">
-                        {/* Network Audit */}
-                        <div
-                            className="rounded-[32px] p-8"
-                            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
-                        >
-                            <h3 className="text-[16px] font-black text-text-primary mb-6">Network Audit</h3>
-                            <div className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.1)", border: "1px solid rgba(244,74,34,0.2)" }}>
-                                            <Handshake className="w-5 h-5 text-orange-400" />
-                                        </div>
-                                        <span className="text-[14px] font-bold" style={{ color: "var(--v-text-secondary)" }}>Pending Access</span>
-                                    </div>
-                                    <span className="text-[18px] font-black tabular-nums text-text-primary">{summary?.pendingEventApprovals || 0}</span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(56,189,248,0.1)", border: "1px solid rgba(56,189,248,0.2)" }}>
-                                            <Building2 className="w-5 h-5 text-sky-400" />
-                                        </div>
-                                        <span className="text-[14px] font-bold" style={{ color: "var(--v-text-secondary)" }}>Infrastructure</span>
-                                    </div>
-                                    <span className="text-[18px] font-black tabular-nums text-text-primary">{summary?.activeVenuePartnerships || 0}</span>
-                                </div>
-                            </div>
-                            <Link href="/host/network" className="block mt-7">
-                                <VenueActionButton variant="secondary" className="w-full h-11">
-                                    Audit Partnerships
-                                </VenueActionButton>
-                            </Link>
-                        </div>
+                                    return (
+                                        <Link
+                                            key={event.id}
+                                            href={`/host/events/${event.id}`}
+                                            className="group relative block rounded-[28px] p-4 sm:p-5 transition-all overflow-hidden"
+                                            style={{
+                                                background: "transparent",
+                                                border: "1px solid var(--v-divider)",
+                                            }}
+                                        >
+                                            {eventImage ? (
+                                                <>
+                                                    <div
+                                                        className="absolute inset-y-0 left-0 w-[52%] opacity-[0.28] transition-opacity duration-500 group-hover:opacity-[0.38]"
+                                                        style={{
+                                                            backgroundImage: `url(${eventImage})`,
+                                                            backgroundSize: "cover",
+                                                            backgroundPosition: "center",
+                                                            filter: "blur(44px) saturate(1.22) brightness(1.02)",
+                                                            transform: "scale(1.16)",
+                                                        }}
+                                                    />
+                                                    <div
+                                                        className="absolute inset-y-0 left-[8%] w-[28%] opacity-[0.22] transition-opacity duration-500 group-hover:opacity-[0.3]"
+                                                        style={{
+                                                            backgroundImage: `url(${eventImage})`,
+                                                            backgroundSize: "cover",
+                                                            backgroundPosition: "center",
+                                                            filter: "blur(70px) saturate(1.35)",
+                                                            transform: "scale(1.3)",
+                                                        }}
+                                                    />
+                                                    <div
+                                                        className="absolute inset-0"
+                                                        style={{
+                                                            background:
+                                                                "linear-gradient(90deg, rgba(18,18,20,0.46) 0%, rgba(18,18,20,0.62) 22%, rgba(18,18,20,0.84) 48%, rgba(18,18,20,0.96) 100%)",
+                                                        }}
+                                                    />
+                                                </>
+                                            ) : null}
 
-                        {/* Quick Access */}
-                        <div className="grid grid-cols-2 gap-4">
-                            <QuickLink icon={BarChart3} label="Analytics" href="/host/analytics/overview" />
-                            <QuickLink icon={Network} label="Network" href="/host/network" />
-                        </div>
+                                            <div className="relative z-10 flex items-center gap-4">
+                                                <div
+                                                    className="w-[84px] h-[112px] sm:w-[96px] sm:h-[128px] rounded-[22px] overflow-hidden shrink-0"
+                                                    style={{ background: "var(--v-neutral-bg)" }}
+                                                >
+                                                    {eventImage ? (
+                                                        <img
+                                                            src={eventImage}
+                                                            alt={event.title}
+                                                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <ImageIcon
+                                                                className="w-7 h-7"
+                                                                style={{ color: "var(--v-text-muted)" }}
+                                                            />
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                        {/* Elite Access upsell */}
-                        <div
-                            className="relative overflow-hidden rounded-[32px] p-8"
-                            style={{ background: "linear-gradient(135deg, #1A1A24, #0A0A10)", border: "1px solid var(--v-border)" }}
-                        >
-                            <div className="relative z-10">
-                                <div className="flex items-center gap-2.5 mb-4">
-                                    <Sparkles className="w-5 h-5" style={{ color: "var(--v-orange)" }} />
-                                    <span className="text-[13px] font-black uppercase tracking-[0.2em] text-text-primary">Elite Access</span>
-                                </div>
-                                <p className="text-[13px] leading-relaxed mb-6" style={{ color: "var(--v-text-tertiary)" }}>
-                                    Unlock priority slot acquisition and verification badges across the network.
-                                </p>
-                                <VenueActionButton variant="primary" className="w-full h-11 uppercase text-[11px] tracking-widest font-black">
-                                    Upgrade Profile
-                                </VenueActionButton>
-                            </div>
-                            <div className="absolute -right-16 -bottom-16 w-40 h-40 rounded-full opacity-10 blur-3xl pointer-events-none" style={{ background: "var(--v-orange)" }} />
+                                                <div className="min-w-0 flex-1">
+                                                    <h3
+                                                        className="text-[18px] font-black tracking-[-0.04em] mt-3 line-clamp-1 uppercase"
+                                                        style={{ color: "var(--v-text-primary)" }}
+                                                    >
+                                                        {event.title}
+                                                    </h3>
+
+                                                    <p
+                                                        className="text-[13px] mt-2 line-clamp-2"
+                                                        style={{ color: "var(--v-text-secondary)" }}
+                                                    >
+                                                        {formatEventDateTime(event.startDate || event.date)}
+                                                    </p>
+
+                                                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                                                        <span
+                                                            className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em]"
+                                                            style={status.style}
+                                                        >
+                                                            {status.label}
+                                                        </span>
+                                                        {event.venueName ? (
+                                                            <span
+                                                                className="text-[11px] font-semibold"
+                                                                style={{ color: "var(--v-text-tertiary)" }}
+                                                            >
+                                                                {event.venueName}
+                                                            </span>
+                                                        ) : null}
+                                                    </div>
+                                                </div>
+
+                                                <div className="shrink-0 hidden sm:flex items-center gap-2">
+                                                    <span
+                                                        className="text-[11px] font-black uppercase tracking-[0.14em]"
+                                                        style={{ color: "var(--v-orange)" }}
+                                                    >
+                                                        Open
+                                                    </span>
+                                                    <ChevronRight
+                                                        className="w-4 h-4 transition-transform group-hover:translate-x-0.5"
+                                                        style={{ color: "var(--v-orange)" }}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </Link>
+                                    );
+                                })
+                            )}
                         </div>
-                    </div>
-                </motion.div>
-            </div>
-        </VenuePageShell>
+                    </section>
+                </div>
+            </VenuePageShell>
+        </div>
     );
-}
-
-function getGreeting(): string {
-    const h = new Date().getHours();
-    if (h < 12) return "morning";
-    if (h < 17) return "afternoon";
-    return "evening";
 }

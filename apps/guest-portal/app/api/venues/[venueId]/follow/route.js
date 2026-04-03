@@ -11,7 +11,7 @@ import { verifyAuth } from "../../../../../lib/server/auth";
  */
 export async function POST(request, { params }) {
     try {
-        const { venueId } = params;
+        const { venueId } = await params;
 
         const decodedToken = await verifyAuth(request);
         if (!decodedToken) {
@@ -38,7 +38,7 @@ export async function POST(request, { params }) {
  */
 export async function DELETE(request, { params }) {
     try {
-        const { venueId } = params;
+        const { venueId } = await params;
 
         const decodedToken = await verifyAuth(request);
         if (!decodedToken) {

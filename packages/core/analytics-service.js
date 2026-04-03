@@ -26,6 +26,8 @@ export async function trackEventView(eventId, viewerId) {
         // NOTE: In a high-traffic system, we might use a Sorted Set with timestamps 
         // to prune old viewers more efficiently.
     }
+
+    return Boolean(isNew);
 }
 
 /**

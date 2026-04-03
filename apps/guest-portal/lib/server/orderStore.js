@@ -47,6 +47,11 @@ const calculateOrderTotal = (tickets) => {
     }, 0);
 };
 
+const formatOrderNumber = (orderIndex, fallbackId) => {
+    if (orderIndex) return `#${String(orderIndex).padStart(8, "0")}`;
+    return `#${String(fallbackId || "").slice(0, 8).toUpperCase()}`;
+};
+
 const mapOrderDocument = (doc) => {
     const data = doc.data();
     return {
@@ -56,6 +61,20 @@ const mapOrderDocument = (doc) => {
         updatedAt: data.updatedAt?.toDate?.() ? data.updatedAt.toDate().toISOString() : data.updatedAt,
     };
 };
+
+async function getUserGender(userId) {
+    if (!userId) return "any";
+    if (!isFirebaseConfigured()) return "any";
+
+    try {
+        const db = getAdminDb();
+        const doc = await db.collection("users").doc(userId).get();
+        return doc.exists ? (doc.data()?.gender || "any") : "any";
+    } catch (error) {
+        console.error("[OrderStore] Failed to resolve user gender:", error);
+        return "any";
+    }
+}
 
 /**
  * Create an RSVP order (strictly for RSVP events)
@@ -141,15 +160,18 @@ export async function createRSVPOrder(payload) {
     }
 
     if (!isFirebaseConfigured()) {
+        rsvpOrder.orderIndex = fallbackRSVPs.length + 1;
+        rsvpOrder.orderNumber = formatOrderNumber(rsvpOrder.orderIndex, rsvpOrder.id);
         fallbackRSVPs.push(rsvpOrder);
         return rsvpOrder;
     }
 
     const db = getAdminDb();
+    let persistedOrder = rsvpOrder;
 
     await db.runTransaction(async (transaction) => {
         transaction.db = db; // Inject db for unified engine
-        await coreExecuteOrderCreation(transaction, {
+        persistedOrder = await coreExecuteOrderCreation(transaction, {
             db,
             event,
             orderData: rsvpOrder,
@@ -158,17 +180,17 @@ export async function createRSVPOrder(payload) {
         });
 
         // MONEY LEDGER INTEGRATION (₹0 RSVP) - ATOMIC
-        await recordOrderCaptured(rsvpOrder, "INTERNAL_RSVP", transaction);
-        await holdOrderRevenue(rsvpOrder, transaction);
+        await recordOrderCaptured(persistedOrder, "INTERNAL_RSVP", transaction);
+        await holdOrderRevenue(persistedOrder, transaction);
     });
 
     // Trigger background fulfillment pipeline for RSVP (entitlements, email, analytics).
     sendEvent(Events.TICKET_PURCHASED, {
-        orderId: rsvpOrder.id,
-        userId: rsvpOrder.userId,
-        userEmail: rsvpOrder.userEmail,
-        eventId: rsvpOrder.eventId,
-        tickets: rsvpOrder.tickets.map(t => ({
+        orderId: persistedOrder.id,
+        userId: persistedOrder.userId,
+        userEmail: persistedOrder.userEmail,
+        eventId: persistedOrder.eventId,
+        tickets: persistedOrder.tickets.map(t => ({
             tierId: t.ticketId,
             tierName: t.name,
             quantity: t.quantity,
@@ -176,7 +198,7 @@ export async function createRSVPOrder(payload) {
         })),
         totalAmount: 0,
         promoterCode: promoterCode || null,
-    }, { idempotencyKey: `ticket-purchased-${rsvpOrder.id}` }).catch(err =>
+    }, { idempotencyKey: `ticket-purchased-${persistedOrder.id}` }).catch(err =>
         console.error("[OrderStore] Failed to dispatch TICKET_PURCHASED (RSVP) to Inngest:", err)
     );
 
@@ -193,11 +215,11 @@ export async function createRSVPOrder(payload) {
     }
 
     if (promoterLinkId) {
-        recordConversion(promoterLinkId, rsvpOrder.id, 0, rsvpOrder.tickets[0]?.ticketId)
+        recordConversion(promoterLinkId, persistedOrder.id, 0, persistedOrder.tickets[0]?.ticketId)
             .catch(err => console.error("[OrderStore] Failed to record promoter RSVP conversion:", err));
     }
 
-    return rsvpOrder;
+    return persistedOrder;
 }
 
 /**
@@ -242,9 +264,11 @@ export async function createOrder(payload) {
     const existingTicketCount = await getUserTicketCountForEvent(eventId, { userId, email: userEmail });
     const hasExistingRSVP = await checkExistingRSVP(eventId, { userId, email: userEmail });
 
+    const userGender = await getUserGender(userId);
     const validation = await coreValidateOrder(event, tickets, {
         existingTicketCount,
-        hasExistingRSVP
+        hasExistingRSVP,
+        userGender,
     });
 
     if (!validation.success) {
@@ -363,6 +387,8 @@ export async function createOrder(payload) {
 
     // If Firebase is not configured, use fallback
     if (!isFirebaseConfigured()) {
+        order.orderIndex = fallbackOrders.length + 1;
+        order.orderNumber = formatOrderNumber(order.orderIndex, order.id);
         // Update fallback event tickets
         const { events: fallbackEvents } = await import("../../data/events.js");
         const eventIndex = (fallbackEvents || []).findIndex(e => e.id === eventId);
@@ -382,6 +408,7 @@ export async function createOrder(payload) {
 
     // Use Firestore transaction to ensure atomic updates
     const db = getAdminDb();
+    let persistedOrder = order;
 
     try {
         await db.runTransaction(async (transaction) => {
@@ -393,7 +420,7 @@ export async function createOrder(payload) {
             if (existingOrderDoc.exists) return existingOrderDoc.data();
 
             // 2. Execute unified order creation and inventory commitment
-            await coreExecuteOrderCreation(transaction, {
+            persistedOrder = await coreExecuteOrderCreation(transaction, {
                 db,
                 event,
                 orderData: order,
@@ -402,33 +429,33 @@ export async function createOrder(payload) {
             });
 
             // 3. MONEY LEDGER INTEGRATION (ATOMIC)
-            if (order.status === "confirmed") {
+            if (persistedOrder.status === "confirmed") {
                 // Free tickets/Auto-confirmed
-                await recordOrderCaptured(order, "INTERNAL_FREE", transaction);
-                await holdOrderRevenue(order, transaction);
+                await recordOrderCaptured(persistedOrder, "INTERNAL_FREE", transaction);
+                await holdOrderRevenue(persistedOrder, transaction);
             } else {
                 // Paid tickets awaiting payment
-                await recordOrderAuthorized(order, null, transaction);
+                await recordOrderAuthorized(persistedOrder, null, transaction);
             }
         });
 
         console.log(`Order created successfully: ${orderId}`);
 
-        if (order.status === "confirmed") {
+        if (persistedOrder.status === "confirmed") {
             // Trigger background fulfillment pipeline (entitlements, email, promoter credits, analytics).
             sendEvent(Events.TICKET_PURCHASED, {
                 orderId,
-                userId: order.userId,
-                userEmail: order.userEmail,
-                eventId: order.eventId,
-                tickets: order.tickets.map(t => ({
+                userId: persistedOrder.userId,
+                userEmail: persistedOrder.userEmail,
+                eventId: persistedOrder.eventId,
+                tickets: persistedOrder.tickets.map(t => ({
                     tierId: t.ticketId,
                     tierName: t.name,
                     quantity: t.quantity,
                     entryType: t.entryType || 'general',
                 })),
-                totalAmount: order.totalAmount,
-                promoterCode: order.promoterCode || null,
+                totalAmount: persistedOrder.totalAmount,
+                promoterCode: persistedOrder.promoterCode || null,
             }, { idempotencyKey: `ticket-purchased-${orderId}` }).catch(err =>
                 console.error("[OrderStore] Failed to dispatch TICKET_PURCHASED to Inngest:", err)
             );
@@ -436,8 +463,8 @@ export async function createOrder(payload) {
             // Fire-and-forget: share bundle creation
             (async () => {
                 const { createShareBundle } = await import("./ticketShareStore");
-                for (const ticket of order.tickets) {
-                    await createShareBundle(order.id, order.userId, order.eventId, ticket.quantity, ticket.ticketId);
+                for (const ticket of persistedOrder.tickets) {
+                    await createShareBundle(persistedOrder.id, persistedOrder.userId, persistedOrder.eventId, ticket.quantity, ticket.ticketId);
                 }
             })().catch(err => console.error("[OrderStore] Failed to create share bundles:", err));
 
@@ -454,7 +481,7 @@ export async function createOrder(payload) {
             }
         }
 
-        return order;
+        return persistedOrder;
     } catch (error) {
         console.error("Transaction failed:", error);
         throw error;

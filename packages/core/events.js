@@ -64,12 +64,37 @@ export function canPromoterSee(event) {
     return isPublic && promotersEnabled;
 }
 
+function getPromoterTierCatalog(event) {
+    if (Array.isArray(event?.ticketCatalog?.tiers)) return event.ticketCatalog.tiers;
+    if (Array.isArray(event?.tickets)) return event.tickets;
+    return [];
+}
+
+function getTierNumericPrice(tier) {
+    const rawPrice = tier?.price ?? tier?.basePrice ?? tier?.amount ?? 0;
+    const normalized = Number(rawPrice);
+    return Number.isFinite(normalized) ? normalized : 0;
+}
+
+export function getPromoterEligibleTicketTiers(event) {
+    if (!event || event.isRSVP === true) return [];
+
+    return getPromoterTierCatalog(event).filter((tier) => {
+        if (!tier || tier.promoterEnabled === false) return false;
+        return getTierNumericPrice(tier) > 0;
+    });
+}
+
+export function hasPromoterEligibleTicketTiers(event) {
+    return getPromoterEligibleTicketTiers(event).length > 0;
+}
+
 /**
  * Can a promoter create a personal link for this event?
  * Currently same as visibility logic, but separated for future extensibility (e.g. invite-only).
  */
 export function canPromoterCreateLink(event) {
-    return canPromoterSee(event);
+    return canPromoterSee(event) && event?.isRSVP !== true && hasPromoterEligibleTicketTiers(event);
 }
 
 /**

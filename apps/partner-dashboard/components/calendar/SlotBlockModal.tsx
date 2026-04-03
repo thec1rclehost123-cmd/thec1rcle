@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
 import Toggle from "@/components/ui/Toggle";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface SlotBlockModalProps {
     venueId: string;
@@ -17,6 +18,7 @@ interface SlotBlockModalProps {
 }
 
 export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockModalProps) {
+    const { user } = useDashboardAuth();
     const [isPartial, setIsPartial] = useState(false);
     const [startTime, setStartTime] = useState("18:00");
     const [endTime, setEndTime] = useState("23:59");
@@ -24,9 +26,13 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
 
     const blockMut = useMutation({
         mutationFn: async () => {
+            const token = await user?.getIdToken(true);
             const res = await fetch(`/api/venue/slots?venueId=${venueId}`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
                 body: JSON.stringify({
                     date,
                     startTime: isPartial ? startTime : null,

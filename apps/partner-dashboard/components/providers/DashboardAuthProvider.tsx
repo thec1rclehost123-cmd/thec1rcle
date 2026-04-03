@@ -73,6 +73,7 @@ interface AuthContextValue {
     piiPolicy: Partial<Record<string, boolean>> | null;
     /** Returns true if owner (null) or the specific action is permitted */
     canDo: (action: string) => boolean;
+    getIdToken: () => Promise<string>;
     signIn: (email: string, password: string) => Promise<void>;
     signUp: (email: string, password: string, displayName: string) => Promise<void>;
     signInWithGoogle: () => Promise<void>;
@@ -380,6 +381,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const canDo = (action: string) =>
         !permissions.actionPermissions || permissions.actionPermissions[action] === true;
 
+    const getIdToken = async () => {
+        if (!user) return "";
+        return user.getIdToken(true);
+    };
+
     return (
         <AuthContext.Provider value={{
             user,
@@ -394,6 +400,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
             actionPermissions: permissions.actionPermissions,
             piiPolicy: permissions.piiPolicy,
             canDo,
+            getIdToken,
             signIn,
             signUp,
             signInWithGoogle,

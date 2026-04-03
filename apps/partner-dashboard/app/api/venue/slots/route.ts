@@ -5,10 +5,46 @@
 
 import { NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import {
-    getSlotCalendar,
-    blockSlot,
-} from "@/lib/server/availabilitySlotStore";
+import { fail } from "@/lib/server/apiResponse";
+import { getUnifiedVenueCalendar, blockDate } from "@/lib/server/calendarStore";
+
+function mapUnifiedDayToSlotDay(day: any) {
+    const slots = (day?.slots || []).map((slot: any, index: number) => ({
+        id: slot.id || `${day.date}_${index}`,
+        venueId: day.venueId || null,
+        date: day.date,
+        startTime: slot.startTime ?? null,
+        endTime: slot.endTime ?? null,
+        status:
+            slot.status === "tentative"
+                ? "pending_review"
+                : slot.status === "blocked" || slot.status === "booked"
+                    ? slot.status
+                    : "open",
+        source:
+            slot.status === "blocked"
+                ? (slot.startTime || slot.endTime ? "partial_block" : "manual_block")
+                : slot.status === "tentative"
+                    ? "event_pending"
+                    : "event_confirmed",
+        linkedEventId: slot.source === "event" ? slot.id : null,
+        note: slot.reason || "",
+        createdBy: "",
+        updatedBy: "",
+        createdAt: "",
+        updatedAt: "",
+    }));
+
+    return {
+        date: day.date,
+        slots,
+        fullyBlocked: day.status === "blocked" || day.status === "booked",
+        partiallyBlocked: day.status === "partial",
+        openCount: day.status === "available" ? 1 : 0,
+        pendingCount: slots.filter((slot: any) => slot.status === "pending_review").length,
+        confirmedCount: slots.filter((slot: any) => slot.status === "booked").length,
+    };
+}
 
 export async function GET(request: Request) {
     try {
@@ -31,7 +67,13 @@ export async function GET(request: Request) {
             return NextResponse.json({ error: "Date range too large (max 93 days)" }, { status: 400 });
         }
 
-        const calendar = await getSlotCalendar(ctx.venueId, startDate, endDate);
+        const days = await getUnifiedVenueCalendar(ctx.venueId, startDate, endDate);
+        const calendar = {
+            venueId: ctx.venueId,
+            startDate,
+            endDate,
+            days: days.map(mapUnifiedDayToSlotDay),
+        };
 
         return NextResponse.json(calendar, {
             headers: { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" },
@@ -61,24 +103,18 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: "Invalid endTime format (HH:mm)" }, { status: 422 });
         }
 
-        if (body.startTime && body.endTime && body.startTime >= body.endTime) {
-            return NextResponse.json({ error: "startTime must be before endTime" }, { status: 422 });
-        }
-
-        const slot = await blockSlot(
-            {
-                venueId: ctx.venueId,
-                date: body.date,
-                startTime: body.startTime ?? null,
-                endTime: body.endTime ?? null,
-                note: body.note ?? "",
-            },
-            { uid: ctx.uid }
+        const slot = await blockDate(
+            ctx.venueId,
+            body.date,
+            body.note ?? "",
+            { uid: ctx.uid, role: "venue" },
+            body.startTime ?? null,
+            body.endTime ?? null
         );
 
         return NextResponse.json({ slot }, { status: 201 });
     } catch (err: any) {
-        if (err.message.startsWith("Conflict:")) {
+        if (err.message?.startsWith("Conflict:")) {
             return NextResponse.json({ error: err.message }, { status: 409 });
         }
         console.error("[slots POST]", err.message);

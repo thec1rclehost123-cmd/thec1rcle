@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 
         const [guestlist, promoterSummary, salesStats] = await Promise.all([
             getEventGuestlist(eventId, 50, token),
-            getEventPromoterSummary(eventId, token),
+            getEventPromoterSummary(eventId),
             getEventSalesStats(eventId, token)
         ]);
 

@@ -9,7 +9,12 @@ export const createImage = (url: string): Promise<HTMLImageElement> =>
 
 export default async function getCroppedImg(
     imageSrc: string,
-    pixelCrop: { x: number; y: number; width: number; height: number }
+    pixelCrop: { x: number; y: number; width: number; height: number },
+    options?: {
+        outputWidth?: number;
+        outputHeight?: number;
+        quality?: number;
+    }
 ): Promise<string> {
     const image = await createImage(imageSrc);
     const canvas = document.createElement('canvas');
@@ -19,12 +24,18 @@ export default async function getCroppedImg(
         return "";
     }
 
-    // Enforce maximum dimensions to keep base64 size manageable for Firestore
+    const outputWidth = options?.outputWidth;
+    const outputHeight = options?.outputHeight;
+    const quality = options?.quality ?? 0.7;
+
     const MAX_WIDTH = 1080;
     let targetWidth = pixelCrop.width;
     let targetHeight = pixelCrop.height;
 
-    if (targetWidth > MAX_WIDTH) {
+    if (outputWidth && outputHeight) {
+        targetWidth = outputWidth;
+        targetHeight = outputHeight;
+    } else if (targetWidth > 1080) {
         const scale = MAX_WIDTH / targetWidth;
         targetWidth = MAX_WIDTH;
         targetHeight = targetHeight * scale;
@@ -45,6 +56,5 @@ export default async function getCroppedImg(
         targetHeight
     );
 
-    // Reduced quality slightly to significantly reduce base64 string length
-    return canvas.toDataURL('image/jpeg', 0.7);
+    return canvas.toDataURL('image/jpeg', quality);
 }

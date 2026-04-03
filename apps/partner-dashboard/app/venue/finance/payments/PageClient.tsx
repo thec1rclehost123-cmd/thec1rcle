@@ -51,26 +51,36 @@ export function PaymentsClient() {
             title="Payments"
             subtitle="Wallet balance, subscription, and billing methods"
         >
-            {/* Wallet KPIs */}
+            {/* Wallet KPIs — glassmorphism glow cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
-                    <p className="text-xs text-text-tertiary mb-1">Available</p>
-                    <p className="text-2xl font-semibold text-text-primary tabular-nums">
-                        {formatINRFromPaise(wallet?.availablePaise ?? 0)}
-                    </p>
-                </div>
-                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
-                    <p className="text-xs text-text-tertiary mb-1">Pending</p>
-                    <p className="text-2xl font-semibold text-text-secondary tabular-nums">
-                        {formatINRFromPaise(wallet?.pendingPaise ?? 0)}
-                    </p>
-                </div>
-                <div className="rounded-xl border border-border-default bg-surface-secondary p-5">
-                    <p className="text-xs text-text-tertiary mb-1">On Hold</p>
-                    <p className="text-2xl font-semibold text-text-secondary tabular-nums">
-                        {formatINRFromPaise(wallet?.heldPaise ?? 0)}
-                    </p>
-                </div>
+                {[
+                    { label: "Available", value: formatINRFromPaise(wallet?.availablePaise ?? 0), glow: "rgba(52,211,153,0.22)", border: "rgba(52,211,153,0.22)", accent: "#34d399" },
+                    { label: "Pending", value: formatINRFromPaise(wallet?.pendingPaise ?? 0), glow: "rgba(251,191,36,0.22)", border: "rgba(251,191,36,0.22)", accent: "#fbbf24" },
+                    { label: "On Hold", value: formatINRFromPaise(wallet?.heldPaise ?? 0), glow: "rgba(129,140,248,0.22)", border: "rgba(129,140,248,0.22)", accent: "#818cf8" },
+                ].map((card) => (
+                    <div key={card.label} style={{ position: "relative", overflow: "hidden", borderRadius: "1.25rem" }}>
+                        {/* Radial glow layer */}
+                        <div style={{
+                            position: "absolute", inset: 0, pointerEvents: "none",
+                            background: `radial-gradient(ellipse at 60% -10%, ${card.glow} 0%, transparent 65%)`,
+                        }} />
+                        {/* Glass surface */}
+                        <div style={{
+                            position: "relative", zIndex: 1,
+                            background: "rgba(14,14,16,0.94)",
+                            border: `1px solid ${card.border}`,
+                            borderRadius: "1.25rem",
+                            padding: "20px 24px",
+                        }}>
+                            <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: card.accent, marginBottom: 10 }}>
+                                {card.label}
+                            </p>
+                            <p className="tabular-nums" style={{ fontSize: 34, fontWeight: 700, color: "#fff", letterSpacing: "-0.02em", lineHeight: 1 }}>
+                                {card.value}
+                            </p>
+                        </div>
+                    </div>
+                ))}
             </div>
 
             {/* Subscription */}

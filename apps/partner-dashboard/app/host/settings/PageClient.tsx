@@ -14,6 +14,7 @@ import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
 import ProfileClient from "../profile/PageClient";
 import PageManagementClient from "../page-management/PageClient";
+import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "@/lib/auth/passwordReset";
 import type { HostSettings, LoginSession } from "@/lib/server/hostSettingsStore";
 
 const HUB_TABS = [
@@ -83,12 +84,21 @@ export default function HostSettingsPage() {
     // ── Password reset
     const [resetSent,    setResetSent]    = useState(false);
     const [resetLoading, setResetLoading] = useState(false);
+    const [resetError,   setResetError]   = useState<string | null>(null);
 
     // ── Re-auth modal
     const [needsReAuth, setNeedsReAuth] = useState(false);
     const [reAuthPw,    setReAuthPw]    = useState("");
     const [reAuthErr,   setReAuthErr]   = useState<string | null>(null);
     const [reAuthBusy,  setReAuthBusy]  = useState(false);
+
+    const getAuthHeaders = useCallback(async (includeJson = false) => {
+        const token = user ? await user.getIdToken() : "";
+        return {
+            ...(includeJson ? { "Content-Type": "application/json" } : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+    }, [user]);
 
     // ──────────────────────────────────────────────────────────────────────────
     // Fetch
@@ -98,9 +108,8 @@ export default function HostSettingsPage() {
         if (!hostId) return;
         setIsLoading(true);
         try {
-            const token = user ? await user.getIdToken() : "";
             const res = await fetch(`/api/host/settings?hostId=${hostId}`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                headers: await getAuthHeaders(),
             });
             if (res.ok) {
                 const data = await res.json();
@@ -109,36 +118,38 @@ export default function HostSettingsPage() {
             }
         } catch (e) { console.error("[Settings] fetch", e); }
         finally { setIsLoading(false); }
-    }, [hostId, user]);
+    }, [getAuthHeaders, hostId]);
 
     useEffect(() => { fetchSettings(); }, [fetchSettings]);
 
     // Write session on mount
     useEffect(() => {
         if (!hostId || !profile?.uid) return;
-        const ua = navigator.userAgent;
-        fetch("/api/host/settings", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ hostId, action: "WRITE_SESSION", sessionData: {
-                sessionId: currentSid, userAgent: ua,
-                deviceType: /Mobi|Android/i.test(ua) ? "mobile" : "desktop",
-                lastActiveAt: new Date().toISOString(),
-            }}),
-        }).catch(() => {});
-    }, [hostId, profile?.uid, currentSid]);
+        const writeSession = async () => {
+            const ua = navigator.userAgent;
+            await fetch("/api/host/settings", {
+                method: "POST",
+                headers: await getAuthHeaders(true),
+                body: JSON.stringify({ hostId, action: "WRITE_SESSION", sessionData: {
+                    sessionId: currentSid, userAgent: ua,
+                    deviceType: /Mobi|Android/i.test(ua) ? "mobile" : "desktop",
+                    lastActiveAt: new Date().toISOString(),
+                }}),
+            });
+        };
+        writeSession().catch(() => {});
+    }, [currentSid, getAuthHeaders, hostId, profile?.uid]);
 
     const loadSessions = useCallback(async () => {
         if (!hostId) return;
         setSessionsLoading(true);
         try {
-            const token = user ? await user.getIdToken() : "";
             const res = await fetch(`/api/host/settings?hostId=${hostId}&include=sessions`, {
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                headers: await getAuthHeaders(),
             });
             if (res.ok) setSessions((await res.json()).sessions ?? []);
         } catch {} finally { setSessionsLoading(false); }
-    }, [hostId, user]);
+    }, [getAuthHeaders, hostId]);
 
     useEffect(() => { loadSessions(); }, [loadSessions]);
 
@@ -165,10 +176,9 @@ export default function HostSettingsPage() {
         const action = Object.keys(diff).some(k => k === "notificationPreferences")
             ? "NOTIFICATIONS_UPDATED" : "GENERAL_UPDATED";
         try {
-            const token = user ? await user.getIdToken() : "";
             const res = await fetch("/api/host/settings", {
                 method: "PATCH",
-                headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+                headers: await getAuthHeaders(true),
                 body: JSON.stringify({ hostId, patch: diff, action, section: "general" }),
             });
             if (res.ok) {
@@ -178,35 +188,38 @@ export default function HostSettingsPage() {
             } else setSaveError("Save failed. Try again.");
         } catch { setSaveError("Network error. Try again."); }
         finally { setIsSaving(false); }
-    }, [hostId, local, settings, user]);
+    }, [getAuthHeaders, hostId, local, settings]);
 
     // Sessions
     const handleRevoke = useCallback(async (sid: string) => {
         setIsRevoking(true);
-        await fetch("/api/host/settings", { method: "POST", headers: { "Content-Type": "application/json" },
+        await fetch("/api/host/settings", { method: "POST", headers: await getAuthHeaders(true),
             body: JSON.stringify({ hostId, action: "REVOKE_SESSION", sessionId: sid }) });
         setSessions(p => p.filter(s => s.sessionId !== sid));
         setIsRevoking(false);
-    }, [hostId]);
+    }, [getAuthHeaders, hostId]);
 
     const handleRevokeAll = useCallback(async () => {
         setIsRevoking(true);
-        await fetch("/api/host/settings/session/revoke", { method: "POST" });
+        await fetch("/api/host/settings/session/revoke", { method: "POST", headers: await getAuthHeaders() });
         setSessions(p => p.filter(s => s.sessionId === currentSid));
         setIsRevoking(false);
-    }, [currentSid]);
+    }, [currentSid, getAuthHeaders]);
 
     // Password reset
     const handleResetPassword = useCallback(async () => {
         if (!user?.email) return;
         setResetLoading(true);
+        setResetError(null);
         try {
             const { getFirebaseAuth } = await import("@/lib/firebase/client");
             const auth = await getFirebaseAuth();
-            const { sendPasswordResetEmail } = await import("firebase/auth");
-            await sendPasswordResetEmail(auth, user.email);
+            await sendOperationalPasswordResetEmail(auth, user.email);
             setResetSent(true);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            setResetError(getPasswordResetErrorMessage(e));
+        }
         finally { setResetLoading(false); }
     }, [user]);
 
@@ -315,6 +328,7 @@ export default function HostSettingsPage() {
                 {/* ── Security ─────────────────────────────────────────────── */}
                 <section className="space-y-6">
                     <Label>Security</Label>
+                    {resetError ? <p className="text-[13px] text-red-400">{resetError}</p> : null}
 
                     {/* Password reset */}
                     {!isGoogleUser && (

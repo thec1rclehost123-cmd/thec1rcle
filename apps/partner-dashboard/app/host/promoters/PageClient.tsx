@@ -39,7 +39,7 @@ interface ConnectionRequest {
 }
 
 export default function PromotersPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [promoters, setPromoters] = useState<any[]>([]);
     const [connectionRequests, setConnectionRequests] = useState<ConnectionRequest[]>([]);
     const [showInviteModal, setShowInviteModal] = useState(false);
@@ -59,7 +59,7 @@ export default function PromotersPage() {
 
         const fetchNetworkAndRequests = async () => {
             try {
-                const token = await (window as any).getAuthToken?.();
+                const token = user ? await user.getIdToken() : "";
                 const res = await fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, {
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {}
                 });
@@ -92,7 +92,7 @@ export default function PromotersPage() {
             }
         };
         fetchNetworkAndRequests();
-    }, [hostId, profile]);
+    }, [hostId, profile, user]);
 
     const handleInvite = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -100,7 +100,10 @@ export default function PromotersPage() {
         try {
             const response = await fetch("/api/host/invite", {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}),
+                },
                 body: JSON.stringify({
                     hostId: profile?.activeMembership?.partnerId,
                     promoterEmail: inviteData.email,

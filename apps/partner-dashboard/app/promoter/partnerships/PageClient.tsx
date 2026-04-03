@@ -1,31 +1,23 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
-    Users,
     Clock,
     CheckCircle2,
     XCircle,
     Search,
     Loader2,
-    Building2,
-    UserCircle,
-    ChevronRight,
-    Network,
-    Handshake,
-    Zap,
     Bell,
     X,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePromoterPartnerships } from "@/lib/hooks/usePromoterQueries";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
-import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
+import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
 import { motion, AnimatePresence } from "framer-motion";
-import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
-import { formatDate } from "@/lib/utils/format";
 
 type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
@@ -49,8 +41,8 @@ const mp = (delay: number) => ({
 
 export default function PromoterPartnershipsPage() {
     const { profile, user } = useDashboardAuth() as any;
+    const router = useRouter();
     const [activeTab, setActiveTab] = useState<Tab>("discover");
-    const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const queryClient = useQueryClient();
 
@@ -95,122 +87,18 @@ export default function PromoterPartnershipsPage() {
             ? declined
             : [];
 
+    const openPartnerProfile = (partnerId: string) => {
+        router.push(`/promoter/partners/${partnerId}`);
+    };
+
     return (
         <VenuePageShell
-            title="Partnerships"
-            subtitle="Build your venue and host network to unlock affiliate links and event access"
-            actions={
-                <div className="flex gap-3">
-                    <div
-                        className="px-5 py-3 rounded-2xl text-center"
-                        style={{
-                            background: "var(--v-card)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <p
-                            className="text-[20px] font-black tabular-nums"
-                            style={{ color: "var(--v-text-primary)" }}
-                        >
-                            {active.length}
-                        </p>
-                        <p
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: "var(--v-text-tertiary)" }}
-                        >
-                            Active
-                        </p>
-                    </div>
-                    <div
-                        className="px-5 py-3 rounded-2xl text-center"
-                        style={{
-                            background: "var(--v-card)",
-                            border: "1px solid var(--v-border)",
-                        }}
-                    >
-                        <p
-                            className="text-[20px] font-black tabular-nums"
-                            style={{ color: "#f59e0b" }}
-                        >
-                            {allPending.length}
-                        </p>
-                        <p
-                            className="text-[10px] font-black uppercase tracking-widest"
-                            style={{ color: "var(--v-text-tertiary)" }}
-                        >
-                            Pending
-                        </p>
-                    </div>
-                </div>
-            }
+            title="Partners"
         >
-            {/* ── Hero header ── */}
-            <motion.div {...mp(0)}>
-                <div
-                    className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-5"
-                    style={{
-                        background:
-                            "linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)",
-                        border: "1px solid rgba(124,58,237,0.2)",
-                    }}
-                >
-                    <div
-                        className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none"
-                        style={{ background: "rgba(124,58,237,0.1)" }}
-                    />
-                    <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10"
-                        style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa" }}
-                    >
-                        <Handshake className="w-6 h-6" />
-                    </div>
-                    <div className="relative z-10">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-1">
-                            Partner Network
-                        </p>
-                        <p className="text-[13px] font-medium text-text-secondary max-w-lg">
-                            Connect with venues and hosts to unlock your affiliate link access and
-                            event inventory.
-                        </p>
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* ── Network stats strip ── */}
-            <motion.div {...mp(0.06)}>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <StatTrendCard
-                        label="Active Partners"
-                        value={active.length}
-                        trendUp={active.length > 0}
-                        color="#34d399"
-                        icon={<CheckCircle2 className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Pending Requests"
-                        value={allPending.length}
-                        color="#f59e0b"
-                        icon={<Clock className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Venues Connected"
-                        value={active.filter((p) => p.otherType === "venue").length}
-                        color="#818cf8"
-                        icon={<Building2 className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Hosts Connected"
-                        value={active.filter((p) => p.otherType === "host").length}
-                        color="#7c3aed"
-                        icon={<UserCircle className="w-4 h-4" />}
-                    />
-                </div>
-            </motion.div>
-
             {/* ── Tabs ── */}
             <motion.div {...mp(0.1)}>
                 <div
-                    className="flex items-center p-1.5 rounded-2xl w-fit overflow-x-auto"
+                    className="flex items-stretch p-2 rounded-[30px] w-full overflow-x-auto"
                     style={{
                         background: "rgba(255,255,255,0.04)",
                         border: "1px solid rgba(255,255,255,0.06)",
@@ -220,7 +108,7 @@ export default function PromoterPartnershipsPage() {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all shrink-0"
+                            className="flex flex-1 items-center justify-center gap-3 px-7 py-5 rounded-[24px] text-[17px] font-semibold transition-all shrink-0 whitespace-nowrap"
                             style={
                                 activeTab === tab.id
                                     ? {
@@ -232,29 +120,29 @@ export default function PromoterPartnershipsPage() {
                         >
                             {tab.id === "discover" && (
                                 <Search
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`}
+                                    className={`w-5 h-5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`}
                                 />
                             )}
                             {tab.id === "incoming" && (
                                 <Bell
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`}
+                                    className={`w-5 h-5 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`}
                                 />
                             )}
                             {tab.id === "pending" && (
                                 <Clock
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`}
+                                    className={`w-5 h-5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`}
                                 />
                             )}
                             {tab.id === "active" && (
                                 <CheckCircle2
-                                    className={`w-4 h-4 ${activeTab === tab.id ? "text-[#34d399]" : ""}`}
+                                    className={`w-5 h-5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`}
                                 />
                             )}
-                            {tab.id === "declined" && <XCircle className="w-4 h-4" />}
+                            {tab.id === "declined" && <XCircle className="w-5 h-5" />}
                             {tab.label}
                             {tab.count !== undefined && tab.count > 0 && (
                                 <span
-                                    className="px-1.5 py-0.5 rounded-md text-[10px] font-black"
+                                    className="px-2.5 py-1 rounded-lg text-[12px] font-black min-w-[30px] text-center"
                                     style={
                                         activeTab === tab.id
                                             ? { background: "#7c3aed", color: "#fff" }
@@ -286,6 +174,7 @@ export default function PromoterPartnershipsPage() {
                                 allowedTypes={["venue", "host"]}
                                 partnerId={promoterId}
                                 role="promoter"
+                                onOpenProfile={(partner) => openPartnerProfile(partner.id)}
                             />
                         </motion.div>
                     ) : activeTab === "incoming" ? (
@@ -295,48 +184,33 @@ export default function PromoterPartnershipsPage() {
                                     <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
                                 </div>
                             ) : pendingIncoming.length === 0 ? (
-                                <EmptyState tab="incoming" />
+                                <div className="text-center py-20 px-6 border border-white/5 bg-white/[0.01] rounded-[40px] flex flex-col items-center gap-4">
+                                 <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+                                     <Clock className="w-10 h-10 text-white/20" />
+                                 </div>
+                                 <h3 className="text-lg font-black text-white">No incoming requests</h3>
+                             </div>
                             ) : (
-                                <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                     <AnimatePresence mode="popLayout">
-                                        {pendingIncoming.map(p => (
-                                            <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
-                                                className="border border-border-subtle p-6 rounded-[2rem]" style={{ background: "var(--v-card)" }}>
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center gap-5">
-                                                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black" style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}>
-                                                            {(p.otherName?.[0] || "?").toUpperCase()}
-                                                        </div>
-                                                        <div>
-                                                            <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
-                                                            <div className="flex items-center gap-2 mt-1">
-                                                                {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
-                                                                <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <button
-                                                            onClick={() => handleAction(p.id, "approve")}
-                                                            disabled={!!processingId}
-                                                            className="flex items-center gap-2 px-6 py-3 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50"
-                                                            style={{ background: "linear-gradient(135deg, #7c3aed, #a78bfa)" }}
-                                                        >
-                                                            {processingId === p.id
-                                                                ? <Loader2 className="w-4 h-4 animate-spin" />
-                                                                : <>Approve <CheckCircle2 className="w-3.5 h-3.5" /></>}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleAction(p.id, "reject")}
-                                                            disabled={!!processingId}
-                                                            className="h-12 w-12 rounded-xl border border-border-subtle text-text-tertiary flex items-center justify-center hover:bg-red-500/10 hover:text-red-400 hover:border-red-500/20 transition-all active:scale-95 disabled:opacity-50"
-                                                            style={{ background: "var(--v-elevated)" }}
-                                                        >
-                                                            <X className="w-5 h-5" />
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            </motion.div>
+                                        {pendingIncoming.map((p) => (
+                                            <BasePartnerCard
+                                                key={p.id}
+                                                partner={{
+                                                    id: p.otherId,
+                                                    type: p.otherType,
+                                                    name: p.otherName,
+                                                    eventsCount: 0,
+                                                    followersCount: 0,
+                                                    connectionStatus: null,
+                                                }}
+                                                onViewProfile={() => openPartnerProfile(p.otherId)}
+                                                onPrimaryAction={() => handleAction(p.id, "approve")}
+                                                onSecondaryAction={() => handleAction(p.id, "reject")}
+                                                isActionLoading={processingId === p.id}
+                                                primaryActionLabel="Approve"
+                                                secondaryActionLabel="Decline"
+                                            />
                                         ))}
                                     </AnimatePresence>
                                 </div>
@@ -351,29 +225,21 @@ export default function PromoterPartnershipsPage() {
                             ) : pendingOutgoing.length === 0 ? (
                                 <EmptyState tab="pending" />
                             ) : (
-                                <div className="space-y-4">
-                                    {pendingOutgoing.map(p => (
-                                        <motion.div key={p.id} layout initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
-                                            className="border border-border-subtle p-6 rounded-[2rem] opacity-75" style={{ background: "var(--v-card)" }}>
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-text-tertiary" style={{ background: "rgba(255,255,255,0.05)" }}>
-                                                        {(p.otherName?.[0] || "?").toUpperCase()}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="text-xl font-black text-text-primary">{p.otherName}</h3>
-                                                        <div className="flex items-center gap-2 mt-1">
-                                                            {p.otherType === "venue" ? <Building2 className="w-3.5 h-3.5 text-[#a78bfa]" /> : <UserCircle className="w-3.5 h-3.5 text-[#a78bfa]" />}
-                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#a78bfa] capitalize">{p.otherType}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-2 px-4 py-2 rounded-xl" style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.15)" }}>
-                                                    <Clock className="w-3.5 h-3.5 text-amber-400" />
-                                                    <span className="text-[11px] font-black uppercase tracking-widest text-amber-400">Awaiting approval</span>
-                                                </div>
-                                            </div>
-                                        </motion.div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {pendingOutgoing.map((p) => (
+                                        <BasePartnerCard
+                                            key={p.id}
+                                            partner={{
+                                                id: p.otherId,
+                                                type: p.otherType,
+                                                name: p.otherName,
+                                                eventsCount: 0,
+                                                followersCount: 0,
+                                                connectionStatus: "pending",
+                                            }}
+                                            onViewProfile={() => openPartnerProfile(p.otherId)}
+                                            primaryActionLabel="Pending"
+                                        />
                                     ))}
                                 </div>
                             )}
@@ -397,21 +263,20 @@ export default function PromoterPartnershipsPage() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                                     {filtered.map((p) => (
-                                        <PartnershipCard
+                                        <BasePartnerCard
                                             key={p.id}
-                                            partnership={p}
-                                            formatDate={formatDate}
-                                            onView={() =>
-                                                setProfileTarget({
-                                                    id: p.otherId,
-                                                    type: p.otherType as any,
-                                                    name: p.otherName,
-                                                    city: "",
-                                                    connectionStatus:
-                                                        p.status === "active"
-                                                            ? "active"
-                                                            : (p.status as any),
-                                                })
+                                            partner={{
+                                                id: p.otherId,
+                                                type: p.otherType,
+                                                name: p.otherName,
+                                                eventsCount: 0,
+                                                followersCount: 0,
+                                                connectionStatus:
+                                                    p.status === "approved" ? "active" : (p.status as any),
+                                            }}
+                                            onViewProfile={() => openPartnerProfile(p.otherId)}
+                                            primaryActionLabel={
+                                                activeTab === "active" ? "Connected" : "Declined"
                                             }
                                         />
                                     ))}
@@ -422,154 +287,30 @@ export default function PromoterPartnershipsPage() {
                 </AnimatePresence>
             </div>
 
-            {/* Profile modal */}
-            <AnimatePresence>
-                {profileTarget && (
-                    <NetworkProfileModal
-                        profile={profileTarget}
-                        onClose={() => setProfileTarget(null)}
-                    />
-                )}
-            </AnimatePresence>
         </VenuePageShell>
-    );
-}
-
-function PartnershipCard({
-    partnership,
-    formatDate,
-    onView,
-}: {
-    partnership: Partnership;
-    formatDate: (ts: any) => string;
-    onView: () => void;
-}) {
-    const isActive =
-        partnership.status === "approved" || partnership.status === "active";
-    const isPending = partnership.status === "pending";
-
-    const statusConfig = isActive
-        ? { label: "Active", color: "#34d399", bg: "rgba(52,211,153,0.1)" }
-        : isPending
-        ? { label: "Pending", color: "#f59e0b", bg: "rgba(245,158,11,0.1)" }
-        : { label: "Declined", color: "#f87171", bg: "rgba(248,113,113,0.1)" };
-
-    return (
-        <motion.div
-            layout
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="group rounded-[32px] p-6 transition-all"
-            style={{
-                background: "var(--v-card, #1a1a1e)",
-                border: "1px solid var(--v-border)",
-            }}
-            onMouseEnter={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor =
-                    "rgba(124,58,237,0.3)";
-            }}
-            onMouseLeave={(e) => {
-                (e.currentTarget as HTMLDivElement).style.borderColor = "var(--v-border)";
-            }}
-        >
-            <div className="flex items-start justify-between mb-5">
-                <div className="flex items-center gap-3">
-                    <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black"
-                        style={{ background: "rgba(124,58,237,0.15)", color: "#a78bfa" }}
-                    >
-                        {partnership.otherName[0]}
-                    </div>
-                    <div>
-                        <h3
-                            className="text-[14px] font-bold text-text-primary group-hover:text-[#a78bfa] transition-colors"
-                        >
-                            {partnership.otherName}
-                        </h3>
-                        <span
-                            className="flex items-center gap-1 text-[11px] text-text-tertiary capitalize mt-0.5"
-                        >
-                            {partnership.otherType === "venue" ? (
-                                <Building2 className="w-3.5 h-3.5" />
-                            ) : (
-                                <UserCircle className="w-3.5 h-3.5" />
-                            )}
-                            {partnership.otherType}
-                        </span>
-                    </div>
-                </div>
-                {partnership.tier && isActive && (
-                    <span
-                        className="text-[10px] font-black px-2.5 py-1 rounded-lg uppercase tracking-widest"
-                        style={
-                            partnership.tier === "trusted"
-                                ? { background: "rgba(124,58,237,0.15)", color: "#a78bfa" }
-                                : {
-                                      background: "rgba(255,255,255,0.06)",
-                                      color: "var(--v-text-tertiary)",
-                                  }
-                        }
-                    >
-                        {partnership.tier === "trusted" ? "Trusted" : "Standard"}
-                    </span>
-                )}
-            </div>
-
-            <div className="flex items-center justify-between mb-5">
-                <span className="text-[11px] text-text-placeholder">
-                    {formatDate(partnership.createdAt)}
-                </span>
-                <span
-                    className="flex items-center gap-1.5 text-[11px] font-black px-2.5 py-1 rounded-lg"
-                    style={{ background: statusConfig.bg, color: statusConfig.color }}
-                >
-                    <span
-                        className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: statusConfig.color }}
-                    />
-                    {statusConfig.label}
-                </span>
-            </div>
-
-            <button
-                onClick={onView}
-                className="w-full py-3 rounded-xl text-[12px] font-bold transition-all flex items-center justify-center gap-2"
-                style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                    color: "var(--v-text-secondary)",
-                }}
-            >
-                View Profile <ChevronRight className="w-4 h-4" />
-            </button>
-        </motion.div>
     );
 }
 
 function EmptyState({ tab }: { tab: Tab }) {
     const config: Record<
         string,
-        { icon: React.ReactNode; title: string; subtitle: string }
+        { icon: React.ReactNode; title: string }
     > = {
         incoming: {
             icon: <Bell className="w-8 h-8" style={{ color: "#a78bfa" }} />,
             title: "No incoming requests",
-            subtitle: "Partnership requests from venues and hosts will appear here for your approval.",
         },
         pending: {
             icon: <Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />,
             title: "No sent requests",
-            subtitle: "Requests you've sent awaiting venue or host approval will appear here.",
         },
         active: {
             icon: <CheckCircle2 className="w-8 h-8" style={{ color: "#34d399" }} />,
             title: "No active partnerships",
-            subtitle: "Once a venue approves your request, the partnership shows here.",
         },
         declined: {
             icon: <XCircle className="w-8 h-8" style={{ color: "#f87171" }} />,
             title: "No declined requests",
-            subtitle: "Requests that were declined by venues will appear here.",
         },
     };
 
@@ -590,7 +331,6 @@ function EmptyState({ tab }: { tab: Tab }) {
                 {c.icon}
             </div>
             <h4 className="text-[16px] font-bold text-text-primary">{c.title}</h4>
-            <p className="text-[13px] text-text-tertiary mt-1 max-w-xs">{c.subtitle}</p>
         </div>
     );
 }

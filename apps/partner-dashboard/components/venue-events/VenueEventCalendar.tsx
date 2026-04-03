@@ -29,6 +29,13 @@ interface CalendarDay {
     }[];
 }
 
+function mapOperatingStateToStatus(day: any): CalendarDay["status"] {
+    if (day?.state === "BLOCKED") return "blocked";
+    if (day?.state === "CONFIRMED") return "partial";
+    if ((day?.stats?.pendingSlots || 0) > 0) return "partial";
+    return "available";
+}
+
 const MONTHS = [
     "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December"
@@ -37,6 +44,7 @@ const MONTHS = [
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const timeOverlaps = (start1: string, end1: string, start2: string, end2: string) => {
+    if (!start1 || !end1 || !start2 || !end2) return true;
     const toMinutes = (time: string) => {
         const [h, m] = time.split(":").map(Number);
         return h * 60 + m;
@@ -79,6 +87,8 @@ export function VenueEventCalendar() {
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ startTime: string; endTime: string } | null>(null);
     const [dateAvailability, setDateAvailability] = useState<any>(null);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [confirmError, setConfirmError] = useState("");
+    const [confirmChecking, setConfirmChecking] = useState(false);
 
     // Authenticated fetch helper
     const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
@@ -93,7 +103,7 @@ export function VenueEventCalendar() {
         });
     }, [user]);
 
-    // Fetch calendar data using the venue's own calendar API
+    // Fetch operating calendar for month-level visibility
     useEffect(() => {
         if (!venueId) return;
         async function fetchCalendar() {
@@ -106,7 +116,13 @@ export function VenueEventCalendar() {
                     `/api/venue/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
                 );
                 const data = await res.json();
-                setCalendar(data.calendar || data.days || []);
+                const rawDays = Array.isArray(data) ? data : (data.calendar || data.days || []);
+                setCalendar(rawDays.map((day: any) => ({
+                    date: day.date,
+                    status: mapOperatingStateToStatus(day),
+                    reason: day.block?.reason || "",
+                    slots: day.slots || [],
+                })));
             } catch (err) {
                 console.error("Failed to fetch venue calendar:", err);
             } finally {
@@ -133,10 +149,10 @@ export function VenueEventCalendar() {
             setLoadingAvailability(true);
             try {
                 const res = await authedFetch(
-                    `/api/venue/calendar?venueId=${venueId}&startDate=${selectedDate}&endDate=${selectedDate}`
+                    `/api/venues/${venueId}/calendar?startDate=${selectedDate}&endDate=${selectedDate}`
                 );
                 const data = await res.json();
-                setDateAvailability(data.availability || data);
+                setDateAvailability((data.calendar || data.days || [])[0] || { slots: [] });
             } catch (err) {
                 console.error("Failed to fetch date availability:", err);
             } finally {
@@ -192,16 +208,41 @@ export function VenueEventCalendar() {
     };
 
     const handleConfirm = () => {
-        if (selectedDate && selectedTimeSlot) {
-            const params = new URLSearchParams({
-                venue: venueId,
-                venueName: venueName,
-                date: selectedDate,
-                startTime: selectedTimeSlot.startTime,
-                endTime: selectedTimeSlot.endTime,
-            });
-            router.push(`/venue/create?${params.toString()}`);
-        }
+        if (!selectedDate || !selectedTimeSlot) return;
+
+        const verifyAndContinue = async () => {
+            setConfirmChecking(true);
+            setConfirmError("");
+            try {
+                const res = await authedFetch(`/api/venues/${venueId}/calendar?startDate=${selectedDate}&endDate=${selectedDate}`);
+                const data = await res.json();
+                const day = (data.calendar || data.days || [])[0];
+                const hasConflict = (day?.slots || []).some((slot: any) =>
+                    slot.status !== "available" &&
+                    (!slot.startTime || !slot.endTime || timeOverlaps(slot.startTime, slot.endTime, selectedTimeSlot.startTime, selectedTimeSlot.endTime))
+                );
+
+                if (day?.status === "blocked" || hasConflict) {
+                    setConfirmError("That slot was just taken or blocked. Pick another time before continuing.");
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    venue: venueId,
+                    venueName: venueName,
+                    date: selectedDate,
+                    startTime: selectedTimeSlot.startTime,
+                    endTime: selectedTimeSlot.endTime,
+                });
+                router.push(`/venue/create?${params.toString()}`);
+            } catch (error) {
+                setConfirmError("Could not verify this slot right now. Try again.");
+            } finally {
+                setConfirmChecking(false);
+            }
+        };
+
+        void verifyAndContinue();
     };
 
     const getStatusStyle = (status: string) => {
@@ -394,7 +435,7 @@ export function VenueEventCalendar() {
 
                                             const isUnavailable = dateAvailability?.slots?.some((s: any) =>
                                                 s.status !== "available" &&
-                                                timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime)
+                                                (!s.startTime || !s.endTime || timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime))
                                             );
 
                                             return (
@@ -431,17 +472,20 @@ export function VenueEventCalendar() {
                                 {/* Confirm Button */}
                                 <button
                                     onClick={handleConfirm}
-                                    disabled={!selectedTimeSlot}
+                                    disabled={!selectedTimeSlot || confirmChecking}
                                     className={`
                                         w-full py-4 rounded-xl font-bold text-sm transition-all uppercase tracking-wider
-                                        ${selectedTimeSlot
+                                        ${selectedTimeSlot && !confirmChecking
                                             ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white hover:shadow-lg hover:shadow-orange-500/20 hover:scale-[1.02] active:scale-95"
                                             : "bg-white/[0.06] text-white/20 cursor-not-allowed"
                                         }
                                     `}
                                 >
-                                    Continue to Create Event
+                                    {confirmChecking ? "Checking Availability..." : "Continue to Create Event"}
                                 </button>
+                                {confirmError && (
+                                    <p className="text-[11px] font-medium text-red-400">{confirmError}</p>
+                                )}
                             </motion.div>
                         ) : (
                             <motion.div

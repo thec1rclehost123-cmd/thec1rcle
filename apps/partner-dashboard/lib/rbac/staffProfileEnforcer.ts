@@ -55,17 +55,7 @@ export async function requireVenueAccess(
     }
 
     if (!isFirebaseConfigured()) {
-        // Dev fallback: all actions allowed
-        return {
-            uid: user.uid,
-            venueId,
-            membershipId: "dev-membership",
-            baseRole: "OWNER",
-            piiPolicy: OWNER_PII_POLICY,
-            guestlistScope: "editable",
-            eventScope: null,
-            canDo: () => true,
-        };
+        return { error: "Service unavailable: Firebase not configured", status: 503 };
     }
 
     // Owners have JWT claims (partnerId/partnerRole) but no partner_memberships doc

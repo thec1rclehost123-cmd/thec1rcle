@@ -1,5 +1,6 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { trackedGet } from "./firestoreMetrics";
+import { isPublicProfileEnabled } from "./publicProfile";
 
 // Extended fallback data for the premium experience
 const fallbackHosts = [
@@ -9,7 +10,7 @@ const fallbackHosts = [
         handle: "@after_dark_india",
         name: "After Dark India",
         avatar: "/events/genz-night.svg",
-        cover: "/events/neon-nights.jpg",
+        coverURL: null,
         role: "Promoter",
         vibes: ["Techno", "House", "Afro"],
         followers: 18400,
@@ -27,7 +28,7 @@ const fallbackHosts = [
         handle: "@campuscollective",
         name: "Campus Collective",
         avatar: "/events/campus.svg",
-        cover: "/events/poolside-vibes.jpg",
+        coverURL: null,
         role: "Collective",
         vibes: ["Bollywood", "Commercial", "Open format"],
         followers: 9200,
@@ -45,7 +46,7 @@ const fallbackHosts = [
         handle: "@quiethours",
         name: "Quiet Hours",
         avatar: "/events/lofi-house.svg",
-        cover: "/events/rooftop-jazz.jpg",
+        coverURL: null,
         role: "Promoter",
         vibes: ["House", "Deep House", "Melodic"],
         followers: 6100,
@@ -63,7 +64,7 @@ const fallbackHosts = [
         handle: "@underground.studio",
         name: "Underground Studio",
         avatar: "/events/art-bazaar.svg",
-        cover: "/events/techno-bunker.jpg",
+        coverURL: null,
         role: "Collective",
         vibes: ["Techno", "Underground", "Trance"],
         followers: 12100,
@@ -81,7 +82,7 @@ const fallbackHosts = [
         handle: "@djsoul",
         name: "DJ Soul",
         avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=soul",
-        cover: "/events/rooftop-jazz.jpg",
+        coverURL: null,
         role: "DJ",
         vibes: ["Afro", "Hip-hop", "House"],
         followers: 4300,
@@ -161,7 +162,7 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
             hosts.sort((a, b) => (b.trending ? 1 : 0) - (a.trending ? 1 : 0) || b.followers - a.followers);
         }
 
-        return hosts;
+        return hosts.filter(isPublicProfileEnabled);
     }
 
     const db = getAdminDb();
@@ -205,7 +206,9 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
         hosts.sort((a, b) => new Date(a.nextEventDate || '9999-12-31') - new Date(b.nextEventDate || '9999-12-31'));
     }
 
-    if (hosts.length === 0 && !search && !role && !vibe) return fallbackHosts;
+    hosts = hosts.filter(isPublicProfileEnabled);
+
+    if (hosts.length === 0 && !search && !role && !vibe) return fallbackHosts.filter(isPublicProfileEnabled);
     return hosts;
 }
 

@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Cropper from "react-easy-crop";
+import { getDownloadURL, ref, uploadString } from "firebase/storage";
 import getCroppedImg from "@/lib/utils/cropImage";
+import { getFirebaseStorage } from "@/lib/firebase/client";
 import {
     PosterGenerationService,
     PosterGenerationResult,
@@ -50,6 +52,12 @@ interface MediaStepProps {
 
 type UploadMode = "ai" | "manual";
 type GenerationState = "idle" | "generating" | "success" | "error";
+const POSTER_ASPECT_RATIO = 4 / 5;
+const POSTER_WIDTH = 1440;
+const POSTER_HEIGHT = 1800;
+const POSTER_MIN_WIDTH = 1080;
+const POSTER_MIN_HEIGHT = 1350;
+const POSTER_STORAGE_PREFIX = "events/posters";
 
 // ============================================
 // STYLE PRESET CARD
@@ -139,6 +147,17 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
     // Service instance
     const [posterService] = useState(() => new PosterGenerationService());
 
+    const uploadPosterAsset = useCallback(async (asset: string) => {
+        if (!asset || !asset.startsWith("data:image/")) {
+            return asset;
+        }
+
+        const storage = getFirebaseStorage();
+        const posterRef = ref(storage, `${POSTER_STORAGE_PREFIX}/${Date.now()}-${Math.random().toString(36).slice(2)}.jpg`);
+        await uploadString(posterRef, asset, "data_url");
+        return getDownloadURL(posterRef);
+    }, []);
+
     // ============================================
     // DERIVED STATE
     // ============================================
@@ -183,11 +202,12 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
             });
 
             if (result.success && result.imageUrl) {
-                setSelectedImage(result.imageUrl);
+                const persistedImageUrl = await uploadPosterAsset(result.imageUrl);
+                setSelectedImage(persistedImageUrl);
                 setCurrentGenerationId(result.generationId);
                 updateFormData({
-                    image: result.imageUrl,
-                    poster: result.imageUrl,
+                    image: persistedImageUrl,
+                    poster: persistedImageUrl,
                     posterGenerationId: result.generationId,
                 });
 
@@ -203,7 +223,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
             setGenerationError("An unexpected error occurred. Please try again.");
             setGenerationState("error");
         }
-    }, [eventName, designPrompt, selectedStyle, selectedMood, selectedAspectRatio, selectedQuality, colorScheme, city, eventType, eventDate, includeDate, includeTextOnPoster, artists, canGenerate, posterService, updateFormData]);
+    }, [eventName, designPrompt, selectedStyle, selectedMood, selectedAspectRatio, selectedQuality, colorScheme, city, eventType, eventDate, includeDate, includeTextOnPoster, artists, canGenerate, posterService, updateFormData, uploadPosterAsset]);
 
     const handleRegenerate = useCallback(async () => {
         setGenerationState("generating");
@@ -226,11 +246,12 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
         });
 
         if (result.success && result.imageUrl) {
-            setSelectedImage(result.imageUrl);
+            const persistedImageUrl = await uploadPosterAsset(result.imageUrl);
+            setSelectedImage(persistedImageUrl);
             setCurrentGenerationId(result.generationId);
             updateFormData({
-                image: result.imageUrl,
-                poster: result.imageUrl,
+                image: persistedImageUrl,
+                poster: persistedImageUrl,
                 posterGenerationId: result.generationId,
             });
             setGenerationHistory(posterService.getHistory());
@@ -240,7 +261,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
             setGenerationError(result.error?.userFriendlyMessage || "Regeneration failed. Please try again.");
             setGenerationState("error");
         }
-    }, [eventName, designPrompt, selectedStyle, selectedMood, selectedAspectRatio, selectedQuality, colorScheme, city, eventType, eventDate, includeDate, includeTextOnPoster, artists, posterService, updateFormData]);
+    }, [eventName, designPrompt, selectedStyle, selectedMood, selectedAspectRatio, selectedQuality, colorScheme, city, eventType, eventDate, includeDate, includeTextOnPoster, artists, posterService, updateFormData, uploadPosterAsset]);
 
     const handleSelectFromHistory = useCallback((generationId: string) => {
         const entry = posterService.selectFromHistory(generationId);
@@ -278,18 +299,38 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
     };
 
     const saveCroppedImage = async () => {
+        if (!tempImage || !croppedAreaPixels) {
+            return;
+        }
+
         try {
-            const croppedImage = await getCroppedImg(tempImage!, croppedAreaPixels);
-            setSelectedImage(croppedImage);
+            const croppedImage = await getCroppedImg(tempImage, croppedAreaPixels, {
+                outputWidth: POSTER_WIDTH,
+                outputHeight: POSTER_HEIGHT,
+                quality: 0.92,
+            });
+            const persistedImageUrl = await uploadPosterAsset(croppedImage);
+            setSelectedImage(persistedImageUrl);
             updateFormData({
-                image: croppedImage,
-                poster: croppedImage
+                image: persistedImageUrl,
+                poster: persistedImageUrl
             });
             setIsCropping(false);
             setTempImage(null);
+            setCroppedAreaPixels(null);
+            setCrop({ x: 0, y: 0 });
+            setZoom(1);
         } catch (e) {
             console.error(e);
         }
+    };
+
+    const closeCropper = () => {
+        setIsCropping(false);
+        setTempImage(null);
+        setCroppedAreaPixels(null);
+        setCrop({ x: 0, y: 0 });
+        setZoom(1);
     };
 
     const handleRemoveImage = () => {
@@ -359,7 +400,7 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                 initial={{ opacity: 0, scale: 0.98 }}
                                 animate={{ opacity: 1, scale: 1 }}
                                 exit={{ opacity: 0, scale: 0.98 }}
-                                className="aspect-[4/5] rounded-[3rem] border-2 border-dashed border-border-default bg-surface-secondary flex flex-col items-center justify-center text-center transition-all hover:border-indigo-500/30 hover:bg-indigo-500/5 group cursor-pointer relative overflow-hidden"
+                                className="rounded-[2rem] border border-border-subtle bg-surface-secondary p-5 md:p-6 transition-all hover:border-indigo-500/30 group relative overflow-hidden"
                             >
                                 <input
                                     type="file"
@@ -368,21 +409,43 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                                 />
 
-                                <div className="w-24 h-24 rounded-[2.5rem] bg-surface-base flex items-center justify-center mb-8 shadow-2xl shadow-black/5 group-hover:scale-110 transition-transform duration-700 ease-out border border-border-subtle">
-                                    <Upload className="w-9 h-9 text-text-tertiary group-hover:text-indigo-500 transition-colors duration-500" />
+                                <div className="mb-4 flex items-start justify-between gap-4">
+                                    <div>
+                                        <p className="text-lg font-semibold tracking-tight text-text-primary">
+                                            Upload Event Poster
+                                        </p>
+                                        <p className="mt-1 text-sm text-text-secondary">
+                                            Add a 4:5 flyer for your event page, checkout flow, and shared links.
+                                        </p>
+                                    </div>
+                                    <div className="shrink-0 rounded-full border border-border-subtle bg-surface-base px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-text-tertiary">
+                                        4:5 poster
+                                    </div>
                                 </div>
 
-                                <div className="space-y-3 px-12">
-                                    <p className="text-headline-sm tracking-tight text-text-primary">
-                                        Source Local Media
-                                    </p>
-                                    <p className="text-body text-text-secondary leading-relaxed">
-                                        Drag your master visual here or click to interface with local files
-                                    </p>
-                                </div>
-
-                                <div className="mt-12 px-10 py-3.5 bg-text-primary rounded-2xl text-[11px] font-black text-text-inverse uppercase tracking-[0.2em] shadow-xl shadow-black/10 group-hover:bg-indigo-600 transition-all duration-300">
-                                    Mount Asset
+                                <div className="rounded-[1.5rem] border border-dashed border-border-default bg-surface-base/80 px-5 py-6 md:px-6 md:py-7">
+                                    <div className="flex flex-col items-center justify-center text-center">
+                                        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface-secondary shadow-sm transition-transform duration-500 group-hover:scale-105">
+                                            <Upload className="h-5 w-5 text-text-tertiary group-hover:text-indigo-500 transition-colors duration-300" />
+                                        </div>
+                                        <p className="text-sm font-semibold text-text-primary">
+                                            Drag and drop or click to upload
+                                        </p>
+                                        <p className="mt-1 max-w-md text-sm leading-relaxed text-text-secondary">
+                                            Recommended minimum: {POSTER_MIN_WIDTH} x {POSTER_MIN_HEIGHT}px. Other sizes will be auto-cropped to fit.
+                                        </p>
+                                        <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                                            <span className="rounded-full border border-border-subtle bg-surface-secondary px-3 py-1 text-[11px] font-medium text-text-secondary">
+                                                JPG
+                                            </span>
+                                            <span className="rounded-full border border-border-subtle bg-surface-secondary px-3 py-1 text-[11px] font-medium text-text-secondary">
+                                                PNG
+                                            </span>
+                                            <span className="rounded-full border border-border-subtle bg-surface-secondary px-3 py-1 text-[11px] font-medium text-text-secondary">
+                                                WebP
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             </motion.div>
                         ) : (
@@ -902,37 +965,40 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-12 bg-stone-950/80 backdrop-blur-2xl"
+                        className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-8 bg-stone-950/65 backdrop-blur-xl"
                     >
                         <motion.div
                             initial={{ scale: 0.9, y: 30, opacity: 0 }}
                             animate={{ scale: 1, y: 0, opacity: 1 }}
                             exit={{ scale: 0.9, y: 30, opacity: 0 }}
                             transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                            className="bg-surface-base rounded-[3.5rem] w-full max-w-4xl overflow-hidden flex flex-col shadow-[0_0_100px_rgba(0,0,0,0.5)] border border-border-strong"
+                            className="bg-surface-base rounded-[2rem] w-full max-w-3xl max-h-[88vh] overflow-hidden flex flex-col shadow-[0_24px_80px_rgba(0,0,0,0.45)] border border-border-strong"
                         >
                             {/* Modal Header */}
-                            <div className="px-12 py-10 border-b border-border-subtle flex items-center justify-between bg-surface-secondary">
+                            <div className="px-6 md:px-8 py-5 border-b border-border-subtle flex items-start justify-between gap-4 bg-surface-secondary">
                                 <div className="space-y-1">
-                                    <h3 className="text-display-xs tracking-tight text-text-primary">Refine Visual Asset</h3>
-                                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-text-tertiary">Standard 4:5 Master Ratio</p>
+                                    <h3 className="text-xl md:text-2xl font-semibold tracking-tight text-text-primary">Adjust Event Poster</h3>
+                                    <p className="text-sm text-text-secondary max-w-xl">
+                                        Recommended minimum: {POSTER_MIN_WIDTH} x {POSTER_MIN_HEIGHT}px. We&apos;ll save a higher-quality 4:5 poster master automatically.
+                                    </p>
                                 </div>
                                 <button
-                                    onClick={() => setIsCropping(false)}
-                                    className="w-14 h-14 flex items-center justify-center hover:bg-surface-tertiary rounded-2xl transition-all duration-300"
+                                    onClick={closeCropper}
+                                    className="w-11 h-11 flex items-center justify-center hover:bg-surface-tertiary rounded-xl transition-all duration-300 shrink-0"
+                                    aria-label="Remove uploaded poster"
                                 >
-                                    <Trash2 className="w-7 h-7 text-text-tertiary" />
+                                    <Trash2 className="w-5 h-5 text-text-tertiary" />
                                 </button>
                             </div>
 
                             {/* Cropper Workspace */}
-                            <div className="relative h-[480px] bg-surface-secondary flex items-center justify-center">
+                            <div className="relative h-[42vh] min-h-[300px] max-h-[420px] bg-surface-secondary flex items-center justify-center">
                                 <div className="absolute inset-0 opacity-10 bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]" />
                                 <Cropper
                                     image={tempImage!}
                                     crop={crop}
                                     zoom={zoom}
-                                    aspect={4 / 5}
+                                    aspect={POSTER_ASPECT_RATIO}
                                     onCropChange={setCrop}
                                     onCropComplete={onCropComplete}
                                     onZoomChange={setZoom}
@@ -940,10 +1006,27 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                             </div>
 
                             {/* Interaction Area */}
-                            <div className="p-12 bg-surface-base space-y-10">
+                            <div className="px-6 md:px-8 py-6 bg-surface-base space-y-6 overflow-y-auto">
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div className="rounded-[1.25rem] border border-border-subtle bg-surface-secondary p-4">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-tertiary">Poster Size</p>
+                                        <p className="mt-2 text-base font-bold text-text-primary">{POSTER_MIN_WIDTH} x {POSTER_MIN_HEIGHT}px minimum</p>
+                                        <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                                            We keep a higher-quality {POSTER_WIDTH} x {POSTER_HEIGHT}px master so your poster stays sharper across event pages and shares.
+                                        </p>
+                                    </div>
+                                    <div className="rounded-[1.25rem] border border-border-subtle bg-surface-secondary p-4">
+                                        <p className="text-[11px] font-black uppercase tracking-[0.18em] text-text-tertiary">Auto Crop</p>
+                                        <p className="mt-2 text-base font-bold text-text-primary">4:5 poster frame</p>
+                                        <p className="mt-1 text-sm leading-relaxed text-text-secondary">
+                                            If your upload is wider or taller, we&apos;ll crop it to fit this poster ratio automatically when you save.
+                                        </p>
+                                    </div>
+                                </div>
+
                                 <div className="space-y-5">
                                     <div className="flex justify-between items-center px-1">
-                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary">Optical Scaling</span>
+                                        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary">Zoom</span>
                                         <span className="text-indigo-500 px-4 py-1.5 rounded-full bg-indigo-500/10 text-[11px] font-black tracking-widest">{zoom.toFixed(2)}x</span>
                                     </div>
                                     <input
@@ -957,18 +1040,18 @@ export function MediaStep({ formData, updateFormData }: MediaStepProps) {
                                     />
                                 </div>
 
-                                <div className="flex gap-6">
+                                <div className="flex flex-col-reverse sm:flex-row gap-3 sm:gap-4">
                                     <button
-                                        onClick={() => setIsCropping(false)}
-                                        className="px-10 py-5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary hover:text-text-primary transition-colors"
+                                        onClick={closeCropper}
+                                        className="px-6 py-3.5 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] text-text-tertiary hover:text-text-primary transition-colors"
                                     >
-                                        Abort Session
+                                        Cancel
                                     </button>
                                     <button
                                         onClick={saveCroppedImage}
-                                        className="btn btn-primary flex-1 py-5 rounded-3xl text-[12px] font-black uppercase tracking-[0.3em] shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)] hover:-translate-y-1 active:translate-y-0 transition-all duration-300"
+                                        className="btn btn-primary flex-1 py-3.5 rounded-2xl text-[12px] font-black uppercase tracking-[0.24em] shadow-[0_20px_40px_-10px_rgba(79,70,229,0.3)] hover:-translate-y-1 active:translate-y-0 transition-all duration-300"
                                     >
-                                        Seal & Finalize Master
+                                        Save Poster
                                     </button>
                                 </div>
                             </div>

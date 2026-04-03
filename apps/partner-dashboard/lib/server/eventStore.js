@@ -14,6 +14,66 @@ export const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
 
 const EVENT_COLLECTION = "events";
 
+function canPromoterAccessEvent(event = {}, promoterId) {
+    const globallyEnabled = event.promotersEnabled === true || event.promoterSettings?.enabled === true;
+    if (!globallyEnabled) return false;
+    if (!promoterId) return true;
+
+    const allowedPromoterIds = Array.isArray(event.promoterSettings?.allowedPromoterIds)
+        ? event.promoterSettings.allowedPromoterIds.map((id) => String(id))
+        : [];
+
+    return allowedPromoterIds.length === 0 || allowedPromoterIds.includes(String(promoterId));
+}
+
+function normalizeTicketTier(tier = {}) {
+    const entryType = String(tier.entryType || "general").toLowerCase();
+    const explicitRequirement = String(
+        tier.genderRequirement ||
+        tier.requiredGender ||
+        tier.gender ||
+        ""
+    ).toLowerCase();
+
+    let genderRequirement = "any";
+    if (explicitRequirement === "female" || explicitRequirement === "male" || explicitRequirement === "couple") {
+        genderRequirement = explicitRequirement;
+    } else if (entryType === "female") {
+        genderRequirement = "female";
+    } else if (entryType === "stag" || entryType === "male") {
+        genderRequirement = "male";
+    }
+
+    return {
+        ...tier,
+        entryType,
+        genderRequirement,
+    };
+}
+
+function normalizeTicketCollections(payload = {}, built = {}) {
+    const rawTiers = Array.isArray(payload.ticketTiers)
+        ? payload.ticketTiers
+        : (Array.isArray(payload.tickets) ? payload.tickets : null);
+    const normalizedTiers = Array.isArray(rawTiers)
+        ? rawTiers.map(normalizeTicketTier)
+        : null;
+    const normalizedCatalogTiers = Array.isArray(payload.ticketCatalog?.tiers)
+        ? payload.ticketCatalog.tiers.map(normalizeTicketTier)
+        : (normalizedTiers || null);
+
+    return {
+        ticketTiers: normalizedTiers || (Array.isArray(built.ticketTiers) ? built.ticketTiers.map(normalizeTicketTier) : undefined),
+        tickets: normalizedTiers || (Array.isArray(built.tickets) ? built.tickets.map(normalizeTicketTier) : undefined),
+        ticketCatalog: normalizedCatalogTiers
+            ? {
+                ...(built.ticketCatalog || payload.ticketCatalog || {}),
+                tiers: normalizedCatalogTiers,
+            }
+            : undefined,
+    };
+}
+
 
 /**
  * List events for the partner dashboard.
@@ -85,6 +145,15 @@ export async function createEvent(payload, token) {
 
     const built = buildEvent(payload);
     const snapshots = await resolvePartnerSnapshots(db, payload);
+    const normalizedTickets = normalizeTicketCollections(payload, built);
+    const normalizedPoster =
+        payload.coverImage ||
+        payload.coverPhoto ||
+        payload.poster ||
+        payload.image ||
+        payload.images?.[0] ||
+        built.poster ||
+        "";
 
     // Merge partner-dashboard wizard fields that buildEvent doesn't map
     const event = {
@@ -105,9 +174,14 @@ export async function createEvent(payload, token) {
         subtitle: payload.subtitle || "",
         venueName: payload.venueName || built.venue || "",
         promotersEnabled: payload.promotersEnabled ?? false,
+        coverImage: normalizedPoster,
+        coverPhoto: normalizedPoster,
         // Denormalized snapshots for guest-portal display (no extra reads)
         hostData: payload.hostData || snapshots.hostData || null,
         venueData: payload.venueData || snapshots.venueData || null,
+        ...(normalizedTickets.ticketTiers ? { ticketTiers: normalizedTickets.ticketTiers } : {}),
+        ...(normalizedTickets.tickets ? { tickets: normalizedTickets.tickets } : {}),
+        ...(normalizedTickets.ticketCatalog ? { ticketCatalog: normalizedTickets.ticketCatalog } : {}),
         // Ensure endDate has a time component so guest-portal date range comparisons work correctly
         endDate: built.endDate && built.endDate.length === 10
             ? built.endDate + "T23:59:59.999Z"
@@ -138,7 +212,27 @@ export async function updateEvent(eventId, payload, token) {
     }
     const db = getAdminDb();
     const snapshots = await resolvePartnerSnapshots(db, payload);
-    const updates = { ...payload, updatedAt: new Date().toISOString() };
+    const normalizedTickets = normalizeTicketCollections(payload, payload);
+    const normalizedPoster =
+        payload.coverImage ||
+        payload.coverPhoto ||
+        payload.poster ||
+        payload.image ||
+        payload.images?.[0] ||
+        "";
+    const updates = {
+        ...payload,
+        ...(normalizedPoster ? {
+            coverImage: payload.coverImage || normalizedPoster,
+            coverPhoto: payload.coverPhoto || normalizedPoster,
+            poster: payload.poster || normalizedPoster,
+            image: payload.image || normalizedPoster,
+        } : {}),
+        ...(normalizedTickets.ticketTiers ? { ticketTiers: normalizedTickets.ticketTiers } : {}),
+        ...(normalizedTickets.tickets ? { tickets: normalizedTickets.tickets } : {}),
+        ...(normalizedTickets.ticketCatalog ? { ticketCatalog: normalizedTickets.ticketCatalog } : {}),
+        updatedAt: new Date().toISOString()
+    };
 
     if (payload.hostData !== undefined || snapshots.hostData) {
         updates.hostData = payload.hostData || snapshots.hostData || null;
@@ -241,9 +335,8 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {
         // Fetch events and approved partner IDs in parallel
         const [snapshot, connectionsSnap] = await Promise.all([
             db.collection(EVENT_COLLECTION)
-                .where("promotersEnabled", "==", true)
                 .where("lifecycle", "in", ["scheduled", "live"])
-                .limit(limit * 5) // Fetch extra before filtering by partnership
+                .limit(Math.max(limit * 10, 300))
                 .get(),
             promoterId
                 ? db.collection("promoter_connections")
@@ -263,9 +356,12 @@ export async function listEventsForPromoter({ promoterId, city, limit = 20 } = {
         // Gate: only show events from approved partners
         if (promoterId && approvedTargetIds.size > 0) {
             events = events.filter(e =>
-                approvedTargetIds.has(e.hostId) ||
-                approvedTargetIds.has(e.venueId) ||
-                approvedTargetIds.has(e.creatorId)
+                (
+                    approvedTargetIds.has(String(e.hostId || "")) ||
+                    approvedTargetIds.has(String(e.venueId || "")) ||
+                    approvedTargetIds.has(String(e.creatorId || ""))
+                ) &&
+                canPromoterAccessEvent(e, promoterId)
             );
         } else if (promoterId) {
             // Promoter has no approved connections — show nothing

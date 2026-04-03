@@ -70,22 +70,11 @@ export function VenueExecutiveHeader({
         <div className="sticky top-0 z-40 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 border-b border-[var(--v-border)] backdrop-blur-2xl" style={{ background: "var(--v-canvas)" }}>
             {/* Row 1: Context & Filters */}
             <div className="flex items-center justify-between h-14 md:h-16">
-                <div className="flex items-center gap-4">
-                    {/* Brand Icon */}
-                    <div className="relative group">
-                        <div className="absolute inset-0 bg-orange-500 rounded-full blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                        <div className="relative w-8 h-8 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center shadow-[0_0_15px_rgba(244,74,34,0.4)]">
-                            <Activity className="w-4 h-4 text-white" strokeWidth={2.5} />
-                        </div>
-                    </div>
-
+                <div className="flex items-center gap-8 shrink-0">
                     {/* Title */}
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-primary)]">
-                            {title}
-                        </h1>
-                        <div className="w-px h-4 bg-[var(--v-border-strong)]" />
-                    </div>
+                    <h1 className="v-text-title tracking-[-0.04em] text-[var(--v-text-primary)]">
+                        {title}
+                    </h1>
 
                     {/* Status Pill */}
                     <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full border border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10 group cursor-default">

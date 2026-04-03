@@ -17,6 +17,7 @@ export function PromoterOverviewClient({ initialData }: any) {
         },
         initialData,
         staleTime: 5 * 60 * 1000,
+        refetchOnMount: false,
     });
 
     if (isLoading && !initialData) {

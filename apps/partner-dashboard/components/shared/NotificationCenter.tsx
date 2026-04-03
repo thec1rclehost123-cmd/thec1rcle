@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
     Bell,
     UserPlus,
@@ -22,7 +22,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface Notification {
     id: string;
-    type: 'host_request' | 'promoter_request' | 'reservation' | 'event' | 'revenue' | 'payment';
+    type: string;
     title: string;
     description: string;
     timestamp: string;
@@ -32,9 +32,105 @@ interface Notification {
     actions?: string[];
 }
 
+export type NotificationPartnerType = "venue" | "host" | "promoter" | undefined;
+
+export function formatNotificationTimestamp(value: unknown) {
+    if (!value) return "";
+    const date = new Date(String(value));
+    if (Number.isNaN(date.getTime())) return "";
+
+    const diffMs = Date.now() - date.getTime();
+    const diffMinutes = Math.max(0, Math.floor(diffMs / 60000));
+    if (diffMinutes < 1) return "Now";
+    if (diffMinutes < 60) return `${diffMinutes}m`;
+
+    const diffHours = Math.floor(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h`;
+
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d`;
+
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+export function normalizeNotification(
+    raw: any,
+    partnerType: NotificationPartnerType
+): Notification {
+    const type = raw?.type || "info";
+    return {
+        id: String(raw?.id || ""),
+        type,
+        title: raw?.title || "Notification",
+        description: raw?.description || raw?.message || "",
+        timestamp: raw?.timestamp || formatNotificationTimestamp(raw?.createdAt || raw?.submittedAt || raw?.requestedAt),
+        isRead: Boolean(raw?.isRead ?? raw?.read ?? raw?.readAt),
+        data: raw?.data || raw?.metadata || {},
+        actionable: Boolean(
+            raw?.actionable ??
+            (partnerType === "venue" && ["connection_request", "slot_request", "table_reservation"].includes(type))
+        ),
+        actions: Array.isArray(raw?.actions) ? raw.actions : undefined,
+    };
+}
+
+export function getNotificationFetchUrl(partnerType: NotificationPartnerType, partnerId?: string) {
+    if (!partnerId) return null;
+    if (partnerType === "host") return "/api/host/notifications?limit=20";
+    if (partnerType === "promoter") return "/api/promoter/notifications?limit=20";
+    if (partnerType === "venue") return `/api/venue/notifications?venueId=${partnerId}&limit=20`;
+    return null;
+}
+
+export function buildMarkAllReadRequest(partnerType: NotificationPartnerType, partnerId?: string) {
+    if (partnerType === "host") {
+        return {
+            url: "/api/host/notifications",
+            body: { markAll: true },
+        };
+    }
+
+    if (partnerType === "venue" && partnerId) {
+        return {
+            url: "/api/venue/notifications",
+            body: { venueId: partnerId, markAllRead: true },
+        };
+    }
+
+    if (partnerType === "promoter") {
+        return {
+            url: "/api/promoter/notifications",
+            body: { markAll: true },
+        };
+    }
+
+    return null;
+}
+
+export function buildQuickActionRequest(partnerType: NotificationPartnerType, partnerId: string | undefined, notif: Notification, action: "approve" | "reject") {
+    if (partnerType !== "venue" || !partnerId) return null;
+
+    return {
+        url: "/api/venue/notifications",
+        body: {
+            venueId: partnerId,
+            notificationId: notif.id,
+            notificationType: notif.type,
+            action,
+        },
+    };
+}
+
 export function NotificationCenter() {
     const { profile, user } = useDashboardAuth();
-    const venueId = profile?.activeMembership?.partnerId;
+    const membership = profile?.activeMembership;
+    const partnerId = membership?.partnerId;
+    const partnerType = membership?.partnerType;
+    const isMountedRef = useRef(false);
+
+    const isVenue = partnerType === "venue";
+    const isHost = partnerType === "host";
+    const isPromoter = partnerType === "promoter";
 
     // Helper for authenticated API calls
     const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
@@ -59,36 +155,56 @@ export function NotificationCenter() {
     const [actionLoading, setActionLoading] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => {
+            isMountedRef.current = false;
+        };
+    }, []);
+
     // Fetch notifications from API
     const fetchNotifications = useCallback(async () => {
-        if (!venueId) return;
+        if (!partnerId) return;
 
-        setLoading(true);
-        setError(null);
+        if (isMountedRef.current) {
+            setLoading(true);
+            setError(null);
+        }
 
         try {
-            const res = await authedFetch(`/api/venue/notifications?venueId=${venueId}&limit=20`);
+            const url = getNotificationFetchUrl(partnerType, partnerId);
+            if (!url) {
+                setNotifications([]);
+                return;
+            }
+            const res = await authedFetch(url);
             const data = await res.json();
 
+            if (!isMountedRef.current) return;
+
             if (res.ok && data.notifications) {
-                setNotifications(data.notifications);
+                setNotifications(data.notifications.map((notification: any) => normalizeNotification(notification, partnerType)));
             } else {
                 setError(data.error || "Failed to fetch notifications");
             }
         } catch (err: any) {
             console.error("[NotificationCenter] Fetch error:", err);
-            setError("Failed to load notifications");
+            if (isMountedRef.current) {
+                setError("Failed to load notifications");
+            }
         } finally {
-            setLoading(false);
+            if (isMountedRef.current) {
+                setLoading(false);
+            }
         }
-    }, [venueId]);
+    }, [partnerId, partnerType, authedFetch]);
 
     // Fetch on mount and when panel opens
     useEffect(() => {
-        if (isOpen && venueId) {
+        if (isOpen && partnerId) {
             fetchNotifications();
         }
-    }, [isOpen, venueId, fetchNotifications]);
+    }, [isOpen, partnerId, fetchNotifications]);
 
     // Auto-refresh every 60 seconds when panel is open
     useEffect(() => {
@@ -103,25 +219,21 @@ export function NotificationCenter() {
 
     // Handle quick action (approve/reject)
     const handleQuickAction = async (notif: Notification, action: 'approve' | 'reject') => {
-        if (!venueId || !notif.data) return;
+        if (!isVenue || !partnerId) return;
 
         setActionLoading(`${notif.id}_${action}`);
 
         try {
-            const res = await authedFetch(`/api/venue/notifications`, {
-                method: 'PATCH',
+            const request = buildQuickActionRequest(partnerType, partnerId, notif, action);
+            if (!request) return;
+
+            const res = await authedFetch(request.url, {
+                method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    venueId,
-                    action: 'quick_action',
-                    specificAction: action,
-                    data: {
-                        type: notif.type,
-                        id: notif.id,
-                        ...notif.data
-                    }
-                })
+                body: JSON.stringify(request.body)
             });
+
+            if (!isMountedRef.current) return;
 
             if (res.ok) {
                 // Remove the notification from list after action
@@ -130,26 +242,29 @@ export function NotificationCenter() {
         } catch (err) {
             console.error("[NotificationCenter] Action error:", err);
         } finally {
-            setActionLoading(null);
+            if (isMountedRef.current) {
+                setActionLoading(null);
+            }
         }
     };
 
     // Mark all as read
     const handleMarkAllRead = async () => {
-        if (!venueId) return;
+        if (!partnerId) return;
 
         // Optimistic update
-        setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        if (isMountedRef.current) {
+            setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+        }
 
         try {
-            await authedFetch(`/api/venue/notifications`, {
+            const request = buildMarkAllReadRequest(partnerType, partnerId);
+            if (!request) return;
+
+            await authedFetch(request.url, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    venueId,
-                    action: 'mark_read',
-                    notificationIds: notifications.map(n => n.id)
-                })
+                body: JSON.stringify(request.body)
             });
         } catch (err) {
             console.error("[NotificationCenter] Mark read error:", err);
@@ -158,11 +273,21 @@ export function NotificationCenter() {
 
     const getIcon = (type: string) => {
         switch (type) {
-            case 'host_request': return <UserPlus className="w-4 h-4 text-iris" />;
-            case 'promoter_request': return <Handshake className="w-4 h-4 text-emerald-500" />;
-            case 'reservation': return <Calendar className="w-4 h-4 text-indigo-500" />;
-            case 'event': return <Sparkles className="w-4 h-4 text-purple-500" />;
-            case 'revenue': return <TrendingUp className="w-4 h-4 text-orange-500" />;
+            case 'host_request':
+            case 'connection_request':
+                return <UserPlus className="w-4 h-4 text-iris" />;
+            case 'promoter_request':
+                return <Handshake className="w-4 h-4 text-emerald-500" />;
+            case 'reservation':
+            case 'table_reservation':
+            case 'slot_request':
+                return <Calendar className="w-4 h-4 text-indigo-500" />;
+            case 'event':
+            case 'event_review':
+                return <Sparkles className="w-4 h-4 text-purple-500" />;
+            case 'revenue':
+            case 'new_order':
+                return <TrendingUp className="w-4 h-4 text-orange-500" />;
             case 'payment': return <CreditCard className="w-4 h-4 text-text-tertiary" />;
             default: return <Bell className="w-4 h-4 text-text-tertiary" />;
         }
@@ -262,11 +387,11 @@ export function NotificationCenter() {
                                                 className={`p-6 hover:bg-surface-secondary/50 transition-all cursor-pointer group relative ${!notif.isRead ? 'bg-orange-500/[0.02]' : ''}`}
                                             >
                                                 <div className="flex gap-4">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${notif.type === 'revenue' ? 'bg-orange-500/10' :
-                                                        notif.type === 'reservation' ? 'bg-indigo-500/10' :
-                                                            notif.type === 'host_request' ? 'bg-iris/10' :
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${notif.type === 'revenue' || notif.type === 'new_order' ? 'bg-orange-500/10' :
+                                                        notif.type === 'reservation' || notif.type === 'table_reservation' || notif.type === 'slot_request' ? 'bg-indigo-500/10' :
+                                                            notif.type === 'host_request' || notif.type === 'connection_request' ? 'bg-iris/10' :
                                                                 notif.type === 'promoter_request' ? 'bg-green-500/10' :
-                                                                    notif.type === 'event' ? 'bg-purple-500/10' :
+                                                                    notif.type === 'event' || notif.type === 'event_review' ? 'bg-purple-500/10' :
                                                                         'bg-surface-base'
                                                         }`}>
                                                         {getIcon(notif.type)}

@@ -12,10 +12,137 @@ import {
     unblockDate as directUnblockDate,
     respondToSlotRequest as directRespondToSlotRequest,
     createSlotRequest as directCreateSlotRequest,
-    getVenueAvailability
 } from "@c1rcle/core/calendar-engine";
 import { mapEventForClient } from "@c1rcle/core/events";
 import { getApiClient } from "./apiClient";
+
+function enumerateDates(startDate, endDate) {
+    const dates = [];
+    const current = new Date(`${startDate}T00:00:00Z`);
+    const end = new Date(`${endDate}T00:00:00Z`);
+
+    while (current <= end) {
+        dates.push(current.toISOString().slice(0, 10));
+        current.setUTCDate(current.getUTCDate() + 1);
+    }
+
+    return dates;
+}
+
+function toExtendedMinutes(time) {
+    if (!time) return null;
+    const [hour, minute] = time.split(":").map(Number);
+    let total = hour * 60 + minute;
+    if (hour < 12) total += 24 * 60;
+    return total;
+}
+
+function rangesOverlap(startA, endA, startB, endB) {
+    if (!startA || !endA || !startB || !endB) return true;
+
+    const aStart = toExtendedMinutes(startA);
+    const aEnd = toExtendedMinutes(endA);
+    const bStart = toExtendedMinutes(startB);
+    const bEnd = toExtendedMinutes(endB);
+
+    if ([aStart, aEnd, bStart, bEnd].some(value => value === null)) return true;
+    return aStart < bEnd && bStart < aEnd;
+}
+
+function buildDayStatus(slots) {
+    if (!slots.length) return "available";
+    if (slots.some(slot => slot.status === "blocked")) return "blocked";
+    if (slots.some(slot => !slot.startTime || !slot.endTime)) return "booked";
+    return "partial";
+}
+
+async function fetchCalendarEntriesWithRequests(venueId, startDate, endDate) {
+    const db = getAdminDb();
+    const [calendarSnap, eventsSnap] = await Promise.all([
+        db.collection("venue_calendar")
+            .where("venueId", "==", venueId)
+            .where("date", ">=", startDate)
+            .where("date", "<=", endDate)
+            .get(),
+        db.collection("events")
+            .where("venueId", "==", venueId)
+            .get()
+    ]);
+
+    const entries = calendarSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const events = eventsSnap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(event => {
+            const date = String(event.startDate || "").slice(0, 10);
+            const lifecycle = String(event.lifecycle || event.status || "draft").toLowerCase();
+            return date >= startDate &&
+                date <= endDate &&
+                !["draft", "deleted", "cancelled", "denied"].includes(lifecycle);
+        });
+    const requestIds = [...new Set(entries.map(entry => entry.slotRequestId).filter(Boolean))];
+    const requestDocs = await Promise.all(
+        requestIds.map(id => db.collection("slot_requests").doc(id).get())
+    );
+
+    const requestsById = new Map();
+    requestDocs.forEach(doc => {
+        if (doc.exists) requestsById.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+
+    return { entries, requestsById, events };
+}
+
+function normalizeVenueCalendarDays(entries, requestsById, events, startDate, endDate) {
+    const entriesByDate = new Map();
+
+    for (const entry of entries) {
+        const request = entry.slotRequestId ? requestsById.get(entry.slotRequestId) : null;
+        const slots = entriesByDate.get(entry.date) || [];
+        const normalizedStatus = entry.status === "tentative" ? "tentative" : entry.status;
+
+        slots.push({
+            id: entry.id,
+            status: normalizedStatus,
+            startTime: entry.startTime || request?.requestedStartTime || null,
+            endTime: entry.endTime || request?.requestedEndTime || null,
+            reason: entry.reason || "",
+            slotRequestId: entry.slotRequestId || null,
+        });
+
+        entriesByDate.set(entry.date, slots);
+    }
+
+    for (const event of events) {
+        const date = String(event.startDate || "").slice(0, 10);
+        const slots = entriesByDate.get(date) || [];
+        slots.push({
+            id: event.id,
+            status: "booked",
+            startTime: event.startTime || null,
+            endTime: event.endTime || null,
+            reason: "",
+            slotRequestId: null,
+            source: "event",
+        });
+        entriesByDate.set(date, slots);
+    }
+
+    return enumerateDates(startDate, endDate).map(date => {
+        const slots = entriesByDate.get(date) || [];
+        return {
+            date,
+            status: buildDayStatus(slots),
+            slots,
+            reason: slots.find(slot => slot.reason)?.reason || "",
+            isAvailable: slots.length === 0,
+        };
+    });
+}
+
+async function getNormalizedVenueCalendar(venueId, startDate, endDate) {
+    const { entries, requestsById, events } = await fetchCalendarEntriesWithRequests(venueId, startDate, endDate);
+    return normalizeVenueCalendarDays(entries, requestsById, events, startDate, endDate);
+}
 
 /**
  * Get operating calendar for partner dashboard (rich view)
@@ -70,7 +197,7 @@ export async function respondToSlotRequest(id, action, responseData = {}, actor)
  */
 export async function getVenueCalendar(venueId, startDate, endDate, _hostId, _token) {
     try {
-        return await getVenueAvailability(venueId, startDate, endDate);
+        return await getNormalizedVenueCalendar(venueId, startDate, endDate);
     } catch (error) {
         console.error("[CalendarStore] getVenueCalendar failed:", error.message);
         return [];
@@ -100,17 +227,44 @@ export async function getHostVenueCalendar(venueId, startDate, endDate, hostId) 
     try {
         const db = getAdminDb();
 
-        // ── 1. Venue-side blocks / tentative / booked entries ─────────────────
-        const calSnap = await db.collection("venue_calendar")
-            .where("venueId", "==", venueId)
-            .where("date", ">=", startDate)
-            .where("date", "<=", endDate)
-            .get();
+        // ── 1. Venue-side blocks / tentative / booked entries + scheduled events ──
+        const [calSnap, eventsSnap] = await Promise.all([
+            db.collection("venue_calendar")
+                .where("venueId", "==", venueId)
+                .where("date", ">=", startDate)
+                .where("date", "<=", endDate)
+                .get(),
+            db.collection("events")
+                .where("venueId", "==", venueId)
+                .get(),
+        ]);
 
         const calByDate = {};
         for (const doc of calSnap.docs) {
             const entry = { id: doc.id, ...doc.data() };
             calByDate[entry.date] = entry;
+        }
+
+        const eventsByDate = {};
+        for (const doc of eventsSnap.docs) {
+            const event = { id: doc.id, ...doc.data() };
+            const date = String(event.startDate || event.date || event.eventDate || "").slice(0, 10);
+            const lifecycle = String(event.lifecycle || event.status || "draft").toLowerCase();
+
+            if (
+                !date ||
+                date < startDate ||
+                date > endDate ||
+                ["draft", "deleted", "cancelled", "denied"].includes(lifecycle)
+            ) {
+                continue;
+            }
+
+            if (!eventsByDate[date]) {
+                eventsByDate[date] = [];
+            }
+
+            eventsByDate[date].push(event);
         }
 
         // ── 2. This host's own slot requests at this venue ────────────────────
@@ -137,12 +291,14 @@ export async function getHostVenueCalendar(venueId, startDate, endDate, hostId) 
         const allDates = new Set([
             ...Object.keys(calByDate),
             ...Object.keys(myRequestByDate),
+            ...Object.keys(eventsByDate),
         ]);
 
         const slots = [];
         for (const date of allDates) {
             const myReq = myRequestByDate[date];
             const calEntry = calByDate[date];
+            const events = eventsByDate[date] || [];
 
             let state = "open";
             const slotData = { date };
@@ -151,12 +307,33 @@ export async function getHostVenueCalendar(venueId, startDate, endDate, hostId) 
                 // Host's own request — takes priority over venue-side calendar state
                 state = myReq.status === "approved" ? "approved_mine" : "pending_mine";
                 slotData.state = state;
+                slotData.status = myReq.status === "approved" ? "booked" : "tentative";
                 slotData.slotId = myReq.id;
                 slotData.eventId = myReq.eventId;
                 slotData.eventTitle = myReq.eventTitle || myReq.eventName;
                 slotData.lifecycle = myReq.status;
                 slotData.startTime = myReq.requestedStartTime || myReq.startTime;
                 slotData.endTime = myReq.requestedEndTime || myReq.endTime;
+                slotData.slots = [{
+                    status: slotData.status,
+                    startTime: slotData.startTime || null,
+                    endTime: slotData.endTime || null,
+                }];
+            } else if (events.length > 0) {
+                const event = events[0];
+                state = "occupied_other";
+                slotData.state = state;
+                slotData.status = event.startTime || event.endTime ? "partial" : "booked";
+                slotData.eventId = event.id;
+                slotData.eventTitle = event.title || event.eventTitle || event.name;
+                slotData.lifecycle = event.lifecycle || event.status || "scheduled";
+                slotData.startTime = event.startTime || null;
+                slotData.endTime = event.endTime || null;
+                slotData.slots = events.map((scheduledEvent) => ({
+                    status: "booked",
+                    startTime: scheduledEvent.startTime || null,
+                    endTime: scheduledEvent.endTime || null,
+                }));
             } else if (calEntry) {
                 const cs = calEntry.status;
                 if (cs === "blocked") {
@@ -165,8 +342,14 @@ export async function getHostVenueCalendar(venueId, startDate, endDate, hostId) 
                     state = "occupied_other";
                 }
                 slotData.state = state;
-                slotData.startTime = calEntry.startTime;
-                slotData.endTime = calEntry.endTime;
+                slotData.status = cs === "blocked" ? "blocked" : (calEntry.startTime || calEntry.endTime ? "partial" : "booked");
+                slotData.startTime = calEntry.startTime || null;
+                slotData.endTime = calEntry.endTime || null;
+                slotData.slots = [{
+                    status: cs,
+                    startTime: slotData.startTime,
+                    endTime: slotData.endTime,
+                }];
             }
 
             if (state !== "open") {
@@ -186,7 +369,14 @@ export async function getHostVenueCalendar(venueId, startDate, endDate, hostId) 
  */
 export async function getDateAvailability(venueId, date, _token) {
     try {
-        return await getVenueAvailability(venueId, date, date);
+        const [day] = await getNormalizedVenueCalendar(venueId, date, date);
+        return day || {
+            date,
+            status: "available",
+            slots: [],
+            reason: "",
+            isAvailable: true,
+        };
     } catch (error) {
         console.error("[CalendarStore] getDateAvailability failed:", error.message);
         return null;
@@ -198,7 +388,7 @@ export async function getDateAvailability(venueId, date, _token) {
  */
 export async function getUnifiedVenueCalendar(venueId, startDate, endDate, _token) {
     try {
-        return await getVenueAvailability(venueId, startDate, endDate);
+        return await getNormalizedVenueCalendar(venueId, startDate, endDate);
     } catch (error) {
         console.error("[CalendarStore] getUnifiedVenueCalendar failed:", error.message);
         return [];
@@ -210,13 +400,15 @@ export async function getUnifiedVenueCalendar(venueId, startDate, endDate, _toke
  */
 export async function isSlotAvailable(venueId, date, startTime, endTime, _token) {
     try {
-        const slots = await getVenueAvailability(venueId, date, date);
-        // Basic check: find a slot that is available and contains the requested range
-        return (slots || []).some(slot =>
-            slot.isAvailable &&
-            slot.startTime <= startTime &&
-            slot.endTime >= endTime
-        );
+        const day = await getDateAvailability(venueId, date);
+        if (!day) return false;
+        if (day.status === "blocked" || day.status === "booked") return false;
+        if (!startTime || !endTime) return day.status === "available";
+
+        return !(day.slots || []).some(slot => {
+            if (!slot || slot.status === "available") return false;
+            return rangesOverlap(slot.startTime, slot.endTime, startTime, endTime);
+        });
     } catch (error) {
         console.error("[CalendarStore] isSlotAvailable failed:", error.message);
         return false;

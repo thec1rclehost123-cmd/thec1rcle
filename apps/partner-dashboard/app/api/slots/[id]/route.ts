@@ -5,7 +5,9 @@ import {
     rejectSlotRequest,
     counterProposeSlot
 } from "@/lib/server/slotStore";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { verifyPartnerAccess } from "@/lib/server/auth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 
@@ -18,6 +20,15 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
         const slotRequest = await getSlotRequest(ctx?.params?.id as string);
 
         if (!slotRequest) return fail("Slot request not found", 404);
+
+        const hasVenueAccess = slotRequest.venueId
+            ? await verifyPartnerAccess(req, slotRequest.venueId)
+            : false;
+
+        if (!hasVenueAccess) {
+            const hostCtx = await requireHostAccess(req, undefined, slotRequest.hostId);
+            if ("error" in hostCtx) return fail(hostCtx.error, hostCtx.status);
+        }
 
         return ok({ slotRequest });
     } catch (error: any) {
@@ -40,22 +51,20 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
         }
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const slotRequest = await getSlotRequest(ctx?.params?.id as string);
+        if (!slotRequest) return fail("Slot request not found", 404);
+
+        const hasVenueAccess = slotRequest.venueId
+            ? await verifyPartnerAccess(req, slotRequest.venueId)
+            : false;
+        if (!hasVenueAccess) return fail("Unauthorized access to this venue", 403);
+
         let result;
 
         switch (action) {
             case "approve":
-                // Verify management access
-                if (actor.role !== 'admin') {
-                    const venueId = body.venueId || actor.partnerId;
-                    if (!venueId) return fail("venueId is required for authorization", 400);
-                    const hasAccess = await verifyPartnerAccess(req, venueId);
-                    if (!hasAccess) return fail("Unauthorized access to this venue", 403);
-                    // @ts-ignore
-                    result = await approveSlotRequest(ctx?.params?.id as string, actor, { notes, venueId }, token);
-                } else {
-                    // @ts-ignore
-                    result = await approveSlotRequest(ctx?.params?.id as string, actor, { notes }, token);
-                }
+                // @ts-ignore
+                result = await approveSlotRequest(ctx?.params?.id as string, actor, { notes, venueId: slotRequest.venueId }, token);
                 break;
 
             case "reject":
@@ -74,8 +83,47 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
                 break;
             }
 
+            case "suggest": {
+                if (!notes || !String(notes).trim()) {
+                    return fail("Suggestion notes are required", 400);
+                }
+
+                const db = getAdminDb();
+                const now = new Date();
+                const slotRef = db.collection("slot_requests").doc(ctx?.params?.id as string);
+                const eventRef = db.collection("events").doc(slotRequest.eventId);
+
+                await slotRef.update({
+                    status: "needs_changes",
+                    clubResponse: String(notes).trim(),
+                    respondedAt: now.toISOString(),
+                    updatedAt: now.toISOString(),
+                    venueResponseBy: actor.uid,
+                    venueResponseRole: actor.role,
+                    venueResponseName: actor.name || null,
+                });
+
+                await eventRef.update({
+                    lifecycle: "needs_changes",
+                    status: "needs_changes",
+                    approvalNotes: String(notes).trim(),
+                    updatedAt: now,
+                });
+
+                await eventRef.collection("submission_history").add({
+                    status: "needs_changes",
+                    note: String(notes).trim(),
+                    actor: "venue",
+                    actorUid: actor.uid,
+                    createdAt: now.toISOString(),
+                });
+
+                result = await getSlotRequest(ctx?.params?.id as string);
+                break;
+            }
+
             default:
-                return fail("Invalid action. Use: approve, reject, or counter", 400);
+                return fail("Invalid action. Use: approve, reject, counter, or suggest", 400);
         }
 
         return ok({ slotRequest: result });

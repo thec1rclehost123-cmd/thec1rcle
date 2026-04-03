@@ -9,6 +9,8 @@ export const createQueryClient = () => {
                 retry: 1,
                 refetchOnWindowFocus: false,
                 refetchOnReconnect: false,
+                refetchOnMount: false,
+                refetchIntervalInBackground: false,
             },
         },
     });

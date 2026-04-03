@@ -12,7 +12,9 @@ import {
     X,
     Loader2,
     Building2,
-    ArrowLeft
+    ArrowLeft,
+    ArrowRight,
+    Clock3
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -20,10 +22,11 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 interface CalendarDay {
     date: string;
     status: "available" | "blocked" | "booked" | "partial" | "my_request";
+    state?: "open" | "pending_mine" | "approved_mine" | "occupied_other" | "blocked";
     reason?: string;
     slots?: {
-        startTime: string;
-        endTime: string;
+        startTime: string | null;
+        endTime: string | null;
         status: string;
     }[];
 }
@@ -36,6 +39,7 @@ const MONTHS = [
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const timeOverlaps = (start1: string, end1: string, start2: string, end2: string) => {
+    if (!start1 || !end1 || !start2 || !end2) return true;
     const toMinutes = (time: string) => {
         const [h, m] = time.split(":").map(Number);
         return h * 60 + m;
@@ -63,6 +67,55 @@ const formatDate = (date: Date) => {
     return `${y}-${m}-${d}`;
 };
 
+const formatSelectedDateParts = (date: string) => {
+    const parsed = new Date(`${date}T00:00:00`);
+    return {
+        dayNumber: parsed.toLocaleDateString("en-US", { day: "numeric" }),
+        monthShort: parsed.toLocaleDateString("en-US", { month: "short" }),
+        weekday: parsed.toLocaleDateString("en-US", { weekday: "long" }),
+        fullDate: parsed.toLocaleDateString("en-IN", {
+            weekday: "long",
+            day: "numeric",
+            month: "long",
+            year: "numeric"
+        })
+    };
+};
+
+const getDisplayStatus = (day?: CalendarDay) => {
+    if (!day) return "available";
+    if (day.state === "blocked" || day.status === "blocked") return "blocked";
+
+    const slots = day.slots || [];
+    if (slots.some(slot => !slot.startTime || !slot.endTime)) {
+        return day.state === "approved_mine" ? "my_request" : "booked";
+    }
+
+    const selectableConflicts = slots.filter(slot =>
+        slot.status !== "available" &&
+        TIME_SLOTS.some(timeSlot =>
+            timeOverlaps(
+                slot.startTime || "",
+                slot.endTime || "",
+                timeSlot.startTime,
+                timeSlot.endTime
+            )
+        )
+    );
+
+    if (selectableConflicts.length === 0) {
+        return day.state === "approved_mine" || day.state === "pending_mine"
+            ? "my_request"
+            : "available";
+    }
+
+    if (day.state === "approved_mine" || day.state === "pending_mine") {
+        return "my_request";
+    }
+
+    return "partial";
+};
+
 export function HostVenueCalendar() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -79,6 +132,8 @@ export function HostVenueCalendar() {
     const [selectedTimeSlot, setSelectedTimeSlot] = useState<{ startTime: string; endTime: string } | null>(null);
     const [dateAvailability, setDateAvailability] = useState<any>(null);
     const [loadingAvailability, setLoadingAvailability] = useState(false);
+    const [confirmError, setConfirmError] = useState("");
+    const [confirmChecking, setConfirmChecking] = useState(false);
 
     // Authenticated fetch helper
     const authedFetch = useCallback(async (url: string, options: RequestInit = {}) => {
@@ -166,12 +221,13 @@ export function HostVenueCalendar() {
             const dateStr = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day));
             const dayData = calendarMap.get(dateStr);
             const isPast = dateStr < today;
+            const displayStatus = getDisplayStatus(dayData);
 
             days.push({
                 day,
                 date: dateStr,
                 isPast,
-                status: isPast ? "past" : (dayData?.status || "available"),
+                status: isPast ? "past" : displayStatus,
                 reason: dayData?.reason
             });
         }
@@ -193,16 +249,41 @@ export function HostVenueCalendar() {
     };
 
     const handleConfirm = () => {
-        if (selectedDate && selectedTimeSlot) {
-            const params = new URLSearchParams({
-                venue: venueId,
-                venueName: venueName,
-                date: selectedDate,
-                startTime: selectedTimeSlot.startTime,
-                endTime: selectedTimeSlot.endTime,
-            });
-            router.push(`/host/create?${params.toString()}`);
-        }
+        if (!selectedDate || !selectedTimeSlot) return;
+
+        const verifyAndContinue = async () => {
+            setConfirmChecking(true);
+            setConfirmError("");
+            try {
+                const res = await authedFetch(`/api/venues/${venueId}/calendar?hostId=${hostId}&startDate=${selectedDate}&endDate=${selectedDate}`);
+                const data = await res.json();
+                const day = (data.calendar || data.days || [])[0];
+                const hasConflict = (day?.slots || []).some((slot: any) =>
+                    slot.status !== "available" &&
+                    (!slot.startTime || !slot.endTime || timeOverlaps(slot.startTime, slot.endTime, selectedTimeSlot.startTime, selectedTimeSlot.endTime))
+                );
+
+                if (day?.status === "blocked" || hasConflict) {
+                    setConfirmError("That slot was just taken or blocked. Pick another time before continuing.");
+                    return;
+                }
+
+                const params = new URLSearchParams({
+                    venue: venueId,
+                    venueName: venueName,
+                    date: selectedDate,
+                    startTime: selectedTimeSlot.startTime,
+                    endTime: selectedTimeSlot.endTime,
+                });
+                router.push(`/host/create?${params.toString()}`);
+            } catch (error) {
+                setConfirmError("Could not verify this slot right now. Try again.");
+            } finally {
+                setConfirmChecking(false);
+            }
+        };
+
+        void verifyAndContinue();
     };
 
     const getStatusStyle = (status: string) => {
@@ -215,6 +296,8 @@ export function HostVenueCalendar() {
                 return "bg-rose-500/10 text-rose-400/60 cursor-not-allowed";
             case "partial":
                 return "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 border-amber-500/20 cursor-pointer";
+            case "my_request":
+                return "bg-sky-500/10 text-sky-400 hover:bg-sky-500/20 border-sky-500/20 cursor-pointer";
             case "past":
                 return "bg-white/[0.02] text-white/15 cursor-not-allowed";
             default:
@@ -230,6 +313,8 @@ export function HostVenueCalendar() {
                 return <X className="w-3 h-3" />;
             case "partial":
                 return <AlertTriangle className="w-3 h-3" />;
+            case "my_request":
+                return <CheckCircle2 className="w-3 h-3" />;
             default:
                 return null;
         }
@@ -356,6 +441,10 @@ export function HostVenueCalendar() {
                             <div className="w-3 h-3 rounded-full bg-white/20" />
                             <span className="text-text-tertiary">Blocked</span>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 rounded-full bg-sky-400" />
+                            <span className="text-text-tertiary">My Request</span>
+                        </div>
                     </div>
                 </div>
 
@@ -368,81 +457,122 @@ export function HostVenueCalendar() {
                                 initial={{ opacity: 0, x: 20 }}
                                 animate={{ opacity: 1, x: 0 }}
                                 exit={{ opacity: 0, x: -20 }}
-                                className="space-y-6"
+                                className="space-y-5"
                             >
-                                <div>
-                                    <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest mb-2">Selected Date</p>
-                                    <p className="text-lg font-bold text-text-primary">
-                                        {new Date(`${selectedDate}T00:00:00`).toLocaleDateString("en-IN", {
-                                            weekday: "long",
-                                            day: "numeric",
-                                            month: "long",
-                                            year: "numeric"
-                                        })}
-                                    </p>
-                                </div>
+                                {(() => {
+                                    const dateParts = formatSelectedDateParts(selectedDate);
+
+                                    return (
+                                        <div className="overflow-hidden rounded-[1.75rem] border border-white/8 bg-[linear-gradient(180deg,rgba(20,23,31,0.98),rgba(11,12,18,0.98))] shadow-[0_24px_80px_rgba(0,0,0,0.35)]">
+                                            <div className="border-b border-white/8 bg-[radial-gradient(circle_at_bottom_left,_rgba(92,132,255,0.35),_rgba(18,21,34,0.2)_38%,_transparent_72%)] p-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-[92px] shrink-0 rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(8,10,18,0.96),rgba(8,10,18,0.72))] px-4 py-4 shadow-[inset_0_-16px_28px_rgba(103,141,255,0.22)]">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.28em] text-white/40">{dateParts.monthShort}</p>
+                                                        <p className="mt-1 text-[2rem] font-black leading-none text-white">{dateParts.dayNumber}</p>
+                                                        <p className="mt-4 text-sm font-semibold text-white/82">{dateParts.weekday}</p>
+                                                    </div>
+
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.24em] text-white/35">Selected Date</p>
+                                                        <p className="mt-2 text-lg font-bold leading-tight text-white">{dateParts.fullDate}</p>
+                                                        <div className="mt-3 inline-flex items-center rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold text-white/55">
+                                                            {selectedTimeSlot ? "1 slot selected" : `${TIME_SLOTS.length} time slots`}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-4">
+                                                <div className="mb-3 flex items-center justify-between gap-3">
+                                                    <div>
+                                                        <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">Choose Slot</p>
+                                                        <p className="mt-1 text-sm font-medium text-white/70">Pick the best window for your event.</p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-3">
+                                                    {TIME_SLOTS.map(slot => {
+                                                        const isSelected = selectedTimeSlot?.startTime === slot.startTime &&
+                                                            selectedTimeSlot?.endTime === slot.endTime;
+
+                                                        const isUnavailable = dateAvailability?.slots?.some((s: any) =>
+                                                            s.status !== "available" &&
+                                                            (!s.startTime || !s.endTime || timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime))
+                                                        );
+
+                                                        return (
+                                                            <button
+                                                                key={slot.label}
+                                                                onClick={() => !isUnavailable && setSelectedTimeSlot(slot)}
+                                                                disabled={isUnavailable}
+                                                                className={`
+                                                                    group flex w-full items-center gap-3 rounded-[1.2rem] border px-4 py-4 text-left transition-all
+                                                                    ${isUnavailable
+                                                                        ? "border-white/6 bg-white/[0.02] text-white/25 cursor-not-allowed"
+                                                                        : isSelected
+                                                                            ? "border-[var(--c1rcle-orange)]/30 bg-[linear-gradient(90deg,rgba(255,109,58,0.16),rgba(255,255,255,0.03))] text-white shadow-[0_12px_36px_rgba(255,109,58,0.12)]"
+                                                                            : "border-white/8 bg-white/[0.03] text-white/82 hover:border-white/14 hover:bg-white/[0.05] cursor-pointer"
+                                                                    }
+                                                                `}
+                                                            >
+                                                                <div className={`
+                                                                    flex h-11 w-11 shrink-0 items-center justify-center rounded-full border
+                                                                    ${isUnavailable
+                                                                        ? "border-white/8 bg-white/[0.03] text-white/25"
+                                                                        : isSelected
+                                                                            ? "border-[var(--c1rcle-orange)]/35 bg-[var(--c1rcle-orange)]/12 text-[var(--c1rcle-orange)]"
+                                                                            : "border-white/10 bg-white/[0.03] text-white/55 group-hover:text-white/85"
+                                                                    }
+                                                                `}>
+                                                                    {isUnavailable ? <Lock className="w-4 h-4" /> : isSelected ? <CheckCircle2 className="w-4 h-4" /> : <Clock3 className="w-4 h-4" />}
+                                                                </div>
+
+                                                                <div className="min-w-0 flex-1">
+                                                                    <div className="flex items-center justify-between gap-3">
+                                                                        <p className="text-sm font-semibold leading-tight">{slot.label}</p>
+                                                                        <p className={`text-xs font-medium ${isSelected ? "text-[var(--c1rcle-orange)]" : "text-white/38"}`}>
+                                                                            {isUnavailable ? "Unavailable" : isSelected ? "Selected" : "Open"}
+                                                                        </p>
+                                                                    </div>
+                                                                    <p className={`mt-1 text-xs ${isSelected ? "text-white/70" : "text-white/38"}`}>
+                                                                        {slot.startTime} - {slot.endTime}
+                                                                    </p>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 {loadingAvailability ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="w-6 h-6 text-[var(--c1rcle-orange)] animate-spin" />
                                     </div>
-                                ) : (
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] font-black text-text-tertiary uppercase tracking-widest">Select Time Slot</p>
-                                        {TIME_SLOTS.map(slot => {
-                                            const isSelected = selectedTimeSlot?.startTime === slot.startTime &&
-                                                selectedTimeSlot?.endTime === slot.endTime;
-
-                                            const isUnavailable = dateAvailability?.slots?.some((s: any) =>
-                                                s.status !== "available" &&
-                                                timeOverlaps(s.startTime, s.endTime, slot.startTime, slot.endTime)
-                                            );
-
-                                            return (
-                                                <button
-                                                    key={slot.label}
-                                                    onClick={() => !isUnavailable && setSelectedTimeSlot(slot)}
-                                                    disabled={isUnavailable}
-                                                    className={`
-                                                        w-full p-4 rounded-xl text-left transition-all
-                                                        ${isUnavailable
-                                                            ? "bg-white/[0.03] text-white/20 cursor-not-allowed"
-                                                            : isSelected
-                                                                ? "bg-gradient-to-r from-[var(--c1rcle-orange)] to-red-600 text-white shadow-lg shadow-orange-500/20"
-                                                                : "bg-surface-tertiary text-text-secondary hover:bg-surface-elevated border border-[var(--v-border)] cursor-pointer"
-                                                        }
-                                                    `}
-                                                >
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="font-semibold text-sm">{slot.label}</p>
-                                                            <p className={`text-xs mt-0.5 ${isSelected ? "text-white/70" : "text-text-tertiary"}`}>
-                                                                {slot.startTime} – {slot.endTime}
-                                                            </p>
-                                                        </div>
-                                                        {isSelected && <CheckCircle2 className="w-5 h-5" />}
-                                                        {isUnavailable && <Lock className="w-4 h-4" />}
-                                                    </div>
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                )}
+                                ) : null}
 
                                 {/* Confirm Button */}
                                 <button
                                     onClick={handleConfirm}
-                                    disabled={!selectedTimeSlot}
+                                    disabled={!selectedTimeSlot || confirmChecking}
                                     className={`
-                                        w-full py-4 rounded-xl font-bold text-sm transition-all uppercase tracking-wider
-                                        ${selectedTimeSlot
-                                            ? "bg-gradient-to-r from-[var(--c1rcle-orange)] to-red-600 text-white hover:shadow-lg hover:shadow-orange-500/20 hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                                        w-full py-4 rounded-[1.35rem] font-bold text-sm transition-all uppercase tracking-[0.18em]
+                                        ${selectedTimeSlot && !confirmChecking
+                                            ? "bg-gradient-to-r from-[var(--c1rcle-orange)] via-orange-500 to-red-500 text-white hover:shadow-lg hover:shadow-orange-500/20 hover:scale-[1.01] active:scale-[0.98] cursor-pointer"
                                             : "bg-surface-tertiary text-text-muted cursor-not-allowed"
                                         }
                                     `}
                                 >
-                                    Continue to Request Slot
+                                    <span className="inline-flex items-center gap-2">
+                                        {confirmChecking ? "Checking Availability..." : "Continue to Request Slot"}
+                                        {!confirmChecking && <ArrowRight className="w-4 h-4" />}
+                                    </span>
                                 </button>
+                                {confirmError && (
+                                    <p className="text-[11px] font-medium text-red-400">{confirmError}</p>
+                                )}
                             </motion.div>
                         ) : (
                             <motion.div

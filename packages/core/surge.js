@@ -315,6 +315,10 @@ export async function recordSurgeMetric(db, eventId, type) {
     const statusKey = `surge:status:${eventId}`;
 
     try {
+        if (!redis || redis.status !== "ready") {
+            return false;
+        }
+
         // Atomic increment in Redis (Fast path)
         const newValue = await redis.hincrby(metricsKey, type, 1);
 
@@ -340,7 +344,7 @@ export async function recordSurgeMetric(db, eventId, type) {
 
         return true;
     } catch (error) {
-        console.error("Redis Surge Metric Error:", error);
+        console.warn("Redis Surge Metric Error:", error.message || error);
         return false;
     }
 }

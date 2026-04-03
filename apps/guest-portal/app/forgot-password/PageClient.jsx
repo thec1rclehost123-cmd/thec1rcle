@@ -1,20 +1,25 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { getFirebaseAuth } from "../../lib/firebase/client";
-import { sendPasswordResetEmail } from "firebase/auth";
+import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "../../lib/auth/passwordReset";
 import FunnelShell from "../../components/FunnelShell";
-import { Mail, CheckCircle, ArrowRight, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
 
 export default function ForgotPasswordPage() {
     const [email, setEmail] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState("");
-    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    useEffect(() => {
+        const initialEmail = searchParams.get("email");
+        if (initialEmail) setEmail(initialEmail);
+    }, [searchParams]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -30,12 +35,11 @@ export default function ForgotPasswordPage() {
 
         try {
             const auth = await getFirebaseAuth();
-            await sendPasswordResetEmail(auth, email);
+            await sendOperationalPasswordResetEmail(auth, email);
             setSuccess(true);
         } catch (err) {
             console.error("Password reset error:", err);
-            // Generic error to avoid account enumeration
-            setError("Something went wrong. If that account exists, we sent a link.");
+            setError(getPasswordResetErrorMessage(err, { generic: true }));
         } finally {
             setLoading(false);
         }
@@ -70,7 +74,10 @@ export default function ForgotPasswordPage() {
                                         Return to Login
                                     </Link>
                                     <button
-                                        onClick={() => setSuccess(false)}
+                                        onClick={() => {
+                                            setSuccess(false);
+                                            setError("");
+                                        }}
                                         className="text-[10px] font-black uppercase tracking-[0.3em] text-black/40 dark:text-white/40 hover:text-orange transition-colors"
                                     >
                                         Try another email

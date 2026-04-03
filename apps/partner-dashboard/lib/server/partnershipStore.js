@@ -105,3 +105,57 @@ export async function checkPartnership(hostId, venueId) {
         return false;
     }
 }
+
+export async function resolveHostVenueSelection(hostId, venueId, venueName = "") {
+    try {
+        if (!hostId) return null;
+
+        const db = getAdminDb();
+        const activeSnap = await db.collection("partnerships")
+            .where("hostId", "==", hostId)
+            .where("status", "==", "active")
+            .get();
+
+        const activePartnerships = activeSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const exactMatch = venueId
+            ? activePartnerships.find((partnership) => partnership.venueId === venueId)
+            : null;
+
+        if (exactMatch) {
+            return {
+                venueId: exactMatch.venueId,
+                venueName: exactMatch.venueName || venueName || "",
+                partnershipId: exactMatch.id,
+                canonicalized: false,
+            };
+        }
+
+        let targetName = String(venueName || "").trim().toLowerCase();
+        if (!targetName && venueId) {
+            const venueDoc = await db.collection("venues").doc(venueId).get();
+            const venueData = venueDoc.data() || {};
+            targetName = String(venueData.displayName || venueData.name || "").trim().toLowerCase();
+        }
+
+        if (!targetName) return null;
+
+        const nameMatches = activePartnerships.filter((partnership) =>
+            String(partnership.venueName || "").trim().toLowerCase() === targetName
+        );
+
+        if (nameMatches.length !== 1) {
+            return null;
+        }
+
+        const canonical = nameMatches[0];
+        return {
+            venueId: canonical.venueId,
+            venueName: canonical.venueName || venueName || "",
+            partnershipId: canonical.id,
+            canonicalized: true,
+        };
+    } catch (error) {
+        console.error("[PartnershipStore] resolveHostVenueSelection failed:", error.message);
+        return null;
+    }
+}

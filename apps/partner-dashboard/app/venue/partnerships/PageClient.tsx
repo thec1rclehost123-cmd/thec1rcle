@@ -19,7 +19,6 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
-import { TierSelectionModal, ContractTier } from "@/components/partnerships/TierSelectionModal";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { formatMonthYear } from "@/lib/utils/format";
@@ -33,7 +32,6 @@ interface Connection {
     otherName: string;
     otherType: "host" | "promoter";
     status: string;
-    tier?: ContractTier;
     createdAt: any;
     updatedAt?: any;
     message?: string;
@@ -46,7 +44,6 @@ export default function VenuePartnershipsPage() {
     const [error, setError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<Tab>("discover");
     const [processingId, setProcessingId] = useState<string | null>(null);
-    const [tierTarget, setTierTarget] = useState<Connection | null>(null);
     const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
 
     const venueId = profile?.activeMembership?.partnerId;
@@ -71,7 +68,6 @@ export default function VenuePartnershipsPage() {
                 otherName: c.otherName,
                 otherType: c.otherType || (c.type === "partnership" ? "host" : "promoter"),
                 status: c.status,
-                tier: c.tier,
                 createdAt: c.createdAt,
                 updatedAt: c.updatedAt,
                 message: c.message,
@@ -89,8 +85,9 @@ export default function VenuePartnershipsPage() {
         fetchConnections();
     }, [fetchConnections]);
 
-    const handleApproveWithTier = async (tier: ContractTier, connectionId: string) => {
+    const handleApprove = async (connectionId: string) => {
         const conn = connections.find(c => c.id === connectionId);
+        setProcessingId(connectionId);
         try {
             const token = await user?.getIdToken();
             const res = await fetch("/api/discovery", {
@@ -103,18 +100,18 @@ export default function VenuePartnershipsPage() {
                     connectionId,
                     action: "approve",
                     type: conn?.type,
-                    tier,
                     role: "venue",
                     partnerId: venueId,
                     partnerName: venueName,
                 }),
             });
             if (!res.ok) throw new Error("Failed");
-            setTierTarget(null);
             await fetchConnections();
         } catch (err) {
             console.error(err);
             alert("Failed to approve partnership.");
+        } finally {
+            setProcessingId(null);
         }
     };
 
@@ -191,20 +188,6 @@ export default function VenuePartnershipsPage() {
                     />
                 )}
             </div>
-
-            {/* Tier selection modal */}
-            <AnimatePresence>
-                {tierTarget && (
-                    <TierSelectionModal
-                        partnerName={tierTarget.otherName}
-                        partnerType={tierTarget.otherType}
-                        connectionId={tierTarget.id}
-                        onConfirm={handleApproveWithTier}
-                        onClose={() => setTierTarget(null)}
-                    />
-                )}
-            </AnimatePresence>
-
             {/* Profile modal */}
             <AnimatePresence>
                 {profileTarget && (
@@ -290,17 +273,6 @@ function ActiveRoster({
                                 </span>
                             </div>
                         </div>
-                        {conn.tier && (
-                            <span
-                                className={`text-[10px] px-3 py-1.5 rounded-xl font-black uppercase tracking-widest ${
-                                    conn.tier === "trusted"
-                                        ? "bg-gradient-to-r from-orange-500 to-rose-600 text-white shadow-lg shadow-orange-500/20"
-                                        : "bg-surface-tertiary text-text-tertiary border border-border-subtle"
-                                }`}
-                            >
-                                {conn.tier === "trusted" ? "Trusted" : "Standard"}
-                            </span>
-                        )}
                     </div>
 
                     <div className="relative flex items-center justify-between py-4 border-y border-border-subtle mb-6">
@@ -339,7 +311,7 @@ function PendingRequests({
     loading: boolean;
     processingId: string | null;
     formatDate: (ts: any) => string;
-    onAccept: (conn: Connection) => void;
+    onAccept: (id: string) => void;
     onDecline: (id: string) => void;
 }) {
     if (loading) {
@@ -398,7 +370,7 @@ function PendingRequests({
 
                             <div className="flex items-center gap-3">
                                 <button
-                                    onClick={() => onAccept(req)}
+                                onClick={() => onAccept(req.id)}
                                     disabled={!!processingId}
                                     className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-400 hover:to-rose-500 text-white rounded-xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-orange-500/20 transition-all active:scale-95 disabled:opacity-50"
                                 >

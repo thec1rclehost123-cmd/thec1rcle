@@ -3,8 +3,8 @@
 import { useState, useEffect, forwardRef, memo, useCallback, useMemo, Suspense } from "react";
 import { VirtuosoGrid } from "react-virtuoso";
 import {
-    Calendar, DollarSign, Search, Plus, CheckCircle2,
-    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Play, Pause, List, CalendarDays,
+    Calendar, Search, Plus,
+    AlertCircle, Edit, Loader2, BarChart3, ShieldCheck, Pause, Play, List, CalendarDays, ArrowUpRight,
 } from "lucide-react";
 import Link from "next/link";
 import { DashboardEventCard } from "@c1rcle/ui";
@@ -58,7 +58,7 @@ const GridList = forwardRef<HTMLDivElement>((props, ref) => (
 GridList.displayName = "GridList";
 
 const GridItem = forwardRef<HTMLDivElement>((props, ref) => (
-    <div {...props} ref={ref} className="h-[340px] w-full" />
+    <div {...props} ref={ref} className="h-[380px] w-full" />
 ));
 GridItem.displayName = "GridItem";
 
@@ -68,7 +68,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
 
     const getPrimaryAction = (e: any) => {
         if (e.canApprove) return { label: "Review Submission", href: `/venue/events/${e.id}`, icon: <ShieldCheck size={16} /> };
-        return { label: "View Analytics", href: `/venue/events/${e.id}/analytics`, icon: <BarChart3 size={16} /> };
+        return { label: "More Info", href: `/venue/events/${e.id}`, icon: <BarChart3 size={16} /> };
     };
 
     const secondaryActions: any[] = [];
@@ -207,7 +207,6 @@ export default function EventsManagementPage() {
     const filterTabs = [
         { label: "All", value: "all", count: events.length },
         { label: "Live", value: "live", count: liveCount },
-        { label: "Pending", value: "pending", count: pendingCount },
         { label: "Published", value: "approved", count: publishedCount },
         { label: "Drafts", value: "draft", count: draftCount },
         { label: "Completed", value: "completed" },
@@ -217,47 +216,54 @@ export default function EventsManagementPage() {
     return (
         <VenuePageShell
             title={hubTab === "calendar" ? "Calendar" : "Events"}
-            subtitle={hubTab === "calendar" ? "View and manage your venue schedule" : "Manage every event from draft to post-event review"}
+            actions={
+                hubTab === "calendar" ? null : (
+                    <div className="flex items-center gap-3">
+                        {[
+                            { label: "Live Now", value: loading ? "—" : liveCount, color: "var(--v-text-primary)" },
+                            { label: "Requests", value: loading ? "—" : pendingCount, color: "#f59e0b" },
+                        ].map((metric, i) => (
+                            <div 
+                                key={i}
+                                className="min-w-[100px] rounded-[22px] px-4 py-2.5 text-center transition-all hover:scale-[1.02]" 
+                                style={{ 
+                                    background: "rgba(255, 255, 255, 0.03)", 
+                                    border: "1px solid rgba(255, 255, 255, 0.08)",
+                                    backdropFilter: "blur(12px)",
+                                    boxShadow: "0 4px 24px -12px rgba(0,0,0,0.5)"
+                                }}
+                            >
+                                <p className="text-[20px] font-black tabular-nums leading-none tracking-tight" style={{ color: metric.color }}>{metric.value}</p>
+                                <p className="mt-1.5 text-[10px] font-black uppercase tracking-[0.15em] opacity-40" style={{ color: "var(--v-text-primary)" }}>{metric.label}</p>
+                            </div>
+                        ))}
+                        <Link
+                            href="/venue/events/requests"
+                            className={`inline-flex items-center gap-2 rounded-[22px] px-4 py-3 text-[12px] font-black uppercase tracking-[0.14em] transition-all hover:scale-[1.02] ${pendingCount > 0 ? "animate-pulse" : ""}`}
+                            style={{
+                                background: pendingCount > 0 ? "rgba(245, 158, 11, 0.12)" : "rgba(255, 255, 255, 0.04)",
+                                color: pendingCount > 0 ? "#fbbf24" : "var(--v-text-primary)",
+                                border: pendingCount > 0 ? "1px solid rgba(245, 158, 11, 0.45)" : "1px solid rgba(255, 255, 255, 0.1)",
+                                backdropFilter: "blur(12px)",
+                                boxShadow: pendingCount > 0
+                                    ? "0 0 0 1px rgba(245,158,11,0.18), 0 8px 24px -12px rgba(245,158,11,0.45)"
+                                    : "0 4px 24px -12px rgba(0,0,0,0.5)",
+                            }}
+                        >
+                            Slot Requests
+                            <ArrowUpRight className="h-4 w-4" />
+                        </Link>
+                    </div>
+                )
+            }
         >
-            <HubTabBar tabs={HUB_TABS} activeTab={hubTab} onTabChange={setHubTab} />
-
             {hubTab === "calendar" ? (
                 <CalendarClient />
             ) : (
-                <div className="space-y-6 mt-6">
-                    {/* ── KPI Strip ── */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                        {[
-                            { label: "LIVE NOW", value: loading ? "—" : liveCount, color: "var(--v-success)", bg: "var(--v-success-bg)", icon: Play },
-                            { label: "REQUESTS", value: loading ? "—" : pendingCount, color: "var(--v-warning)", bg: "var(--v-warning-bg)", icon: AlertCircle },
-                            { label: "PUBLISHED", value: loading ? "—" : publishedCount, color: "var(--v-info)", bg: "var(--v-info-bg)", icon: CheckCircle2 },
-                            {
-                                label: "REVENUE",
-                                value: loading ? "—" : totalRevenue >= 100000
-                                    ? `₹${(totalRevenue / 100000).toFixed(1)}L`
-                                    : `₹${(totalRevenue / 1000).toFixed(1)}K`,
-                                color: "var(--v-orange)",
-                                bg: "var(--v-orange-dim)",
-                                icon: DollarSign,
-                            },
-                        ].map((stat, i) => (
-                            <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-border-subtle" style={{ background: "var(--v-card)" }}>
-                                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: stat.bg }}>
-                                    <stat.icon className="w-3.5 h-3.5" style={{ color: stat.color }} />
-                                </div>
-                                <div>
-                                    <p className="v-label text-[9px] mb-0">{stat.label}</p>
-                                    <p className="text-[18px] font-black leading-tight tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                                        {stat.value}
-                                    </p>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-
+                <div className="space-y-6">
                     {/* ── Filter bar ── */}
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} />
+                        <VenueFilterTabs tabs={filterTabs} active={filter} onChange={setFilter} surface="flat" />
                         <div className="relative flex-1 sm:max-w-xs">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--v-text-muted)" }} />
                             <input
@@ -267,7 +273,7 @@ export default function EventsManagementPage() {
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full pl-9 pr-4 py-2.5 rounded-xl text-[13px] outline-none focus:ring-1"
                                 style={{
-                                    background: "var(--v-card)",
+                                    background: "rgba(255,255,255,0.02)",
                                     color: "var(--v-text-primary)",
                                     border: "1px solid var(--v-border)",
                                 }}
@@ -281,14 +287,14 @@ export default function EventsManagementPage() {
                             {fetchError}
                         </div>
                     ) : loading ? (
-                        <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "var(--v-card)" }}>
+                        <div className="rounded-[32px] py-24 flex flex-col items-center gap-4" style={{ background: "transparent", border: "1px solid var(--v-divider)" }}>
                             <Loader2 className="w-8 h-8 animate-spin" style={{ color: "var(--v-orange)" }} />
                             <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
                                 Loading events...
                             </p>
                         </div>
                     ) : filteredEvents.length === 0 ? (
-                        <div className="rounded-[32px] py-24 flex flex-col items-center text-center gap-4" style={{ background: "var(--v-card)" }}>
+                        <div className="rounded-[32px] py-24 flex flex-col items-center text-center gap-4" style={{ background: "transparent", border: "1px solid var(--v-divider)" }}>
                             <div className="w-16 h-16 rounded-2xl flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
                                 <Calendar className="w-8 h-8" style={{ color: "var(--v-text-muted)" }} />
                             </div>

@@ -9,6 +9,8 @@ import { CheckCircle2, MapPin, ExternalLink, Instagram, Music, Play, Calendar, C
 import { ShimmerImage } from "@c1rcle/ui";
 import ProfileClient from "../../venue/[slug]/ProfileClient";
 import HostFollowCta from "../../../components/profile/HostFollowCta";
+import PublicProfileUnavailable from "../../../components/profile/PublicProfileUnavailable";
+import { isPublicProfileEnabled } from "../../../lib/server/publicProfile";
 
 // Cache host lookup so metadata + page share a single Firestore fetch
 const getHostBySlug = cache(getHostBySlugBase);
@@ -19,6 +21,13 @@ export async function generateMetadata({ params }) {
     const { slug } = await params;
     const host = await getHostBySlug(slug);
     if (!host) return { title: "Host Not Found" };
+    if (!isPublicProfileEnabled(host)) {
+        return {
+            title: `${host.name || host.displayName || "Host"} | Profile Offline`,
+            description: "This host does not have a public profile right now.",
+            robots: { index: false, follow: true },
+        };
+    }
 
     return {
         title: `${host.name || host.displayName} | THE C1RCLE`,
@@ -37,6 +46,9 @@ export default async function HostPublicPage({ params }) {
     // Fetch host details (cached — shared with generateMetadata)
     const host = await getHostBySlug(slug);
     if (!host) notFound();
+    if (!isPublicProfileEnabled(host)) {
+        return <PublicProfileUnavailable type="host" name={host.name || host.displayName} />;
+    }
 
     // Fetch posts, highlights, stats, and host's events in parallel.
     // Using the host filter directly instead of fetching all 100 events.

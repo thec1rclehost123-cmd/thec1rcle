@@ -4,6 +4,19 @@ import { MapPin, Calendar, ExternalLink, Link as LinkIcon, Share, TrendingUp } f
 import Image from "next/image";
 import Link from "next/link";
 
+const GUEST_PORTAL_HOST = (() => {
+    const baseUrl =
+        process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        "";
+    if (!baseUrl) return "guest-portal";
+    try {
+        return new URL(baseUrl).host;
+    } catch {
+        return baseUrl.replace(/^https?:\/\//, "");
+    }
+})();
+
 function formatCurrency(amount: number) {
     return new Intl.NumberFormat("en-US", {
         style: "currency",
@@ -88,7 +101,7 @@ export function PromoterAssignmentCard({ assignment }: { assignment: any }) {
                         <div className="bg-surface-base border border-border-subtle rounded-lg px-3 py-1.5 flex items-center justify-between w-full md:max-w-sm text-sm font-mono text-text-secondary group-hover:border-border-hover transition-colors">
                             <div className="flex items-center overflow-hidden">
                                 <LinkIcon className="h-3.5 w-3.5 mr-2 text-emerald-500 shrink-0" />
-                                <span className="truncate">c1rcle.com/e/{linkCode}</span>
+                                <span className="truncate">{GUEST_PORTAL_HOST}/e/{linkCode}</span>
                             </div>
                             <button className="text-text-muted hover:text-text-primary ml-2 shrink-0">
                                 <Share className="h-4 w-4" />

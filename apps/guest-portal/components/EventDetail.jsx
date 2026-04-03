@@ -24,6 +24,34 @@ import {
   Users,
 } from "lucide-react";
 
+const AMBIENT_DOTS = [
+  { left: "6%", size: 4, duration: 11, delay: 0.2, drift: 18 },
+  { left: "12%", size: 6, duration: 14, delay: 1.1, drift: -22 },
+  { left: "18%", size: 5, duration: 10, delay: 0.6, drift: 16 },
+  { left: "25%", size: 4, duration: 15, delay: 2.1, drift: -18 },
+  { left: "33%", size: 6, duration: 12, delay: 1.7, drift: 24 },
+  { left: "41%", size: 4, duration: 16, delay: 0.4, drift: -14 },
+  { left: "49%", size: 5, duration: 13, delay: 2.6, drift: 20 },
+  { left: "57%", size: 4, duration: 11, delay: 1.3, drift: -26 },
+  { left: "64%", size: 6, duration: 15, delay: 0.9, drift: 18 },
+  { left: "72%", size: 4, duration: 12, delay: 2.8, drift: -20 },
+  { left: "81%", size: 5, duration: 14, delay: 0.7, drift: 22 },
+  { left: "90%", size: 4, duration: 10, delay: 1.9, drift: -16 },
+  { left: "3%", size: 3, duration: 13, delay: 2.4, drift: 12 },
+  { left: "9%", size: 5, duration: 9, delay: 3.1, drift: -15 },
+  { left: "15%", size: 3, duration: 16, delay: 1.4, drift: 14 },
+  { left: "21%", size: 4, duration: 12, delay: 0.8, drift: -12 },
+  { left: "28%", size: 3, duration: 15, delay: 2.9, drift: 18 },
+  { left: "36%", size: 5, duration: 11, delay: 1.9, drift: -20 },
+  { left: "45%", size: 3, duration: 14, delay: 3.5, drift: 16 },
+  { left: "53%", size: 4, duration: 10, delay: 0.5, drift: -18 },
+  { left: "61%", size: 3, duration: 17, delay: 2.2, drift: 15 },
+  { left: "69%", size: 5, duration: 12, delay: 1.2, drift: -14 },
+  { left: "77%", size: 3, duration: 15, delay: 3.3, drift: 17 },
+  { left: "85%", size: 4, duration: 11, delay: 0.9, drift: -19 },
+  { left: "94%", size: 3, duration: 16, delay: 2.7, drift: 13 },
+];
+
 /* ─── Utility helpers ────────────────────────────────────────────────────── */
 
 function formatINR(amount) {
@@ -420,6 +448,137 @@ function SectionLabel({ children, className = "" }) {
   );
 }
 
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const LIVE_WINDOW_MS = 6 * HOUR;
+
+function getCountdownState(targetDate) {
+  if (!targetDate) return { status: "hidden", diff: 0 };
+  const diff = targetDate.getTime() - Date.now();
+  if (diff > 0) return { status: "upcoming", diff };
+  if (Math.abs(diff) <= LIVE_WINDOW_MS) return { status: "live", diff };
+  return { status: "ended", diff };
+}
+
+function toCountdownParts(diff) {
+  const remaining = Math.max(diff, 0);
+  return {
+    days: Math.floor(remaining / DAY),
+    hours: Math.floor((remaining % DAY) / HOUR),
+    minutes: Math.floor((remaining % HOUR) / MINUTE),
+    seconds: Math.floor((remaining % MINUTE) / SECOND),
+  };
+}
+
+function padCountdown(value) {
+  return String(value).padStart(2, "0");
+}
+
+function EventCountdown({ event, dominantColor }) {
+  const targetDate = useMemo(() => {
+    if (!event?.startDate) return null;
+    const value = event?.startTime ? `${event.startDate}T${event.startTime}` : event.startDate;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, [event?.startDate, event?.startTime]);
+
+  const [state, setState] = useState(() => getCountdownState(targetDate));
+
+  useEffect(() => {
+    setState(getCountdownState(targetDate));
+    if (!targetDate) return undefined;
+    const interval = window.setInterval(() => {
+      setState(getCountdownState(targetDate));
+    }, SECOND);
+    return () => window.clearInterval(interval);
+  }, [targetDate]);
+
+  if (!targetDate || state.status === "hidden") return null;
+
+  const parts = toCountdownParts(state.diff);
+  const countdownValue = `${padCountdown(parts.days)}:${padCountdown(parts.hours)}:${padCountdown(parts.minutes)}:${padCountdown(parts.seconds)}`;
+
+  return (
+    <GlassCard className="px-4 py-4 sm:px-5 sm:py-4" glowColor={dominantColor}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="min-w-0">
+          <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/42">
+            {state.status === "upcoming" ? "Party starts in" : state.status === "live" ? "Party is live" : "Party closed"}
+          </div>
+          <div
+            className="mt-1 font-black leading-none tracking-[-0.08em] text-white"
+            style={{
+              fontSize: "clamp(1.55rem, 4vw, 2.5rem)",
+              textShadow: `0 0 22px rgba(${dominantColor}, 0.16), 0 0 42px rgba(${dominantColor}, 0.08)`,
+            }}
+          >
+            {state.status === "upcoming" ? countdownValue : "00:00:00:00"}
+          </div>
+        </div>
+        <span
+          className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${state.status === "live" ? "bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]" : "bg-white/70 shadow-[0_0_16px_rgba(255,255,255,0.28)]"}`}
+        />
+      </div>
+    </GlassCard>
+  );
+}
+
+function AmbientDots({ dominantColor }) {
+  return (
+    <>
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        {AMBIENT_DOTS.map((dot, index) => (
+          <span
+            key={index}
+            className="event-detail-dot absolute rounded-full"
+            style={{
+              left: dot.left,
+              bottom: "-6%",
+              width: `${dot.size}px`,
+              height: `${dot.size}px`,
+              animationDuration: `${dot.duration}s`,
+              animationDelay: `${dot.delay}s`,
+              "--dot-drift": `${dot.drift}px`,
+              background: index % 3 === 0 ? "rgba(255,255,255,0.82)" : `rgba(${dominantColor}, ${index % 2 === 0 ? 0.88 : 0.62})`,
+              boxShadow: index % 3 === 0
+                ? "0 0 18px rgba(255,255,255,0.32)"
+                : `0 0 20px rgba(${dominantColor}, 0.34)`,
+            }}
+          />
+        ))}
+      </div>
+      <style jsx>{`
+        .event-detail-dot {
+          animation-name: event-detail-float;
+          animation-timing-function: ease-in-out;
+          animation-iteration-count: infinite;
+          opacity: 0;
+          will-change: transform, opacity;
+        }
+
+        @keyframes event-detail-float {
+          0% {
+            transform: translate3d(0, 0, 0);
+            opacity: 0;
+          }
+          12% {
+            opacity: 0.92;
+          }
+          82% {
+            opacity: 0.85;
+          }
+          100% {
+            transform: translate3d(var(--dot-drift), -110vh, 0);
+            opacity: 0;
+          }
+        }
+      `}</style>
+    </>
+  );
+}
+
 /* ─── Glass Card wrapper ─────────────────────────────────────────────────── */
 
 function GlassCard({ children, className = "", glowColor, onClick, as = "div", style }) {
@@ -493,6 +652,7 @@ export default function EventDetail({
   const timeLabel = formatTimeLabel(event);
   const goingLabel = buildGoingLabel(interestedData);
   const hostName = host?.name || event?.host || "THE C1RCLE";
+  const organizerLabel = hostName && hostName !== venueLabel ? hostName : venueLabel;
   const hostUrl = buildHostUrl(host);
   const posterGradient = buildPosterGradient(event);
   const appUrl = "https://thec1rcle.com/app";
@@ -648,6 +808,7 @@ export default function EventDetail({
         <div className="absolute left-0 right-0 bottom-0 h-[40vh] bg-gradient-to-t from-black via-black/90 to-transparent" />
         <div className="absolute top-0 bottom-0 left-0 w-[25vw] bg-gradient-to-r from-black via-black/80 to-transparent" />
         <div className="absolute top-0 bottom-0 right-0 w-[25vw] bg-gradient-to-l from-black via-black/80 to-transparent" />
+        <AmbientDots dominantColor={dominantColor} />
       </div>
 
       <div className="relative z-10 px-3 pb-20 pt-5 sm:px-6 sm:pb-24 sm:pt-7 lg:px-8 lg:pb-40 lg:pt-8">
@@ -742,9 +903,6 @@ export default function EventDetail({
                         )}
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
-                          Hosted by
-                        </div>
                         <div className="truncate text-[14px] font-semibold text-white/82">
                           {hostName}
                         </div>
@@ -756,9 +914,6 @@ export default function EventDetail({
                         <Calendar className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
-                          Date & Time
-                        </div>
                         <div className="truncate text-[14px] font-semibold text-white/82">
                           {timeShort ? `${dateShort} · ${timeShort}` : dateShort}
                         </div>
@@ -901,6 +1056,8 @@ export default function EventDetail({
                   </GlassCard>
                 )}
 
+                <EventCountdown event={event} dominantColor={dominantColor} />
+
                 <section id="event-location">
                   <GlassCard className="overflow-hidden" glowColor={dominantColor}>
                     <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
@@ -980,7 +1137,7 @@ export default function EventDetail({
                           {displayTitle}
                         </div>
                         <div className="mt-3 text-[11px] uppercase tracking-[0.18em] text-white/46">
-                          {venueLabel}
+                          {organizerLabel}
                         </div>
                       </div>
                     </div>
