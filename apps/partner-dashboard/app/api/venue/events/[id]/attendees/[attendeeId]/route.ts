@@ -218,12 +218,12 @@ export async function GET(
         const orderQueries: Promise<FirebaseFirestore.QuerySnapshot>[] = [];
         const normalizedEmail = normalizeValue(attendee.email);
         if (attendee.attendeeId && attendee.attendeeId !== attendee.id) {
-            orderQueries.push(db.collection("orders").where("userId", "==", attendee.attendeeId).get());
-            orderQueries.push(db.collection("rsvp_orders").where("userId", "==", attendee.attendeeId).get());
+            orderQueries.push(db.collection("orders").where("userId", "==", attendee.attendeeId).where("venueId", "==", ctx.venueId).get());
+            orderQueries.push(db.collection("rsvp_orders").where("userId", "==", attendee.attendeeId).where("venueId", "==", ctx.venueId).get());
         }
         if (normalizedEmail) {
-            orderQueries.push(db.collection("orders").where("userEmail", "==", attendee.email).get());
-            orderQueries.push(db.collection("rsvp_orders").where("userEmail", "==", attendee.email).get());
+            orderQueries.push(db.collection("orders").where("userEmail", "==", attendee.email).where("venueId", "==", ctx.venueId).get());
+            orderQueries.push(db.collection("rsvp_orders").where("userEmail", "==", attendee.email).where("venueId", "==", ctx.venueId).get());
         }
 
         const orderSnapshots = await Promise.all(orderQueries);
@@ -232,10 +232,6 @@ export async function GET(
         for (const doc of ordersSnap.docs) matchedDocs.set(doc.id, { doc, source: "ticket" });
         for (const snapshot of orderSnapshots) {
             for (const doc of snapshot.docs) {
-                const raw = doc.data() || {};
-                if (raw.venueId && raw.venueId !== ctx.venueId) {
-                    continue;
-                }
                 const source = doc.ref.parent.id === "rsvp_orders" ? "rsvp" : "ticket";
                 matchedDocs.set(doc.id, { doc, source });
             }

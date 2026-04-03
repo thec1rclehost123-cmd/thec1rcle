@@ -940,46 +940,6 @@ export default function VenueEventWorkspacePage() {
         }
     }, [defaultSection, isHostManagedEvent, searchParams]);
 
-    const selectAttendeeProfile = useCallback(
-        (attendeeId: string, orderId: string | null) => {
-            setSelectedAttendeeId(attendeeId);
-            setSelectedOrderId(orderId);
-
-            const nextParams = new URLSearchParams(searchParams.toString());
-            nextParams.set("attendeeId", attendeeId);
-            if (orderId) {
-                nextParams.set("orderId", orderId);
-            } else {
-                nextParams.delete("orderId");
-            }
-
-            const nextQuery = nextParams.toString();
-            router.replace(nextQuery ? `/venue/events/${eventId}?${nextQuery}` : `/venue/events/${eventId}`, {
-                scroll: false,
-            });
-        },
-        [eventId, router, searchParams]
-    );
-
-    const selectAttendeeOrder = useCallback(
-        (orderId: string | null) => {
-            setSelectedOrderId(orderId);
-
-            const nextParams = new URLSearchParams(searchParams.toString());
-            if (orderId) {
-                nextParams.set("orderId", orderId);
-            } else {
-                nextParams.delete("orderId");
-            }
-
-            const nextQuery = nextParams.toString();
-            router.replace(nextQuery ? `/venue/events/${eventId}?${nextQuery}` : `/venue/events/${eventId}`, {
-                scroll: false,
-            });
-        },
-        [eventId, router, searchParams]
-    );
-
     const clearAttendeeProfileSelection = useCallback(() => {
         setSelectedAttendeeId(null);
         setSelectedOrderId(null);
@@ -1878,7 +1838,10 @@ export default function VenueEventWorkspacePage() {
                                                 <tr
                                                     key={attendee.id}
                                                     className="cursor-pointer border-t border-white/[0.035] bg-[#232326] transition-colors hover:bg-[#29292D]"
-                                                    onClick={() => selectAttendeeProfile(attendee.attendeeId || attendee.id, attendee.orderId || null)}
+                                                    onClick={() => {
+                                                        setSelectedAttendeeId(attendee.attendeeId || attendee.id);
+                                                        setSelectedOrderId(attendee.orderId || null);
+                                                    }}
                                                 >
                                                     <td className="px-5 py-4 align-middle">
                                                         <span className="block h-6 w-6 rounded-full border border-white/25 bg-[#111214]" />
@@ -1953,7 +1916,8 @@ export default function VenueEventWorkspacePage() {
                                                                 if (selectedAttendeeId === thisId) {
                                                                     clearAttendeeProfileSelection();
                                                                 } else {
-                                                                    selectAttendeeProfile(thisId, attendee.orderId || null);
+                                                                    setSelectedAttendeeId(thisId);
+                                                                    setSelectedOrderId(attendee.orderId || null);
                                                                 }
                                                             }}
                                                             className={cn(
@@ -2021,7 +1985,7 @@ export default function VenueEventWorkspacePage() {
                                 attendeeDetail={attendeeDetail}
                                 selectedOrder={selectedOrder}
                                 selectedOrderId={selectedOrderId}
-                                onSelectOrder={selectAttendeeOrder}
+                                onSelectOrder={setSelectedOrderId}
                                 onClose={clearAttendeeProfileSelection}
                                 isLoading={attendeeDetailQuery.isFetching}
                                 isSendingReceipt={resendReceiptMutation.isPending}
