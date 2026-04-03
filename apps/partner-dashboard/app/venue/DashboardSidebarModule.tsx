@@ -35,7 +35,7 @@ export default function DashboardSidebarModule() {
                                 </div>
                                 <div className="flex-1 min-w-0">
                                     <p className="text-title-sm text-text-primary truncate">{alert.title}</p>
-                                    <p className="text-caption text-text-tertiary truncate">{alert.description}</p>
+                                    <p className="text-caption text-text-tertiary truncate">{alert.description || alert.message || ""}</p>
                                 </div>
                             </div>
                         ))

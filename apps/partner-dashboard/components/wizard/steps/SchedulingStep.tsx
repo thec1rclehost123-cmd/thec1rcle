@@ -13,9 +13,14 @@ interface SchedulingStepProps {
     validationErrors: Record<string, string>;
     role: 'venue' | 'host';
     profile: any;
+    scheduleAvailability?: {
+        checking: boolean;
+        available: boolean;
+        reason: string;
+    };
 }
 
-export function SchedulingStep({ formData, updateFormData, validationErrors, role, profile }: SchedulingStepProps) {
+export function SchedulingStep({ formData, updateFormData, validationErrors, role, profile, scheduleAvailability }: SchedulingStepProps) {
     const { user } = useDashboardAuth();
     const searchParams = useSearchParams();
     const fromCalendar = !!(searchParams?.get('startTime') && searchParams?.get('endTime'));
@@ -61,6 +66,15 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
     };
 
     const hasDateConflict = formData.startDate && getDateStatus(formData.startDate) === 'blocked';
+    const hasSlotConflict = Boolean(
+        formData.venueId &&
+        formData.startDate &&
+        formData.startTime &&
+        formData.endTime &&
+        scheduleAvailability &&
+        !scheduleAvailability.checking &&
+        !scheduleAvailability.available
+    );
 
     const TIME_FIELDS = [
         { label: "Start Time", key: "startTime", hint: "Required" },
@@ -103,6 +117,17 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                             </motion.p>
                         )}
                     </AnimatePresence>
+                    <AnimatePresence>
+                        {validationErrors.scheduleAvailability && !hasSlotConflict && !scheduleAvailability?.checking && (
+                            <motion.p
+                                initial={{ opacity: 0, x: -4 }}
+                                animate={{ opacity: 1 }}
+                                className="text-[10px] font-black uppercase tracking-widest text-red-500 mt-1"
+                            >
+                                {validationErrors.scheduleAvailability}
+                            </motion.p>
+                        )}
+                    </AnimatePresence>
 
                     {/* Conflict warning */}
                     <AnimatePresence>
@@ -116,6 +141,36 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
                                 <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                                 <p className="text-[11px] font-medium text-red-500">
                                     Date blocked on venue calendar. Please select a different date.
+                                </p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                    <AnimatePresence>
+                        {scheduleAvailability?.checking && formData.venueId && formData.startDate && formData.startTime && formData.endTime && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-start gap-2"
+                            >
+                                <Clock className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5 animate-pulse" />
+                                <p className="text-[11px] font-medium text-amber-500">
+                                    Checking venue slot availability...
+                                </p>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                    <AnimatePresence>
+                        {hasSlotConflict && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0 }}
+                                animate={{ opacity: 1, height: 'auto' }}
+                                exit={{ opacity: 0, height: 0 }}
+                                className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-start gap-2"
+                            >
+                                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                                <p className="text-[11px] font-medium text-red-500">
+                                    {scheduleAvailability?.reason || validationErrors.scheduleAvailability || "Selected slot is unavailable."}
                                 </p>
                             </motion.div>
                         )}

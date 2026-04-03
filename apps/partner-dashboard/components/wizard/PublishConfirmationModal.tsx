@@ -20,6 +20,8 @@ interface PublishConfirmationModalProps {
     onClose: () => void;
     onConfirm: () => void;
     isSubmitting: boolean;
+    hostNote?: string;
+    onHostNoteChange?: (value: string) => void;
     formData: {
         title: string;
         startDate: string;
@@ -47,7 +49,9 @@ export function PublishConfirmationModal({
     onConfirm,
     isSubmitting,
     formData,
-    role
+    role,
+    hostNote = "",
+    onHostNoteChange
 }: PublishConfirmationModalProps) {
     // Calculate warnings
     const warnings: string[] = [];
@@ -213,13 +217,27 @@ export function PublishConfirmationModal({
 
                             {/* Host Submission Note */}
                             {isHostSubmission && (
-                                <div className="flex items-start gap-3 p-3 rounded-xl bg-blue-50 border border-blue-100">
-                                    <AlertTriangle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                                <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50 p-3">
+                                    <div className="flex items-start gap-3">
+                                        <AlertTriangle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-[13px] font-medium text-blue-800">Venue Approval Required</p>
+                                            <p className="text-[12px] text-blue-700 mt-1">
+                                                The venue will review your event details. You'll be notified once approved.
+                                            </p>
+                                        </div>
+                                    </div>
                                     <div>
-                                        <p className="text-[13px] font-medium text-blue-800">Venue Approval Required</p>
-                                        <p className="text-[12px] text-blue-700 mt-1">
-                                            The venue will review your event details. You'll be notified once approved.
-                                        </p>
+                                        <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-blue-700">
+                                            Add Note For Venue
+                                        </label>
+                                        <textarea
+                                            value={hostNote}
+                                            onChange={(event) => onHostNoteChange?.(event.target.value)}
+                                            rows={3}
+                                            placeholder="Anything the venue should know before reviewing this request?"
+                                            className="w-full resize-none rounded-xl border border-blue-200 bg-white px-3 py-3 text-[13px] text-[#1d1d1f] outline-none transition-colors focus:border-blue-400"
+                                        />
                                     </div>
                                 </div>
                             )}

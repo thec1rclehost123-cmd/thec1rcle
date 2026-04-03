@@ -63,10 +63,10 @@ export function StatTile({
     const isTrendPositive = trend?.isPositive ?? (trend?.direction === "up");
     
     const variantClasses = {
-        default: "bg-[var(--v-card)] border-[var(--v-border)]",
-        elevated: "bg-[var(--v-elevated)] border-[var(--v-border-strong)]",
+        default: "bg-[var(--v-panel-bg)] border-[var(--v-panel-border)] shadow-[var(--v-panel-shadow-card)]",
+        elevated: "bg-[var(--v-panel-bg)] border-[var(--v-panel-border-strong)] shadow-[var(--v-panel-shadow-card)]",
         accent: "bg-[var(--v-orange-dim)] border-[var(--v-orange-glow)]",
-        compact: "bg-[var(--v-elevated)] border-[var(--v-border)]",
+        compact: "bg-[var(--v-panel-bg)] border-[var(--v-panel-border)]",
     };
 
     const Wrapper = interactive ? motion.div : "div";
@@ -77,7 +77,7 @@ export function StatTile({
                 "rounded-[var(--v-r-xl)] border p-5 flex flex-col gap-3 relative overflow-hidden transition-all duration-200",
                 variantClasses[variant],
                 variant === "compact" && "p-3 py-3 gap-1",
-                interactive && "hover:bg-[var(--v-card-hover)] hover:shadow-lg cursor-pointer active:scale-[0.98]",
+                interactive && "hover:bg-[var(--v-panel-hover)] hover:shadow-[var(--v-shadow-hover)] cursor-pointer active:scale-[0.98]",
                 className
             )}
             onClick={onClick}

@@ -2,13 +2,44 @@
  * GET /api/partner/promoter/analytics?range=7d|30d|ytd|all
  *
  * Real aggregated analytics for the authenticated promoter.
- * Scoped strictly to the promoter's own links and assignments.
+ * Scoped strictly to the promoter's own links and commission activity.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
 import { Timestamp } from "firebase-admin/firestore";
+import { listPromoterLinks } from "@/lib/server/promoterLinkStore";
+
+const COMMISSIONS_COLLECTION = "promoter_commissions";
+const SEEDED_ID_PREFIXES = [
+    "ORD-EPITOME-",
+    "RSVP-EPITOME-",
+    "user_seed_",
+    "promo_seed_",
+    "host_seed_",
+    "evt_epitome_",
+    "link_promo_seed_",
+];
+
+type TimelinePoint = {
+    date: string;
+    clicks: number;
+    sales: number;
+    revenue: number;
+};
+
+type ActivityItem = {
+    id: string;
+    type: "sale" | "link_created" | "link_deactivated";
+    title: string;
+    detail: string;
+    eventName: string;
+    linkCode: string | null;
+    amount: number;
+    commission: number;
+    createdAt: string;
+};
 
 function startOfDayDate(d: Date): Date {
     const c = new Date(d);
@@ -22,135 +53,252 @@ function isoDate(d: Date): string {
 
 function parseRange(range: string): Date {
     const now = new Date();
-    if (range === "7d")  { const d = new Date(now); d.setDate(d.getDate() - 7);  return startOfDayDate(d); }
-    if (range === "ytd") return new Date(now.getFullYear(), 0, 1);
+    if (range === "1d") return startOfDayDate(now);
+    if (range === "1w" || range === "7d") {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 6);
+        return startOfDayDate(d);
+    }
+    if (range === "1m" || range === "30d") {
+        const d = new Date(now);
+        d.setDate(d.getDate() - 29);
+        return startOfDayDate(d);
+    }
+    if (range === "ytd") return startOfDayDate(new Date(now.getFullYear(), 0, 1));
     if (range === "all") return new Date(0);
-    // default: 30d
-    const d = new Date(now); d.setDate(d.getDate() - 30); return startOfDayDate(d);
+    const d = new Date(now);
+    d.setDate(d.getDate() - 29);
+    return startOfDayDate(d);
+}
+
+function toIsoDate(value: any): string | null {
+    if (!value) return null;
+    if (typeof value?.toDate === "function") return value.toDate().toISOString();
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === "string") {
+        const parsed = new Date(value);
+        return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+    }
+    return null;
+}
+
+function hasSeededPrefix(value: unknown) {
+    const str = String(value || "");
+    return SEEDED_ID_PREFIXES.some((prefix) => str.startsWith(prefix));
+}
+
+function isSeededRecord(record: Record<string, any> | null | undefined, explicitId = "") {
+    if (hasSeededPrefix(explicitId)) return true;
+    return [
+        record?.id,
+        record?.eventId,
+        record?.orderId,
+        record?.userId,
+        record?.buyerId,
+        record?.promoterId,
+        record?.promoterRef,
+        record?.linkId,
+        record?.linkCode,
+    ].some(hasSeededPrefix);
+}
+
+function distributeClicks(timelineDays: TimelinePoint[], totalClicks: number) {
+    if (timelineDays.length === 0 || totalClicks <= 0) return timelineDays;
+    const totalTimelineClicks = timelineDays.reduce((sum, point) => sum + (point.clicks || 0), 0);
+    if (totalTimelineClicks > 0) return timelineDays;
+
+    const bucketCount = timelineDays.length;
+    const baseClicks = Math.floor(totalClicks / bucketCount);
+    let remainder = totalClicks % bucketCount;
+
+    return timelineDays.map((point) => {
+        const extra = remainder > 0 ? 1 : 0;
+        remainder -= extra;
+        return {
+            ...point,
+            clicks: baseClicks + extra,
+        };
+    });
 }
 
 export async function GET(req: NextRequest) {
     const ctx = await requirePromoterAccess(req);
-    const { promoterId } = ctx as any;
     if ("error" in ctx) {
         return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     }
+    const { promoterId } = ctx as any;
 
     const { searchParams } = new URL(req.url);
-    const range = searchParams.get("range") || "30d";
-    const from  = parseRange(range);
-    const db    = getAdminDb();
+    const range = searchParams.get("range") || "1m";
+    const eventId = searchParams.get("eventId") || "";
+    const from = parseRange(range);
+    const db = getAdminDb();
 
     try {
-        // 1. Fetch all promoter links (sort in-memory to avoid composite index requirement)
-        const linksSnap = await db
-            .collection("promoter_links")
-            .where("promoterId", "==", promoterId)
-            .limit(200)
-            .get();
-
-        const links = linksSnap.docs.map((d) => {
-            const data = d.data();
-            return {
-                id: d.id,
-                eventName: data.eventTitle || data.eventName || "Event",
-                code: data.code || data.slug || d.id,
-                clicks: data.clicks || 0,
-                sales: data.conversions || data.sales || 0,
-                revenue: data.revenue || 0,
-                commission: data.commission || 0,
-            };
-        });
-
-        // 2. Aggregate overview KPIs
-        let totalClicks = 0, ticketsSold = 0, totalRevenue = 0, totalCommission = 0;
-        for (const l of links) {
-            totalClicks     += l.clicks;
-            ticketsSold     += l.sales;
-            totalRevenue    += l.revenue;
-            totalCommission += l.commission;
-        }
-
-        // Fall back to assignments if commission not tracked on links
-        if (totalCommission === 0) {
-            const asgnSnap = await db
-                .collection("promoter_assignments")
+        const ordersBaseQuery = db.collection("orders")
+            .where("promoterRef", "==", promoterId)
+            .where("createdAt", ">=", Timestamp.fromDate(from));
+        const ordersQuery = eventId
+            ? ordersBaseQuery.where("eventId", "==", eventId)
+            : ordersBaseQuery;
+        const [links, commissionSnap, ordersSnap] = await Promise.all([
+            listPromoterLinks({ promoterId, eventId: eventId || undefined, limit: 150 }),
+            db.collection(COMMISSIONS_COLLECTION)
                 .where("promoterId", "==", promoterId)
-                .get();
-            for (const doc of asgnSnap.docs) {
-                const d = doc.data();
-                totalCommission += d.totalCommission || d.commissionEarned || 0;
-                if (totalRevenue === 0) totalRevenue += d.totalRevenue || d.revenue || 0;
-            }
-        }
-
-        const conversionRate = totalClicks > 0
-            ? ((ticketsSold / totalClicks) * 100).toFixed(2) + "%"
-            : "0.00%";
-
-        // 3. Build timeline — try orders collection, then synthetic fallback
-        let timelineDays: { date: string; clicks: number; sales: number; revenue: number }[] = [];
-
-        try {
-            const ordersSnap = await db
-                .collection("orders")
-                .where("promoterRef", "==", promoterId)
-                .where("createdAt", ">=", Timestamp.fromDate(from))
+                .orderBy("createdAt", "desc")
+                .limit(25)
+                .get()
+                .catch(() => db.collection(COMMISSIONS_COLLECTION).where("promoterId", "==", promoterId).limit(25).get()),
+            ordersQuery
                 .orderBy("createdAt", "asc")
                 .limit(500)
-                .get();
+                .get()
+                .catch(() => ordersBaseQuery.limit(500).get())
+                .catch(() => null),
+        ]);
 
-            const byDate: Record<string, { clicks: number; sales: number; revenue: number }> = {};
-            for (const doc of ordersSnap.docs) {
-                const d  = doc.data();
-                const dt = d.createdAt?.toDate?.();
-                if (!dt) continue;
-                const key = isoDate(dt);
-                if (!byDate[key]) byDate[key] = { clicks: 0, sales: 0, revenue: 0 };
-                byDate[key].sales   += 1;
-                byDate[key].revenue += d.amount || d.total || 0;
-            }
-            timelineDays = Object.entries(byDate)
-                .sort((a, b) => a[0].localeCompare(b[0]))
-                .map(([date, v]) => ({ date, ...v }));
-        } catch {
-            // orders query unavailable — fall through to synthetic
-        }
-
-        // Synthetic spread when no per-day data exists
-        if (timelineDays.length === 0 && (totalClicks > 0 || ticketsSold > 0)) {
-            const days = Math.max(1, Math.round((Date.now() - from.getTime()) / 86400000));
-            const pts  = Math.min(days, 14);
-            const step = Math.max(1, Math.floor(days / pts));
-            for (let i = 0; i < pts; i++) {
-                const d = new Date(from);
-                d.setDate(d.getDate() + i * step);
-                timelineDays.push({
-                    date: isoDate(d),
-                    clicks:  Math.round(totalClicks  / pts),
-                    sales:   Math.round(ticketsSold  / pts),
-                    revenue: Math.round(totalRevenue / pts),
-                });
-            }
-        }
-
-        // 4. Top links sorted by clicks in memory
-        links.sort((a, b) => b.clicks - a.clicks);
-        const topLinks = links.slice(0, 10).map((l) => ({
-            id: l.id,
-            eventName: l.eventName,
-            code: l.code,
-            clicks: l.clicks,
-            sales: l.sales,
-            conversion: l.clicks > 0 ? ((l.sales / l.clicks) * 100).toFixed(1) + "%" : "0.0%",
+        const normalizedLinks = links
+            .filter((link) => !isSeededRecord(link, String(link.id || "")))
+            .map((link) => ({
+            id: link.id,
+            eventId: link.eventId,
+            eventName: link.eventTitle || "Event",
+            eventSlug: link.eventSlug || link.eventId || null,
+            code: link.code || link.shortCode || link.id,
+            clicks: Number(link.clicks || 0),
+            sales: Number(link.conversions || 0),
+            revenue: Number(link.revenue || 0),
+            commission: Number(link.commission || 0),
+            isActive: Boolean(link.isActive),
+            createdAt: link.createdAt || null,
+            updatedAt: link.updatedAt || null,
+            deactivatedAt: link.deactivatedAt || null,
         }));
 
-        return NextResponse.json({
-            overview: { totalClicks, ticketsSold, revenue: totalRevenue, commission: totalCommission, conversionRate },
-            timeline: timelineDays,
-            topLinks,
+        const overview = normalizedLinks.reduce((acc, link) => {
+            acc.totalClicks += link.clicks;
+            acc.ticketsSold += link.sales;
+            acc.revenue += link.revenue;
+            acc.commission += link.commission;
+            return acc;
+        }, {
+            totalClicks: 0,
+            ticketsSold: 0,
+            revenue: 0,
+            commission: 0,
         });
 
+        const conversionRate = overview.totalClicks > 0
+            ? `${((overview.ticketsSold / overview.totalClicks) * 100).toFixed(2)}%`
+            : "0.00%";
+
+        let timelineDays: TimelinePoint[] = [];
+        if (ordersSnap) {
+            const byDate: Record<string, TimelinePoint> = {};
+            for (const doc of ordersSnap.docs) {
+                const order = doc.data();
+                if (isSeededRecord(order, doc.id)) continue;
+                if (eventId && String(order.eventId || "") !== eventId) continue;
+                const createdAt = order.createdAt?.toDate?.();
+                if (!createdAt) continue;
+                const key = isoDate(createdAt);
+                if (!byDate[key]) {
+                    byDate[key] = { date: key, clicks: 0, sales: 0, revenue: 0 };
+                }
+                byDate[key].sales += 1;
+                byDate[key].revenue += Number(order.amount || order.total || 0);
+            }
+            timelineDays = Object.values(byDate).sort((a, b) => a.date.localeCompare(b.date));
+        }
+
+        timelineDays = distributeClicks(timelineDays, overview.totalClicks);
+
+        const topLinks = [...normalizedLinks]
+            .sort((a, b) => {
+                if (b.clicks !== a.clicks) return b.clicks - a.clicks;
+                return b.sales - a.sales;
+            })
+            .slice(0, 10)
+            .map((link) => ({
+                id: link.id,
+                eventName: link.eventName,
+                eventSlug: link.eventSlug,
+                code: link.code,
+                clicks: link.clicks,
+                sales: link.sales,
+                revenue: link.revenue,
+                conversion: link.clicks > 0 ? `${((link.sales / link.clicks) * 100).toFixed(1)}%` : "0.0%",
+            }));
+
+        const salesActivities: ActivityItem[] = commissionSnap.docs.flatMap((doc) => {
+            const item = doc.data() || {};
+            if (isSeededRecord(item, doc.id)) return [];
+            if (eventId && String(item.eventId || "") !== eventId) return [];
+            return [{
+                id: doc.id,
+                type: "sale",
+                title: "Sale attributed",
+                detail: item.orderId ? `Order ${String(item.orderId).slice(0, 8)}` : "Commission recorded",
+                eventName: item.eventName || item.eventTitle || "Event",
+                linkCode: item.linkCode || null,
+                amount: Number(item.orderAmount || 0),
+                commission: Number(item.commissionAmount || 0),
+                createdAt: toIsoDate(item.createdAt) || new Date(0).toISOString(),
+            }];
+        });
+
+        const linkActivities: ActivityItem[] = normalizedLinks.flatMap((link) => {
+            const items: ActivityItem[] = [];
+            if (link.createdAt) {
+                items.push({
+                    id: `${link.id}:created`,
+                    type: "link_created",
+                    title: "Link created",
+                    detail: "Ready to share",
+                    eventName: link.eventName,
+                    linkCode: link.code,
+                    amount: 0,
+                    commission: 0,
+                    createdAt: link.createdAt,
+                });
+            }
+            if (link.deactivatedAt) {
+                items.push({
+                    id: `${link.id}:deactivated`,
+                    type: "link_deactivated",
+                    title: "Link paused",
+                    detail: "Tracking stopped for this link",
+                    eventName: link.eventName,
+                    linkCode: link.code,
+                    amount: 0,
+                    commission: 0,
+                    createdAt: link.deactivatedAt,
+                });
+            }
+            return items;
+        });
+
+        const activities = [...salesActivities, ...linkActivities]
+            .filter((activity) => {
+                const createdAt = new Date(activity.createdAt);
+                return !Number.isNaN(createdAt.getTime()) && createdAt.getTime() >= from.getTime();
+            })
+            .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+            .slice(0, 12);
+
+        return NextResponse.json({
+            overview: {
+                ...overview,
+                activeLinks: normalizedLinks.filter((link) => link.isActive).length,
+                totalLinks: normalizedLinks.length,
+                conversionRate,
+            },
+            timeline: timelineDays,
+            topLinks,
+            activities,
+        }, {
+            headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
+        });
     } catch (err: any) {
         console.error("[partner/promoter/analytics] Error:", err.message);
         return NextResponse.json({ error: "Failed to load promoter analytics" }, { status: 500 });

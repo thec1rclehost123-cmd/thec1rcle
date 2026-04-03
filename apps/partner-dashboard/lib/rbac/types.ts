@@ -1,7 +1,7 @@
 export type PartnerType = 'venue' | 'host' | 'promoter' | 'club'; // Keep 'club' for backward compat during transition
 
 export type VenueRole = 'OWNER' | 'MANAGER' | 'FINANCE_ADMIN' | 'STAFF' | 'SECURITY';
-export type HostRole = 'OWNER' | 'COHOST' | 'STAFF';
+export type HostRole = 'OWNER' | 'COHOST' | 'MANAGER' | 'STAFF';
 export type PromoterRole = 'PROMOTER' | 'TEAM_LEAD';
 
 export type StaffRole = VenueRole | HostRole | PromoterRole;
@@ -56,6 +56,9 @@ export const HOST_PERMISSIONS: Record<HostRole, Permission[]> = {
     ],
     COHOST: [
         'MANAGE_EVENTS', 'MANAGE_PROMOTERS', 'VIEW_ANALYTICS', 'VIEW_REAL_TIME_SCANS', 'VIEW_GUESTLIST'
+    ],
+    MANAGER: [
+        'MANAGE_EVENTS', 'VIEW_ANALYTICS', 'VIEW_GUESTLIST', 'VIEW_REAL_TIME_SCANS'
     ],
     STAFF: [
         'VIEW_GUESTLIST', 'VIEW_REAL_TIME_SCANS'
@@ -128,6 +131,10 @@ export function getDefaultTabVisibility(
         if (r === 'OWNER') return null;
         if (r === 'COHOST') return {
             overview: true, events: true, calendar: true, network: true,
+            audience: true, analytics: true, finance: false, settings: false,
+        };
+        if (r === 'MANAGER') return {
+            overview: true, events: true, calendar: true, network: false,
             audience: true, analytics: true, finance: false, settings: false,
         };
         // STAFF — minimum access

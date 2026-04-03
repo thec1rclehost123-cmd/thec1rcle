@@ -32,35 +32,45 @@ export function VenuePageShell({
     noPadding = false,
     pageAccent,
 }: VenuePageShellProps) {
-    const hasControlBar = !!(filterBar || actions);
+    const hasControlBar = !!filterBar;
 
     return (
         <div
-            className={cn("mx-auto w-full pb-20", maxWidthClasses[maxWidth])}
+            className={cn("mx-auto w-full pb-20 min-w-0", maxWidthClasses[maxWidth])}
+            data-page-shell
             style={pageAccent ? { "--v-page-accent": pageAccent } as React.CSSProperties : undefined}
         >
             {/* Page Header */}
-            <div className="mb-3">
-                <h1
-                    className="v-text-title font-semibold"
-                    style={{ color: "var(--v-text-primary)" }}
-                >
-                    {title}
-                </h1>
-                {subtitle && (
-                    <div
-                        className="mt-1 text-[14px]"
-                        style={{ color: "var(--v-text-secondary)" }}
-                    >
-                        {subtitle}
+            <div className="mb-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div className="min-w-0">
+                        <h1
+                            className="v-text-title font-semibold"
+                            style={{ color: "var(--v-text-primary)" }}
+                        >
+                            {title}
+                        </h1>
+                        {subtitle ? (
+                            <div
+                                className="mt-1 text-sm leading-6"
+                                style={{ color: "var(--v-text-secondary)" }}
+                            >
+                                {subtitle}
+                            </div>
+                        ) : null}
                     </div>
-                )}
+                    {actions && !hasControlBar ? (
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end shrink-0">
+                            {actions}
+                        </div>
+                    ) : null}
+                </div>
             </div>
 
             {/* Sticky Control Bar — tabs on left, actions on right */}
             {hasControlBar && (
                 <div
-                    className="sticky top-0 z-10 mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10"
+                    className="sticky top-14 lg:top-16 z-10 mb-4 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 xl:-mx-10 xl:px-10 border-b border-[var(--v-divider)]"
                     style={{
                         background: "var(--v-canvas)",
                         backdropFilter: "blur(12px)",
@@ -69,12 +79,12 @@ export function VenuePageShell({
                         paddingBottom: "10px",
                     }}
                 >
-                    <div className="flex flex-col xs:flex-row xs:items-center xs:justify-between gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="min-w-0 flex-1 overflow-x-auto scrollbar-hide">
                             {filterBar}
                         </div>
-                        {actions && (
-                            <div className="flex items-center gap-2 shrink-0 overflow-x-auto scrollbar-hide">
+                        {actions && filterBar && (
+                            <div className="flex flex-wrap items-center gap-2 shrink-0 overflow-x-auto scrollbar-hide">
                                 {actions}
                             </div>
                         )}

@@ -116,20 +116,56 @@ function buildNeedToKnowItems(event, selectedTickets = []) {
     return items.slice(0, 7);
 }
 
+function normalizeReservationItems(items = []) {
+    return items
+        .map((item) => ({
+            tierId: item?.tierId || item?.id || null,
+            quantity: Number(item?.quantity || 0)
+        }))
+        .filter((item) => item.tierId && item.quantity > 0)
+        .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
+}
+
+function hydrateReservationItems(items = [], tiers = []) {
+    return normalizeReservationItems(items).map((item) => {
+        const tier = tiers.find((candidate) => candidate.id === item.tierId);
+        return tier
+            ? {
+                ...tier,
+                id: tier.id,
+                quantity: item.quantity,
+                price: Number(tier.price || 0),
+                name: tier.name
+            }
+            : {
+                id: item.tierId,
+                tierId: item.tierId,
+                quantity: item.quantity,
+                price: 0,
+                name: "Reserved Ticket"
+            };
+    });
+}
+
 function NeedToKnowCard({ items, className = "" }) {
     if (!items?.length) return null;
 
     return (
-        <div className={`rounded-[28px] border border-white/10 bg-white/[0.03] p-5 backdrop-blur-2xl ${className}`}>
-            <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-orange" />
-                <p className="text-[10px] font-black uppercase tracking-[0.28em] text-orange">Need to know</p>
+        <div className={`rounded-[30px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)] backdrop-blur-2xl ${className}`}>
+            <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-orange/12 bg-orange/10">
+                    <AlertCircle className="h-4 w-4 text-orange" />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-orange">Need to know</p>
+                    <p className="mt-1 text-[11px] text-white/38">Entry details for tonight&apos;s booking.</p>
+                </div>
             </div>
-            <div className="mt-4 space-y-3">
+            <div className="mt-5 space-y-0">
                 {items.map((item) => (
-                    <div key={`${item.label}-${item.value}`} className="flex items-start justify-between gap-4 border-b border-white/6 pb-3 last:border-b-0 last:pb-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">{item.label}</p>
-                        <p className="max-w-[24ch] text-right text-sm font-medium leading-6 text-white/[0.72]">{item.value}</p>
+                    <div key={`${item.label}-${item.value}`} className="grid grid-cols-[minmax(0,110px)_1fr] items-start gap-4 border-b border-white/6 py-3.5 first:pt-0 last:border-b-0 last:pb-0">
+                        <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/36">{item.label}</p>
+                        <p className="text-right text-[15px] font-semibold leading-6 text-white/78">{item.value}</p>
                     </div>
                 ))}
             </div>
@@ -166,6 +202,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     const [pricingResult, setPricingResult] = useState(null);
     const [otherEventReservation, setOtherEventReservation] = useState(null);
     const [feesBreakdownOpen, setFeesBreakdownOpen] = useState(false);
+    const paymentInFlightRef = useRef(false);
 
     useEffect(() => {
         setMounted(true);
@@ -182,16 +219,17 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 const saved = localStorage.getItem("c1rcle_reservation");
                 if (saved) {
                     const parsed = JSON.parse(saved);
+                    const normalizedItems = normalizeReservationItems(parsed.items);
                     // If it's for THIS event, we can auto-restore or show banner
                     if (parsed.eventId === event?.id && new Date(parsed.expiresAt) > new Date()) {
-                        setCartReservation(parsed);
+                        setCartReservation({ ...parsed, items: normalizedItems });
                         // If current selection is empty, restore the tickets from reservation
-                        if (selectedTickets.length === 0 && parsed.items?.length > 0) {
-                            setSelectedTickets(parsed.items);
+                        if (selectedTickets.length === 0 && normalizedItems.length > 0) {
+                            setSelectedTickets(hydrateReservationItems(normalizedItems, event.tickets ?? []));
                         }
                     } else if (new Date(parsed.expiresAt) > new Date()) {
                         // It's for a DIFFERENT event - keep it in state for the cross-event banner
-                        setOtherEventReservation(parsed);
+                        setOtherEventReservation({ ...parsed, items: normalizedItems });
                     } else {
                         localStorage.removeItem("c1rcle_reservation");
                     }
@@ -418,6 +456,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     };
 
     const handlePayment = async () => {
+        if (paymentInFlightRef.current) return;
+        paymentInFlightRef.current = true;
         setIsProcessing(true);
         setError("");
         setProcessingState("initiating");
@@ -435,9 +475,11 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
             // 2. Step 1: Reserve Inventory (if not already done or if selection changed)
             let reserveData = cartReservation;
+            const currentSelection = normalizeReservationItems(selectedTickets);
 
             // Check if we need to (re)reserve: No reserve Data OR event mismatch OR expired OR selection changed
-            const selectionChanged = !reserveData || JSON.stringify(reserveData.items) !== JSON.stringify(selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })));
+            const selectionChanged = !reserveData
+                || JSON.stringify(normalizeReservationItems(reserveData.items)) !== JSON.stringify(currentSelection);
 
             if (!reserveData || reserveData.eventId !== event.id || new Date(reserveData.expiresAt) <= new Date() || selectionChanged) {
                 setProcessingState("reserving");
@@ -449,7 +491,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     },
                     body: JSON.stringify({
                         eventId: event.id,
-                        items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
+                        items: currentSelection,
                         deviceId: "browser-" + (user?.uid || "anon")
                     })
                 });
@@ -457,14 +499,14 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 reserveData = await reserveRes.json();
                 if (!reserveRes.ok) throw new Error(reserveData.error || "Failed to reserve tickets");
 
-                setCartReservation({ ...reserveData, items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })) });
+                setCartReservation({ ...reserveData, eventId: event.id, items: currentSelection });
                 try {
                     localStorage.setItem("c1rcle_reservation", JSON.stringify({
                         reservationId: reserveData.reservationId,
                         eventId: event.id,
                         eventTitle: event.title,
                         expiresAt: reserveData.expiresAt,
-                        items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity }))
+                        items: currentSelection
                     }));
                 } catch (_) { }
             }
@@ -511,6 +553,8 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             setError(err.message || "Something went wrong.");
             setIsProcessing(false);
             setProcessingState("");
+        } finally {
+            paymentInFlightRef.current = false;
         }
     };
 
@@ -801,62 +845,68 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 </div>
 
                 {/* Vertical Summary Container */}
-                <div className="hidden md:flex flex-col h-fit bg-white/[0.03] rounded-[40px] border border-white/10 backdrop-blur-3xl overflow-hidden shadow-2xl">
-                    <div className="relative h-40 shrink-0">
+                <div className="hidden md:flex flex-col h-fit overflow-hidden rounded-[42px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.03))] shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-3xl">
+                    <div className="relative h-44 shrink-0">
                         <Image src={event.image || "/events/placeholder.jpg"} alt={event.title} fill sizes="(max-width: 768px) 100vw, 600px" className="object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                        <div className="absolute bottom-6 left-8 right-8">
-                            <div className="px-2 py-0.5 bg-orange/20 border border-orange/40 rounded-full w-fit mb-2">
+                        <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-black/45 to-transparent" />
+                        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
+                        <div className="absolute bottom-6 left-7 right-7">
+                            <div className="mb-3 inline-flex items-center rounded-full border border-orange/18 bg-orange/15 px-3 py-1">
                                 <p className="text-[7px] font-black uppercase tracking-[0.3em] text-orange">Booking Summary</p>
                             </div>
-                            <h3 className="text-lg font-black uppercase text-white leading-tight truncate">{event.title}</h3>
+                            <h3 className="text-[26px] font-black uppercase leading-none tracking-tight text-white drop-shadow-[0_6px_20px_rgba(0,0,0,0.45)]">
+                                {event.title}
+                            </h3>
                         </div>
                     </div>
 
-                    <div className="p-8 flex flex-col flex-1">
-                        <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-2">
+                    <div className="flex flex-col flex-1 px-7 pb-7 pt-6">
+                        <div className="rounded-[28px] border border-white/5 bg-black/20 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                            <div className="space-y-3 overflow-y-auto custom-scrollbar">
                             {selectedTickets.length > 0 ? (
                                 selectedTickets.map(t => (
-                                    <div key={t.id} className="flex justify-between items-start group py-1">
-                                        <div className="min-w-0 pr-4">
-                                            <p className="text-[11px] font-black text-white uppercase tracking-tight truncate">{t.name}</p>
-                                            <p className="text-[8px] font-bold text-white/30 uppercase tracking-[0.2em] mt-0.5">X{t.quantity}</p>
+                                        <div key={t.id} className="flex items-start justify-between gap-4 border-b border-white/4 pb-3 last:border-b-0 last:pb-0">
+                                            <div className="min-w-0 pr-4">
+                                                <p className="truncate text-[13px] font-black uppercase tracking-[0.08em] text-white">{t.name}</p>
+                                                <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-white/28">{t.quantity} ticket{t.quantity > 1 ? "s" : ""}</p>
+                                            </div>
+                                            <p className="shrink-0 text-[18px] font-black tracking-tight text-white">₹{(t.price * t.quantity).toLocaleString('en-IN')}</p>
                                         </div>
-                                        <p className="text-[11px] font-black text-white">₹{(t.price * t.quantity).toLocaleString('en-IN')}</p>
-                                    </div>
                                 ))
                             ) : (
-                                <p className="text-[9px] font-black uppercase tracking-[0.4em] text-white/10 text-center py-10 italic">Empty Order</p>
+                                <p className="py-10 text-center text-[10px] font-black uppercase tracking-[0.34em] text-white/16">Empty Order</p>
                             )}
+                            </div>
                         </div>
 
                         {/* Promo Code Section */}
-                        <div className="mb-4">
+                        <div className="mt-5">
                             <PromoCodeInput
                                 eventId={event.id}
                                 onApply={handleApplyPromoCode}
                                 appliedCode={appliedPromoCode}
                                 onRemove={handleRemovePromoCode}
-                                className="[&_input]:bg-white/10 [&_input]:border-white/10 [&_input]:text-white [&_input]:placeholder:text-white/30"
+                                className="[&_input]:h-14 [&_input]:rounded-[22px] [&_input]:border-white/5 [&_input]:bg-white/[0.04] [&_input]:text-white [&_input]:placeholder:text-white/22"
                             />
                         </div>
 
-                        <NeedToKnowCard items={needToKnowItems} className="mb-4" />
+                        <NeedToKnowCard items={needToKnowItems} className="mt-5" />
 
-                        <div className="pt-6 border-t border-white/10 mt-auto space-y-3">
+                        <div className="mt-6 rounded-[30px] border border-white/5 bg-[linear-gradient(180deg,rgba(255,255,255,0.035),rgba(255,255,255,0.015))] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                            <div className="space-y-3">
                             {/* Subtotal */}
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40">Subtotal</span>
-                                <span className="text-[12px] font-bold text-white/60">₹{subtotal.toLocaleString('en-IN')}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Subtotal</span>
+                                <span className="text-[13px] font-semibold text-white/68">₹{subtotal.toLocaleString('en-IN')}</span>
                             </div>
 
                             {/* Discounts */}
                             {totalDiscount > 0 && (
                                 <div className="flex justify-between items-center">
-                                    <span className="text-[10px] font-bold uppercase tracking-widest text-green-400/80">
+                                    <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-green-400/80">
                                         {appliedPromoCode ? `Promo (${appliedPromoCode})` : "Discount"}
                                     </span>
-                                    <span className="text-[12px] font-bold text-green-400">-₹{totalDiscount.toLocaleString('en-IN')}</span>
+                                    <span className="text-[13px] font-semibold text-green-400">-₹{totalDiscount.toLocaleString('en-IN')}</span>
                                 </div>
                             )}
 
@@ -866,13 +916,13 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     <button
                                         type="button"
                                         onClick={() => setFeesBreakdownOpen((open) => !open)}
-                                        className="flex w-full items-center justify-between rounded-2xl border border-white/8 bg-white/[0.02] px-3 py-2 transition-colors hover:border-white/14 hover:bg-white/[0.04]"
+                                        className="flex w-full items-center justify-between rounded-[20px] border border-white/5 bg-white/[0.025] px-3.5 py-3 transition-colors hover:border-white/10 hover:bg-white/[0.04]"
                                     >
-                                        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-white/40">
+                                        <span className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">
                                             Fees & GST
                                             <ChevronDown className={`h-3.5 w-3.5 transition-transform ${feesBreakdownOpen ? "rotate-180" : ""}`} />
                                         </span>
-                                        <span className="text-[12px] font-bold text-white/72">+₹{displayFees.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
+                                        <span className="text-[13px] font-semibold text-white/72">+₹{displayFees.toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}</span>
                                     </button>
 
                                     <AnimatePresence initial={false}>
@@ -881,7 +931,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                 initial={{ opacity: 0, height: 0, y: -4 }}
                                                 animate={{ opacity: 1, height: "auto", y: 0 }}
                                                 exit={{ opacity: 0, height: 0, y: -4 }}
-                                                className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03]"
+                                                className="overflow-hidden rounded-[20px] border border-white/5 bg-white/[0.03]"
                                             >
                                                 <div className="space-y-2 p-3">
                                                     {feeBreakdown.map((item) => (
@@ -898,17 +948,21 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             )}
 
                             {/* Total */}
-                            <div className="flex justify-between items-center pt-3 border-t border-white/10">
-                                <span className="text-[10px] font-black uppercase tracking-widest text-white/30">Total</span>
+                            <div className="mt-4 flex items-end justify-between border-t border-white/6 pt-4">
+                                <div>
+                                    <p className="text-[10px] font-black uppercase tracking-[0.26em] text-white/34">Total</p>
+                                    <p className="mt-1 text-[11px] text-white/32">Inclusive of all confirmed charges.</p>
+                                </div>
                                 <div className="text-right">
-                                    <p className="text-3xl font-black text-white tracking-tighter">₹{displayTotal.toLocaleString('en-IN')}</p>
-                                    <p className="text-[7px] font-black text-white/20 uppercase tracking-[0.4em]">Grand Total</p>
+                                    <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white">₹{displayTotal.toLocaleString('en-IN')}</p>
+                                    <p className="mt-1 text-[8px] font-black uppercase tracking-[0.36em] text-white/22">Grand Total</p>
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white/5 rounded-full border border-white/5 w-full justify-center mt-4">
-                                <ShieldCheck className="w-2.5 h-2.5 text-white/20" />
-                                <span className="text-[7px] font-black uppercase tracking-[0.3em] text-white/20">End-to-End Encrypted</span>
+                            <div className="mt-4 flex items-center justify-center gap-2 rounded-full border border-white/4 bg-white/[0.03] px-3 py-2">
+                                <ShieldCheck className="h-3 w-3 text-white/26" />
+                                <span className="text-[8px] font-black uppercase tracking-[0.28em] text-white/24">End-to-End Encrypted</span>
+                            </div>
                             </div>
                         </div>
                     </div>

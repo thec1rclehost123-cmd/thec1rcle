@@ -5,31 +5,33 @@ import {
     Search,
     RefreshCw,
     Users,
-    ShieldCheck,
-    Zap,
-    MapPin,
-    CalendarDays,
-    Clock,
-    CheckCircle2,
-    UserCircle,
-    Building2,
     XCircle,
     Loader2,
     Bell,
     X,
     RotateCcw,
     Trash2,
+    MapPin,
+    ShieldCheck,
+    CalendarDays,
+    CheckCircle2,
+    Clock,
+    Building2,
+    UserCircle,
+    Zap,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
+import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
+import { useRouter } from "next/navigation";
 
 type PartnerFilterType = "host" | "venue" | "promoter" | "all";
 
-interface DiscoveredPartner {
+export interface DiscoveredPartner {
     id: string;
     type: "host" | "venue" | "promoter";
     name: string;
+    avatar?: string | null;
     city: string;
     bio: string;
     tags: string[];
@@ -37,7 +39,6 @@ interface DiscoveredPartner {
     followersCount: number;
     isVerified: boolean;
     connectionStatus: "pending" | "approved" | "rejected" | "blocked" | "active" | null;
-    // Extended fields
     capacity?: number;
     operatingHours?: string;
     soundSystem?: string;
@@ -63,24 +64,35 @@ interface DiscoverDirectoryProps {
     filterType?: PartnerFilterType;
     filterCity?: string;
     refreshTrigger?: number;
+    onOpenProfile?: (partner: DiscoveredPartner) => void;
 }
 
-export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: ctrlSearch, filterType: ctrlType, filterCity: ctrlCity, refreshTrigger }: DiscoverDirectoryProps) {
+export function DiscoverDirectory({ 
+    allowedTypes, 
+    partnerId, 
+    role, 
+    searchQuery: ctrlSearch, 
+    filterType: ctrlType, 
+    filterCity: ctrlCity, 
+    refreshTrigger,
+    onOpenProfile 
+}: DiscoverDirectoryProps) {
     const { profile, user } = useDashboardAuth();
+    const router = useRouter();
     const [partners, setPartners] = useState<DiscoveredPartner[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const isControlled = ctrlSearch !== undefined;
     const [searchQuery, setSearchQuery] = useState("");
     const [filterType, setFilterType] = useState<PartnerFilterType>(
-        allowedTypes.includes("all") ? "all" : allowedTypes[0]
+        allowedTypes.includes("all") || allowedTypes.length > 1 ? "all" : allowedTypes[0]
     );
     const [filterCity, setFilterCity] = useState("");
+    const [requestingId, setRequestingId] = useState<string | null>(null);
+
     const effectiveSearch = isControlled ? (ctrlSearch ?? "") : searchQuery;
     const effectiveType = isControlled ? (ctrlType ?? filterType) : filterType;
     const effectiveCity = isControlled ? (ctrlCity ?? "") : filterCity;
-    const [selectedProfile, setSelectedProfile] = useState<NetworkProfile | null>(null);
-    const [requestingId, setRequestingId] = useState<string | null>(null);
 
     const fetchPartners = useCallback(async () => {
         if (!partnerId) return;
@@ -140,9 +152,7 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: 
                 }),
             });
             if (!res.ok) throw new Error("Failed");
-            // Refresh + close modal
             await fetchPartners();
-            setSelectedProfile(null);
         } catch (err) {
             console.error(err);
             alert("Failed to send partnership request. Please try again.");
@@ -152,83 +162,72 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: 
     };
 
     const openProfile = (partner: DiscoveredPartner) => {
-        setSelectedProfile({
-            id: partner.id,
-            type: partner.type,
-            name: partner.name,
-            city: partner.city,
-            bio: partner.bio,
-            instagram: partner.instagram,
-            phone: partner.phone,
-            isVerified: partner.isVerified,
-            connectionStatus: partner.connectionStatus,
-            photoURL: partner.photoURL,
-            coverURL: partner.coverURL,
-            capacity: partner.capacity,
-            operatingHours: partner.operatingHours,
-            soundSystem: partner.soundSystem,
-            musicPolicy: partner.musicPolicy,
-            avgCrowdSize: partner.avgCrowdSize,
-            audienceDemographic: partner.audienceDemographic,
-            noShowRate: partner.noShowRate,
-            eventsCount: partner.eventsCount,
-            hostsConnected: partner.hostsConnected,
-            promotersConnected: partner.promotersConnected,
-            ticketsSold: partner.ticketsSold,
-        });
+        if (onOpenProfile) {
+            onOpenProfile(partner);
+            return;
+        }
+        const basePath =
+            role === "host"
+                ? "/host/partners"
+                : role === "promoter"
+                ? "/promoter/partners"
+                : "/venue/partners";
+        router.push(`${basePath}/${partner.id}`);
     };
 
     return (
         <div className="space-y-8 animate-in fade-in duration-500">
             {/* Search bar — hidden when controlled externally via tab bar */}
-            {!isControlled && <div className="flex flex-col md:flex-row gap-3 p-3 bg-surface-elevated/80 backdrop-blur-xl border border-border-default rounded-[2rem] shadow-sm">
-                <div className="flex-1 relative group">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search by name, city, genre..."
-                        className="w-full bg-transparent border-none rounded-2xl pl-11 pr-4 py-3 text-sm text-text-primary focus:outline-none font-medium placeholder:text-text-placeholder"
-                    />
+            {!isControlled && (
+                <div className="flex flex-col md:flex-row gap-3 p-3 bg-surface-elevated/80 backdrop-blur-xl border border-border-default rounded-[2rem] shadow-sm">
+                    <div className="flex-1 relative group">
+                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-text-tertiary group-focus-within:text-text-primary transition-colors" />
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search by name, city, genre..."
+                            className="h-14 w-full rounded-full bg-[#06090a] border-none pl-14 pr-4 text-[18px] font-medium text-text-primary placeholder:text-text-placeholder focus:outline-none"
+                        />
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value as PartnerFilterType)}
+                            className="h-14 rounded-[20px] border border-border-default bg-transparent px-5 pr-10 text-[16px] font-semibold text-text-secondary transition-colors hover:bg-white/[0.03] focus:outline-none cursor-pointer"
+                        >
+                            {allowedTypes.includes("all") && <option value="all">All Types</option>}
+                            {allowedTypes.includes("venue") && <option value="venue">Venues</option>}
+                            {allowedTypes.includes("host") && <option value="host">Hosts</option>}
+                            {allowedTypes.includes("promoter") && (
+                                <option value="promoter">Promoters</option>
+                            )}
+                        </select>
+                        <select
+                            value={filterCity}
+                            onChange={(e) => setFilterCity(e.target.value)}
+                            className="h-14 rounded-[20px] border border-border-default bg-transparent px-5 pr-10 text-[16px] font-semibold text-text-secondary transition-colors hover:bg-white/[0.03] focus:outline-none cursor-pointer"
+                        >
+                            <option value="">All Cities</option>
+                            <option value="Pune">Pune</option>
+                            <option value="Mumbai">Mumbai</option>
+                            <option value="Goa">Goa</option>
+                            <option value="Bengaluru">Bengaluru</option>
+                            <option value="Delhi">Delhi</option>
+                        </select>
+                        <button
+                            onClick={fetchPartners}
+                            className="inline-flex h-14 w-14 items-center justify-center rounded-[20px] border border-border-default bg-transparent text-text-tertiary transition-all hover:border-border-strong hover:bg-white/[0.03] hover:text-text-primary active:scale-95"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+                        </button>
+                    </div>
                 </div>
-                <div className="flex gap-2 shrink-0">
-                    <select
-                        value={filterType}
-                        onChange={(e) => setFilterType(e.target.value as PartnerFilterType)}
-                        className="pl-4 pr-8 py-2.5 bg-surface-secondary border border-border-default rounded-xl text-caption font-semibold text-text-secondary focus:outline-none cursor-pointer hover:bg-surface-tertiary transition-colors"
-                    >
-                        {allowedTypes.includes("all") && <option value="all">All Types</option>}
-                        {allowedTypes.includes("venue") && <option value="venue">Venues</option>}
-                        {allowedTypes.includes("host") && <option value="host">Hosts</option>}
-                        {allowedTypes.includes("promoter") && (
-                            <option value="promoter">Promoters</option>
-                        )}
-                    </select>
-                    <select
-                        value={filterCity}
-                        onChange={(e) => setFilterCity(e.target.value)}
-                        className="pl-4 pr-8 py-2.5 bg-surface-secondary border border-border-default rounded-xl text-caption font-semibold text-text-secondary focus:outline-none cursor-pointer hover:bg-surface-tertiary transition-colors"
-                    >
-                        <option value="">All Cities</option>
-                        <option value="Pune">Pune</option>
-                        <option value="Mumbai">Mumbai</option>
-                        <option value="Goa">Goa</option>
-                        <option value="Bengaluru">Bengaluru</option>
-                        <option value="Delhi">Delhi</option>
-                    </select>
-                    <button
-                        onClick={fetchPartners}
-                        className="p-2.5 bg-surface-secondary border border-border-default rounded-xl text-text-tertiary hover:text-text-primary hover:border-border-strong transition-all active:scale-95"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                    </button>
-                </div>
-            </div>}
+            )}
 
             {/* Grid */}
             {loading ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                     {[1, 2, 3, 4, 5, 6].map((i) => (
                         <div
                             key={i}
@@ -261,169 +260,21 @@ export function DiscoverDirectory({ allowedTypes, partnerId, role, searchQuery: 
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
                     <AnimatePresence>
                         {partners.map((partner) => (
-                            <DirectoryCard
+                            <BasePartnerCard
                                 key={partner.id}
-                                partner={partner}
+                                partner={partner as any}
                                 onViewProfile={() => openProfile(partner)}
+                                onPrimaryAction={() => handleRequestPartnership(partner.id)}
+                                isActionLoading={requestingId === partner.id}
                             />
                         ))}
                     </AnimatePresence>
                 </div>
             )}
-
-            {/* Profile modal */}
-            <AnimatePresence>
-                {selectedProfile && (
-                    <NetworkProfileModal
-                        profile={selectedProfile}
-                        onClose={() => setSelectedProfile(null)}
-                        onRequestPartnership={handleRequestPartnership}
-                        isRequestLoading={requestingId === selectedProfile.id}
-                    />
-                )}
-            </AnimatePresence>
         </div>
-    );
-}
-
-function DirectoryCard({
-    partner,
-    onViewProfile,
-}: {
-    partner: DiscoveredPartner;
-    onViewProfile: () => void;
-}) {
-    const typeIcon =
-        partner.type === "venue" ? (
-            <Building2 className="w-4 h-4" />
-        ) : partner.type === "host" ? (
-            <UserCircle className="w-4 h-4" />
-        ) : (
-            <Zap className="w-4 h-4" />
-        );
-
-    const statusBadge = () => {
-        switch (partner.connectionStatus) {
-            case "approved":
-            case "active":
-                return (
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[11px] font-black uppercase tracking-tight text-emerald-400">
-                        <CheckCircle2 className="w-3 h-3" /> ACTIVE
-                    </div>
-                );
-            case "pending":
-                return (
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 rounded-full border border-amber-500/20 text-[11px] font-black uppercase tracking-tight text-amber-500">
-                        <Clock className="w-3 h-3" /> PENDING
-                    </div>
-                );
-            case "rejected":
-                return (
-                    <div className="flex items-center gap-1.5 px-3 py-1 bg-rose-500/10 rounded-full border border-rose-500/20 text-[11px] font-black uppercase tracking-tight text-rose-400">
-                        <XCircle className="w-3 h-3" /> DECLINED
-                    </div>
-                );
-            default:
-                return null;
-        }
-    };
-
-    return (
-        <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.97 }}
-            className="group relative bg-surface-elevated border border-border-default rounded-[2rem] overflow-hidden hover:border-border-strong hover:shadow-sm transition-all duration-300 flex flex-col"
-        >
-            {/* Background cover photo with bottom-blur fade */}
-            {partner.coverURL && (
-                <>
-                    <img
-                        src={partner.coverURL}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover opacity-55 group-hover:opacity-70 transition-opacity duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#1a1a1d] via-[#1a1a1d]/75 to-[#1a1a1d]/10" />
-                </>
-            )}
-
-            {/* Card header strip with brand color */}
-            <div className="relative z-10 h-1.5 bg-gradient-to-r from-accent-primary via-orange-600 to-transparent opacity-40 group-hover:opacity-100 transition-opacity" />
-
-            <div className="relative z-10 p-7 flex-1 flex flex-col overflow-hidden">
-                {/* Subtle shimmer on hover */}
-                <div className="absolute inset-0 bg-gradient-to-tr from-accent-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-
-                <div className="flex items-start justify-between mb-6 relative z-10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-surface-secondary to-surface-tertiary border border-border-subtle flex items-center justify-center text-2xl font-black text-text-primary shadow-xl group-hover:scale-105 transition-transform overflow-hidden">
-                            {partner.photoURL ? (
-                                <img src={partner.photoURL} alt={partner.name} className="w-full h-full object-cover" />
-                            ) : partner.name[0]}
-                        </div>
-                        <div>
-                            <h3 className="text-headline-sm font-black text-text-primary leading-none group-hover:text-accent-primary transition-colors">
-                                {partner.name}
-                            </h3>
-                            <div className="flex items-center gap-1.5 mt-2 text-caption font-bold text-text-muted">
-                                <MapPin className="w-3 h-3 text-accent-primary" /> {partner.city || "India"}
-                            </div>
-                        </div>
-                    </div>
-                    {partner.isVerified && (
-                        <ShieldCheck className="w-5 h-5 text-accent-primary shrink-0 transition-transform group-hover:rotate-12" />
-                    )}
-                </div>
-
-                {/* Type + status row */}
-                <div className="flex items-center justify-between mb-6 relative z-10">
-                    <span className="flex items-center gap-2 px-3 py-1.5 bg-surface-secondary rounded-xl text-[10px] font-black uppercase tracking-widest text-text-secondary border border-border-subtle capitalize backdrop-blur-md">
-                        <span className="text-accent-primary">{typeIcon}</span> {partner.type}
-                    </span>
-                    {statusBadge()}
-                </div>
-
-                {partner.bio && (
-                    <p className="text-body-sm text-text-tertiary leading-relaxed line-clamp-2 mb-6 relative z-10 group-hover:text-text-secondary transition-colors">
-                        {partner.bio}
-                    </p>
-                )}
-
-                {/* Metrics row */}
-                <div className="grid grid-cols-2 gap-3 mb-8 mt-auto relative z-10">
-                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
-                        <CalendarDays className="w-4 h-4 text-accent-primary/60" />
-                        <div>
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Events</p>
-                            <p className="text-body font-black text-text-primary leading-none">
-                                {partner.eventsCount > 0 ? partner.eventsCount : "—"}
-                            </p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2.5 p-3 bg-surface-tertiary rounded-2xl border border-border-subtle group-hover:border-accent-primary/10 transition-colors">
-                        <Users className="w-4 h-4 text-accent-primary/60" />
-                        <div>
-                            <p className="text-[10px] font-black text-text-muted uppercase tracking-tighter">Followers</p>
-                            <p className="text-body font-black text-text-primary leading-none">
-                                {partner.followersCount > 0 ? partner.followersCount.toLocaleString("en-IN") : "—"}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <button
-                    onClick={onViewProfile}
-                    className="w-full py-4 bg-surface-secondary text-text-primary rounded-2xl text-[13px] font-black uppercase tracking-widest border border-border-subtle hover:bg-accent-primary hover:text-text-inverse hover:border-accent-primary hover:scale-[1.02] active:scale-[0.98] transition-all duration-300 shadow-xl group/btn"
-                >
-                    <span className="flex items-center justify-center gap-2 transition-transform group-hover/btn:translate-x-1">
-                        View Profile <Zap className="w-4 h-4 fill-current group-hover/btn:animate-pulse" />
-                    </span>
-                </button>
-            </div>
-        </motion.div>
     );
 }
 
@@ -439,7 +290,7 @@ export interface StatusCardData {
     bio?: string;
     eventsCount?: number;
     followersCount?: number;
-    connectionStatus: "active" | "approved" | "pending" | "incoming" | "declined" | "rejected";
+    connectionStatus: "active" | "approved" | "pending" | "incoming" | "declined" | "rejected" | "blocked";
     onViewProfile?: () => void;
     onApprove?: () => void;
     onReject?: () => void;

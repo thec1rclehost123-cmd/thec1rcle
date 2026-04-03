@@ -58,7 +58,7 @@ declare module '@c1rcle/core/api-client' {
         generatePromoterLink(promoterId: string, eventId: string): Promise<any>;
 
         // Phase 9: Analytics, Tables, Waitlist, Search
-        getAnalytics(id: string, type?: string, range?: string): Promise<any>;
+        getAnalytics(arg1: string, arg2?: string, arg3?: string): Promise<any>;
         getFloorPlan(venueId: string): Promise<any>;
         updateMasterTable(venueId: string, tableData: any): Promise<any>;
         assignTable(eventId: string, tableId: string, bookingId: string, status?: string): Promise<any>;
@@ -101,6 +101,8 @@ declare module '@c1rcle/core/events' {
     export function requiresVenueApproval(event: any): boolean;
     export function canPromoterSee(event: any): boolean;
     export function canPromoterCreateLink(event: any): boolean;
+    export function getPromoterEligibleTicketTiers(event: any): any[];
+    export function hasPromoterEligibleTicketTiers(event: any): boolean;
     export function isEditableEvent(event: any, role: string): boolean;
 }
 
@@ -381,5 +383,3 @@ declare module '@c1rcle/core/attack-detection' {
     export function recordRateLimitHit(ip: string | null, uid: string | null, endpoint?: string): Promise<void>;
     export function peekCounter(key: string): Promise<number>;
 }
-
-

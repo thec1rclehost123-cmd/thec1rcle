@@ -10,10 +10,31 @@ import {
     createSlotRequest as directCreateSlotRequest,
     respondToSlotRequest as directRespondToSlotRequest,
 } from "@c1rcle/core/calendar-engine";
+import { getDateAvailability, isSlotAvailable } from "./calendarStore";
 
 const SLOTS_COLLECTION = "slot_requests";
 
 export async function createSlotRequest(data, token, actor) {
+    const availability = await getDateAvailability(data.venueId, data.requestedDate);
+    if (!availability) {
+        throw new Error("Could not load venue availability for the requested date");
+    }
+
+    if (availability.status === "blocked") {
+        throw new Error("This date is blocked on the venue calendar");
+    }
+
+    const slotAvailable = await isSlotAvailable(
+        data.venueId,
+        data.requestedDate,
+        data.requestedStartTime,
+        data.requestedEndTime
+    );
+
+    if (!slotAvailable) {
+        throw new Error("The requested time slot is no longer available");
+    }
+
     return directCreateSlotRequest(data, actor || { uid: "system", role: "host" });
 }
 
@@ -64,5 +85,4 @@ export default {
     rejectSlotRequest,
     counterProposeSlot,
 };
-
 

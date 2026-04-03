@@ -9,6 +9,17 @@ import { randomUUID } from "node:crypto";
 const LINKS_COLLECTION = "promoter_links";
 const COMMISSIONS_COLLECTION = "promoter_commissions";
 
+function isPromoterAllowedForEvent(event, promoterId) {
+    const globallyEnabled = event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
+    if (!globallyEnabled) return false;
+
+    const allowedPromoterIds = Array.isArray(event?.promoterSettings?.allowedPromoterIds)
+        ? event.promoterSettings.allowedPromoterIds.map((id) => String(id))
+        : [];
+
+    return allowedPromoterIds.length === 0 || allowedPromoterIds.includes(String(promoterId));
+}
+
 /**
  * Get a promoter link by code
  */
@@ -23,13 +34,25 @@ export async function getPromoterLinkByCode(code) {
     const db = getAdminDb();
     const snapshot = await db.collection(LINKS_COLLECTION)
         .where("code", "==", code)
-        .where("isActive", "==", true)
         .limit(1)
         .get();
 
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
-    return { id: doc.id, ...doc.data() };
+    if (doc.data()?.isActive === false) return null;
+    const link = { id: doc.id, ...doc.data() };
+
+    if (link.eventId) {
+        const eventDoc = await db.collection("events").doc(String(link.eventId)).get();
+        if (!eventDoc.exists) return null;
+
+        const event = { id: eventDoc.id, ...eventDoc.data() };
+        if (!isPromoterAllowedForEvent(event, link.promoterId)) {
+            return null;
+        }
+    }
+
+    return link;
 }
 
 /**
@@ -44,13 +67,20 @@ export async function getPromoterByUsername(username) {
     if (!isFirebaseConfigured()) return null;
 
     const db = getAdminDb();
-    const snapshot = await db.collection("promoters")
-        .where("username", "==", username.toLowerCase())
-        .limit(1)
-        .get();
+    const normalized = username.toLowerCase();
+    const [usernameSnapshot, handleSnapshot] = await Promise.all([
+        db.collection("promoters")
+            .where("username", "==", normalized)
+            .limit(1)
+            .get(),
+        db.collection("promoters")
+            .where("handle", "==", normalized)
+            .limit(1)
+            .get()
+    ]);
 
-    if (snapshot.empty) return null;
-    const doc = snapshot.docs[0];
+    const doc = usernameSnapshot.docs[0] || handleSnapshot.docs[0];
+    if (!doc) return null;
     const data = doc.data();
 
     // Serialize timestamps
@@ -61,6 +91,26 @@ export async function getPromoterByUsername(username) {
         }
     });
     return serialized;
+}
+
+export async function getPromoterLinkByVanityAlias(handle, alias) {
+    if (!handle || !alias) return null;
+    if (!isFirebaseConfigured()) return null;
+
+    const promoter = await getPromoterByUsername(handle);
+    if (!promoter?.id) return null;
+
+    const db = getAdminDb();
+    const snapshot = await db.collection(LINKS_COLLECTION)
+        .where("promoterId", "==", String(promoter.id))
+        .where("vanityAlias", "==", String(alias).trim().toLowerCase())
+        .limit(1)
+        .get();
+
+    if (snapshot.empty) return null;
+    const doc = snapshot.docs[0];
+    if (doc.data()?.isActive === false) return null;
+    return { id: doc.id, ...doc.data() };
 }
 
 /**
@@ -82,7 +132,15 @@ export async function getPromoterActiveEvents(promoterId) {
 
     if (linksSnap.empty) return [];
 
-    const eventIds = [...new Set(linksSnap.docs.map(d => d.data().eventId).filter(Boolean))];
+    const activeLinks = linksSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    const linkByEventId = activeLinks.reduce((map, link) => {
+        if (link?.eventId && !map.has(String(link.eventId))) {
+            map.set(String(link.eventId), link);
+        }
+        return map;
+    }, new Map());
+
+    const eventIds = [...new Set(activeLinks.map(link => link.eventId).filter(Boolean))];
     if (eventIds.length === 0) return [];
 
     // Batch fetch events (Firestore limits to 10 per `in` query)
@@ -109,9 +167,15 @@ export async function getPromoterActiveEvents(promoterId) {
                     serialized[key] = serialized[key].toDate().toISOString();
                 }
             });
-            return serialized;
+            const promoterLink = linkByEventId.get(String(doc.id)) || null;
+            return {
+                ...serialized,
+                promoterLinkCode: promoterLink?.code || null,
+                promoterLinkUrl: promoterLink?.fullUrl || null,
+            };
         })
         .filter(e => PUBLIC_STATES.includes(e.lifecycle))
+        .filter(e => isPromoterAllowedForEvent(e, promoterId))
         .sort((a, b) => new Date(a.startDate || 0) - new Date(b.startDate || 0));
 }
 

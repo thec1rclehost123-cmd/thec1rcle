@@ -151,7 +151,7 @@ function AuthContent() {
                             <div className="flex justify-between items-center px-4">
                                 <label className="text-[10px] uppercase tracking-widest text-black/60 dark:text-white/60 font-bold">Password</label>
                                 {mode === "login" && (
-                                    <Link href="/forgot-password" core-link="true" className="text-[10px] uppercase tracking-widest text-orange/60 hover:text-orange font-bold transition-colors">
+                                    <Link href={form.email ? `/forgot-password?email=${encodeURIComponent(form.email)}` : "/forgot-password"} core-link="true" className="text-[10px] uppercase tracking-widest text-orange/60 hover:text-orange font-bold transition-colors">
                                         Reset
                                     </Link>
                                 )}

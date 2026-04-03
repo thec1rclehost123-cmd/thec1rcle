@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
 import { checkInGuest, getGuestRules } from "@/lib/server/guestListStore";
+import { onCheckIn } from "@/lib/server/aggregation-engine";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ eventId: string; guestId: string }> }) {
     const { eventId, guestId} = await params;
@@ -39,6 +40,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ eve
 
         const actor = { uid: user.uid, name: user.name || user.email, role: membership.role };
         const result = await checkInGuest(eventId, guestId, actor, { reason: body.reason, gate: body.gate });
+
+        // Update read models (non-blocking — never fails the primary check-in)
+        if (venueId) {
+            onCheckIn(venueId, eventId, new Date().toISOString());
+        }
+
         return NextResponse.json(result);
     } catch (err: any) {
         if (err.code) return NextResponse.json({ error: err.code, message: err.message }, { status: 409 });

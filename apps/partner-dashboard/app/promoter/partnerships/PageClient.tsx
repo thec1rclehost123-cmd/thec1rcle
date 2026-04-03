@@ -1,9 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
-    Users,
     Clock,
     CheckCircle2,
     XCircle,
@@ -11,20 +10,21 @@ import {
     Loader2,
     Building2,
     UserCircle,
-    Network,
     Handshake,
     Zap,
     Bell,
     X,
+    RefreshCw,
+    Compass,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePromoterPartnerships } from "@/lib/hooks/usePromoterQueries";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
-import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
-import { motion, AnimatePresence } from "framer-motion";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
+import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
+import { motion, AnimatePresence } from "framer-motion";
 
 type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
@@ -38,6 +38,8 @@ interface Partnership {
     createdAt: any;
     updatedAt?: any;
     initiatedBy?: string;
+    photoURL?: string | null;
+    otherIsVerified?: boolean;
 }
 
 const mp = (delay: number) => ({
@@ -48,8 +50,8 @@ const mp = (delay: number) => ({
 
 export default function PromoterPartnershipsPage() {
     const { profile, user } = useDashboardAuth() as any;
-    const [activeTab, setActiveTab] = useState<Tab>("discover");
-    const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
+    const router = useRouter();
+    const [activeTab, setActiveTab] = useState<Tab>("active");
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [discoverSearch, setDiscoverSearch] = useState("");
     const [discoverType, setDiscoverType] = useState("venue");
@@ -69,9 +71,7 @@ export default function PromoterPartnershipsPage() {
         (p) => p.status === "approved" || p.status === "active"
     );
     const declined = partnerships.filter((p) => p.status === "rejected" || p.status === "declined");
-    // initiatedBy === "promoter" → promoter sent the request, partner declined it → show Re-request
     const declinedByThem = declined.filter((p) => p.initiatedBy === "promoter");
-    // initiatedBy !== "promoter" → partner sent, promoter declined → show Remove
     const declinedByPromoter = declined.filter((p) => p.initiatedBy !== "promoter");
 
     const handleAction = async (connectionId: string, action: "approve" | "reject") => {
@@ -121,85 +121,65 @@ export default function PromoterPartnershipsPage() {
         { id: "declined", label: "Declined", count: declined.length },
     ];
 
-    const filtered =
-        activeTab === "active"
-            ? active
-            : activeTab === "declined"
-            ? declined
-            : [];
+    const openPartnerProfile = (partnerId: string) => {
+        router.push(`/promoter/partners/${partnerId}`);
+    };
+
+    const filterByUI = (list: Partnership[]) =>
+        list.filter(p => !discoverSearch || p.otherName.toLowerCase().includes(discoverSearch.toLowerCase()));
 
     return (
         <VenuePageShell
-            title="Partnerships"
+            title="Partners"
             subtitle="Build your venue and host network to unlock affiliate links and event access"
+            actions={
+                <div className="flex items-center gap-3">
+                    {[
+                        { label: "Active", value: active.length, color: "#34d399", icon: <CheckCircle2 className="w-4 h-4" /> },
+                        { label: "Pending", value: allPending.length, color: "#f59e0b", icon: <Clock className="w-4 h-4" /> },
+                        { label: "Venues", value: active.filter(p => p.otherType === "venue").length, color: "#818cf8", icon: <Building2 className="w-4 h-4" /> },
+                        { label: "Hosts", value: active.filter(p => p.otherType === "host").length, color: "#7c3aed", icon: <UserCircle className="w-4 h-4" /> },
+                    ].map((metric, i) => (
+                        <div 
+                            key={i}
+                            className="min-w-[90px] rounded-[22px] px-4 py-2.5 text-center transition-all hover:scale-[1.02]" 
+                            style={{ 
+                                background: "rgba(255, 255, 255, 0.03)", 
+                                border: "1px solid rgba(255, 255, 255, 0.08)",
+                                backdropFilter: "blur(12px)",
+                                boxShadow: "0 4px 24px -12px rgba(0,0,0,0.5)"
+                            }}
+                        >
+                            <p className="text-[20px] font-black tabular-nums leading-none tracking-tight" style={{ color: metric.color }}>{metric.value}</p>
+                            <p className="mt-1.5 text-[10px] font-black uppercase tracking-[0.15em] opacity-40" style={{ color: "var(--v-text-primary)" }}>{metric.label}</p>
+                        </div>
+                    ))}
+                </div>
+            }
         >
-            {/* ── Hero header ── */}
+            {/* Hero header */}
             <motion.div {...mp(0)}>
                 <div
                     className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-5"
                     style={{
-                        background:
-                            "linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)",
+                        background: "linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)",
                         border: "1px solid rgba(124,58,237,0.2)",
                     }}
                 >
-                    <div
-                        className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none"
-                        style={{ background: "rgba(124,58,237,0.1)" }}
-                    />
-                    <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10"
-                        style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa" }}
-                    >
+                    <div className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none" style={{ background: "rgba(124,58,237,0.1)" }} />
+                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10" style={{ background: "rgba(124,58,237,0.2)", color: "#a78bfa" }}>
                         <Handshake className="w-6 h-6" />
                     </div>
                     <div className="relative z-10">
-                        <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-1">
-                            Partner Network
-                        </p>
-                        <p className="text-[13px] font-medium text-text-secondary max-w-lg">
-                            Connect with venues and hosts to unlock your affiliate link access and
-                            event inventory.
-                        </p>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-1">Partner Network</p>
+                        <p className="text-[13px] font-medium text-text-secondary max-w-lg">Connect with venues and hosts to unlock your affiliate link access and event inventory.</p>
                     </div>
                 </div>
             </motion.div>
 
-            {/* ── Network stats strip ── */}
-            <motion.div {...mp(0.06)}>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                    <StatTrendCard
-                        label="Active Partners"
-                        value={active.length}
-                        trendUp={active.length > 0}
-                        color="#34d399"
-                        icon={<CheckCircle2 className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Pending Requests"
-                        value={allPending.length}
-                        color="#f59e0b"
-                        icon={<Clock className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Venues Connected"
-                        value={active.filter((p) => p.otherType === "venue").length}
-                        color="#818cf8"
-                        icon={<Building2 className="w-4 h-4" />}
-                    />
-                    <StatTrendCard
-                        label="Hosts Connected"
-                        value={active.filter((p) => p.otherType === "host").length}
-                        color="#7c3aed"
-                        icon={<UserCircle className="w-4 h-4" />}
-                    />
-                </div>
-            </motion.div>
-
-            {/* ── Tab bar + search/filter — separate elements ── */}
-            <motion.div {...mp(0.1)}>
-                <div className="flex items-center gap-3">
-                    {/* Tab pills */}
+            {/* Tab bar + search/filter */}
+            <motion.div {...mp(0.1)} className="mt-6 mb-8">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="flex items-center p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
                         {TABS.map((tab) => (
                             <button
@@ -210,7 +190,7 @@ export default function PromoterPartnershipsPage() {
                                     ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
                                     : { color: "var(--v-text-tertiary)" }}
                             >
-                                {tab.id === "discover" && <Search className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
+                                {tab.id === "discover" && <Compass className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
                                 {tab.id === "incoming" && <Bell className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#a78bfa]" : ""}`} />}
                                 {tab.id === "pending" && <Clock className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
                                 {tab.id === "active" && <CheckCircle2 className={`w-3.5 h-3.5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
@@ -228,8 +208,7 @@ export default function PromoterPartnershipsPage() {
                         ))}
                     </div>
 
-                    {/* Search + filters — separate */}
-                    <div className="flex items-center gap-2 flex-1">
+                    <div className="flex items-center gap-3 flex-1 min-w-[300px]">
                         <div className="flex items-center gap-2 flex-1 px-4 py-2.5 rounded-2xl" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
                             <Search className="w-3.5 h-3.5 shrink-0" style={{ color: "var(--v-text-tertiary)" }} />
                             <input
@@ -237,55 +216,54 @@ export default function PromoterPartnershipsPage() {
                                 value={discoverSearch}
                                 onChange={e => setDiscoverSearch(e.target.value)}
                                 placeholder="Search venues & hosts..."
-                                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium placeholder:opacity-40"
+                                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] font-medium"
                                 style={{ color: "var(--v-text-primary)" }}
                             />
                             {discoverSearch && (
-                                <button onClick={() => setDiscoverSearch("")} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
-                                    <X className="w-3.5 h-3.5" style={{ color: "var(--v-text-secondary)" }} />
+                                <button onClick={() => setDiscoverSearch("")} className="shrink-0 opacity-40 hover:opacity-70">
+                                    <X className="w-3.5 h-3.5" />
                                 </button>
                             )}
                         </div>
-                        <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
-                            {[{ value: "venue", label: "Venues" }, { value: "host", label: "Hosts" }].map(opt => (
-                                <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
-                                    className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
-                                    style={discoverType === opt.value
-                                        ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
-                                        : { color: "var(--v-text-tertiary)" }}>
-                                    {opt.label}
+
+                        {activeTab === "discover" && (
+                            <>
+                                <div className="flex items-center gap-0.5 p-1 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                                    {[{ value: "venue", label: "Venues" }, { value: "host", label: "Hosts" }].map(opt => (
+                                        <button key={opt.value} onClick={() => setDiscoverType(opt.value)}
+                                            className="px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-all"
+                                            style={discoverType === opt.value
+                                                ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                                : { color: "var(--v-text-tertiary)" }}>
+                                            {opt.label}
+                                        </button>
+                                    ))}
+                                </div>
+                                <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
+                                    className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0 appearance-none bg-no-repeat bg-[right_1rem_center]"
+                                    style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "var(--v-text-primary)" }}>
+                                    <option value="" className="bg-[#18181B]">All Cities</option>
+                                    <option value="Pune" className="bg-[#18181B]">Pune</option>
+                                    <option value="Mumbai" className="bg-[#18181B]">Mumbai</option>
+                                    <option value="Goa" className="bg-[#18181B]">Goa</option>
+                                    <option value="Bengaluru" className="bg-[#18181B]">Bengaluru</option>
+                                    <option value="Delhi" className="bg-[#18181B]">Delhi</option>
+                                </select>
+                                <button onClick={() => setDiscoverRefresh(n => n + 1)}
+                                    className="p-2.5 rounded-2xl flex items-center justify-center transition-all bg-[rgba(255,255,255,0.04)] border border-[rgba(255,255,255,0.06)] text-[var(--v-text-tertiary)]">
+                                    <RefreshCw className="w-3.5 h-3.5" />
                                 </button>
-                            ))}
-                        </div>
-                        <select value={discoverCity} onChange={e => setDiscoverCity(e.target.value)}
-                            className="border-none outline-none text-[12px] font-semibold cursor-pointer px-4 py-2.5 rounded-2xl shrink-0"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: discoverCity ? "var(--v-text-primary)" : "var(--v-text-tertiary)" }}>
-                            <option value="" style={{ background: "#18181B" }}>All Cities</option>
-                            <option value="Pune" style={{ background: "#18181B" }}>Pune</option>
-                            <option value="Mumbai" style={{ background: "#18181B" }}>Mumbai</option>
-                            <option value="Goa" style={{ background: "#18181B" }}>Goa</option>
-                            <option value="Bengaluru" style={{ background: "#18181B" }}>Bengaluru</option>
-                            <option value="Delhi" style={{ background: "#18181B" }}>Delhi</option>
-                        </select>
-                        <button onClick={() => setDiscoverRefresh(n => n + 1)}
-                            className="p-2.5 rounded-2xl flex items-center justify-center transition-all active:scale-95 shrink-0"
-                            style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                        </button>
+                            </>
+                        )}
                     </div>
                 </div>
             </motion.div>
 
-            {/* ── Content ── */}
+            {/* Content Area */}
             <div className="min-h-[500px]">
                 <AnimatePresence mode="wait">
                     {activeTab === "discover" ? (
-                        <motion.div
-                            key="discover"
-                            initial={{ opacity: 0, y: 8 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            exit={{ opacity: 0 }}
-                        >
+                        <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             <DiscoverDirectory
                                 allowedTypes={["venue", "host"]}
                                 partnerId={promoterId}
@@ -294,96 +272,58 @@ export default function PromoterPartnershipsPage() {
                                 filterType={discoverType as any}
                                 filterCity={discoverCity}
                                 refreshTrigger={discoverRefresh}
+                                onOpenProfile={(partner) => openPartnerProfile(partner.id)}
                             />
                         </motion.div>
-                    ) : activeTab === "incoming" ? (
-                        <motion.div key="incoming" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            {loading ? (
-                                <div className="flex justify-center py-32">
-                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
-                                </div>
-                            ) : pendingIncoming.length === 0 ? (
-                                <EmptyState tab="incoming" />
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    <AnimatePresence>
-                                        {pendingIncoming.map(p => (
-                                            <StatusCard
-                                                key={p.id}
-                                                name={p.otherName}
-                                                type={p.otherType}
-                                                connectionStatus="incoming"
-                                                onApprove={() => handleAction(p.id, "approve")}
-                                                onReject={() => handleAction(p.id, "reject")}
-                                                isProcessing={processingId === p.id}
-                                            />
-                                        ))}
-                                    </AnimatePresence>
-                                </div>
-                            )}
-                        </motion.div>
-                    ) : activeTab === "pending" ? (
-                        <motion.div key="pending" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                            {loading ? (
-                                <div className="flex justify-center py-32">
-                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
-                                </div>
-                            ) : pendingOutgoing.length === 0 ? (
-                                <EmptyState tab="pending" />
-                            ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {pendingOutgoing.map(p => (
-                                        <StatusCard
-                                            key={p.id}
-                                            name={p.otherName}
-                                            type={p.otherType}
-                                            connectionStatus="pending"
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                    ) : activeTab === "incoming" || activeTab === "pending" ? (
+                        <motion.div key="pending-section" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+                            <PendingSection
+                                incoming={activeTab === "incoming" ? filterByUI(pendingIncoming) : []}
+                                outgoing={activeTab === "pending" ? filterByUI(pendingOutgoing) : []}
+                                loading={loading}
+                                processingId={processingId}
+                                handleAction={handleAction}
+                                emptyTab={activeTab}
+                                openPartnerProfile={openPartnerProfile}
+                            />
                         </motion.div>
                     ) : activeTab === "declined" ? (
                         <motion.div key="declined" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             {loading ? (
-                                <div className="flex justify-center py-32">
-                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
-                                </div>
-                            ) : declined.length === 0 ? (
+                                <div className="flex justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" /></div>
+                            ) : filterByUI(declined).length === 0 ? (
                                 <EmptyState tab="declined" />
                             ) : (
                                 <div className="flex flex-col gap-8">
-                                    {declinedByThem.length > 0 && (
+                                    {filterByUI(declinedByThem).length > 0 && (
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>They declined your request</p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                {declinedByThem.map(p => (
-                                                    <StatusCard
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4 text-[var(--v-text-tertiary)]">They declined your request</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                                {filterByUI(declinedByThem).map(p => (
+                                                    <BasePartnerCard
                                                         key={p.id}
-                                                        name={p.otherName}
-                                                        type={p.otherType}
-                                                        connectionStatus="declined"
-                                                        onReRequest={() => handleReRequest(p)}
-                                                        isProcessing={processingId === p.id}
-                                                        onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "rejected" })}
+                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "declined" }}
+                                                        onViewProfile={() => openPartnerProfile(p.otherId)}
+                                                        onPrimaryAction={() => handleReRequest(p)}
+                                                        primaryActionLabel="Re-request"
+                                                        isActionLoading={processingId === p.id}
                                                     />
                                                 ))}
                                             </div>
                                         </div>
                                     )}
-                                    {declinedByPromoter.length > 0 && (
+                                    {filterByUI(declinedByPromoter).length > 0 && (
                                         <div>
-                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4" style={{ color: "var(--v-text-tertiary)" }}>You declined</p>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                                {declinedByPromoter.map(p => (
-                                                    <StatusCard
+                                            <p className="text-[11px] font-black uppercase tracking-widest mb-4 text-[var(--v-text-tertiary)]">You declined</p>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                                {filterByUI(declinedByPromoter).map(p => (
+                                                    <BasePartnerCard
                                                         key={p.id}
-                                                        name={p.otherName}
-                                                        type={p.otherType}
-                                                        connectionStatus="declined"
-                                                        onRemove={() => handleRemove(p.id)}
-                                                        isProcessing={processingId === p.id}
-                                                        onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "rejected" })}
+                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "declined" }}
+                                                        onViewProfile={() => openPartnerProfile(p.otherId)}
+                                                        onPrimaryAction={() => handleRemove(p.id)}
+                                                        primaryActionLabel="Remove"
+                                                        isActionLoading={processingId === p.id}
                                                     />
                                                 ))}
                                             </div>
@@ -395,20 +335,16 @@ export default function PromoterPartnershipsPage() {
                     ) : (
                         <motion.div key="active" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
                             {loading ? (
-                                <div className="flex justify-center py-32">
-                                    <Loader2 className="w-8 h-8 animate-spin" style={{ color: "#7c3aed" }} />
-                                </div>
-                            ) : active.length === 0 ? (
+                                <div className="flex justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" /></div>
+                            ) : filterByUI(active).length === 0 ? (
                                 <EmptyState tab="active" />
                             ) : (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {active.map(p => (
-                                        <StatusCard
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                    {filterByUI(active).map(p => (
+                                        <BasePartnerCard
                                             key={p.id}
-                                            name={p.otherName}
-                                            type={p.otherType}
-                                            connectionStatus="active"
-                                            onViewProfile={() => setProfileTarget({ id: p.otherId, type: p.otherType as any, name: p.otherName, city: "", connectionStatus: "active" })}
+                                            partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "active" }}
+                                            onViewProfile={() => openPartnerProfile(p.otherId)}
                                         />
                                     ))}
                                 </div>
@@ -417,65 +353,77 @@ export default function PromoterPartnershipsPage() {
                     )}
                 </AnimatePresence>
             </div>
-
-            {/* Profile modal */}
-            <AnimatePresence>
-                {profileTarget && (
-                    <NetworkProfileModal
-                        profile={profileTarget}
-                        onClose={() => setProfileTarget(null)}
-                    />
-                )}
-            </AnimatePresence>
         </VenuePageShell>
     );
 }
 
-function EmptyState({ tab }: { tab: Tab }) {
-    const config: Record<
-        string,
-        { icon: React.ReactNode; title: string; subtitle: string }
-    > = {
-        incoming: {
-            icon: <Bell className="w-8 h-8" style={{ color: "#a78bfa" }} />,
-            title: "No incoming requests",
-            subtitle: "Partnership requests from venues and hosts will appear here for your approval.",
-        },
-        pending: {
-            icon: <Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />,
-            title: "No sent requests",
-            subtitle: "Requests you've sent awaiting venue or host approval will appear here.",
-        },
-        active: {
-            icon: <CheckCircle2 className="w-8 h-8" style={{ color: "#34d399" }} />,
-            title: "No active partnerships",
-            subtitle: "Once a venue approves your request, the partnership shows here.",
-        },
-        declined: {
-            icon: <XCircle className="w-8 h-8" style={{ color: "#f87171" }} />,
-            title: "No declined requests",
-            subtitle: "Requests that were declined by venues will appear here.",
-        },
-    };
-
-    const c = config[tab] || config.pending;
+function PendingSection({
+    incoming, outgoing, loading, processingId, handleAction, emptyTab, openPartnerProfile
+}: {
+    incoming: Partnership[];
+    outgoing: Partnership[];
+    loading: boolean;
+    processingId: string | null;
+    handleAction: (id: string, action: "approve" | "reject") => void;
+    emptyTab: Tab;
+    openPartnerProfile: (id: string) => void;
+}) {
+    if (loading) return <div className="flex justify-center py-32"><Loader2 className="w-8 h-8 animate-spin text-[#7c3aed]" /></div>;
+    if (incoming.length === 0 && outgoing.length === 0) return <EmptyState tab={emptyTab} />;
 
     return (
-        <div
-            className="py-24 rounded-[32px] flex flex-col items-center text-center px-10"
-            style={{
-                background: "rgba(255,255,255,0.02)",
-                border: "1px dashed rgba(255,255,255,0.08)",
-            }}
-        >
-            <div
-                className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5"
-                style={{ background: "rgba(124,58,237,0.1)" }}
-            >
-                {c.icon}
-            </div>
+        <div className="space-y-8">
+            {incoming.length > 0 && (
+                <div className="space-y-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-amber-500 pl-4">Incoming · Awaiting your approval</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        <AnimatePresence mode="popLayout">
+                            {incoming.map(p => (
+                                <BasePartnerCard
+                                    key={p.id}
+                                    partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified }}
+                                    onViewProfile={() => openPartnerProfile(p.otherId)}
+                                    onPrimaryAction={() => handleAction(p.id, "approve")}
+                                    onSecondaryAction={() => handleAction(p.id, "reject")}
+                                    primaryActionLabel="Approve"
+                                    secondaryActionLabel="Decline"
+                                    isActionLoading={processingId === p.id}
+                                />
+                            ))}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            )}
+            {outgoing.length > 0 && (
+                <div className="space-y-4">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-border-default pl-4">Sent · Awaiting approval</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                        {outgoing.map(p => (
+                            <BasePartnerCard
+                                key={p.id}
+                                partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "pending" }}
+                                onViewProfile={() => openPartnerProfile(p.otherId)}
+                            />
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function EmptyState({ tab }: { tab: Tab }) {
+    const config: Record<string, { icon: React.ReactNode; title: string }> = {
+        incoming: { icon: <Bell className="w-8 h-8" style={{ color: "#a78bfa" }} />, title: "No incoming requests" },
+        pending: { icon: <Clock className="w-8 h-8" style={{ color: "#f59e0b" }} />, title: "No sent requests" },
+        active: { icon: <CheckCircle2 className="w-8 h-8" style={{ color: "#34d399" }} />, title: "No active partnerships" },
+        declined: { icon: <XCircle className="w-8 h-8" style={{ color: "#f87171" }} />, title: "No declined requests" },
+    };
+    const c = config[tab] || { icon: <Compass className="w-8 h-8" />, title: "Nothing here yet" };
+    return (
+        <div className="py-24 rounded-[32px] flex flex-col items-center text-center px-10 bg-[rgba(255,255,255,0.02)] border border-dashed border-[rgba(255,255,255,0.08)]">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-5 bg-[rgba(124,58,237,0.1)]">{c.icon}</div>
             <h4 className="text-[16px] font-bold text-text-primary">{c.title}</h4>
-            <p className="text-[13px] text-text-tertiary mt-1 max-w-xs">{c.subtitle}</p>
         </div>
     );
 }

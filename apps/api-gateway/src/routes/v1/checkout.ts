@@ -1,8 +1,18 @@
 import { FastifyInstance } from 'fastify';
 // @ts-ignore
 import { validatePromoCode } from '@c1rcle/core/promo-service';
+// @ts-ignore
+import { calculatePricing } from '@c1rcle/core/pricing-engine';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
+
+const CheckoutCalculateBody = z.object({
+    eventId: z.string().optional(),
+    reservationId: z.string().optional(),
+    items: z.array(z.object({ tierId: z.string(), quantity: z.number() })).optional(),
+    promoCode: z.string().optional().nullable(),
+    promoterCode: z.string().optional().nullable(),
+});
 
 const CheckoutValidateBody = z.object({
     eventId: z.string(),
@@ -41,6 +51,42 @@ const CheckoutCancelBody = z.object({
 }).strict();
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
+    /**
+     * Calculate server-side pricing (discounts, fees, grand total)
+     * POST /checkout/calculate
+     */
+    fastify.post('/checkout/calculate', {
+        preHandler: [fastify.validate({ body: CheckoutCalculateBody })]
+    }, async (request: any, reply) => {
+        try {
+            let { eventId, reservationId, items, promoCode = null, promoterCode = null } = request.body;
+
+            // If reservationId provided, load event + items from reservation
+            if (reservationId) {
+                const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
+                if (!resDoc.exists) return reply.status(404).send({ success: false, error: 'Reservation not found' });
+                const res = resDoc.data() as any;
+                if (res.status !== 'active') return reply.status(400).send({ success: false, error: `Reservation is ${res.status}` });
+                if (new Date(res.expiresAt) < new Date()) return reply.status(400).send({ success: false, error: 'Reservation has expired' });
+                eventId = res.eventId;
+                items = res.items;
+            }
+
+            if (!eventId) return reply.status(400).send({ success: false, error: 'eventId is required' });
+            if (!items || items.length === 0) return reply.status(400).send({ success: false, error: 'items are required' });
+
+            const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+            if (!eventDoc.exists) return reply.status(404).send({ success: false, error: 'Event not found' });
+            const event = { id: eventDoc.id, ...eventDoc.data() };
+
+            const pricing = await calculatePricing({ event, items, promoCode, promoterCode });
+            return { success: true, pricing };
+        } catch (error: any) {
+            fastify.log.error(`Checkout calculate failed: ${error.message}`);
+            return reply.status(500).send({ success: false, error: 'Internal server error' });
+        }
+    });
+
     /**
      * Validate pricing for a set of items
      * POST /checkout/validate

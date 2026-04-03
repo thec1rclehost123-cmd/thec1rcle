@@ -2,15 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react";
 import {
+<<<<<<< HEAD
     Building2, CheckCircle2, Clock, XCircle,
     Search, Loader2, Handshake, X, Bell, Zap, RefreshCw,
+=======
+    Building2, CheckCircle2, Clock,
+    Search, Loader2, X, Bell, Zap,
+>>>>>>> origin/staging
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useRouter } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+<<<<<<< HEAD
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
+=======
+import { DiscoverDirectory } from "@/components/partnerships/DiscoverDirectory";
+import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
+>>>>>>> origin/staging
 
 type Tab = "discover" | "incoming" | "pending" | "active" | "declined";
 
@@ -43,6 +54,7 @@ const mp = (delay: number) => ({
 });
 
 export default function HostNetworkPage() {
+    const router = useRouter();
     const { profile, user, getIdToken } = useDashboardAuth() as any;
     const hostId = profile?.activeMembership?.partnerId;
 
@@ -51,7 +63,6 @@ export default function HostNetworkPage() {
     const [promoterConnections, setPromoterConnections] = useState<PromoterConnection[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
-    const [profileTarget, setProfileTarget] = useState<NetworkProfile | null>(null);
     const [processingId, setProcessingId] = useState<string | null>(null);
     const [discoverSearch, setDiscoverSearch] = useState("");
     const [discoverType, setDiscoverType] = useState("venue");
@@ -112,7 +123,7 @@ export default function HostNetworkPage() {
         setProcessingId(connectionId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/venue/partnerships", {
+            await fetch("/api/host/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId: connectionId, action: "approve" }),
@@ -125,7 +136,7 @@ export default function HostNetworkPage() {
         setProcessingId(connectionId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/venue/partnerships", {
+            await fetch("/api/host/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId: connectionId, action: "reject" }),
@@ -225,9 +236,10 @@ export default function HostNetworkPage() {
 
     return (
         <VenuePageShell
-            title="Partner Network"
+            title="Partners"
             subtitle="Venues and promoters connected to your host profile"
         >
+<<<<<<< HEAD
             {/* Hero banner */}
             <motion.div {...mp(0)}>
                 <div
@@ -305,6 +317,34 @@ export default function HostNetworkPage() {
                                 <button onClick={() => setDiscoverSearch("")} className="shrink-0 opacity-40 hover:opacity-70 transition-opacity">
                                     <X className="w-3.5 h-3.5" style={{ color: "var(--v-text-secondary)" }} />
                                 </button>
+=======
+            {/* Tab bar */}
+            <motion.div {...mp(0)}>
+                <div className="flex items-center p-2 rounded-[28px] w-fit overflow-x-auto" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    {TABS.map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id)}
+                            className="flex items-center gap-3 px-7 py-4 rounded-[24px] text-[17px] font-semibold transition-all shrink-0"
+                            style={activeTab === tab.id
+                                ? { background: "var(--v-elevated)", color: "var(--v-text-primary)" }
+                                : { color: "var(--v-text-tertiary)" }}
+                        >
+                            {tab.id === "discover" && <Search className={`w-5 h-5 ${activeTab === tab.id ? "text-[#818cf8]" : ""}`} />}
+                            {tab.id === "incoming" && <Bell className={`w-5 h-5 ${activeTab === tab.id ? "text-[#F44A22]" : ""}`} />}
+                            {tab.id === "pending" && <Clock className={`w-5 h-5 ${activeTab === tab.id ? "text-[#f59e0b]" : ""}`} />}
+                            {tab.id === "active" && <CheckCircle2 className={`w-5 h-5 ${activeTab === tab.id ? "text-[#34d399]" : ""}`} />}
+                            {tab.label}
+                            {tab.count !== undefined && tab.count > 0 && (
+                                <span
+                                    className="px-2 py-1 rounded-lg text-[12px] font-black min-w-[28px] text-center"
+                                    style={activeTab === tab.id
+                                        ? { background: "#F44A22", color: "#fff" }
+                                        : { background: "rgba(255,255,255,0.06)", color: "var(--v-text-tertiary)" }}
+                                >
+                                    {tab.count}
+                                </span>
+>>>>>>> origin/staging
                             )}
                         </div>
                         <div className="flex items-center gap-0.5 p-1.5 rounded-2xl shrink-0" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
@@ -341,7 +381,7 @@ export default function HostNetworkPage() {
             <div className="min-h-[500px]">
                 {error && (
                     <div className="flex flex-col items-center justify-center py-16 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
-                        <p className="text-[16px] font-black text-text-primary">Failed to load network</p>
+                        <p className="text-[16px] font-black text-text-primary">Failed to load partners</p>
                         <button onClick={fetchData} className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest">
                             Retry
                         </button>
@@ -352,6 +392,7 @@ export default function HostNetworkPage() {
                     <AnimatePresence mode="wait">
                         {activeTab === "discover" ? (
                             <motion.div key="discover" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+<<<<<<< HEAD
                                 <DiscoverDirectory
                                     allowedTypes={["venue", "promoter"]}
                                     partnerId={hostId}
@@ -361,6 +402,9 @@ export default function HostNetworkPage() {
                                     filterCity={discoverCity}
                                     refreshTrigger={discoverRefresh}
                                 />
+=======
+                                <DiscoverDirectory allowedTypes={["venue", "promoter"]} partnerId={hostId} role="host" />
+>>>>>>> origin/staging
                             </motion.div>
 
                         ) : activeTab === "incoming" ? (
@@ -546,6 +590,7 @@ export default function HostNetworkPage() {
                                             <div key={i} className="h-52 rounded-[32px] animate-pulse border border-border-subtle" style={{ background: "var(--v-card)" }} />
                                         ))}
                                     </div>
+<<<<<<< HEAD
                                 ) : (() => {
                                     const filteredVenues = discoverType === "venue"
                                         ? activeVenues.filter(v => !discoverSearch || v.name.toLowerCase().includes(discoverSearch.toLowerCase()))
@@ -588,17 +633,70 @@ export default function HostNetworkPage() {
                                         </div>
                                     );
                                 })()}
+=======
+                                ) : activeVenues.length === 0 && activePromoters.length === 0 ? (
+                                    <EmptyState
+                                        icon={<Building2 className="w-8 h-8" style={{ color: "#34d399" }} />}
+                                        title="No active partners"
+                                        subtitle="Venues and promoters will appear here once connections are approved."
+                                    />
+                                ) : (
+                                    <div className="space-y-8">
+                                        {activeVenues.length > 0 && (
+                                            <div className="space-y-4">
+                                                {activePromoters.length > 0 && (
+                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#34d399] pl-4">Venues</p>
+                                                )}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                    {activeVenues.map(v => (
+                                                        <BasePartnerCard
+                                                            key={v.id}
+                                                            partner={{
+                                                                id: v.id,
+                                                                type: "venue",
+                                                                name: v.name,
+                                                                eventsCount: 0,
+                                                                followersCount: 0,
+                                                                connectionStatus: "active",
+                                                            }}
+                                                            onViewProfile={() => router.push(`/host/partners/${v.id}`)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {activePromoters.length > 0 && (
+                                            <div className="space-y-4">
+                                                {activeVenues.length > 0 && (
+                                                    <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary border-l-4 border-l-[#818cf8] pl-4">Promoters</p>
+                                                )}
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                    {activePromoters.map(p => (
+                                                        <BasePartnerCard
+                                                            key={p.id}
+                                                            partner={{
+                                                                id: p.id,
+                                                                type: "promoter",
+                                                                name: p.name,
+                                                                eventsCount: 0,
+                                                                followersCount: 0,
+                                                                connectionStatus: "active",
+                                                            }}
+                                                            onViewProfile={() => router.push(`/host/partners/${p.id}`)}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+>>>>>>> origin/staging
                             </motion.div>
                         )}
                     </AnimatePresence>
                 )}
             </div>
 
-            <AnimatePresence>
-                {profileTarget && (
-                    <NetworkProfileModal profile={profileTarget} onClose={() => setProfileTarget(null)} />
-                )}
-            </AnimatePresence>
         </VenuePageShell>
     );
 }

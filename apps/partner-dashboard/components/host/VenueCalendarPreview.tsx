@@ -14,6 +14,7 @@ import {
     Loader2,
     Building2
 } from "lucide-react";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 interface VenueCalendarPreviewProps {
     venueId: string;
@@ -75,6 +76,7 @@ export function VenueCalendarPreview({
     onSelectSlot,
     onClose
 }: VenueCalendarPreviewProps) {
+    const { user } = useDashboardAuth();
     const [currentMonth, setCurrentMonth] = useState(() => new Date());
     const [calendar, setCalendar] = useState<CalendarDay[]>([]);
     const [loading, setLoading] = useState(true);
@@ -92,9 +94,11 @@ export function VenueCalendarPreview({
                     .toISOString().split("T")[0];
                 const endDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
                     .toISOString().split("T")[0];
+                const token = user ? await user.getIdToken() : "";
 
                 const res = await fetch(
-                    `/api/host/venue-calendar?venueId=${venueId}&hostId=${hostId}&startDate=${startDate}&endDate=${endDate}`
+                    `/api/host/venue-calendar?venueId=${venueId}&hostId=${hostId}&startDate=${startDate}&endDate=${endDate}`,
+                    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 );
                 const data = await res.json();
                 setCalendar(data.calendar || []);
@@ -106,7 +110,7 @@ export function VenueCalendarPreview({
         }
 
         fetchCalendar();
-    }, [venueId, hostId, currentMonth]);
+    }, [venueId, hostId, currentMonth, user]);
 
     // Fetch specific date availability when selected
     useEffect(() => {
@@ -125,8 +129,10 @@ export function VenueCalendarPreview({
         async function fetchAvailability() {
             setLoadingAvailability(true);
             try {
+                const token = user ? await user.getIdToken() : "";
                 const res = await fetch(
-                    `/api/host/venue-calendar?venueId=${venueId}&date=${selectedDate}`
+                    `/api/host/venue-calendar?venueId=${venueId}&date=${selectedDate}`,
+                    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 );
                 const data = await res.json();
                 setDateAvailability(data.availability);
@@ -138,7 +144,7 @@ export function VenueCalendarPreview({
         }
 
         fetchAvailability();
-    }, [venueId, selectedDate, calendar]);
+    }, [venueId, selectedDate, calendar, user]);
 
     // Calendar grid
     const calendarGrid = useMemo(() => {

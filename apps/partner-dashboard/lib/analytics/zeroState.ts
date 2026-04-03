@@ -85,7 +85,7 @@ function buildMetric(
     const trendDir = delta > 0.01 ? "up" : delta < -0.01 ? "down" : "neutral";
     return {
         raw: rawNum,
-        formatted: rawNum === 0 ? "—" : formatted,
+        formatted,
         priorRaw: priorNum,
         delta,
         deltaPct,

@@ -24,7 +24,7 @@ const FREE_CANCELLATION_HOURS = 24;   // Full refund if cancelled within 24h of 
 
 export async function POST(request, { params }) {
     try {
-        const orderId = params.orderId;
+        const { orderId } = await params;
 
         // ── 1. Authentication ──
         const decodedToken = await verifyAuth(request);
@@ -221,7 +221,7 @@ export async function POST(request, { params }) {
  */
 export async function GET(request, { params }) {
     try {
-        const orderId = params.orderId;
+        const { orderId } = await params;
 
         const decodedToken = await verifyAuth(request);
         if (!decodedToken) {

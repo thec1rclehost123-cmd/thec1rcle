@@ -4,6 +4,9 @@
  */
 
 import { create } from "zustand";
+// @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
+// extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
+// When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 

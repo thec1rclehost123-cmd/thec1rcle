@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPromoterLinkAnalytics, listPromoterLinks } from "@/lib/server/promoterLinkStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 import { fail } from "@/lib/server/apiResponse";
 
 /**
@@ -8,20 +8,19 @@ import { fail } from "@/lib/server/apiResponse";
  * Returns funnel + commission data for a specific link.
  * Verifies ownership before returning data.
  */
-export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return fail(ctx.error, ctx.status);
+
     try {
-        const linkId = ctx?.params?.id as string;
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
+        const { id: linkId } = await params;
 
         // Ownership check
-        const links = await listPromoterLinks({ linkId }, token);
-        const link = Array.isArray(links) ? links.find((l: any) => l.id === linkId) : null;
+        const [link] = await listPromoterLinks({ linkId, promoterId: ctx.promoterId, limit: 1 });
 
-        if (link && link.promoterId && link.promoterId !== auth.uid) {
-            return fail("Forbidden", 403);
-        }
+        if (!link) return fail("Link not found", 404);
 
-        const analytics = await getPromoterLinkAnalytics(linkId, token);
+        const analytics = await getPromoterLinkAnalytics(linkId);
 
         return NextResponse.json(analytics);
     } catch (error: any) {
@@ -33,4 +32,4 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
             commissions: []
         });
     }
-});
+}

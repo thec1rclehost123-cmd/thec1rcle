@@ -32,6 +32,36 @@ const EMPTY_TICKETS = {
     cancelledTickets: [],
 };
 
+function createSafeLocalStorage() {
+    if (typeof window === "undefined") return undefined;
+
+    return {
+        getItem: (name) => localStorage.getItem(name),
+        setItem: (name, value) => {
+            try {
+                localStorage.setItem(name, value);
+            } catch (error) {
+                console.warn("[tickets-cache] localStorage quota exceeded, skipping cache write.", error);
+            }
+        },
+        removeItem: (name) => localStorage.removeItem(name),
+    };
+}
+
+function getMostRecentCacheEntry(cache, lastUid) {
+    if (!cache || typeof cache !== "object") return {};
+
+    if (lastUid && cache[lastUid]) {
+        return { [lastUid]: cache[lastUid] };
+    }
+
+    const latestEntry = Object.entries(cache)
+        .filter(([, value]) => value?.fetchedAt)
+        .sort((a, b) => b[1].fetchedAt - a[1].fetchedAt)[0];
+
+    return latestEntry ? { [latestEntry[0]]: latestEntry[1] } : {};
+}
+
 /**
  * Group a flat list of tickets by orderId (or eventId as fallback).
  * Extracted here so the store owns this logic, not the UI component.
@@ -53,6 +83,9 @@ export const useTicketsStore = create(
         (set, get) => ({
             // Cache keyed by user.uid: { [uid]: { data: {...}, fetchedAt: number } }
             cache: {},
+
+            // Tracks which user's cache should survive persistence.
+            lastUid: null,
 
             // Currently visible grouped tickets
             tickets: EMPTY_TICKETS,
@@ -99,6 +132,7 @@ export const useTicketsStore = create(
                             ...state.cache,
                             [uid]: { data: grouped, fetchedAt: Date.now() },
                         },
+                        lastUid: uid,
                         tickets: grouped,
                         status: "ready",
                         error: null,
@@ -121,18 +155,32 @@ export const useTicketsStore = create(
                         ...state.cache,
                         [uid]: undefined,
                     },
+                    lastUid: state.lastUid === uid ? null : state.lastUid,
                 })),
 
             /**
              * Clear all cached ticket data (call on sign-out).
              */
-            clearAll: () => set({ cache: {}, tickets: EMPTY_TICKETS, status: "idle" }),
+            clearAll: () => set({ cache: {}, lastUid: null, tickets: EMPTY_TICKETS, status: "idle" }),
         }),
         {
             name: 'tickets-cache',
-            storage: createJSONStorage(() =>
-                typeof window !== "undefined" ? localStorage : undefined
-            ),
+            storage: createJSONStorage(createSafeLocalStorage),
+            partialize: (state) => ({
+                cache: getMostRecentCacheEntry(state.cache, state.lastUid),
+                lastUid: state.lastUid,
+            }),
+            version: 1,
+            migrate: (persistedState) => {
+                const state = persistedState && typeof persistedState === "object" ? persistedState : {};
+                const nextCache = getMostRecentCacheEntry(state.cache, state.lastUid);
+                const nextLastUid = Object.keys(nextCache)[0] || null;
+
+                return {
+                    cache: nextCache,
+                    lastUid: nextLastUid,
+                };
+            },
         }
     )
 );

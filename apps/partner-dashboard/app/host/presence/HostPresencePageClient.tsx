@@ -17,6 +17,7 @@ import {
     Settings,
     Globe,
     ExternalLink,
+    EyeOff,
     Instagram,
     Twitter,
     Mail,
@@ -307,6 +308,8 @@ export default function HostPresencePageClient() {
         await handleUpdateProfile({ videos: currentVideos.filter((v: any) => v.id !== videoId) });
     };
 
+    const isPublicProfileEnabled = data?.profile?.publicProfileEnabled !== false;
+
     if (isLoading) {
         return (
             <div className="py-24 flex flex-col items-center justify-center">
@@ -410,16 +413,59 @@ export default function HostPresencePageClient() {
                         </p>
                     </div>
 
-                    {/* Publish button */}
-                    <button
-                        onClick={() => handleUpdateProfile({})}
-                        disabled={isSaving}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-bold transition-all flex-shrink-0 hover:brightness-90 active:scale-[0.98] disabled:opacity-60"
-                        style={{ background: "#ffffff", color: "#0a0a0b" }}
-                    >
-                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                        {saveStatus === "saved" ? "Saved ✓" : "Publish"}
-                    </button>
+                    <div className="w-full max-w-[280px] space-y-3 flex-shrink-0">
+                        <button
+                            type="button"
+                            onClick={() => handleUpdateProfile({ publicProfileEnabled: !isPublicProfileEnabled })}
+                            disabled={isSaving}
+                            className="w-full rounded-[22px] border px-4 py-3 text-left transition-all disabled:opacity-60"
+                            style={{
+                                background: isPublicProfileEnabled ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.04)",
+                                borderColor: isPublicProfileEnabled ? "rgba(244,74,34,0.35)" : "rgba(255,255,255,0.1)",
+                                boxShadow: isPublicProfileEnabled ? "0 18px 45px rgba(244,74,34,0.12)" : "none",
+                            }}
+                        >
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-2">
+                                    {isPublicProfileEnabled ? (
+                                        <Eye className="h-4 w-4" style={{ color: "#F44A22" }} />
+                                    ) : (
+                                        <EyeOff className="h-4 w-4" style={{ color: "rgba(255,255,255,0.55)" }} />
+                                    )}
+                                    <span className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: "rgba(255,255,255,0.72)" }}>
+                                        Public Profile
+                                    </span>
+                                </div>
+                                <span
+                                    className="inline-flex h-6 w-11 items-center rounded-full p-1 transition-all"
+                                    style={{ background: isPublicProfileEnabled ? "#F44A22" : "rgba(255,255,255,0.14)" }}
+                                >
+                                    <span
+                                        className="h-4 w-4 rounded-full bg-white transition-transform"
+                                        style={{ transform: isPublicProfileEnabled ? "translateX(20px)" : "translateX(0px)" }}
+                                    />
+                                </span>
+                            </div>
+                            <p className="text-sm font-bold" style={{ color: "#ffffff" }}>
+                                {isPublicProfileEnabled ? "Profile is live." : "Profile is hidden."}
+                            </p>
+                            <p className="mt-1 text-[12px] leading-5" style={{ color: "rgba(255,255,255,0.48)" }}>
+                                {isPublicProfileEnabled
+                                    ? "Guests can open your page from search, event links, and profile pills."
+                                    : "Direct links stay branded, but guests will see an offline page instead of your profile."}
+                            </p>
+                        </button>
+
+                        <button
+                            onClick={() => handleUpdateProfile({})}
+                            disabled={isSaving}
+                            className="flex w-full items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-[13px] font-bold transition-all hover:brightness-90 active:scale-[0.98] disabled:opacity-60"
+                            style={{ background: "#ffffff", color: "#0a0a0b" }}
+                        >
+                            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                            {saveStatus === "saved" ? "Saved ✓" : "Publish"}
+                        </button>
+                    </div>
                 </div>
 
                 {/* Divider */}
@@ -1122,7 +1168,10 @@ export default function HostPresencePageClient() {
                                                     try {
                                                         const res = await fetch("/api/host/broadcast", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                "Content-Type": "application/json",
+                                                                ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}),
+                                                            },
                                                             body: JSON.stringify({
                                                                 hostId: profile?.activeMembership?.partnerId,
                                                                 title: broadcastTitle,

@@ -394,7 +394,7 @@ export default function LiveClient() {
             );
             if (res.ok) {
                 const payload = await res.json();
-                setData(normalizeAnalyticsV2(payload));
+                setData(normalizeAnalyticsV2((payload as any)?.analytics ?? payload));
             }
         } catch {
             // keep stale data on error

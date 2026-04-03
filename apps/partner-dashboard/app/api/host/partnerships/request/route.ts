@@ -1,21 +1,19 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requestPartnership } from "@/lib/server/partnershipStore";
-import { verifyPartnerAccess } from "@/lib/server/auth";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
-export const POST = withAuth(async (req: NextRequest) => {
+export async function POST(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
-        const { hostId, venueId, hostName, venueName } = await req.json();
+        const { venueId, hostName, venueName } = await req.json();
+        if (!venueId) return fail("venueId is required", 400);
 
-        if (!hostId || !venueId) return fail("hostId and venueId are required", 400);
-
-        const hasAccess = await verifyPartnerAccess(req, hostId);
-        if (!hasAccess) return fail("Forbidden", 403);
-
-        const result = await requestPartnership(hostId, venueId, hostName, venueName);
+        const result = await requestPartnership(ctx.hostId, venueId, hostName, venueName);
         return ok({ result });
     } catch (error: any) {
         return fail("Failed to request partnership");
     }
-});
+}

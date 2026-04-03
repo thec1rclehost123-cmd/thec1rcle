@@ -17,7 +17,7 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { ErrorState } from "@/components/ui/ErrorState";
 
 export default function HostOpsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
@@ -30,10 +30,15 @@ export default function HostOpsPage() {
             setIsError(false);
             try {
                 const hostId = profile.activeMembership.partnerId;
-                const res = await fetch(`/api/host/ops/tonight?hostId=${hostId}`);
+                const token = user ? await user.getIdToken() : "";
+                const res = await fetch(`/api/host/ops/tonight?hostId=${hostId}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
                 if (res.ok) {
                     const json = await res.json();
                     setData(json);
+                } else {
+                    setIsError(true);
                 }
             } catch {
                 setIsError(true);
@@ -45,7 +50,7 @@ export default function HostOpsPage() {
         fetchOpsData();
         const interval = setInterval(fetchOpsData, 30000); // Pulse every 30s
         return () => clearInterval(interval);
-    }, [profile, retryKey]);
+    }, [profile, retryKey, user]);
 
     if (isLoading && !data) {
         return (

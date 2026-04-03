@@ -2,7 +2,6 @@
 export { IdentityStep } from './IdentityStep';
 export { SchedulingStep } from './SchedulingStep';
 export { ExperienceStep } from './ExperienceStep';
-export { LocationStep } from './LocationStep';
 
 // Re-export existing steps (unchanged)
 // TicketTierStep - imported directly

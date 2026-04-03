@@ -173,7 +173,7 @@ const EventCard = ({
                                         onClick={handleCtaClick}
                                         className={`flex items-center gap-2 px-6 py-3 rounded-full bg-white text-black font-black text-[10px] uppercase tracking-widest hover:bg-white/90 transition-all shadow-xl shadow-black/20 ${isPreview ? 'cursor-pointer pointer-events-auto' : ''} active:scale-95`}
                                     >
-                                        {isPreview ? 'View Experience' : 'Book Tickets'}
+                                        {isPreview ? 'Preview' : 'Book Tickets'}
                                         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M5 12h14" /><path d="m12 5 7 7-7 7" /></svg>
                                     </span>
                                 </div>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import {
-    Search,
     RefreshCw,
     Users,
     ShieldCheck,
@@ -17,6 +16,7 @@ import {
     Loader2,
     Star,
     Zap,
+    Search,
 } from "lucide-react";
 import { VirtuosoGrid } from "react-virtuoso";
 import { motion, AnimatePresence } from "framer-motion";

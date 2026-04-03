@@ -17,6 +17,14 @@ export const metadata = {
   applicationName: "THE C1RCLE Partner Dashboard",
   keywords: ["nightclub", "venue management", "event management", "nightlife", "partner dashboard"],
   authors: [{ name: "THE C1RCLE" }],
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/icon-192.png",
+    apple: "/icon-192.png",
+  },
 };
 
 export const viewport = {
@@ -28,7 +36,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
       <body className="antialiased">
         <WebVitals />
         <ThemeProvider

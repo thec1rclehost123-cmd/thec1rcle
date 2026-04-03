@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getHostBySlug } from "@/lib/server/hostStore";
+import { isPublicProfileEnabled } from "@/lib/server/publicProfile";
 
 export async function GET(request, { params }) {
     try {
-        const { slug } = params;
+        const { slug } = await params;
         const host = await getHostBySlug(slug);
 
-        if (!host) {
+        if (!host || !isPublicProfileEnabled(host)) {
             return NextResponse.json({ error: "Host not found" }, { status: 404 });
         }
 

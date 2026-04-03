@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import { getVenueBySlug } from "@/lib/server/venueStore";
+import { isPublicProfileEnabled } from "@/lib/server/publicProfile";
 
 export async function GET(request, { params }) {
     try {
-        const { venueId } = params;
+        const { venueId } = await params;
         const venue = await getVenueBySlug(venueId);
 
-        if (!venue) {
+        if (!venue || !isPublicProfileEnabled(venue)) {
             return NextResponse.json({ error: "Venue not found" }, { status: 404 });
         }
 

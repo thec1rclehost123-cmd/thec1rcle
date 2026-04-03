@@ -3,7 +3,12 @@ import * as surgeCore from "@c1rcle/core";
 
 export async function recordMetric(eventId, type) {
     if (!isFirebaseConfigured()) return;
-    return surgeCore.recordSurgeMetric(getAdminDb(), eventId, type);
+    try {
+        return await surgeCore.recordSurgeMetric(getAdminDb(), eventId, type);
+    } catch (error) {
+        console.warn("[SurgeStore] Metric recording skipped:", error.message || error);
+        return false;
+    }
 }
 
 export async function getSurgeStatus(eventId) {

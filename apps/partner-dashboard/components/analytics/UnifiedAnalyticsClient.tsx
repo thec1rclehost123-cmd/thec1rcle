@@ -56,15 +56,19 @@ export default function UnifiedAnalyticsClient({
         refetchOnWindowFocus: true,
     });
 
-    const data: AnalyticsV2 = normalizeAnalyticsV2(raw);
+    const normalizedPayload =
+        raw && typeof raw === "object" && "analytics" in raw
+            ? (raw as { analytics?: Record<string, unknown> }).analytics ?? null
+            : raw;
+    const data: AnalyticsV2 = normalizeAnalyticsV2(normalizedPayload as Record<string, unknown> | null | undefined);
 
     return (
         <StudioShell
             role={role}
             title="Analytics"
-            subtitle="Event-level performance metrics. Select an event to drill down."
             sections={SECTIONS}
             onEventChange={(id) => setEventId(id ?? "all")}
+            heroBackground="plain"
         >
             {/* Notices */}
             {!isLoading && !data.hasData && (

@@ -159,16 +159,19 @@ export async function recordOrderCaptured(order, paymentId, transaction = null) 
     const amount = Number(order.totalAmount);
     const db = getAdminDb();
 
-    // Idempotency: Check if this paymentId already exists in Captured state
-    const existing = await db.collection(LEDGER_COLLECTION)
-        .where("entityId", "==", order.id)
-        .where("referenceId", "==", paymentId)
-        .where("state", "==", MONEY_STATES.CAPTURED)
-        .get();
+    if (!transaction) {
+        // Only do this query outside a Firestore transaction. Transactional callers may have
+        // already written documents, and Firestore rejects reads after writes in the same txn.
+        const existing = await db.collection(LEDGER_COLLECTION)
+            .where("entityId", "==", order.id)
+            .where("referenceId", "==", paymentId)
+            .where("state", "==", MONEY_STATES.CAPTURED)
+            .get();
 
-    if (!existing.empty) {
-        console.log(`[Ledger] Payment ${paymentId} already captured for order ${order.id}. Skipping.`);
-        return;
+        if (!existing.empty) {
+            console.log(`[Ledger] Payment ${paymentId} already captured for order ${order.id}. Skipping.`);
+            return;
+        }
     }
 
     try {

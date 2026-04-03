@@ -1,33 +1,44 @@
 import { NextRequest } from "next/server";
-import { listPromoterCommissions } from "@/lib/server/promoterLinkStore";
-import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
-import { logger } from "@/lib/server/logger";
+import { getPromoterFinanceSnapshot } from "@/lib/server/promoterFinanceStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
 
 /**
  * GET /api/promoter/commissions
- * List commissions for a promoter
+ * Canonical promoter commission ledger sourced from the shared finance snapshot.
  */
-export const GET = withAuth(async (req: NextRequest) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) {
+        return fail(ctx.error, ctx.status);
+    }
+
     try {
         const { searchParams } = new URL(req.url);
-        const promoterId = searchParams.get("promoterId");
-        const eventId = searchParams.get("eventId");
-        const status = searchParams.get("status");
-        const limit = Math.min(parseInt(searchParams.get("limit") || "50"), 200);
+        const status = String(searchParams.get("status") || "all").toLowerCase();
+        const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 200);
 
-        if (!promoterId && !eventId) return fail("promoterId or eventId is required", 400);
-
-        const commissions = await listPromoterCommissions({
-            promoterId: promoterId || undefined,
-            eventId: eventId || undefined,
-            status: status || undefined,
-            limit
-        });
+        const snapshot = await getPromoterFinanceSnapshot(ctx.promoterId);
+        const commissions = snapshot.commissionDetails
+            .filter((row) => status === "all" || row.status === status)
+            .slice(0, limit)
+            .map((row) => ({
+                id: row.id,
+                eventId: row.eventId,
+                eventName: row.eventName,
+                linkCode: row.linkCode,
+                ticketsSold: row.ticketsSold,
+                revenue: row.revenue,
+                commissionRate: row.commissionRate,
+                commissionAmount: row.amount,
+                status: row.status,
+                createdAt: row.date,
+                settledAt: row.settledAt || null,
+            }));
 
         return ok({ commissions });
     } catch (error: any) {
-        logger.error("promoter/commissions", "Failed to fetch commissions", { error: error.message });
+        console.error("[promoter/commissions] Failed to fetch commissions", error);
         return fail("Failed to fetch commissions");
     }
-});
+}

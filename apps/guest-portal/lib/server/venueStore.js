@@ -1,5 +1,6 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { trackedGet } from "./firestoreMetrics";
+import { isPublicProfileEnabled } from "./publicProfile";
 
 const fallbackVenues = [
     {
@@ -148,7 +149,7 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
             );
         }
         if (tablesOnly) venues = venues.filter(v => v.tablesAvailable);
-        return venues;
+        return venues.filter(isPublicProfileEnabled);
     }
 
     const db = getAdminDb();
@@ -183,7 +184,9 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
         venues = venues.filter(v => v.tablesAvailable);
     }
 
-    if (venues.length === 0 && !area && !vibe && !search) return fallbackVenues;
+    venues = venues.filter(isPublicProfileEnabled);
+
+    if (venues.length === 0 && !area && !vibe && !search) return fallbackVenues.filter(isPublicProfileEnabled);
     return venues;
 }
 

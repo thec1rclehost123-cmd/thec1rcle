@@ -201,12 +201,6 @@ export class C1rcleApiClient {
         });
     }
 
-    // ─── Analytics ────────────────────────────────────────────────
-
-    async getAnalytics(id, type = 'venue', range = '30d') {
-        return this.request(`/analytics/${type}/${id}?range=${range}`);
-    }
-
     // ─── Tables ───────────────────────────────────────────────────
 
     async getFloorPlan(venueId) {
@@ -258,8 +252,34 @@ export class C1rcleApiClient {
         return this.request(`/search?${query}`, { requireAuth: false });
     }
 
-    async getAnalytics(type, id, subCategory = 'overview') {
-        return this.request(`/analytics/${type}/${id}/${subCategory}`);
+    async getAnalytics(arg1, arg2 = 'venue', arg3 = '30d') {
+        const entityTypes = new Set(['venue', 'host', 'promoter', 'event', 'promoter_audience', 'promoter_funnel', 'promoter_strategy']);
+        const rangeValues = new Set(['1d', '7d', '1w', '30d', '1m', '90d', 'all']);
+
+        let type;
+        let id;
+        let subCategory = null;
+        let range = '30d';
+
+        if (entityTypes.has(arg1)) {
+            type = arg1;
+            id = arg2;
+            if (arg3 && rangeValues.has(arg3)) {
+                range = arg3;
+            } else if (arg3) {
+                subCategory = arg3;
+            }
+        } else {
+            id = arg1;
+            type = arg2;
+            range = arg3 || '30d';
+        }
+
+        if (subCategory) {
+            return this.request(`/analytics/${type}/${id}/${subCategory}`);
+        }
+
+        return this.request(`/analytics/${type}/${id}?range=${range}`);
     }
 
     // ─── Calendar ────────────────────────────────────────────────
@@ -551,7 +571,6 @@ export class C1rcleApiClient {
         });
     }
 }
-
 
 
 

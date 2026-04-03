@@ -60,7 +60,7 @@ const STYLE_TAGS = [
 const ROLE_OPTIONS = ["DJ", "Promoter", "Collective", "Artist", "Producer", "Label"];
 
 export default function HostPageManagement() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [data, setData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isError, setIsError] = useState(false);
@@ -961,7 +961,10 @@ export default function HostPageManagement() {
                                                     try {
                                                         const res = await fetch("/api/host/broadcast", {
                                                             method: "POST",
-                                                            headers: { "Content-Type": "application/json" },
+                                                            headers: {
+                                                                "Content-Type": "application/json",
+                                                                ...(user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}),
+                                                            },
                                                             body: JSON.stringify({
                                                                 hostId: profile?.activeMembership?.partnerId,
                                                                 title: broadcastTitle,

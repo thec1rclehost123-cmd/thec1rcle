@@ -1,4 +1,7 @@
 import { create } from "zustand";
+// @c1rcle/types provides the canonical Event/Venue/Profile shapes shared across all apps.
+// The local Event interface below extends that concept with mobile-specific fields.
+// When harmonizing types, use: import type { Event as BaseEvent } from '@c1rcle/types';
 import {
     collection,
     query,
@@ -70,6 +73,10 @@ interface EventsState {
     events: Event[];
     featuredEvents: Event[];
     searchResults: Event[];
+    categoryEvents: Record<string, Event[]>;
+    categoryLoading: Record<string, boolean>;
+    categoryLastDoc: Record<string, QueryDocumentSnapshot | null>;
+    categoryHasMore: Record<string, boolean>;
     loading: boolean;
     searching: boolean;
     error: string | null;
@@ -84,12 +91,18 @@ interface EventsState {
     loadMoreEvents: () => Promise<void>;
     getEventById: (id: string) => Promise<Event | null>;
     clearSearch: () => void;
+    fetchByCategory: (category: string, city?: string) => Promise<void>;
+    loadMoreByCategory: (category: string, city?: string) => Promise<void>;
 }
 
 export const useEventsStore = create<EventsState>((set, get) => ({
     events: [],
     featuredEvents: [],
     searchResults: [],
+    categoryEvents: {},
+    categoryLoading: {},
+    categoryLastDoc: {},
+    categoryHasMore: {},
     loading: false,
     searching: false,
     error: null,
@@ -336,5 +349,95 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
     clearSearch: () => {
         set({ searchResults: [], searching: false });
+    },
+
+    fetchByCategory: async (category: string, city?: string) => {
+        const { categoryLoading } = get();
+        if (categoryLoading[category]) return;
+
+        set((s) => ({
+            categoryLoading: { ...s.categoryLoading, [category]: true },
+        }));
+
+        try {
+            const db = getFirebaseDb();
+            const eventsRef = collection(db, "events");
+            const now = new Date().toISOString();
+
+            const constraints: any[] = [
+                where("status", "in", ["published", "scheduled", "live"]),
+                where("category", "==", category),
+                where("startDate", ">=", now),
+                orderBy("startDate", "asc"),
+                limit(20),
+            ];
+
+            if (city) {
+                constraints.splice(1, 0, where("city", "==", city));
+            }
+
+            const snapshot = await getDocs(query(eventsRef, ...constraints));
+            const events: Event[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
+
+            set((s) => ({
+                categoryEvents: { ...s.categoryEvents, [category]: events },
+                categoryLastDoc: { ...s.categoryLastDoc, [category]: lastDoc },
+                categoryHasMore: { ...s.categoryHasMore, [category]: snapshot.docs.length === 20 },
+                categoryLoading: { ...s.categoryLoading, [category]: false },
+            }));
+        } catch (error: any) {
+            console.error(`Error fetching category ${category}:`, error);
+            set((s) => ({
+                categoryLoading: { ...s.categoryLoading, [category]: false },
+            }));
+        }
+    },
+
+    loadMoreByCategory: async (category: string, city?: string) => {
+        const { categoryLoading, categoryHasMore, categoryLastDoc } = get();
+        if (categoryLoading[category] || !categoryHasMore[category] || !categoryLastDoc[category]) return;
+
+        set((s) => ({
+            categoryLoading: { ...s.categoryLoading, [category]: true },
+        }));
+
+        try {
+            const db = getFirebaseDb();
+            const eventsRef = collection(db, "events");
+            const now = new Date().toISOString();
+
+            const constraints: any[] = [
+                where("status", "in", ["published", "scheduled", "live"]),
+                where("category", "==", category),
+                where("startDate", ">=", now),
+                orderBy("startDate", "asc"),
+                startAfter(categoryLastDoc[category]),
+                limit(20),
+            ];
+
+            if (city) {
+                constraints.splice(1, 0, where("city", "==", city));
+            }
+
+            const snapshot = await getDocs(query(eventsRef, ...constraints));
+            const newEvents: Event[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
+            const lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
+
+            set((s) => ({
+                categoryEvents: {
+                    ...s.categoryEvents,
+                    [category]: [...(s.categoryEvents[category] ?? []), ...newEvents],
+                },
+                categoryLastDoc: { ...s.categoryLastDoc, [category]: lastDoc },
+                categoryHasMore: { ...s.categoryHasMore, [category]: snapshot.docs.length === 20 },
+                categoryLoading: { ...s.categoryLoading, [category]: false },
+            }));
+        } catch (error: any) {
+            console.error(`Error loading more for category ${category}:`, error);
+            set((s) => ({
+                categoryLoading: { ...s.categoryLoading, [category]: false },
+            }));
+        }
     },
 }));

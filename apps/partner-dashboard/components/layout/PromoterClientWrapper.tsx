@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Menu, X, Link2 } from "lucide-react";
 import Link from "next/link";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
@@ -10,21 +10,19 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getDefaultTabVisibility } from "@/lib/rbac/types";
 import { KycBanner } from "@/components/shared/KycBanner";
-import { usePathname } from "next/navigation";
+import { ThemeToggleCompact } from "@/components/ThemeToggle";
+import { usePathname, useRouter } from "next/navigation";
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const PROMOTER_HREF_TO_TAB: Record<string, string> = {
     "/promoter":            "overview",
-    "/promoter/links":      "links",
     "/promoter/events":     "events",
-    "/promoter/partners":   "partners",
     "/promoter/analytics":  "analytics",
     "/promoter/finance":    "finance",
-    "/promoter/settings":   "settings",
+    "/promoter/partners":   "partners",
 };
 
 function itemTab(href: string): string | null {
-    // Strip query params before lookup (e.g. /promoter/events?view=calendar → events)
     const path = href.split("?")[0];
     if (PROMOTER_HREF_TO_TAB[path]) return PROMOTER_HREF_TO_TAB[path];
     for (const [prefix, tab] of Object.entries(PROMOTER_HREF_TO_TAB)) {
@@ -58,14 +56,12 @@ interface PromoterClientWrapperProps {
 export function PromoterClientWrapper({ children, menuSections }: PromoterClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { tabVisibility: ctxTabVisibility, profile } = useDashboardAuth();
+    const { tabVisibility: ctxTabVisibility, profile, loading } = useDashboardAuth();
     const pathname = usePathname();
+    const router = useRouter();
 
-    const promoterPrimaryAction = { label: "+ New Link", href: "/promoter/links" };
+    const promoterPrimaryAction = { label: "+ New Link", href: "/promoter/events", icon: Link2 };
 
-    // Use server-resolved tabVisibility from auth context if set (custom staff profiles).
-    // Fall back to role-based defaults: PROMOTER hides Partners + Settings;
-    // TEAM_LEAD sees all tabs.
     const membership = profile?.activeMembership;
     const tabVisibility = ctxTabVisibility ?? (
         membership?.role
@@ -78,9 +74,21 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
         [menuSections, tabVisibility]
     );
 
+    // Redirect to /promoter if the current path maps to a tab the staff can't access
+    useEffect(() => {
+        if (!tabVisibility || !pathname) return;
+        const currentTab = itemTab(pathname);
+        if (currentTab && tabVisibility[currentTab] !== true) {
+            router.replace("/promoter");
+        }
+    }, [tabVisibility, pathname, router]);
+
+    // Block render until permissions are resolved
+    if (loading) return null;
+
     return (
         <RoleGuard allowedType="promoter">
-            <div className="venue-shell min-h-screen bg-[var(--v-canvas)]">
+            <div className="venue-shell min-h-screen overflow-x-clip bg-[var(--v-canvas)]">
                 {/* Desktop Sidebar */}
                 <div className="hidden lg:block fixed left-0 top-0 bottom-0 h-full z-50">
                     <AppleSidebar
@@ -94,25 +102,28 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                 </div>
 
                 {/* Mobile Header */}
-                <header className="lg:hidden h-14 bg-surface-base/90 backdrop-blur-xl border-b border-border-subtle fixed top-0 left-0 right-0 z-50 px-4 flex items-center justify-between">
+                <header className="lg:hidden h-14 bg-surface-base/90 backdrop-blur-xl border-b border-border-subtle fixed top-0 left-0 right-0 z-50 px-3 sm:px-4 flex items-center justify-between gap-2">
                     <button
                         onClick={() => setSidebarOpen(true)}
-                        className="p-2 rounded-lg hover:bg-surface-secondary transition-colors"
+                        className="p-2 rounded-lg hover:bg-surface-secondary transition-colors shrink-0"
                     >
                         <Menu className="h-5 w-5 text-text-primary" />
                     </button>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
                         <span className="w-7 h-7 rounded-lg bg-text-primary flex items-center justify-center text-text-inverse text-[11px] font-bold">C</span>
-                        <span className="text-[13px] font-bold text-text-primary tracking-wide">C1RCLE</span>
+                        <span className="text-[13px] font-bold text-text-primary tracking-wide truncate">C1RCLE</span>
                     </div>
-                    <Link
-                        href="/promoter/links"
-                        className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
-                        style={{ background: "var(--c1rcle-orange)" }}
-                        title="New Link"
-                    >
-                        <Link2 className="h-4 w-4 text-white" />
-                    </Link>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <ThemeToggleCompact />
+                        <Link
+                            href="/promoter/events"
+                            className="w-9 h-9 rounded-xl flex items-center justify-center transition-colors"
+                            style={{ background: "var(--c1rcle-orange)" }}
+                            title="Events"
+                        >
+                            <Link2 className="h-4 w-4 text-white" />
+                        </Link>
+                    </div>
                 </header>
 
                 {/* Mobile Sidebar Overlay */}
@@ -153,18 +164,18 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                 </AnimatePresence>
 
                 {/* Main Content */}
-                <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen pt-14 lg:pt-0 transition-all duration-300 ease-in-out`}>
-                    <div className="hidden lg:block sticky top-0 z-40">
+                <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen min-w-0 pt-14 lg:pt-16 transition-all duration-300 ease-in-out`}>
+                    <div className={`hidden lg:block fixed top-0 right-0 z-40 transition-all duration-300 ease-in-out ${isCollapsed ? "left-[80px]" : "left-[280px]"}`}>
                         <AppleTopBar primaryAction={promoterPrimaryAction} />
                     </div>
 
                     <KycBanner />
-                    <main className="flex-1 p-4 sm:p-6 lg:p-8 xl:p-10">
+                    <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.3 }}
-                            className="max-w-[1600px] mx-auto"
+                            className="max-w-[1600px] mx-auto min-w-0"
                         >
                             {children}
                         </motion.div>

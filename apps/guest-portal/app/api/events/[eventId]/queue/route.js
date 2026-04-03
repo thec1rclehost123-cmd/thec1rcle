@@ -4,7 +4,7 @@ import { getSurgeStatus, recordMetric } from "@/lib/server/surgeStore";
 import { withRateLimit } from "@/lib/server/rateLimit";
 
 async function postHandler(request, { params }) {
-    const { eventId } = params;
+    const { eventId } = await params;
     try {
         const payload = await request.json();
         const userId = payload.userId || 'anonymous';
@@ -22,7 +22,7 @@ async function postHandler(request, { params }) {
 }
 
 async function getHandler(request, { params }) {
-    const { eventId } = params;
+    const { eventId } = await params;
     const { searchParams } = new URL(request.url);
     const queueId = searchParams.get("queueId");
 

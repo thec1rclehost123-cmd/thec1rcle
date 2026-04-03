@@ -24,7 +24,7 @@
 
 import { NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { getAdminDb } from "@/lib/firebase/admin";
 import { FieldPath } from "firebase-admin/firestore";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -39,6 +39,12 @@ export interface OnlineCustomer {
     eventName: string;
     entryTime: string | null;
     status: string;
+    marketingConsent: {
+        allowPlatformMessages: boolean;
+        allowDirectContactShare: boolean;
+        consentStatement: string | null;
+        recordedAt: string | null;
+    };
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -66,39 +72,29 @@ function dedupKey(o: Record<string, any>): string {
 
 const CONFIRMED = ["confirmed", "checked_in", "completed"];
 
-// ── Dev seed ──────────────────────────────────────────────────────────────────
-
-const DEV_SEED: OnlineCustomer[] = [
-    { id: "u1", name: "Arjun Mehta",  email: "arjun.mehta@gmail.com", phone: "+91 98765 43210", age: 25, dob: "2000-03-15", eventName: "Neon Nights Vol.3",  entryTime: "2025-12-20T21:30:00Z", status: "checked_in" },
-    { id: "u2", name: "Priya Sharma", email: "priya.s@outlook.com",   phone: "+91 87654 32109", age: 22, dob: "2003-07-22", eventName: "Neon Nights Vol.3",  entryTime: "2025-12-20T22:10:00Z", status: "checked_in" },
-    { id: "u3", name: "Rohan Kapoor", email: "rohan.k@yahoo.com",     phone: "+91 76543 21098", age: null, dob: null,         eventName: "Saturday Circuit",   entryTime: "2025-12-21T20:55:00Z", status: "confirmed"  },
-    { id: "u4", name: "Sneha Patil",  email: "sneha.patil@gmail.com", phone: "+91 65432 10987", age: 28, dob: "1997-11-05", eventName: "Saturday Circuit",   entryTime: "2025-12-21T21:40:00Z", status: "checked_in" },
-    { id: "u5", name: "Dev Joshi",    email: "dev.joshi@proton.me",   phone: "+91 54321 09876", age: null, dob: "2001-06-18", eventName: "New Year Bash 2026", entryTime: null,                   status: "confirmed"  },
-    { id: "u6", name: "Kavya Nair",   email: "kavya.nair@gmail.com",  phone: "+91 43210 98765", age: 30, dob: "1995-09-30", eventName: "New Year Bash 2026", entryTime: null,                   status: "confirmed"  },
-];
+// DEV_SEED removed — never return fake data in any environment.
 
 // ── Handler ───────────────────────────────────────────────────────────────────
+
+// Bounded limit for in-memory processing — prevents OOM on large venues
+const CUSTOMER_FETCH_LIMIT = 200;
 
 export async function GET(request: Request) {
     try {
         const ctx = await requireVenueAccess(request, "guestlist:read");
-    const { venueId, piiPolicy } = ctx as any;
         if ("error" in ctx) {
             return NextResponse.json({ error: ctx.error }, { status: ctx.status });
         }
-
-
-        if (!isFirebaseConfigured()) {
-            return NextResponse.json({ customers: DEV_SEED, total: DEV_SEED.length });
-        }
+        const { venueId, piiPolicy } = ctx;
 
         const db = getAdminDb();
 
         // ── Round 1: all three independent reads fire simultaneously ─────────
+        // Each query is bounded to CUSTOMER_FETCH_LIMIT to prevent OOM.
         const [eventsSnap, directOrdersSnap, directRsvpSnap] = await Promise.all([
-            db.collection("events").where("venueId", "==", venueId).select("title").get(),
-            db.collection("orders").where("venueId", "==", venueId).get(),
-            db.collection("rsvp_orders").where("venueId", "==", venueId).get(),
+            db.collection("events").where("venueId", "==", venueId).select("title").limit(100).get(),
+            db.collection("orders").where("venueId", "==", venueId).orderBy("createdAt", "desc").limit(CUSTOMER_FETCH_LIMIT).get(),
+            db.collection("rsvp_orders").where("venueId", "==", venueId).orderBy("createdAt", "desc").limit(CUSTOMER_FETCH_LIMIT).get(),
         ]);
 
         // Build event title map
@@ -162,6 +158,12 @@ export async function GET(request: Request) {
                 eventName: eventTitleMap[o.eventId as string] ?? (o.eventTitle as string) ?? "Unknown Event",
                 entryTime: (o.checkedInAt as string) ?? (o.confirmedAt as string) ?? (o.createdAt as string) ?? null,
                 status:    o.status as string,
+                marketingConsent: {
+                    allowPlatformMessages: true,
+                    allowDirectContactShare: false,
+                    consentStatement: null,
+                    recordedAt: null,
+                },
             });
         }
 

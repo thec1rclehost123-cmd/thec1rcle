@@ -41,6 +41,9 @@ export type StaffAction =
     | "guestlist:flag"
     | "guestlist:export"
     | "guestlist:print"
+    | "orders_resendReceipt"
+    | "orders_refund"
+    | "orders_refundResell"
     // Walk-ins
     | "walkins:read"
     | "walkins:create"
@@ -123,8 +126,8 @@ export const DEFAULT_PII_POLICY: PIIPolicy = {
 };
 
 export const OWNER_PII_POLICY: PIIPolicy = {
-    showPhone: true,
-    showEmail: true,
+    showPhone: false,
+    showEmail: false,
     showLastName: true,
     showOrderAmount: true,
     showPayoutAmounts: true,

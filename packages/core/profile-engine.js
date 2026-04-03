@@ -6,7 +6,7 @@
 export const PROFILE_SAFE_FIELDS = [
     // Identity Layer
     "displayName", "bio", "coverImage", "profileImage", "photos",
-    "photoURL", "coverURL", "tagline", "slug", "categoryTag",
+    "photoURL", "coverURL", "tagline", "slug", "categoryTag", "username", "handle",
     // Location
     "city", "neighborhood", "address", "phone", "email", "website", "whatsapp",
     // Extended Social Links

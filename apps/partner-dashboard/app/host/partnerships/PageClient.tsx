@@ -276,22 +276,26 @@ export default function HostPartnershipsPage() {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
 
-            const [partnershipRes, promoterRes] = await Promise.allSettled([
-                fetch(`/api/venue/partnerships?hostId=${hostId}`, { headers }),
+            const [partnershipRes, promoterNetworkRes, promoterReqRes] = await Promise.allSettled([
+                fetch(`/api/host/partnerships?hostId=${hostId}`, { headers }),
+                fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, { headers }),
                 fetch(`/api/host/promoter-requests?hostId=${hostId}`, { headers }),
             ]);
 
             if (partnershipRes.status === "fulfilled" && partnershipRes.value.ok) {
                 const d = await partnershipRes.value.json();
                 const allPartners = d.partnerships || d.partners || [];
-                const venuePartners = allPartners.filter((p: any) => p.type === "venue" || !p.type);
+                const venuePartners = allPartners.filter((p: any) => {
+                    const status = p.status || p.partnershipStatus || "pending";
+                    return Boolean(p.venueId || p.id) && (p.type === "venue" || !p.type) && ["active", "pending", "rejected"].includes(status);
+                });
                 const reqList: PartnershipRequest[] = allPartners.map((p: any) => ({
                     id: p.id,
                     type: "venue" as const,
                     direction: p.initiatedBy === "venue" ? "incoming" : "outgoing",
                     partnerName: p.name || p.venueName || "Venue",
                     partnerCity: p.city,
-                    status: (p.status || p.partnershipStatus || "pending") as any,
+                    status: ((p.status || p.partnershipStatus || "pending") === "active" ? "approved" : (p.status || p.partnershipStatus || "pending")) as any,
                     createdAt: p.requestedAt || p.createdAt || new Date().toISOString(),
                 }));
                 setVenues(venuePartners.map((p: any) => ({
@@ -301,7 +305,7 @@ export default function HostPartnershipsPage() {
                     capacity: p.capacity,
                     style: p.style,
                     coverImage: p.coverImage || p.coverURL,
-                    partnershipStatus: p.status || p.partnershipStatus || "none",
+                    partnershipStatus: (p.status || p.partnershipStatus || "none") === "approved" ? "active" : (p.status || p.partnershipStatus || "none"),
                     eventsHosted: p.eventsHosted,
                 })));
                 setRequests(prev => {
@@ -311,8 +315,28 @@ export default function HostPartnershipsPage() {
                 });
             }
 
-            if (promoterRes.status === "fulfilled" && promoterRes.value.ok) {
-                const d = await promoterRes.value.json();
+            if (promoterNetworkRes.status === "fulfilled" && promoterNetworkRes.value.ok) {
+                const d = await promoterNetworkRes.value.json();
+                const promoterConnections = (d.connections || []).filter((c: any) => c.type === "promoter_connection");
+                setPromoters(
+                    promoterConnections.map((c: any) => ({
+                        id: c.otherId || c.promoterId || c.id,
+                        displayName: c.otherName || c.promoterName || "Promoter",
+                        handle: c.promoterInstagram || c.instagram || undefined,
+                        photoURL: c.otherAvatar || undefined,
+                        cities: c.otherCity ? [c.otherCity] : [],
+                        partnershipStatus: c.status === "approved" || c.status === "active" ? "active" : c.status === "pending" ? "pending" : "none",
+                        totalGuestsBrought: c.totalGuestsBrought || 0,
+                        conversionRate: c.conversionRate || 0,
+                        eventsSupported: c.eventsSupported || 0,
+                    }))
+                );
+            } else {
+                setPromoters([]);
+            }
+
+            if (promoterReqRes.status === "fulfilled" && promoterReqRes.value.ok) {
+                const d = await promoterReqRes.value.json();
                 const promoterRequests: PartnershipRequest[] = (d.requests || []).map((r: any) => ({
                     id: r.id,
                     type: "promoter" as const,
@@ -321,7 +345,6 @@ export default function HostPartnershipsPage() {
                     status: (r.status || "pending") as any,
                     createdAt: r.createdAt || new Date().toISOString(),
                 }));
-                setPromoters(d.promoters || d.connections || []);
                 setRequests(prev => {
                     const venueReqs = prev.filter(r => r.type === "venue");
                     return [...venueReqs, ...promoterRequests];
@@ -348,10 +371,19 @@ export default function HostPartnershipsPage() {
     const handlePromoterInvite = async (promoterId: string) => {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/host/promoters/invite", {
+            const promoter = promoters.find((entry) => entry.id === promoterId);
+            if (!promoter) return;
+            await fetch("/api/discovery", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ hostId, promoterId }),
+                body: JSON.stringify({
+                    requesterId: hostId,
+                    requesterType: "host",
+                    requesterName: profile?.displayName || profile?.activeMembership?.partnerName || "Host",
+                    targetId: promoterId,
+                    targetType: "promoter",
+                    targetName: promoter.displayName,
+                }),
             });
             fetchData();
         } catch { /* */ }
@@ -361,7 +393,7 @@ export default function HostPartnershipsPage() {
         setProcessingRequest(partnershipId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/venue/partnerships", {
+            await fetch("/api/host/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId, action }),

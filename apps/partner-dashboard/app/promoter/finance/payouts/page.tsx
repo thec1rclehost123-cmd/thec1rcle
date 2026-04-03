@@ -11,11 +11,14 @@ type PayoutStatus = "pending" | "processing" | "completed" | "failed" | "cancell
 interface Payout {
     id: string;
     amount: number;
-    status: PayoutStatus;
+    status: string;
     paymentMethod: string;
     createdAt: string;
     updatedAt?: string;
     paymentDetails?: { upiId?: string; accountNumber?: string };
+    eventName?: string;
+    buyerName?: string;
+    date?: string | null;
 }
 
 interface Balance {
@@ -58,11 +61,11 @@ export default function PromoterPayoutsPage() {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, { headers });
-            if (!res.ok) throw new Error("Failed to load payouts");
-            const d = await res.json();
-            setBalance(d.balance || null);
-            setPayouts(d.payouts || []);
+            const payoutRes = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, { headers });
+            if (!payoutRes.ok) throw new Error("Failed to load payouts");
+            const payoutData = await payoutRes.json();
+            setBalance(payoutData.balance || null);
+            setPayouts(payoutData.payouts || []);
         } catch (e: any) {
             setError(e.message || "Failed to load payout data");
         } finally {
@@ -271,14 +274,14 @@ export default function PromoterPayoutsPage() {
             ) : (
                 <div className="bg-surface-elevated rounded-2xl border border-border-subtle overflow-hidden">
                     <div className="p-5 border-b border-border-subtle bg-surface-base/50">
-                        <h3 className="font-bold text-text-primary">Payout History</h3>
+                        <h3 className="font-bold text-text-primary">Income History</h3>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse min-w-[500px]">
                             <thead>
                                 <tr className="border-b border-border-subtle bg-surface-base/30">
                                     <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Date</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Method</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Source</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider text-right">Amount</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-text-tertiary uppercase tracking-wider text-right">Actions</th>
@@ -286,17 +289,16 @@ export default function PromoterPayoutsPage() {
                             </thead>
                             <tbody className="divide-y divide-border-subtle">
                                 {payouts.map((p) => {
-                                    const sc = STATUS_CONFIG[p.status] ?? STATUS_CONFIG.pending;
+                                    const normalizedStatus = p.status === "cleared" ? "completed" : p.status;
+                                    const sc = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.pending;
                                     return (
                                         <tr key={p.id} className="hover:bg-surface-hover/30 transition-colors">
                                             <td className="px-6 py-4 text-sm text-text-secondary">
-                                                {p.createdAt ? new Date(p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "—"}
+                                                {(p.date || p.createdAt) ? new Date(p.date || p.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }) : "Pending settlement"}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-text-primary font-medium capitalize">
-                                                {p.paymentMethod?.replace("_", " ") || "—"}
-                                                {p.paymentDetails?.upiId && (
-                                                    <span className="text-text-muted text-xs ml-2">({p.paymentDetails.upiId})</span>
-                                                )}
+                                                {p.eventName || p.paymentMethod?.replace("_", " ") || "—"}
+                                                {p.buyerName && <span className="text-text-muted text-xs ml-2">({p.buyerName})</span>}
                                             </td>
                                             <td className="px-6 py-4">
                                                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${sc.classes}`}>
@@ -307,7 +309,7 @@ export default function PromoterPayoutsPage() {
                                                 {formatINR(p.amount)}
                                             </td>
                                             <td className="px-6 py-4 text-right">
-                                                {p.status === "pending" && (
+                                                {normalizedStatus === "pending" && p.paymentMethod && (
                                                     <button
                                                         onClick={() => handleCancel(p.id)}
                                                         className="text-xs text-text-muted hover:text-red-400 transition-colors font-medium"
@@ -322,7 +324,7 @@ export default function PromoterPayoutsPage() {
                                 {payouts.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="px-6 py-12 text-center text-text-muted">
-                                            No payouts yet. Request your first payout above.
+                                            No income yet. Ticket sales from your links will appear here.
                                         </td>
                                     </tr>
                                 )}

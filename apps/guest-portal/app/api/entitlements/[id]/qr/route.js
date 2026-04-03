@@ -11,8 +11,9 @@ export async function GET(request, { params }) {
     if (!GATEWAY_URL) return Response.json({ error: "Service unavailable" }, { status: 503 });
     const user = await verifyAuth(request);
     if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 });
+    const { id } = await params;
 
-    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/entitlements/${params.id}/qr`, {
+    const res = await fetch(`${GATEWAY_URL}/api/v1/scan/entitlements/${id}/qr`, {
         headers: { "Authorization": request.headers.get("Authorization") || "" }
     });
     return Response.json(await res.json().catch(() => ({})), { status: res.status });

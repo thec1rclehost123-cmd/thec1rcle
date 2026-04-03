@@ -1,391 +1,979 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import {
-    Users, Search,
-    Phone, Mail, AlertCircle, Loader2,
+import { useMemo, useState, useEffect } from "react";
+import { 
+    Filter, 
+    MessageSquare, 
+    Search, 
+    Tag, 
+    X, 
+    ChevronDown, 
+    Plus, 
+    Phone, 
+    Check,
+    Type,
+    Link as LinkIcon,
+    ArrowRight,
+    Info,
+    Calendar as CalendarIcon,
+    Zap,
+    ChevronLeft,
+    ChevronRight,
 } from "lucide-react";
-import type { User } from "firebase/auth";
-import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
+import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import type { OnlineCustomer } from "@/app/api/venue/crm/online/route";
-import type { ManualCustomer } from "@/app/api/venue/crm/customers/route";
+import { useToast } from "@/components/ui/Toast";
+// Local component definition for CalendarFilterPopup used below
+import { useRef } from "react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface CRMData {
-    online: OnlineCustomer[];
-    manual: ManualCustomer[];
-    loading: boolean;
-    error: string | null;
-}
+type CustomerRecord = {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    age: number | null;
+    gender?: string;
+    eventName: string;
+    entryTime: string | null;
+    status: string;
+};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Auth-aware fetch
-// ─────────────────────────────────────────────────────────────────────────────
+type OrderRecord = {
+    id: string;
+    customerName: string;
+    email: string;
+    phone: string;
+    amount: number;
+    ticketsCount: number;
+    createdAt: string;
+};
 
-async function authFetch(user: User, url: string, init?: RequestInit): Promise<Response> {
-    const token = await user.getIdToken();
-    return fetch(url, {
-        ...init,
-        headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
-    });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Utilities
-// ─────────────────────────────────────────────────────────────────────────────
-
-function calculateAge(dob: string): number {
-    if (!dob) return 0;
-    const birth = new Date(dob);
-    if (isNaN(birth.getTime())) return 0;
-    const today = new Date();
-    let age = today.getFullYear() - birth.getFullYear();
-    const m = today.getMonth() - birth.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age -= 1;
-    return age;
-}
-
-function fmtDate(iso: string | null): string {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared UI atoms
-// ─────────────────────────────────────────────────────────────────────────────
-
-function Avatar({ name }: { name: string }) {
-    const initials = name.split(" ").map((n) => n[0] ?? "").slice(0, 2).join("").toUpperCase();
-    return (
-        <div className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-            style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)", color: "var(--v-text-secondary)" }}>
-            {initials}
-        </div>
-    );
-}
-
-function AgeBadge({ age }: { age: number }) {
-    return (
-        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-bold"
-            style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)", color: "var(--v-text-secondary)" }}>
-            {age > 0 ? `${age} yrs` : "—"}
-        </span>
-    );
-}
-
-function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
-    return (
-        <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center" style={{ background: "var(--v-elevated)" }}>
-                <Icon size={24} style={{ color: "var(--v-text-tertiary)" }} />
-            </div>
-            <p className="text-[14px] font-medium" style={{ color: "var(--v-text-tertiary)" }}>{message}</p>
-        </div>
-    );
-}
-
-function SkeletonRows({ cols }: { cols: number }) {
-    return (
-        <>
-            {[...Array(4)].map((_, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid var(--v-border)" }}>
-                    {[...Array(cols)].map((__, j) => (
-                        <td key={j} className="px-4 py-3">
-                            <div className="h-4 rounded-md animate-pulse"
-                                style={{ background: "var(--v-elevated)", width: j === 0 ? "55%" : j === cols - 1 ? "35%" : "70%" }} />
-                        </td>
-                    ))}
-                </tr>
-            ))}
-        </>
-    );
-}
-
-function ErrorBanner({ message }: { message: string }) {
-    return (
-        <div className="flex items-center gap-3 px-5 py-4 rounded-2xl text-[13px] font-medium"
-            style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "var(--v-error)" }}>
-            <AlertCircle size={16} className="shrink-0" />
-            {message}
-        </div>
-    );
-}
-
-// ── Table shell ───────────────────────────────────────────────────────────────
-
-function CustomerTable({
-    headers, count, loading, icon: Icon, label, children, emptyIcon, emptyMessage,
-}: {
-    headers: string[]; count: number; loading: boolean;
-    icon: React.ElementType; label: string; children: React.ReactNode;
-    emptyIcon?: React.ElementType; emptyMessage?: string;
-}) {
-    return (
-        <div className="rounded-2xl overflow-hidden"
-            style={{ background: "var(--v-card)", border: "1px solid var(--v-border)", boxShadow: "var(--v-shadow-card)" }}>
-            {/* Header bar */}
-            <div className="flex items-center gap-3 px-6 py-4" style={{ borderBottom: "1px solid var(--v-border)" }}>
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: "var(--v-elevated)" }}>
-                    <Icon size={15} style={{ color: "var(--v-text-secondary)" }} />
-                </div>
-                <span className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>{label}</span>
-                {loading
-                    ? <Loader2 size={13} className="ml-1 animate-spin" style={{ color: "var(--v-text-tertiary)" }} />
-                    : <span className="ml-auto text-[11px] font-bold" style={{ color: "var(--v-text-tertiary)" }}>
-                        {count} record{count !== 1 ? "s" : ""}
-                      </span>
-                }
-            </div>
-            {/* Table */}
-            <div className="overflow-x-auto">
-                {!loading && count === 0 ? (
-                    <EmptyState icon={emptyIcon ?? Icon} message={emptyMessage ?? "No records found"} />
-                ) : (
-                    <table className="w-full border-collapse" style={{ minWidth: 640 }}>
-                        <thead>
-                            <tr style={{ borderBottom: "1px solid var(--v-border)", background: "var(--v-elevated)" }}>
-                                {headers.map((h) => (
-                                    <th key={h} className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest"
-                                        style={{ color: "var(--v-text-tertiary)" }}>{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody>{loading ? <SkeletonRows cols={headers.length} /> : children}</tbody>
-                    </table>
-                )}
-            </div>
-        </div>
-    );
-}
-
-const rowProps = {
-    onMouseEnter: (e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "var(--v-card-hover)"; },
-    onMouseLeave: (e: React.MouseEvent<HTMLTableRowElement>) => { e.currentTarget.style.background = "transparent"; },
-    className: "transition-colors duration-100",
-    style: { borderBottom: "1px solid var(--v-border)" } as React.CSSProperties,
+type AttendeeRow = {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    eventName: string;
+    tickets: number;
+    totalSpend: number;
+    lastPurchase: string | null;
+    tags: string[];
+    gender?: string;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Total Tab — merged online + manual with filter
+// Business Logic Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function TotalTab({ data }: { data: CRMData }) {
-    const [filterQuery, setFilterQuery] = useState("");
+function deriveAttendees(customers: CustomerRecord[], orders: OrderRecord[]) {
+    const metrics = new Map<string, { tickets: number; totalSpend: number; lastPurchase: string | null }>();
 
-    // Merge and deduplicate by email (online first, then manual)
-    const merged = useMemo(() => {
-        type Row = {
-            id: string; name: string; email: string; phone: string;
-            dob: string; event: string; source: "online" | "manual";
-        };
-        const rows: Row[] = [];
-        const seen = new Set<string>();
-        for (const c of data.online) {
-            rows.push({ id: c.id, name: c.name, email: c.email, phone: c.phone, dob: "", event: c.eventName || "", source: "online" });
-            if (c.email) seen.add(c.email.toLowerCase());
-        }
-        for (const c of data.manual) {
-            if (!seen.has(c.email.toLowerCase())) {
-                rows.push({ id: c.id, name: c.name, email: c.email, phone: c.phone, dob: c.dob, event: c.eventAppeared || "", source: "manual" });
-            }
-        }
-        return rows;
-    }, [data.online, data.manual]);
-
-    // Real-time case-insensitive filter across name, email, phone, event, source label
-    const filtered = useMemo(() => {
-        const q = filterQuery.trim().toLowerCase();
-        if (!q) return merged;
-        return merged.filter((row) => {
-            const sourceLabel = row.source === "online" ? "online" : "walk-in";
-            return (
-                row.name.toLowerCase().includes(q) ||
-                row.email.toLowerCase().includes(q) ||
-                row.phone.toLowerCase().includes(q) ||
-                row.event.toLowerCase().includes(q) ||
-                sourceLabel.includes(q)
-            );
-        });
-    }, [merged, filterQuery]);
-
-    return (
-        <div className="space-y-4">
-            {data.error && <ErrorBanner message={data.error} />}
-            {/* Filter input */}
-            <div className="relative">
-                <Search
-                    size={14}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-                    style={{ color: "var(--v-text-tertiary)" }}
-                />
-                <input
-                    type="text"
-                    placeholder="Filter by name, email, phone, event, or source…"
-                    value={filterQuery}
-                    onChange={(e) => setFilterQuery(e.target.value)}
-                    style={{
-                        width: "100%",
-                        background: "var(--v-card)",
-                        border: "1px solid var(--v-border)",
-                        borderRadius: 12,
-                        padding: "9px 14px 9px 34px",
-                        fontSize: 13,
-                        color: "var(--v-text-primary)",
-                        outline: "none",
-                    }}
-                />
-            </div>
-
-            {/* Table */}
-            <CustomerTable
-                headers={["Name", "Email", "Phone", "Date of Birth", "Age", "Event", "Source"]}
-                count={filtered.length}
-                loading={data.loading}
-                icon={Users}
-                label="All Customers"
-                emptyMessage="No customers match your filter"
-            >
-                {filtered.map((c) => {
-                    const age = calculateAge(c.dob);
-                    const isOnline = c.source === "online";
-                    return (
-                        <tr key={`${c.source}-${c.id}`} {...rowProps}>
-                            <td className="px-4 py-3">
-                                <div className="flex items-center gap-3">
-                                    <Avatar name={c.name} />
-                                    <span className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>{c.name}</span>
-                                </div>
-                            </td>
-                            <td className="px-4 py-3 text-[13px]" style={{ color: "var(--v-text-secondary)" }}>
-                                <span className="flex items-center gap-1.5">
-                                    <Mail size={11} style={{ color: "var(--v-text-tertiary)", flexShrink: 0 }} />{c.email || "—"}
-                                </span>
-                            </td>
-                            <td className="px-4 py-3 text-[13px]" style={{ color: "var(--v-text-secondary)" }}>
-                                <span className="flex items-center gap-1.5">
-                                    <Phone size={11} style={{ color: "var(--v-text-tertiary)", flexShrink: 0 }} />{c.phone || "—"}
-                                </span>
-                            </td>
-                            <td className="px-4 py-3 text-[13px]" style={{ color: "var(--v-text-secondary)" }}>{c.dob ? fmtDate(c.dob) : "—"}</td>
-                            <td className="px-4 py-3">
-                                {c.dob ? <AgeBadge age={age} /> : <span style={{ color: "var(--v-text-tertiary)" }}>—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-[13px] font-medium" style={{ color: "var(--v-text-primary)" }}>{c.event || "—"}</td>
-                            <td className="px-4 py-3">
-                                <span
-                                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide"
-                                    style={{
-                                        background: isOnline ? "rgba(129,140,248,0.1)" : "rgba(244,74,34,0.1)",
-                                        color: isOnline ? "var(--v-info)" : "var(--v-orange)",
-                                    }}
-                                >
-                                    {isOnline ? "Online" : "Walk-in"}
-                                </span>
-                            </td>
-                        </tr>
-                    );
-                })}
-            </CustomerTable>
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Stats strip — reads from already-fetched data, no extra requests
-// ─────────────────────────────────────────────────────────────────────────────
-
-function StatsStrip({ data }: { data: CRMData }) {
-    const total = data.online.length + data.manual.length;
-    return (
-        <div className="mb-6">
-            <div className="p-4 rounded-xl w-fit min-w-[160px]"
-                style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
-                <div className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: "var(--v-text-tertiary)" }}>
-                    Total Customers
-                </div>
-                <div className="text-2xl font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                    {data.loading
-                        ? <span className="inline-block w-8 h-6 rounded-md animate-pulse" style={{ background: "var(--v-elevated)" }} />
-                        : total}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CRM Page — fetches once, shares data with TotalTab
-// ─────────────────────────────────────────────────────────────────────────────
-
-export default function CRMPage() {
-    const { user, profile } = useDashboardAuth();
-    const venueId: string = profile?.activeMembership?.partnerId ?? "";
-
-    // ── Single shared data state ─────────────────────────────────────────────
-    const [crmData, setCrmData] = useState<CRMData>({
-        online: [], manual: [], loading: true, error: null,
+    orders.forEach((order) => {
+        const key = `${order.email || ""}-${order.customerName || ""}`.toLowerCase();
+        const current = metrics.get(key) || { tickets: 0, totalSpend: 0, lastPurchase: null };
+        current.tickets += order.ticketsCount || 0;
+        current.totalSpend += order.amount || 0;
+        current.lastPurchase =
+            !current.lastPurchase || new Date(order.createdAt).getTime() > new Date(current.lastPurchase).getTime()
+                ? order.createdAt
+                : current.lastPurchase;
+        metrics.set(key, current);
     });
 
-    // ── Fetch both datasets in parallel, once, on mount ──────────────────────
-    useEffect(() => {
-        if (!user || !venueId) return;
-        let cancelled = false;
+    return customers.map((customer) => {
+        const key = `${customer.email || ""}-${customer.name || ""}`.toLowerCase();
+        const metric = metrics.get(key);
+        return {
+            id: customer.id,
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone,
+            eventName: customer.eventName,
+            tickets: metric?.tickets || 0,
+            totalSpend: metric?.totalSpend || 0,
+            lastPurchase: metric?.lastPurchase || customer.entryTime,
+            tags: [], // Placeholder for tags
+            gender: customer.gender,
+        } satisfies AttendeeRow;
+    });
+}
 
-        setCrmData({ online: [], manual: [], loading: true, error: null });
+function formatCurrency(amount: number) {
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+    }).format(amount || 0);
+}
 
-        const base = `?venueId=${encodeURIComponent(venueId)}`;
-        Promise.all([
-            authFetch(user, `/api/venue/crm/online${base}`).then((r) => r.json()).catch(() => ({ customers: [], error: "Failed to load online customers" })),
-            authFetch(user, `/api/venue/crm/customers${base}`).then((r) => r.json()).catch(() => ({ customers: [], error: "Failed to load walk-in customers" })),
-        ])
-            .then(([onlineData, manualData]) => {
-                if (cancelled) return;
-                // Surface the first error as a warning but still render whatever data loaded
-                const err = onlineData.error || manualData.error || null;
-                setCrmData({
-                    online:  onlineData.customers  ?? [],
-                    manual:  manualData.customers  ?? [],
-                    loading: false,
-                    error:   err,
-                });
-            })
-            .catch((err) => {
-                if (!cancelled) setCrmData({ online: [], manual: [], loading: false, error: err.message });
-            });
+// ─────────────────────────────────────────────────────────────────────────────
+// Components
+// ─────────────────────────────────────────────────────────────────────────────
 
-        return () => { cancelled = true; };
-    }, [user, venueId]);
+interface ModalProps {
+    isOpen: boolean;
+    onClose: () => void;
+}
 
-    // ── Wait for Firebase auth ───────────────────────────────────────────────
-    if (!user) {
-        return (
-            <VenuePageShell title="CRM" subtitle="Customer relationship management">
-                <div className="flex items-center justify-center py-32">
-                    <Loader2 size={24} className="animate-spin" style={{ color: "var(--v-text-tertiary)" }} />
+function EventFilterPopup({ events, selectedEventId, onSelect, onClose, triggerRect }: {
+    events: any[];
+    selectedEventId: string | null;
+    onSelect: (id: string | null) => void;
+    onClose: () => void;
+    triggerRect: DOMRect | null;
+}) {
+    const [search, setSearch] = useState("");
+    const filteredEvents = events.filter(e => 
+        (e.title || e.name || "").toLowerCase().includes(search.toLowerCase())
+    );
+
+    const popupLeft = triggerRect
+        ? Math.min(triggerRect.left, window.innerWidth - 340)
+        : window.innerWidth / 2 - 170;
+    const popupTop = triggerRect ? triggerRect.bottom + 8 : window.innerHeight / 2 - 200;
+
+    return (
+        <div className="fixed inset-0 z-[200]">
+            <div className="absolute inset-0" onClick={onClose} />
+            <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                style={{ left: popupLeft, top: popupTop }}
+                className="absolute w-[320px] max-h-[480px] bg-[#0D0D0E] border border-white/10 rounded-[28px] shadow-2xl overflow-hidden flex flex-col"
+            >
+                <div className="p-4 border-b border-white/5 bg-white/[0.02]">
+                    <div className="relative group">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-white/30 group-focus-within:text-white/60 transition-colors" />
+                        <input
+                            autoFocus
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                            placeholder="Find an event..."
+                            className="w-full h-10 bg-white/5 border border-white/5 rounded-xl pl-9 pr-4 text-[13px] text-white outline-none focus:bg-white/[0.08] focus:border-white/10 transition-all placeholder:text-white/20"
+                        />
+                    </div>
                 </div>
-            </VenuePageShell>
+
+                <div className="flex-1 overflow-y-auto p-2 scrollbar-none">
+                    <button
+                        onClick={() => { onSelect(null); onClose(); }}
+                        className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all mb-1 ${
+                            !selectedEventId ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
+                        }`}
+                    >
+                        <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center">
+                            <Zap className="h-4 w-4" />
+                        </div>
+                        <span className="text-[13px] font-bold">All Events</span>
+                        {!selectedEventId && <Check className="h-4 w-4 ml-auto" />}
+                    </button>
+
+                    {filteredEvents.map((event) => {
+                        const isSelected = selectedEventId === event.id;
+                        const poster = event.poster || event.coverImage || event.bannerImage || "https://firebasestorage.googleapis.com/v0/b/thec1rcle-app.appspot.com/o/events%2Fcover%2Fdefault.jpg?alt=media";
+                        return (
+                            <button
+                                key={event.id}
+                                onClick={() => { onSelect(event.id); onClose(); }}
+                                className={`w-full flex items-center gap-3 p-3 rounded-2xl transition-all mb-1 ${
+                                    isSelected ? "bg-white/10 text-white" : "text-white/40 hover:bg-white/5 hover:text-white"
+                                }`}
+                            >
+                                <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-white/10">
+                                    <img src={poster} className="w-full h-full object-cover" alt="" />
+                                </div>
+                                <div className="flex flex-col items-start min-w-0">
+                                    <span className="text-[13px] font-bold truncate w-full">{event.title || event.name}</span>
+                                    <span className="text-[10px] font-medium text-white/20 uppercase tracking-wider">
+                                        {event.startDate ? new Date(event.startDate).toLocaleDateString("en-US", { month: 'short', day: 'numeric' }) : "Past Event"}
+                                    </span>
+                                </div>
+                                {isSelected && <Check className="h-4 w-4 ml-auto" />}
+                            </button>
+                        );
+                    })}
+                </div>
+            </motion.div>
+        </div>
+    );
+}
+
+function FiltersModal({ isOpen, onClose }: ModalProps) {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[150] bg-black/80 backdrop-blur-sm"
+                        onClick={onClose}
+                    />
+                    <div className="fixed inset-0 z-[160] flex items-center justify-center p-4 pointer-events-none">
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                            className="w-full max-w-[480px] rounded-[28px] border border-white/10 bg-[#0A0A0B] p-8 shadow-2xl pointer-events-auto"
+                        >
+                            <div className="flex items-center justify-between mb-8">
+                                <h3 className="text-[15px] font-bold tracking-tight text-white">Filters</h3>
+                                <button onClick={onClose} className="p-1 rounded-full hover:bg-white/5 transition-colors">
+                                    <X className="h-5 w-5 text-white" />
+                                </button>
+                            </div>
+
+                            <div className="space-y-8">
+                                <section>
+                                    <h4 className="text-[13px] font-bold text-white mb-4">Sort By</h4>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="relative">
+                                            <select className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-[13px] text-white appearance-none outline-none focus:border-white/20">
+                                                <option>Attendees</option>
+                                            </select>
+                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/70 pointer-events-none" />
+                                        </div>
+                                        <div className="relative">
+                                            <select className="width-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-[13px] text-white appearance-none outline-none focus:border-white/20">
+                                                <option>Newest to Oldest</option>
+                                            </select>
+                                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/70 pointer-events-none" />
+                                        </div>
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <h4 className="text-[13px] font-bold text-white mb-4">Filter By Detected Gender</h4>
+                                    <div className="relative">
+                                        <select className="w-full h-12 bg-white/5 border border-white/10 rounded-xl px-4 text-[13px] text-white appearance-none outline-none focus:border-white/20">
+                                            <option value="">Select a gender</option>
+                                            <option value="male">Male</option>
+                                            <option value="female">Female</option>
+                                        </select>
+                                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/70 pointer-events-none" />
+                                    </div>
+                                </section>
+
+                                <section>
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h4 className="text-[13px] font-bold text-white">Filter By Events</h4>
+                                        <div className="flex items-center gap-2 text-[12px] text-white">
+                                            Match All <div className="w-4 h-4 rounded-full border border-white/40" />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4">
+                                        <p className="text-[12px] text-white/60">Create tags for your attendees to start filtering by them!</p>
+                                    </div>
+                                </section>
+                            </div>
+
+                            <div className="mt-12 flex gap-4">
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 h-14 rounded-2xl bg-white text-black font-bold hover:bg-white/90 transition-all"
+                                >
+                                    Apply Filters
+                                </button>
+                                <button
+                                    onClick={onClose}
+                                    className="flex-1 h-14 rounded-2xl bg-white/5 border border-white/10 font-bold text-white/40 hover:text-white transition-all"
+                                >
+                                    Reset
+                                </button>
+                            </div>
+                        </motion.div>
+                    </div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+}
+
+function CalendarFilterPopup({ selectedDate, onDateSelect, onClose, triggerRect }: {
+    selectedDate: Date | null;
+    onDateSelect: (date: Date | null) => void;
+    onClose: () => void;
+    triggerRect: DOMRect | null;
+}) {
+    const [viewDate, setViewDate] = useState(selectedDate || new Date());
+    
+    const daysInMonth = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).getDate();
+    const firstDayOfMonth = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getDay();
+    
+    const prevMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() - 1, 1));
+    const nextMonth = () => setViewDate(new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 1));
+
+    const popupLeft = triggerRect
+        ? Math.min(triggerRect.left, window.innerWidth - 340)
+        : window.innerWidth / 2 - 170;
+    const popupTop = triggerRect ? triggerRect.bottom + 8 : window.innerHeight / 2 - 200;
+
+    const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    const blanks = Array.from({ length: firstDayOfMonth }, (_, i) => i);
+
+    return (
+        <div className="fixed inset-0 z-[200]">
+            <div className="absolute inset-0" onClick={onClose} />
+            <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                style={{ left: popupLeft, top: popupTop }}
+                className="absolute w-[320px] bg-[#0D0D0E] border border-white/10 rounded-[28px] shadow-2xl p-6 select-none"
+            >
+                <div className="flex items-center justify-between mb-6 px-1">
+                    <h3 className="text-[14px] font-bold text-white">
+                        {viewDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                    </h3>
+                    <div className="flex gap-1">
+                        <button onClick={prevMonth} className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/40 hover:text-white">
+                            <ChevronLeft className="h-4 w-4" />
+                        </button>
+                        <button onClick={nextMonth} className="p-2 rounded-xl hover:bg-white/5 transition-colors text-white/40 hover:text-white">
+                            <ChevronRight className="h-4 w-4" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-7 gap-1 mb-2">
+                    {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                        <div key={i} className="text-center text-[10px] font-black text-white/20 uppercase tracking-widest py-2">
+                            {d}
+                        </div>
+                    ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">
+                    {blanks.map(b => <div key={`b-${b}`} />)}
+                    {days.map(d => {
+                        const isSelected = selectedDate && 
+                                         selectedDate.getDate() === d && 
+                                         selectedDate.getMonth() === viewDate.getMonth() && 
+                                         selectedDate.getFullYear() === viewDate.getFullYear();
+                        
+                        return (
+                            <button
+                                key={d}
+                                onClick={() => {
+                                    onDateSelect(new Date(viewDate.getFullYear(), viewDate.getMonth(), d));
+                                    onClose();
+                                }}
+                                className={`aspect-square rounded-xl flex items-center justify-center text-[13px] font-bold transition-all ${
+                                    isSelected 
+                                    ? "bg-white text-black shadow-[0_0_15px_rgba(255,255,255,0.3)]" 
+                                    : "text-white/60 hover:bg-white/5 hover:text-white"
+                                }`}
+                            >
+                                {d}
+                            </button>
+                        );
+                    })}
+                </div>
+
+                <button 
+                    onClick={() => { onDateSelect(null); onClose(); }}
+                    className="w-full mt-6 py-3 rounded-xl bg-white/5 border border-white/5 text-[12px] font-bold text-white/40 hover:text-white hover:bg-white/10 transition-all uppercase tracking-widest"
+                >
+                    Clear Filter
+                </button>
+            </motion.div>
+        </div>
+    );
+}
+
+function WhatsAppCampaignModal({ isOpen, onClose, selectedCount }: ModalProps & { selectedCount: number }) {
+    const [message, setMessage] = useState("Hi there! Looking forward to seeing you at our next event!\n\nBest,\nThe C1rcle Team");
+    
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <>
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[200] bg-black/95 backdrop-blur-2xl"
+                        onClick={onClose}
+                    />
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.98, y: 30 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.98, y: 30 }}
+                        className="fixed inset-0 z-[210] flex items-center justify-center p-6 lg:p-12"
+                    >
+                        <div className="w-full max-w-[1100px] h-full max-h-[820px] bg-[#0A0A0B] border border-white/10 rounded-[48px] shadow-[0_40px_100px_rgba(0,0,0,0.8)] overflow-hidden flex flex-col">
+                            {/* Header */}
+                            <div className="h-20 border-b border-white/5 px-10 flex items-center justify-between flex-shrink-0">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                                        <MessageSquare className="h-5 w-5 text-white" />
+                                    </div>
+                                    <h2 className="text-[20px] font-bold tracking-tight text-white">Broadcast Campaign</h2>
+                                </div>
+                                <button onClick={onClose} className="w-10 h-10 rounded-full hover:bg-white/5 transition-colors flex items-center justify-center">
+                                    <X className="h-6 w-6 text-white/40" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 flex overflow-hidden">
+                                {/* Left: Composer Settings */}
+                                <div className="w-[580px] p-10 overflow-y-auto scrollbar-none border-r border-white/5">
+                                    <div className="space-y-10">
+                                        <section>
+                                            <div className="flex items-center justify-between mb-2">
+                                                <h3 className="text-[12px] font-black text-white/40 uppercase tracking-[0.2em]">Target Audience</h3>
+                                                <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[10px] font-bold text-white uppercase">{selectedCount} Recipients</span>
+                                            </div>
+                                            <p className="text-[14px] text-white/60 leading-relaxed">
+                                                Your message will be sent as an individual chat to each selected attendee.
+                                            </p>
+                                        </section>
+
+                                        <section>
+                                            <h3 className="text-[12px] font-black text-white/40 uppercase tracking-[0.2em] mb-4">Compose Message</h3>
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <button className="h-10 px-5 rounded-xl bg-white/5 border border-white/5 font-bold text-[12px] text-white/80 hover:bg-white/10 transition-all flex items-center gap-2">
+                                                    <Type className="h-3.5 w-3.5" />
+                                                    Insert Field
+                                                </button>
+                                                <button className="h-10 px-5 rounded-xl bg-white/5 border border-white/5 font-bold text-[12px] text-white/80 hover:bg-white/10 transition-all flex items-center gap-2">
+                                                    <LinkIcon className="h-3.5 w-3.5" />
+                                                    Add Event Link
+                                                </button>
+                                            </div>
+                                            <div className="relative group">
+                                                <textarea 
+                                                    value={message}
+                                                    onChange={(e) => setMessage(e.target.value)}
+                                                    className="w-full h-48 bg-white/[0.04] border border-white/10 rounded-3xl p-6 text-[15px] text-white outline-none focus:border-white/20 transition-all resize-none shadow-inner"
+                                                    placeholder="Type your broadcast message..."
+                                                />
+                                                <div className="absolute right-6 bottom-6 flex items-center gap-3">
+                                                    <span className={`text-[12px] font-bold ${message.length > 160 ? "text-red-400" : "text-white/40"}`}>
+                                                        {message.length} / 160
+                                                    </span>
+                                                    <div className="h-5 w-[1px] bg-white/10" />
+                                                    <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center text-[10px] text-white/40">?</div>
+                                                </div>
+                                            </div>
+                                        </section>
+
+                                        <section>
+                                            <h3 className="text-[12px] font-black text-white/40 uppercase tracking-[0.2em] mb-4">Power-Ups</h3>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all cursor-pointer group">
+                                                    <Phone className="h-5 w-5 text-white/40 mb-3 group-hover:text-white transition-colors" />
+                                                    <p className="text-[14px] font-bold text-white mb-1">Custom Sender</p>
+                                                    <p className="text-[11px] text-white/40 font-medium">Verify your own number</p>
+                                                </div>
+                                                <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/5 hover:border-white/10 transition-all cursor-pointer group">
+                                                    <ArrowRight className="h-5 w-5 text-white/40 mb-3 group-hover:text-white transition-colors rotate-[-45deg]" />
+                                                    <p className="text-[14px] font-bold text-white mb-1">Schedule Blast</p>
+                                                    <p className="text-[11px] text-white/40 font-medium">Send at a specific time</p>
+                                                </div>
+                                            </div>
+                                        </section>
+                                    </div>
+                                </div>
+
+                                {/* Right: Phone Preview */}
+                                <div className="flex-1 bg-[#050505] p-10 flex flex-col items-center justify-center relative overflow-hidden">
+                                    {/* Abstract background light */}
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/[0.03] rounded-full blur-[100px] translate-x-1/2 -translate-y-1/2" />
+                                    
+                                    {/* iPhone Frame */}
+                                    <div className="relative w-[320px] aspect-[9/19] bg-[#111] rounded-[50px] border-[6px] border-[#1a1a1a] p-2 shadow-2xl flex flex-col overflow-hidden ring-1 ring-white/10">
+                                        {/* Dynamic Island */}
+                                        <div className="absolute top-3 left-1/2 -translate-x-1/2 w-24 h-6 bg-black rounded-full z-20" />
+                                        
+                                        {/* WhatsApp App UI */}
+                                        <div className="flex-1 bg-[#0b141a] relative flex flex-col rounded-[38px] overflow-hidden">
+                                            {/* Status Bar */}
+                                            <div className="h-9 px-8 flex items-center justify-between text-[10px] font-bold text-white/90">
+                                                <span>9:41</span>
+                                                <div className="flex items-center gap-1">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-3 w-3"><path d="M12 20c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm0-14c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6z"/></svg>
+                                                    <div className="h-2.5 w-4.5 border border-white/20 rounded-sm" />
+                                                </div>
+                                            </div>
+
+                                            {/* WA Header */}
+                                            <div className="h-14 bg-[#202c33] px-3 flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+                                                    <img src="https://firebasestorage.googleapis.com/v0/b/thec1rcle-app.appspot.com/o/events%2Fcover%2Fdefault.jpg?alt=media" alt="" className="w-full h-full object-cover opacity-50" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[12px] font-bold text-white">{selectedCount > 1 ? "Broadcast List" : "Attendee"}</span>
+                                                    <span className="text-[9px] text-[#8696a0]">Online</span>
+                                                </div>
+                                                <div className="ml-auto flex gap-3 text-[#aebac1]">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M19 11h-2V9h2v2zm-2 2h2v2h-2v-2zm-2-4h-2V7h2v2zm-2 2h2v2h-2v-2zm-2-4H7V7h2v2zm-2 2h2v2H7v-2z" /></svg>
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" /></svg>
+                                                </div>
+                                            </div>
+
+                                            {/* Chat Area */}
+                                            <div className="flex-1 p-3 flex flex-col relative overflow-hidden" 
+                                                style={{ 
+                                                    backgroundImage: 'url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png")', 
+                                                    backgroundSize: '400px',
+                                                    backgroundRepeat: 'repeat',
+                                                    backgroundColor: '#0b141a',
+                                                    backgroundBlendMode: 'overlay'
+                                                }}>
+                                                <div className="flex justify-center mb-4">
+                                                    <span className="px-3 py-1 bg-[#182229] border border-white/5 rounded-lg text-[9px] font-bold text-[#8696a0] uppercase tracking-wider">Today</span>
+                                                </div>
+                                                
+                                                <div className="flex flex-col items-end">
+                                                    <div className="relative max-w-[85%] bg-[#005c4b] rounded-xl rounded-tr-none p-3 shadow-lg">
+                                                        <p className="text-[12px] text-[#e9edef] leading-[1.4] whitespace-pre-wrap">{message || "Type your message..."}</p>
+                                                        <div className="flex items-center justify-end gap-1 mt-1">
+                                                            <span className="text-[9px] text-[#e9edef]/40 font-medium">9:41 AM</span>
+                                                            <svg viewBox="0 0 16 11" fill="currentColor" className="h-2.5 w-3.5 text-[#53bdeb]"><path d="M15.01 3.316l-.478-.372a.365.365 0 00-.51.063L8.666 9.88a.32.32 0 01-.484.032l-.358-.325a.32.32 0 00-.484.032l-.378.48a.418.418 0 00.036.54l1.32 1.267a.32.32 0 00.484-.032l6.273-7.854a.365.365 0 00-.063-.51zM.86 3.316l-.478-.372a.365.365 0 00-.51.063L.654 4.1a.365.365 0 00.51-.063L0.86 3.316zm5.82 5.344l-.326-.296a.32.32 0 00-.484.032l-.378.48a.418.418 0 00.036.54l1.32 1.267a.32.32 0 00.484-.032l6.273-7.854a.365.365 0 00-.063-.51l-.478-.372a.365.365 0 00-.51.063L6.68 8.66z"/></svg>
+                                                        </div>
+                                                        {/* Bubble spike */}
+                                                        <div className="absolute top-0 -right-2 w-3 h-3 bg-[#005c4b] [clip-path:polygon(0_0,0_100%,100%_0)]" />
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Text Input Row */}
+                                            <div className="h-12 bg-[#202c33] px-2 flex items-center gap-2">
+                                                <div className="w-6 h-6 flex items-center justify-center text-[#8696a0]">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M11.5 15.5H10V14h1.5v1.5zm3 0h-1.5V14h1.5v1.5zm3 0h-1.5V14H19l-1.5 1.5zm-9-3H7v-1.5h1.5v1.5zm3 0h-1.5v-1.5h1.5v1.5zm3 0h-1.5v-1.5h1.5v1.5zm3 0h-1.5v-1.5h1.5v1.5z" /></svg>
+                                                </div>
+                                                <div className="flex-1 h-8 bg-[#2a3942] rounded-full px-3 flex items-center text-[11px] text-[#8696a0]">Type a message</div>
+                                                <div className="w-6 h-6 flex items-center justify-center text-[#8696a0]">
+                                                    <svg viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" /></svg>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-8 flex flex-col items-center gap-2">
+                                        <p className="text-[12px] font-bold text-white/20 uppercase tracking-[0.2em]">Preview Frame</p>
+                                        <p className="text-[10px] text-white/10 font-medium">Simulated WhatsApp for Web/Mobile</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="h-24 bg-[#0F0F11] border-t border-white/5 px-10 flex items-center justify-between flex-shrink-0">
+                                <div className="flex items-center gap-3">
+                                    <button className="h-12 px-6 rounded-2xl bg-white/5 border border-white/5 font-bold text-[13px] text-white/40 hover:text-white hover:bg-white/10 transition-all">
+                                        Send Test Blast
+                                    </button>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={onClose}
+                                        className="h-14 px-8 rounded-2xl font-bold text-white/30 hover:text-white transition-all"
+                                    >
+                                        Exit Without Saving
+                                    </button>
+                                    <button className="h-14 px-12 rounded-2xl bg-white text-black font-black text-[14px] hover:bg-white/90 transition-all shadow-[0_0_30px_rgba(255,255,255,0.1)] flex items-center gap-3">
+                                        Launch Campaign
+                                        <ArrowRight className="h-4 w-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+                </>
+            )}
+        </AnimatePresence>
+    );
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main Page Client
+// ─────────────────────────────────────────────────────────────────────────────
+
+export default function MarketingPage() {
+    const { profile, user } = useDashboardAuth();
+    const { success, error } = useToast();
+    const venueId = profile?.activeMembership?.partnerId;
+
+    const [query, setQuery] = useState("");
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [filterModalOpen, setFilterModalOpen] = useState(false);
+    const [campaignComposerOpen, setCampaignComposerOpen] = useState(false);
+    
+    // Dropdown filters state
+    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+    const [calendarOpen, setCalendarOpen] = useState(false);
+    const [triggerRect, setTriggerRect] = useState<DOMRect | null>(null);
+    const timeFilterRef = useRef<HTMLButtonElement>(null);
+
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+    const [eventOpen, setEventOpen] = useState(false);
+    const [eventTriggerRect, setEventTriggerRect] = useState<DOMRect | null>(null);
+    const eventFilterRef = useRef<HTMLButtonElement>(null);
+
+    // ── Queries ──────────────────────────────────────────────────────────────
+
+    const eventsQuery = useQuery({
+        queryKey: ["venue", venueId, "events"],
+        enabled: Boolean(venueId),
+        queryFn: async () => {
+            const response = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`);
+            if (!response.ok) throw new Error("Failed to fetch events");
+            const data = await response.json();
+            return (data.events || data || []) as any[];
+        }
+    });
+
+    const customersQuery = useQuery({
+        queryKey: ["venue", venueId, "marketing", "customers"],
+        enabled: Boolean(venueId && user),
+        queryFn: async () => {
+            const token = await user!.getIdToken();
+            const response = await fetch(`/api/venue/crm/online?venueId=${venueId}`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) throw new Error("Failed to fetch attendees");
+            const payload = await response.json();
+            return (payload.customers || []) as CustomerRecord[];
+        },
+        staleTime: 60_000,
+    });
+
+    const ordersQuery = useQuery({
+        queryKey: ["venue", venueId, "marketing", "orders"],
+        enabled: Boolean(venueId && user),
+        queryFn: async () => {
+            const token = await user!.getIdToken();
+            const response = await fetch(`/api/venue/orders?venueId=${venueId}&page=1&limit=100`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            if (!response.ok) throw new Error("Failed to fetch order history");
+            const payload = await response.json();
+            return (payload.orders || []) as OrderRecord[];
+        },
+        staleTime: 60_000,
+    });
+
+    // ── Derivative State ─────────────────────────────────────────────────────
+
+    const attendees = useMemo(
+        () => deriveAttendees(customersQuery.data || [], ordersQuery.data || []),
+        [customersQuery.data, ordersQuery.data]
+    );
+
+    const filteredAttendees = useMemo(
+        () =>
+            attendees.filter((a) => {
+                const matchesQuery = [a.name, a.email, a.phone, a.eventName]
+                    .join(" ")
+                    .toLowerCase()
+                    .includes(query.toLowerCase());
+                
+                // Event filter
+                const selectedEvent = eventsQuery.data?.find(e => e.id === selectedEventId);
+                const eventName = selectedEvent?.title || selectedEvent?.name;
+                const matchesEvent = !selectedEventId || a.eventName === eventName;
+
+                // Time filter
+                let matchesTime = true;
+                if (selectedDate) {
+                    if (!a.lastPurchase) {
+                        matchesTime = false;
+                    } else {
+                        const d1 = new Date(a.lastPurchase);
+                        const d2 = selectedDate;
+                        matchesTime = d1.getFullYear() === d2.getFullYear() &&
+                                     d1.getMonth() === d2.getMonth() &&
+                                     d1.getDate() === d2.getDate();
+                    }
+                }
+                
+                return matchesQuery && matchesEvent && matchesTime;
+            }),
+        [attendees, query, selectedDate, selectedEventId, eventsQuery.data]
+    );
+
+    // ── Handlers ─────────────────────────────────────────────────────────────
+
+    const toggleAttendee = (id: string) => {
+        setSelectedIds((current) =>
+            current.includes(id) ? current.filter((v) => v !== id) : [...current, id]
         );
-    }
+    };
+
+    const toggleAll = () => {
+        const visibleIds = filteredAttendees.map((a) => a.id);
+        const allSelected = visibleIds.every((id) => selectedIds.includes(id));
+        setSelectedIds((current) =>
+            allSelected
+                ? current.filter((id) => !visibleIds.includes(id))
+                : [...new Set([...current, ...visibleIds])]
+        );
+    };
+
+    // ── Render ───────────────────────────────────────────────────────────────
 
     return (
         <VenuePageShell
-            title="CRM"
-            subtitle="Customer relationship management — track every guest across online and walk-in channels."
+            title="Attendees"
+            actions={
+                <VenueActionButton variant="secondary" onClick={() => setCampaignComposerOpen(true)}>
+                    View WhatsApp Campaigns
+                </VenueActionButton>
+            }
         >
-            {/* Stats (shared data — no extra fetch) */}
-            <StatsStrip data={crmData} />
+            <div className="space-y-5 mb-6">
+                <div className="flex flex-col xl:flex-row xl:items-center gap-3">
+                    <div className="relative flex-1 group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30 group-focus-within:text-white/70 transition-colors" />
+                        <input
+                            value={query}
+                            onChange={(e) => setQuery(e.target.value)}
+                            placeholder="Search attendee, email or phone..."
+                            className="w-full h-12 rounded-full border border-white/[0.06] bg-[#090A0C] pl-11 pr-5 text-[15px] text-white outline-none focus:border-white/12 transition-all placeholder:text-white/25"
+                        />
+                    </div>
 
-            {/* Guard */}
-            {!venueId ? (
-                <ErrorBanner message="Venue ID not found. Please reload or re-login." />
-            ) : (
-                <TotalTab data={crmData} />
-            )}
+                    <div className="flex items-center gap-3">
+                        <div className="relative group">
+                            <button 
+                                ref={eventFilterRef}
+                                onClick={() => {
+                                    setEventTriggerRect(eventFilterRef.current?.getBoundingClientRect() || null);
+                                    setEventOpen(!eventOpen);
+                                }}
+                                className={`h-12 px-5 rounded-2xl bg-[#1E1F22] border flex items-center gap-3 text-[13px] font-semibold text-white hover:bg-[#242529] transition-all ${
+                                    eventOpen ? "border-white/18 bg-[#242529]" : "border-white/[0.06]"
+                                }`}
+                            >
+                                <Zap className="h-4 w-4 text-white/40" />
+                                {selectedEventId ? (eventsQuery.data?.find(e => e.id === selectedEventId)?.title || eventsQuery.data?.find(e => e.id === selectedEventId)?.name || "Selected Event") : "All Events"}
+                                <ChevronDown className={`h-4 w-4 text-white/40 transition-transform ${eventOpen ? "rotate-180" : ""}`} />
+                            </button>
+                        </div>
+                        <div className="relative group">
+                            <button 
+                                ref={timeFilterRef}
+                                onClick={() => {
+                                    setTriggerRect(timeFilterRef.current?.getBoundingClientRect() || null);
+                                    setCalendarOpen(!calendarOpen);
+                                }}
+                                className={`h-12 px-5 rounded-2xl bg-[#1E1F22] border flex items-center gap-3 text-[13px] font-semibold text-white hover:bg-[#242529] transition-all ${
+                                    calendarOpen ? "border-white/18 bg-[#242529]" : "border-white/[0.06]"
+                                }`}
+                            >
+                                <CalendarIcon className="h-4 w-4 text-white/40" />
+                                {selectedDate ? selectedDate.toLocaleDateString("en-US", { month: 'short', day: 'numeric' }) : "All Time"}
+                                <ChevronDown className={`h-4 w-4 text-white/40 transition-transform ${calendarOpen ? "rotate-180" : ""}`} />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <AnimatePresence>
+                {eventOpen && (
+                    <EventFilterPopup 
+                        events={eventsQuery.data || []}
+                        selectedEventId={selectedEventId}
+                        onSelect={setSelectedEventId}
+                        onClose={() => setEventOpen(false)}
+                        triggerRect={eventTriggerRect}
+                    />
+                )}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {calendarOpen && (
+                    <CalendarFilterPopup 
+                        selectedDate={selectedDate}
+                        onDateSelect={setSelectedDate}
+                        onClose={() => setCalendarOpen(false)}
+                        triggerRect={triggerRect}
+                    />
+                )}
+            </AnimatePresence>
+
+            <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719]">
+                <div className="grid grid-cols-[minmax(300px,1fr)_100px_140px_140px_180px_120px] gap-6 px-6 py-4 border-b border-white/[0.04] bg-[#1D1E21]">
+                    <div className="flex items-center gap-3">
+                        <button 
+                            onClick={toggleAll}
+                            className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${
+                                filteredAttendees.length > 0 && filteredAttendees.every(a => selectedIds.includes(a.id))
+                                ? "bg-white border-white text-black"
+                                : "border-white/20 hover:border-white/40 bg-white/5"
+                            }`}
+                        >
+                            {filteredAttendees.length > 0 && filteredAttendees.every(a => selectedIds.includes(a.id)) && <Check className="h-3 w-3 stroke-[4]" />}
+                        </button>
+                        <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Attendee</div>
+                    </div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Tickets</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Total Spend</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Contact</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Tags</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em] text-right">Activity</div>
+                </div>
+
+            <div className="pb-40">
+                {customersQuery.isLoading || eventsQuery.isLoading ? (
+                    Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="h-[86px] w-full border-t border-white/[0.035] bg-[#232326] animate-pulse" />
+                    ))
+                ) : filteredAttendees.length === 0 ? (
+                    <div className="py-40 text-center">
+                        <div className="text-white/20 text-[16px] font-medium tracking-tight">No attendees found. Try a different search!</div>
+                    </div>
+                ) : (
+                    filteredAttendees.map((a) => {
+                        const isSelected = selectedIds.includes(a.id);
+                        return (
+                            <motion.div
+                                layout
+                                key={a.id}
+                                onClick={() => toggleAttendee(a.id)}
+                                className={`group relative grid grid-cols-[minmax(300px,1fr)_100px_140px_140px_180px_120px] items-center gap-6 px-6 py-5 border-t border-white/[0.035] transition-all cursor-pointer ${
+                                    isSelected 
+                                    ? "bg-[#2A2A2D]" 
+                                    : "bg-[#232326] hover:bg-[#29292D]"
+                                }`}
+                            >
+                                {/* Column 1: Identity */}
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="relative flex-shrink-0">
+                                        <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+                                            isSelected ? "bg-white text-black" : "bg-white/10 text-white/60 group-hover:bg-white/15"
+                                        }`}>
+                                            {isSelected ? <Check className="h-5 w-5 stroke-[3]" /> : <span className="text-[16px] font-bold">{a.name.charAt(0)}</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col min-w-0">
+                                        <h3 className="text-[16px] font-semibold tracking-tight text-white truncate">{a.name}</h3>
+                                        <div className="flex items-center gap-2 text-[12px] font-medium text-white/40 uppercase tracking-[0.14em] mt-1">
+                                            {a.eventName}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-start min-w-0">
+                                    <span className="text-[15px] font-semibold tabular-nums text-white">{a.tickets}</span>
+                                </div>
+
+                                <div className="flex flex-col items-start min-w-0">
+                                    <div className="text-[18px] font-semibold tracking-tight tabular-nums text-white">
+                                        {formatCurrency(a.totalSpend)}
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setCampaignComposerOpen(true); }}
+                                        className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/60 hover:text-white flex items-center justify-center"
+                                    >
+                                        <MessageSquare className="h-4.5 w-4.5" />
+                                    </button>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); }}
+                                        className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/60 hover:text-white flex items-center justify-center"
+                                    >
+                                        <Phone className="h-4.5 w-4.5" />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); }}
+                                        className="w-9 h-9 rounded-full bg-black/45 flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0"
+                                    >
+                                        <Plus className="h-4 w-4" />
+                                    </button>
+                                    <div className="flex gap-1.5 overflow-hidden">
+                                        <span className="px-3 py-1 rounded-full bg-black/45 text-[10px] font-bold text-white/70 uppercase tracking-wider">VIP</span>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-5 justify-end">
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[12px] font-black text-white/60 tracking-[0.12em]">
+                                            {a.lastPurchase ? new Date(a.lastPurchase).toLocaleDateString("en-US", { day: 'numeric', month: 'short' }).toUpperCase() : "MAR 30"}
+                                        </span>
+                                    </div>
+                                    <button className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/40 hover:text-white flex items-center justify-center">
+                                        <Info className="h-4.5 w-4.5" />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        );
+                    })
+                )}
+            </div>
+            </div>
+
+            {/* Floating Action Bar */}
+            <AnimatePresence>
+                {selectedIds.length > 0 && (
+                    <motion.div
+                        initial={{ y: 100, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: 100, opacity: 0 }}
+                        className="fixed bottom-12 left-1/2 -translate-x-1/2 z-[100] w-full max-w-2xl px-6"
+                    >
+                        <div className="bg-[#1A1A1B] border border-white/10 rounded-[32px] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex items-center justify-between backdrop-blur-xl">
+                            <div className="flex items-center gap-4 ml-4">
+                                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-black font-black text-[14px]">
+                                    {selectedIds.length}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-white font-bold text-[14px]">Attendees Selected</span>
+                                    <button 
+                                        onClick={() => setSelectedIds([])}
+                                        className="text-white/40 text-[12px] font-bold hover:text-white transition-colors text-left"
+                                    >
+                                        Clear Selection
+                                    </button>
+                                </div>
+                            </div>
+
+                            <button 
+                                onClick={() => setCampaignComposerOpen(true)}
+                                className="h-14 px-10 rounded-2xl bg-white text-black font-black text-[14px] flex items-center gap-3 hover:bg-white/90 transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                            >
+                                <MessageSquare className="h-4.5 w-4.5" />
+                                Start WhatsApp Campaign
+                            </button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <FiltersModal isOpen={filterModalOpen} onClose={() => setFilterModalOpen(false)} />
+            <WhatsAppCampaignModal 
+                isOpen={campaignComposerOpen} 
+                onClose={() => setCampaignComposerOpen(false)} 
+                selectedCount={selectedIds.length === 0 ? 1 : selectedIds.length} 
+            />
+
+            <style jsx global>{`
+                .venue-page-content {
+                    background-color: #0D0D0E !important;
+                }
+                body {
+                    background-color: #0D0D0E !important;
+                }
+                @layer utilities {
+                    .bg-gradient-to-r {
+                        background-image: linear-gradient(to right, var(--tw-gradient-stops));
+                    }
+                }
+            `}</style>
         </VenuePageShell>
     );
 }

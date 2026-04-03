@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     ChevronLeft, ChevronRight, ChevronDown, Calendar, Clock, Lock,
-    X, Building2, ArrowLeft, Music, Check,
+    X, Building2, ArrowLeft, Music, Check, CheckCircle2, Loader2,
+    Clock3, ArrowRight,
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
-// ── Color system — mirrors OperatingCalendar ────────────────────────────────
+// ── Color system ──
 const C = {
     surface: "#1c1c22",
     surfaceWeekend: "#1f1f28",
@@ -31,36 +32,7 @@ const C = {
     orange: "#F44A22",
 };
 
-const MONTHS = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
-];
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
 const EXCLUDED_LIFECYCLE = ["draft", "deleted", "cancelled", "denied"];
-
-function filterVisible(events: any[]) {
-    return (events || []).filter(
-        (e: any) => !EXCLUDED_LIFECYCLE.includes((e.lifecycle || e.status || "draft").toLowerCase())
-    );
-}
-
-// Times selectable in picker: 2 PM through 4 AM in 30-min steps
-const BLOCK_TIMES: string[] = (() => {
-    const out: string[] = [];
-    for (let h = 14; h < 24; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
-    for (let h = 0; h <= 4; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
-    return out;
-})();
-
-// Timeline constants
-const TIMELINE_HOURS = [
-    { label: "2 PM", mins: 0 }, { label: "4 PM", mins: 120 },
-    { label: "6 PM", mins: 240 }, { label: "8 PM", mins: 360 },
-    { label: "10 PM", mins: 480 }, { label: "12 AM", mins: 600 },
-    { label: "2 AM", mins: 720 }, { label: "4 AM", mins: 840 },
-];
-const TOTAL_MINS = 840;
 
 function formatDate(date: Date) {
     const y = date.getFullYear();
@@ -76,6 +48,39 @@ function fmt12(t: string): string {
     return `${h12}:${String(m).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 
+function toMins(t: string) {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+}
+
+function timeOverlaps(s1: string, e1: string, s2: string, e2: string) {
+    if (!s1 || !e1 || !s2 || !e2) return true;
+    let a = toMins(s1), b = toMins(e1), c = toMins(s2), d = toMins(e2);
+    if (b < a) b += 1440;
+    if (d < c) d += 1440;
+    return !(b <= c || a >= d);
+}
+
+function filterVisible(events: any[]) {
+    return (events || []).filter(
+        (e: any) => !EXCLUDED_LIFECYCLE.includes(e.lifecycle || e.status || "draft")
+    );
+}
+
+// ── Timeline helpers ──
+const TIMELINE_HOURS = [
+    { label: "2 PM", mins: 0 },
+    { label: "4 PM", mins: 120 },
+    { label: "6 PM", mins: 240 },
+    { label: "8 PM", mins: 360 },
+    { label: "10 PM", mins: 480 },
+    { label: "12 AM", mins: 600 },
+    { label: "2 AM", mins: 720 },
+    { label: "4 AM", mins: 840 },
+];
+const TOTAL_MINS = 840;
+
 function timeToMins(t: string): number {
     if (!t) return 0;
     const [h, m] = t.split(":").map(Number);
@@ -88,64 +93,59 @@ function pct(mins: number) {
     return `${Math.max(0, Math.min(100, (mins / TOTAL_MINS) * 100))}%`;
 }
 
-function toMins(t: string) {
-    const [h, m] = t.split(":").map(Number);
-    return h * 60 + m;
-}
-
-function timeOverlaps(s1: string, e1: string, s2: string, e2: string) {
-    let a = toMins(s1), b = toMins(e1), c = toMins(s2), d = toMins(e2);
-    if (b < a) b += 1440;
-    if (d < c) d += 1440;
-    return !(b <= c || a >= d);
-}
+const BLOCK_TIMES: string[] = (() => {
+    const out: string[] = [];
+    for (let h = 14; h < 24; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
+    for (let h = 0; h <= 4; h++) ["00", "30"].forEach(m => out.push(`${String(h).padStart(2, "0")}:${m}`));
+    return out;
+})();
 
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function HostVenueCalendar() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { profile, user } = useDashboardAuth();
+    const { user } = useDashboardAuth();
     const rm = useReducedMotion();
 
-    const hostId = profile?.activeMembership?.partnerId || "";
     const venueId = searchParams.get("venueId") || "";
-    const venueName = searchParams.get("venueName") || "Partner Venue";
+    const venueName = searchParams.get("venueName") || "Venue";
 
     const [currentMonth, setCurrentMonth] = useState(() => new Date());
     const [calendarData, setCalendarData] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedDate, setSelectedDate] = useState<string | null>(null);
+    const [confirmChecking, setConfirmChecking] = useState(false);
+    const [confirmError, setConfirmError] = useState("");
 
     const authedFetch = useCallback(async (url: string) => {
         if (!user) throw new Error("Not authenticated");
-        const token = await user.getIdToken();
+        const token = await user.getIdToken(true);
         return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     }, [user]);
 
-    // Fetch operating calendar for this venue — same rich format as the Calendar tab
     useEffect(() => {
-        if (!venueId || !hostId) return;
+        if (!venueId) return;
         const load = async () => {
             setLoading(true);
             try {
                 const startDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
                 const endDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
                 const res = await authedFetch(
-                    `/api/venues/${venueId}/calendar?hostId=${hostId}&view=operating&startDate=${startDate}&endDate=${endDate}`
+                    `/api/host/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
                 );
                 const data = await res.json();
-                // Operating view returns a raw array (same as /api/venue/calendar?view=operating)
-                setCalendarData(Array.isArray(data) ? data : []);
+                const rawDays = Array.isArray(data) ? data : (data.calendar || data.days || []);
+                setCalendarData(rawDays);
             } catch (err) {
-                console.error("Failed to fetch host venue calendar:", err);
+                console.error("Failed to fetch host calendar:", err);
                 setCalendarData([]);
             } finally {
                 setLoading(false);
             }
         };
         load();
-    }, [venueId, hostId, currentMonth, authedFetch]);
+    }, [venueId, currentMonth, authedFetch]);
 
     const today = formatDate(new Date());
     const year = currentMonth.getFullYear();
@@ -193,14 +193,48 @@ export function HostVenueCalendar() {
         setSelectedDate(null);
     };
 
-    const handleConfirm = (startTime: string, endTime: string) => {
-        if (selectedDate) {
-            const params = new URLSearchParams({ venue: venueId, venueName, date: selectedDate, startTime, endTime });
+    const handleConfirm = async (startTime: string, endTime: string) => {
+        if (!selectedDate) return;
+        
+        setConfirmChecking(true);
+        setConfirmError("");
+        try {
+            const res = await authedFetch(
+                `/api/host/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`
+            );
+            const data = await res.json();
+            const day = Array.isArray(data) ? data[0] : (data.calendar || data.days || [])[0];
+            
+            const visibleEvents = filterVisible(day?.events);
+            const hasConflict = visibleEvents.some((e: any) => 
+                timeOverlaps(e.startTime || "21:00", e.endTime || "04:00", startTime, endTime)
+            );
+
+            if (day?.state === "BLOCKED" || hasConflict) {
+                setConfirmError("This slot was just taken or blocked. Please choose another time.");
+                return;
+            }
+
+            const params = new URLSearchParams({
+                venue: venueId,
+                venueName,
+                date: selectedDate,
+                startTime,
+                endTime
+            });
             router.push(`/host/create?${params.toString()}`);
+        } catch (err) {
+            console.error("Verification failed:", err);
+            setConfirmError("Failed to verify availability. Please try again.");
+        } finally {
+            setConfirmChecking(false);
         }
     };
 
-    if (!venueId || !hostId) {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+    if (!venueId) {
         return (
             <div className="min-h-[60vh] flex items-center justify-center">
                 <div className="text-center">
@@ -219,62 +253,48 @@ export function HostVenueCalendar() {
 
     return (
         <div className="max-w-7xl mx-auto flex flex-col gap-5">
-            {/* ── Header ──────────────────────────────────────────────────── */}
             <div className="flex flex-col gap-4">
                 <button
                     onClick={() => router.push("/host/create/select-venue")}
                     className="flex items-center gap-2 self-start transition-all"
                     style={{ color: "rgba(255,255,255,0.35)" }}
-                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.7)")}
-                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.35)")}
                 >
                     <ArrowLeft className="w-4 h-4" />
                     <span className="text-[11px] font-black uppercase tracking-widest">Back to Venues</span>
                 </button>
 
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    {/* Venue identity */}
                     <div className="flex items-center gap-4">
-                        <div
-                            className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-                            style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.25)" }}
-                        >
+                        <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
+                            style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.25)" }}>
                             <Building2 className="w-7 h-7" style={{ color: C.orange }} />
                         </div>
                         <div>
                             <h1 className="text-2xl font-black text-white uppercase tracking-tight">{venueName}</h1>
                             <p className="text-sm mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-                                Select an available date and time to request a slot
+                                Select an available date and time for your event
                             </p>
                         </div>
                     </div>
 
-                    {/* Toolbar: stats + month nav */}
                     <div className="flex items-center gap-3">
                         {stats.events > 0 && (
-                            <div
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
-                                style={{ background: "rgba(52,211,153,.12)", color: C.teal, borderColor: "rgba(52,211,153,.25)" }}
-                            >
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
+                                style={{ background: "rgba(52,211,153,.12)", color: C.teal, borderColor: "rgba(52,211,153,.25)" }}>
                                 <span className="tabular-nums text-[11px]">{stats.events}</span>
                                 <span className="uppercase tracking-widest opacity-70">Events</span>
                             </div>
                         )}
                         {stats.blocked > 0 && (
-                            <div
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
-                                style={{ background: "rgba(248,113,113,.12)", color: C.red, borderColor: "rgba(248,113,113,.25)" }}
-                            >
+                            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
+                                style={{ background: "rgba(248,113,113,.12)", color: C.red, borderColor: "rgba(248,113,113,.25)" }}>
                                 <span className="tabular-nums text-[11px]">{stats.blocked}</span>
                                 <span className="uppercase tracking-widest opacity-70">Blocked</span>
                             </div>
                         )}
 
-                        {/* Month picker */}
-                        <div
-                            className="flex items-center rounded-2xl overflow-hidden"
-                            style={{ background: C.surface, border: `1px solid ${C.borderDefault}` }}
-                        >
+                        <div className="flex items-center rounded-2xl overflow-hidden"
+                            style={{ background: C.surface, border: `1px solid ${C.borderDefault}` }}>
                             <button
                                 onClick={() => navigateMonth(-1)}
                                 className="w-10 h-10 flex items-center justify-center transition-colors hover:bg-white/5"
@@ -300,19 +320,16 @@ export function HostVenueCalendar() {
                 </div>
             </div>
 
-            {/* ── Main two-panel card ──────────────────────────────────────── */}
             <div
                 className="flex flex-col lg:flex-row rounded-[28px] overflow-hidden"
                 style={{
                     background: "#16161b",
                     border: "1px solid rgba(255,255,255,0.07)",
                     boxShadow: "0 32px 80px rgba(0,0,0,0.6)",
-                    minHeight: 540,
+                    minHeight: 640,
                 }}
             >
-                {/* ══ CALENDAR PANEL ══ */}
                 <div className="lg:flex-[2.4] flex flex-col" style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
-                    {/* Weekday headers */}
                     <div className="grid grid-cols-7 px-4 pt-5 pb-3 flex-shrink-0">
                         {DAYS.map((d, i) => (
                             <div
@@ -325,14 +342,17 @@ export function HostVenueCalendar() {
                         ))}
                     </div>
 
-                    {/* Date cells */}
                     <div
                         className="flex-1 min-h-0 px-4 pb-4 grid grid-cols-7 gap-2"
                         style={{ gridTemplateRows: `repeat(${weeks}, 1fr)` }}
                     >
                         {loading
                             ? Array.from({ length: 35 }).map((_, i) => (
-                                <div key={i} className="rounded-2xl animate-pulse" style={{ background: C.surface, minHeight: 56 }} />
+                                <div
+                                    key={i}
+                                    className="rounded-2xl animate-pulse"
+                                    style={{ background: C.surface, minHeight: 56 }}
+                                />
                             ))
                             : grid.map((cell, idx) => {
                                 if (!cell) return <div key={`e-${idx}`} />;
@@ -383,29 +403,28 @@ export function HostVenueCalendar() {
                                         disabled={isPast}
                                         className="relative rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-100"
                                         style={{
-                                            background: bg, border, boxShadow: shadow,
+                                            background: bg,
+                                            border,
+                                            boxShadow: shadow,
                                             cursor: isPast ? "not-allowed" : "pointer",
                                             opacity: isPast ? 0.42 : 1,
                                             minHeight: 56,
                                         }}
-                                        onMouseEnter={e => { if (!isPast && !isSel && !isToday) (e.currentTarget as HTMLElement).style.filter = "brightness(1.15)"; }}
-                                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.filter = ""; }}
                                     >
-                                        {/* Top stripe for event cells */}
                                         {hasEvents && !isSel && !isPast && (
                                             <div
                                                 className="absolute inset-x-0 top-0 h-[3px] rounded-t-2xl"
                                                 style={{ background: `linear-gradient(90deg, ${C.teal}, rgba(52,211,153,0.3))` }}
                                             />
                                         )}
-                                        {/* Diagonal stripes for past */}
                                         {isPast && (
                                             <div
                                                 className="absolute inset-0 rounded-2xl pointer-events-none"
-                                                style={{ backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 8px)" }}
+                                                style={{
+                                                    backgroundImage: "repeating-linear-gradient(135deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 8px)",
+                                                }}
                                             />
                                         )}
-                                        {/* Day number */}
                                         {isToday ? (
                                             <span
                                                 className="inline-flex items-center justify-center w-[26px] h-[26px] rounded-full text-[11px] font-black text-white tabular-nums"
@@ -418,7 +437,6 @@ export function HostVenueCalendar() {
                                                 {cell.day}
                                             </span>
                                         )}
-                                        {/* Status dots */}
                                         {(hasEvents || hasPending || isBlocked) && !isPast && (
                                             <div className="flex items-center gap-[3px]">
                                                 {hasEvents && Array.from({ length: Math.min(evCount, 3) }).map((_, i) => (
@@ -427,9 +445,7 @@ export function HostVenueCalendar() {
                                                 {hasPending && (
                                                     <span className="w-1 h-1 rounded-full animate-pulse" style={{ background: C.amber }} />
                                                 )}
-                                                {isBlocked && (
-                                                    <span className="w-1 h-1 rounded-full" style={{ background: C.red }} />
-                                                )}
+                                                {isBlocked && <span className="w-1 h-1 rounded-full" style={{ background: C.red }} />}
                                             </div>
                                         )}
                                     </button>
@@ -438,7 +454,6 @@ export function HostVenueCalendar() {
                         }
                     </div>
 
-                    {/* Legend */}
                     <div
                         className="flex-shrink-0 flex items-center gap-6 px-6 py-3"
                         style={{ borderTop: "1px solid rgba(255,255,255,0.06)", background: "rgba(0,0,0,0.2)" }}
@@ -458,7 +473,6 @@ export function HostVenueCalendar() {
                     </div>
                 </div>
 
-                {/* ══ RIGHT PANEL ══ */}
                 <div className="lg:flex-[1] flex flex-col overflow-hidden" style={{ background: "#0f0f13" }}>
                     <AnimatePresence mode="wait">
                         {selectedDate && selectedDayData ? (
@@ -473,6 +487,8 @@ export function HostVenueCalendar() {
                                 <RightPanel
                                     dateStr={selectedDate}
                                     data={selectedDayData}
+                                    confirmChecking={confirmChecking}
+                                    confirmError={confirmError}
                                     onClose={() => setSelectedDate(null)}
                                     onConfirm={handleConfirm}
                                 />
@@ -509,7 +525,7 @@ export function HostVenueCalendar() {
                                         Select a Date
                                     </p>
                                     <p className="text-[11px] leading-relaxed max-w-[160px] mx-auto" style={{ color: "rgba(255,255,255,0.18)" }}>
-                                        Choose a date to see venue availability
+                                        Choose a date on the calendar to see time slots
                                     </p>
                                 </div>
                             </motion.div>
@@ -521,11 +537,11 @@ export function HostVenueCalendar() {
     );
 }
 
-// ── Right Panel ─────────────────────────────────────────────────────────────
-
-function RightPanel({ dateStr, data, onClose, onConfirm }: {
+function RightPanel({ dateStr, data, confirmChecking, confirmError, onClose, onConfirm }: {
     dateStr: string;
     data: any;
+    confirmChecking: boolean;
+    confirmError: string;
     onClose: () => void;
     onConfirm: (startTime: string, endTime: string) => void;
 }) {
@@ -538,7 +554,6 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
     const [timeModalOpen, setTimeModalOpen] = useState(false);
     const [timeConfirmed, setTimeConfirmed] = useState(false);
 
-    // Times inside any existing event's window → disabled in FROM picker
     const fromDisabled = useMemo<Set<string>>(() => {
         const disabled = new Set<string>();
         BLOCK_TIMES.forEach(t => {
@@ -552,7 +567,6 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
         return disabled;
     }, [events]);
 
-    // Times that would make [startTime → t] overlap with any event → disabled in UNTIL picker
     const untilDisabled = useMemo<Set<string>>(() => {
         const disabled = new Set<string>();
         BLOCK_TIMES.forEach(t => {
@@ -563,7 +577,6 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
         return disabled;
     }, [events, startTime]);
 
-    // When FROM changes: auto-advance UNTIL if it falls in a blocked window
     const handleStartChange = (t: string) => {
         setStartTime(t);
         const newUntilDisabled = new Set<string>();
@@ -615,7 +628,6 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
-            {/* ── Date hero header ── */}
             <div
                 className="flex-shrink-0 relative overflow-hidden px-6 pt-6 pb-5"
                 style={{
@@ -657,207 +669,81 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:bg-white/10 border border-transparent hover:border-white/10"
-                        style={{ color: "rgba(255,255,255,0.3)" }}
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
+                    <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center transition-all hover:bg-white/10 text-white/30 hover:text-white"><X className="w-4 h-4" /></button>
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 h-px" style={{ background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.08) 30%, rgba(255,255,255,0.08) 70%, transparent)" }} />
             </div>
 
-            {/* ── Scrollable content ── */}
-            <div
-                className="flex-1 min-h-0 overflow-y-auto"
-                style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}
-            >
+            <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
                 {isBlocked ? (
-                    /* ── Blocked: show block info + timeline ── */
                     <div className="px-5 pt-5 pb-4 space-y-4">
                         <div className="rounded-2xl overflow-hidden" style={{ background: "rgba(220,38,38,0.12)", border: "1px solid rgba(248,113,113,0.25)" }}>
                             <div className="px-4 py-4 flex items-center gap-3">
                                 <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "rgba(220,38,38,0.3)", border: "1px solid rgba(248,113,113,0.5)" }}>
-                                    <Lock className="w-4 h-4" style={{ color: "#FCA5A5" }} />
+                                    <Lock className="w-4 h-4 text-red-300" />
                                 </div>
                                 <div>
                                     <p className="text-[12px] font-black text-white">{data?.block?.reason || "Venue Blocked"}</p>
-                                    <p className="text-[10px] font-black tabular-nums mt-0.5" style={{ color: "rgba(248,113,113,0.7)" }}>
-                                        {data?.block?.startTime ? `${fmt12(data.block.startTime)} — ${fmt12(data.block.endTime)}` : "All Day"}
-                                    </p>
+                                    <p className="text-[10px] font-black tabular-nums mt-0.5 text-red-300/70">{fmt12(data?.block?.startTime)} — {fmt12(data?.block?.endTime)}</p>
                                 </div>
                             </div>
                         </div>
                         <NightScheduleTimeline events={[]} blockData={data?.block} isActive={isActive} nowPct={nowPct} nowTimeStr={nowTimeStr} />
-                        <p className="text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.25)" }}>
-                            This date is blocked by the venue.
-                        </p>
                     </div>
                 ) : (
-                    /* ── Available / has events: timeline + time slot picker ── */
                     <div className="px-5 pt-5 pb-4 space-y-5">
                         <NightScheduleTimeline events={events} blockData={null} isActive={isActive} nowPct={nowPct} nowTimeStr={nowTimeStr} />
-
-                        {/* Select Time trigger — opens modal */}
                         <button
                             onClick={() => setTimeModalOpen(true)}
-                            className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all duration-150 active:scale-[0.99] hover:brightness-110"
-                            style={{
-                                background: timeConfirmed ? "rgba(52,211,153,0.07)" : "rgba(244,74,34,0.07)",
-                                border: timeConfirmed ? "1px solid rgba(52,211,153,0.25)" : "1px solid rgba(244,74,34,0.2)",
-                            }}
+                            className="w-full flex items-center justify-between px-4 py-3.5 rounded-2xl transition-all border"
+                            style={{ background: timeConfirmed ? "rgba(52,211,153,0.07)" : "rgba(244,74,34,0.07)", borderColor: timeConfirmed ? "rgba(52,211,153,0.2)" : "rgba(244,74,34,0.2)" }}
                         >
                             <div className="flex items-center gap-2.5">
-                                <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{
-                                    background: timeConfirmed ? "rgba(52,211,153,0.15)" : "rgba(244,74,34,0.15)",
-                                    border: timeConfirmed ? "1px solid rgba(52,211,153,0.35)" : "1px solid rgba(244,74,34,0.3)",
-                                }}>
-                                    {timeConfirmed
-                                        ? <Check className="w-3.5 h-3.5" style={{ color: "#34D399" }} />
-                                        : <Clock className="w-3.5 h-3.5" style={{ color: "#F44A22" }} />
-                                    }
+                                <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: timeConfirmed ? "rgba(52,211,153,0.15)" : "rgba(244,74,34,0.15)" }}>
+                                    {timeConfirmed ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Clock className="w-3.5 h-3.5 text-orange-500" />}
                                 </div>
                                 <div className="text-left">
-                                    <p className="text-[11px] font-black uppercase tracking-widest text-white">
-                                        {timeConfirmed ? "Time Set" : "Select Time"}
-                                    </p>
-                                    <p className="text-[9px] font-medium mt-0.5" style={{ color: timeConfirmed ? "rgba(52,211,153,0.6)" : "rgba(255,255,255,0.3)" }}>
-                                        {timeConfirmed ? "Tap to change" : "Tap to choose slot"}
-                                    </p>
+                                    <p className="text-[11px] font-black uppercase tracking-widest text-white">{timeConfirmed ? "Time Set" : "Select Time"}</p>
+                                    <p className="text-[9px] font-medium mt-0.5 text-white/30">{timeConfirmed ? "Tap to change" : "Tap to choose slot"}</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[12px] font-black tabular-nums px-3 py-1 rounded-full" style={{
-                                    background: timeConfirmed ? "rgba(52,211,153,0.12)" : "rgba(244,74,34,0.15)",
-                                    color: timeConfirmed ? "#34D399" : "#F44A22",
-                                    border: timeConfirmed ? "1px solid rgba(52,211,153,0.25)" : "1px solid rgba(244,74,34,0.25)",
-                                }}>
-                                    {fmt12(startTime)} — {fmt12(endTime)}
-                                </span>
-                                <ChevronRight className="w-4 h-4" style={{ color: timeConfirmed ? "rgba(52,211,153,0.5)" : "rgba(244,74,34,0.5)" }} />
-                            </div>
+                            <span className="text-[12px] font-black tabular-nums px-3 py-1 rounded-full bg-white/5 border border-white/10 text-white/80">{fmt12(startTime)} — {fmt12(endTime)}</span>
                         </button>
                     </div>
                 )}
             </div>
 
-            {/* ── Bottom action bar ── */}
-            <div
-                className="flex-shrink-0 flex items-center gap-3 px-5 py-4"
-                style={{ borderTop: "1px solid rgba(255,255,255,0.07)", background: "rgba(0,0,0,0.2)" }}
-            >
-                <button
-                    onClick={() => timeConfirmed && !isBlocked && !hasOverlap && onConfirm(startTime, endTime)}
-                    disabled={isBlocked || hasOverlap || !timeConfirmed}
-                    className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
-                    style={{
-                        background: (isBlocked || hasOverlap || !timeConfirmed) ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)",
-                        color: (isBlocked || hasOverlap || !timeConfirmed) ? "rgba(255,255,255,0.2)" : "white",
-                        cursor: (isBlocked || hasOverlap || !timeConfirmed) ? "not-allowed" : "pointer",
-                        boxShadow: (isBlocked || hasOverlap || !timeConfirmed) ? "none" : "0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
-                    }}
-                >
-                    {!timeConfirmed && <Lock className="w-3 h-3" />}
-                    {!timeConfirmed ? "Select a Time First" : "Continue to Request Slot"}
-                </button>
-                <button
-                    onClick={onClose}
-                    className="px-5 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors hover:bg-white/5"
-                    style={{ color: "rgba(255,255,255,0.4)", border: "1px solid rgba(255,255,255,0.08)" }}
-                >
-                    Close
-                </button>
+            <div className="flex-shrink-0 p-5 mt-auto border-t border-white/5 bg-black/20">
+                {!isBlocked && (
+                    <button
+                        onClick={() => timeConfirmed && !hasOverlap && onConfirm(startTime, endTime)}
+                        disabled={!timeConfirmed || hasOverlap || confirmChecking}
+                        className="w-full py-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-30"
+                        style={{ background: (!timeConfirmed || hasOverlap || confirmChecking) ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #F44A22, #FF6B4A)", color: "white" }}
+                    >
+                        {confirmChecking ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                        {confirmChecking ? "Verifying..." : "Continue to Request Slot"}
+                    </button>
+                )}
+                {confirmError && <p className="text-[11px] font-medium text-red-400 mt-3 text-center">{confirmError}</p>}
+                <button onClick={onClose} className="w-full mt-3 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest text-white/40 border border-white/5 hover:bg-white/5 transition-colors">Close</button>
             </div>
 
-            {/* ── Time selection modal ── */}
             {timeModalOpen && (
-                <div
-                    className="fixed inset-0 z-[100] flex items-center justify-center p-4"
-                    style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
-                    onClick={() => setTimeModalOpen(false)}
-                >
-                    <div
-                        className="w-full max-w-2xl rounded-3xl overflow-hidden"
-                        style={{ background: "#141418", border: "1px solid rgba(255,255,255,0.1)", boxShadow: "0 32px 80px rgba(0,0,0,0.8)" }}
-                        onClick={e => e.stopPropagation()}
-                    >
-                        {/* Modal header */}
-                        <div className="flex items-center justify-between px-6 pt-6 pb-5" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-                            <div className="flex items-center gap-3.5">
-                                <div className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.15)", border: "1px solid rgba(244,74,34,0.3)" }}>
-                                    <Clock className="w-5 h-5" style={{ color: "#F44A22" }} />
-                                </div>
-                                <div>
-                                    <p className="text-[16px] font-black text-white">Select Time Slot</p>
-                                    <p className="text-[12px] font-medium mt-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>
-                                        {dayName}, {monthStr} {dayNum}
-                                    </p>
-                                </div>
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md" onClick={() => setTimeModalOpen(false)}>
+                    <div className="w-full max-w-2xl bg-[#141418] rounded-3xl border border-white/10 overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center justify-between px-6 py-5 border-b border-white/5">
+                            <div className="flex items-center gap-3">
+                                <Clock className="w-5 h-5 text-orange-500" />
+                                <div><p className="text-[16px] font-black text-white">Select Time Slot</p><p className="text-[12px] text-white/30 uppercase font-black">{dayName}, {monthStr} {dayNum}</p></div>
                             </div>
-                            <button
-                                onClick={() => setTimeModalOpen(false)}
-                                className="w-9 h-9 rounded-full flex items-center justify-center transition-colors hover:bg-white/10"
-                                style={{ background: "rgba(255,255,255,0.06)" }}
-                            >
-                                <X className="w-5 h-5" style={{ color: "rgba(255,255,255,0.5)" }} />
-                            </button>
+                            <button onClick={() => setTimeModalOpen(false)} className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 transition-colors"><X className="w-5 h-5 text-white/50" /></button>
                         </div>
-
-                        {/* Modal body */}
-                        <div className="px-6 py-5 space-y-5">
-                            {/* FROM */}
+                        <div className="p-6 space-y-6">
                             <TimePicker label="FROM" value={startTime} onChange={handleStartChange} disabledTimes={fromDisabled} />
-
-                            {/* Range bar */}
-                            {(() => {
-                                const si = BLOCK_TIMES.indexOf(startTime);
-                                const ei = BLOCK_TIMES.indexOf(endTime);
-                                const total = BLOCK_TIMES.length;
-                                const left = (si / total) * 100;
-                                const rawWidth = si <= ei ? ((ei - si) / total) * 100 : ((total - si + ei) / total) * 100;
-                                return (
-                                    <div className="relative h-1.5 rounded-full" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                        <div
-                                            className="absolute top-0 h-full rounded-full transition-all duration-200"
-                                            style={{
-                                                left: `${left}%`,
-                                                width: `${Math.min(rawWidth, 100 - left)}%`,
-                                                background: hasOverlap ? "rgba(248,113,113,0.7)" : "linear-gradient(90deg, #F44A22, #FF6B4A)",
-                                                boxShadow: hasOverlap ? "0 0 6px rgba(248,113,113,0.4)" : "0 0 10px rgba(244,74,34,0.55)",
-                                            }}
-                                        />
-                                    </div>
-                                );
-                            })()}
-
-                            {/* UNTIL */}
                             <TimePicker label="UNTIL" value={endTime} onChange={setEndTime} disabledTimes={untilDisabled} />
-
-                            {/* Overlap warning */}
-                            {hasOverlap && (
-                                <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl" style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)" }}>
-                                    <Lock className="w-4 h-4 flex-shrink-0" style={{ color: C.red }} />
-                                    <p className="text-[12px] font-black" style={{ color: "rgba(248,113,113,0.8)" }}>
-                                        Overlaps with an existing event — adjust your times
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Confirm button */}
-                            <button
-                                onClick={() => { if (!hasOverlap) { setTimeConfirmed(true); setTimeModalOpen(false); } }}
-                                disabled={hasOverlap}
-                                className="w-full py-4 rounded-2xl text-[14px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98]"
-                                style={{
-                                    background: hasOverlap ? "rgba(255,255,255,0.06)" : "linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)",
-                                    color: hasOverlap ? "rgba(255,255,255,0.2)" : "white",
-                                    cursor: hasOverlap ? "not-allowed" : "pointer",
-                                    boxShadow: hasOverlap ? "none" : "0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)",
-                                }}
-                            >
-                                Confirm Time
-                            </button>
+                            {hasOverlap && <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2"><Lock className="w-4 h-4" /> Overlaps with an existing event.</div>}
+                            <button onClick={() => !hasOverlap && (setTimeConfirmed(true), setTimeModalOpen(false))} disabled={hasOverlap} className="w-full py-4 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 shadow-xl shadow-orange-600/20">Confirm Time Selection</button>
                         </div>
                     </div>
                 </div>
@@ -866,8 +752,6 @@ function RightPanel({ dateStr, data, onClose, onConfirm }: {
     );
 }
 
-// ── Time Picker (chip-based + AM/PM toggle) ──────────────────────────────────
-
 function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     label: string;
     value: string;
@@ -875,13 +759,10 @@ function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     disabledTimes?: Set<string>;
 }) {
     const scrollRef = useRef<HTMLDivElement>(null);
-
     const getPeriod = (t: string): "AM" | "PM" => parseInt(t.split(":")[0]) >= 12 ? "PM" : "AM";
     const [period, setPeriod] = useState<"AM" | "PM">(() => getPeriod(value));
 
-    // Keep period in sync when parent changes value externally
     useEffect(() => { setPeriod(getPeriod(value)); }, [value]);
-
     useEffect(() => {
         if (!scrollRef.current) return;
         const el = scrollRef.current.querySelector("[data-selected='true']") as HTMLElement | null;
@@ -903,106 +784,33 @@ function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     const canNext = visibleIdx < visibleTimes.length - 1 && !disabledTimes.has(visibleTimes[visibleIdx + 1]);
 
     return (
-        <div className="space-y-3">
-            {/* Row: label | AM/PM toggle | < time > */}
-            <div className="flex items-center justify-between gap-2">
-                <span className="text-[13px] font-black uppercase tracking-widest shrink-0" style={{ color: "rgba(255,255,255,0.35)" }}>
-                    {label}
-                </span>
-                <div className="flex items-center gap-3">
-                    <div
-                        className="flex items-center gap-0.5 p-1 rounded-lg"
-                        style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    >
-                        {(["PM", "AM"] as const).map(p => (
-                            <button
-                                key={p}
-                                type="button"
-                                onClick={() => handlePeriodChange(p)}
-                                className="px-3 py-1.5 rounded-md text-[11px] font-black uppercase tracking-widest transition-all duration-150"
-                                style={{
-                                    background: period === p ? "#F44A22" : "transparent",
-                                    color: period === p ? "#fff" : "rgba(255,255,255,0.3)",
-                                    boxShadow: period === p ? "0 0 8px rgba(244,74,34,0.35)" : "none",
-                                }}
-                            >
-                                {p}
-                            </button>
+        <div className="space-y-4">
+            <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-widest text-white/30">{label}</span>
+                <div className="flex items-center gap-4">
+                    <div className="flex p-1 bg-white/5 rounded-xl border border-white/5">
+                        {["PM", "AM"].map((p: any) => (
+                            <button key={p} onClick={() => handlePeriodChange(p)} className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${period === p ? "bg-orange-600 text-white shadow-lg shadow-orange-600/20" : "text-white/30"}`}>{p}</button>
                         ))}
                     </div>
-                    {/* < time > */}
                     <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            disabled={!canPrev}
-                            onClick={() => canPrev && onChange(visibleTimes[visibleIdx - 1])}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 active:scale-90"
-                            style={{
-                                background: canPrev ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                                color: canPrev ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.15)",
-                                border: "1px solid rgba(255,255,255,0.07)",
-                                cursor: canPrev ? "pointer" : "not-allowed",
-                            }}
-                        >
-                            <ChevronLeft className="w-4 h-4" />
-                        </button>
-                        <span className="text-[17px] font-black tabular-nums min-w-[90px] text-center" style={{ color: "#F44A22", textShadow: "0 0 14px rgba(244,74,34,0.6)" }}>
-                            {fmt12(value)}
-                        </span>
-                        <button
-                            type="button"
-                            disabled={!canNext}
-                            onClick={() => canNext && onChange(visibleTimes[visibleIdx + 1])}
-                            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 active:scale-90"
-                            style={{
-                                background: canNext ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.02)",
-                                color: canNext ? "rgba(255,255,255,0.65)" : "rgba(255,255,255,0.15)",
-                                border: "1px solid rgba(255,255,255,0.07)",
-                                cursor: canNext ? "pointer" : "not-allowed",
-                            }}
-                        >
-                            <ChevronRight className="w-4 h-4" />
-                        </button>
+                        <button type="button" disabled={!canPrev} onClick={() => canPrev && onChange(visibleTimes[visibleIdx - 1])} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center disabled:opacity-20"><ChevronLeft className="w-4 h-4 text-white/60" /></button>
+                        <span className="text-[17px] font-black tabular-nums min-w-[90px] text-center text-orange-500">{fmt12(value)}</span>
+                        <button type="button" disabled={!canNext} onClick={() => canNext && onChange(visibleTimes[visibleIdx + 1])} className="w-8 h-8 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center disabled:opacity-20"><ChevronRight className="w-4 h-4 text-white/60" /></button>
                     </div>
                 </div>
             </div>
-            {/* Chip row — only the active period's times */}
-            <div
-                ref={scrollRef}
-                className="flex gap-2.5 overflow-x-auto py-1"
-                style={{ scrollbarWidth: "none" }}
-            >
+            <div ref={scrollRef} className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
                 {visibleTimes.map(t => {
-                    const isSel = t === value;
-                    const isDisabled = disabledTimes.has(t);
+                    const isSel = t === value, isDisabled = disabledTimes.has(t);
                     return (
-                        <button
-                            key={t}
-                            data-selected={isSel}
-                            type="button"
-                            disabled={isDisabled}
-                            onClick={() => { if (!isDisabled) onChange(t); }}
-                            className="flex-shrink-0 px-4 py-2.5 rounded-full text-[13px] font-black tabular-nums transition-all duration-150 active:scale-95"
-                            style={{
-                                background: isSel ? "#F44A22" : isDisabled ? "rgba(255,255,255,0.02)" : "rgba(255,255,255,0.05)",
-                                color: isSel ? "#fff" : isDisabled ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.55)",
-                                border: isSel ? "1px solid rgba(244,74,34,0.7)" : isDisabled ? "1px solid rgba(255,255,255,0.03)" : "1px solid rgba(255,255,255,0.07)",
-                                boxShadow: isSel ? "0 0 14px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)" : "none",
-                                cursor: isDisabled ? "not-allowed" : "pointer",
-                                transform: isSel ? "scale(1.06)" : "scale(1)",
-                                whiteSpace: "nowrap",
-                            }}
-                        >
-                            {fmt12(t)}
-                        </button>
+                        <button key={t} data-selected={isSel} disabled={isDisabled} onClick={() => !isDisabled && onChange(t)} className={`flex-shrink-0 px-5 py-3 rounded-2xl text-[13px] font-black tabular-nums transition-all ${isSel ? "bg-orange-600 text-white shadow-xl shadow-orange-600/20 scale-105" : "bg-white/5 text-white/40 border border-white/5"} disabled:opacity-10`}>{fmt12(t)}</button>
                     );
                 })}
             </div>
         </div>
     );
 }
-
-// ── Night Schedule Timeline ──────────────────────────────────────────────────
 
 function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr }: {
     events: any[];
@@ -1012,147 +820,44 @@ function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr
     nowTimeStr: string;
 }) {
     const isBlocked = !!blockData;
-    const hasEvents = events.length > 0;
-
-    // Colour palette for up to 6 concurrent events
-    const EVENT_COLORS = [
-        { bg: "rgba(52,211,153,0.22)", border: "rgba(52,211,153,0.7)", text: "#34D399" },
-        { bg: "rgba(129,140,248,0.22)", border: "rgba(129,140,248,0.7)", text: "#818CF8" },
-        { bg: "rgba(251,191,36,0.22)", border: "rgba(251,191,36,0.7)", text: "#FBBF24" },
-        { bg: "rgba(244,74,34,0.22)", border: "rgba(244,74,34,0.7)", text: "#F44A22" },
-        { bg: "rgba(248,113,113,0.22)", border: "rgba(248,113,113,0.7)", text: "#F87171" },
-        { bg: "rgba(94,234,212,0.22)", border: "rgba(94,234,212,0.7)", text: "#5EEAD4" },
-    ];
-
     return (
-        <div>
-            <div className="flex items-center gap-2 mb-4">
-                <Clock className="w-3 h-3 flex-shrink-0" style={{ color: "rgba(255,255,255,0.25)" }} />
-                <span className="text-[9px] font-black uppercase tracking-[0.18em]" style={{ color: "rgba(255,255,255,0.25)" }}>Night Schedule</span>
-                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                <span className="text-[9px] font-black" style={{ color: "rgba(255,255,255,0.2)" }}>2 PM — 4 AM</span>
+        <div className="space-y-4">
+            <div className="flex items-center gap-2">
+                <Clock className="w-3 h-3 text-white/30" />
+                <span className="text-[9px] font-black uppercase tracking-[0.18em] text-white/30">Night Schedule</span>
+                <div className="flex-1 h-px bg-white/5" />
+                <span className="text-[9px] font-black text-white/20">2 PM — 4 AM</span>
             </div>
-
-            <div className="flex gap-3">
-                {/* Hour labels */}
-                <div className="flex-shrink-0 w-10 relative" style={{ height: 300 }}>
+            <div className="flex gap-4">
+                <div className="w-10 relative" style={{ height: 340 }}>
                     {TIMELINE_HOURS.map(({ label, mins }) => (
-                        <div
-                            key={label}
-                            className="absolute right-0 flex items-center justify-end"
-                            style={{ top: `${(mins / TOTAL_MINS) * 100}%`, transform: "translateY(-50%)" }}
-                        >
-                            <span
-                                className="text-[8px] font-black uppercase leading-none"
-                                style={{ color: mins % 240 === 0 ? "rgba(255,255,255,0.45)" : "rgba(255,255,255,0.22)", letterSpacing: "0.04em" }}
-                            >
-                                {label}
-                            </span>
+                        <div key={label} className="absolute right-0 flex items-center" style={{ top: `${(mins / TOTAL_MINS) * 100}%`, transform: "translateY(-50%)" }}>
+                            <span className="text-[8px] font-black uppercase tracking-wider text-white/20">{label}</span>
                         </div>
                     ))}
                 </div>
-
-                {/* Timeline grid */}
-                <div
-                    className="flex-1 relative rounded-2xl overflow-hidden"
-                    style={{ height: 300, background: "#141418", border: "1px solid rgba(255,255,255,0.08)" }}
-                >
-                    {/* Alternating bands */}
-                    {TIMELINE_HOURS.slice(0, -1).map(({ mins }, i) => {
-                        const nextMins = TIMELINE_HOURS[i + 1].mins;
-                        return (
-                            <div key={`b-${i}`} className="absolute left-0 right-0 pointer-events-none"
-                                style={{ top: `${(mins / TOTAL_MINS) * 100}%`, height: `${((nextMins - mins) / TOTAL_MINS) * 100}%`, background: i % 2 === 0 ? "rgba(255,255,255,0.025)" : "transparent" }} />
-                        );
-                    })}
-                    {/* Hour lines */}
-                    {TIMELINE_HOURS.map(({ mins }) => (
-                        <div key={`l-${mins}`} className="absolute left-0 right-0 h-px pointer-events-none"
-                            style={{ top: `${(mins / TOTAL_MINS) * 100}%`, background: mins % 240 === 0 ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.05)" }} />
+                <div className="flex-1 relative rounded-2xl bg-[#141418] border border-white/10 overflow-hidden" style={{ height: 340 }}>
+                    {TIMELINE_HOURS.slice(0, -1).map((_, i) => (
+                        <div key={i} className="absolute inset-x-0" style={{ top: `${(TIMELINE_HOURS[i].mins / TOTAL_MINS) * 100}%`, height: `${((TIMELINE_HOURS[i+1].mins - TIMELINE_HOURS[i].mins) / TOTAL_MINS) * 100}%`, background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }} />
                     ))}
-
-                    {/* NOW indicator */}
+                    {TIMELINE_HOURS.map(({ mins }) => (
+                        <div key={mins} className="absolute inset-x-0 h-px bg-white/5" style={{ top: `${(mins / TOTAL_MINS) * 100}%` }} />
+                    ))}
                     {isActive && (
-                        <div className="absolute left-0 right-0 z-30 pointer-events-none" style={{ top: nowPct }}>
-                            <div className="absolute left-0 right-0 h-[1.5px]" style={{ background: "linear-gradient(90deg, #F44A22 40%, transparent)" }} />
-                            <div className="absolute -left-1 w-[10px] h-[10px] rounded-full -translate-y-1/2" style={{ background: "#F44A22", boxShadow: "0 0 0 3px rgba(244,74,34,0.25), 0 0 14px rgba(244,74,34,0.6)" }} />
-                            <div className="absolute right-2 -translate-y-1/2 flex items-center gap-1 px-2 py-[3px] rounded-full" style={{ background: "#F44A22" }}>
-                                <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
-                                <span className="text-[8px] font-black text-white tracking-wide">{nowTimeStr}</span>
-                            </div>
+                        <div className="absolute inset-x-0 z-30 pointer-events-none" style={{ top: nowPct }}>
+                            <div className="h-[2px] bg-orange-600" />
+                            <div className="absolute -left-1 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-orange-600 shadow-xl shadow-orange-600/50" />
+                            <div className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-full bg-orange-600 text-white text-[8px] font-black tracking-widest shadow-xl shadow-orange-600/30 flex items-center gap-1"><span className="w-1 h-1 rounded-full bg-white animate-pulse" /> {nowTimeStr}</div>
                         </div>
                     )}
-
-                    {/* Blocked fill */}
                     {isBlocked && (() => {
-                        const bStart = blockData?.startTime || "20:00";
-                        const bEnd = blockData?.endTime || "04:00";
-                        const sMin = timeToMins(bStart);
-                        const eMin = timeToMins(bEnd);
-                        const blockH = Math.max(8, ((eMin - sMin) / TOTAL_MINS) * 100);
-                        return (
-                            <div
-                                className="absolute left-0 right-0 z-10 flex flex-col items-center justify-center gap-2"
-                                style={{
-                                    top: pct(sMin), height: `${blockH}%`,
-                                    background: "rgba(220,38,38,0.28)",
-                                    borderTop: "2px solid rgba(248,113,113,0.8)",
-                                    borderBottom: "2px solid rgba(248,113,113,0.8)",
-                                    backgroundImage: "repeating-linear-gradient(135deg, rgba(248,113,113,0.12) 0px, rgba(248,113,113,0.12) 2px, transparent 2px, transparent 12px)",
-                                }}
-                            >
-                                <div className="flex flex-col items-center gap-1 px-3 text-center">
-                                    <div className="w-7 h-7 rounded-xl flex items-center justify-center" style={{ background: "rgba(220,38,38,0.4)", border: "1.5px solid rgba(248,113,113,0.7)" }}>
-                                        <Lock className="w-3.5 h-3.5" style={{ color: "#FCA5A5" }} />
-                                    </div>
-                                    <span className="text-[9px] font-black uppercase tracking-widest" style={{ color: "#FCA5A5" }}>{blockData?.reason || "Blocked"}</span>
-                                    <span className="text-[8px] font-black tabular-nums" style={{ color: "rgba(248,113,113,0.65)" }}>{fmt12(bStart)} — {fmt12(bEnd)}</span>
-                                </div>
-                            </div>
-                        );
+                        const sMin = timeToMins(blockData?.startTime || "20:00"), eMin = timeToMins(blockData?.endTime || "04:00");
+                        return <div className="absolute inset-x-0 z-10 flex flex-col items-center justify-center gap-1 bg-red-600/20 border-y-2 border-red-600/50" style={{ top: pct(sMin), height: `${((eMin - sMin) / TOTAL_MINS) * 100}%`, backgroundImage: "repeating-linear-gradient(135deg, rgba(239,68,68,0.1) 0px, rgba(239,68,68,0.1) 1px, transparent 1px, transparent 10px)" }}><Lock className="w-3 h-3 text-red-300" /><span className="text-[8px] font-black uppercase text-red-300">Blocked</span></div>;
                     })()}
-
-                    {/* Event blocks */}
-                    {hasEvents && events.map((event: any, i: number) => {
-                        const eStart = event.startTime || event.startDate?.substring(11, 16) || "21:00";
-                        const eEnd = event.endTime || "04:00";
-                        const sMin = timeToMins(eStart);
-                        const eMin = timeToMins(eEnd);
-                        const blockH = Math.max(5, ((eMin - sMin) / TOTAL_MINS) * 100);
-                        const col = EVENT_COLORS[i % EVENT_COLORS.length];
-                        return (
-                            <div
-                                key={event.id || i}
-                                className="absolute left-1 right-1 z-20 rounded-lg overflow-hidden flex flex-col justify-center px-2"
-                                style={{
-                                    top: pct(sMin), height: `${blockH}%`,
-                                    background: col.bg,
-                                    borderLeft: `3px solid ${col.border}`,
-                                    borderTop: `1px solid ${col.border}40`,
-                                }}
-                            >
-                                <p className="text-[9px] font-black truncate leading-tight" style={{ color: col.text }}>
-                                    {event.name || event.title || "Event"}
-                                </p>
-                                <p className="text-[8px] font-black tabular-nums" style={{ color: `${col.text}99` }}>
-                                    {fmt12(eStart)} — {fmt12(eEnd)}
-                                </p>
-                            </div>
-                        );
+                    {events.map((e: any, i: number) => {
+                        const sMin = timeToMins(e.startTime || "21:00"), eMin = timeToMins(e.endTime || "04:00");
+                        return <div key={e.id || i} className="absolute left-1 right-1 z-20 rounded-xl bg-teal-600/10 border border-teal-600/30" style={{ top: pct(sMin), height: `${Math.max(5, ((eMin - sMin) / TOTAL_MINS) * 100)}%` }}><div className="absolute left-0 top-0 bottom-0 w-[4px] bg-teal-400" /><p className="pl-3 py-2 text-[9px] font-black text-white uppercase truncate">{e.title || "Reserved"}</p></div>;
                     })}
-
-                    {/* Empty state */}
-                    {!isBlocked && !hasEvents && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 pointer-events-none">
-                            <div className="w-10 h-10 rounded-2xl flex items-center justify-center" style={{ background: "rgba(244,74,34,0.08)", border: "1px solid rgba(244,74,34,0.18)" }}>
-                                <Music className="w-4 h-4" style={{ color: "rgba(244,74,34,0.55)" }} />
-                            </div>
-                            <div className="text-center">
-                                <p className="text-[9px] font-black uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.25)" }}>Night is open</p>
-                                <p className="text-[8px] mt-0.5" style={{ color: "rgba(255,255,255,0.12)" }}>Pick your time slot below</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>

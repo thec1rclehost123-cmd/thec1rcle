@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { trackEventView } from "@c1rcle/core/analytics-service";
+import { getAdminDb, isFirebaseConfigured } from "@/lib/firebase/admin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export async function POST(request, { params }) {
     try {
@@ -10,11 +12,22 @@ export async function POST(request, { params }) {
         const userAgent = request.headers.get("user-agent") || "unknown";
         const viewerId = Buffer.from(`${ip}-${userAgent}`).toString("base64");
 
-        // Fire and forget: don't block the response for analytics.
-        // This cuts the API response time from 6s down to milliseconds.
-        trackEventView(eventId, viewerId).catch(err => {
-            console.error("[/api/events/view] Analytics background error:", err);
-        });
+        // Fire and forget: only persist a view when this is a new short-lived viewer session.
+        trackEventView(eventId, viewerId)
+            .then(async (isNewSession) => {
+                if (!isNewSession || !isFirebaseConfigured()) return;
+
+                const db = getAdminDb();
+                await db.collection("events").doc(eventId).set({
+                    stats: {
+                        views: FieldValue.increment(1),
+                    },
+                    updatedAt: new Date().toISOString(),
+                }, { merge: true });
+            })
+            .catch(err => {
+                console.error("[/api/events/view] Analytics background error:", err);
+            });
 
         return NextResponse.json({ ok: true });
     } catch (err) {

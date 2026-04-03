@@ -1,29 +1,33 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { getApiClient } from "@/lib/server/apiClient";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
  * POST /api/host/invite
  * Creates a promoter invite record via the API Gateway.
+ * Requires MANAGE_STAFF permission (OWNER only).
  */
 
 const InviteBody = z.object({
-    hostId: z.string().min(1, "hostId is required"),
     promoterEmail: z.string().email("Invalid email address"),
-    promoterName: z.string().optional(),
+    promoterName:  z.string().optional(),
 });
 
-export const POST = withAuth(async (req: NextRequest, auth) => {
+export async function POST(req: NextRequest) {
+    const ctx = await requireHostAccess(req, "MANAGE_STAFF");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const rawBody = await req.json();
         const parsed = InviteBody.safeParse(rawBody);
         if (!parsed.success) {
             return fail(parsed.error.issues[0].message, 400);
         }
-        const { hostId, promoterEmail, promoterName } = parsed.data;
+        const { promoterEmail, promoterName } = parsed.data;
+        const hostId = ctx.hostId;
 
         const appUrl = process.env.NEXT_PUBLIC_APP_URL;
         if (!appUrl) {
@@ -34,7 +38,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const client = getApiClient(token);
 
-        const inviteId = randomBytes(16).toString("hex");
+        const inviteId  = randomBytes(16).toString("hex");
         const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
         await client.request("/promoter-connections/invites", {
@@ -56,4 +60,4 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         console.error("[POST /api/host/invite]", error);
         return fail("Failed to create invite");
     }
-});
+}

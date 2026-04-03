@@ -10,7 +10,7 @@ import { FieldValue } from "firebase-admin/firestore";
  */
 export async function POST(req, { params }) {
     try {
-        const { eventId } = params;
+        const { eventId } = await params;
         const decodedToken = await verifyAuth(req);
         if (!decodedToken) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

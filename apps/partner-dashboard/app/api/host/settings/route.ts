@@ -4,7 +4,7 @@
  * Fallback: direct Firestore via hostSettingsStore when gateway is unavailable.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { fail } from "@/lib/server/apiResponse";
 import { PAGE_SIZE_MAX_LIST } from "@/lib/constants";
 import { tryProxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
@@ -22,15 +22,16 @@ import {
 /**
  * GET /api/host/settings?hostId=XXX
  */
-export const GET = withAuth(async (req: NextRequest, auth) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid } = ctx;
+
     const { searchParams } = new URL(req.url);
-    const hostId = searchParams.get("hostId");
     const include = searchParams.get("include");
 
-    if (!hostId) return fail("hostId required", 400);
-
     if (include === "sessions") {
-        const sessions = await getLoginSessions(hostId, auth.uid);
+        const sessions = await getLoginSessions(hostId, uid);
         return NextResponse.json({ sessions }, { headers: { "Cache-Control": "private, no-store" } });
     }
 
@@ -51,21 +52,25 @@ export const GET = withAuth(async (req: NextRequest, auth) => {
 
     const settings = await getHostSettings(hostId);
     return NextResponse.json(settings, { headers: { "Cache-Control": "private, no-store" } });
-});
+}
 
 /**
  * PATCH /api/host/settings
  */
-export const PATCH = withAuth(async (req: NextRequest, auth) => {
-    const body = await req.json().catch(() => null);
-    if (!body?.hostId || !body?.patch) return fail("hostId and patch required", 400);
+export async function PATCH(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid, displayName } = ctx;
 
-    const { hostId, patch, action = "GENERAL_UPDATED", section = "general" } = body;
-    const actor = { uid: auth.uid, displayName: (auth as any).name ?? auth.uid };
+    const body = await req.json().catch(() => null);
+    if (!body?.patch) return fail("patch required", 400);
+
+    const { patch, action = "GENERAL_UPDATED", section = "general" } = body;
+    const actor = { uid, displayName };
 
     const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/host`, {
         method: "PATCH",
-        body: JSON.stringify(body),
+        body: JSON.stringify({ hostId, patch }),
     });
     if (data) return NextResponse.json(data);
 
@@ -76,20 +81,22 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
         console.error("[PATCH /api/host/settings]", error);
         return fail("Failed to update settings");
     }
-});
+}
 
 /**
  * POST /api/host/settings
  */
-export const POST = withAuth(async (req: NextRequest, auth) => {
-    const body = await req.json().catch(() => null);
-    if (!body?.hostId) return fail("hostId required", 400);
+export async function POST(req: NextRequest) {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { hostId, uid, displayName } = ctx;
 
-    const { hostId } = body;
+    const body = await req.json().catch(() => null);
+    if (!body) return fail("Request body required", 400);
 
     if (body.action === "WRITE_SESSION" && body.sessionData) {
         try {
-            const session = await writeLoginSession(hostId, auth.uid, body.sessionData);
+            const session = await writeLoginSession(hostId, uid, body.sessionData);
             return NextResponse.json({ session }, { status: 201 });
         } catch (error: any) {
             console.error("[POST /api/host/settings] WRITE_SESSION", error);
@@ -108,10 +115,10 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
     }
 
     const patch = body.settings ?? {};
-    const actor = { uid: auth.uid, displayName: (auth as any).name ?? auth.uid };
+    const actor = { uid, displayName };
 
     const data = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/host`, {
-        method: "PATCH", // Save settings via patch on Gateway
+        method: "PATCH",
         body: JSON.stringify({ hostId, patch }),
     });
     if (data) return NextResponse.json(data);
@@ -123,5 +130,4 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         console.error("[POST /api/host/settings]", error);
         return fail("Failed to save settings");
     }
-});
-
+}

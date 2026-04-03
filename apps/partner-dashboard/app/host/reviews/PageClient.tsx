@@ -40,16 +40,16 @@ interface EventReview {
     checkedIn: number;
     // Scores
     turnoutRate: number;
-    satisfactionScore: number;
+    satisfactionScore: number | null;
     venueRating?: number;
-    repeatGuests: number;
+    repeatGuests: number | null;
     // Feedback
     highlights: string[];
     improvements: string[];
 }
 
 export default function HostReviewsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<EventReview[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
@@ -60,13 +60,16 @@ export default function HostReviewsPage() {
 
     useEffect(() => {
         if (hostId) fetchReviews();
-    }, [hostId]);
+    }, [hostId, user]);
 
     const fetchReviews = async () => {
         setLoading(true);
         setError(false);
         try {
-            const res = await fetch(`/api/events?creatorId=${hostId}&lifecycle=completed,past,ended,scheduled`);
+            const token = user ? await user.getIdToken() : "";
+            const res = await fetch(`/api/events?creatorId=${hostId}&lifecycle=completed,past,ended,scheduled`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
             if (res.ok) {
                 const data = await res.json();
                 const enriched: EventReview[] = (data.events || [])
@@ -75,10 +78,24 @@ export default function HostReviewsPage() {
                         const ticketsSold = event.tickets?.reduce((acc: number, t: any) => acc + (Number(t.sold || t.quantity || 0)), 0) || 0;
                         const capacity = event.capacity || 500;
                         const revenue = event.tickets?.reduce((acc: number, t: any) => acc + (Number(t.price || 0) * Number(t.sold || t.quantity || 0)), 0) || 0;
-                        const checkedIn = event.stats?.checkedIn || Math.floor(ticketsSold * 0.82);
+                        const checkedIn = Number(event.stats?.checkedIn || event.checkedIn || 0);
                         const turnoutRate = ticketsSold > 0 ? Math.round((checkedIn / ticketsSold) * 100) : 0;
-                        const satisfactionScore = Math.min(100, Math.round(60 + Math.random() * 35));
-                        const repeatGuests = Math.round(ticketsSold * (0.15 + Math.random() * 0.2));
+                        const rawSatisfactionScore =
+                            event.stats?.satisfactionScore ??
+                            event.analytics?.satisfactionScore ??
+                            event.satisfactionScore;
+                        const rawRepeatGuests =
+                            event.stats?.repeatGuests ??
+                            event.analytics?.repeatGuests ??
+                            event.repeatGuests;
+                        const satisfactionScore =
+                            rawSatisfactionScore === undefined || rawSatisfactionScore === null
+                                ? null
+                                : Number(rawSatisfactionScore);
+                        const repeatGuests =
+                            rawRepeatGuests === undefined || rawRepeatGuests === null
+                                ? null
+                                : Number(rawRepeatGuests);
 
                         return {
                             id: event.id,
@@ -113,15 +130,20 @@ export default function HostReviewsPage() {
     };
 
     const filteredEvents = useMemo(() => {
-        if (filter === "high") return events.filter(e => e.satisfactionScore >= 80);
-        if (filter === "low") return events.filter(e => e.satisfactionScore < 60);
+        if (filter === "high") return events.filter(e => e.satisfactionScore !== null && e.satisfactionScore >= 80);
+        if (filter === "low") return events.filter(e => e.satisfactionScore !== null && e.satisfactionScore < 60);
         return events;
     }, [events, filter]);
 
     const aggregateStats = useMemo(() => {
-        if (events.length === 0) return { avgTurnout: 0, avgSatisfaction: 0, totalRevenue: 0, totalGuests: 0 };
+        if (events.length === 0) return { avgTurnout: 0, avgSatisfaction: null as number | null, totalRevenue: 0, totalGuests: 0 };
         const avgTurnout = Math.round(events.reduce((a, e) => a + e.turnoutRate, 0) / events.length);
-        const avgSatisfaction = Math.round(events.reduce((a, e) => a + e.satisfactionScore, 0) / events.length);
+        const knownSatisfactionScores = events
+            .map((event) => event.satisfactionScore)
+            .filter((score): score is number => score !== null);
+        const avgSatisfaction = knownSatisfactionScores.length > 0
+            ? Math.round(knownSatisfactionScores.reduce((a, score) => a + score, 0) / knownSatisfactionScores.length)
+            : null;
         const totalRevenue = events.reduce((a, e) => a + e.revenue, 0);
         const totalGuests = events.reduce((a, e) => a + e.checkedIn, 0);
         return { avgTurnout, avgSatisfaction, totalRevenue, totalGuests };
@@ -200,9 +222,9 @@ export default function HostReviewsPage() {
                     />
                     <StatCard
                         label="Audience Score"
-                        value={`${aggregateStats.avgSatisfaction}/100`}
+                        value={aggregateStats.avgSatisfaction !== null ? `${aggregateStats.avgSatisfaction}/100` : "Not tracked"}
                         icon={Star}
-                        trend={aggregateStats.avgSatisfaction >= 75 ? "up" : "down"}
+                        trend={aggregateStats.avgSatisfaction !== null ? (aggregateStats.avgSatisfaction >= 75 ? "up" : "down") : null}
                     />
                     <StatCard
                         label="Total Revenue"
@@ -337,7 +359,7 @@ export default function HostReviewsPage() {
 }
 
 // Sub-components
-function StatCard({ label, value, icon: Icon, trend }: { label: string; value: string; icon: any; trend: "up" | "down" }) {
+function StatCard({ label, value, icon: Icon, trend }: { label: string; value: string; icon: any; trend: "up" | "down" | null }) {
     return (
         <div className="bg-surface-elevated border border-border-default rounded-xl p-4 space-y-2">
             <div className="flex items-center justify-between">
@@ -348,15 +370,23 @@ function StatCard({ label, value, icon: Icon, trend }: { label: string; value: s
                 <p className="text-lg font-black text-text-primary">{value}</p>
                 {trend === "up" ? (
                     <ArrowUpRight className="w-3.5 h-3.5 text-emerald-500 mb-0.5" />
-                ) : (
+                ) : trend === "down" ? (
                     <ArrowDownRight className="w-3.5 h-3.5 text-red-500 mb-0.5" />
-                )}
+                ) : null}
             </div>
         </div>
     );
 }
 
-function ScoreBadge({ score }: { score: number }) {
+function ScoreBadge({ score }: { score: number | null }) {
+    if (score === null) {
+        return (
+            <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5">
+                <Clock className="h-3.5 w-3.5 text-slate-400" />
+                <span className="text-[11px] font-black text-slate-500">Not tracked</span>
+            </div>
+        );
+    }
     const color = score >= 80 ? "emerald" : score >= 60 ? "amber" : "red";
     return (
         <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-${color}-50 border border-${color}-100`}>
@@ -366,31 +396,33 @@ function ScoreBadge({ score }: { score: number }) {
     );
 }
 
-function MetricPill({ label, value }: { label: string; value: string | number }) {
+function MetricPill({ label, value }: { label: string; value: string | number | null }) {
     return (
         <div className="p-3 bg-surface-secondary/50 rounded-xl text-center">
             <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{label}</p>
-            <p className="text-[14px] font-black text-text-primary">{typeof value === "number" ? value.toLocaleString() : value}</p>
+            <p className="text-[14px] font-black text-text-primary">
+                {value === null ? "Not tracked" : typeof value === "number" ? value.toLocaleString() : value}
+            </p>
         </div>
     );
 }
 
 // Helpers
-function generateHighlights(turnout: number, satisfaction: number): string[] {
+function generateHighlights(turnout: number, satisfaction: number | null): string[] {
     const highlights: string[] = [];
     if (turnout >= 80) highlights.push("Strong turnout rate");
     if (turnout >= 60) highlights.push("Solid ticket-to-entry conversion");
-    if (satisfaction >= 85) highlights.push("Exceptional audience engagement");
-    if (satisfaction >= 70) highlights.push("Good overall reception");
+    if (satisfaction !== null && satisfaction >= 85) highlights.push("Exceptional audience engagement");
+    if (satisfaction !== null && satisfaction >= 70) highlights.push("Good overall reception");
     if (highlights.length === 0) highlights.push("Event successfully executed");
     return highlights.slice(0, 2);
 }
 
-function generateImprovements(turnout: number, satisfaction: number): string[] {
+function generateImprovements(turnout: number, satisfaction: number | null): string[] {
     const improvements: string[] = [];
     if (turnout < 70) improvements.push("Increase entry conversion rate");
     if (turnout < 50) improvements.push("Consider earlier promotion start");
-    if (satisfaction < 70) improvements.push("Focus on guest experience");
+    if (satisfaction !== null && satisfaction < 70) improvements.push("Focus on guest experience");
     if (improvements.length === 0) improvements.push("Maintain current strategy");
     return improvements.slice(0, 2);
 }

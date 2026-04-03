@@ -250,19 +250,19 @@ function CardLabel({ children }: { children: string }) {
     );
 }
 
-type SectionProps = { data: AnalyticsV2; loading: boolean };
+type SectionProps = { data: AnalyticsV2; loading: boolean; hideTitle?: boolean };
 
 // ═══════════════════════════════════════════════════════════════════════════
 // 1. SUMMARY — "How did this event do?"
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function SummarySection({ data, loading }: SectionProps) {
+export function SummarySection({ data, loading, hideTitle = false }: SectionProps) {
     const ex = data.executive;
 
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Summary" description="Key metrics at a glance" icon={BarChart3} accent="#F44A22" />
+                {!hideTitle && <SectionTitle title="Summary" description="" icon={BarChart3} accent="#F44A22" />}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[1,2,3,4].map(i => (
                         <div key={i} className="rounded-2xl p-6 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
@@ -284,7 +284,7 @@ export function SummarySection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Summary" description="Key metrics at a glance" icon={BarChart3} accent="#F44A22" />
+            {!hideTitle && <SectionTitle title="Summary" description="" icon={BarChart3} accent="#F44A22" />}
 
             {/* Hero KPI strip */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -364,7 +364,7 @@ export function FunnelSection({ data, loading }: SectionProps) {
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Conversion Funnel" description="Where guests drop off from discovery to check-in" icon={Target} accent="#A78BFA" />
+                <SectionTitle title="Conversion Funnel" description="" icon={Target} accent="#A78BFA" />
 
                 <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
                     <div className="space-y-6">{[1,2,3,4,5].map(i => <div key={i} className="h-12 rounded-xl bg-white/5" />)}</div>
@@ -375,7 +375,7 @@ export function FunnelSection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Conversion Funnel" description="Where guests drop off from discovery to check-in" icon={Target} accent="#A78BFA" />
+            <SectionTitle title="Conversion Funnel" description="" icon={Target} accent="#A78BFA" />
 
             {/* Quick conversion stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -469,7 +469,7 @@ export function RevenueSection({ data, loading }: SectionProps) {
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Revenue" description="Revenue breakdown, ticket types, and payout status" icon={DollarSign} accent="#34D399" />
+                <SectionTitle title="Revenue" description="" icon={DollarSign} accent="#34D399" />
 
                 <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
                     <div className="h-64 rounded-xl bg-white/5" />
@@ -480,7 +480,7 @@ export function RevenueSection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Revenue" description="Revenue breakdown, ticket types, and payout status" icon={DollarSign} accent="#34D399" />
+            <SectionTitle title="Revenue" description="" icon={DollarSign} accent="#34D399" />
 
             {/* Revenue chart — full width */}
             <SectionCard className="mb-6">
@@ -643,7 +643,7 @@ export function CrowdSection({ data, loading }: SectionProps) {
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Crowd & Demographics" description="Gender split, age distribution, and guest composition" icon={Users} accent="#EC4899" />
+                <SectionTitle title="Crowd & Demographics" description="" icon={Users} accent="#EC4899" />
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {[1,2].map(i => (
@@ -658,7 +658,7 @@ export function CrowdSection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Crowd & Demographics" description="Gender split, age distribution, and guest composition" icon={Users} accent="#EC4899" />
+            <SectionTitle title="Crowd & Demographics" description="" icon={Users} accent="#EC4899" />
             {/* Top row: Gender + Age */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
                 {/* Gender Split — large donut */}
@@ -835,7 +835,7 @@ export function DoorSection({ data, loading }: SectionProps) {
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Door & Operations" description="Entry velocity, scanner performance, and gate activity" icon={Zap} accent="#22D3EE" />
+                <SectionTitle title="Door & Operations" description="" icon={Zap} accent="#22D3EE" />
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {[1,2].map(i => (
@@ -850,7 +850,7 @@ export function DoorSection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Door & Operations" description="Entry velocity, scanner performance, and gate activity" icon={Zap} accent="#22D3EE" />
+            <SectionTitle title="Door & Operations" description="" icon={Zap} accent="#22D3EE" />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
                 {/* Entry velocity chart */}
@@ -974,7 +974,7 @@ export function CompareSection({ data, loading }: SectionProps) {
     if (loading) {
         return (
             <div>
-                <SectionTitle title="Event Comparison" description="How this event stacks up against your past events" icon={Star} accent="#FBBF24" />
+                <SectionTitle title="Event Comparison" description="" icon={Star} accent="#FBBF24" />
                 <div className="rounded-2xl p-8 animate-pulse" style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}>
                     <div className="h-80 rounded-xl bg-white/5" />
                 </div>
@@ -984,7 +984,7 @@ export function CompareSection({ data, loading }: SectionProps) {
 
     return (
         <div>
-            <SectionTitle title="Event Comparison" description="How this event stacks up against your past events" icon={Star} accent="#FBBF24" />
+            <SectionTitle title="Event Comparison" description="" icon={Star} accent="#FBBF24" />
 
             <SectionCard>
                 {/* Metric tabs */}

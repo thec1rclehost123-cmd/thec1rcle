@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+<<<<<<< HEAD
 import { getVenueCalendar, getDateAvailability, blockDate, unblockDate, getOperatingCalendar } from "@/lib/server/calendarStore";
+=======
+import { getVenueCalendar, getDateAvailability, blockDate, unblockDate, getHostVenueCalendar } from "@/lib/server/calendarStore";
+import { checkPartnership } from "@/lib/server/partnershipStore";
+import { verifyPartnerAccess } from "@/lib/server/auth";
+>>>>>>> origin/staging
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 
@@ -31,7 +37,52 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
 
         // Legacy: raw blocked-date docs
         const hostId = searchParams.get("hostId");
+<<<<<<< HEAD
         const calendar = await getVenueCalendar(venueId, sDate, eDate, hostId || undefined);
+=======
+
+        if (!startDate || !endDate) {
+            // Default to next 30 days
+            const today = new Date();
+            const defaultStart = today.toISOString().split("T")[0];
+            const defaultEnd = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
+                .toISOString().split("T")[0];
+
+            const hasVenueAccess = await verifyPartnerAccess(req, venueId);
+            const effectiveHostId = hostId || (auth as any).partnerId || (auth as any).uid;
+
+            if (!hasVenueAccess) {
+                const hasPartnership = await checkPartnership(effectiveHostId, venueId);
+                if (!hasPartnership) {
+                    return fail("No active partnership with this venue. Access denied.", 403);
+                }
+                const calendar = await getHostVenueCalendar(venueId, defaultStart, defaultEnd, effectiveHostId);
+                return ok({ calendar });
+            }
+
+            const calendar = await getVenueCalendar(venueId, defaultStart, defaultEnd, hostId || undefined);
+            return ok({ calendar });
+        }
+
+        // Security: venue owners/staff may always view their own venue calendar.
+        // Otherwise require the host to have an active partnership.
+        const hasVenueAccess = await verifyPartnerAccess(req, venueId);
+        if (!hasVenueAccess) {
+            const token = auth as any;
+            const effectiveHostId = hostId || token.partnerId || token.uid;
+            const hasPartnership = await checkPartnership(effectiveHostId, venueId);
+
+            if (!hasPartnership) {
+                return fail("No active partnership with this venue. Access denied.", 403);
+            }
+
+            const calendar = await getHostVenueCalendar(venueId, startDate, endDate, effectiveHostId);
+            return ok({ calendar });
+        }
+
+        const calendar = await getVenueCalendar(venueId, startDate, endDate, hostId || undefined);
+
+>>>>>>> origin/staging
         return ok({ calendar });
     } catch (error: any) {
         console.error("[Calendar API] GET Error:", error);

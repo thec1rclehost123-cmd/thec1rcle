@@ -1,40 +1,41 @@
-/**
- * THE C1RCLE - Venue Settings API (BFF Proxy)
- * Delegates to API Gateway for venue configuration
- */
 import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/server/withAuth";
 import { fail } from "@/lib/server/apiResponse";
+import { tryProxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { getVenueSettings, updateVenueSettings } from "@/lib/server/venueSettingsStore";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+export async function GET(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "settings:read");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-async function gatewayRequest(url: string, init: RequestInit) {
-    const res = await fetch(url, init);
-    const data = await res.json().catch(() => ({}));
-    return NextResponse.json(data, { status: res.status });
+    const { searchParams } = new URL(req.url);
+    const proxied = await tryProxyToGateway(
+        req,
+        `${GATEWAY_URL}/api/v1/venue-settings/venue?${searchParams.toString()}`,
+        {}
+    );
+    if (proxied) return NextResponse.json(proxied);
+
+    const settings = await getVenueSettings(ctx.venueId);
+    return NextResponse.json({ settings }, { headers: { "Cache-Control": "private, no-store" } });
 }
 
-/**
- * GET /api/venue/settings?venueId=XXX
- */
-export const GET = withAuth(async (req: NextRequest) => {
-    if (!GATEWAY_URL) return fail("Service unavailable", 503);
-    const { searchParams } = new URL(req.url);
-    return gatewayRequest(
-        `${GATEWAY_URL}/api/v1/venue-settings/venue?${searchParams.toString()}`,
-        { headers: { Authorization: req.headers.get("Authorization") || "" } }
-    );
-});
+export async function PATCH(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "settings:edit");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-/**
- * PATCH /api/venue/settings
- */
-export const PATCH = withAuth(async (req: NextRequest) => {
-    if (!GATEWAY_URL) return fail("Service unavailable", 503);
-    const body = await req.json();
-    return gatewayRequest(`${GATEWAY_URL}/api/v1/venue-settings/venue`, {
+    const body = await req.json().catch(() => null);
+    if (!body?.patch) return fail("patch required", 400);
+
+    const proxied = await tryProxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/venue`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json", Authorization: req.headers.get("Authorization") || "" },
-        body: JSON.stringify(body)
+        body: JSON.stringify({ venueId: ctx.venueId, patch: body.patch }),
     });
-});
+    if (proxied) return NextResponse.json(proxied);
+
+    const settings = await updateVenueSettings(ctx.venueId, body.patch, {
+        uid: ctx.uid,
+        displayName: ctx.uid,
+    });
+    return NextResponse.json({ settings });
+}

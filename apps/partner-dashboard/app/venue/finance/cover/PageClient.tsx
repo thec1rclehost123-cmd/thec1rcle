@@ -241,7 +241,7 @@ export function CoverReconClient() {
 }
 
 function KPICard({
-    label, value, icon: Icon, color, accent,
+    label, value, icon: Icon, color,
 }: {
     label: string;
     value: string;
@@ -249,21 +249,44 @@ function KPICard({
     color: "violet" | "blue" | "emerald" | "amber";
     accent?: boolean;
 }) {
-    const colorMap = {
-        violet: { bg: "bg-violet-500/10", text: "text-violet-400", border: "border-violet-500" },
-        blue: { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500" },
-        emerald: { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500" },
-        amber: { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500" },
+    const glowMap = {
+        violet:  { glow: "rgba(167,139,250,0.22)", border: "rgba(167,139,250,0.22)", accent: "#a78bfa" },
+        blue:    { glow: "rgba(96,165,250,0.22)",  border: "rgba(96,165,250,0.22)",  accent: "#60a5fa" },
+        emerald: { glow: "rgba(52,211,153,0.22)",  border: "rgba(52,211,153,0.22)",  accent: "#34d399" },
+        amber:   { glow: "rgba(251,191,36,0.22)",  border: "rgba(251,191,36,0.22)",  accent: "#fbbf24" },
     };
-    const c = colorMap[color];
+    const c = glowMap[color];
 
     return (
-        <div className={`rounded-xl border ${accent ? `border-l-[3px] ${c.border}/50 border-t-border-subtle border-r-border-subtle border-b-border-subtle` : "border-border-subtle"} bg-surface-secondary p-4`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${c.bg} mb-3`}>
-                <Icon className={`w-4 h-4 ${c.text}`} />
+        <div style={{ position: "relative", overflow: "hidden", borderRadius: "1.1rem" }}>
+            {/* Radial glow */}
+            <div style={{
+                position: "absolute", inset: 0, pointerEvents: "none",
+                background: `radial-gradient(ellipse at 60% -10%, ${c.glow} 0%, transparent 65%)`,
+            }} />
+            {/* Glass surface */}
+            <div style={{
+                position: "relative", zIndex: 1,
+                background: "rgba(14,14,16,0.94)",
+                border: `1px solid ${c.border}`,
+                borderRadius: "1.1rem",
+                padding: "18px 20px",
+            }}>
+                <div style={{
+                    width: 32, height: 32, borderRadius: 10,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: `${c.glow}`, border: `1px solid ${c.border}`,
+                    marginBottom: 12,
+                }}>
+                    <Icon style={{ width: 16, height: 16, color: c.accent }} />
+                </div>
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.14em", color: c.accent, marginBottom: 6 }}>
+                    {label}
+                </p>
+                <p className="tabular-nums" style={{ fontSize: 22, fontWeight: 800, color: "#fff", letterSpacing: "-0.015em" }}>
+                    {value}
+                </p>
             </div>
-            <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1">{label}</p>
-            <p className={`text-xl font-black tabular-nums ${accent ? c.text : "text-text-primary"}`}>{value}</p>
         </div>
     );
 }

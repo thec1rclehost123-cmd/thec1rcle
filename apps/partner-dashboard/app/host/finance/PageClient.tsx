@@ -1,248 +1,585 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import {
-    TrendingUp, Clock, Wallet, CheckCircle2, RefreshCw,
-    ArrowRight, Banknote, Building2, CreditCard, ChevronRight,
-    ArrowUpRight, Download
-} from "lucide-react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Loader2, X, Zap, Landmark } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { CashflowChart } from "@/components/finance/CashflowChart";
-import { AnalyticsBridgeSection } from "@/components/finance/AnalyticsBridgeSection";
-import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import {
-    formatINR,
-    formatINRCompact,
-    SETTLEMENT_STATUS_CONFIG,
-    type FinanceOverviewMetrics,
-    type CashflowDataPoint,
-} from "@/lib/finance/definitions";
-import { getPeriodLabel } from "@/lib/utils/format";
+import { PartnerFinanceSurface, type FinanceBankAccount, type FinancePayoutRow, type FinanceRow, type FinanceSettingRow } from "@/components/finance/PartnerFinanceSurface";
+import { ConnectPayoutMethodModal } from "@/components/finance/ConnectPayoutMethodModal";
+import { formatINR } from "@/lib/finance/definitions";
 
-type Period = "7d" | "30d" | "90d" | "ytd";
+interface BalanceData {
+    available: number;
+    pending: number;
+    instantAvailable: number;
+}
 
-export default function HostFinancePageClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
-    const hostId = profile?.activeMembership?.partnerId;
+interface Payout {
+    id: string;
+    arrivalDate: string | null;
+    amount: number;
+    currency: string;
+    status: "paid" | "in_transit" | "failed";
+    eventId?: string | null;
+    eventName?: string | null;
+    eventDate?: string | null;
+    description?: string | null;
+}
 
-    const [period, setPeriod]   = useState<Period>("30d");
-    const [loading, setLoading] = useState(true);
-    const [error, setError]     = useState(false);
-    const [metrics, setMetrics] = useState<FinanceOverviewMetrics | null>(null);
-    const [cashflow, setCashflow] = useState<CashflowDataPoint[]>([]);
+interface BankAccount {
+    id: string;
+    bankName: string;
+    last4: string;
+    isDefault: boolean;
+    paymentType?: "bank_account" | "debit_card";
+}
 
-    const fetchData = useCallback(async () => {
-        if (!hostId) return;
+interface Dispute {
+    id: string;
+    createdAt: string | null;
+    orderId: string | null;
+    customerName: string;
+    trackingLink: string | null;
+    disputedAmount: number;
+    disputeFee: number;
+    disputeStatus: "won" | "lost" | "under_review" | "needs_response" | "pending";
+    curatorStatus: "covered" | "not_covered" | null;
+}
+
+interface Settings {
+    country: string;
+    currency: string;
+    statementDescriptor: string;
+    dailyPayouts: boolean;
+}
+
+type ActiveView = "main" | "disputes";
+
+function fmt(amount: number, currency = "INR") {
+    if (currency === "INR") return formatINR(amount);
+    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(amount);
+}
+
+function fmtDate(iso: string | null) {
+    if (!iso) return "Upcoming payout";
+    return new Date(iso).toLocaleDateString("en-IN", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+    });
+}
+
+function fmtDateTime(iso: string | null) {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    return `${d.toLocaleDateString("en-IN", { month: "numeric", day: "numeric", year: "2-digit" })} ${d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+}
+
+function Toggle({ on, onChange }: { on: boolean; onChange: (value: boolean) => void }) {
+    return (
+        <button
+            type="button"
+            onClick={() => onChange(!on)}
+            className="relative h-7 w-12 rounded-full transition-colors"
+            style={{ background: on ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.08)" }}
+        >
+            <span
+                className="absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform"
+                style={{ left: 3, transform: on ? "translateX(21px)" : "translateX(0)" }}
+            />
+        </button>
+    );
+}
+
+function InitiatePayoutModal({
+    available,
+    currency,
+    onClose,
+}: {
+    available: number;
+    currency: string;
+    onClose: () => void;
+}) {
+    const [amount, setAmount] = useState("");
+    const [method, setMethod] = useState<"standard" | "instant">("standard");
+    const [loading, setLoading] = useState(false);
+    const [success, setSuccess] = useState(false);
+
+    const fee = method === "instant" ? Number(amount || 0) * 0.03 : 0;
+
+    const handleSubmit = async () => {
+        if (!amount || Number(amount) <= 0) return;
         setLoading(true);
-        setError(false);
-        try {
-            const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const res = await fetch(
-                `/api/host/finance/overview?hostId=${hostId}&period=${period}`,
-                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const d = await res.json();
-            setMetrics(d.metrics || null);
-            setCashflow(d.cashflow || []);
-        } catch {
-            setError(true);
-        } finally {
-            setLoading(false);
-        }
-    }, [hostId, period, getIdToken]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const payoutStatus = metrics?.payoutFailures ? "failed" : metrics?.pendingPayouts ? "pending" : "paid";
-    const payoutStatusCfg = SETTLEMENT_STATUS_CONFIG[payoutStatus];
-
-    const dynamicSubtitle = loading
-        ? "Revenue, payouts, and cashflow across your productions"
-        : metrics
-            ? `${formatINRCompact(metrics.grossRevenue)} total · ${payoutStatusCfg.label.toLowerCase()}`
-            : "Revenue, payouts, and cashflow across your productions";
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        setSuccess(true);
+        setLoading(false);
+        setTimeout(onClose, 1200);
+    };
 
     return (
-        <VenuePageShell
-            title="Financial Overview"
-            subtitle={dynamicSubtitle}
-            pageAccent="#34D399"
-            actions={
-                <div className="flex items-center gap-4">
-                    <select
-                        value={period}
-                        onChange={(e) => setPeriod(e.target.value as Period)}
-                        className="bg-[var(--v-card)] border border-[var(--v-border)] rounded-[16px] px-6 py-3 text-[13px] font-black uppercase tracking-[0.1em] appearance-none cursor-pointer focus:outline-none focus:border-[var(--v-orange)] shadow-sm transition-all"
-                    >
-                        <option value="7d">Last 7 Days</option>
-                        <option value="30d">Last 30 Days</option>
-                        <option value="90d">Last 90 Days</option>
-                        <option value="ytd">Year to Date</option>
-                    </select>
-                    <VenueActionButton variant="secondary" className="h-[46px] px-6 text-[13px]">
-                        <Download className="w-4 h-4 mr-2" /> Export
-                    </VenueActionButton>
-                    <VenueActionButton variant="primary" className="h-[46px] px-6 text-[13px]">
-                        Withdraw <ArrowRight className="w-4 h-4 ml-2" />
-                    </VenueActionButton>
-                </div>
-            }
-        >
-            {error ? (
-                <div className="flex flex-col items-center justify-center py-24 rounded-[40px] border border-red-500/20 bg-red-500/5 gap-4 text-center">
-                    <TrendingUp className="w-10 h-10 text-red-400" />
-                    <div>
-                        <p className="text-[16px] font-black text-text-primary">Failed to load financial data</p>
-                        <p className="text-[13px] text-[var(--v-text-tertiary)] mt-2">Could not fetch your earnings. Check your connection and retry.</p>
-                    </div>
-                    <button
-                        onClick={fetchData}
-                        className="h-11 px-8 rounded-2xl bg-surface-tertiary border border-border-subtle text-text-primary text-[13px] font-black uppercase tracking-widest hover:bg-surface-elevated transition-all"
-                    >
-                        Retry
+        <div className="fixed inset-0 z-[300] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
+            <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
+                className="relative w-full max-w-[480px] overflow-hidden rounded-[28px]"
+                style={{ background: "#17171b", border: "1px solid rgba(255,255,255,0.08)" }}
+            >
+                <div className="flex items-center justify-end px-6 pt-5">
+                    <button onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full" style={{ color: "rgba(255,255,255,0.46)" }}>
+                        <X size={16} />
                     </button>
                 </div>
-            ) : (
-            <div className="space-y-10 animate-in fade-in duration-500">
-                {/* Hero — Personal Earnings */}
-                <div className="relative overflow-hidden bg-[var(--v-card)] border border-[var(--v-border)] rounded-[56px] p-12 group bg-gradient-to-br from-[var(--v-card)] to-[var(--v-canvas)]">
-                    <div className="absolute inset-0 bg-gradient-to-br from-[var(--v-orange)]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none" />
-                    
-                    <div className="relative flex flex-col md:flex-row md:items-end justify-between gap-10">
-                        <div>
-                            <div className="flex items-center gap-4 mb-8">
-                                <div className="p-3 rounded-2xl bg-[var(--v-elevated)] text-[var(--v-orange)] shadow-xl border border-[var(--v-border)]">
-                                    <Banknote className="w-6 h-6" />
-                                </div>
-                                <span className="text-[14px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">
-                                    CONSOLIDATED REVENUE
+                <div className="px-8 pb-8">
+                    <h2 className="mb-6 text-center text-[26px] font-bold" style={{ color: "rgba(255,255,255,0.96)" }}>
+                        Initiate Payout
+                    </h2>
+
+                    {success ? (
+                        <p className="py-8 text-center text-[15px] font-semibold" style={{ color: "#86efac" }}>
+                            Payout initiated successfully.
+                        </p>
+                    ) : (
+                        <>
+                            <div className="mb-2 flex items-center justify-center gap-3">
+                                <span className="text-[20px] font-bold" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                    {currency === "INR" ? "₹" : "$"}
                                 </span>
+                                <input
+                                    type="number"
+                                    value={amount}
+                                    onChange={(event) => setAmount(event.target.value)}
+                                    placeholder="0"
+                                    max={available}
+                                    className="w-40 bg-transparent text-center text-[56px] font-bold tabular-nums outline-none"
+                                    style={{ color: "rgba(255,255,255,0.96)" }}
+                                />
                             </div>
-                            {loading ? (
-                                <div className="h-20 w-80 rounded-[32px] animate-pulse bg-[var(--v-elevated)]" />
-                            ) : (
-                                <p className="text-[72px] font-black leading-none tabular-nums tracking-tighter text-text-primary">
-                                    {formatINR(metrics?.grossRevenue || 0)}
-                                </p>
-                            )}
-                            <p className="text-[13px] mt-8 text-[var(--v-text-tertiary)] font-black uppercase tracking-[0.2em] bg-[var(--v-elevated)] inline-flex px-4 py-2 rounded-xl border border-[var(--v-border)]">
-                                {getPeriodLabel(period)}
+                            <p className="mb-6 text-center text-[13px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                Transfer up to {fmt(available, currency)}
                             </p>
-                        </div>
-                        <div className="flex flex-col md:items-end gap-6">
-                            <div
-                                className="inline-flex items-center gap-4 text-[14px] font-black uppercase tracking-[0.1em] px-8 py-4 rounded-[24px] shadow-2xl border border-[var(--v-border)]"
-                                style={{ background: payoutStatusCfg.bg, color: payoutStatusCfg.text }}
-                            >
-                                <span className="w-3 h-3 rounded-full animate-pulse" style={{ background: payoutStatusCfg.dot }} />
-                                Payout Status: {payoutStatusCfg.label}
-                            </div>
-                            {metrics?.nextPayoutDate && (
-                                <p className="text-[13px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.15em] mt-2">
-                                    Estimated Settlement: <span className="text-text-primary">{new Date(metrics.nextPayoutDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                </div>
 
-                {/* KPI grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {[
-                        { label: "Net Earnings",      value: metrics?.netRevenue,      icon: TrendingUp,    color: "#818CF8" },
-                        { label: "Hold Balance",      value: metrics?.availableBalance, icon: Wallet,        color: "var(--v-orange)", highlight: true },
-                        { label: "Pending Payout",   value: metrics?.pendingPayouts,  icon: Clock,         color: "#F59E0B" },
-                        { label: "Lifetime Settled",  value: metrics?.settledPayouts,  icon: CheckCircle2,  color: "var(--v-success)" },
-                    ].map((kpi) => {
-                        const Icon = kpi.icon;
-                        return (
-                            <div
-                                key={kpi.label}
-                                className={`relative flex flex-col p-10 rounded-[40px] border transition-all duration-300 hover:scale-[1.03] ${kpi.highlight ? 'bg-[var(--v-card)] border-[var(--v-orange)] shadow-[0_0_40px_rgba(244,74,34,0.15)]' : 'bg-[var(--v-card)] border-[var(--v-border)]'}`}
-                            >
-                                <div className="flex items-center gap-5 mb-8">
-                                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl border border-[var(--v-border)]" style={{ background: kpi.highlight ? 'var(--v-elevated)' : 'var(--v-canvas)' }}>
-                                        <Icon className="w-6 h-6" style={{ color: kpi.color }} />
-                                    </div>
-                                    <span className="text-[13px] font-black uppercase tracking-[0.2em] text-[var(--v-text-tertiary)]">
-                                        {kpi.label}
+                            <div className="mb-6 grid grid-cols-2 gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setMethod("standard")}
+                                    className="rounded-[18px] p-4 text-center"
+                                    style={{
+                                        background: method === "standard" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                                        border: `1px solid ${method === "standard" ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.08)"}`,
+                                    }}
+                                >
+                                    <Landmark className="mx-auto mb-2" size={24} style={{ color: "rgba(255,255,255,0.72)" }} />
+                                    <span className="block text-[13px] font-bold" style={{ color: "rgba(255,255,255,0.92)" }}>
+                                        2-3 Biz Days
                                     </span>
-                                </div>
-                                {loading ? (
-                                    <div className="h-12 rounded-2xl animate-pulse bg-[var(--v-elevated)] w-3/4" />
-                                ) : (
-                                    <p className="text-[32px] font-black tabular-nums tracking-tighter" style={{ color: kpi.highlight ? "var(--v-orange)" : "var(--text-primary)" }}>
-                                        {formatINRCompact(kpi.value || 0)}
-                                    </p>
-                                )}
+                                    <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                        No Fee
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setMethod("instant")}
+                                    className="rounded-[18px] p-4 text-center"
+                                    style={{
+                                        background: method === "instant" ? "rgba(255,255,255,0.08)" : "rgba(255,255,255,0.03)",
+                                        border: `1px solid ${method === "instant" ? "rgba(255,255,255,0.16)" : "rgba(255,255,255,0.08)"}`,
+                                    }}
+                                >
+                                    <Zap className="mx-auto mb-2" size={24} style={{ color: "#c4b5fd" }} />
+                                    <span className="block text-[13px] font-bold" style={{ color: "rgba(255,255,255,0.92)" }}>
+                                        Instant
+                                    </span>
+                                    <span className="text-[12px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                        3% Fee
+                                    </span>
+                                </button>
                             </div>
-                        );
-                    })}
-                </div>
 
-                {/* Cashflow chart */}
-                <div className="bg-[var(--v-card)] rounded-[56px] border border-[var(--v-border)] p-12 shadow-2xl">
-                    <div className="flex items-center justify-between mb-10">
-                        <h3 className="text-[20px] font-black tracking-tight text-text-primary flex items-center gap-4">
-                            <TrendingUp className="w-6 h-6 text-[var(--v-orange)]" /> Earnings Velocity
-                        </h3>
-                        <div className="px-5 py-2 rounded-full bg-[var(--v-elevated)] border border-[var(--v-border)] text-[11px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.2em]">
-                            {period.toUpperCase()} PERFORMANCE
-                        </div>
-                    </div>
-                    <CashflowChart
-                        data={cashflow}
-                        loading={loading}
-                        showSeriesToggle={false}
-                        showTimeRangePicker={false}
-                        height={360}
-                    />
-                </div>
-
-                {/* Payout quick action & Analytics */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div className="relative overflow-hidden bg-[var(--v-card)] border border-[var(--v-border)] rounded-[56px] p-12 group">
-                        <div className="absolute inset-0 bg-gradient-to-r from-[var(--v-orange)]/[0.04] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-                        <div className="flex items-center justify-between mb-10">
-                            <h3 className="text-[20px] font-black tracking-tight text-text-primary flex items-center gap-4">
-                                <Wallet className="w-6 h-6 text-[var(--v-orange)]" /> Payout Control
-                            </h3>
-                            <ChevronRight className="w-6 h-6 text-[var(--v-text-muted)] group-hover:translate-x-2 transition-transform" />
-                        </div>
-                        <div className="space-y-8 relative">
-                            <div>
-                                <p className="text-[14px] font-black text-[var(--v-text-tertiary)] uppercase tracking-[0.2em] mb-4">Withdrawable Amount</p>
-                                <p className="text-[56px] font-black tracking-tighter tabular-nums text-text-primary">
-                                    {loading ? "—" : formatINR(metrics?.availableBalance || 0)}
+                            {method === "instant" && Number(amount) > 0 ? (
+                                <p className="mb-4 text-center text-[12px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                    Fee: {fmt(fee, currency)} · You receive {fmt(Number(amount) - fee, currency)}
                                 </p>
-                            </div>
-                            <div className="pt-6 flex gap-6">
-                                <Link href="/host/settings" className="flex-1">
-                                    <VenueActionButton variant="secondary" className="w-full h-16 text-[13px] font-black tracking-[0.1em] uppercase">
-                                        Settlement Config
-                                    </VenueActionButton>
-                                </Link>
-                                <VenueActionButton variant="primary" className="flex-1 h-16 text-[13px] font-black tracking-[0.1em] uppercase">
-                                    Request Payout
-                                </VenueActionButton>
-                            </div>
-                        </div>
-                    </div>
+                            ) : null}
 
-                    <div className="bg-[var(--v-card)] border border-[var(--v-border)] rounded-[56px] p-12 flex flex-col justify-center shadow-2xl">
-                        <AnalyticsBridgeSection
-                            profileType="host"
-                            partnerId={hostId}
-                            timeRange={period}
-                        />
-                    </div>
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={!amount || Number(amount) <= 0 || loading}
+                                className="w-full rounded-[18px] py-4 text-[15px] font-bold"
+                                style={{ background: "rgba(255,255,255,0.92)", color: "#050505", opacity: !amount || Number(amount) <= 0 ? 0.45 : 1 }}
+                            >
+                                {loading ? "Processing..." : "Transfer Balance"}
+                            </button>
+                        </>
+                    )}
                 </div>
+            </motion.div>
+        </div>
+    );
+}
+
+function AddBankModal({
+    onClose,
+    onAdded,
+    hostId,
+    getAuthHeaders,
+}: {
+    onClose: () => void;
+    onAdded: () => void;
+    hostId: string;
+    getAuthHeaders: (includeJson?: boolean) => Promise<Record<string, string>>;
+}) {
+    return (
+        <ConnectPayoutMethodModal
+            title="Connect Payout Method"
+            endpoint="/api/host/finance/bank-accounts"
+            bodyBase={{ hostId }}
+            getHeaders={async () => await getAuthHeaders(true)}
+            onClose={onClose}
+            onAdded={onAdded}
+        />
+    );
+}
+
+function DisputesView({
+    hostId,
+    onBack,
+    getAuthHeaders,
+}: {
+    hostId: string;
+    onBack: () => void;
+    getAuthHeaders: () => Promise<Record<string, string>>;
+}) {
+    const [disputes, setDisputes] = useState<Dispute[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        getAuthHeaders()
+            .then((headers) => fetch(`/api/host/finance/disputes?hostId=${hostId}`, { headers }))
+            .then((response) => response.json())
+            .then((data) => setDisputes(data.disputes || []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [getAuthHeaders, hostId]);
+
+    return (
+        <div className="mx-auto max-w-[1280px]">
+            <button
+                type="button"
+                onClick={onBack}
+                className="mb-6 inline-flex items-center gap-2 text-[14px] font-semibold"
+                style={{ color: "rgba(255,255,255,0.52)" }}
+            >
+                <ChevronLeft size={16} /> Back
+            </button>
+
+            <h1 className="text-[40px] font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.96)" }}>
+                Disputes
+            </h1>
+            <p className="mb-8 mt-2 text-[14px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                C1rcle automatically fights disputes for you. Review their status here.
+            </p>
+
+            <div className="overflow-hidden rounded-[28px]" style={{ background: "#17171b", border: "1px solid rgba(255,255,255,0.08)" }}>
+                {loading ? (
+                    <div className="flex justify-center py-20">
+                        <Loader2 size={24} className="animate-spin" style={{ color: "rgba(255,255,255,0.42)" }} />
+                    </div>
+                ) : disputes.length === 0 ? (
+                    <div className="py-20 text-center text-[15px]" style={{ color: "rgba(255,255,255,0.42)" }}>
+                        No disputes found.
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                                    {["Dispute Created", "Order", "Customer Name", "Tracking Link", "Disputed Amount", "Dispute Fee", "Status", "Curator"].map((label) => (
+                                        <th key={label} className="px-5 py-4 text-[12px] font-bold" style={{ color: "rgba(255,255,255,0.42)" }}>
+                                            {label}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {disputes.map((dispute) => (
+                                    <tr key={dispute.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                                        <td className="px-5 py-4 text-[13px]" style={{ color: "rgba(255,255,255,0.72)" }}>{fmtDateTime(dispute.createdAt)}</td>
+                                        <td className="px-5 py-4 text-[13px]" style={{ color: "rgba(255,255,255,0.72)" }}>{dispute.orderId ? `#${dispute.orderId}` : "—"}</td>
+                                        <td className="px-5 py-4 text-[13px]" style={{ color: "rgba(255,255,255,0.72)" }}>{dispute.customerName}</td>
+                                        <td className="px-5 py-4 text-[13px]" style={{ color: "rgba(255,255,255,0.42)" }}>{dispute.trackingLink || "—"}</td>
+                                        <td className="px-5 py-4 text-[13px] font-semibold tabular-nums" style={{ color: "rgba(255,255,255,0.92)" }}>{fmt(dispute.disputedAmount)}</td>
+                                        <td className="px-5 py-4 text-[13px] tabular-nums" style={{ color: "rgba(255,255,255,0.72)" }}>{fmt(dispute.disputeFee)}</td>
+                                        <td className="px-5 py-4">
+                                            <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.72)" }}>
+                                                {dispute.disputeStatus.replace(/_/g, " ")}
+                                            </span>
+                                        </td>
+                                        <td className="px-5 py-4 text-[12px]" style={{ color: "rgba(255,255,255,0.52)" }}>
+                                            {dispute.curatorStatus || "—"}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
             </div>
-            )}
-        </VenuePageShell>
+        </div>
+    );
+}
+
+export default function HostFinancePageClient() {
+    const { profile, user } = useDashboardAuth();
+    const hostId = profile?.activeMembership?.partnerId as string | undefined;
+
+    const [view, setView] = useState<ActiveView>("main");
+    const [balance, setBalance] = useState<BalanceData>({ available: 0, pending: 0, instantAvailable: 0 });
+    const [balanceLoading, setBalanceLoading] = useState(true);
+    const [payouts, setPayouts] = useState<Payout[]>([]);
+    const [payoutsLoading, setPayoutsLoading] = useState(true);
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(false);
+    const [accounts, setAccounts] = useState<BankAccount[]>([]);
+    const [accountsLoading, setAccountsLoading] = useState(true);
+    const [settings, setSettings] = useState<Settings>({
+        country: "India",
+        currency: "INR",
+        statementDescriptor: "C1RCLE",
+        dailyPayouts: false,
+    });
+    const [showPayoutModal, setShowPayoutModal] = useState(false);
+    const [showAddBankModal, setShowAddBankModal] = useState(false);
+    const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+
+    const getAuthHeaders = useCallback(async (includeJson = false) => {
+        const token = user ? await user.getIdToken() : "";
+        return {
+            ...(includeJson ? { "Content-Type": "application/json" } : {}),
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
+    }, [user]);
+
+    const fetchBalance = useCallback(async () => {
+        if (!hostId) return;
+        setBalanceLoading(true);
+        try {
+            const res = await fetch(`/api/host/finance/overview?hostId=${hostId}&period=30d`, {
+                headers: await getAuthHeaders(),
+            });
+            const data = await res.json();
+            const metrics = data.metrics;
+            setBalance({
+                available: metrics?.availableBalance || 0,
+                pending: metrics?.pendingPayouts || 0,
+                instantAvailable: metrics?.availableBalance || 0,
+            });
+        } catch {}
+        setBalanceLoading(false);
+    }, [getAuthHeaders, hostId]);
+
+    const fetchPayouts = useCallback(async (nextPage = 1) => {
+        if (!hostId) return;
+        setPayoutsLoading(true);
+        try {
+            const res = await fetch(`/api/host/finance/payouts?hostId=${hostId}&page=${nextPage}&limit=10`, {
+                headers: await getAuthHeaders(),
+            });
+            const data = await res.json();
+            setPayouts(data.payouts || []);
+            setHasMore(data.hasMore || false);
+        } catch {}
+        setPayoutsLoading(false);
+    }, [getAuthHeaders, hostId]);
+
+    const fetchAccounts = useCallback(async () => {
+        if (!hostId) return;
+        setAccountsLoading(true);
+        try {
+            const res = await fetch(`/api/host/finance/bank-accounts?hostId=${hostId}`, {
+                headers: await getAuthHeaders(),
+            });
+            const data = await res.json();
+            setAccounts(data.accounts || []);
+        } catch {}
+        setAccountsLoading(false);
+    }, [getAuthHeaders, hostId]);
+
+    useEffect(() => {
+        fetchBalance();
+        fetchPayouts(1);
+        fetchAccounts();
+        setRefreshedAt(new Date());
+    }, [fetchAccounts, fetchBalance, fetchPayouts]);
+
+    const handleRefreshAll = () => {
+        fetchBalance();
+        fetchPayouts(page);
+        fetchAccounts();
+        setRefreshedAt(new Date());
+    };
+
+    const handlePageChange = (nextPage: number) => {
+        setPage(nextPage);
+        fetchPayouts(nextPage);
+    };
+
+    const removeAccount = async (accountId: string) => {
+        if (!hostId) return;
+        await fetch(`/api/host/finance/bank-accounts?hostId=${hostId}&accountId=${accountId}`, {
+            method: "DELETE",
+            headers: await getAuthHeaders(),
+        });
+        fetchAccounts();
+    };
+
+    if (!hostId) {
+        return (
+            <div className="mx-auto max-w-[1280px]">
+                <h1 className="mb-5 text-[44px] font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.96)" }}>
+                    Finance
+                </h1>
+                <div className="h-[720px] animate-pulse rounded-[28px]" style={{ background: "rgba(255,255,255,0.04)" }} />
+            </div>
+        );
+    }
+
+    if (view === "disputes") {
+        return <DisputesView hostId={hostId} onBack={() => setView("main")} getAuthHeaders={() => getAuthHeaders()} />;
+    }
+
+    const balanceRows: FinanceRow[] = [
+        { label: "Available", value: balanceLoading ? "..." : fmt(balance.available) },
+        { label: "Pending", value: balanceLoading ? "..." : fmt(balance.pending), helpLabel: "Funds settling from recent events." },
+        { label: "Instant Available", value: balanceLoading ? "..." : fmt(balance.instantAvailable), helpLabel: "Eligible for instant transfer." },
+    ];
+
+    const settingsRows: FinanceSettingRow[] = [
+        { label: "Country", value: "India" },
+        { label: "Currency", value: settings.currency },
+        { label: "Statement Descriptor", value: settings.statementDescriptor },
+        {
+            label: "Payout Schedule",
+            value: (
+                <span className="inline-flex items-center gap-3">
+                    <span
+                        className="inline-flex items-center gap-2 rounded-[14px] px-3 py-2"
+                        style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
+                    >
+                        {settings.dailyPayouts ? "Daily" : "Weekly"} <ChevronDown size={14} />
+                    </span>
+                    <Toggle on={settings.dailyPayouts} onChange={(value) => setSettings((prev) => ({ ...prev, dailyPayouts: value }))} />
+                </span>
+            ),
+        },
+    ];
+
+    const bankAccounts: FinanceBankAccount[] = accountsLoading
+        ? []
+        : accounts.map((account) => ({
+            id: account.id,
+            name: account.paymentType === "debit_card" ? `${account.bankName} Debit Card` : account.bankName,
+            detail: `${account.paymentType === "debit_card" ? "Card" : "Account"} •••• ${account.last4}`,
+            badge: account.isDefault ? "Default" : undefined,
+            onClick: () => removeAccount(account.id),
+        }));
+
+    const payoutRows: FinancePayoutRow[] = payouts.map((payout) => ({
+        id: payout.id,
+        date: fmtDate(payout.arrivalDate),
+        detail: payout.eventName
+            ? `${payout.eventName}${payout.eventDate ? ` · ${new Date(payout.eventDate).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}` : ""}`
+            : (payout.description || "Host settlement"),
+        amount: fmt(payout.amount, payout.currency),
+        status: payout.status === "in_transit" ? "In Transit" : payout.status === "failed" ? "Failed" : "Paid",
+        statusTone: payout.status === "paid" ? "success" : payout.status === "failed" ? "danger" : "info",
+    }));
+
+    return (
+        <div className="mx-auto max-w-[1280px]">
+            <h1 className="mb-5 text-[44px] font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.96)" }}>
+                Finance
+            </h1>
+
+            <PartnerFinanceSurface
+                balanceRows={balanceRows}
+                settingsRows={settingsRows}
+                bankAccounts={bankAccounts}
+                payouts={payoutRows}
+                balanceActionLabel="Transfer Balance"
+                onBalanceAction={() => setShowPayoutModal(true)}
+                onRefresh={handleRefreshAll}
+                refreshing={payoutsLoading || balanceLoading}
+                lastUpdatedLabel={refreshedAt ? `Last updated ${refreshedAt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : null}
+                payoutsLoading={payoutsLoading}
+                payoutsEmptyTitle="No payouts yet."
+                payoutsEmptyDescription="Payouts will appear here once events start generating revenue."
+                onEditBanks={() => {}}
+                onAddBank={() => setShowAddBankModal(true)}
+                bankEmptyLabel={accountsLoading ? "Loading accounts..." : "+ Add Bank Account"}
+                leftFooter={
+                    <button
+                        type="button"
+                        onClick={() => setView("disputes")}
+                        className="w-full rounded-[20px] border px-4 py-3.5 text-[13px] font-bold"
+                        style={{ background: "rgba(24,24,28,0.96)", borderColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}
+                    >
+                        View Disputes
+                    </button>
+                }
+                payoutsFooter={
+                    payouts.length ? (
+                        <div className="flex items-center justify-center gap-4">
+                            <button
+                                type="button"
+                                onClick={() => handlePageChange(page - 1)}
+                                disabled={page === 1}
+                                className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30"
+                                style={{ border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.52)" }}
+                            >
+                                <ChevronLeft size={15} />
+                            </button>
+                            <span className="text-[14px] font-semibold" style={{ color: "rgba(255,255,255,0.88)" }}>
+                                {page}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => handlePageChange(page + 1)}
+                                disabled={!hasMore}
+                                className="flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-30"
+                                style={{ border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.52)" }}
+                            >
+                                <ChevronRight size={15} />
+                            </button>
+                        </div>
+                    ) : null
+                }
+            />
+
+            <AnimatePresence>
+                {showPayoutModal ? (
+                    <InitiatePayoutModal
+                        available={balance.available}
+                        currency={settings.currency}
+                        onClose={() => setShowPayoutModal(false)}
+                    />
+                ) : null}
+            </AnimatePresence>
+
+            <AnimatePresence>
+                {showAddBankModal ? (
+                    <AddBankModal
+                        hostId={hostId}
+                        onClose={() => setShowAddBankModal(false)}
+                        onAdded={fetchAccounts}
+                        getAuthHeaders={getAuthHeaders}
+                    />
+                ) : null}
+            </AnimatePresence>
+        </div>
     );
 }

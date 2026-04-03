@@ -25,19 +25,20 @@ export interface ManualCustomer {
     createdAt: string;     // ISO
     createdByUid: string;
     createdByName: string;
+    marketingConsent: {
+        allowPlatformMessages: boolean;
+        allowDirectContactShare: boolean;
+        consentStatement: string | null;
+        recordedAt: string;
+        recordedByUid: string;
+    };
 }
 
 // ── Validation helpers ────────────────────────────────────────────────────────
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// ── Dev seed ──────────────────────────────────────────────────────────────────
-
-const DEV_SEED: ManualCustomer[] = [
-    { id: "m1", name: "Tanvi Desai",    email: "tanvi.desai@gmail.com",    phone: "+91 90001 11111", dob: "2002-01-09", eventAppeared: "Neon Nights Vol.3",  createdAt: "2025-12-20T18:00:00Z", createdByUid: "owner", createdByName: "Venue Owner" },
-    { id: "m2", name: "Nikhil Bose",    email: "nikhil.bose@icloud.com",   phone: "+91 90002 22222", dob: "1990-12-25", eventAppeared: "Saturday Circuit",   createdAt: "2025-12-21T17:30:00Z", createdByUid: "owner", createdByName: "Venue Owner" },
-    { id: "m3", name: "Aisha Khan",     email: "aisha.khan@gmail.com",     phone: "+91 90003 33333", dob: "1999-04-07", eventAppeared: "New Year Bash 2026", createdAt: "2025-12-22T10:00:00Z", createdByUid: "owner", createdByName: "Venue Owner" },
-];
+// DEV_SEED removed — never return fake data in any environment.
 
 // ── GET — list all manual customers for this venue ────────────────────────────
 
@@ -48,8 +49,7 @@ export async function GET(request: Request) {
         const { venueId, piiPolicy } = ctx;
 
         if (!isFirebaseConfigured()) {
-            const masked = DEV_SEED.map(c => applyPIIMask(c, piiPolicy));
-            return NextResponse.json({ customers: masked, total: masked.length });
+            return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
         }
 
         const db = getAdminDb();
@@ -98,7 +98,16 @@ export async function POST(request: Request) {
         }
 
         // ── Validation ────────────────────────────────────────────────────────
-        const { name, email, phone, dob, eventAppeared } = body as Record<string, string>;
+        const {
+            name,
+            email,
+            phone,
+            dob,
+            eventAppeared,
+            allowPlatformMessages,
+            allowDirectContactShare,
+            consentStatement,
+        } = body as Record<string, any>;
 
         if (!name?.trim())         return NextResponse.json({ error: "Name is required" },           { status: 422 });
         if (!email?.trim())        return NextResponse.json({ error: "Email is required" },          { status: 422 });
@@ -106,22 +115,21 @@ export async function POST(request: Request) {
         if (!phone?.trim())        return NextResponse.json({ error: "Phone number is required" },   { status: 422 });
         if (!dob?.trim())          return NextResponse.json({ error: "Date of birth is required" },  { status: 422 });
 
+        const platformMessagesEnabled = allowPlatformMessages !== false;
+        const directContactShareEnabled = allowDirectContactShare === true;
+        const normalizedConsentStatement = String(consentStatement || "").trim();
+
+        if (directContactShareEnabled && !normalizedConsentStatement) {
+            return NextResponse.json(
+                { error: "A consent statement is required before enabling direct contact sharing" },
+                { status: 422 }
+            );
+        }
+
         const now = new Date().toISOString();
 
-        // ── Dev fallback: just echo the payload ───────────────────────────────
         if (!isFirebaseConfigured()) {
-            const mock: ManualCustomer = {
-                id:             `mock-${Date.now()}`,
-                name:           name.trim(),
-                email:          email.trim().toLowerCase(),
-                phone:          phone.trim(),
-                dob:            dob.trim(),
-                eventAppeared:  (eventAppeared ?? "").trim(),
-                createdAt:      now,
-                createdByUid:   user.uid,
-                createdByName:  (user as any).name ?? "Operator",
-            };
-            return NextResponse.json({ customer: mock }, { status: 201 });
+            return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
         }
 
         const db = getAdminDb();
@@ -149,7 +157,7 @@ export async function POST(request: Request) {
             .collection("crm_customers")
             .doc();
 
-        const payload: Omit<ManualCustomer, "id"> = {
+        const payload = {
             name:           name.trim(),
             email:          email.trim().toLowerCase(),
             phone:          phone.trim(),
@@ -159,11 +167,36 @@ export async function POST(request: Request) {
             createdByUid:   user.uid,
             createdByName:  (user as any).name ?? "Operator",
         };
+        const marketingConsent = {
+            allowPlatformMessages: platformMessagesEnabled,
+            allowDirectContactShare: directContactShareEnabled,
+            consentStatement: normalizedConsentStatement || null,
+            recordedAt: now,
+            recordedByUid: user.uid,
+        };
 
-        await docRef.set(payload);
+        await Promise.all([
+            docRef.set({
+                ...payload,
+                marketingConsent,
+            }),
+            db.collection("venues")
+                .doc(venueId)
+                .collection("marketing_consent_logs")
+                .add({
+                    customerId: docRef.id,
+                    channel: "crm_manual_entry",
+                    venueId,
+                    email: payload.email,
+                    phone: payload.phone,
+                    ...marketingConsent,
+                    createdAt: now,
+                    createdByName: (user as any).name ?? "Operator",
+                }),
+        ]);
 
         return NextResponse.json(
-            { customer: { id: docRef.id, ...payload } },
+            { customer: { id: docRef.id, ...payload, marketingConsent } },
             { status: 201 }
         );
     } catch (err: any) {

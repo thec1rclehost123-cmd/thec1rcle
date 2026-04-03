@@ -17,6 +17,20 @@ const RESERVATIONS_COLLECTION = "cart_reservations";
 // In-memory fallback
 const fallbackReservations = new Map();
 
+function normalizeReservationItems(items = []) {
+    return items
+        .map((item) => ({
+            tierId: item?.tierId || item?.id || null,
+            quantity: Number(item?.quantity || 0),
+        }))
+        .filter((item) => item.tierId && item.quantity > 0)
+        .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
+}
+
+function reservationItemsMatch(left = [], right = []) {
+    return JSON.stringify(normalizeReservationItems(left)) === JSON.stringify(normalizeReservationItems(right));
+}
+
 export const __seedReservationForTests = (reservation) => {
     if (!reservation?.id) {
         throw new Error("Reservation id is required");
@@ -48,6 +62,12 @@ const buildExistingOrderResponse = (order, reservationId, pricing = null, promot
     };
 };
 
+async function resolveEligiblePromoterCode(promoterCode) {
+    if (!promoterCode) return null;
+    const promoterLink = await getPromoterLinkByCode(promoterCode);
+    return promoterLink ? promoterCode : null;
+}
+
 // getEffectivePrice is now imported from @c1rcle/core/pricing-engine
 
 
@@ -68,7 +88,7 @@ export async function createCartReservation(eventId, customerId, deviceId, items
         if (!snapshot.empty) {
             const doc = snapshot.docs[0];
             const data = doc.data();
-            if (new Date(data.expiresAt) > new Date()) {
+            if (new Date(data.expiresAt) > new Date() && reservationItemsMatch(data.items, items)) {
                 console.log(`[CheckoutService] Reusing existing reservation ${doc.id} for queueId ${queueId}`);
                 return {
                     success: true,
@@ -78,6 +98,10 @@ export async function createCartReservation(eventId, customerId, deviceId, items
                     expiresInSeconds: Math.floor((new Date(data.expiresAt) - new Date()) / 1000)
                 };
             }
+
+            await releaseReservation(doc.id).catch((error) => {
+                console.warn(`[CheckoutService] Failed to release stale queue reservation ${doc.id}:`, error?.message || error);
+            });
         }
     }
 
@@ -152,12 +176,14 @@ export async function calculatePricing(eventId, items, options = {}) {
     const event = await getEvent(eventId);
     if (!event) return { success: false, error: 'Event not found' };
 
+    const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode);
+
     // Use unified core engine
     return await coreCalculatePricing({
         event,
         items,
         promoCode,
-        promoterCode,
+        promoterCode: eligiblePromoterCode,
         userId,
         promoValidator: validateAndCalculatePromoDiscount // Inject local validator wrapper
     });
@@ -269,6 +295,7 @@ export async function getReservation(reservationId) {
  */
 export async function initiateCheckout(reservationId, userId, userDetails, options = {}) {
     const { promoCode = null, promoterCode = null } = options;
+    const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode);
 
     // ── RACE CONDITION GUARD ──────────────────────────────────────────────────
     // Acquire a Redis distributed lock for this reservation so only one checkout
@@ -346,7 +373,7 @@ async function _initiateCheckoutInner(reservationId, userId, userDetails, option
     const pricingResult = await calculatePricing(
         reservation.eventId,
         reservation.items,
-        { promoCode, promoterCode, userId }
+        { promoCode, promoterCode: eligiblePromoterCode, userId }
     );
 
     if (!pricingResult.success) {
@@ -356,7 +383,7 @@ async function _initiateCheckoutInner(reservationId, userId, userDetails, option
     const pricing = pricingResult.pricing;
 
     if (existingOrder) {
-        return buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode);
+        return buildExistingOrderResponse(existingOrder, reservationId, pricing, eligiblePromoterCode);
     }
 
     // RULE: Event type determines backend flow.
@@ -370,7 +397,7 @@ async function _initiateCheckoutInner(reservationId, userId, userDetails, option
         if (hasRSVP) {
             // Check if there is already an order for THIS reservation to return it (idempotency)
             if (existingOrder) {
-                return buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode);
+                return buildExistingOrderResponse(existingOrder, reservationId, pricing, eligiblePromoterCode);
             }
 
             return {
@@ -389,13 +416,13 @@ async function _initiateCheckoutInner(reservationId, userId, userDetails, option
         }
 
         // RSVP Event Logic: Skip gateway, instant confirmation, stored in RSVP bucket
-        return await processRSVPOrder(reservation, userId, userDetails, pricing, promoterCode);
+        return await processRSVPOrder(reservation, userId, userDetails, pricing, eligiblePromoterCode);
     } else {
         // Paid Event Logic: Always follows paid flow pipeline.
         if (pricing.isFree) {
             // Case: Zero-priced checkout in a PAID event (e.g. Female Free entry)
             // Stays in PAID bucket, but skips gateway
-            return await processFreePaidOrder(reservation, userId, userDetails, pricing, promoterCode);
+            return await processFreePaidOrder(reservation, userId, userDetails, pricing, eligiblePromoterCode);
         }
 
         // Standard Paid Checkout (total > 0)

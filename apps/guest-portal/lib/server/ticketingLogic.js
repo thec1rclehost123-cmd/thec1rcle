@@ -2,6 +2,25 @@ function isFiniteNumber(value) {
     return Number.isFinite(Number(value));
 }
 
+function inferGenderRequirement(ticket = {}) {
+    const explicitRequirement = String(
+        ticket.genderRequirement ||
+        ticket.requiredGender ||
+        ticket.gender ||
+        ""
+    ).toLowerCase();
+
+    if (explicitRequirement === "female" || explicitRequirement === "male" || explicitRequirement === "couple") {
+        return explicitRequirement;
+    }
+
+    const entryType = String(ticket.entryType || "").toLowerCase();
+    if (entryType === "female") return "female";
+    if (entryType === "stag" || entryType === "male") return "male";
+
+    return "any";
+}
+
 export function isCoupleTicket(ticket = {}) {
     const entryType = String(ticket.entryType || "").toLowerCase();
     const name = String(ticket.name || "").toLowerCase();
@@ -19,11 +38,11 @@ export function buildStoredOrderTicket(selectedTicket = {}, eventTicket = {}) {
         : price * quantity;
     const name = selectedTicket.name || eventTicket.name || "Ticket";
     const entryType = selectedTicket.entryType || eventTicket.entryType || "general";
-    const genderRequirement =
-        selectedTicket.genderRequirement ||
-        eventTicket.genderRequirement ||
-        eventTicket.gender ||
-        "any";
+    const genderRequirement = inferGenderRequirement({
+        ...eventTicket,
+        ...selectedTicket,
+        entryType,
+    });
 
     return {
         ticketId: eventTicket.id || selectedTicket.ticketId,
@@ -92,9 +111,9 @@ export function deriveDirectTransferMetadata(ticketId, order, event = null) {
         slotIndex: parsed.slotIndex,
         ticketType: sourceTicket.name || eventTicket?.name || "Ticket",
         requiredGender:
-            sourceTicket.genderRequirement ||
-            eventTicket?.genderRequirement ||
-            eventTicket?.gender ||
-            "any",
+            inferGenderRequirement({
+                ...eventTicket,
+                ...sourceTicket,
+            }),
     };
 }

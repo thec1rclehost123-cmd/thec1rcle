@@ -23,7 +23,9 @@ function useAuthenticatedQuery<T = any>(
             return res.json();
         },
         enabled: !!user && (options.enabled !== false),
-        staleTime: options.staleTime ?? 5 * 60 * 1000,
+        staleTime: options.staleTime ?? Infinity,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
     });
 }
 

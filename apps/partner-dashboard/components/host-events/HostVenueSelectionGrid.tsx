@@ -96,7 +96,7 @@ export function HostVenueSelectionGrid() {
                         No Active Partnerships
                     </h3>
                     <p className="text-[var(--v-text-tertiary)] text-[16px] font-bold mt-4 mb-10 max-w-md leading-relaxed">
-                        You first need an approved partnership with a venue to request slots on their calendar. You can configure this in your Network settings.
+                        You first need an approved partnership with a venue to request slots on their calendar. You can configure this in your Partners settings.
                     </p>
                     <button onClick={() => router.push('/host/network')} className="h-14 px-10 rounded-2xl bg-[var(--c1rcle-orange)] text-white text-[14px] font-black uppercase tracking-widest hover:bg-[var(--c1rcle-orange-dim)] transition-all">
                         Connect with Venues

@@ -382,7 +382,10 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const canDo = (action: string) =>
         !permissions.actionPermissions || permissions.actionPermissions[action] === true;
 
-    const getIdToken = async (): Promise<string> => user ? user.getIdToken() : "";
+    const getIdToken = async () => {
+        if (!user) return "";
+        return user.getIdToken(true);
+    };
 
     return (
         <AuthContext.Provider value={{

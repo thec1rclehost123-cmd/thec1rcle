@@ -28,7 +28,11 @@ export function VenueStatStrip({ stats, columns = 3, className }: VenueStatStrip
     return (
         <div
             className={cn("grid divide-x divide-[var(--v-border)] rounded-[var(--v-r-xl)] overflow-hidden", colClasses[columns], className)}
-            style={{ background: "var(--v-card)" }}
+            style={{
+                background: "var(--v-panel-bg)",
+                border: "1px solid var(--v-panel-border)",
+                boxShadow: "var(--v-panel-shadow-card)",
+            }}
         >
             {stats.map((stat, i) => (
                 <StatCell key={i} stat={stat} />

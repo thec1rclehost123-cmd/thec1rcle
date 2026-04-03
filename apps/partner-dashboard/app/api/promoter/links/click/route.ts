@@ -1,6 +1,18 @@
 import { NextRequest } from "next/server";
 import { recordLinkClick, getPromoterLinkByCode } from "@/lib/server/promoterLinkStore";
+import { getEvent } from "@/lib/server/eventStore";
 import { ok, fail } from "@/lib/server/apiResponse";
+
+function isPromoterAllowedForEvent(event: any, promoterId: string) {
+    const globallyEnabled = event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
+    if (!globallyEnabled) return false;
+
+    const allowedPromoterIds = Array.isArray(event?.promoterSettings?.allowedPromoterIds)
+        ? event.promoterSettings.allowedPromoterIds.map((id: string) => String(id))
+        : [];
+
+    return allowedPromoterIds.length === 0 || allowedPromoterIds.includes(String(promoterId));
+}
 
 /**
  * POST /api/promoter/links/click
@@ -23,6 +35,11 @@ export async function POST(req: NextRequest) {
         const link = await getPromoterLinkByCode(code);
 
         if (!link) return fail("Link not found or inactive", 404);
+
+        const event = await getEvent(link.eventId);
+        if (!event || !isPromoterAllowedForEvent(event, link.promoterId)) {
+            return fail("Link not found or inactive", 404);
+        }
 
         // Record the click with source attribution
         await recordLinkClick(link.id, cleanSource);

@@ -16,19 +16,18 @@ interface HubTabBarProps {
     onTabChange: (key: string) => void;
     className?: string;
     variant?: "default" | "analytics" | "finance" | "door" | "partners";
+    surface?: "default" | "flat";
 }
 
-export function HubTabBar({ tabs, activeTab, onTabChange, className = "", variant = "default" }: HubTabBarProps) {
-    const isFinance = variant === "finance";
-
+export function HubTabBar({ tabs, activeTab, onTabChange, className = "", variant = "default", surface = "default" }: HubTabBarProps) {
     return (
         <div
             className={`flex flex-wrap p-1 rounded-xl gap-1 ${className}`}
             style={{ 
-                background: "var(--v-card)", 
-                border: "1px solid var(--v-border)",
+                background: surface === "flat" ? "transparent" : "var(--v-card)",
+                border: surface === "flat" ? "1px solid var(--v-divider)" : "1px solid var(--v-border)",
                 backdropFilter: "blur(20px)",
-                boxShadow: "var(--v-shadow-card)"
+                boxShadow: surface === "flat" ? "none" : "var(--v-shadow-card)"
             }}
         >
             {tabs.map((tab) => {

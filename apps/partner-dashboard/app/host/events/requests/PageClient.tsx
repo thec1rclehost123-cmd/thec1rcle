@@ -66,9 +66,10 @@ export default function HostSlotRequestsPage() {
         setLoading(true);
         setIsError(false);
         try {
-            const statusFilter = activeTab !== "all" ? `&status=${activeTab}` : "";
+            const params = new URLSearchParams();
+            if (activeTab !== "all") params.set("status", activeTab);
             const token = user ? await user.getIdToken() : "";
-            const res = await fetch(`/api/slots?hostId=${hostId}${statusFilter}`, {
+            const res = await fetch(`/api/host/slot-requests${params.toString() ? `?${params.toString()}` : ""}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();
@@ -80,7 +81,9 @@ export default function HostSlotRequestsPage() {
             await Promise.all(
                 uniqueEventIds.map(async (eventId) => {
                     try {
-                        const eventRes = await fetch(`/api/events/${eventId}`);
+                        const eventRes = await fetch(`/api/events/${eventId}`, {
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                        });
                         const eventData = await eventRes.json();
                         if (eventData.event) eventMap[eventId] = eventData.event;
                     } catch {
@@ -105,6 +108,14 @@ export default function HostSlotRequestsPage() {
         setRefreshing(true);
         await fetchRequests();
         setRefreshing(false);
+    };
+
+    const formatIndianDate = (value?: string, options?: Intl.DateTimeFormatOptions) => {
+        if (!value) return "";
+        return new Intl.DateTimeFormat("en-IN", {
+            timeZone: "Asia/Kolkata",
+            ...options,
+        }).format(new Date(value));
     };
 
     const getStatusConfig = (status: string) => {
@@ -318,7 +329,7 @@ export default function HostSlotRequestsPage() {
                                         <div className="flex items-center gap-6 mt-3 text-sm text-text-secondary">
                                             <div className="flex items-center gap-2">
                                                 <Calendar className="w-4 h-4 text-text-tertiary" />
-                                                {new Date(request.requestedDate).toLocaleDateString("en-IN", {
+                                                {formatIndianDate(request.requestedDate, {
                                                     weekday: "short",
                                                     day: "numeric",
                                                     month: "short",
@@ -385,7 +396,7 @@ export default function HostSlotRequestsPage() {
                                 {/* Timeline Footer */}
                                 <div className="mt-4 pt-4 border-t border-border-subtle flex items-center justify-between text-xs text-text-tertiary">
                                     <span>
-                                        Submitted {new Date(request.createdAt).toLocaleDateString("en-IN", {
+                                        Submitted {formatIndianDate(request.createdAt, {
                                             day: "numeric",
                                             month: "short",
                                             year: "numeric",
@@ -395,7 +406,7 @@ export default function HostSlotRequestsPage() {
                                     </span>
                                     {request.respondedAt && (
                                         <span>
-                                            Responded {new Date(request.respondedAt).toLocaleDateString("en-IN", {
+                                            Responded {formatIndianDate(request.respondedAt, {
                                                 day: "numeric",
                                                 month: "short",
                                                 year: "numeric"

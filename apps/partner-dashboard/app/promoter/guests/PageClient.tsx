@@ -127,7 +127,6 @@ export default function GuestStreamPage() {
     return (
         <VenuePageShell
             title="Guest Stream"
-            subtitle="Real-time feed of ticket purchases through your links"
             actions={
                 <div className="flex items-center gap-3">
                     <button
@@ -204,9 +203,6 @@ export default function GuestStreamPage() {
                                 </span>
                             )}
                         </div>
-                        <p className="text-[13px] font-medium text-text-secondary">
-                            When someone buys through your link, they appear here instantly.
-                        </p>
                     </div>
                 </div>
             </motion.div>
@@ -324,10 +320,6 @@ export default function GuestStreamPage() {
                         <h3 className="text-xl font-black text-text-primary mb-2">
                             No Guests Yet
                         </h3>
-                        <p className="text-text-tertiary text-sm font-medium max-w-xs mx-auto mb-8">
-                            When someone buys a ticket through your link, they'll appear here in
-                            real-time.
-                        </p>
                         <Link href="/promoter/links">
                             <button
                                 className="px-8 py-3 rounded-xl font-bold text-sm"
@@ -504,7 +496,6 @@ export default function GuestStreamPage() {
                 <motion.div {...mp(0.16)}>
                     <BarChartPlaceholder
                         title="Guests by Event"
-                        subtitle="Volume of ticket holders per campaign"
                         color="#818cf8"
                     />
                 </motion.div>

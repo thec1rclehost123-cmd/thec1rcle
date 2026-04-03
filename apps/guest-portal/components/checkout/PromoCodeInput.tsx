@@ -79,18 +79,18 @@ export function PromoCodeInput({
             <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className={`p-4 rounded-2xl bg-[#34c759]/10 border border-[#34c759]/20 ${className}`}
+                className={`rounded-[24px] border border-[#34c759]/12 bg-[linear-gradient(180deg,rgba(52,199,89,0.14),rgba(52,199,89,0.08))] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.18)] ${className}`}
             >
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-[#34c759]/20 flex items-center justify-center">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#34c759]/16">
                             <Check className="w-5 h-5 text-[#34c759]" />
                         </div>
                         <div>
-                            <p className="text-[14px] font-semibold text-[#34c759]">
+                            <p className="text-[14px] font-semibold tracking-[0.04em] text-[#34c759]">
                                 {displayCode}
                             </p>
-                            <p className="text-[12px] text-[#34c759]/80">
+                            <p className="text-[12px] text-[#34c759]/75">
                                 {displayMessage}
                             </p>
                         </div>
@@ -110,7 +110,7 @@ export function PromoCodeInput({
 
     return (
         <div className={`space-y-2 ${className}`}>
-            <div className="flex gap-2">
+            <div className="flex gap-3">
                 <div className="relative flex-1">
                     <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-inherit opacity-30" />
                     <input
@@ -123,9 +123,9 @@ export function PromoCodeInput({
                         onKeyDown={handleKeyDown}
                         placeholder="PROMO CODE"
                         disabled={disabled || isLoading}
-                        className={`w-full pl-11 pr-4 py-3.5 rounded-2xl bg-zinc-800 border border-white/10 text-[13px] font-black tracking-[0.1em] text-white placeholder:text-white/20 focus:outline-none focus:bg-zinc-700 transition-all ${error
-                            ? "border-red-500/50 focus:border-red-500"
-                            : "focus:border-white/30"
+                        className={`w-full pl-11 pr-4 py-3.5 rounded-[22px] border bg-white/[0.04] text-[13px] font-black tracking-[0.14em] text-white placeholder:text-white/22 focus:outline-none transition-all ${error
+                            ? "border-red-500/40 focus:border-red-500/70"
+                            : "border-white/5 focus:border-white/12 focus:bg-white/[0.06]"
                             }`}
                     />
                 </div>
@@ -133,9 +133,9 @@ export function PromoCodeInput({
                 <button
                     onClick={handleApply}
                     disabled={!code.trim() || isLoading || disabled}
-                    className={`min-w-[120px] px-6 py-3.5 rounded-[24px] border text-center font-black uppercase tracking-[0.22em] text-[10px] transition-all ${!code.trim() || isLoading || disabled
-                        ? "cursor-not-allowed border-white/10 bg-white/[0.06] text-white/20 shadow-none"
-                        : "border-orange/60 bg-[linear-gradient(135deg,#ff5a2a_0%,#ff7a4f_45%,#ff9c7a_100%)] text-black hover:scale-[1.02] hover:brightness-105 active:scale-95 shadow-[0_18px_36px_rgba(255,98,48,0.26)]"
+                    className={`min-w-[124px] rounded-[22px] border px-6 py-3.5 text-center text-[10px] font-black uppercase tracking-[0.24em] transition-all ${!code.trim() || isLoading || disabled
+                        ? "cursor-not-allowed border-white/5 bg-white/[0.04] text-white/20 shadow-none"
+                        : "border-orange/18 bg-orange/12 text-orange hover:border-orange/28 hover:bg-orange/16 active:scale-[0.98]"
                         }`}
                 >
                     {isLoading ? (

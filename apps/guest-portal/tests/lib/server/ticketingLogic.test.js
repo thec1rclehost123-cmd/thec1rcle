@@ -55,6 +55,24 @@ test("buildStoredOrderTicket falls back to event tier pricing when checkout payl
   assert.equal(stored.entryType, "general");
 });
 
+test("buildStoredOrderTicket infers female restriction from entryType when explicit gender metadata is absent", () => {
+  const stored = buildStoredOrderTicket(
+    {
+      ticketId: "tier_ladies",
+      quantity: 1,
+    },
+    {
+      id: "tier_ladies",
+      name: "Ladies Entry",
+      price: 0,
+      entryType: "female",
+    },
+  );
+
+  assert.equal(stored.entryType, "female");
+  assert.equal(stored.genderRequirement, "female");
+});
+
 test("RSVP bundles are claim-based while paid checkouts stay precommitted", () => {
   assert.equal(getBundleInventoryMode({ isRSVP: true }), "claim_based");
   assert.equal(getBundleInventoryMode({ isRSVP: false }), "precommitted");

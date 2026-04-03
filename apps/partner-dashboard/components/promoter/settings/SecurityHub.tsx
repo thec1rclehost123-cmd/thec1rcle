@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Shield, Smartphone, LogOut, KeyRound, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "@/lib/auth/passwordReset";
 import type { SecurityPrefs } from "@/lib/server/promoterSettingsStore";
 
 interface Props {
@@ -34,11 +35,10 @@ export function SecurityHub({
         try {
             const { getFirebaseAuth } = await import("@/lib/firebase/client");
             const auth = await getFirebaseAuth();
-            const { sendPasswordResetEmail } = await import("firebase/auth");
-            await sendPasswordResetEmail(auth, userEmail);
+            await sendOperationalPasswordResetEmail(auth, userEmail);
             setResetSent(true);
-        } catch {
-            setError("Failed to send reset email. Try again.");
+        } catch (error) {
+            setError(getPasswordResetErrorMessage(error));
         } finally {
             setResetLoading(false);
         }

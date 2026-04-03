@@ -165,7 +165,7 @@ export async function POST(request) {
                     eventId: order.eventId,
                     tickets: order.tickets,
                     totalAmount: order.totalAmount,
-                    promoterCode: order.promoCode || null
+                    promoterCode: order.promoterCode || null
                 }, {
                     // Idempotency: Same orderId = same workflow execution
                     idempotencyKey: `ticket-fulfillment-${order.id}`

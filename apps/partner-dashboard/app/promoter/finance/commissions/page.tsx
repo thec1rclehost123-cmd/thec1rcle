@@ -73,7 +73,7 @@ export default function PromoterCommissionsPage() {
     return (
         <div className="space-y-6 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Header */}
-            <div className="flex items-center gap-4 pb-6 border-b border-border-subtle">
+            <div className="flex flex-col items-start gap-4 pb-6 border-b border-border-subtle sm:flex-row sm:items-center">
                 <Link href="/promoter/finance" className="p-2 border border-border-subtle hover:bg-surface-elevated rounded-xl transition-colors text-text-secondary">
                     <ArrowLeft className="h-5 w-5" />
                 </Link>
@@ -92,7 +92,7 @@ export default function PromoterCommissionsPage() {
 
             {/* Summary KPIs */}
             {!loading && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                     {[
                         { label: "Lifetime",  value: formatINR(totalAll),     dim: false },
                         { label: "Cleared",   value: formatINR(totalCleared), dim: false },

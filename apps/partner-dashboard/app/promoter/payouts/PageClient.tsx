@@ -32,6 +32,9 @@ interface Payout {
     paymentMethod: string;
     requestedAt: string;
     completedAt?: string;
+    eventName?: string;
+    buyerName?: string;
+    date?: string;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -58,7 +61,7 @@ const mp = (delay = 0) => ({
 });
 
 export default function PayoutsPage() {
-    const { profile } = useDashboardAuth();
+    const { profile, getIdToken } = useDashboardAuth() as any;
     const [balance, setBalance] = useState<PayoutBalance | null>(null);
     const [payouts, setPayouts] = useState<Payout[]>([]);
     const [loading, setLoading] = useState(true);
@@ -72,10 +75,12 @@ export default function PayoutsPage() {
 
     const fetchPayoutData = async () => {
         try {
-            const res = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`);
-            const data = await res.json();
-            setBalance(data.balance);
-            setPayouts(data.payouts || []);
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const payoutRes = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, { headers });
+            const payoutData = await payoutRes.json();
+            setBalance(payoutData.balance || null);
+            setPayouts(payoutData.payouts || []);
         } catch (err) {
             console.error("Failed to fetch payout data:", err);
         } finally {
@@ -88,7 +93,6 @@ export default function PayoutsPage() {
     return (
         <VenuePageShell
             title="Earnings & Payouts"
-            subtitle="Your commission balance, payout history, and withdrawal requests"
             actions={
                 <VenueActionButton
                     variant="primary"
@@ -167,7 +171,7 @@ export default function PayoutsPage() {
                 <div className="px-6 py-5 border-b border-border-default flex items-center justify-between">
                     <div>
                         <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Payout History</p>
-                        <p className="text-lg font-bold text-text-primary mt-0.5">All Withdrawals</p>
+                        <p className="text-lg font-bold text-text-primary mt-0.5">Payout Requests</p>
                     </div>
                     <span className="px-3 py-1 rounded-full bg-surface-tertiary text-xs font-bold text-text-tertiary">
                         {payouts.length} total
@@ -184,14 +188,12 @@ export default function PayoutsPage() {
                             <Wallet className="w-7 h-7 text-text-placeholder" />
                         </div>
                         <h3 className="text-lg font-bold text-text-primary mb-2">No payouts yet</h3>
-                        <p className="text-sm text-text-tertiary max-w-xs leading-relaxed">
-                            Once you reach ₹100 in available balance, you can request your first payout here.
-                        </p>
                     </div>
                 ) : (
                     <div className="divide-y divide-border-subtle">
                         {payouts.map((payout, i) => {
-                            const StatusIcon = STATUS_ICONS[payout.status] || Clock;
+                            const normalizedStatus = payout.status === "cleared" ? "completed" : payout.status;
+                            const StatusIcon = STATUS_ICONS[normalizedStatus] || Clock;
                             return (
                                 <motion.div
                                     key={payout.id}
@@ -209,13 +211,13 @@ export default function PayoutsPage() {
                                                 {formatINR(payout.amount)}
                                             </p>
                                             <p className="text-xs text-text-tertiary font-medium mt-0.5">
-                                                {payout.paymentMethod.toUpperCase()} · {formatDate(payout.requestedAt)}
+                                                {(payout.paymentMethod || "Payout request").replace(/_/g, " ")} · {formatIncomeDate(payout.completedAt || payout.requestedAt)}
                                             </p>
                                         </div>
                                     </div>
-                                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide flex items-center gap-1.5 ${STATUS_STYLES[payout.status] || STATUS_STYLES.cancelled}`}>
+                                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide flex items-center gap-1.5 ${STATUS_STYLES[normalizedStatus] || STATUS_STYLES.cancelled}`}>
                                         <StatusIcon className="w-3 h-3" />
-                                        {payout.status}
+                                        {normalizedStatus === "completed" ? "paid" : normalizedStatus}
                                     </span>
                                 </motion.div>
                             );
@@ -240,3 +242,6 @@ export default function PayoutsPage() {
     );
 }
 
+function formatIncomeDate(value?: string) {
+    return value ? formatDate(value) : "Awaiting processing";
+}

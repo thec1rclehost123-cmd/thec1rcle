@@ -24,6 +24,7 @@ import {
     Sparkles,
     RefreshCw,
     Building,
+    Globe,
 } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
 import { createUserWithEmailAndPassword } from "firebase/auth";
@@ -123,6 +124,7 @@ function OnboardingContent() {
         phone: "",
         city: "",
         area: "",
+        website: "",
         capacity: "",
         plan: "silver",
         role: "organizer",
@@ -130,6 +132,8 @@ function OnboardingContent() {
         associatedHostId: "",
         instagram: "",
         bio: "",
+        upcomingEventsText: "",
+        pastEventsText: "",
         businessType: "pvt_ltd",
         registrationNumber: "",
     });
@@ -554,6 +558,15 @@ function OnboardingContent() {
                                         <FormInput label="Area / Locality" icon={MapPin} name="area" value={formData.area} onChange={handleInputChange} required placeholder="e.g. Bandra" />
                                     </div>
 
+                                    <FormInput
+                                        label="Website (optional)"
+                                        icon={Globe}
+                                        name="website"
+                                        value={formData.website}
+                                        onChange={handleInputChange}
+                                        placeholder="https://yourbrand.com"
+                                    />
+
                                     {/* Role-specific fields — unchanged */}
                                     {partnerType === "venue" && (
                                         <>
@@ -583,6 +596,32 @@ function OnboardingContent() {
                                             <div className="space-y-2">
                                                 <label className="input-label">Short Bio</label>
                                                 <textarea name="bio" value={formData.bio} onChange={handleInputChange} placeholder="Tell us about your reach, experience, and what you're looking for..." className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)] transition-all outline-none min-h-[120px] resize-none" required />
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="input-label">Upcoming Events (optional)</label>
+                                                <textarea
+                                                    name="upcomingEventsText"
+                                                    value={formData.upcomingEventsText}
+                                                    onChange={handleInputChange}
+                                                    placeholder={"One event per line\nSummer Fridays | Jun 14 2026 | Toy Room | Mumbai\nCampus Heatwave | Jul 05 2026 | Kitty Su | Delhi"}
+                                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)] transition-all outline-none min-h-[120px] resize-none"
+                                                />
+                                                <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">
+                                                    Format each line as: event name | date | venue | city
+                                                </p>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="input-label">Past Event Highlights (optional)</label>
+                                                <textarea
+                                                    name="pastEventsText"
+                                                    value={formData.pastEventsText}
+                                                    onChange={handleInputChange}
+                                                    placeholder={"One event per line\nNeon Saturdays | Jan 20 2026 | Soho House | Mumbai\nWarehouse Takeover | Dec 28 2025 | AntiSocial | Pune"}
+                                                    className="w-full bg-[var(--surface-secondary)] border border-[var(--border-subtle)] rounded-xl px-4 py-3 text-[14px] text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] focus:bg-[var(--surface-base)] focus:border-[var(--accent-primary)] focus:ring-3 focus:ring-[var(--accent-glow)] transition-all outline-none min-h-[120px] resize-none"
+                                                />
+                                                <p className="text-[12px] leading-5 text-[var(--text-tertiary)]">
+                                                    These appear on your partner profile until real event history is linked.
+                                                </p>
                                             </div>
                                         </>
                                     )}

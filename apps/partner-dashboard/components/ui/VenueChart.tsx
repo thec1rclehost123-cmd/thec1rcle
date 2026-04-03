@@ -1,8 +1,52 @@
 "use client";
 
-import React, { Suspense, lazy, ReactNode } from "react";
+import React, { Suspense, lazy } from "react";
 import { cn } from "@/lib/utils";
-import { useReducedMotion } from "framer-motion";
+
+function formatTooltipValue(value: unknown, title: string) {
+    const numericValue = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(numericValue)) return String(value ?? "—");
+    if (title.toLowerCase().includes("revenue")) {
+        return new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+            maximumFractionDigits: 0,
+        }).format(numericValue);
+    }
+    return `${new Intl.NumberFormat("en-IN").format(numericValue)} tickets`;
+}
+
+function ChartTooltip({
+    active,
+    payload,
+    label,
+    title,
+}: {
+    active?: boolean;
+    payload?: Array<{ value?: unknown }>;
+    label?: string;
+    title: string;
+}) {
+    if (!active || !payload?.length) return null;
+
+    return (
+        <div
+            style={{
+                background: "var(--v-card)",
+                border: "1px solid var(--v-border)",
+                borderRadius: 20,
+                padding: "14px 16px",
+                color: "var(--v-text-primary)",
+                boxShadow: "0 18px 40px rgba(0,0,0,0.22)",
+            }}
+        >
+            <p style={{ fontSize: 16, fontWeight: 600, marginBottom: 10 }}>{label}</p>
+            <p style={{ fontSize: 16, fontWeight: 700 }}>
+                {formatTooltipValue(payload[0]?.value, title)}
+            </p>
+        </div>
+    );
+}
 
 // ── Lazy-load recharts to keep it out of non-analytics bundles ──
 const RechartsArea = lazy(() =>
@@ -16,6 +60,7 @@ const RechartsArea = lazy(() =>
             height,
             title,
             gradientId,
+            empty,
         }: {
             data: any[];
             dataKey: string;
@@ -24,10 +69,9 @@ const RechartsArea = lazy(() =>
             height: number;
             title: string;
             gradientId: string;
+            empty?: boolean;
         }) {
-            const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } = m;
-            // Access SVG defs components from 'm' or use standard SVG tags if they are just strings
-            // Recharts doesn't always export 'defs' as a component in types, but it's used as a tag.
+            const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
             const Defs = (m as any).defs || "defs";
             const LinearGradient = (m as any).linearGradient || "linearGradient";
             const Stop = (m as any).stop || "stop";
@@ -35,41 +79,49 @@ const RechartsArea = lazy(() =>
             return (
                 <div role="img" aria-label={title}>
                     <ResponsiveContainer width="100%" height={height}>
-                        <AreaChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }}>
+                        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                             <Defs>
+                                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur stdDeviation="1.5" result="blur" />
+                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                </filter>
                                 <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                                    <Stop offset="5%" stopColor={color} stopOpacity={0.25} />
+                                    <Stop offset="0%" stopColor={color} stopOpacity={0.5} />
+                                    <Stop offset="28%" stopColor={color} stopOpacity={0.26} />
+                                    <Stop offset="72%" stopColor={color} stopOpacity={0.08} />
                                     <Stop offset="95%" stopColor={color} stopOpacity={0} />
                                 </LinearGradient>
                             </Defs>
+                            <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                             <XAxis
                                 dataKey={xKey}
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                hide={false}
+                                dy={10}
                             />
                             <YAxis
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                domain={empty ? [0, 20] : ["auto", "auto"]}
+                                tickCount={5}
+                                hide={false}
+                                width={30}
                             />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                                cursor={{ stroke: "rgba(128,128,128,0.20)" }}
-                            />
+                            {!empty && (
+                                <Tooltip content={<ChartTooltip title={title} />} cursor={{ stroke: "rgba(128,128,128,0.20)" }} />
+                            )}
                             <Area
                                 type="monotone"
                                 dataKey={dataKey}
                                 stroke={color}
-                                strokeWidth={2}
+                                strokeWidth={empty ? 3 : 2.5}
                                 fill={`url(#${gradientId})`}
-                                isAnimationActive={true}
+                                isAnimationActive={!empty}
+                                strokeOpacity={1}
+                                fillOpacity={empty ? 0.08 : 1}
                             />
                         </AreaChart>
                     </ResponsiveContainer>
@@ -89,6 +141,7 @@ const RechartsBar = lazy(() =>
             color,
             height,
             title,
+            empty,
         }: {
             data: any[];
             dataKey: string;
@@ -96,34 +149,33 @@ const RechartsBar = lazy(() =>
             color: string;
             height: number;
             title: string;
+            empty?: boolean;
         }) {
-            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } = m;
+            const { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } = m;
             return (
                 <div role="img" aria-label={title}>
                     <ResponsiveContainer width="100%" height={height}>
-                        <BarChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }}>
+                        <BarChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                            <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                             <XAxis
                                 dataKey={xKey}
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                dy={10}
                             />
                             <YAxis
-                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)" }}
+                                tick={{ fontSize: 10, fill: "rgba(255,255,255,0.30)", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                domain={empty ? [0, 20] : ["auto", "auto"]}
+                                tickCount={5}
+                                width={30}
                             />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "#1a1a1d",
-                                    border: "1px solid rgba(255,255,255,0.08)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "rgba(255,255,255,0.9)",
-                                }}
-                                cursor={{ fill: "rgba(128,128,128,0.08)" }}
-                            />
-                            <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} isAnimationActive={true}>
+                            {!empty && (
+                                <Tooltip content={<ChartTooltip title={title} />} cursor={{ fill: "rgba(128,128,128,0.08)" }} />
+                            )}
+                            <Bar dataKey={dataKey} fill={color} radius={[4, 4, 0, 0]} isAnimationActive={!empty} opacity={empty ? 0 : 1}>
                                 {data.map((_, index) => (
                                     <Cell key={index} fill={color} opacity={0.85} />
                                 ))}
@@ -146,6 +198,8 @@ const RechartsLine = lazy(() =>
             color,
             height,
             title,
+            gradientId,
+            empty,
         }: {
             data: any[];
             dataKey: string;
@@ -153,42 +207,59 @@ const RechartsLine = lazy(() =>
             color: string;
             height: number;
             title: string;
+            gradientId: string;
+            empty?: boolean;
         }) {
-            const { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } = m;
+            const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = m;
+            const Defs = (m as any).defs || "defs";
+            const LinearGradient = (m as any).linearGradient || "linearGradient";
+            const Stop = (m as any).stop || "stop";
             return (
                 <div role="img" aria-label={title}>
                     <ResponsiveContainer width="100%" height={height}>
-                        <LineChart data={data} margin={{ top: 8, right: 0, left: -20, bottom: 0 }}>
+                        <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+                            <Defs>
+                                <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+                                    <feGaussianBlur stdDeviation="1.5" result="blur" />
+                                    <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                                </filter>
+                                <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                                    <Stop offset="0%" stopColor={color} stopOpacity={0.65} />
+                                    <Stop offset="40%" stopColor={color} stopOpacity={0.30} />
+                                    <Stop offset="100%" stopColor={color} stopOpacity={0} />
+                                </LinearGradient>
+                            </Defs>
+                            <CartesianGrid vertical={false} stroke="rgba(255,255,255,0.03)" strokeDasharray="3 3" />
                             <XAxis
                                 dataKey={xKey}
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                dy={10}
                             />
                             <YAxis
-                                tick={{ fontSize: 10, fill: "#9B9B9F" }}
+                                tick={{ fontSize: 10, fill: "#9B9B9F", fontWeight: 500 }}
                                 axisLine={false}
                                 tickLine={false}
+                                domain={empty ? [0, 20] : ["auto", "auto"]}
+                                tickCount={5}
+                                width={30}
                             />
-                            <Tooltip
-                                contentStyle={{
-                                    background: "var(--v-card)",
-                                    border: "1px solid var(--v-border)",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    color: "var(--v-text-primary)",
-                                }}
-                                cursor={{ stroke: "rgba(128,128,128,0.20)" }}
-                            />
-                            <Line
+                            {!empty && (
+                                <Tooltip content={<ChartTooltip title={title} />} cursor={{ stroke: "rgba(128,128,128,0.20)" }} />
+                            )}
+                            <Area
                                 type="monotone"
                                 dataKey={dataKey}
                                 stroke={color}
-                                strokeWidth={2}
+                                strokeWidth={empty ? 3 : 2.5}
+                                fill={`url(#${gradientId})`}
                                 dot={false}
-                                isAnimationActive={true}
+                                isAnimationActive={!empty}
+                                strokeOpacity={1}
+                                fillOpacity={empty ? 0.08 : 1}
                             />
-                        </LineChart>
+                        </AreaChart>
                     </ResponsiveContainer>
                 </div>
             );
@@ -212,8 +283,25 @@ export interface VenueChartProps {
     height?: number;
     loading?: boolean;
     empty?: boolean;
+    emptyLabels?: string[];
     title: string;
     className?: string;
+}
+
+function buildEmptyChartData({
+    labels,
+    xKey,
+    dataKey,
+}: {
+    labels: string[];
+    xKey: string;
+    dataKey: string;
+}) {
+    const fallbackLabels = labels.length > 0 ? labels : ["", "", "", "", "", ""];
+    return fallbackLabels.map((label) => ({
+        [xKey]: label,
+        [dataKey]: 0,
+    }));
 }
 
 export function VenueChart({
@@ -223,10 +311,10 @@ export function VenueChart({
     height = 240,
     loading = false,
     empty = false,
+    emptyLabels = [],
     title,
     className,
 }: VenueChartProps) {
-    const shouldReduceMotion = useReducedMotion();
     const color = config.color || "var(--v-chart-1)";
     const gradientId = config.gradientId || `grad-${config.dataKey}`;
 
@@ -234,18 +322,25 @@ export function VenueChart({
         return <ChartSkeleton height={height} className={className} />;
     }
 
-    if (empty || !data || data.length === 0) {
-        return <ChartEmpty height={height} label={title} className={className} />;
-    }
+    const isEmptyData = !data || data.length === 0;
+    const resolvedData = isEmptyData
+        ? buildEmptyChartData({
+            labels: emptyLabels,
+            xKey: config.xKey,
+            dataKey: config.dataKey,
+        })
+        : data;
+    const resolvedEmpty = empty || isEmptyData;
 
     const chartProps = {
-        data,
+        data: resolvedData,
         dataKey: config.dataKey,
         xKey: config.xKey,
         color,
         height,
         title,
         gradientId,
+        empty: resolvedEmpty,
     };
 
     return (
@@ -267,32 +362,6 @@ export function ChartSkeleton({ height = 240, className }: { height?: number; cl
             style={{ height }}
             aria-label="Loading chart..."
         />
-    );
-}
-
-// ── Chart empty state ──
-function ChartEmpty({ height = 240, label, className }: { height?: number; label: string; className?: string }) {
-    return (
-        <div
-            className={cn(
-                "w-full rounded-2xl flex items-center justify-center",
-                className
-            )}
-            style={{
-                height,
-                background: "var(--v-neutral-bg)",
-                border: "1px dashed var(--v-border)",
-            }}
-            role="img"
-            aria-label={`${label}: No data for this period`}
-        >
-            <span
-                className="text-[11px] font-semibold uppercase tracking-widest"
-                style={{ color: "var(--v-text-muted)" }}
-            >
-                No data for this period
-            </span>
-        </div>
     );
 }
 

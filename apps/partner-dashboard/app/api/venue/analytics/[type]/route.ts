@@ -37,28 +37,28 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ type: strin
 
         switch (type) {
             case "overview":
-                analytics = await getVenueAnalytics(venueId, range, token);
+                analytics = await getVenueAnalytics(venueId, range);
                 break;
             case "audience":
-                analytics = await getVenueAudienceAnalytics(venueId, range, token);
+                analytics = await getVenueAudienceAnalytics(venueId, range);
                 break;
             case "reach":
             case "funnel":
-                analytics = await getVenueFunnelAnalytics(venueId, range, token);
+                analytics = await getVenueFunnelAnalytics(venueId, range);
                 break;
             case "engagement":
             case "ops":
-                analytics = await getVenueOpsAnalytics(venueId, range, token);
+                analytics = await getVenueOpsAnalytics(venueId, range);
                 break;
             case "revenue":
-                analytics = await getVenueAnalytics(venueId, range, token);
+                analytics = await getVenueAnalytics(venueId, range);
                 break;
             case "attribution":
             case "partners":
-                analytics = await getVenuePartnerAnalytics(venueId, range, token);
+                analytics = await getVenuePartnerAnalytics(venueId, range);
                 break;
             case "strategy":
-                analytics = await getVenueStrategyAnalytics(venueId, token);
+                analytics = await getVenueStrategyAnalytics(venueId);
                 break;
             case "timeline": {
                 const eventId = searchParams.get("eventId");
@@ -76,13 +76,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ type: strin
                 return fail("Invalid analytics type", 400);
         }
 
-        // Cache: live/insights data freshest (30s), overview/audience moderate (60s), historical long (5min)
-        const cacheSeconds = ["timeline", "insights"].includes(type) ? 30
-            : type === "overview" ? 60
-            : 300;
         return NextResponse.json(
             { success: true, analytics, message: "" },
-            { headers: { "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 4}` } }
+            { headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" } }
         );
     } catch (error: any) {
         console.error(`[Venue Analytics API] Error:`, error);

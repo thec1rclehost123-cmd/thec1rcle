@@ -27,6 +27,23 @@ import {
     type Permission,
 } from "@/lib/rbac/types";
 
+export interface HostPIIPolicy {
+    showPhone: boolean;
+    showEmail: boolean;
+    showLastName: boolean;
+}
+
+const HOST_PII_POLICY_BY_ROLE: Record<HostRole, HostPIIPolicy> = {
+    OWNER: { showPhone: false, showEmail: false, showLastName: true },
+    COHOST: { showPhone: false, showEmail: false, showLastName: true },
+    MANAGER: { showPhone: false, showEmail: false, showLastName: true },
+    STAFF: { showPhone: false, showEmail: false, showLastName: false },
+};
+
+function getHostPIIPolicy(role: HostRole): HostPIIPolicy {
+    return HOST_PII_POLICY_BY_ROLE[role] || HOST_PII_POLICY_BY_ROLE.STAFF;
+}
+
 // ── Audit log writer ────────────────────────────────────────────────────────
 
 export async function writeAuditLog(
@@ -63,6 +80,7 @@ export interface HostAuthContext {
     role: HostRole;
     membershipId: string;
     displayName: string;
+    piiPolicy: HostPIIPolicy;
 }
 
 // ── Error shape ──────────────────────────────────────────────────────────────
@@ -100,8 +118,27 @@ export async function requireHostAccess(
 
     const uid = decodedToken.uid;
 
+
+    // Development bypass
+    if (process.env.NODE_ENV === "development" && uid === "dev-user-123") {
+        const devHostId =
+            explicitHostId || extractHostId(req) || "dev-host-001";
+        return {
+            uid,
+            hostId: devHostId,
+            role: "OWNER",
+            membershipId: "dev-membership",
+            displayName: "Dev Host",
+            piiPolicy: getHostPIIPolicy("OWNER"),
+        };
+    }
     // 2. Resolve hostId from request
-    const hostId = explicitHostId || extractHostId(req);
+    const hostId =
+        explicitHostId ||
+        extractHostId(req) ||
+        (((decodedToken as any).partnerType === "host" || (decodedToken as any).partnerRole === "host")
+            ? ((decodedToken as any).partnerId || null)
+            : null);
     if (!hostId) {
         return { error: "Missing hostId or X-Partner-ID", status: 400 };
     }
@@ -132,6 +169,7 @@ export async function requireHostAccess(
                 role: "OWNER",
                 membershipId: "admin-bypass",
                 displayName: (hostDoc.exists && hostDoc.data()?.displayName) || "Admin",
+                piiPolicy: getHostPIIPolicy("OWNER"),
             };
         }
         // Direct owner (legacy path)
@@ -141,6 +179,7 @@ export async function requireHostAccess(
             role: "OWNER",
             membershipId: "direct-owner",
             displayName: hostDoc.data()?.displayName || "Owner",
+            piiPolicy: getHostPIIPolicy("OWNER"),
         };
     }
 
@@ -173,6 +212,7 @@ export async function requireHostAccess(
         role,
         membershipId: membership.id,
         displayName: membershipData.displayName || membershipData.email || uid,
+        piiPolicy: getHostPIIPolicy(role),
     };
 }
 

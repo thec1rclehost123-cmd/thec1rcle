@@ -2,7 +2,7 @@
 
 import { useState, Suspense } from "react";
 import { LayoutDashboard, CreditCard, Building2, Users, BookOpen, FileBarChart, Banknote, ShieldCheck, Clock, TrendingUp, Handshake, Wallet } from "lucide-react";
-import { VenueExecutiveHeader } from "@/components/venue-layout/VenueExecutiveHeader";
+import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
 
@@ -40,7 +40,7 @@ function TabContent({ activeTab, period, onPeriodChange }: {
     onPeriodChange: (p: any) => void;
 }) {
     switch (activeTab) {
-        case "overview":         return <OverviewClient period={period as any} onPeriodChange={onPeriodChange} />;
+        case "overview":         return <OverviewClient />;
         case "payments":         return <PaymentsClient />;
         case "venue-payouts":    return <VenuePayoutsClient />;
         case "host-payouts":     return <HostPayoutsClient />;
@@ -48,46 +48,31 @@ function TabContent({ activeTab, period, onPeriodChange }: {
         case "ledger":           return <LedgerClient />;
         case "reports":          return <ReportsClient />;
         case "cover":            return <CoverReconClient />;
-        default:                 return <OverviewClient period={period as any} onPeriodChange={onPeriodChange} />;
+        default:                 return <OverviewClient />;
     }
 }
 
 export default function FinanceHub() {
     const { activeTab, setTab } = useHubTab("overview");
     const [period, setPeriod] = useState("30d");
-    const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-
-    function handleDateSelect(date: Date | null) {
-        setSelectedDate(date);
-        if (date) setPeriod("1d");
-    }
 
     return (
-        <div className="flex flex-col gap-4">
-            <VenueExecutiveHeader
-                title="Finance"
-                statusLabel="System Healthy"
-                statusColor="emerald"
-                tabs={EXECUTIVE_TABS}
-                activeTab={activeTab}
-                onTabChange={setTab}
-                periods={PERIODS}
-                activePeriod={period}
-                onPeriodChange={setPeriod}
-                selectedDate={selectedDate}
-                onDateSelect={handleDateSelect}
-            />
-
-            {/* Tab Content */}
-            <div className="px-1">
-                <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-                    <TabContent 
-                        activeTab={activeTab} 
-                        period={period}
-                        onPeriodChange={setPeriod}
-                    />
-                </Suspense>
+        <VenuePageShell
+            title="Finance"
+            noPadding
+        >
+            <div className="flex flex-col gap-4">
+                {/* Tab Content */}
+                <div className="px-1">
+                    <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+                        <TabContent 
+                            activeTab={activeTab} 
+                            period={period}
+                            onPeriodChange={setPeriod}
+                        />
+                    </Suspense>
+                </div>
             </div>
-        </div>
+        </VenuePageShell>
     );
 }

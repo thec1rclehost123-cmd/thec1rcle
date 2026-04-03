@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import { getEvent, updateEventLifecycle, updateEvent } from "@/lib/server/eventStore";
 import { verifyPartnerAccess } from "@/lib/server/auth";
+import { getAdminDb } from "@/lib/firebase/admin";
+import { checkPartnership, resolveHostVenueSelection } from "@/lib/server/partnershipStore";
+import { createSlotRequest } from "@/lib/server/slotStore";
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { logger } from "@/lib/server/logger";
@@ -55,11 +58,42 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
 
         // Handle content updates
         if (updates) {
+            const cleanUpdates = { ...updates };
+            const normalizedPoster =
+                cleanUpdates.coverImage ||
+                cleanUpdates.coverPhoto ||
+                cleanUpdates.poster ||
+                cleanUpdates.image ||
+                cleanUpdates.images?.[0] ||
+                "";
+
+            if (normalizedPoster) {
+                cleanUpdates.coverImage = cleanUpdates.coverImage || normalizedPoster;
+                cleanUpdates.coverPhoto = cleanUpdates.coverPhoto || normalizedPoster;
+                cleanUpdates.poster = cleanUpdates.poster || normalizedPoster;
+                cleanUpdates.image = cleanUpdates.image || normalizedPoster;
+            }
+
+            if (actor.role === "host" && cleanUpdates.venueId) {
+                const resolvedVenue = await resolveHostVenueSelection(
+                    actor.partnerId || actor.uid,
+                    cleanUpdates.venueId,
+                    cleanUpdates.venueName || cleanUpdates.venue
+                );
+                if (resolvedVenue?.venueId) {
+                    cleanUpdates.venueId = resolvedVenue.venueId;
+                    if (resolvedVenue.venueName) {
+                        cleanUpdates.venueName = resolvedVenue.venueName;
+                        cleanUpdates.venue = resolvedVenue.venueName;
+                    }
+                }
+            }
+
             // Strip lifecycle from updates to ensure it's only managed by updateEventLifecycle
-            const { lifecycle, ...cleanUpdates } = updates;
+            const { lifecycle, ...persistedUpdates } = cleanUpdates;
 
             latestEvent = await updateEvent(id, {
-                ...cleanUpdates,
+                ...persistedUpdates,
                 creatorId: actor.partnerId || actor.uid,
                 creatorRole: actor.role,
                 partnerId: actor.partnerId
@@ -111,6 +145,73 @@ export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
 
                 const hasAccess = await verifyPartnerAccess(req, venueId);
                 if (!hasAccess) return fail("Unauthorized access to this venue", 403);
+            }
+
+            if (action === "submit") {
+                const event = latestEvent || await getEvent(id, token);
+                if (!event) return fail("Event not found", 404);
+
+                const hostId = event.hostId || event.creatorId || actor.partnerId || actor.uid;
+                let effectiveVenueId = event.venueId;
+                let effectiveVenueName = event.venueName || event.venue || "";
+                let hasPartnership = effectiveVenueId
+                    ? await checkPartnership(hostId, effectiveVenueId)
+                    : false;
+
+                if (!hasPartnership && effectiveVenueId) {
+                    const resolvedVenue = await resolveHostVenueSelection(hostId, effectiveVenueId, effectiveVenueName);
+                    if (resolvedVenue?.venueId) {
+                        effectiveVenueId = resolvedVenue.venueId;
+                        effectiveVenueName = resolvedVenue.venueName || effectiveVenueName;
+                        hasPartnership = await checkPartnership(hostId, effectiveVenueId);
+
+                        if (hasPartnership && resolvedVenue.canonicalized) {
+                            await updateEvent(id, {
+                                venueId: effectiveVenueId,
+                                venueName: effectiveVenueName,
+                                venue: effectiveVenueName,
+                            }, token);
+                            latestEvent = await getEvent(id, token);
+                        }
+                    }
+                }
+
+                if (!hasPartnership) {
+                    return fail("No active partnership with this venue. Access denied.", 403);
+                }
+
+                const db = getAdminDb();
+                const existingSlotSnap = await db.collection("slot_requests")
+                    .where("eventId", "==", id)
+                    .where("hostId", "==", hostId)
+                    .limit(5)
+                    .get();
+
+                const hasActiveSlotRequest = existingSlotSnap.docs.some((doc) => {
+                    const status = String(doc.data()?.status || "").toLowerCase();
+                    return status !== "rejected";
+                });
+
+                if (!hasActiveSlotRequest) {
+                    try {
+                        await createSlotRequest({
+                            eventId: id,
+                            hostId,
+                            hostName: event.hostName || event.host || "",
+                            venueId: effectiveVenueId,
+                            venueName: effectiveVenueName,
+                            requestedDate: event.startDate?.slice?.(0, 10) || event.startDate,
+                            requestedStartTime: event.startTime,
+                            requestedEndTime: event.endTime,
+                            notes: `Event submission: ${event.title}`,
+                        }, token, { uid: actor.uid, role: actor.role });
+                    } catch (slotError: any) {
+                        const message = slotError?.message || "Failed to create slot request";
+                        if (message.includes("Access denied")) return fail(message, 403);
+                        if (message.includes("blocked") || message.includes("unavailable")) return fail(message, 409);
+                        throw slotError;
+                    }
+                }
             }
 
             const result = await updateEventLifecycle(id, newStatus, { ...actor, token }, notes);

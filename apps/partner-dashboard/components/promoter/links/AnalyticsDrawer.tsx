@@ -4,11 +4,17 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Copy, CheckCircle2, AlertTriangle, Loader2, TrendingUp } from "lucide-react";
 
+const GUEST_PORTAL_URL =
+    process.env.NEXT_PUBLIC_GUEST_PORTAL_URL ||
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    "";
+
 interface AnalyticsDrawerProps {
     linkId: string | null;
     token?: string;
     onClose: () => void;
     onDeactivated: (linkId: string) => void;
+    onReactivated: (linkId: string) => void;
 }
 
 function formatINR(paise: number) {
@@ -17,6 +23,10 @@ function formatINR(paise: number) {
     if (rupees >= 100000) return `₹${(rupees / 100000).toFixed(1)}L`;
     if (rupees >= 1000) return `₹${(rupees / 1000).toFixed(1)}K`;
     return `₹${Math.round(rupees).toLocaleString("en-IN")}`;
+}
+
+function getQRCodeUrl(data: string, size = 200) {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&margin=10`;
 }
 
 function FunnelBar({ label, value, max, color }: { label: string; value: number; max: number; color: string }) {
@@ -56,11 +66,12 @@ function StatCard({ label, value }: { label: string; value: string }) {
     );
 }
 
-export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated }: AnalyticsDrawerProps) {
+export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated, onReactivated }: AnalyticsDrawerProps) {
     const [data, setData] = useState<any>(null);
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState(false);
     const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+    const [confirmReactivate, setConfirmReactivate] = useState(false);
     const [deactivating, setDeactivating] = useState(false);
 
     useEffect(() => {
@@ -68,6 +79,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
         setData(null);
         setLoading(true);
         setConfirmDeactivate(false);
+        setConfirmReactivate(false);
 
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -84,7 +96,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
         const link = data.link;
         const slug = link.eventSlug || link.eventId || "";
         const ref = link.code || link.shortId || link.token || link.id;
-        const url = `https://c1rcle.app/e/${slug}?ref=${ref}&s=${link.channel || ""}`;
+        const url = link.fullUrl || `${GUEST_PORTAL_URL}/e/${slug}?ref=${ref}&s=${link.channel || ""}`;
         navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -113,10 +125,36 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
         }
     };
 
+    const handleReactivate = async () => {
+        if (!linkId) return;
+        setDeactivating(true);
+        try {
+            const headers: Record<string, string> = { "Content-Type": "application/json" };
+            if (token) headers["Authorization"] = `Bearer ${token}`;
+            const res = await fetch(`/api/promoter/links/${linkId}`, {
+                method: "PATCH",
+                headers,
+                body: JSON.stringify({ action: "reactivate" })
+            });
+            if (res.ok) {
+                onReactivated(linkId);
+                onClose();
+            }
+        } catch (e) {
+            console.error("[AnalyticsDrawer] Reactivate failed:", e);
+        } finally {
+            setDeactivating(false);
+            setConfirmReactivate(false);
+        }
+    };
+
     const link = data?.link;
     const funnel = data?.funnel || { clicks: 0, conversions: 0, revenue: 0 };
     const status = link?.status || "active";
     const isActive = status === "active";
+    const linkUrl = link
+        ? (link.fullUrl || `${GUEST_PORTAL_URL}/e/${link.eventSlug || link.eventId || ""}?ref=${link.code || link.shortId || link.token || link.id}${link.channel ? `&s=${link.channel}` : ""}`)
+        : "";
 
     const statusColor = isActive ? "#34d399" : "#71717a";
     const statusBg = isActive ? "rgba(52,211,153,0.1)" : "rgba(113,113,122,0.1)";
@@ -226,6 +264,33 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                     </div>
 
                                     {/* Actions */}
+                                    {linkUrl && (
+                                        <div className="rounded-xl p-4 flex flex-col items-center gap-3"
+                                            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid var(--v-border, rgba(255,255,255,0.08))" }}>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider"
+                                                style={{ color: "var(--v-text-tertiary, #a1a1aa)" }}>
+                                                QR Code
+                                            </p>
+                                            <img
+                                                src={getQRCodeUrl(linkUrl, 220)}
+                                                alt="Promoter link QR code"
+                                                className="h-40 w-40 rounded-2xl bg-white p-3"
+                                            />
+                                            <a
+                                                href={getQRCodeUrl(linkUrl, 512)}
+                                                download={`promoter-link-${link.code || link.id}.png`}
+                                                className="w-full py-2.5 rounded-xl text-[13px] font-semibold text-center transition-all"
+                                                style={{
+                                                    background: "var(--v-elevated, #222226)",
+                                                    color: "var(--v-text-primary, #fafafa)",
+                                                    border: "1px solid var(--v-border, rgba(255,255,255,0.08))"
+                                                }}
+                                            >
+                                                Download QR
+                                            </a>
+                                        </div>
+                                    )}
+
                                     <div className="space-y-2 pt-1">
                                         <button
                                             onClick={handleCopy}
@@ -261,6 +326,20 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                             </button>
                                         )}
 
+                                        {!isActive && !confirmReactivate && status !== "expired" && (
+                                            <button
+                                                onClick={() => setConfirmReactivate(true)}
+                                                className="w-full py-3 rounded-xl text-[13px] font-semibold transition-all"
+                                                style={{
+                                                    background: "transparent",
+                                                    color: "#34d399",
+                                                    border: "1px solid rgba(52,211,153,0.22)"
+                                                }}
+                                            >
+                                                Reactivate Link
+                                            </button>
+                                        )}
+
                                         {isActive && confirmDeactivate && (
                                             <motion.div
                                                 initial={{ opacity: 0, y: 4 }}
@@ -286,6 +365,40 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated 
                                                     </button>
                                                     <button
                                                         onClick={() => setConfirmDeactivate(false)}
+                                                        className="flex-1 py-2 rounded-lg text-[12px] font-semibold transition-all"
+                                                        style={{
+                                                            background: "var(--v-elevated, #222226)",
+                                                            color: "var(--v-text-secondary, #d1d1d6)"
+                                                        }}
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                </div>
+                                            </motion.div>
+                                        )}
+
+                                        {!isActive && confirmReactivate && status !== "expired" && (
+                                            <motion.div
+                                                initial={{ opacity: 0, y: 4 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="rounded-xl p-4 space-y-3"
+                                                style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.18)" }}
+                                            >
+                                                <p className="text-[12px]" style={{ color: "#34d399" }}>
+                                                    Reactivate this link? Tracking and attribution will resume.
+                                                </p>
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={handleReactivate}
+                                                        disabled={deactivating}
+                                                        className="flex-1 py-2 rounded-lg text-[12px] font-bold flex items-center justify-center gap-1.5 transition-all"
+                                                        style={{ background: "#34d399", color: "#111" }}
+                                                    >
+                                                        {deactivating ? <Loader2 size={12} className="animate-spin" /> : null}
+                                                        {deactivating ? "Restoring..." : "Confirm"}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setConfirmReactivate(false)}
                                                         className="flex-1 py-2 rounded-lg text-[12px] font-semibold transition-all"
                                                         style={{
                                                             background: "var(--v-elevated, #222226)",

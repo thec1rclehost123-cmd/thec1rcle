@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth, verifyPartnerAccess } from "@/lib/server/auth";
-import { withAuth } from "@/lib/server/withAuth";
+import { verifyAuth } from "@/lib/server/auth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
 import { ok, fail } from "@/lib/server/apiResponse";
 
 /**
@@ -23,9 +23,9 @@ export async function GET(req: NextRequest) {
         if (isDashboard) {
             const decodedToken = await verifyAuth(req);
             if (!decodedToken) return fail("Unauthorized", 401);
-
-            const hasAccess = await verifyPartnerAccess(req, hostId);
-            if (!hasAccess) return fail("Forbidden: You don't have access to this host profile", 403);
+            // requireHostAccess validates membership; use it when hostId is present
+            const authCtx = await requireHostAccess(req);
+            if ("error" in authCtx) return NextResponse.json({ error: authCtx.error }, { status: authCtx.status });
         }
 
         const { getAdminDb } = await import("@/lib/firebase/admin");
@@ -82,24 +82,24 @@ export async function GET(req: NextRequest) {
  * POST /api/host/page
  * Update host profile details
  */
-export const POST = withAuth(async (req: NextRequest) => {
+export async function POST(req: NextRequest) {
+    const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const body = await req.json();
-        const { hostId, updates } = body;
+        const { updates } = body;
 
-        if (!hostId || !updates) return fail("hostId and updates are required", 400);
-
-        const hasAccess = await verifyPartnerAccess(req, hostId);
-        if (!hasAccess) return fail("Forbidden", 403);
+        if (!updates) return fail("updates are required", 400);
 
         const { getAdminDb } = await import("@/lib/firebase/admin");
         const db = getAdminDb();
 
-        await db.collection("hosts").doc(hostId).set(updates, { merge: true });
+        await db.collection("hosts").doc(ctx.hostId).set(updates, { merge: true });
 
         return ok({ result: true }, "Host profile updated");
     } catch (error: any) {
         console.error("[API /host/page POST]", error);
         return fail("Failed to update host profile");
     }
-});
+}

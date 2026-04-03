@@ -1,79 +1,281 @@
 /**
  * GET /api/host/events/[id]/finance
- * OWNER-only: event-level financial breakdown for host.
+ * Host-scoped event revenue and payout summary used by the host event workspace.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireFinanceAccess } from "@/lib/server/hostAuthMiddleware";
 import { getAdminDb } from "@/lib/firebase/admin";
+import { listPromoterLinks } from "@/lib/server/promoterLinkStore";
+
+type PartnerSettlementRecord = {
+    partnerId?: string;
+    partnerName?: string;
+    status?: string;
+    settledAt?: string | null;
+    holdReason?: string | null;
+};
+
+function toNumber(value: any) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function normalizeLabel(value: string, fallback: string) {
+    return String(value || fallback)
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function toPaise(amount: number) {
+    return Math.round(amount * 100);
+}
+
+function ownsHostEvent(event: Record<string, any>, hostId: string) {
+    return event.hostId === hostId || event.creatorId === hostId;
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const ctx = await requireFinanceAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
 
-    const { hostId } = ctx as any;
-    const eventId = id;
+    const { hostId } = ctx;
     const db = getAdminDb();
 
     try {
-        const eventDoc = await db.collection("events").doc(eventId).get();
-        if (!eventDoc.exists) return NextResponse.json({ error: "Not found" }, { status: 404 });
-        const ev = eventDoc.data()!;
-        if (ev.hostId !== hostId && ev.creatorId !== hostId) {
+        const eventDoc = await db.collection("events").doc(id).get();
+        if (!eventDoc.exists) {
+            return NextResponse.json({ error: "Event not found" }, { status: 404 });
+        }
+
+        const event = eventDoc.data()!;
+        if (!ownsHostEvent(event, hostId)) {
             return NextResponse.json({ error: "Forbidden" }, { status: 403 });
         }
 
-        // Aggregate orders
-        const ordersSnap = await db.collection("orders")
-            .where("eventId", "==", eventId)
-            .where("status", "==", "completed")
-            .get();
+        const [completedSnap, refundedSnap, venueDoc, hostEarningsSnap, settlementsSnap, promoterAssignmentsSnap] = await Promise.all([
+            db.collection("orders")
+                .where("eventId", "==", id)
+                .where("status", "in", ["completed", "confirmed", "checked_in"])
+                .get(),
+            db.collection("orders")
+                .where("eventId", "==", id)
+                .where("status", "==", "refunded")
+                .get(),
+            event.venueId ? db.collection("venues").doc(String(event.venueId)).get() : Promise.resolve(null),
+            db.collection("host_earnings")
+                .where("eventId", "==", id)
+                .where("hostId", "==", String(hostId))
+                .limit(1)
+                .get(),
+            db.collection("partner_settlements")
+                .where("eventId", "==", id)
+                .get(),
+            db.collection("promoter_assignments")
+                .where("eventId", "==", id)
+                .get(),
+        ]);
 
         let gross = 0;
-        let refundAmount = 0;
+        let refunds = 0;
+        let walkInRevenue = 0;
+        let walkInOrders = 0;
+        let onlineOrders = 0;
+        let onlineRevenue = 0;
 
-        for (const doc of ordersSnap.docs) {
-            const o = doc.data();
-            gross += o.totalAmount || 0;
+        const paymentSources = new Map<string, { label: string; amount: number; orders: number }>();
+        const intakeChannels = new Map<string, { label: string; amount: number; orders: number }>();
+        const ticketMix = new Map<string, { tierId: string; tierName: string; revenue: number; sold: number }>();
+
+        for (const doc of completedSnap.docs) {
+            const order = doc.data();
+            const quantity = toNumber(order.quantity || 1);
+            const total = toNumber(order.totalAmount || order.amount || 0);
+
+            gross += total;
+
+            const intakeRaw = String(order.channel || order.source || order.saleSource || "").toLowerCase();
+            const isWalkIn = Boolean(order.walkIn || order.isWalkIn || intakeRaw.includes("walk"));
+            if (isWalkIn) {
+                walkInRevenue += total;
+                walkInOrders += 1;
+            } else {
+                onlineRevenue += total;
+                onlineOrders += 1;
+            }
+
+            const paymentKey = String(order.paymentMethod || order.paymentProvider || order.gateway || "online").toLowerCase();
+            const paymentLabel = normalizeLabel(paymentKey, "Online");
+            const payment = paymentSources.get(paymentKey) || { label: paymentLabel, amount: 0, orders: 0 };
+            payment.amount += total;
+            payment.orders += 1;
+            paymentSources.set(paymentKey, payment);
+
+            const intakeKey = isWalkIn ? "walk_in" : (intakeRaw || "online");
+            const intakeLabel = normalizeLabel(intakeKey, isWalkIn ? "Walk In" : "Online");
+            const channel = intakeChannels.get(intakeKey) || { label: intakeLabel, amount: 0, orders: 0 };
+            channel.amount += total;
+            channel.orders += 1;
+            intakeChannels.set(intakeKey, channel);
+
+            const tierId = String(order.tierId || order.ticketTierId || order.tierName || "general");
+            const tierName = String(order.tierName || order.ticketTypeName || order.tierLabel || "General Admission");
+            const tier = ticketMix.get(tierId) || { tierId, tierName, revenue: 0, sold: 0 };
+            tier.revenue += total;
+            tier.sold += quantity;
+            ticketMix.set(tierId, tier);
         }
 
-        // Refunds from orders with status === "refunded"
-        const refundSnap = await db.collection("orders")
-            .where("eventId", "==", eventId)
-            .where("status", "==", "refunded")
-            .get();
-        for (const doc of refundSnap.docs) {
-            refundAmount += doc.data().totalAmount || 0;
+        for (const doc of refundedSnap.docs) {
+            const order = doc.data();
+            refunds += toNumber(order.totalAmount || order.amount || 0);
         }
 
-        const platformFee = gross * 0.1;
-        const venueCommissionRate = ev.venueCommissionRate || 0.15;
-        const venueCommission = gross * venueCommissionRate;
-        const net = gross - platformFee - venueCommission - refundAmount;
+        const platformFee = Math.round(gross * 0.1);
+        const venueCommissionRate = toNumber(event.venueCommissionRate || 0.15);
+        const venueCommission = Math.round(gross * venueCommissionRate);
+        const expenses = platformFee + venueCommission + refunds;
+        const net = Math.round(gross - expenses);
+        const settlementStatus = event.settlementStatus || (event.lifecycle === "completed" ? "pending" : "not_settled");
 
-        // Check host_earnings doc for settled status
-        const earningsSnap = await db.collection("host_earnings")
-            .where("eventId", "==", eventId)
-            .where("hostId", "==", hostId)
-            .limit(1)
-            .get();
+        const venueSettlementDoc = settlementsSnap.docs.find((settlementDoc) => settlementDoc.data()?.partnerType === "venue");
+        const venueSettlement = venueSettlementDoc ? (venueSettlementDoc.data() as PartnerSettlementRecord) : null;
+        const hostSettlementDoc = settlementsSnap.docs.find((settlementDoc) => settlementDoc.data()?.partnerType === "host" && String(settlementDoc.data()?.partnerId || "") === String(hostId));
+        const hostSettlement = hostSettlementDoc ? (hostSettlementDoc.data() as PartnerSettlementRecord) : null;
+        const hostEarnings = !hostEarningsSnap.empty ? hostEarningsSnap.docs[0].data() : null;
+        const venueName =
+            event.venueName ||
+            event.venue ||
+            event.venueData?.name ||
+            venueSettlement?.partnerName ||
+            venueDoc?.data()?.displayName ||
+            venueDoc?.data()?.name ||
+            null;
 
-        const earningsDoc = earningsSnap.empty ? null : earningsSnap.docs[0].data();
-        const settlementStatus = earningsDoc?.status || (ev.lifecycle === "completed" ? "pending" : "not_settled");
-        const paidAt = earningsDoc?.paidAt || null;
+        const promoterSettlementsByPartnerId = new Map<string, PartnerSettlementRecord & { id: string }>(
+            settlementsSnap.docs
+                .filter((settlementDoc) => settlementDoc.data()?.partnerType === "promoter")
+                .map((settlementDoc) => {
+                    const settlement = settlementDoc.data() as PartnerSettlementRecord;
+                    return [String(settlement.partnerId || ""), { id: settlementDoc.id, ...settlement }];
+                })
+        );
+
+        const promoterLinks = await listPromoterLinks({ eventId: id, limit: 200 });
+        const promoterPayoutMap = promoterLinks.reduce((map, link) => {
+            const promoterId = String(link.promoterId || "");
+            if (!promoterId) return map;
+            const settlement = promoterSettlementsByPartnerId.get(promoterId);
+            const current = map.get(promoterId) || {
+                assignmentId: link.id,
+                promoterId,
+                promoterName: link.promoterName || settlement?.partnerName || "Promoter",
+                revenue: 0,
+                sales: 0,
+                clicks: 0,
+                commissionRate: toNumber(link.commissionRate ?? 0),
+                estimatedCommission: 0,
+                status: settlement?.status || link.status || "not_started",
+                paidAt: settlement?.settledAt || null,
+                holdReason: settlement?.holdReason || null,
+            };
+            current.revenue += Math.round(toNumber(link.revenue || 0));
+            current.sales += toNumber(link.conversions || 0);
+            current.clicks += toNumber(link.clicks || 0);
+            current.commissionRate = current.commissionRate || toNumber(link.commissionRate ?? 0);
+            current.estimatedCommission += Math.round(
+                toNumber(link.commission || (toNumber(link.revenue || 0) * (toNumber(link.commissionRate ?? 0) / 100)))
+            );
+            map.set(promoterId, current);
+            return map;
+        }, new Map<string, any>());
+
+        const promoterPayouts = (promoterPayoutMap.size > 0
+            ? [...promoterPayoutMap.values()]
+            : promoterAssignmentsSnap.docs.map((assignmentDoc) => {
+                const assignment = assignmentDoc.data();
+                const promoterId = String(assignment.promoterId || "");
+                const commissionRate = toNumber(assignment.commissionRate ?? 0);
+                const revenueAttributed = toNumber(assignment.totalRevenue || 0);
+                const estimatedCommission = Math.round(revenueAttributed * (commissionRate / 100));
+                const settlement = promoterSettlementsByPartnerId.get(promoterId);
+
+                return {
+                    assignmentId: assignmentDoc.id,
+                    promoterId,
+                    promoterName: assignment.promoterName || settlement?.partnerName || "Promoter",
+                    revenue: Math.round(revenueAttributed),
+                    sales: toNumber(assignment.totalSales || 0),
+                    clicks: toNumber(assignment.clicks || 0),
+                    commissionRate,
+                    estimatedCommission,
+                    status: settlement?.status || assignment.status || (estimatedCommission > 0 ? "pending" : "not_started"),
+                    paidAt: settlement?.settledAt || null,
+                    holdReason: settlement?.holdReason || null,
+                };
+            }))
+            .sort((a, b) => b.estimatedCommission - a.estimatedCommission);
+
+        const promoterPayoutTotal = promoterPayouts.reduce((sum, payout) => sum + payout.estimatedCommission, 0);
+        const promoterRevenueTotal = promoterPayouts.reduce((sum, payout) => sum + payout.revenue, 0);
+        const promoterSalesTotal = promoterPayouts.reduce((sum, payout) => sum + payout.sales, 0);
 
         return NextResponse.json({
             gross: Math.round(gross),
-            platformFee: Math.round(platformFee),
-            venueCommission: Math.round(venueCommission),
+            platformFee,
+            venueCommission,
             venueCommissionRate,
-            refundAmount: Math.round(refundAmount),
-            net: Math.round(net),
+            refundAmount: Math.round(refunds),
+            expenses: Math.round(expenses),
+            net,
+            walkInRevenue: Math.round(walkInRevenue),
+            walkInOrders,
+            onlineRevenue: Math.round(onlineRevenue),
+            onlineOrders,
             settlementStatus,
-            paidAt,
+            paidAt: hostSettlement?.settledAt || hostEarnings?.paidAt || event.paidAt || null,
+            paymentSources: [...paymentSources.values()].sort((a, b) => b.amount - a.amount),
+            intakeChannels: [...intakeChannels.values()].sort((a, b) => b.amount - a.amount),
+            ticketMix: [...ticketMix.values()].sort((a, b) => b.revenue - a.revenue),
+            venueNetRevenue: Math.max(venueCommission - refunds, 0),
+            hostPayout: {
+                hostId: String(hostId),
+                hostName: event.hostName || event.host || event.creatorName || ctx.displayName || "Host",
+                estimate: Math.max(net, 0),
+                status: hostSettlement?.status || hostEarnings?.status || settlementStatus,
+                paidAt: hostSettlement?.settledAt || hostEarnings?.paidAt || null,
+                holdReason: hostSettlement?.holdReason || null,
+                source: "host_event",
+            },
+            venuePayout: event.venueId ? {
+                venueId: String(event.venueId),
+                venueName,
+                estimate: Math.max(venueCommission - refunds, 0),
+                status: venueSettlement?.status || (venueCommission > 0 ? "pending" : "not_started"),
+                paidAt: venueSettlement?.settledAt || null,
+                holdReason: venueSettlement?.holdReason || null,
+            } : null,
+            promoterPayouts,
+            payoutSummary: {
+                hostEstimate: Math.max(net, 0),
+                promoterEstimate: promoterPayoutTotal,
+                totalPartnerExposure: Math.max(net, 0) + promoterPayoutTotal,
+                promoterRevenue: promoterRevenueTotal,
+                promoterSales: promoterSalesTotal,
+            },
+            settlementLedger: {
+                grossPaise: toPaise(gross),
+                platformFeePaise: toPaise(platformFee),
+                venueCommissionPaise: toPaise(venueCommission),
+                refundsPaise: toPaise(refunds),
+                hostPayoutPaise: toPaise(Math.max(net, 0)),
+                promoterPayoutPaise: toPaise(promoterPayoutTotal),
+            },
         });
-    } catch (err: any) {
-        console.error("[events/[id]/finance]", err.message);
+    } catch (error: any) {
+        console.error("[host/events/[id]/finance]", error.message);
         return NextResponse.json({ error: "Failed to fetch event finance" }, { status: 500 });
     }
 }

@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { BentoCard } from "@/components/ui/BentoCard";
 import { cn } from "@/lib/utils";
+import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "@/lib/auth/passwordReset";
 import type { PromoterIdentity, NotificationPrefs } from "@/lib/server/promoterSettingsStore";
 
 // ─── Notification rows ────────────────────────────────────────────────────────
@@ -48,6 +49,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
     // ── Security state
     const [resetSent,    setResetSent]    = useState(false);
     const [resetLoading, setResetLoading] = useState(false);
+    const [resetError,   setResetError]   = useState<string | null>(null);
     const [logoutBusy,   setLogoutBusy]   = useState(false);
     const [logoutDone,   setLogoutDone]   = useState(false);
 
@@ -137,13 +139,16 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
     const handleResetPassword = useCallback(async () => {
         if (!user?.email) return;
         setResetLoading(true);
+        setResetError(null);
         try {
             const { getFirebaseAuth } = await import("@/lib/firebase/client");
             const auth = await getFirebaseAuth();
-            const { sendPasswordResetEmail } = await import("firebase/auth");
-            await sendPasswordResetEmail(auth, user.email);
+            await sendOperationalPasswordResetEmail(auth, user.email);
             setResetSent(true);
-        } catch (e) { console.error(e); }
+        } catch (e) {
+            console.error(e);
+            setResetError(getPasswordResetErrorMessage(e));
+        }
         finally { setResetLoading(false); }
     }, [user]);
 
@@ -299,6 +304,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
                                     <header>
                                         <h3 className="text-[20px] font-black text-text-primary tracking-tight">Account Access</h3>
                                         <p className="text-[14px] text-[var(--v-text-secondary)]">Secure your account with multi-factor authentication and session management.</p>
+                                        {resetError ? <p className="mt-3 text-[13px] text-red-400">{resetError}</p> : null}
                                     </header>
 
                                     <div className="grid gap-6">

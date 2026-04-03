@@ -4,6 +4,13 @@ import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { logger } from "@/lib/server/logger";
 
+function getTicketCount(order: Record<string, any>) {
+    if (Array.isArray(order.tickets) && order.tickets.length > 0) {
+        return order.tickets.reduce((sum, ticket) => sum + Number(ticket?.quantity || 1), 0);
+    }
+    return Number(order.quantity || 1);
+}
+
 /**
  * GET /api/promoter/guests
  * Live Guest Stream — returns recent orders attributed to this promoter.
@@ -60,7 +67,7 @@ export const GET = withAuth(async (req: NextRequest) => {
             eventId: order.eventId,
             amount: order.totalAmount || order.amount || 0,
             commission: order.promoterAttribution?.commissionAmount || 0,
-            ticketCount: order.tickets?.length || order.quantity || 1,
+            ticketCount: getTicketCount(order),
             status: order.status || "confirmed",
             checkedIn: order.checkedIn || order.scanned || false,
             source: order.promoterAttribution?.source || null,
