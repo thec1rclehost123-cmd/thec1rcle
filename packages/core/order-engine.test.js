@@ -1,5 +1,4 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import { test, expect } from "vitest";
 
 import { validateOrder } from "./order-engine.js";
 
@@ -20,8 +19,8 @@ test("validateOrder rejects gender-mismatched buyers for female-only tiers", asy
         }
     );
 
-    assert.equal(result.success, false);
-    assert.match(result.error, /restricted to female attendees only/i);
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/restricted to female attendees only/i);
 });
 
 test("validateOrder allows matching buyers for female-only tiers", async () => {
@@ -41,5 +40,5 @@ test("validateOrder allows matching buyers for female-only tiers", async () => {
         }
     );
 
-    assert.equal(result.success, true);
+    expect(result.success).toBe(true);
 });
