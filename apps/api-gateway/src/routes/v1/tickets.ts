@@ -395,7 +395,6 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
      * Preview a share bundle by token (public — no auth required)
      */
     fastify.get('/claim', {
-        config: { skipAuth: true },
         preHandler: [fastify.validate({ querystring: ClaimPreviewQuery })]
     }, async (request: any, reply) => {
         const { token } = request.query as any;
