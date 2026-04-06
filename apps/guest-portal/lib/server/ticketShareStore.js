@@ -225,12 +225,14 @@ function _createShareableSlot(index, userId, existingSlots, buyerGender, isCoupl
     };
 
     if (isCouple) {
-        // In this ecosystem, the partner slot (index 2, 4, etc.) is strictly for Females.
-        // The primary slots (1, 3, etc.) follow the buyer's gender or are 'any'.
+        // Primary slots (odd: 1, 3…) follow the buyer's gender.
+        // Partner slots (even: 2, 4…) are the opposite gender of the buyer.
+        const buyerIsKnown = buyerGender === "male" || buyerGender === "female";
+        const partnerGender = buyerGender === "female" ? "male" : "female";
         if (index % 2 === 0) {
-            slot.requiredGender = "female";
+            slot.requiredGender = buyerIsKnown ? partnerGender : "female";
         } else {
-            slot.requiredGender = (index === 1 && buyerGender !== "any") ? buyerGender : "male";
+            slot.requiredGender = (index === 1 && buyerIsKnown) ? buyerGender : "male";
         }
 
         // Link pairing
@@ -247,13 +249,18 @@ function _createShareableSlot(index, userId, existingSlots, buyerGender, isCoupl
 }
 
 /**
- * Fetch user gender from profiles
+ * Fetch user gender from profiles.
+ * Returns "male" | "female" | null.
+ * null means the user has not set their gender — callers must block gender-restricted actions.
  */
 async function getUserGender(userId) {
     if (!isFirebaseConfigured()) return "male"; // Mock fallback
     const db = getAdminDb();
     const doc = await db.collection("users").doc(userId).get();
-    return doc.exists ? (doc.data().gender || "any") : "any";
+    if (!doc.exists) return null;
+    const gender = doc.data().gender;
+    if (gender === "male" || gender === "female") return gender;
+    return null; // missing or non-binary value — treat as unset
 }
 
 /**
@@ -460,6 +467,14 @@ export async function claimTicketSlot(token, redeemerId) {
 
         const userGender = await getUserGender(redeemerId);
 
+        // Block claim if the ticket is gender-restricted and the user hasn't set their gender
+        const bundleGenderRestricted = (bundle.slots || []).some(
+            s => s.slotType === "shareable" && s.requiredGender && s.requiredGender !== "any"
+        );
+        if (bundleGenderRestricted && userGender === null) {
+            throw new Error("Please complete your profile and set your gender before claiming this ticket.");
+        }
+
         const existingClaimSnapshot = await transaction.get(
             db.collection(TICKET_ASSIGNMENTS_COLLECTION)
                 .where("bundleId", "==", bundleId)
@@ -483,7 +498,7 @@ export async function claimTicketSlot(token, redeemerId) {
         const eligibleSlots = slots.filter(s =>
             s.slotType === "shareable" &&
             s.claimStatus === "unclaimed" &&
-            (!s.requiredGender || s.requiredGender === "any" || s.requiredGender === userGender)
+            (s.requiredGender === "any" || s.requiredGender === userGender)
         );
 
         if (eligibleSlots.length === 0) {
@@ -493,7 +508,8 @@ export async function claimTicketSlot(token, redeemerId) {
             if (unclaimedSlots.length > 0) {
                 // There are slots, but none match this user's gender
                 const required = unclaimedSlots[0].requiredGender;
-                throw new Error(`Restricted: This slot is for ${required === 'female' ? 'Females' : 'Males'} only.`);
+                const requiredLabel = required === "female" ? "Female" : "Male";
+                throw new Error(`This ticket is not valid for your profile. This ticket is for ${requiredLabel}s only.`);
             } else {
                 throw new Error("All tickets from this share link have already been claimed.");
             }
@@ -739,8 +755,13 @@ async function _handleAssignmentScan(transaction, doc, eventId, scannerId, now) 
     }
 
     const userGender = await getUserGender(data.redeemerId);
-    if (data.requiredGender && data.requiredGender !== "any" && data.requiredGender !== userGender) {
-        return { valid: false, reason: "gender_mismatch", required: data.requiredGender, actual: userGender };
+    if (data.requiredGender && data.requiredGender !== "any") {
+        if (userGender === null) {
+            return { valid: false, reason: "gender_missing", required: data.requiredGender, actual: null };
+        }
+        if (data.requiredGender !== userGender) {
+            return { valid: false, reason: "gender_mismatch", required: data.requiredGender, actual: userGender };
+        }
     }
 
     if (data.couplePairId) {
@@ -851,10 +872,15 @@ async function _handleOrderScan(transaction, ticketId, eventId, scannerId, now) 
     const userGender = await getUserGender(order.userId);
     const event = await getEvent(order.eventId);
     const tier = event?.tickets?.find(t => t.id === parts[parts.length - 2]);
-    const requiredGender = tier?.requiredGender || (tier?.genderRequirement === "couple" ? "male" : (tier?.genderRequirement || "any"));
+    const requiredGender = tier?.requiredGender || (tier?.genderRequirement !== "any" ? (tier?.genderRequirement || "any") : "any");
 
-    if (requiredGender !== "any" && requiredGender !== userGender) {
-        return { valid: false, reason: "gender_mismatch", required: requiredGender, actual: userGender };
+    if (requiredGender !== "any") {
+        if (userGender === null) {
+            return { valid: false, reason: "gender_missing", required: requiredGender, actual: null };
+        }
+        if (requiredGender !== userGender) {
+            return { valid: false, reason: "gender_mismatch", required: requiredGender, actual: userGender };
+        }
     }
 
     transaction.set(scanRef, {
@@ -888,10 +914,14 @@ export async function assignPartner(ticketId, ownerId, partnerId, metadata = {})
 
     const ownerGender = await getUserGender(ownerId);
     const partnerGender = await getUserGender(partnerId);
+    const expectedPartnerGender = ownerGender === "female" ? "male" : "female";
 
-    // Couple logic: Partner slot is specifically for the opposite/female attendee
-    if (partnerGender !== "female") {
-        throw new Error("Restricted: The partner slot in a couple ticket is for Females only.");
+    if (partnerGender === null) {
+        throw new Error("Partner must complete their profile and set their gender before being assigned.");
+    }
+    if (partnerGender !== expectedPartnerGender) {
+        const label = expectedPartnerGender === "female" ? "Female" : "Male";
+        throw new Error(`Restricted: The partner slot in this couple ticket is for ${label}s only.`);
     }
 
     const update = {
@@ -942,9 +972,16 @@ export async function claimPartnerSlot(token, userId) {
         if (new Date(claim.expiresAt) < new Date()) throw new Error("Claim link expired");
         if (claim.ownerId === userId) throw new Error("You cannot claim your own couple ticket slot");
 
+        const ownerGender = await getUserGender(claim.ownerId);
         const userGender = await getUserGender(userId);
-        if (userGender !== "female") {
-            throw new Error("Restricted: This couple partner slot is for Females only.");
+        const expectedGender = ownerGender === "female" ? "male" : "female";
+
+        if (userGender === null) {
+            throw new Error("Please complete your profile and set your gender before claiming this ticket.");
+        }
+        if (userGender !== expectedGender) {
+            const label = expectedGender === "female" ? "Female" : "Male";
+            throw new Error(`Restricted: This couple partner slot is for ${label}s only.`);
         }
 
         const assignmentRef = db.collection("couple_assignments").doc(claim.ticketId);
@@ -959,6 +996,102 @@ export async function claimPartnerSlot(token, userId) {
 
         transaction.update(claimDoc.ref, { status: "claimed", claimedBy: userId });
         return { ticketId: claim.ticketId, eventId: claim.eventId };
+    });
+}
+
+/**
+ * Get couple ticket status from a share bundle.
+ * Returns state "partial" (one slot filled) or "complete" (both slots filled).
+ */
+export async function getCoupleTicketStatus(bundleId) {
+    if (!isFirebaseConfigured()) return null;
+    const db = getAdminDb();
+    const doc = await db.collection(SHARE_BUNDLES_COLLECTION).doc(bundleId).get();
+    if (!doc.exists) return null;
+
+    const bundle = doc.data();
+    if (!bundle.isCouple) return null;
+
+    const slots = bundle.slots || [];
+    const ownerSlot = slots.find(s => s.slotIndex === 1);
+    const partnerSlot = slots.find(s => s.slotIndex === 2);
+
+    const ownerClaimed = ownerSlot?.claimStatus === "claimed";
+    const partnerClaimed = partnerSlot?.claimStatus === "claimed";
+
+    return {
+        state: (ownerClaimed && partnerClaimed) ? "complete" : "partial",
+        ownerSlot: {
+            gender: ownerSlot?.requiredGender || null,
+            claimed: ownerClaimed,
+            userId: ownerSlot?.currentOwnerUserId || null,
+        },
+        partnerSlot: {
+            gender: partnerSlot?.requiredGender || null,
+            claimed: partnerClaimed,
+            userId: partnerSlot?.currentOwnerUserId || null,
+        },
+    };
+}
+
+/**
+ * Cancel the partner's claimed slot in a couple bundle.
+ * Only the bundle owner can do this. Resets slot 2 to unclaimed and voids the partner's assignment.
+ */
+export async function cancelPartnerSlot(bundleId, ownerId) {
+    if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+    const db = getAdminDb();
+
+    return await db.runTransaction(async (transaction) => {
+        const bundleRef = db.collection(SHARE_BUNDLES_COLLECTION).doc(bundleId);
+        const bundleDoc = await transaction.get(bundleRef);
+        if (!bundleDoc.exists) throw new Error("Bundle not found");
+
+        const bundle = bundleDoc.data();
+        if (bundle.userId !== ownerId) throw new Error("Unauthorized: Only the ticket owner can cancel the partner slot");
+        if (!bundle.isCouple) throw new Error("Not a couple ticket");
+
+        const slots = bundle.slots || [];
+        const partnerSlot = slots.find(s => s.slotIndex === 2 && s.claimStatus === "claimed");
+        if (!partnerSlot) throw new Error("No partner has claimed this slot yet");
+
+        const partnerId = partnerSlot.currentOwnerUserId;
+
+        // Void the partner's assignment document
+        const assignmentsSnapshot = await transaction.get(
+            db.collection(TICKET_ASSIGNMENTS_COLLECTION)
+                .where("bundleId", "==", bundleId)
+                .where("redeemerId", "==", partnerId)
+                .limit(1)
+        );
+        if (!assignmentsSnapshot.empty) {
+            transaction.update(assignmentsSnapshot.docs[0].ref, {
+                status: "cancelled",
+                cancelledAt: new Date().toISOString(),
+                cancelledBy: ownerId,
+            });
+        }
+
+        // Reset partner slot to unclaimed
+        const updatedSlots = slots.map(s =>
+            s.slotIndex === 2
+                ? { ...s, currentOwnerUserId: null, claimStatus: "unclaimed", claimedAt: null, issuedTicketId: null }
+                : s
+        );
+
+        transaction.update(bundleRef, {
+            slots: updatedSlots,
+            remainingSlots: (bundle.remainingSlots || 0) + 1,
+            status: "active",
+        });
+
+        await logAuditEvent("couple_partner_cancelled", {
+            bundleId,
+            ownerId,
+            partnerId,
+        }, db);
+
+        return { success: true, releasedPartnerId: partnerId };
     });
 }
 

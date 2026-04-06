@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import { LayoutDashboard, CreditCard, Building2, Users, BookOpen, FileBarChart, Banknote, ShieldCheck, Clock, TrendingUp, Handshake, Wallet } from "lucide-react";
-import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
+import { LayoutDashboard, CreditCard, Building2, Users, BookOpen, FileBarChart, Banknote, Wallet, CalendarClock, Megaphone, SplitSquareVertical } from "lucide-react";
+import { VenuePageShell, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { WalletPopover } from "@/components/wallet/WalletPopover";
 
 import OverviewClient from "./PageClient";
 import { PaymentsClient } from "./payments/PageClient";
@@ -14,6 +15,9 @@ import { PromoterPayoutsClient } from "./promoter-payouts/PageClient";
 import LedgerClient from "./ledger/PageClient";
 import ReportsClient from "./reports/PageClient";
 import { CoverReconClient } from "./cover/PageClient";
+import { SubscriptionClient } from "./subscription/PageClient";
+import { MarketingClient } from "./marketing/PageClient";
+import { RevenueSplitsClient } from "./revenue-splits/PageClient";
 
 const EXECUTIVE_TABS = [
     { key: "overview",          label: "Summary",          icon: LayoutDashboard },
@@ -24,21 +28,12 @@ const EXECUTIVE_TABS = [
     { key: "ledger",            label: "Ledger",           icon: BookOpen },
     { key: "reports",           label: "Reports",          icon: FileBarChart },
     { key: "cover",             label: "Cover Charge",     icon: Wallet },
+    { key: "subscription",      label: "Subscription",     icon: CalendarClock },
+    { key: "marketing",         label: "Marketing",        icon: Megaphone },
+    { key: "revenue-splits",    label: "Revenue Splits",   icon: SplitSquareVertical },
 ];
 
-const PERIODS = [
-    { label: "Tonight",      value: "1d" },
-    { label: "7 Days",       value: "7d" },
-    { label: "30 Days",      value: "30d" },
-    { label: "Quarter",      value: "90d" },
-    { label: "All Time",     value: "ytd" },
-];
-
-function TabContent({ activeTab, period, onPeriodChange }: { 
-    activeTab: string; 
-    period: string;
-    onPeriodChange: (p: any) => void;
-}) {
+function TabContent({ activeTab }: { activeTab: string }) {
     switch (activeTab) {
         case "overview":         return <OverviewClient />;
         case "payments":         return <PaymentsClient />;
@@ -48,30 +43,36 @@ function TabContent({ activeTab, period, onPeriodChange }: {
         case "ledger":           return <LedgerClient />;
         case "reports":          return <ReportsClient />;
         case "cover":            return <CoverReconClient />;
+        case "subscription":     return <SubscriptionClient />;
+        case "marketing":        return <MarketingClient />;
+        case "revenue-splits":   return <RevenueSplitsClient />;
         default:                 return <OverviewClient />;
     }
 }
 
 export default function FinanceHub() {
     const { activeTab, setTab } = useHubTab("overview");
-    const [period, setPeriod] = useState("30d");
+
+    const tabItems = EXECUTIVE_TABS.map((t) => ({ label: t.label, value: t.key }));
 
     return (
         <VenuePageShell
             title="Finance"
             noPadding
+            actions={<WalletPopover />}
+            filterBar={
+                <VenueFilterTabs
+                    tabs={tabItems}
+                    active={activeTab}
+                    onChange={setTab}
+                    variant="finance"
+                />
+            }
         >
-            <div className="flex flex-col gap-4">
-                {/* Tab Content */}
-                <div className="px-1">
-                    <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
-                        <TabContent 
-                            activeTab={activeTab} 
-                            period={period}
-                            onPeriodChange={setPeriod}
-                        />
-                    </Suspense>
-                </div>
+            <div className="pt-2">
+                <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>
+                    <TabContent activeTab={activeTab} />
+                </Suspense>
             </div>
         </VenuePageShell>
     );

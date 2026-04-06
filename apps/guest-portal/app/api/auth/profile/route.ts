@@ -29,6 +29,9 @@ export async function POST(req: NextRequest) {
     }
 }
 
+// Cooldown period: users may only change gender once every 30 days
+const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+
 export async function PATCH(req: NextRequest) {
     try {
         const decodedToken = await verifyAuth(req);
@@ -43,6 +46,34 @@ export async function PATCH(req: NextRequest) {
         const db = getAdminDb();
         if (!db) {
             return NextResponse.json({ error: "Database not configured (Toy Mode)" }, { status: 503 });
+        }
+
+        // If gender is being changed, enforce cooldown and record the change time
+        if (updates.gender !== undefined) {
+            const existingDoc = await db.collection("users").doc(decodedToken.uid).get();
+            const existing = existingDoc.exists ? existingDoc.data() : {};
+            const existingGender = existing?.gender;
+
+            // Only apply cooldown if gender was previously set (not first-time setup)
+            if (existingGender && existingGender !== updates.gender) {
+                const lastChanged = existing?.genderLastChangedAt
+                    ? new Date(existing.genderLastChangedAt).getTime()
+                    : 0;
+                const msSinceChange = Date.now() - lastChanged;
+
+                if (msSinceChange < GENDER_CHANGE_COOLDOWN_MS) {
+                    const daysLeft = Math.ceil((GENDER_CHANGE_COOLDOWN_MS - msSinceChange) / (24 * 60 * 60 * 1000));
+                    return NextResponse.json(
+                        { error: `Gender can only be changed once every 30 days. Please try again in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.` },
+                        { status: 429 }
+                    );
+                }
+
+                updates.genderLastChangedAt = now;
+            } else if (!existingGender) {
+                // First time setting gender — record it but no cooldown
+                updates.genderLastChangedAt = now;
+            }
         }
 
         await db.collection("users").doc(decodedToken.uid).set({

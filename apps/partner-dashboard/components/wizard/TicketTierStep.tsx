@@ -48,7 +48,9 @@ interface DefaultScheduledPrice {
 interface TicketTier {
     id: string;
     name: string;
-    entryType: "stag" | "couple" | "female" | "general" | "vip" | "table" | "cover";
+    entryType: "stag" | "female" | "couple" | "vip" | "table" | "cover";
+    genderRequirement: "male" | "female" | "couple";
+    isCouple?: boolean;
     price: number | "";
     quantity: number | "";
     minPerOrder: number | "";
@@ -83,12 +85,11 @@ interface TicketTierStepProps {
 }
 
 const ENTRY_TYPES = [
-    { id: "general", label: "General", icon: Ticket, description: "Standard entry", defaultName: "General Admission" },
-    { id: "stag", label: "Stag", icon: User, description: "Solo entry", defaultName: "Stag Entry" },
-    { id: "couple", label: "Couple", icon: Heart, description: "Pair entry", defaultName: "Couple Entry" },
-    { id: "female", label: "Ladies", icon: User, description: "Ladies entry", defaultName: "Ladies Entry" },
-    { id: "vip", label: "VIP", icon: Crown, description: "Premium access", defaultName: "VIP Access" },
-    { id: "cover", label: "Cover", icon: DollarSign, description: "Cover charge", defaultName: "Cover Charge" },
+    { id: "stag", label: "Male", icon: User, description: "Male entry", defaultName: "Stag Entry", genderRequirement: "male" as const, isCouple: false },
+    { id: "female", label: "Female", icon: User, description: "Female entry", defaultName: "Ladies Entry", genderRequirement: "female" as const, isCouple: false },
+    { id: "couple", label: "Couple", icon: Heart, description: "1 Male + 1 Female", defaultName: "Couple Entry", genderRequirement: null, isCouple: true },
+    { id: "vip", label: "VIP", icon: Crown, description: "Premium access", defaultName: "VIP Access", genderRequirement: null, isCouple: false },
+    { id: "cover", label: "Cover", icon: DollarSign, description: "Cover charge", defaultName: "Cover Charge", genderRequirement: null, isCouple: false },
 ];
 
 const DEFAULT_NAMES = ENTRY_TYPES.map(t => t.defaultName);
@@ -382,10 +383,9 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
     };
 
     const ENTRY_COLORS: Record<string, string> = {
-        general: "bg-indigo-600",
         stag: "bg-blue-600",
-        couple: "bg-pink-600",
         female: "bg-rose-500",
+        couple: "bg-pink-600",
         vip: "bg-amber-500",
         cover: "bg-violet-600",
         table: "bg-emerald-600",
@@ -463,7 +463,7 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                 <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1.5">
                                     Entry Type
                                 </label>
-                                <div className="grid grid-cols-3 gap-1.5">
+                                <div className="grid grid-cols-2 gap-1.5">
                                     {ENTRY_TYPES.map(type => {
                                         const Icon = type.icon;
                                         const isSelected = tier.entryType === type.id;
@@ -471,8 +471,11 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                             <button
                                                 key={type.id}
                                                 onClick={() => {
-                                                    const updates: any = { entryType: type.id };
+                                                    const updates: any = { entryType: type.id, isCouple: type.isCouple };
                                                     if (!tier.name || DEFAULT_NAMES.includes(tier.name)) updates.name = type.defaultName;
+                                                    // Auto-assign gender for stag/female/couple; keep existing for vip/cover
+                                                    if (type.genderRequirement) updates.genderRequirement = type.genderRequirement;
+                                                    if (type.isCouple) updates.genderRequirement = "couple";
                                                     onUpdate(updates);
                                                 }}
                                                 className={`py-2 px-2 rounded-xl border text-center transition-all ${isSelected
@@ -488,6 +491,52 @@ const TicketTierCard = forwardRef<HTMLDivElement, {
                                         );
                                     })}
                                 </div>
+                            </div>
+
+                            {/* Gender Category — required for VIP and Cover; locked for Stag/Female */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-text-tertiary uppercase tracking-widest mb-1.5">
+                                    Gender Category <span className="text-red-500">*</span>
+                                </label>
+                                {tier.entryType === "couple" ? (
+                                    <div className="flex items-center gap-2">
+                                        <div className="flex-1 px-3 py-2.5 rounded-xl bg-blue-500/10 border border-blue-500/30 text-[12px] font-bold text-blue-500 flex items-center justify-center gap-1.5">
+                                            <User className="w-3 h-3" /> Male
+                                        </div>
+                                        <span className="text-[10px] text-text-tertiary font-bold">+</span>
+                                        <div className="flex-1 px-3 py-2.5 rounded-xl bg-rose-500/10 border border-rose-500/30 text-[12px] font-bold text-rose-500 flex items-center justify-center gap-1.5">
+                                            <User className="w-3 h-3" /> Female
+                                        </div>
+                                    </div>
+                                ) : (tier.entryType === "stag" || tier.entryType === "female") ? (
+                                    <div className="px-3 py-2.5 rounded-xl bg-surface-secondary border border-border-subtle text-[13px] font-bold text-text-tertiary flex items-center gap-2">
+                                        <Users className="w-3.5 h-3.5" />
+                                        {tier.entryType === "stag" ? "Male only — set by entry type" : "Female only — set by entry type"}
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-1.5">
+                                        {(["male", "female"] as const).map(g => (
+                                            <button
+                                                key={g}
+                                                onClick={() => onUpdate({ genderRequirement: g })}
+                                                className={`py-2 px-3 rounded-xl border text-center transition-all ${tier.genderRequirement === g
+                                                    ? g === "male" ? "border-blue-500 bg-blue-500/10" : "border-rose-500 bg-rose-500/10"
+                                                    : "border-border-subtle hover:border-indigo-500/30 hover:bg-surface-secondary"
+                                                }`}
+                                            >
+                                                <p className={`text-[11px] font-bold uppercase tracking-wider ${tier.genderRequirement === g
+                                                    ? g === "male" ? "text-blue-500" : "text-rose-500"
+                                                    : "text-text-primary"
+                                                }`}>
+                                                    {g === "male" ? "Male" : "Female"}
+                                                </p>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                                {!tier.genderRequirement && (tier.entryType === "vip" || tier.entryType === "cover") && (
+                                    <p className="text-[10px] text-red-500 font-bold mt-1">Gender category is required</p>
+                                )}
                             </div>
 
                             {/* Price and Quantity */}
@@ -744,7 +793,8 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
         const newTicket: TicketTier = {
             id: Date.now().toString(),
             name: "",
-            entryType: "general",
+            entryType: "stag",
+            genderRequirement: "male",
             price: formData.isRSVP ? 0 : 0,
             quantity: 50,
             minPerOrder: 1,
@@ -782,22 +832,24 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
     const QUICK_PRESETS = [
         {
             label: "Nightclub", tiers: [
-                { name: "Stag Entry", entryType: "stag", price: 500, quantity: 100 },
-                { name: "Couple Entry", entryType: "couple", price: 800, quantity: 150 },
-                { name: "Ladies Entry", entryType: "female", price: 0, quantity: 100 },
-                { name: "Cover Charge", entryType: "cover", price: 300, quantity: 200 },
+                { name: "Stag Entry", entryType: "stag", genderRequirement: "male", isCouple: false, price: 500, quantity: 100 },
+                { name: "Couple Entry", entryType: "couple", genderRequirement: "couple", isCouple: true, price: 800, quantity: 150 },
+                { name: "Ladies Entry", entryType: "female", genderRequirement: "female", isCouple: false, price: 0, quantity: 100 },
+                { name: "Cover Charge (Male)", entryType: "cover", genderRequirement: "male", isCouple: false, price: 300, quantity: 200 },
             ]
         },
         {
             label: "Concert", tiers: [
-                { name: "Phase 1 — Early Bird", entryType: "general", price: 499, quantity: 500 },
-                { name: "Phase 2 — Regular", entryType: "general", price: 999, quantity: 1000 },
-                { name: "Fan Pit", entryType: "vip", price: 2999, quantity: 200 }
+                { name: "Early Bird — Male", entryType: "stag", genderRequirement: "male", price: 499, quantity: 500 },
+                { name: "Early Bird — Female", entryType: "female", genderRequirement: "female", price: 499, quantity: 500 },
+                { name: "Fan Pit (Male)", entryType: "vip", genderRequirement: "male", price: 2999, quantity: 100 },
+                { name: "Fan Pit (Female)", entryType: "vip", genderRequirement: "female", price: 2999, quantity: 100 },
             ]
         },
         {
             label: "Simple Entry", tiers: [
-                { name: "General Admission", entryType: "general", price: 0, quantity: 1000 }
+                { name: "Male Entry", entryType: "stag", genderRequirement: "male", price: 0, quantity: 500 },
+                { name: "Female Entry", entryType: "female", genderRequirement: "female", price: 0, quantity: 500 },
             ]
         }
     ];

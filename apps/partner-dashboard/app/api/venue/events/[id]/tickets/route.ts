@@ -21,7 +21,7 @@ function getEventTicketTiers(event: Record<string, any>) {
 }
 
 function normalizeTicketTier(tier: Record<string, any>): Record<string, any> {
-    const entryType = String(tier.entryType || "general").toLowerCase();
+    const entryType = String(tier.entryType || "stag").toLowerCase();
     const explicitRequirement = String(
         tier.genderRequirement ||
         tier.requiredGender ||
@@ -29,12 +29,16 @@ function normalizeTicketTier(tier: Record<string, any>): Record<string, any> {
         ""
     ).toLowerCase();
 
-    let genderRequirement = "any";
-    if (explicitRequirement === "female" || explicitRequirement === "male" || explicitRequirement === "couple") {
-        genderRequirement = explicitRequirement;
-    } else if (entryType === "female") {
+    // Derive gender from entryType first, then fall back to explicit requirement
+    let genderRequirement: string;
+    if (entryType === "female") {
         genderRequirement = "female";
     } else if (entryType === "stag" || entryType === "male") {
+        genderRequirement = "male";
+    } else if (explicitRequirement === "female" || explicitRequirement === "male") {
+        genderRequirement = explicitRequirement;
+    } else {
+        // Default to "male" for vip/cover with no explicit gender — caller must supply genderRequirement
         genderRequirement = "male";
     }
 
@@ -199,6 +203,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         }
 
         const body = await req.json();
+
+        // Reject deprecated gender-neutral entry types
+        if (body.entryType && ["general", "couple"].includes(String(body.entryType).toLowerCase())) {
+            return fail("Entry type 'general' and 'couple' are not supported. All tickets must be assigned Male or Female.", 400);
+        }
+
         const tiers = [...getEventTicketTiers(ev)];
         const tierIndex = tiers.findIndex((tier: any) => (tier.id || tier.name) === body.tierId);
         if (tierIndex === -1) return fail("Tier not found", 404);

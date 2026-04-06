@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronDown, RefreshCw, ArrowUpRight, Landmark, ShieldCheck, Wallet2, X } from "lucide-react";
+import { WalletPopover } from "@/components/wallet/WalletPopover";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenueActionButton, VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { PartnerFinanceSurface, type FinanceBankAccount, type FinancePayoutRow, type FinanceRow, type FinanceSettingRow } from "@/components/finance/PartnerFinanceSurface";
@@ -169,6 +170,7 @@ export default function PromoterFinancePageClient() {
             title="Finance"
             actions={
                 <div className="flex items-center gap-3">
+                    <WalletPopover />
                     <VenueActionButton variant="secondary" onClick={fetchData}>
                         <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /> Refresh
                     </VenueActionButton>

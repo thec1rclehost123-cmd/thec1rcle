@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Loader2, X, Zap, Landmark } from "lucide-react";
+import { WalletPopover } from "@/components/wallet/WalletPopover";
 import { AnimatePresence, motion } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { PartnerFinanceSurface, type FinanceBankAccount, type FinancePayoutRow, type FinanceRow, type FinanceSettingRow } from "@/components/finance/PartnerFinanceSurface";
@@ -501,9 +502,12 @@ export default function HostFinancePageClient() {
 
     return (
         <div className="mx-auto max-w-[1280px]">
-            <h1 className="mb-5 text-[44px] font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.96)" }}>
-                Finance
-            </h1>
+            <div className="mb-5 flex items-center justify-between">
+                <h1 className="text-[44px] font-bold tracking-tight" style={{ color: "rgba(255,255,255,0.96)" }}>
+                    Finance
+                </h1>
+                <WalletPopover />
+            </div>
 
             <PartnerFinanceSurface
                 balanceRows={balanceRows}
