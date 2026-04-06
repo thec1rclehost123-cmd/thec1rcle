@@ -484,9 +484,11 @@ function EventCountdown({ event, dominantColor }) {
     return Number.isNaN(parsed.getTime()) ? null : parsed;
   }, [event?.startDate, event?.startTime]);
 
+  const [mounted, setMounted] = useState(false);
   const [state, setState] = useState(() => getCountdownState(targetDate));
 
   useEffect(() => {
+    setMounted(true);
     setState(getCountdownState(targetDate));
     if (!targetDate) return undefined;
     const interval = window.setInterval(() => {
@@ -495,7 +497,7 @@ function EventCountdown({ event, dominantColor }) {
     return () => window.clearInterval(interval);
   }, [targetDate]);
 
-  if (!targetDate || state.status === "hidden") return null;
+  if (!mounted || !targetDate || state.status === "hidden") return null;
 
   const parts = toCountdownParts(state.diff);
   const countdownValue = `${padCountdown(parts.days)}:${padCountdown(parts.hours)}:${padCountdown(parts.minutes)}:${padCountdown(parts.seconds)}`;

@@ -1,6 +1,5 @@
 "use server";
 
-import { getUserTickets as getUserTicketsStore } from "../../lib/server/profileStore";
 import { verifyAuth } from "../../lib/server/auth";
 import {
     createShareBundle as createShareBundleStore,
@@ -18,12 +17,6 @@ import {
 import { getEvent } from "../../lib/server/eventStore";
 import { findUserByEmail as findUserByEmailStore } from "../../lib/server/profileStore";
 import { sendEmailOtp, verifyEmailOtp } from "../../lib/server/verification";
-
-export async function getUserTickets(userId) {
-    // In a real app we'd verify the session user matches the requested userId
-    // for this task we assume the client passes the correct userId after auth check
-    return await getUserTicketsStore(userId);
-}
 
 export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
     const user = await verifyAuth();

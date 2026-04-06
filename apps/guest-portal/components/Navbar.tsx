@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { memo } from "react";
 import DesktopNavLinks from "./DesktopNavLinks";
 import NavControls from "./NavControls";
 
-export default function Navbar() {
+function Navbar() {
   return (
     <header
       id="navbar-header"
@@ -28,3 +29,5 @@ export default function Navbar() {
     </header>
   );
 }
+
+export default memo(Navbar);

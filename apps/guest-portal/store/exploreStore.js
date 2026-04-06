@@ -65,7 +65,9 @@ export const useExploreStore = create(
 
                     const payload = await response.json();
                     const newEvents = Array.isArray(payload.events) ? payload.events : [];
-                    const updatedEvents = reset ? newEvents : [...existingEvents, ...newEvents];
+                    // Only append when paginating (cursor set). Without a cursor we're
+                    // fetching from page 1 — replace to avoid duplicating stale entries.
+                    const updatedEvents = (reset || !cursor) ? newEvents : [...existingEvents, ...newEvents];
 
                     set({
                         events: updatedEvents,
@@ -119,6 +121,7 @@ export const useExploreStore = create(
                 hasMore: state.hasMore,
             }),
             version: 1,
+            migrate: (persistedState) => persistedState,
         }
     )
 );

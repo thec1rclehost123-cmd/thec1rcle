@@ -1,6 +1,7 @@
 import { getAdminDb, getAdminApp, isFirebaseConfigured } from "../firebase/admin";
 import { getAuth } from "firebase-admin/auth";
 import { createHmac } from "node:crypto";
+import { cacheGet, cacheSet, cacheDel } from "./redisCache.js";
 
 const USERS_COLLECTION = "users";
 
@@ -274,16 +275,18 @@ export async function getUserTickets(userId) {
         };
     }
 
-    console.log(`[ProfileStore] Fetching tickets for user: ${userId}`);
+    // Cache-aside: return immediately if a fresh result is cached
+    const TICKETS_CACHE_KEY = `user:tickets:${userId}`;
+    const cached = await cacheGet(TICKETS_CACHE_KEY);
+    if (cached) return cached;
+
     const db = getAdminDb();
 
     // 1. Fetch ALL orders (Paid and RSVP) for this user
-    console.log(`[ProfileStore] Fetching orders and RSVPs...`);
     const [ordersSnapshot, rsvpsSnapshot] = await Promise.all([
         db.collection("orders").where("userId", "==", userId).get(),
         db.collection("rsvp_orders").where("userId", "==", userId).get()
     ]);
-    console.log(`[ProfileStore] Fetched ${ordersSnapshot.size} orders and ${rsvpsSnapshot.size} RSVPs.`);
 
     const orderDocs = ordersSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: false }));
     const rsvpOrderDocs = rsvpsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), isRSVP: true }));
@@ -292,38 +295,29 @@ export async function getUserTickets(userId) {
     // 2. Event IDs for RSVPs in profile (Legacy support)
     const profileRsvpEventIds = userProfile?.attendedEvents || [];
 
-    // 3. Fetch Claimed Tickets (from other people's shares or transfers)
-    console.log(`[ProfileStore] Fetching claimed tickets...`);
+    // 3–5.5. Fetch all secondary data in parallel (was sequential — 5 round-trips, now 1)
     const { getUserClaimedTickets, getPendingTransfers, getOrderShareBundles, getOrderAssignments } = await import("./ticketShareStore");
-    const claimedTickets = await getUserClaimedTickets(userId);
+    const [
+        claimedTickets,
+        transfers,
+        partnerAssignmentsSnapshot,
+        ownerAssignmentsSnapshot,
+        entitlementsSnapshot,
+    ] = await Promise.all([
+        getUserClaimedTickets(userId),
+        userEmail ? getPendingTransfers(userId, userEmail) : Promise.resolve([]),
+        db.collection("couple_assignments").where("partnerId", "==", userId).get(),
+        db.collection("couple_assignments").where("ownerId", "==", userId).get(),
+        db.collection("entitlements").where("ownerUserId", "==", userId).get(),
+    ]);
 
-    // 4. Fetch Pending Transfers (Sent or Received)
-    console.log(`[ProfileStore] Fetching pending transfers...`);
-    const transfers = userEmail ? await getPendingTransfers(userId, userEmail) : [];
     const pendingSentTicketIds = transfers.filter(t => t.isSender).map(t => t.ticketId);
-
-    // 5. Fetch Couple Assignments
-    console.log(`[ProfileStore] Fetching couple assignments...`);
-    const partnerAssignmentsSnapshot = await db.collection("couple_assignments")
-        .where("partnerId", "==", userId)
-        .get();
     const partnerAssignments = partnerAssignmentsSnapshot.docs.map(doc => ({ ticketId: doc.id, ...doc.data() }));
-
-    const ownerAssignmentsSnapshot = await db.collection("couple_assignments")
-        .where("ownerId", "==", userId)
-        .get();
     const ownerAssignmentsMap = {};
-    ownerAssignmentsSnapshot.docs.forEach(doc => {
-        ownerAssignmentsMap[doc.id] = doc.data();
-    });
-
-    // 5.5 Fetch Entitlements
-    const entitlementsSnapshot = await db.collection("entitlements")
-        .where("ownerUserId", "==", userId)
-        .get();
+    ownerAssignmentsSnapshot.docs.forEach(doc => { ownerAssignmentsMap[doc.id] = doc.data(); });
     const entitlements = entitlementsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 
-    // 6. Collect all event IDs
+    // 6. Collect all event IDs and fetch them in parallel with the above
     const allEventIds = Array.from(new Set([
         ...allOrders.map(o => o.eventId),
         ...profileRsvpEventIds,
@@ -334,7 +328,6 @@ export async function getUserTickets(userId) {
 
     const eventsData = {};
     if (allEventIds.length > 0) {
-        console.log(`[ProfileStore] Fetching ${allEventIds.length} event documents...`);
         const snapshots = await Promise.all(allEventIds.map(id => db.collection("events").doc(id).get()));
         snapshots.forEach(s => {
             if (s.exists) eventsData[s.id] = { id: s.id, ...s.data() };
@@ -347,17 +340,7 @@ export async function getUserTickets(userId) {
     const actionNeeded = [];
     const cancelled = [];
 
-    // 7. Get share bundles and assignments for skipping/tagging shared tickets
-    const shareBundlesMap = {};
-    await Promise.all(allOrders.map(async (order) => {
-        const [bundles, assignments] = await Promise.all([
-            getOrderShareBundles(order.id),
-            getOrderAssignments(order.id)
-        ]);
-        shareBundlesMap[order.id] = { bundles, assignments };
-    }));
-
-    // 8. Fetch scans
+    // 7 + 8. Fetch share bundles and ticket scans in parallel
     const allTicketIdsToCheck = [];
     allOrders.forEach(order => {
         order.tickets?.forEach(tg => {
@@ -365,15 +348,33 @@ export async function getUserTickets(userId) {
         });
     });
 
+    const shareBundlesMap = {};
     const scansMap = {};
-    if (allTicketIdsToCheck.length > 0) {
-        const chunks = [];
-        for (let i = 0; i < allTicketIdsToCheck.length; i += 30) chunks.push(allTicketIdsToCheck.slice(i, i + 30));
-        await Promise.all(chunks.map(async chunk => {
-            const snap = await Promise.all(chunk.map(id => db.collection("ticket_scans").doc(id).get()));
-            snap.forEach(s => { if (s.exists) scansMap[s.id] = s.data(); });
-        }));
-    }
+
+    await Promise.all([
+        // Share bundles per order
+        Promise.all(allOrders.map(async (order) => {
+            const [bundles, assignments] = await Promise.all([
+                getOrderShareBundles(order.id),
+                getOrderAssignments(order.id)
+            ]);
+            shareBundlesMap[order.id] = { bundles, assignments };
+        })),
+        // Ticket scans in chunks of 30 (Firestore `in` limit)
+        allTicketIdsToCheck.length > 0
+            ? Promise.all(
+                (() => {
+                    const chunks = [];
+                    for (let i = 0; i < allTicketIdsToCheck.length; i += 30)
+                        chunks.push(allTicketIdsToCheck.slice(i, i + 30));
+                    return chunks;
+                })().map(async chunk => {
+                    const snap = await Promise.all(chunk.map(id => db.collection("ticket_scans").doc(id).get()));
+                    snap.forEach(s => { if (s.exists) scansMap[s.id] = s.data(); });
+                })
+            )
+            : Promise.resolve(),
+    ]);
 
     // 8.5 Fetch Profiles for all involved users (Redeemers, Partners, etc.)
     const involvedUids = new Set([userId]);
@@ -741,12 +742,25 @@ export async function getUserTickets(userId) {
     upcoming.sort((a, b) => new Date(a.eventStartAt) - new Date(b.eventStartAt));
     past.sort((a, b) => new Date(b.eventStartAt) - new Date(a.eventStartAt));
 
-    console.log(`[ProfileStore] Returning ${upcoming.length} upcoming and ${past.length} past tickets.`);
-    return {
+    const result = {
         upcomingTickets: upcoming,
         pastTickets: past,
         actionNeeded,
         cancelledTickets: cancelled,
         shareBundles: shareBundlesMap
     };
+
+    // Cache for 2 minutes — invalidated immediately on any order/ticket mutation
+    await cacheSet(TICKETS_CACHE_KEY, result, 120);
+
+    return result;
+}
+
+/**
+ * Bust the tickets cache for a user.
+ * Call this after any order creation, confirmation, or cancellation.
+ */
+export async function invalidateTicketsCache(userId) {
+    if (!userId) return;
+    await cacheDel(`user:tickets:${userId}`);
 }

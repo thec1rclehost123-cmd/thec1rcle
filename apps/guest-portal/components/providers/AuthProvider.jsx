@@ -18,7 +18,8 @@ const AuthContext = createContext({
   login: async () => { },
   register: async () => { },
   logout: async () => { },
-  updateEventList: async () => { }
+  updateEventList: async () => { },
+  getToken: async () => null,
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -48,9 +49,44 @@ export function AuthProvider({ children }) {
   const profileRef = useRef(profile);
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
+  // ── Token cache: avoids a network round-trip to Google on every click ────────
+  // Firebase ID tokens are valid for 1 hour. We cache the token and its expiry,
+  // and proactively refresh 5 minutes before expiry so clicks are always instant.
+  const tokenCacheRef = useRef({ token: null, expiresAt: 0 });
+  const tokenRefreshTimerRef = useRef(null);
+
+  const getCachedToken = useCallback(async (forceUser) => {
+    const firebaseUser = forceUser || user;
+    if (!firebaseUser) return null;
+    const now = Date.now();
+    const { token, expiresAt } = tokenCacheRef.current;
+    // Return cached token if it has more than 5 minutes left
+    if (token && expiresAt - now > 5 * 60 * 1000) return token;
+    // Fetch a fresh token
+    const fresh = await firebaseUser.getIdToken(true);
+    // Firebase tokens expire in 1 hour — cache for 55 minutes
+    tokenCacheRef.current = { token: fresh, expiresAt: now + 55 * 60 * 1000 };
+    return fresh;
+  }, [user]);
+
+  // Schedule a proactive token refresh 55 minutes after login so the next
+  // click after an hour never blocks waiting for a network round-trip
+  const scheduleTokenRefresh = useCallback((firebaseUser) => {
+    if (tokenRefreshTimerRef.current) clearTimeout(tokenRefreshTimerRef.current);
+    tokenRefreshTimerRef.current = setTimeout(async () => {
+      try {
+        const fresh = await firebaseUser.getIdToken(true);
+        tokenCacheRef.current = { token: fresh, expiresAt: Date.now() + 55 * 60 * 1000 };
+        scheduleTokenRefresh(firebaseUser); // reschedule for next hour
+      } catch {
+        // non-fatal — next getCachedToken call will force-refresh
+      }
+    }, 55 * 60 * 1000);
+  }, []);
+
   const ensureProfile = useCallback(async (firebaseUser, overrides = {}) => {
     try {
-      const token = await firebaseUser.getIdToken();
+      const token = await getCachedToken(firebaseUser);
       const res = await fetch('/api/auth/me', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -66,14 +102,19 @@ export function AuthProvider({ children }) {
               photoURL: firebaseUser.photoURL,
               avatar: firebaseUser.photoURL
             };
-            fetch('/api/auth/profile', {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify(syncPayload)
-            });
+            // Awaited so profile state is consistent before returning
+            try {
+              await fetch('/api/auth/profile', {
+                method: 'PATCH',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${token}`
+                },
+                body: JSON.stringify(syncPayload)
+              });
+            } catch (syncErr) {
+              console.warn("[Auth] Photo sync failed", syncErr);
+            }
             const updatedProfile = { ...data.user, ...syncPayload };
             setProfile(updatedProfile);
             return updatedProfile;
@@ -110,7 +151,38 @@ export function AuthProvider({ children }) {
         const auth = await getFirebaseAuth();
         unsubscribe = onAuthStateChanged(auth, async (authUser) => {
           if (!mounted) return;
+          
           setUser(authUser);
+
+          // Sync session cookie for server-side auth
+          if (authUser) {
+            try {
+              // getCachedToken seeds the cache here — all subsequent clicks are instant
+              const idToken = await getCachedToken(authUser);
+              scheduleTokenRefresh(authUser);
+              await fetch("/api/auth/session", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ idToken })
+              });
+            } catch (err) {
+              console.warn("[Auth] Session sync failed", err);
+            }
+          } else {
+            // Clear token cache and refresh timer on logout
+            tokenCacheRef.current = { token: null, expiresAt: 0 };
+            if (tokenRefreshTimerRef.current) {
+              clearTimeout(tokenRefreshTimerRef.current);
+              tokenRefreshTimerRef.current = null;
+            }
+            // Clear session cookie on logout
+            try {
+              await fetch("/api/auth/session", { method: "DELETE" });
+            } catch {
+              // non-fatal — cookie will expire naturally
+            }
+          }
+
           if (authUser) {
             try {
               await ensureProfile(authUser);
@@ -200,7 +272,7 @@ export function AuthProvider({ children }) {
         return { ...prev, [field]: updatedArray };
       });
 
-      const token = await user.getIdToken();
+      const token = await getCachedToken();
       await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
@@ -210,14 +282,14 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
       });
     },
-    [user?.uid]
+    [user?.uid, getCachedToken]
   );
 
   const updateUserProfile = useCallback(
     async (updates) => {
       if (!user?.uid) throw new Error("Not logged in");
 
-      const token = await user.getIdToken();
+      const token = await getCachedToken();
       await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
@@ -243,9 +315,10 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       logout,
       updateEventList,
-      updateUserProfile
+      updateUserProfile,
+      getToken: getCachedToken,
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile]
+    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, getCachedToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

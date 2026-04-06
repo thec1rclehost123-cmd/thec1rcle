@@ -70,6 +70,23 @@
         { "fieldPath": "venueId",   "order": "ASCENDING" },
         { "fieldPath": "timestamp", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "orders",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "eventId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "venue_bank_accounts",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "removed",   "order": "ASCENDING" },
+        { "fieldPath": "venueId",   "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

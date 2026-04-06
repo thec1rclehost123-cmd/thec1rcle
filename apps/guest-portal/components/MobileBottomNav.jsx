@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
@@ -12,14 +11,6 @@ import { motion } from "framer-motion";
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  // Early returns AFTER all hooks
-  if (!mounted) return null;
   if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
 
   const navItems = [

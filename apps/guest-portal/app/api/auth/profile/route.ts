@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
         const now = new Date().toISOString();
 
         const db = getAdminDb();
+        if (!db) {
+            return NextResponse.json({ error: "Database not configured (Toy Mode)" }, { status: 503 });
+        }
+
         await db.collection("users").doc(decodedToken.uid).set(
             { ...body, updatedAt: now },
             { merge: true }
@@ -37,10 +41,14 @@ export async function PATCH(req: NextRequest) {
         const now = new Date().toISOString();
 
         const db = getAdminDb();
-        await db.collection("users").doc(decodedToken.uid).update({
+        if (!db) {
+            return NextResponse.json({ error: "Database not configured (Toy Mode)" }, { status: 503 });
+        }
+
+        await db.collection("users").doc(decodedToken.uid).set({
             ...updates,
             updatedAt: now
-        });
+        }, { merge: true });
 
         return NextResponse.json({ success: true });
     } catch (error: any) {

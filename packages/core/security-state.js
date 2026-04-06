@@ -117,6 +117,7 @@ async function checkFirestoreBlock(type, entityId) {
 export function isRedisHealthy() {
     try {
         const redis = getRedisClient();
+        if (!redis) return false;
         return redis.status === "ready";
     } catch (_) {
         return false;
@@ -252,7 +253,7 @@ export const TTL = {
 async function safeExec(fn, fallback) {
     try {
         const redis = getRedisClient();
-        if (redis.status !== "ready" && redis.status !== "connecting") {
+        if (!redis || (redis.status !== "ready" && redis.status !== "connecting")) {
             return typeof fallback === 'function' ? await fallback() : fallback;
         }
         return await fn(redis);

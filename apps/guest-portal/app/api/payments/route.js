@@ -3,9 +3,11 @@ import {
     createRazorpayOrder,
     verifyPaymentSignature,
     fetchPayment,
-    getRazorpayClientConfig
+    getRazorpayClientConfig,
+    isRazorpayConfigured
 } from "../../../lib/server/payments/razorpay";
 import { getOrderById, confirmOrder } from "../../../lib/server/orderStore";
+import { invalidateTicketsCache } from "../../../lib/server/profileStore";
 import { verifyAuth } from "../../../lib/server/auth";
 import { generateOrderQRCodes } from "../../../lib/server/qrStore";
 import { isUserBlocked } from "@c1rcle/core/security-state";
@@ -200,7 +202,10 @@ export async function PATCH(request) {
             );
         }
 
-        if (rzpPayment.order_id !== razorpay_order_id) {
+        // Skip Razorpay-specific cross-checks in dev mock mode (no real payment was made)
+        const isMockPayment = !isRazorpayConfigured();
+
+        if (!isMockPayment && rzpPayment.order_id !== razorpay_order_id) {
             console.error("[Payments API] Razorpay order_id mismatch");
             return NextResponse.json(
                 { error: "Payment verification failed" },
@@ -224,14 +229,16 @@ export async function PATCH(request) {
             );
         }
 
-        // Verify amount paid matches order total (amounts are in paise from Razorpay)
-        const expectedPaise = Math.round(order.totalAmount * 100);
-        if (rzpPayment.amount !== expectedPaise) {
-            console.error(`[Payments API] Amount mismatch: expected ${expectedPaise} paise, got ${rzpPayment.amount}`);
-            return NextResponse.json(
-                { error: "Payment amount mismatch" },
-                { status: 400 }
-            );
+        // Verify amount paid matches order total — skip in dev mock mode
+        if (!isMockPayment) {
+            const expectedPaise = Math.round(order.totalAmount * 100);
+            if (rzpPayment.amount !== expectedPaise) {
+                console.error(`[Payments API] Amount mismatch: expected ${expectedPaise} paise, got ${rzpPayment.amount}`);
+                return NextResponse.json(
+                    { error: "Payment amount mismatch" },
+                    { status: 400 }
+                );
+            }
         }
 
         // Step 4: Confirm the order
@@ -244,6 +251,9 @@ export async function PATCH(request) {
             paymentMethod: rzpPayment.method || "razorpay",
             paidAt: new Date().toISOString()
         });
+
+        // Bust tickets cache so the tab reflects the new ticket immediately
+        invalidateTicketsCache(decodedToken.uid).catch(() => {});
 
         return NextResponse.json({
             success: true,

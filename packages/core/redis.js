@@ -12,6 +12,10 @@ const REDIS_URL = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 let redis = null;
 
 export function getRedisClient() {
+    if (!REDIS_URL || REDIS_URL.toUpperCase() === "PLACEHOLDER") {
+        return null;
+    }
+
     if (!redis) {
         redis = new Redis(REDIS_URL, {
             maxRetriesPerRequest: 3,

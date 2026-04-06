@@ -37,63 +37,36 @@ export async function requireVenueAccess(
     request: Request,
     requiredAction?: StaffAction
 ): Promise<VenueAuthContext | VenueAuthError> {
-    const user = await verifyAuth(request);
-    if (!user) return { error: "Unauthorized", status: 401 };
+    try {
+        const user = await verifyAuth(request);
+        if (!user) return { error: "Unauthorized", status: 401 };
 
-    const { searchParams } = new URL(request.url);
-    const venueId =
-        searchParams.get("venueId") ??
-        searchParams.get("hostId") ??
-        searchParams.get("promoterId") ??
-        request.headers.get("x-partner-id") ??
-        request.headers.get("x-venue-id") ??
-        request.headers.get("x-host-id") ??
-        null;
+        const { searchParams } = new URL(request.url);
+        const venueId =
+            searchParams.get("venueId") ??
+            searchParams.get("hostId") ??
+            searchParams.get("promoterId") ??
+            request.headers.get("x-partner-id") ??
+            request.headers.get("x-venue-id") ??
+            request.headers.get("x-host-id") ??
+            null;
 
-    if (!venueId || venueId === "null" || venueId === "undefined") {
-        return { error: "partnerId (venue/host) required", status: 400 };
-    }
+        if (!venueId || venueId === "null" || venueId === "undefined") {
+            return { error: "partnerId (venue/host) required", status: 400 };
+        }
 
-    if (!isFirebaseConfigured()) {
-        return { error: "Service unavailable: Firebase not configured", status: 503 };
-    }
+        if (!isFirebaseConfigured()) {
+            return { error: "Service unavailable: Firebase not configured", status: 503 };
+        }
 
-    // Owners have JWT claims (partnerId/partnerRole) but no partner_memberships doc
-    const claimsPartnerId = (user as any).partnerId;
-    const claimsRole = (user as any).partnerRole;
-    if (claimsPartnerId === venueId && claimsRole === "OWNER") {
-        return {
-            uid: user.uid,
-            venueId,
-            membershipId: "owner-claims",
-            baseRole: "OWNER",
-            piiPolicy: OWNER_PII_POLICY,
-            guestlistScope: "editable",
-            eventScope: null,
-            canDo: () => true,
-        };
-    }
-
-    const db = getAdminDb();
-
-    // Find active membership for this user + partnerId
-    const snap = await db
-        .collection("partner_memberships")
-        .where("uid", "==", user.uid)
-        .where("partnerId", "==", venueId)
-        .where("isActive", "==", true)
-        .limit(1)
-        .get();
-
-    if (snap.empty) {
-        // Fallback: check users doc activeMembership (for owners without JWT claims)
-        const userDoc = await db.collection("users").doc(user.uid).get();
-        const userData = userDoc.exists ? userDoc.data() : null;
-        if (userData?.activeMembership?.partnerId === venueId) {
+        // Owners have JWT claims (partnerId/partnerRole) but no partner_memberships doc
+        const claimsPartnerId = (user as any).partnerId;
+        const claimsRole = ((user as any).partnerRole || "").toUpperCase();
+        if (claimsPartnerId === venueId && claimsRole === "OWNER") {
             return {
                 uid: user.uid,
                 venueId,
-                membershipId: "owner-doc",
+                membershipId: "owner-claims",
                 baseRole: "OWNER",
                 piiPolicy: OWNER_PII_POLICY,
                 guestlistScope: "editable",
@@ -101,68 +74,159 @@ export async function requireVenueAccess(
                 canDo: () => true,
             };
         }
-        return { error: "No active venue membership", status: 403 };
-    }
 
-    const memberDoc = snap.docs[0];
-    const membershipId = memberDoc.id;
-    const { role: baseRole } = memberDoc.data();
+        const db = getAdminDb();
+        if (!db) {
+            console.error("[RBAC Enforcer] Database instance is null (Toy Mode). Check your FIREBASE_* environment variables.");
+            return { 
+                error: process.env.NODE_ENV === "development" 
+                    ? "Service unavailable: Firebase Admin is in Toy Mode (missing credentials). Check your terminal console for details." 
+                    : "Service temporarily unavailable", 
+                status: 503 
+            };
+        }
 
-    // OWNER bypasses everything
-    if (BYPASS_ROLES.has(baseRole)) {
+        // Find active membership for this user + partnerId
+        const snap = await db
+            .collection("partner_memberships")
+            .where("uid", "==", user.uid)
+            .where("partnerId", "==", venueId)
+            .where("isActive", "==", true)
+            .limit(1)
+            .get();
+
+        if (snap.empty) {
+            // Fallback 1: check direct ownership (for owners without memberships)
+            const [venueDoc, hostDoc] = await Promise.all([
+                db.collection("venues").doc(venueId).get(),
+                db.collection("hosts").doc(venueId).get(),
+            ]);
+
+            if (
+                (venueDoc.exists && venueDoc.data()?.ownerId === user.uid) ||
+                (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)
+            ) {
+                return {
+                    uid: user.uid,
+                    venueId,
+                    membershipId: "owner-direct",
+                    baseRole: "OWNER",
+                    piiPolicy: OWNER_PII_POLICY,
+                    guestlistScope: "editable",
+                    eventScope: null,
+                    canDo: () => true,
+                };
+            }
+
+            // Fallback 2: check users doc activeMembership (for other edge cases)
+            const userDoc = await db.collection("users").doc(user.uid).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            if (userData?.activeMembership?.partnerId === venueId) {
+                return {
+                    uid: user.uid,
+                    venueId,
+                    membershipId: "owner-doc",
+                    baseRole: "OWNER",
+                    piiPolicy: OWNER_PII_POLICY,
+                    guestlistScope: "editable",
+                    eventScope: null,
+                    canDo: () => true,
+                };
+            }
+            return { error: "No active venue membership", status: 403 };
+        }
+
+        const memberDoc = snap.docs[0];
+        const membershipId = memberDoc.id;
+        const baseRole = String(memberDoc.data()?.role || "").toUpperCase();
+
+        // OWNER bypasses everything
+        if (BYPASS_ROLES.has(baseRole)) {
+            return {
+                uid: user.uid,
+                venueId,
+                membershipId,
+                baseRole,
+                piiPolicy: OWNER_PII_POLICY,
+                guestlistScope: "editable",
+                eventScope: null,
+                canDo: () => true,
+            };
+        }
+
+        // Resolve effective profile
+        const effective = await resolveEffectiveProfile(venueId, membershipId);
+
+        const canDo = (action: StaffAction): boolean => {
+            // MANAGER has broad defaults — only deny if explicit false
+            const normalizedRole = String(effective.baseRole || "").toUpperCase();
+            if (normalizedRole === "MANAGER") {
+                return effective.actionPermissions[action] !== false;
+            }
+            return effective.actionPermissions[action] === true;
+        };
+
+        if (requiredAction && !canDo(requiredAction)) {
+            // Last-resort owner check: a stale/wrong-role partner_memberships entry may exist
+            // or a users doc activeMembership, or direct ownership of the venue itself.
+            const [venueDoc, hostDoc] = await Promise.all([
+                db.collection("venues").doc(venueId).get(),
+                db.collection("hosts").doc(venueId).get(),
+            ]);
+
+            if (
+                (venueDoc.exists && venueDoc.data()?.ownerId === user.uid) ||
+                (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)
+            ) {
+                return {
+                    uid: user.uid,
+                    venueId,
+                    membershipId: "owner-direct-fallback",
+                    baseRole: "OWNER",
+                    piiPolicy: OWNER_PII_POLICY,
+                    guestlistScope: "editable",
+                    eventScope: null,
+                    canDo: () => true,
+                };
+            }
+
+            const userDoc = await db.collection("users").doc(user.uid).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            if (userData?.activeMembership?.partnerId === venueId) {
+                return {
+                    uid: user.uid,
+                    venueId,
+                    membershipId: "owner-doc-fallback",
+                    baseRole: "OWNER",
+                    piiPolicy: OWNER_PII_POLICY,
+                    guestlistScope: "editable",
+                    eventScope: null,
+                    canDo: () => true,
+                };
+            }
+            return { error: "Insufficient permissions", status: 403 };
+        }
+
         return {
             uid: user.uid,
             venueId,
             membershipId,
-            baseRole,
-            piiPolicy: OWNER_PII_POLICY,
-            guestlistScope: "editable",
-            eventScope: null,
-            canDo: () => true,
+            baseRole: effective.baseRole,
+            piiPolicy: effective.piiPolicy,
+            guestlistScope: effective.guestlistScope,
+            eventScope: effective.eventScope,
+            canDo,
+        };
+    } catch (err: any) {
+        const msg = err?.message || "Unknown error";
+        console.error("[RBAC Enforcer] Internal Access Check Error:", msg);
+        return { 
+            error: process.env.NODE_ENV === "development" 
+                ? `Internal authorization error: ${msg}` 
+                : "Internal authorization error", 
+            status: 500 
         };
     }
-
-    // Resolve effective profile
-    const effective = await resolveEffectiveProfile(venueId, membershipId);
-
-    const canDo = (action: StaffAction): boolean => {
-        // MANAGER has broad defaults — only deny if explicit false
-        if (effective.baseRole === "MANAGER") {
-            return effective.actionPermissions[action] !== false;
-        }
-        return effective.actionPermissions[action] === true;
-    };
-
-    if (requiredAction && !canDo(requiredAction)) {
-        // Last-resort owner check: a stale/wrong-role partner_memberships entry may exist
-        // even though this user IS the venue owner per their users doc.
-        const userDoc = await db.collection("users").doc(user.uid).get();
-        const userData = userDoc.exists ? userDoc.data() : null;
-        if (userData?.activeMembership?.partnerId === venueId) {
-            return {
-                uid: user.uid,
-                venueId,
-                membershipId: "owner-doc-fallback",
-                baseRole: "OWNER",
-                piiPolicy: OWNER_PII_POLICY,
-                guestlistScope: "editable",
-                eventScope: null,
-                canDo: () => true,
-            };
-        }
-        return { error: "Insufficient permissions", status: 403 };
-    }
-
-    return {
-        uid: user.uid,
-        venueId,
-        membershipId,
-        baseRole: effective.baseRole,
-        piiPolicy: effective.piiPolicy,
-        guestlistScope: effective.guestlistScope,
-        eventScope: effective.eventScope,
-        canDo,
-    };
 }
 
 /** Apply PII masking to any record (or array of records) based on policy.
@@ -234,7 +298,8 @@ export async function requireManagementRole(
 ): Promise<{ uid: string; venueId: string } | VenueAuthError> {
     const ctx = await requireVenueAccess(request);
     if ("error" in ctx) return ctx;
-    if (!["OWNER", "MANAGER"].includes(ctx.baseRole)) {
+    const normalizedRole = (ctx.baseRole || "").toUpperCase();
+    if (!["OWNER", "MANAGER"].includes(normalizedRole)) {
         return { error: "Manager or Owner role required", status: 403 };
     }
     return { uid: ctx.uid, venueId: ctx.venueId };

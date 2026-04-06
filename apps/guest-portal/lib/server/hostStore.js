@@ -1,6 +1,7 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { trackedGet } from "./firestoreMetrics";
 import { isPublicProfileEnabled } from "./publicProfile";
+import { cacheGet, cacheSet, buildCacheKey } from "./redisCache";
 
 // Extended fallback data for the premium experience
 const fallbackHosts = [
@@ -165,6 +166,10 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
         return hosts.filter(isPublicProfileEnabled);
     }
 
+    const listCacheKey = buildCacheKey("hosts:list", { search, role, vibe, status, sort });
+    const listCached = await cacheGet(listCacheKey);
+    if (listCached) return listCached;
+
     const db = getAdminDb();
     let query = db.collection(HOSTS_COLLECTION);
 
@@ -172,7 +177,7 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     if (role) query = query.where("role", "==", role);
     if (status === "Verified") query = query.where("verified", "==", true);
 
-    const snapshot = await trackedGet(query, "hostStore.listHosts");
+    const snapshot = await trackedGet(query.limit(100), "hostStore.listHosts");
     let hosts = snapshot.docs.map(doc => {
         const serialized = serializeDoc(doc);
         return {
@@ -209,6 +214,7 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     hosts = hosts.filter(isPublicProfileEnabled);
 
     if (hosts.length === 0 && !search && !role && !vibe) return fallbackHosts.filter(isPublicProfileEnabled);
+    await cacheSet(listCacheKey, hosts, 300); // 5 min TTL
     return hosts;
 }
 
@@ -223,11 +229,17 @@ export async function getHostByHandle(handle) {
         return fallbackHosts.find(h => h.handle === normalizedHandle) || null;
     }
 
+    const cacheKey = `host:handle:${normalizedHandle}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) return cached;
+
     const db = getAdminDb();
     const snapshot = await trackedGet(db.collection(HOSTS_COLLECTION).where("handle", "==", normalizedHandle).limit(1), "hostStore.getHostByHandle");
 
     if (!snapshot.empty) {
-        return serializeDoc(snapshot.docs[0]);
+        const result = serializeDoc(snapshot.docs[0]);
+        await cacheSet(cacheKey, result, 300);
+        return result;
     }
 
     return fallbackHosts.find(h => h.handle === normalizedHandle) || null;
@@ -243,12 +255,18 @@ export async function getHostBySlug(slug) {
         return fallbackHosts.find(h => h.slug === slug || h.handle.replace("@", "").replace("_", "-") === slug) || null;
     }
 
+    const cacheKey = `host:slug:${slug}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) return cached;
+
     const db = getAdminDb();
     const snapshot = await db.collection(HOSTS_COLLECTION).where("slug", "==", slug).limit(1).get();
 
     if (!snapshot.empty) {
         const serialized = serializeDoc(snapshot.docs[0]);
-        return { ...serialized, slug: serialized.slug || serialized.id };
+        const result = { ...serialized, slug: serialized.slug || serialized.id };
+        await cacheSet(cacheKey, result, 300);
+        return result;
     }
 
     // Try direct ID lookup if slug lookup fails
@@ -256,7 +274,9 @@ export async function getHostBySlug(slug) {
         const doc = await db.collection(HOSTS_COLLECTION).doc(slug).get();
         if (doc.exists) {
             const serialized = serializeDoc(doc);
-            return { ...serialized, slug: serialized.slug || serialized.id };
+            const result = { ...serialized, slug: serialized.slug || serialized.id };
+            await cacheSet(cacheKey, result, 300);
+            return result;
         }
     } catch (e) { }
 

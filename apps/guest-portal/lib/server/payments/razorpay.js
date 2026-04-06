@@ -6,9 +6,11 @@
 const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID;
 const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
-// Check if Razorpay is configured
+// Check if Razorpay is configured with real credentials (not placeholders)
 export function isRazorpayConfigured() {
-    return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
+    if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) return false;
+    if (RAZORPAY_KEY_ID.includes("YOUR_KEY") || RAZORPAY_KEY_SECRET.includes("YOUR_SECRET")) return false;
+    return true;
 }
 
 /**

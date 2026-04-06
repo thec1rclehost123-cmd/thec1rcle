@@ -32,7 +32,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
 
         const currentLc = (ev.lifecycle || ev.status || "").toLowerCase();
-        if (currentLc !== "draft") {
+        if (currentLc !== "draft" && currentLc !== "needs_changes") {
             return fail(`Cannot submit from state: ${currentLc}`, 409);
         }
 
@@ -43,8 +43,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
         if (normalizedPoster && (!ev.coverImage || !ev.coverPhoto)) {
             await eventDoc.ref.update({
-                ...(ev.coverImage ? {} : { coverImage: normalizedPoster }),
-                ...(ev.coverPhoto ? {} : { coverPhoto: normalizedPoster }),
+                coverImage: ev.coverImage || normalizedPoster,
+                coverPhoto: ev.coverPhoto || normalizedPoster,
                 updatedAt: new Date(),
             });
             ev.coverImage = ev.coverImage || normalizedPoster;
@@ -91,23 +91,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             return fail("No active partnership with this venue. Access denied.", 403);
         }
 
-        const existingSlotRequests = await listSlotRequests({ venueId: effectiveVenueId, hostId, limit: 50 } as any);
-        const matchingActiveRequest = existingSlotRequests.find((request: any) =>
-            request.eventId === eventId && String(request.status || "").toLowerCase() !== "rejected"
-        );
+        // Attempt to create/link a slot request
+        try {
+            const existingSlotRequests = await listSlotRequests({ venueId: effectiveVenueId, hostId, limit: 50 } as any);
+            const matchingActiveRequest = existingSlotRequests.find((request: any) =>
+                request.eventId === eventId && String(request.status || "").toLowerCase() !== "rejected"
+            );
 
-        if (!matchingActiveRequest) {
-            await createSlotRequest({
-                eventId,
-                hostId,
-                hostName: ev.hostName || ev.host || "",
-                venueId: effectiveVenueId,
-                venueName: effectiveVenueName,
-                requestedDate: String(ev.startDate || "").slice(0, 10),
-                requestedStartTime: ev.startTime,
-                requestedEndTime: ev.endTime,
-                notes: body.hostNote || `Event submission: ${ev.title || ev.name || eventId}`,
-            }, req.headers.get("authorization")?.split("Bearer ")[1] || "", { uid, role: "host" });
+            if (!matchingActiveRequest) {
+                await createSlotRequest({
+                    eventId,
+                    hostId,
+                    hostName: ev.hostName || ev.host || "",
+                    venueId: effectiveVenueId,
+                    venueName: effectiveVenueName,
+                    requestedDate: String(ev.startDate || "").slice(0, 10),
+                    requestedStartTime: ev.startTime || "21:00",
+                    requestedEndTime: ev.endTime || "03:00",
+                    notes: body.hostNote || `Event submission: ${ev.title || ev.name || eventId}`,
+                }, req.headers.get("authorization")?.split("Bearer ")[1] || "", { uid, role: "host" });
+            }
+        } catch (slotErr) {
+            logger.warn("host/events/submit", "Slot request handling failed (non-blocking)", { error: slotErr });
         }
 
         const now = new Date();
@@ -133,26 +138,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                 createdAt: now.toISOString(),
             });
 
-<<<<<<< HEAD
-        // Create notification for venue — fields must match venue/notifications GET query (targetId, isRead)
-        if (ev.venueId) {
+        // Create notification for venue
+        if (effectiveVenueId) {
             const nid = db.collection("notifications").doc().id;
             await db.collection("notifications").doc(nid).set({
                 id: nid,
-                targetId: ev.venueId,
+                targetId: effectiveVenueId,
                 targetType: "venue",
-=======
-        // Create notification for venue
-        if (effectiveVenueId) {
-            await db.collection("notifications").add({
-                recipientPartnerId: effectiveVenueId,
-                recipientType: "venue",
->>>>>>> origin/staging
                 type: "event_submitted",
                 title: `New event submission`,
                 description: `${ev.hostName || ev.hostId || "A host"} submitted "${ev.title || ev.name || "an event"}" for review.`,
                 isRead: false,
-                actionable: false,
+                actionable: true,
                 createdAt: now.toISOString(),
                 data: { eventId, eventName: ev.title || ev.name || "", hostId },
             });

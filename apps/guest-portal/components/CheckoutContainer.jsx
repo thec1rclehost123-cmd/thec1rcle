@@ -16,7 +16,6 @@ import {
     Phone,
     ArrowRight,
     ShieldCheck,
-    AlertCircle,
     Loader2,
     Check,
     Tag,
@@ -25,157 +24,17 @@ import {
 import { useAuth } from "./providers/AuthProvider";
 import { CartTimer } from "./checkout/CartTimer";
 import { PromoCodeInput } from "./checkout/PromoCodeInput";
+import NeedToKnowCard from "./checkout/NeedToKnowCard";
+import {
+    buildNeedToKnowItems,
+    normalizeReservationItems,
+    hydrateReservationItems,
+} from "./checkout/checkoutUtils";
 import { getFirebaseDb } from "../lib/firebase/client";
-
-function truncateInfo(value, maxLength = 88) {
-    if (!value) return "";
-    const normalized = String(value).replace(/\s+/g, " ").trim();
-    if (normalized.length <= maxLength) return normalized;
-    return `${normalized.slice(0, maxLength).trimEnd()}...`;
-}
-
-function formatNeedToKnowTime(event) {
-    if (event?.startTime || event?.endTime) {
-        if (event.startTime && event.endTime) return `${event.startTime} - ${event.endTime}`;
-        return event.startTime || event.endTime || "";
-    }
-
-    if (!event?.startDate) return "";
-
-    try {
-        const formatter = new Intl.DateTimeFormat("en-US", {
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit"
-        });
-        const startLabel = formatter.format(new Date(event.startDate));
-        if (!event?.endDate) return startLabel;
-        const endFormatter = new Intl.DateTimeFormat("en-US", {
-            hour: "numeric",
-            minute: "2-digit"
-        });
-        return `${startLabel} - ${endFormatter.format(new Date(event.endDate))}`;
-    } catch {
-        return "";
-    }
-}
-
-function prettifyRule(value) {
-    if (!value) return "";
-    return String(value)
-        .replace(/_/g, " ")
-        .replace(/\s+/g, " ")
-        .trim()
-        .replace(/\b\w/g, (char) => char.toUpperCase());
-}
-
-function buildNeedToKnowItems(event, selectedTickets = []) {
-    const items = [];
-    const pushItem = (label, value) => {
-        const normalized = truncateInfo(value);
-        if (!normalized) return;
-        if (items.some((item) => item.label === label && item.value === normalized)) return;
-        items.push({ label, value: normalized });
-    };
-
-    pushItem("Doors", event?.doorsOpen || event?.doorsTime || event?.doorTime || event?.doors);
-    pushItem("Timing", formatNeedToKnowTime(event));
-    pushItem("Last entry", event?.lastEntry);
-
-    const ageRule = event?.ageRestriction || event?.ageLimit;
-    if (ageRule && String(ageRule).toLowerCase() !== "all") {
-        pushItem("Age", ageRule);
-    }
-
-    pushItem("Outfit", event?.dressCodeDescription || prettifyRule(event?.dressCode || event?.dress));
-
-    const entryNote =
-        event?.entryRules ||
-        event?.guestListRules ||
-        event?.houseRules ||
-        event?.terms ||
-        event?.policyNotes;
-    pushItem("Entry", Array.isArray(entryNote) ? entryNote.join(", ") : entryNote);
-
-    selectedTickets.forEach((ticket) => {
-        const isCoverTicket =
-            String(ticket?.entryType || "").toLowerCase() === "cover" ||
-            /cover/i.test(String(ticket?.name || ""));
-
-        if (ticket?.description) {
-            pushItem(ticket.name || "Tier", ticket.description);
-            return;
-        }
-
-        if (isCoverTicket) {
-            pushItem(ticket.name || "Cover", "Venue cover policy applies to this tier.");
-        }
-    });
-
-    return items.slice(0, 7);
-}
-
-function normalizeReservationItems(items = []) {
-    return items
-        .map((item) => ({
-            tierId: item?.tierId || item?.id || null,
-            quantity: Number(item?.quantity || 0)
-        }))
-        .filter((item) => item.tierId && item.quantity > 0)
-        .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
-}
-
-function hydrateReservationItems(items = [], tiers = []) {
-    return normalizeReservationItems(items).map((item) => {
-        const tier = tiers.find((candidate) => candidate.id === item.tierId);
-        return tier
-            ? {
-                ...tier,
-                id: tier.id,
-                quantity: item.quantity,
-                price: Number(tier.price || 0),
-                name: tier.name
-            }
-            : {
-                id: item.tierId,
-                tierId: item.tierId,
-                quantity: item.quantity,
-                price: 0,
-                name: "Reserved Ticket"
-            };
-    });
-}
-
-function NeedToKnowCard({ items, className = "" }) {
-    if (!items?.length) return null;
-
-    return (
-        <div className={`rounded-[30px] border border-white/6 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.025))] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.22)] backdrop-blur-2xl ${className}`}>
-            <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 items-center justify-center rounded-full border border-orange/12 bg-orange/10">
-                    <AlertCircle className="h-4 w-4 text-orange" />
-                </div>
-                <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.28em] text-orange">Need to know</p>
-                    <p className="mt-1 text-[11px] text-white/38">Entry details for tonight&apos;s booking.</p>
-                </div>
-            </div>
-            <div className="mt-5 space-y-0">
-                {items.map((item) => (
-                    <div key={`${item.label}-${item.value}`} className="grid grid-cols-[minmax(0,110px)_1fr] items-start gap-4 border-b border-white/6 py-3.5 first:pt-0 last:border-b-0 last:pb-0">
-                        <p className="pt-0.5 text-[10px] font-black uppercase tracking-[0.22em] text-white/36">{item.label}</p>
-                        <p className="text-right text-[15px] font-semibold leading-6 text-white/78">{item.value}</p>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-}
 
 export default function CheckoutContainer({ event, initialTickets = [] }) {
     const router = useRouter();
-    const { user, profile } = useAuth();
+    const { user, profile, getToken } = useAuth();
 
     const [step, setStep] = useState(1);
     const [mounted, setMounted] = useState(false);
@@ -304,21 +163,33 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     useEffect(() => {
         if (step !== 3 || selectedTickets.length === 0) return;
         let cancelled = false;
-        fetch('/api/checkout/calculate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                eventId: event.id,
-                items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
-                promoCode: appliedPromoCode,
-                promoterCode
-            })
-        })
-            .then(r => r.json())
-            .then(data => { if (!cancelled && data.success) setPricingResult(data.pricing); })
-            .catch(() => { });
+
+        const fetchPricing = async () => {
+            try {
+                const token = user ? await getToken() : null;
+                const res = await fetch('/api/checkout/calculate', {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json',
+                        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+                    },
+                    body: JSON.stringify({
+                        eventId: event.id,
+                        items: selectedTickets.map(t => ({ tierId: t.id, quantity: t.quantity })),
+                        promoCode: appliedPromoCode,
+                        promoterCode
+                    })
+                });
+                const data = await res.json();
+                if (!cancelled && data.success) setPricingResult(data.pricing);
+            } catch (err) {
+                console.error("[Pricing] Failed to calculate authoritative pricing:", err);
+            }
+        };
+
+        fetchPricing();
         return () => { cancelled = true; };
-    }, [step, appliedPromoCode]);
+    }, [step, appliedPromoCode, user]);
 
     // Proactively prefetch tickets page for instant navigation on success
     useEffect(() => {
@@ -351,7 +222,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     // Handle promo code application
     const handleApplyPromoCode = async (code) => {
         try {
-            const token = user ? await user.getIdToken() : null;
+            const token = user ? await getToken() : null;
             const res = await fetch(`/api/checkout/promo`, {
                 method: 'POST',
                 headers: {
@@ -466,7 +337,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             // 1. Ensure user is authenticated
             let token = "";
             if (user) {
-                token = await user.getIdToken();
+                token = await getToken();
             } else {
                 const currentPath = window.location.pathname + window.location.search;
                 router.push(`/login?returnUrl=${encodeURIComponent(currentPath)}`);
@@ -578,6 +449,48 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     };
 
     const launchRazorpay = (initiateData, authToken, resolve, reject) => {
+        // ── DEV MODE: Handle Mock Orders ───────────────────────────────────
+        // If the server returned a mock order (because Razorpay keys are missing in .env.local),
+        // we bypass the Razorpay SDK and call the verify endpoint directly with mock IDs.
+        if (initiateData.razorpay.orderId?.startsWith('order_mock_')) {
+            console.log("[Checkout] Mock order detected, confirming via verify endpoint...");
+            setProcessingState("verifying");
+
+            (async () => {
+                const verifyRes = await fetch(`/api/payments`, {
+                    method: "PATCH",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        orderId: initiateData.order.id,
+                        razorpay_order_id: initiateData.razorpay.orderId,
+                        razorpay_payment_id: `pay_mock_${Date.now()}`,
+                        razorpay_signature: `sig_mock_${Date.now()}`
+                    })
+                });
+
+                const verifyData = await verifyRes.json();
+                if (!verifyRes.ok) throw new Error(verifyData.error || "Mock payment confirmation failed");
+
+                try { localStorage.removeItem("c1rcle_reservation"); } catch (_) { }
+                setProcessingState("issuing");
+                setIsSuccess(true);
+                router.prefetch('/tickets');
+                redirectTimeoutRef.current = setTimeout(() => {
+                    router.push(`/confirmation/${initiateData.order.id}`);
+                    resolve();
+                }, 3000);
+            })().catch(err => {
+                setError(err.message);
+                setIsProcessing(false);
+                reject(err);
+            });
+            return;
+        }
+
+        // ── PRODUCTION: Launch real Razorpay ───────────────────────────────
         const options = {
             key: initiateData.razorpay.key || "rzp_test_DEVELOPMENT",
             amount: initiateData.razorpay.amount,
@@ -614,7 +527,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     redirectTimeoutRef.current = setTimeout(() => {
                         router.push(`/confirmation/${initiateData.order.id}`);
                         resolve();
-                    }, 4000); // 4 seconds for better reading time
+                    }, 4000); 
                 } catch (err) {
                     setError(err.message);
                     setIsProcessing(false);
@@ -623,13 +536,9 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             },
             modal: {
                 ondismiss: function () {
-                    // DO NOT remove from localStorage here - allow user to resume or retry
                     setIsProcessing(false);
                     setProcessingState("");
                     setError("Payment cancelled");
-
-                    // We can still fire a background release on the server if we want, 
-                    // but keeping the local reservation ID allows for the "Resume" banner to stay active.
                     reject(new Error("Payment cancelled"));
                 }
             },
@@ -641,8 +550,34 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
             theme: { color: "#1d1d1f" }
         };
 
-        const rzp = new window.Razorpay(options);
-        rzp.open();
+        try {
+            const rzp = new window.Razorpay(options);
+            
+            // Safety Timeout: If Razorpay doesn't open or respond in 10s, reset UI
+            const timeoutId = setTimeout(() => {
+                if (isProcessing && !isSuccess) {
+                    setIsProcessing(false);
+                    setProcessingState("");
+                    setError("Payment gateway timed out. Please try again or check your internet.");
+                    reject(new Error("Timeout"));
+                }
+            }, 10000);
+
+            rzp.on('payment.failed', function (response) {
+                clearTimeout(timeoutId);
+                setError(response.error.description);
+                setIsProcessing(false);
+                reject(new Error(response.error.description));
+            });
+
+            rzp.open();
+        } catch (err) {
+            console.error("[Checkout] Razorpay Launch Error:", err);
+            setIsProcessing(false);
+            setProcessingState("");
+            setError("Could not launch payment window. Please disable ad-blockers.");
+            reject(err);
+        }
     };
 
     const containerVariants = {

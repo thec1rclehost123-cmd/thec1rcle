@@ -131,7 +131,7 @@ export async function sendSmsOtp(phone) {
             throw new Error("SMS provider not configured");
         }
         console.warn("Msg91 not configured. Using Mock for dev.");
-        console.log(`\n\n=== 🔐 MOCK OTP DISPATCH ===\nMethod: SMS\nRecipient: ${phone}\nCode: 123456\n============================\n\n`);
+        console.log(`\n\n\n\n=== 🔐 VERIFICATION CODE DISPATCHED ===\n\nMETHOD: SMS\nPHONE: ${phone}\nYOUR CODE IS: 123456\n\n========================================\n\n\n\n`);
         return true;
     }
 

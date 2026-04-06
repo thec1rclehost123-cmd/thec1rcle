@@ -92,14 +92,12 @@ const AuroraBackground = () => (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
         {/* Top sweep */}
         <div className="absolute -top-[20%] left-0 h-[90vh] w-full bg-gradient-to-b from-orange/40 dark:from-iris/40 via-transparent to-transparent blur-[100px] opacity-[1.0] transition-colors duration-500" />
-        {/* Right orb */}
-        <div className="absolute top-[10%] right-[-10%] h-[1400px] w-[1400px] rounded-full bg-orange/24 dark:bg-gold/24 blur-[120px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+        {/* Right orb — static opacity, no animate-pulse (was causing full-page GPU repaint 60x/sec) */}
+        <div className="absolute top-[10%] right-[-10%] h-[1400px] w-[1400px] rounded-full bg-orange/20 dark:bg-gold/20 blur-[120px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
         {/* Bottom-left accent orb */}
         <div className="absolute bottom-[5%] left-[-15%] h-[1000px] w-[1000px] rounded-full bg-iris/20 dark:bg-iris/30 blur-[100px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
         {/* Centre mid-page warm bloom */}
         <div className="absolute top-[45%] left-[30%] h-[800px] w-[1200px] rounded-full bg-orange/16 dark:bg-orange/20 blur-[140px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
-        {/* Subtle noise texture */}
-        <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
     </div>
 );
 

@@ -1,9 +1,9 @@
-import { cache } from "react";
 import { PUBLIC_LIFECYCLE_STATES, mapEventForClient } from "@c1rcle/core/events";
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
 import { listEvents } from "./eventStore.js";
 import { FEATURED_EVENT_LIMIT, mergePinnedAndHeatEvents } from "./featuredFeedUtils.js";
+import { cacheGet, cacheSet } from "./redisCache.js";
 
 const EVENT_COLLECTION = "events";
 const SPOTLIGHTS_COLLECTION = "platform_settings";
@@ -115,7 +115,11 @@ async function getAutomaticHeatEvents(limit, nowIso) {
     .slice(0, candidateLimit);
 }
 
-export const getFeaturedEvents = cache(async (limit = FEATURED_EVENT_LIMIT) => {
+export async function getFeaturedEvents(limit = FEATURED_EVENT_LIMIT) {
+  const cacheKey = `featured:events:${limit}`;
+  const cached = await cacheGet(cacheKey);
+  if (cached) return cached;
+
   const nowIso = new Date().toISOString();
   const pinnedIds = await getPinnedFeaturedIds();
   const [pinnedEvents, heatEvents] = await Promise.all([
@@ -123,5 +127,7 @@ export const getFeaturedEvents = cache(async (limit = FEATURED_EVENT_LIMIT) => {
     getAutomaticHeatEvents(limit, nowIso),
   ]);
 
-  return mergePinnedAndHeatEvents(pinnedEvents, heatEvents, limit);
-});
+  const result = mergePinnedAndHeatEvents(pinnedEvents, heatEvents, limit);
+  await cacheSet(cacheKey, result, 180); // 3 min TTL — featured list should stay fresh
+  return result;
+}

@@ -17,14 +17,25 @@ export default function DesktopNavLinks() {
     const linksRef = useRef<HTMLDivElement>(null);
     const pillRef = useRef<HTMLDivElement>(null);
 
-    // Scroll effect (originally in Navbar.tsx) handles global nav styling
+    // Scroll effect — RAF-throttled so it runs at most once per frame (60fps max)
     useEffect(() => {
+        // Cache DOM refs once — avoids getElementById on every scroll event
+        const header = document.getElementById("navbar-header");
+        const nav = document.getElementById("navbar-inner");
+        if (!header || !nav) return;
+
+        let rafId: number | null = null;
+        let lastScrollY = -1;
+
         function applyNavStyle() {
+            rafId = null;
+            const scrollY = window.scrollY;
+            // Skip if scroll position hasn't changed (e.g. horizontal scroll)
+            if (scrollY === lastScrollY) return;
+            lastScrollY = scrollY;
+
             const isDark = document.documentElement.classList.contains("dark");
-            const progress = Math.min(window.scrollY / 100, 1);
-            const header = document.getElementById("navbar-header");
-            const nav = document.getElementById("navbar-inner");
-            if (!header || !nav) return;
+            const progress = Math.min(scrollY / 100, 1);
             header.style.transform = `translateY(${progress * 20}px)`;
             nav.style.width = `${100 - progress * 10}%`;
             nav.style.backdropFilter = `blur(${progress * 20}px)`;
@@ -35,13 +46,28 @@ export default function DesktopNavLinks() {
                 ? `rgba(255,255,255,${progress * 0.06})`
                 : `rgba(0,0,0,${progress * 0.06})`;
         }
-        window.addEventListener("scroll", applyNavStyle, { passive: true });
-        // Re-apply whenever the theme class on <html> changes (e.g. toggle while scrolled)
-        const observer = new MutationObserver(applyNavStyle);
+
+        function onScroll() {
+            // Schedule one rAF per scroll burst — drops redundant events automatically
+            if (rafId === null) {
+                rafId = requestAnimationFrame(applyNavStyle);
+            }
+        }
+
+        window.addEventListener("scroll", onScroll, { passive: true });
+        // Re-apply whenever the theme class on <html> changes
+        const observer = new MutationObserver(() => {
+            if (rafId === null) rafId = requestAnimationFrame(applyNavStyle);
+        });
         observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+
+        // Apply once on mount to set initial state
+        applyNavStyle();
+
         return () => {
-            window.removeEventListener("scroll", applyNavStyle);
+            window.removeEventListener("scroll", onScroll);
             observer.disconnect();
+            if (rafId !== null) cancelAnimationFrame(rafId);
         };
     }, []);
 

@@ -1,6 +1,7 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { trackedGet } from "./firestoreMetrics";
 import { isPublicProfileEnabled } from "./publicProfile";
+import { cacheGet, cacheSet, buildCacheKey } from "./redisCache";
 
 const fallbackVenues = [
     {
@@ -152,6 +153,10 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
         return venues.filter(isPublicProfileEnabled);
     }
 
+    const listCacheKey = buildCacheKey("venues:list", { area, vibe, search, tablesOnly });
+    const listCached = await cacheGet(listCacheKey);
+    if (listCached) return listCached;
+
     const db = getAdminDb();
     let query = db.collection(VENUES_COLLECTION);
 
@@ -187,6 +192,7 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
     venues = venues.filter(isPublicProfileEnabled);
 
     if (venues.length === 0 && !area && !vibe && !search) return fallbackVenues.filter(isPublicProfileEnabled);
+    await cacheSet(listCacheKey, venues, 300); // 5 min TTL
     return venues;
 }
 
@@ -197,12 +203,18 @@ export async function getVenueBySlug(slug) {
         return fallbackVenues.find(v => v.slug === slug) || null;
     }
 
+    const cacheKey = `venue:slug:${slug}`;
+    const cached = await cacheGet(cacheKey);
+    if (cached) return cached;
+
     const db = getAdminDb();
     const snapshot = await trackedGet(db.collection(VENUES_COLLECTION).where("slug", "==", slug).limit(1), "venueStore.getVenueBySlug");
 
     if (!snapshot.empty) {
         const serialized = serializeDoc(snapshot.docs[0]);
-        return { ...serialized, slug: serialized.slug || serialized.id };
+        const result = { ...serialized, slug: serialized.slug || serialized.id };
+        await cacheSet(cacheKey, result, 300);
+        return result;
     }
 
     // Try direct ID lookup if slug lookup fails
@@ -210,7 +222,9 @@ export async function getVenueBySlug(slug) {
         const doc = await db.collection(VENUES_COLLECTION).doc(slug).get();
         if (doc.exists) {
             const serialized = serializeDoc(doc);
-            return { ...serialized, slug: serialized.slug || serialized.id };
+            const result = { ...serialized, slug: serialized.slug || serialized.id };
+            await cacheSet(cacheKey, result, 300);
+            return result;
         }
     } catch (e) { }
 

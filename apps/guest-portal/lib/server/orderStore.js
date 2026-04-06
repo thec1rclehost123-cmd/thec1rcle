@@ -778,28 +778,32 @@ export async function cancelOrder(orderId) {
     const db = getAdminDb();
 
     await db.runTransaction(async (transaction) => {
+        // 1. Transactional Reads: Gather all data first (READ before WRITE)
         const eventRef = db.collection("events").doc(order.eventId);
-        const eventDoc = await transaction.get(eventRef);
+        const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+        
+        const [eventDoc, bundlesSnapshot, assignmentsSnapshot, entitlementsSnapshot] = await Promise.all([
+            transaction.get(eventRef),
+            transaction.get(db.collection("share_bundles").where("orderId", "==", orderId)),
+            transaction.get(db.collection("ticket_assignments").where("orderId", "==", orderId)),
+            transaction.get(db.collection("entitlements").where("orderId", "==", orderId))
+        ]);
 
+        // 2. Transactional Writes: Process all updates
         if (eventDoc.exists) {
             const currentEvent = eventDoc.data();
-            // Handle both ticketCatalog.tiers (new) and tickets (legacy) structures.
-            // IMPORTANT: never read from the wrong array — writing tickets:[] to a
-            // ticketCatalog event corrupts the document.
             const usesTicketCatalog = !!currentEvent.ticketCatalog;
             const sourceTiers = usesTicketCatalog
                 ? (currentEvent.ticketCatalog.tiers || [])
                 : (currentEvent.tickets || []);
             const updatedTiers = [...sourceTiers];
 
-            // Restore ticket inventory
             order.tickets.forEach(orderTicket => {
                 const tierIndex = updatedTiers.findIndex(t => t.id === orderTicket.ticketId);
                 if (tierIndex >= 0) {
                     const tier = updatedTiers[tierIndex];
                     const inv = tier.inventory || {};
                     if (inv.soldQuantity !== undefined) {
-                        // soldQuantity-tracked path: reverse the commit
                         updatedTiers[tierIndex] = {
                             ...tier,
                             inventory: {
@@ -808,7 +812,6 @@ export async function cancelOrder(orderId) {
                             }
                         };
                     } else {
-                        // Legacy remaining-tracked path
                         updatedTiers[tierIndex] = {
                             ...tier,
                             remaining: (Number(tier.remaining ?? tier.quantity) || 0) + orderTicket.quantity
@@ -825,16 +828,12 @@ export async function cancelOrder(orderId) {
         }
 
         // Update order status
-        const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
         transaction.update(orderRef, {
             status: "cancelled",
             updatedAt: now,
         });
 
-        // VOID BUNDLES & ASSIGNMENTS (Refinement 237)
-        const bundlesSnapshot = await transaction.get(
-            db.collection("share_bundles").where("orderId", "==", orderId)
-        );
+        // VOID BUNDLES & ASSIGNMENTS
         bundlesSnapshot.forEach(bundleDoc => {
             transaction.update(bundleDoc.ref, {
                 status: "cancelled",
@@ -842,24 +841,14 @@ export async function cancelOrder(orderId) {
             });
         });
 
-        const assignmentsSnapshot = await transaction.get(
-            db.collection("ticket_assignments").where("orderId", "==", orderId)
-        );
         assignmentsSnapshot.forEach(assignmentDoc => {
             transaction.update(assignmentDoc.ref, {
                 status: "voided",
                 updatedAt: now
             });
         });
-        transaction.update(orderRef, {
-            status: "cancelled",
-            updatedAt: now,
-        });
 
         // ENTITLEMENT ENGINE INTEGRATION
-        const entitlementsSnapshot = await transaction.get(
-            db.collection("entitlements").where("orderId", "==", orderId)
-        );
         entitlementsSnapshot.forEach(entDoc => {
             transaction.update(entDoc.ref, {
                 state: "REVOKED",

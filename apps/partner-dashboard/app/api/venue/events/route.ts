@@ -1,7 +1,7 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { updateEventLifecycle, listEvents } from "@/lib/server/eventStore";
-import { withAuth } from "@/lib/server/withAuth";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { ok, fail } from "@/lib/server/apiResponse";
 import { logger } from "@/lib/server/logger";
 
@@ -34,7 +34,10 @@ const STATUS_MAP: Record<string, string> = {
 /**
  * GET /api/venue/events
  */
-export const GET = withAuth(async (req: NextRequest, auth) => {
+export async function GET(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "events:create"); // Use a general events permission or adjust as needed
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const { searchParams } = new URL(req.url);
         const parsed = EventsQuery.safeParse(Object.fromEntries(searchParams));
@@ -70,12 +73,15 @@ export const GET = withAuth(async (req: NextRequest, auth) => {
         logger.error("venue/events", "GET failed", { error: error.message });
         return fail("Failed to fetch events");
     }
-});
+}
 
 /**
  * PATCH /api/venue/events
  */
-export const PATCH = withAuth(async (req: NextRequest, auth) => {
+export async function PATCH(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "events:edit");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+
     try {
         const rawBody = await req.json();
         const parsed = UpdateEventBody.safeParse(rawBody);
@@ -84,14 +90,14 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
         const { eventId, action, data } = parsed.data;
         const newStatus = STATUS_MAP[action];
 
-        let role = auth.partnerType || (auth.admin ? "admin" : "user");
-        if (process.env.NODE_ENV === "development" && auth.uid === "dev-user-123") {
-            role = "venue";
+        let role = ctx.baseRole;
+        if (process.env.NODE_ENV === "development" && ctx.uid === "dev-user-123") {
+            role = "OWNER";
         }
 
         const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
         const context = {
-            uid: auth.uid,
+            uid: ctx.uid,
             role,
             requestId: `API_${Date.now()}`,
             token,
@@ -109,4 +115,4 @@ export const PATCH = withAuth(async (req: NextRequest, auth) => {
         logger.error("venue/events", "PATCH failed", { error: error.message });
         return fail("Failed to update event");
     }
-});
+}

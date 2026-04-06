@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../components/providers/AuthProvider";
-import { getUserEvents, fetchProfile } from "../actions";
 import EditProfileModal from "../../../components/EditProfileModal";
 import ShimmerImage from "../../../components/ShimmerImage";
 import { useParams, useRouter } from "next/navigation";
@@ -222,44 +222,32 @@ export default function PublicProfilePage() {
     const { userId } = params;
     const { user: currentUser, profile: currentProfile, logout } = useAuth();
 
-    const [profile, setProfile] = useState(null);
-    const [events, setEvents] = useState({ upcoming: [], attended: [] });
-    const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState("upcoming");
     const [editModalOpen, setEditModalOpen] = useState(false);
 
     const isOwner = currentUser?.uid === userId;
 
-    useEffect(() => {
-        if (!userId || userId === "[userId]") return;
-
-        const loadData = async () => {
-            setLoading(true);
-            try {
-                // Fetch Profile
-                if (isOwner && currentProfile) {
-                    setProfile(currentProfile);
-                } else {
-                    const fetchedProfile = await fetchProfile(userId);
-                    if (!fetchedProfile) {
-                        // ...
-                    } else {
-                        setProfile(fetchedProfile);
-                    }
-                }
-
-                // Fetch Events
-                const fetchedEvents = await getUserEvents(userId, currentUser?.uid);
-                setEvents(fetchedEvents);
-            } catch (error) {
-                console.error("Failed to load profile data", error);
-            } finally {
-                setLoading(false);
+    const { data, isLoading: loading } = useQuery({
+        queryKey: ["profile", userId, currentUser?.uid],
+        queryFn: async () => {
+            // If viewing own profile and auth context already has it, skip the fetch
+            if (isOwner && currentProfile) {
+                return { profile: currentProfile, events: { upcoming: [], attended: [] } };
             }
-        };
+            const viewerParam = currentUser?.uid ? `?viewerId=${currentUser.uid}` : "";
+            const res = await fetch(`/api/profile/${userId}${viewerParam}`);
+            if (!res.ok) throw new Error("Profile not found");
+            return res.json();
+        },
+        enabled: !!userId && userId !== "[userId]",
+        staleTime: 2 * 60 * 1000,   // 2 min — don't refetch on every focus
+        gcTime:   10 * 60 * 1000,   // 10 min in cache
+        refetchOnWindowFocus: false,
+        retry: 1,
+    });
 
-        loadData();
-    }, [userId, currentUser?.uid, currentProfile]);
+    const profile = data?.profile ?? null;
+    const events  = data?.events  ?? { upcoming: [], attended: [] };
 
     if (loading) {
         return (

@@ -1,6 +1,6 @@
 import { getAdminApp, isFirebaseConfigured } from "../firebase/admin";
 import { getAuth } from "firebase-admin/auth";
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { logger, logAuthEvent, getRequestId } from "./logger";
 import { isIpBlocked, isUserBlocked, checkCriticalEndpoint } from "@c1rcle/core/security-state";
 
@@ -47,7 +47,7 @@ export async function verifyAuth(request) {
     // Degraded path: Redis is down → apply a tight in-memory rate limit (3/min/IP)
     // so auth endpoints don't become completely unprotected during an outage.
     if (ip) {
-        const critical = checkCriticalEndpoint(`auth:ip:${ip}`, 3, 60_000);
+        const critical = checkCriticalEndpoint(`auth:ip:${ip}`, 30, 60_000);
         if (!critical.allowed) {
             logAuthEvent("REDIS_DEGRADED_RATE_LIMITED", { requestId, ip });
             return null;
@@ -74,20 +74,33 @@ export async function verifyAuth(request) {
         authHeader = headerList.get("Authorization");
     }
 
+    let token;
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        return null;
+        // Fallback to cookie-based auth for Next.js session persistence
+        const cookieStore = await cookies();
+        const sessionCookie = cookieStore.get("__session")?.value;
+        if (sessionCookie) {
+            token = sessionCookie;
+        } else {
+            return null;
+        }
+    } else {
+        token = authHeader.slice(7);
     }
-
-    const token = authHeader.slice(7);
 
     try {
         const app = getAdminApp();
         const auth = getAuth(app);
+        
+        // Debug: Log the first few chars of the token we are trying to verify
+        // console.log(`[Auth] Verifying token starting with: ${token.substring(0, 10)}...`);
+
         const decodedToken = await auth.verifyIdToken(token);
 
         // ── Active defense: reject blocked users after token is verified ─────
         const userStatus = await isUserBlocked(decodedToken.uid);
         if (userStatus.blocked) {
+            console.warn(`[Auth] User ${decodedToken.uid} is BLOCKED:`, userStatus.reason);
             logAuthEvent("BLOCKED_USER_REJECTED", {
                 requestId, uid: decodedToken.uid, ip,
                 reason: userStatus.reason,
@@ -97,6 +110,14 @@ export async function verifyAuth(request) {
 
         return decodedToken;
     } catch (error) {
+        console.error("[Auth] Token verification failed!");
+        console.error("[Auth] Error Code:", error.code);
+        console.error("[Auth] Error Message:", error.message);
+        
+        if (error.code === 'auth/argument-error') {
+            console.error("[Auth] HINT: This often means the Firebase Admin SDK is misconfigured or the Private Key is invalid.");
+        }
+
         logAuthEvent("TOKEN_VERIFICATION_FAILED", {
             requestId, ip,
             errorCode: error.code || error.message,

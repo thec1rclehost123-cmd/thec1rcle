@@ -623,9 +623,12 @@ export default function MarketingPage() {
 
     const eventsQuery = useQuery({
         queryKey: ["venue", venueId, "events"],
-        enabled: Boolean(venueId),
+        enabled: Boolean(venueId && user),
         queryFn: async () => {
-            const response = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`);
+            const token = await user?.getIdToken();
+            const response = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
             if (!response.ok) throw new Error("Failed to fetch events");
             const data = await response.json();
             return (data.events || data || []) as any[];

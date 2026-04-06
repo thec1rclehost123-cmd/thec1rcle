@@ -13,7 +13,7 @@ import { getRedisClient } from "./redis.js";
  */
 export async function trackEventView(eventId, viewerId) {
     const redis = getRedisClient();
-    if (redis.status !== "ready") return; // skip if not yet connected
+    if (!redis || redis.status !== "ready") return; // skip if not yet connected
     const key = `viewers:${eventId}`;
     const userKey = `viewer_session:${eventId}:${viewerId}`;
 
@@ -35,7 +35,7 @@ export async function trackEventView(eventId, viewerId) {
  */
 export async function getLiveViewerCount(eventId) {
     const redis = getRedisClient();
-    if (redis.status !== "ready") return 0;
+    if (!redis || redis.status !== "ready") return 0;
     const key = `viewers:${eventId}`;
 
     // In a production environment, we'd prune the Set here or via a CRON

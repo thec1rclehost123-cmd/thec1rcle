@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-<<<<<<< HEAD
-import { getVenueCalendar, getDateAvailability, blockDate, unblockDate, getOperatingCalendar } from "@/lib/server/calendarStore";
-=======
-import { getVenueCalendar, getDateAvailability, blockDate, unblockDate, getHostVenueCalendar } from "@/lib/server/calendarStore";
+import { 
+    getVenueCalendar, 
+    getDateAvailability, 
+    blockDate, 
+    unblockDate, 
+    getOperatingCalendar, 
+    getHostVenueCalendar 
+} from "@/lib/server/calendarStore";
 import { checkPartnership } from "@/lib/server/partnershipStore";
 import { verifyPartnerAccess } from "@/lib/server/auth";
->>>>>>> origin/staging
 import { withAuth } from "@/lib/server/withAuth";
 import { ok, fail } from "@/lib/server/apiResponse";
 
@@ -23,67 +26,37 @@ export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
         const startDate = searchParams.get("startDate");
         const endDate = searchParams.get("endDate");
         const view = searchParams.get("view");
+        const hostId = searchParams.get("hostId");
 
         const today = new Date();
         const sDate = startDate || today.toISOString().split("T")[0];
         const eDate = endDate || new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-        // Operating view: full rich calendar (events + slots + blocks) — any authenticated host can read
+        // 1. Operating view: full rich calendar (events + slots + blocks) — any authenticated host can read
         if (view === "operating") {
             const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
             const data = await getOperatingCalendar(venueId, "venue", sDate, eDate, token);
             return NextResponse.json(data);
         }
 
-        // Legacy: raw blocked-date docs
-        const hostId = searchParams.get("hostId");
-<<<<<<< HEAD
-        const calendar = await getVenueCalendar(venueId, sDate, eDate, hostId || undefined);
-=======
-
-        if (!startDate || !endDate) {
-            // Default to next 30 days
-            const today = new Date();
-            const defaultStart = today.toISOString().split("T")[0];
-            const defaultEnd = new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000)
-                .toISOString().split("T")[0];
-
-            const hasVenueAccess = await verifyPartnerAccess(req, venueId);
-            const effectiveHostId = hostId || (auth as any).partnerId || (auth as any).uid;
-
-            if (!hasVenueAccess) {
-                const hasPartnership = await checkPartnership(effectiveHostId, venueId);
-                if (!hasPartnership) {
-                    return fail("No active partnership with this venue. Access denied.", 403);
-                }
-                const calendar = await getHostVenueCalendar(venueId, defaultStart, defaultEnd, effectiveHostId);
-                return ok({ calendar });
-            }
-
-            const calendar = await getVenueCalendar(venueId, defaultStart, defaultEnd, hostId || undefined);
-            return ok({ calendar });
-        }
-
-        // Security: venue owners/staff may always view their own venue calendar.
-        // Otherwise require the host to have an active partnership.
+        // 2. Security & Partnership checks for raw/host views
         const hasVenueAccess = await verifyPartnerAccess(req, venueId);
-        if (!hasVenueAccess) {
-            const token = auth as any;
-            const effectiveHostId = hostId || token.partnerId || token.uid;
-            const hasPartnership = await checkPartnership(effectiveHostId, venueId);
+        const effectiveHostId = hostId || (auth as any).partnerId || (auth as any).uid;
 
+        if (!hasVenueAccess) {
+            const hasPartnership = await checkPartnership(effectiveHostId, venueId);
             if (!hasPartnership) {
                 return fail("No active partnership with this venue. Access denied.", 403);
             }
-
-            const calendar = await getHostVenueCalendar(venueId, startDate, endDate, effectiveHostId);
+            // Use specialized host-venue calendar which filters for their own slots/events + occupied blocks
+            const calendar = await getHostVenueCalendar(venueId, sDate, eDate, effectiveHostId);
             return ok({ calendar });
         }
 
-        const calendar = await getVenueCalendar(venueId, startDate, endDate, hostId || undefined);
-
->>>>>>> origin/staging
+        // 3. Raw view for venue owners/staff (no filters)
+        const calendar = await getVenueCalendar(venueId, sDate, eDate, hostId || undefined);
         return ok({ calendar });
+
     } catch (error: any) {
         console.error("[Calendar API] GET Error:", error);
         return fail("Failed to fetch calendar");
@@ -109,8 +82,8 @@ export const POST = withAuth(async (req: NextRequest, auth, ctx) => {
             return fail("Actor UID mismatch", 403);
         }
 
-        // Verify actor is from this venue
-        if (actor.role !== "venue" && actor.role !== "admin") {
+        // Verify actor is from this venue or an admin
+        if (actor.role !== "venue" && actor.partnerId !== venueId && actor.role !== "admin") {
             return fail("Only venue managers can modify the calendar", 403);
         }
 

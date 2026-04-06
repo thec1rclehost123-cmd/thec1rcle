@@ -127,13 +127,13 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
 
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
 
-  const {
-    events,
-    status,
-    error,
-    fetchEvents,
-    hasMore
-  } = useExploreStore();
+  // Granular selectors — component only re-renders when these specific values change,
+  // not on every revalidating/lastFetchedAt/nextCursor update
+  const events = useExploreStore(s => s.events);
+  const status = useExploreStore(s => s.status);
+  const error = useExploreStore(s => s.error);
+  const fetchEvents = useExploreStore(s => s.fetchEvents);
+  const hasMore = useExploreStore(s => s.hasMore);
 
   // Real-time Trending listener — top-20 events in current city by heatScore
   const [liveEvents, setLiveEvents] = useState(null);

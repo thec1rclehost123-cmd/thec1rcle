@@ -28,6 +28,10 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
         try {
+            // Cache-aside: user-scoped order list, TTL 120s
+            const cached = await fastify.cache.get('orders', userId);
+            if (cached) return { success: true, orders: cached };
+
             const [ordersSnap, rsvpsSnap] = await Promise.all([
                 fastify.db.collection('orders').where('userId', '==', userId).get(),
                 fastify.db.collection('rsvp_orders').where('userId', '==', userId).get(),
@@ -51,6 +55,8 @@ export default async function orderRoutes(fastify: FastifyInstance) {
                 ...o,
                 event: eventsById[o.eventId] || null,
             }));
+
+            await fastify.cache.set('orders', userId, enriched, 120);
 
             return { success: true, orders: enriched };
         } catch (error: any) {
@@ -117,6 +123,9 @@ export default async function orderRoutes(fastify: FastifyInstance) {
                 cancelledByType: 'guest',
                 updatedAt: now,
             });
+
+            // Bust cached order list for this user
+            await fastify.cache.delete('orders', userId);
 
             return {
                 success: true,

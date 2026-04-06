@@ -32,6 +32,11 @@ const C = {
 };
 
 const EXCLUDED_LIFECYCLE = ["draft", "deleted", "cancelled", "denied"];
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+];
 
 function formatDate(date: Date) {
     const y = date.getFullYear();

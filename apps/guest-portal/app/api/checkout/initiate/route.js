@@ -37,27 +37,30 @@ async function handler(request) {
 
         // User details — SECURITY: email and phone come ONLY from the verified Firebase token
         // and Firestore user profile. Never from client payload to prevent ticket misdelivery fraud.
-        let profilePhone = "";
+        let profileData = {};
         try {
             const { getAdminDb } = await import("@/lib/firebase/admin");
             const db = getAdminDb();
             if (db) {
                 const userDoc = await db.collection("users").doc(decodedToken.uid).get();
                 if (userDoc.exists) {
-                    profilePhone = userDoc.data()?.phone || userDoc.data()?.phoneNumber || "";
+                    profileData = userDoc.data() || {};
                 }
             }
-        } catch (_) { /* non-critical — phone is optional */ }
-
+        } catch (err) { 
+            console.error("[Checkout] Profile lookup failed for", decodedToken.uid, err.message);
+        } 
+ 
         const userDetails = {
-            name: decodedToken.name || decodedToken.displayName || 'Guest',
-            email: decodedToken.email,   // ONLY from verified token — never from payload
-            phone: decodedToken.phone_number || profilePhone  // ONLY from token/Firestore
+            name: decodedToken.name || decodedToken.displayName || profileData.displayName || 'Guest',
+            email: decodedToken.email || profileData.email,   // ONLY from verified token/profile
+            phone: decodedToken.phone_number || profileData.phone || profileData.phoneNumber || ""
         };
-
+ 
         if (!userDetails.email) {
+            console.error("[Checkout] Missing email for user", decodedToken.uid);
             return NextResponse.json(
-                { error: "A verified email address is required to complete checkout" },
+                { error: "A verified email address is required to complete checkout. Please ensure your profile is complete." },
                 { status: 400 }
             );
         }

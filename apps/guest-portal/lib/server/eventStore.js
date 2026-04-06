@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
 import { trackedGet } from "./firestoreMetrics.js";
+import { cacheGet, cacheSet, buildCacheKey } from "./redisCache.js";
 import { algoliasearch } from 'algoliasearch';
 import { EVENT_LIFECYCLE, PUBLIC_LIFECYCLE_STATES, normalizeCity, resolvePoster, mapEventForClient } from "@c1rcle/core/events";
 import { filterAndSortEvents, calculateHeatScore as coreHeatScore, buildEvent } from "@c1rcle/core/event-engine";
@@ -367,6 +368,10 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     }
   }
 
+  const listCacheKey = buildCacheKey("events:list", { city, sort, limit, search, host });
+  const listCached = await cacheGet(listCacheKey);
+  if (listCached) return listCached;
+
   const db = getAdminDb();
   let query = db.collection(EVENT_COLLECTION);
 
@@ -432,7 +437,9 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
     { city, sort, search, host }
   ).map(e => mapEventForClient(e, e.id));
 
-  return serialize(limit ? results.slice(0, limit) : results);
+  const finalResults = serialize(limit ? results.slice(0, limit) : results);
+  await cacheSet(listCacheKey, finalResults, 120); // 2 min TTL — events change frequently
+  return finalResults;
 }
 
 export async function createEvent(payload) {
@@ -466,19 +473,31 @@ export async function getEvent(identifier) {
   if (!isFirebaseConfigured()) {
     return findFallbackEvent(identifier);
   }
+
+  const cacheKey = `event:${identifier}`;
+  const cached = await cacheGet(cacheKey);
+  if (cached) return cached;
+
   const db = getAdminDb();
   // Fix: Removed ensureSeedEvents() call from read path
 
   const directDoc = await trackedGet(db.collection(EVENT_COLLECTION).doc(identifier), "eventStore.getEvent.byId");
   if (directDoc.exists) {
-    return serialize(mapEventDocument(directDoc));
+    const result = serialize(mapEventDocument(directDoc));
+    await cacheSet(cacheKey, result, 300);
+    return result;
   }
   const slugSnapshot = await trackedGet(
     db.collection(EVENT_COLLECTION).where("slug", "==", identifier).limit(1),
     "eventStore.getEvent.bySlug"
   );
   if (!slugSnapshot.empty) {
-    return serialize(mapEventDocument(slugSnapshot.docs[0]));
+    const result = serialize(mapEventDocument(slugSnapshot.docs[0]));
+    await Promise.all([
+      cacheSet(cacheKey, result, 300),
+      cacheSet(`event:${slugSnapshot.docs[0].id}`, result, 300),
+    ]);
+    return result;
   }
   return serialize(findFallbackEvent(identifier));
 }

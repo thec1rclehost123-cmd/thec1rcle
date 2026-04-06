@@ -37,7 +37,7 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
     const fullKey = `ratelimit:${key}`;
 
     try {
-        if (redis.status !== "ready" && redis.status !== "connecting") {
+        if (!redis || (redis.status !== "ready" && redis.status !== "connecting")) {
             console.warn("[Redis] Client not ready, failing open for rate limit");
             return { success: true, limit, remaining: 1, reset: windowSeconds };
         }

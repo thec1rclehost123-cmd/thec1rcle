@@ -13,22 +13,13 @@ const getAdminConfig = () => {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
   if (privateKey) {
-    // Step 1: Unescape literal \n sequences from environment variable storage
-    privateKey = privateKey.replace(/\\n/g, "\n");
-
-    // Step 2: Strip surrounding quotes added by some env var tools (e.g. dotenv)
-    if (
-      (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
-      (privateKey.startsWith("'") && privateKey.endsWith("'"))
-    ) {
+    // ── HARDENED PARSING ──
+    // 1. Strip surrounding quotes if present
+    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
       privateKey = privateKey.slice(1, -1);
-      // Re-unescape after quote strip in case the value was double-encoded
-      privateKey = privateKey.replace(/\\n/g, "\n");
     }
-
-    // DO NOT strip base64 body chars or reformat the PEM.
-    // The Firebase Admin SDK accepts a valid PEM string directly.
-    // Stripping chars corrupts the key material.
+    // 2. Unescape \n into real line breaks
+    privateKey = privateKey.replace(/\\n/g, "\n");
   }
 
   // Remove debug logs to avoid clutter/leaks

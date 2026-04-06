@@ -5,10 +5,19 @@ import { C1rcleApiClient } from "@c1rcle/core/api-client";
  * @param {string} token - The user's Firebase ID token
  */
 export function getApiClient(token) {
-    const baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL
+    let baseUrl = process.env.NEXT_PUBLIC_GATEWAY_URL
         ? process.env.NEXT_PUBLIC_GATEWAY_URL + "/api/v1"
         : process.env.PUBLIC_API_URL;
-    if (!baseUrl) throw new Error('API gateway URL is not configured. Set NEXT_PUBLIC_GATEWAY_URL or PUBLIC_API_URL.');
+
+    if (!baseUrl && process.env.NODE_ENV === "development") {
+        console.warn("[API Client] NEXT_PUBLIC_GATEWAY_URL is missing. Falling back to localhost:4000.");
+        baseUrl = "http://localhost:4000/api/v1";
+    }
+
+    if (!baseUrl) {
+        throw new Error('API gateway URL is not configured. Set NEXT_PUBLIC_GATEWAY_URL or PUBLIC_API_URL.');
+    }
+
     return new C1rcleApiClient({
         baseUrl,
         getAuthToken: async () => token

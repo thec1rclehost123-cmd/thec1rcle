@@ -27,6 +27,7 @@ export const authService = {
     },
 
     async finalizeSignup(form) {
+        console.log(`[AUTH-SERVICE] Sending registration payload. Password length: ${form.password?.length || 0}`);
         const res = await fetch("/api/auth/register", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

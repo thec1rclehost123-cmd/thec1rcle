@@ -213,10 +213,20 @@ export async function validatePurchase(event, items, options = {}) {
 export async function createReservation(event, customerId, deviceId, items, options = {}) {
     const { reservationMinutes = DEFAULT_RESERVATION_MINUTES } = options;
     const redis = getRedisClient();
-    if (!redis) throw new Error("Redis connection required for real-time inventory locking");
-
     const reservationId = randomUUID();
     const ttlSeconds = reservationMinutes * 60;
+    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+
+    if (!redis) {
+        console.warn("[Inventory] Redis missing, proceeding with mock reservation (DEV MODE)");
+        // Validate against static/Firestore inventory instead of real-time Redis carts
+        const validation = await validatePurchase(event, items, { db: options.db });
+        if (!validation.success) {
+            const errors = validation.items.filter(i => !i.valid).map(i => i.error);
+            throw new Error(errors.join(', '));
+        }
+        return { success: true, reservationId, expiresAt };
+    }
 
     // Mutex Lock
     const lockKey = `inv:lock:${event.id}`;

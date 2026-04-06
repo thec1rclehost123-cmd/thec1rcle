@@ -51,15 +51,18 @@ export default function HeroVideoOverlay() {
                 .delay-700 { animation-delay: 0.7s; }
                 .delay-2000 { animation-delay: 2s; }
 
-                /* Parallax fade optimization - pure CSS scroll interaction */
-                .hero-parallax-wrapper {
-                    animation: fade-out linear forwards;
-                    animation-timeline: scroll();
-                    animation-range: exit 0% exit 100%;
-                }
-
-                @keyframes fade-out {
-                    to { opacity: 0; transform: translateY(100px); }
+                /* Respect reduced motion — stop all continuous animations */
+                @media (prefers-reduced-motion: reduce) {
+                    .animate-fade-in-up,
+                    .animate-scale-in,
+                    .animate-scale-x-reveal,
+                    .animate-fade-in,
+                    .animate-bounce-custom,
+                    .animate-pulse-custom {
+                        animation: none !important;
+                        opacity: 1 !important;
+                        transform: none !important;
+                    }
                 }
             `}</style>
 
@@ -69,7 +72,7 @@ export default function HeroVideoOverlay() {
             </div>
 
             {/* Hero Content */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 z-10 pt-16 md:pt-32 hero-parallax-wrapper">
+            <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 z-10 pt-16 md:pt-32">
                 <div className="relative max-w-7xl space-y-6 md:space-y-12 w-full animate-fade-in-up delay-100">
                     {/* Main Title - THE C1RCLE with Premium Effects */}
                     <div className="relative">

@@ -63,7 +63,7 @@ export function CalendarFilterPopup({
     onClose,
     triggerRect,
 }: CalendarFilterPopupProps) {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const { resolvedTheme } = useTheme();
     const venueId = profile?.activeMembership?.partnerId ?? null;
     const today = new Date();
@@ -80,24 +80,32 @@ export function CalendarFilterPopup({
 
     // Fetch events for the venue (get enough to fill the calendar)
     useEffect(() => {
-        if (!venueId) return;
+        if (!venueId || !user) return;
         let cancelled = false;
         setLoading(true);
-        fetch(`/api/venue/events?venueId=${venueId}&limit=200`)
-            .then((r) => r.json())
-            .then((data) => {
+
+        const loadEvents = async () => {
+            try {
+                const token = await user.getIdToken();
+                const headers: Record<string, string> = {};
+                if (token) headers["Authorization"] = `Bearer ${token}`;
+
+                const r = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`, { headers });
+                const data = await r.json();
+                
                 if (cancelled) return;
                 const list = data.events || data || [];
                 setEvents(Array.isArray(list) ? list : []);
-            })
-            .catch(() => {
+            } catch (err) {
                 if (!cancelled) setEvents([]);
-            })
-            .finally(() => {
+            } finally {
                 if (!cancelled) setLoading(false);
-            });
+            }
+        };
+
+        loadEvents();
         return () => { cancelled = true; };
-    }, [venueId]);
+    }, [venueId, user, profile]);
 
     // Close on outside click
     useEffect(() => {

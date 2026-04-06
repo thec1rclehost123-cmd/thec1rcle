@@ -92,8 +92,13 @@ function LoginForm() {
     );
 
     const [status, setStatus] = useState({ type: "", message: "" });
+    const [mounted, setMounted] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const redirectUrl = useMemo(
         () => searchParams.get("returnUrl") || searchParams.get("next") || searchParams.get("redirect") || "/profile",
@@ -108,7 +113,7 @@ function LoginForm() {
                 sessionStorage.setItem(SESSION_KEYS.isNewUser, String(isNewUser));
                 sessionStorage.setItem(SESSION_KEYS.isOnboarding, String(isOnboarding));
                 // Never persist password
-                sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify({ ...form, password: "" }));
+                sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify(form));
             } catch { /* noop */ }
         }
     }, [step, form, isNewUser, isOnboarding]);
@@ -130,7 +135,7 @@ function LoginForm() {
     const cleanForm = useMemo(() => ({
         ...form,
         email: form.email.toLowerCase().trim(),
-        phone: `${countries.find(c => c.code === form.country)?.dialCode || ""}${form.phone.trim()}`
+        phone: `${countries.find(c => c.code === form.country)?.dialCode || ""}${form.phone.trim().replace(/^0+/, "")}`
     }), [form]);
 
     const handleChange = (field) => (event) => {
@@ -264,9 +269,13 @@ function LoginForm() {
 
     // ── Registration flow ─────────────────────────────────────────────────
     const handleStartRegistration = async () => {
+        console.log(`[AUTH-TRACE] handleStartRegistration triggered. Password length: ${form.password?.length || 0}`);
         setSubmitting(true);
         setStatus({ type: "", message: "" });
         try {
+            if (!form.password || form.password.length < 6) {
+                throw new Error("Password lost in ritual. Please go back to step 1 and re-enter.");
+            }
             await authService.sendOtp("phone", cleanForm.phone);
             setStep(8); // push OTP to step 8
         } catch (err) {
@@ -277,8 +286,16 @@ function LoginForm() {
     };
 
     const handleFinalizeRegistration = async () => {
+        console.log(`[AUTH-TRACE] handleFinalizeRegistration triggered. Password length: ${form.password?.length || 0}`);
         setSubmitting(true);
+        if (!form.password || form.password.length < 8) {
+            setStatus({ type: "error", message: "Security ritual requires at least 8 characters for your password. Please go back to step 1." });
+            setSubmitting(false);
+            return;
+        }
+
         try {
+            console.log("[AUTH-TRACE] Sending payload to finalizeSignup...");
             await authService.finalizeSignup({
                 ...cleanForm,
                 password: form.password,
@@ -367,6 +384,10 @@ function LoginForm() {
         if (step === 8) return <>Verify your <br /><span className="text-orange">Phone.</span></>;
         return <>Final <br /><span className="text-orange">Step.</span></>;
     };
+
+    if (!mounted) {
+        return <div className="flex-1 flex items-center justify-center"><Loader2 className="animate-spin text-orange" /></div>;
+    }
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full relative">
@@ -462,11 +483,13 @@ function LoginForm() {
                                                             <input
                                                                 type="password"
                                                                 required
+                                                                minLength={8}
                                                                 value={form.password}
                                                                 onChange={handleChange("password")}
                                                                 placeholder="••••••••"
                                                                 className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                             />
+                                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest pl-1">At least 8 characters</p>
                                                         </div>
 
                                                         <div className="pt-2 border-t border-white/5 space-y-4">

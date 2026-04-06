@@ -26,7 +26,9 @@ function normalizeDiscoveryDoc(d: any, type: string) {
         id: d.id,
         type,
         name: r.displayName || r.name || "Unknown",
-        avatar: r.profileImage || r.avatar || null,
+        avatar: r.photoURL || r.profileImage || r.avatar || null,
+        photoURL: r.photoURL || r.profileImage || r.avatar || null,
+        coverURL: r.coverURL || r.backdropURL || r.coverImage || null,
         city: r.city || r.location?.split?.(",")[0]?.trim?.() || "",
         bio: r.bio || r.summary || r.description || "",
         tags: r.tags || r.genres || [],
@@ -42,22 +44,23 @@ function normalizeDiscoveryDoc(d: any, type: string) {
         noShowRate: r.noShowRate,
         instagram: r.instagram || r.instagramHandle,
         phone: r.phone || r.contactPhone,
+        hostsConnected: r.hostsConnected ?? 0,
+        promotersConnected: r.promotersConnected ?? 0,
+        ticketsSold: r.ticketsSold ?? 0,
     };
 }
 
 function getDiscoverTypes(type: string | null, role: string) {
     if (type && type !== "all") return [type];
-
     if (role === "promoter") return ["venue", "host"];
     if (role === "venue") return ["host", "promoter"];
     if (role === "host") return ["venue", "promoter"];
-
     return Object.keys(COLLECTION_MAP);
 }
 
 /**
  * GET /api/discovery
- * Discover partners and check connection status — queries Firestore directly via Admin SDK.
+ * Discover partners and check connection status.
  */
 export const GET = withAuth(async (req: NextRequest) => {
     try {
@@ -67,7 +70,6 @@ export const GET = withAuth(async (req: NextRequest) => {
         const role = searchParams.get("role");
 
         if (!partnerId || !role) return fail("partnerId and role are required", 400);
-
         if (!isFirebaseConfigured()) {
             if (action === "discover") return ok({ partners: [] });
             if (action === "list") return ok({ connections: [] });
@@ -84,7 +86,6 @@ export const GET = withAuth(async (req: NextRequest) => {
                 const limit = Math.min(parseInt(searchParams.get("limit") || "20"), 100);
                 const discoverTypes = getDiscoverTypes(type, role);
 
-                // Fetch partner docs + existing connections in parallel via Firestore Admin SDK
                 const partnerSnapshots = await Promise.all(
                     discoverTypes.map(async (discoverType) => {
                         const col = COLLECTION_MAP[discoverType] || discoverType;
@@ -105,7 +106,6 @@ export const GET = withAuth(async (req: NextRequest) => {
                         : db.collection("promoter_connections").where("targetId", "==", partnerId).get(),
                 ]);
 
-                // Build connection status lookup keyed by the other party's ID
                 const statusMap = new Map<string, { status: string; id: string }>();
                 (partnershipSnap as any).docs.forEach((d: any) => {
                     const data = d.data();
@@ -118,47 +118,12 @@ export const GET = withAuth(async (req: NextRequest) => {
                     if (otherId) statusMap.set(otherId, { status: data.status, id: d.id });
                 });
 
-<<<<<<< HEAD
-                let results: any[] = snapshot.docs.map((d: any) => {
-                    const r = d.data();
-                    return {
-                        id: d.id,
-                        type,
-                        name: r.displayName || r.name || "Unknown",
-                        avatar: r.profileImage || r.avatar || null,
-                        photoURL: r.photoURL || r.profileImage || r.avatar || null,
-                        coverURL: r.coverURL || r.backdropURL || r.coverImage || null,
-                        city: r.city || r.location?.split?.(",")[0]?.trim?.() || "",
-                        bio: r.bio || r.summary || r.description || "",
-                        tags: r.tags || r.genres || [],
-                        eventsCount: r.eventsCount || 0,
-                        followersCount: parseInt(r.followers) || r.followersCount || 0,
-                        isVerified: !!(r.isVerified || r.isApproved || r.status === "active"),
-                        capacity: r.capacity,
-                        operatingHours: r.operatingHours,
-                        soundSystem: r.soundSystem,
-                        musicPolicy: r.musicPolicy,
-                        avgCrowdSize: r.avgCrowdSize,
-                        audienceDemographic: r.audienceDemographic,
-                        noShowRate: r.noShowRate,
-                        instagram: r.instagram || r.instagramHandle,
-                        phone: r.phone || r.contactPhone,
-                        hostsConnected: r.hostsConnected ?? 0,
-                        promotersConnected: r.promotersConnected ?? 0,
-                        ticketsSold: r.ticketsSold ?? 0,
-                    };
-                });
-=======
                 let results: any[] = partnerSnapshots.flatMap(({ discoverType, snapshot }) =>
                     snapshot.docs.map((d: any) => normalizeDiscoveryDoc(d, discoverType))
                 );
->>>>>>> origin/staging
 
-                // Exclude self, dedupe, apply filters, sort, cap at limit
                 results = results.filter((r: any) => r.id !== partnerId);
-                results = Array.from(
-                    new Map(results.map((result: any) => [result.id, result])).values()
-                );
+                results = Array.from(new Map(results.map((result: any) => [result.id, result])).values());
                 if (city) results = results.filter((r: any) => r.city.toLowerCase().includes(city.toLowerCase()));
                 if (search) {
                     const s = search.toLowerCase();
@@ -174,11 +139,7 @@ export const GET = withAuth(async (req: NextRequest) => {
                         const aExact = a.name.toLowerCase() === s ? 1 : 0;
                         const bExact = b.name.toLowerCase() === s ? 1 : 0;
                         if (aExact !== bExact) return bExact - aExact;
-                        const aStarts = a.name.toLowerCase().startsWith(s) ? 1 : 0;
-                        const bStarts = b.name.toLowerCase().startsWith(s) ? 1 : 0;
-                        if (aStarts !== bStarts) return bStarts - aStarts;
                     }
-
                     return String(a.name || "").localeCompare(String(b.name || ""));
                 });
                 results = results.slice(0, limit);
@@ -187,7 +148,6 @@ export const GET = withAuth(async (req: NextRequest) => {
                     results.map(async (partner: any) => {
                         const existing = statusMap.get(partner.id);
                         const snapshot = await getPartnerCardSnapshot(partner.id);
-
                         return {
                             ...partner,
                             avatar: snapshot?.avatar || partner.avatar,
@@ -206,8 +166,6 @@ export const GET = withAuth(async (req: NextRequest) => {
 
             case "list": {
                 const status = searchParams.get("status");
-
-                // Query partnerships and promoter_connections directly via Firestore Admin SDK
                 const [partnershipSnap, promoterConnSnap] = await Promise.all([
                     role === "promoter"
                         ? Promise.resolve({ docs: [] as any[] })
@@ -243,66 +201,25 @@ export const GET = withAuth(async (req: NextRequest) => {
 
                 let connections: any[] = [...normalizedPartnerships, ...normalizedPromoterConns];
                 if (status) connections = connections.filter((c: any) => c.status === status);
-                connections.sort(
-                    (a: any, b: any) =>
-                        new Date(b.updatedAt || b.createdAt).getTime() -
-                        new Date(a.updatedAt || a.createdAt).getTime()
-                );
+                connections.sort((a: any, b: any) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
 
-<<<<<<< HEAD
-                // Enrich connections with live profile photos/city from Firestore
-                if (connections.length > 0) {
-                    const byCollection: Record<string, string[]> = {};
-                    for (const c of connections) {
-                        if (!c.otherId || !c.otherType) continue;
-                        const col = COLLECTION_MAP[c.otherType] || c.otherType;
-                        if (!byCollection[col]) byCollection[col] = [];
-                        if (!byCollection[col].includes(c.otherId)) byCollection[col].push(c.otherId);
-                    }
-
-                    const profileMap = new Map<string, { photoURL?: string; coverURL?: string; city?: string }>();
-                    await Promise.all(
-                        Object.entries(byCollection).map(async ([col, ids]) => {
-                            await Promise.all(
-                                ids.map(async (id) => {
-                                    try {
-                                        const snap = await db.collection(col).doc(id).get();
-                                        if (snap.exists) {
-                                            const d = snap.data() as any;
-                                            profileMap.set(id, {
-                                                photoURL: d.photoURL || d.profileImage || d.avatar || undefined,
-                                                coverURL: d.coverURL || d.backdropURL || d.coverImage || undefined,
-                                                city:     d.city || undefined,
-                                            });
-                                        }
-                                    } catch { /* skip on error */ }
-                                })
-                            );
-                        })
-                    );
-
-                    connections = connections.map((c) => {
-                        const prof = profileMap.get(c.otherId);
-                        return prof ? { ...c, ...prof } : c;
-                    });
-                }
-=======
-                connections = await Promise.all(
+                const connectionsEnriched = await Promise.all(
                     connections.map(async (connection) => {
                         const snapshot = await getPartnerCardSnapshot(connection.otherId);
                         return {
                             ...connection,
                             otherAvatar: snapshot?.avatar || null,
+                            photoURL: snapshot?.avatar || null,
                             otherIsVerified: snapshot?.isVerified || false,
                             otherEventsCount: snapshot?.eventsCount || 0,
                             otherFollowersCount: snapshot?.followersCount || 0,
                             otherCity: snapshot?.city || "",
+                            city: snapshot?.city || "",
                         };
                     })
                 );
->>>>>>> origin/staging
 
-                return ok({ connections });
+                return ok({ connections: connectionsEnriched });
             }
 
             case "auditlog": {
@@ -324,100 +241,63 @@ export const GET = withAuth(async (req: NextRequest) => {
     }
 });
 
-/**
- * POST /api/discovery
- * Create a connection request — writes directly to Firestore via Admin SDK.
- */
 export const POST = withAuth(async (req: NextRequest) => {
     try {
         const body = await req.json();
         const parsed = CreateRequestSchema.safeParse(body);
         if (!parsed.success) return fail(parsed.error.issues[0]?.message || "Invalid request body", 400);
-
         if (!isFirebaseConfigured()) return fail("Firebase is not configured", 503);
 
         const db = getAdminDb();
-        const { requesterId, requesterType, requesterName, requesterEmail, targetId, targetType, targetName, message } = parsed.data as any;
+        const { requesterId, requesterType, requesterName, targetId, targetType, targetName, message } = parsed.data as any;
         const now = new Date().toISOString();
 
-        // Host ↔ Venue partnership
-        if (
-            (requesterType === "host" && targetType === "venue") ||
-            (requesterType === "venue" && targetType === "host")
-        ) {
-            const hostId   = requesterType === "host"  ? requesterId : targetId;
-            const venueId  = requesterType === "venue" ? requesterId : targetId;
-            const hostName  = requesterType === "host"  ? requesterName : targetName;
+        if ((requesterType === "host" && targetType === "venue") || (requesterType === "venue" && targetType === "host")) {
+            const hostId = requesterType === "host" ? requesterId : targetId;
+            const venueId = requesterType === "venue" ? requesterId : targetId;
+            const hostName = requesterType === "host" ? requesterName : targetName;
             const venueName = requesterType === "venue" ? requesterName : targetName;
 
-            const existing = await db.collection("partnerships")
-                .where("hostId", "==", hostId)
-                .where("venueId", "==", venueId)
-                .where("status", "in", ["pending", "active"])
-                .limit(1).get();
+            const existing = await db.collection("partnerships").where("hostId", "==", hostId).where("venueId", "==", venueId).where("status", "in", ["pending", "active"]).limit(1).get();
             if (!existing.empty) return fail("Partnership already requested or active", 409);
 
             const id = randomUUID();
-            await db.collection("partnerships").doc(id).set({
-                id, hostId, venueId, hostName, venueName,
-                status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
-            });
-            // Notify the TARGET party
-            const notifTargetId   = requesterType === "host"  ? venueId  : hostId;
-            const notifTargetType = requesterType === "host"  ? "venue"  : "host";
-            const notifTitle      = requesterType === "host"
-                ? `${requesterName || "A host"} wants to partner`
-                : `${requesterName || "A venue"} wants to partner`;
-            const notifDesc = `New ${requesterType} partnership request${message ? `: "${message}"` : "."}`;
+            await db.collection("partnerships").doc(id).set({ id, hostId, venueId, hostName, venueName, status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now });
+            
+            const notifTargetId = requesterType === "host" ? venueId : hostId;
+            const notifTargetType = requesterType === "host" ? "venue" : "host";
             const nid = randomUUID();
             await db.collection("notifications").doc(nid).set({
-                id: nid,
-                targetId: notifTargetId,
-                targetType: notifTargetType,
-                type: "host_request",
-                title: notifTitle,
-                description: notifDesc,
-                createdAt: now,
-                isRead: false,
-                actionable: true,
+                id: nid, targetId: notifTargetId, targetType: notifTargetType, type: "host_request",
+                title: `${requesterName || "A " + requesterType} wants to partner`,
+                description: `New ${requesterType} partnership request${message ? `: "${message}"` : "."}`,
+                createdAt: now, isRead: false, actionable: true,
                 data: { connectionId: id, requesterId, requesterType, requesterName: requesterName || "" },
             });
             return ok({ id });
         }
 
-        // Promoter connection (either side can initiate)
-        const promoterId    = requesterType === "promoter" ? requesterId : targetId;
-        const promoterName  = requesterType === "promoter" ? requesterName : (targetName || "");
-        const promoterEmail = requesterType === "promoter" ? (requesterEmail || "") : "";
-        const connTargetId   = requesterType === "promoter" ? targetId   : requesterId;
-        const connTargetType = requesterType === "promoter" ? targetType  : requesterType;
+        const promoterId = requesterType === "promoter" ? requesterId : targetId;
+        const promoterName = requesterType === "promoter" ? requesterName : (targetName || "");
+        const connTargetId = requesterType === "promoter" ? targetId : requesterId;
+        const connTargetType = requesterType === "promoter" ? targetType : requesterType;
         const connTargetName = requesterType === "promoter" ? (targetName || "") : (requesterName || "");
 
-        const existing = await db.collection("promoter_connections")
-            .where("promoterId", "==", promoterId)
-            .where("targetId", "==", connTargetId)
-            .where("status", "==", "pending")
-            .limit(1).get();
+        const existing = await db.collection("promoter_connections").where("promoterId", "==", promoterId).where("targetId", "==", connTargetId).where("status", "==", "pending").limit(1).get();
         if (!existing.empty) return fail("Request already pending", 409);
 
         const id = randomUUID();
         await db.collection("promoter_connections").doc(id).set({
-            id, promoterId, promoterName, promoterEmail,
-            targetId: connTargetId, targetType: connTargetType, targetName: connTargetName,
-            message: message || "",
-            status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
+            id, promoterId, promoterName, targetId: connTargetId, targetType: connTargetType, targetName: connTargetName,
+            message: message || "", status: "pending", initiatedBy: requesterType, createdAt: now, updatedAt: now,
         });
+
         const notifId = randomUUID();
         await db.collection("notifications").doc(notifId).set({
-            id: notifId,
-            targetId: connTargetId,
-            targetType: connTargetType,
-            type: "promoter_request",
+            id: notifId, targetId: connTargetId, targetType: connTargetType, type: "promoter_request",
             title: `${promoterName || "A promoter"} wants to connect`,
             description: `New promoter connection request${message ? `: "${message}"` : "."}`,
-            createdAt: now,
-            isRead: false,
-            actionable: true,
+            createdAt: now, isRead: false, actionable: true,
             data: { connectionId: id, requesterId: promoterId, requesterType: "promoter", requesterName: promoterName || "" },
         });
         return ok({ id });
@@ -427,22 +307,12 @@ export const POST = withAuth(async (req: NextRequest) => {
     }
 });
 
-const ACTION_STATUS: Record<string, string> = {
-    approve: "active",
-    reject:  "rejected",
-    block:   "blocked",
-};
+const ACTION_STATUS: Record<string, string> = { approve: "active", reject: "rejected", block: "blocked", remove: "removed" };
 
-/**
- * PATCH /api/discovery
- * Approve / reject / block a connection — writes directly to Firestore via Admin SDK.
- * Expects body: { connectionId, action, type?: "partnership"|"promoter_connection", reason? }
- */
 export const PATCH = withAuth(async (req: NextRequest) => {
     try {
         const body = await req.json();
         const { connectionId, action, reason } = body;
-        // type is "partnership" or "promoter_connection" — sent by client, else auto-detected
         const declaredType: string | undefined = body.type;
 
         if (!connectionId || !action) return fail("connectionId and action are required", 400);
@@ -450,27 +320,22 @@ export const PATCH = withAuth(async (req: NextRequest) => {
         const newStatus = ACTION_STATUS[action];
         if (!newStatus) return fail(`Invalid action: ${action}`, 400);
 
-        if (!isFirebaseConfigured()) return fail("Firebase is not configured", 503);
-
         const db = getAdminDb();
         const now = new Date().toISOString();
         const update: Record<string, any> = { status: newStatus, updatedAt: now };
         if (reason) update.rejectReason = reason;
 
-        // Determine collection — prefer explicit type, else probe Firestore
         let collection: string;
         if (declaredType === "partnership") {
             collection = "partnerships";
         } else if (declaredType === "promoter_connection") {
             collection = "promoter_connections";
         } else {
-            // Auto-detect: check partnerships first, fall back to promoter_connections
             const partnershipDoc = await db.collection("partnerships").doc(connectionId).get();
             collection = partnershipDoc.exists ? "partnerships" : "promoter_connections";
         }
 
         await db.collection(collection).doc(connectionId).update(update);
-
         return ok({ success: true });
     } catch (error: any) {
         logger.error("discovery", "PATCH failed", { error: error.message });

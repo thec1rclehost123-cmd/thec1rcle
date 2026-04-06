@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin.js";
 import { getEvent } from "./eventStore.js";
 import { createOrder, confirmOrder } from "./orderStore.js";
+import { invalidateTicketsCache } from "./profileStore.js";
 import { generateOrderQRCodes } from "./qrStore.js";
 import { getPromoterLinkByCode, recordConversion } from "./promoterStore.js";
 import { validatePromoCode } from "@c1rcle/core/promo-service";
@@ -330,7 +331,12 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
 async function _initiateCheckoutInner(reservationId, userId, userDetails, options, redisClient) {
     const { promoCode = null, promoterCode = null } = options;
 
-    const reservation = await getReservation(reservationId);
+    // Resolve promoter code and fetch reservation in parallel — independent operations
+    const [eligiblePromoterCode, reservation] = await Promise.all([
+        resolveEligiblePromoterCode(promoterCode),
+        getReservation(reservationId),
+    ]);
+
     if (!reservation) {
         return { success: false, error: 'Reservation not found' };
     }
@@ -499,6 +505,9 @@ async function processRSVPOrder(reservation, userId, userDetails, pricing, promo
     // Create RSVP record (separated bucket)
     const order = await createRSVPOrder(rsvpPayload);
 
+    // Bust tickets cache so the tab reflects the new RSVP immediately
+    invalidateTicketsCache(userId).catch(() => {});
+
     // Mark reservation as converted
     await updateReservationStatus(reservation.id, 'converted', { orderId: order.id });
 
@@ -545,6 +554,9 @@ async function processFreePaidOrder(reservation, userId, userDetails, pricing, p
 
     // Create order in PAID bucket (ORDERS_COLLECTION)
     const order = await createOrder(orderPayload);
+
+    // Bust tickets cache so the tab reflects the new order immediately
+    invalidateTicketsCache(userId).catch(() => {});
 
     // Mark reservation as converted
     await updateReservationStatus(reservation.id, 'converted', { orderId: order.id });

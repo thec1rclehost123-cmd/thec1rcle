@@ -2,7 +2,6 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import { getUserTickets } from "../app/tickets/actions";
 
 /**
  * ⚡ Tickets Cache Store
@@ -114,11 +113,13 @@ export const useTicketsStore = create(
                     return;
                 }
 
-                // Cache Miss or Stale: Fetch from Firestore via server action
+                // Cache Miss or Stale: Fetch via GET API route (replaces Server Action POST overhead)
                 set({ status: "loading", error: null });
 
                 try {
-                    const data = await getUserTickets(uid);
+                    const res = await fetch("/api/tickets");
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
 
                     const grouped = {
                         upcomingTickets: groupTickets(data.upcomingTickets || []),

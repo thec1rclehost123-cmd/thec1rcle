@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { X, Heart, Download, Apple, PlayCircle, ChevronRight, QrCode } from 'lucide-react';
 import { trackEvent } from '../../lib/utils/analytics';
 
-import { useTheme } from 'next-themes';
 import Head from 'next/head';
 
 // --- ASSETS ---
@@ -22,13 +21,6 @@ const VIDEOS = {
 
 const BillboardHero = () => {
   const [isActivated, setIsActivated] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return <div className="h-screen w-full bg-black" />;
 
   return (
     <>
