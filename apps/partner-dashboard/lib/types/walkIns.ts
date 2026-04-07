@@ -6,6 +6,8 @@
 export type PaymentMode = "cash" | "card" | "upi" | "complimentary" | "other";
 export type WalkInStatus = "active" | "void" | "edited";
 export type WalkInCategory = "general" | "vip" | "couple" | "group" | "media" | "other";
+export type WalkInGender = "male" | "female";
+export type WalkInPurpose = "party" | "dinein";
 
 export interface WalkInEntry {
     id: string;
@@ -33,6 +35,10 @@ export interface WalkInEntry {
     /** Client-generated idempotency key */
     idempotencyKey: string;
     source: "manual" | "import";
+    /** Gender of the entry — required for door/sell walk-ins */
+    gender?: WalkInGender;
+    /** Purpose that created this entry */
+    purpose?: WalkInPurpose;
 }
 
 export interface WalkInCreatePayload {
@@ -45,6 +51,8 @@ export interface WalkInCreatePayload {
     amount: number;
     note?: string;
     idempotencyKey: string;
+    gender?: WalkInGender;
+    purpose?: WalkInPurpose;
 }
 
 export interface WalkInSearchParams {

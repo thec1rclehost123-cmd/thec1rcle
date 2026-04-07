@@ -77,6 +77,8 @@ export async function createWalkIn(
         note: payload.note ?? "",
         idempotencyKey: payload.idempotencyKey,
         source: "manual",
+        ...(payload.gender ? { gender: payload.gender } : {}),
+        ...(payload.purpose ? { purpose: payload.purpose } : {}),
     };
 
     if (!isFirebaseConfigured()) {

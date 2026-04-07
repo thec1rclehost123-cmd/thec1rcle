@@ -13,6 +13,7 @@ import {
     Users,
     UserCog,
     BarChart3,
+    DoorOpen,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -31,6 +32,7 @@ const MENU_SECTIONS = [
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/venue" },
             { icon: Zap,             label: "Events",    href: "/venue/events" },
+            { icon: DoorOpen,        label: "Door",      href: "/venue/door" },
             { icon: Calendar,        label: "Calendar",  href: "/venue/calendar" },
             { icon: Handshake,       label: "Partners",  href: "/venue/partners" },
             { icon: BarChart3,       label: "Analytics", href: "/venue/analytics" },
