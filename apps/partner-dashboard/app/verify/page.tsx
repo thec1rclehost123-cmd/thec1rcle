@@ -1,9 +1,6 @@
-import { VerifyPageClient } from "./PageClient";
+import { redirect } from "next/navigation";
 
-export const metadata = {
-    title: "Verification Hub",
-};
-
+// Verification Hub has been removed — KYC is now collected during the onboarding wizard.
 export default function VerifyPage() {
-    return <VerifyPageClient />;
+    redirect("/");
 }

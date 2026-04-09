@@ -65,10 +65,12 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             const auth = getAuth(getAdminApp());
 
             // Task 1: Strict Token Verification
-            const decodedToken = await auth.verifyIdToken(token, true);
+            // checkRevoked=true makes a roundtrip to Firebase to confirm the token hasn't been
+            // revoked. In dev this extra call frequently fails/times out → false 404s.
+            const isDev = process.env.NODE_ENV === "development";
+            const decodedToken = await auth.verifyIdToken(token, !isDev);
 
             const { role, admin_role, admin: isAdminClaim } = decodedToken;
-            const isDev = process.env.NODE_ENV === "development";
 
             // In dev, skip all custom-claim checks — any authenticated user can access admin
             if (!isDev) {

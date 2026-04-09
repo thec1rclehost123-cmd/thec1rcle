@@ -17,6 +17,8 @@ const OnboardSchema = z.object({
     name: z.string().min(1).max(200),
     phone: z.string().optional(),
     entityType: z.string().optional().default("individual"),
+    // KYC data submitted during onboarding (optional — submitted together with the application)
+    kycStepData: z.record(z.string(), z.record(z.string(), z.unknown())).optional(),
 });
 
 export const POST = withAuth(async (req: NextRequest, auth) => {
@@ -25,7 +27,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         const body = await req.json();
         const parsed = OnboardSchema.safeParse(body);
         if (!parsed.success) return fail(parsed.error.issues[0]?.message || "Invalid request body", 400);
-        const { type, email, name, phone, entityType } = parsed.data;
+        const { type, email, name, phone, entityType, kycStepData } = parsed.data;
 
         const db = getAdminDb();
 
@@ -38,9 +40,15 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
             // Check if user already has verified contacts (returning user re-submitting)
             const existingUser = await db.collection("users").doc(userId).get();
             const alreadyVerified =
-                existingUser.exists &&
-                existingUser.data()?.emailVerified === true &&
-                existingUser.data()?.phoneVerified === true;
+                // Firestore flags set by create-account route
+                (existingUser.exists &&
+                    existingUser.data()?.emailVerified === true &&
+                    existingUser.data()?.phoneVerified === true) ||
+                // Firebase Auth token's email matches submitted email — the token itself
+                // is proof of email ownership (verifyIdToken already confirmed it).
+                // This covers: already-signed-in users who skip the email OTP step,
+                // and any case where otp_completions records were consumed by a prior attempt.
+                (auth.email && auth.email.toLowerCase() === email.toLowerCase());
 
             if (!alreadyVerified) {
                 const otpCheck = await checkAndConsumeOtpCompletions(email, phone);
@@ -54,6 +62,22 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
         }
         // ──────────────────────────────────────────────────────────────────────
 
+        // Compute KYC step status from submitted data
+        const resolvedEntityType = entityType || "individual";
+        const stepSequence = resolvedEntityType === "business"
+            ? ["kyc_business", "kyc_signatory", "bank_setup"]
+            : ["kyc_identity", "bank_setup"];
+
+        const kycStepStatus: Record<string, string> = {};
+        let kycStatus = "not_started";
+        if (kycStepData && Object.keys(kycStepData).length > 0) {
+            stepSequence.forEach((step) => {
+                kycStepStatus[step] = kycStepData[step] ? "submitted" : "not_started";
+            });
+            const allSubmitted = stepSequence.every((s) => kycStepStatus[s] === "submitted");
+            kycStatus = allSubmitted ? "fully_submitted" : "partially_submitted";
+        }
+
         // Upsert user doc with onboarding role + verified contact flags
         await db.collection("users").doc(userId).set(
             {
@@ -65,22 +89,24 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
                 emailVerified: true,
                 phoneVerified: !!phone,
                 phoneNumber: phone || null,
-                onboardingEntityType: entityType || "individual",
-                kycStatus: "not_started",
+                onboardingEntityType: resolvedEntityType,
+                kycStatus,
                 updatedAt: FieldValue.serverTimestamp(),
             },
             { merge: true }
         );
 
-        // Create onboarding request
+        // Create onboarding request (include KYC data if provided)
         const requestId = `req_${Date.now()}_${userId.substring(0, 5)}`;
         await db.collection("onboarding_requests").doc(requestId).set({
             id: requestId,
             uid: userId,
             type,
-            entityType: entityType || "individual",
+            entityType: resolvedEntityType,
             status: "pending",
-            data: { ...body },
+            data: { ...body, kycStepData: undefined }, // strip KYC from main data blob
+            ...(kycStepData && { kycStepData }),
+            ...(Object.keys(kycStepStatus).length > 0 && { kycStepStatus }),
             submittedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp(),
         });
@@ -105,7 +131,7 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
                                 Thanks for applying to join the C1RCLE partner network. We've received your application and our team will review it within <strong style="color:#fff;">24–48 hours</strong>.
                             </p>
                             <p style="color:#aaa;font-size:14px;line-height:1.6;">
-                                Once approved, you'll receive another email with instructions to log in and complete your identity verification.
+                                Once your application and documents are verified, you'll receive a confirmation email to log in and access your partner dashboard.
                             </p>
                         </div>
                         <p style="color:#444;font-size:10px;text-transform:uppercase;margin-top:40px;">

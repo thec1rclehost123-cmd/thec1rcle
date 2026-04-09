@@ -21,7 +21,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
-import { KycBanner } from "@/components/shared/KycBanner";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { usePathname, useRouter } from "next/navigation";
@@ -212,7 +211,6 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                         <div className={`hidden lg:block fixed top-0 right-0 z-40 transition-all duration-300 ease-in-out ${isCollapsed ? "left-[80px]" : "left-[280px]"}`}>
                             <AppleTopBar primaryAction={venuePrimaryAction} />
                         </div>
-                        <KycBanner />
                         <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
                             <motion.div
                                 initial={{ opacity: 0, y: 10 }}

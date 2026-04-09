@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -25,33 +25,38 @@ import {
     RefreshCw,
     Building,
     Globe,
+    Loader2,
+    Upload,
+    X,
+    ArrowRight,
 } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { signInWithCustomToken } from "firebase/auth";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 // ── Step type ─────────────────────────────────────────────────────────────────
-// To add a new step: add it to OnboardingStep, STEP_SEQUENCE, and STEP_LABELS,
-// then render its JSX block inside <AnimatePresence>. Nothing else changes.
 type OnboardingStep =
     | "email_verify"
     | "phone_verify"
     | "entity_type"
     | "role"
     | "details"
+    | "kyc_identity"
+    | "kyc_business"
+    | "kyc_signatory"
+    | "bank_setup"
     | "success";
 
 type PartnerType = "venue" | "host" | "promoter";
 type EntityType = "individual" | "business";
 
-const STEP_SEQUENCE: OnboardingStep[] = [
-    "role",
-    "email_verify",
-    "phone_verify",
-    "entity_type",
-    "details",
-    "success",
-];
+// Dynamic sequence based on entity type (KYC steps vary)
+function getStepSequence(et: EntityType): OnboardingStep[] {
+    const kycSteps: OnboardingStep[] = et === "business"
+        ? ["kyc_business", "kyc_signatory", "bank_setup"]
+        : ["kyc_identity", "bank_setup"];
+    return ["role", "email_verify", "phone_verify", "entity_type", "details", ...kycSteps, "success"];
+}
 
 const STEP_LABELS: Record<OnboardingStep, string> = {
     email_verify: "Email",
@@ -59,6 +64,10 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
     entity_type: "Entity",
     role: "Role",
     details: "Details",
+    kyc_identity: "Identity",
+    kyc_business: "Business",
+    kyc_signatory: "Signatory",
+    bank_setup: "Banking",
     success: "Done",
 };
 
@@ -100,6 +109,15 @@ function OnboardingContent() {
     const [showPassword, setShowPassword] = useState(false);
     const [approvalStatus, setApprovalStatus] = useState<"pending" | "verified">("pending");
     const [submittedRequestId, setSubmittedRequestId] = useState<string | null>(null);
+
+    // KYC state — collected during onboarding, submitted with the application
+    const [createdUid, setCreatedUid] = useState<string | null>(null);
+    const [kycStepData, setKycStepData] = useState<Record<string, Record<string, unknown>>>({});
+    const [kycSubmitting, setKycSubmitting] = useState(false);
+    const [kycError, setKycError] = useState("");
+
+    // Dynamic sequence depends on entity type chosen at step 4
+    const stepSequence = getStepSequence(entityType);
 
     // OTP state — provider-agnostic; only verification.js changes per provider
     const [otpEmail, setOtpEmail] = useState("");
@@ -156,6 +174,7 @@ function OnboardingContent() {
         if (authUser && (step === "role" || step === "email_verify")) {
             setOtpEmail(authUser.email || "");
             setFormData(prev => ({ ...prev, email: authUser.email || "" }));
+            setCreatedUid(authUser.uid);
             setStep("phone_verify");
         }
     }, [authUser]);
@@ -259,8 +278,8 @@ function OnboardingContent() {
         finally { setLoading(false); }
     };
 
-    // ── Form submit (existing logic + entityType + pre-verified phone) ─────────
-    const handleOnboard = async (e: React.FormEvent) => {
+    // ── Step 5: Create Firebase account, then advance to first KYC step ────────
+    const handleCreateAccount = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
         setLoading(true);
@@ -277,20 +296,68 @@ function OnboardingContent() {
                     setLoading(false);
                     return;
                 }
-                try {
-                    const credential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
-                    uid = credential.user.uid;
-                } catch (err: any) {
-                    if (err.code === "auth/email-already-in-use") {
-                        setError("This email is already registered. Please log in first, then return to complete your registry.");
+                // Create account server-side (Admin SDK) — avoids client Firebase Auth connectivity issues
+                const res = await fetch("/api/auth/create-account", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: formData.email,
+                        password: formData.password,
+                        phone: formData.phone || otpPhone.replace(/\s/g, ""),
+                    }),
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    if (res.status === 409) {
+                        setError("This email is already registered. Please log in first, then return to complete your application.");
                         setLoading(false);
                         return;
                     }
-                    throw err;
+                    throw new Error(data.error || "Failed to create account.");
                 }
+                // Sign the client in using the custom token returned by the server
+                const { customToken, uid: newUid } = data;
+                try {
+                    await signInWithCustomToken(auth, customToken);
+                } catch {
+                    // signInWithCustomToken failed (rare — client can't reach Firebase)
+                    // Still store the uid so KYC uploads can proceed via server route
+                }
+                uid = newUid;
             }
 
+            setCreatedUid(uid);
+            // Advance to the first KYC step in the sequence
+            const seq = getStepSequence(entityType);
+            const detailsIdx = seq.indexOf("details");
+            setStep(seq[detailsIdx + 1]);
+        } catch (err: any) {
+            console.error("Account creation error:", err);
+            setError(err.message || "Failed to create account. Please try again.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ── Intermediate KYC step: save data locally and advance ─────────────────
+    const handleKycStep = useCallback((stepId: string, data: Record<string, unknown>) => {
+        setKycStepData(prev => ({ ...prev, [stepId]: data }));
+        const seq = getStepSequence(entityType);
+        const idx = seq.indexOf(stepId as OnboardingStep);
+        if (idx !== -1 && idx < seq.length - 1) {
+            setStep(seq[idx + 1]);
+        }
+    }, [entityType]);
+
+    // ── Final step (bank_setup): submit everything to the onboard API ─────────
+    const handleBankSubmit = useCallback(async (bankData: Record<string, unknown>) => {
+        const allKycData = { ...kycStepData, bank_setup: bankData };
+        setKycSubmitting(true);
+        setKycError("");
+        try {
+            const auth = getFirebaseAuth();
             const token = await auth.currentUser?.getIdToken();
+            const effectiveEmail = authUser?.email || formData.email;
             const res = await fetch("/api/auth/onboard", {
                 method: "POST",
                 headers: {
@@ -303,26 +370,27 @@ function OnboardingContent() {
                     ...formData,
                     email: effectiveEmail,
                     phone: formData.phone || otpPhone.replace(/\s/g, ""),
+                    kycStepData: allKycData,
                 }),
             });
-
             if (!res.ok) {
                 const data = await res.json();
-                throw new Error(data.error || "Failed to submit request.");
+                throw new Error(data.error || "Failed to submit application.");
             }
-
             const responseData = await res.json();
             if (responseData.requestId) setSubmittedRequestId(responseData.requestId);
             setStep("success");
         } catch (err: any) {
-            console.error("Onboarding error:", err);
-            setError(err.message || "Failed to submit request. Please try again.");
+            console.error("Final submit error:", err);
+            setKycError(err.message || "Failed to submit. Please try again.");
         } finally {
-            setLoading(false);
+            setKycSubmitting(false);
         }
-    };
+    }, [kycStepData, authUser, formData, partnerType, entityType, otpPhone]);
 
-    const currentStepIndex = STEP_SEQUENCE.indexOf(step);
+    const currentStepIndex = stepSequence.indexOf(step);
+    // Effective UID for Firebase Storage uploads during KYC
+    const effectiveUid = createdUid || authUser?.uid || "";
 
     return (
         <div className="min-h-screen bg-[var(--surface-base)]">
@@ -336,7 +404,8 @@ function OnboardingContent() {
                                 router.push("/login");
                             } else {
                                 setError("");
-                                setStep(STEP_SEQUENCE[currentStepIndex - 1]);
+                                setKycError("");
+                                setStep(stepSequence[currentStepIndex - 1]);
                             }
                         }}
                         className="flex items-center gap-2 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors text-[11px] font-semibold uppercase tracking-wider"
@@ -353,19 +422,24 @@ function OnboardingContent() {
                 </div>
             </header>
 
-            {/* Progress bar — auto-driven by STEP_SEQUENCE */}
+            {/* Progress bar — auto-driven by stepSequence */}
             <div className="max-w-5xl mx-auto px-6 py-6">
                 <div className="flex items-center">
-                    {STEP_SEQUENCE.filter(s => s !== "success").map((s, i) => {
+                    {stepSequence.filter(s => s !== "success").map((s, i) => {
                         const isDone = currentStepIndex > i;
                         const isCurrent = currentStepIndex === i;
-                        const isLast = i === STEP_SEQUENCE.filter(s => s !== "success").length - 1;
+                        const isLast = i === stepSequence.filter(s => s !== "success").length - 1;
                         return (
                             <div key={s} className="flex items-center flex-1">
                                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
-                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${isCurrent ? "bg-[var(--accent-primary)] text-white" : isDone ? "bg-[var(--state-success)] text-white" : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)]"}`}>
+                                    <button
+                                        type="button"
+                                        disabled={!isDone}
+                                        onClick={() => isDone && setStep(s)}
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold transition-all ${isCurrent ? "bg-[var(--accent-primary)] text-white" : isDone ? "bg-[var(--state-success)] text-white cursor-pointer hover:opacity-80" : "bg-[var(--surface-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed"}`}
+                                    >
                                         {isDone ? "✓" : i + 1}
-                                    </div>
+                                    </button>
                                     <span className={`text-[9px] font-semibold uppercase tracking-wider ${isCurrent ? "text-[var(--accent-primary)]" : isDone ? "text-[var(--state-success)]" : "text-[var(--text-tertiary)]"}`}>
                                         {STEP_LABELS[s]}
                                     </span>
@@ -451,15 +525,15 @@ function OnboardingContent() {
                     {step === "details" && (
                         <motion.div key="details" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
                             <StepHeader
-                                step="05"
+                                step={String(stepSequence.indexOf("details") + 1).padStart(2, "0")}
                                 label="Your Details"
                                 title={partnerType === "venue" ? "Venue Registration" : partnerType === "host" ? "Host Profile" : "Promoter Enrollment"}
-                                description="Submit your information for verification and approval."
+                                description="Tell us about your business. You'll upload verification documents in the next steps."
                             />
 
                             <ErrorBanner error={error} onLoginClick={() => router.push("/login")} />
 
-                            <form onSubmit={handleOnboard} className="space-y-8">
+                            <form onSubmit={handleCreateAccount} className="space-y-8">
                                 {/* Credentials section */}
                                 {!authUser ? (
                                     <div className="space-y-5">
@@ -628,13 +702,97 @@ function OnboardingContent() {
                                 </div>
 
                                 <button type="submit" disabled={loading} className="w-full bg-[var(--accent-primary)] text-white h-14 rounded-2xl font-semibold text-[14px] hover:brightness-110 transition-all flex items-center justify-center gap-3 shadow-lg shadow-[var(--accent-primary)]/20 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    {loading ? <><span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Processing...</> : <>Submit Application <ChevronRight className="h-5 w-5" /></>}
+                                    {loading ? <><span className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />Setting up account…</> : <>Continue to Verification <ChevronRight className="h-5 w-5" /></>}
                                 </button>
                             </form>
                         </motion.div>
                     )}
 
-                    {/* ── Success (existing, with updated messaging) ── */}
+                    {/* ── KYC: Identity Verification (Individual) ── */}
+                    {step === "kyc_identity" && (
+                        <motion.div key="kyc_identity" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                            <StepHeader
+                                step={String(stepSequence.indexOf("kyc_identity") + 1).padStart(2, "0")}
+                                label="Identity Check"
+                                title="Verify Your Identity"
+                                description="Upload a government-issued ID and a selfie to confirm your identity."
+                            />
+                            {kycError && <ErrorBanner error={kycError} />}
+                            <KycIdentityForm
+                                uid={effectiveUid}
+                                initialData={{}}
+                                onSubmit={(data) => handleKycStep("kyc_identity", data)}
+                                submitting={false}
+                                submitLabel="Continue"
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* ── KYC: Business Documents (Business) ── */}
+                    {step === "kyc_business" && (
+                        <motion.div key="kyc_business" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                            <StepHeader
+                                step={String(stepSequence.indexOf("kyc_business") + 1).padStart(2, "0")}
+                                label="Business Documents"
+                                title="Business Documents"
+                                description="PAN, CIN/GST, and registration certificate for your business."
+                            />
+                            {kycError && <ErrorBanner error={kycError} />}
+                            <KycBusinessForm
+                                uid={effectiveUid}
+                                initialData={{
+                                    legalName: formData.name,
+                                    businessType: formData.businessType,
+                                    cin: formData.registrationNumber,
+                                }}
+                                onSubmit={(data) => handleKycStep("kyc_business", data)}
+                                submitting={false}
+                                submitLabel="Continue"
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* ── KYC: Authorized Representative (Business) ── */}
+                    {step === "kyc_signatory" && (
+                        <motion.div key="kyc_signatory" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                            <StepHeader
+                                step={String(stepSequence.indexOf("kyc_signatory") + 1).padStart(2, "0")}
+                                label="Authorized Representative"
+                                title="Authorized Representative"
+                                description="Identity verification for the person representing the business."
+                            />
+                            {kycError && <ErrorBanner error={kycError} />}
+                            <KycSignatoryForm
+                                uid={effectiveUid}
+                                initialData={{}}
+                                onSubmit={(data) => handleKycStep("kyc_signatory", data)}
+                                submitting={false}
+                                submitLabel="Continue"
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* ── KYC: Bank Account (All) ── */}
+                    {step === "bank_setup" && (
+                        <motion.div key="bank_setup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
+                            <StepHeader
+                                step={String(stepSequence.indexOf("bank_setup") + 1).padStart(2, "0")}
+                                label="Bank Account"
+                                title="Payout Bank Account"
+                                description="Bank account details for receiving payouts once approved."
+                            />
+                            {kycError && <ErrorBanner error={kycError} />}
+                            <BankSetupForm
+                                uid={effectiveUid}
+                                initialData={{}}
+                                onSubmit={handleBankSubmit}
+                                submitting={kycSubmitting}
+                                submitLabel="Submit Application"
+                            />
+                        </motion.div>
+                    )}
+
+                    {/* ── Success ── */}
                     {step === "success" && (
                         <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="text-center pt-8">
                             {approvalStatus === "verified" ? (
@@ -644,15 +802,8 @@ function OnboardingContent() {
                                     </motion.div>
                                     <h1 className="text-display-sm text-[var(--text-primary)] mb-4">You're Approved</h1>
                                     <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
-                                        <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been approved. Log in to complete identity verification and unlock full dashboard access.
+                                        <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been approved. Log in to access your dashboard.
                                     </p>
-                                    <div className="p-6 rounded-2xl bg-[var(--accent-glow)] border border-[var(--accent-primary)]/20 mb-10 flex items-start gap-4 text-left">
-                                        <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
-                                        <div>
-                                            <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">Next: Complete KYC in Dashboard</p>
-                                            <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">After logging in, visit the Verification Hub to upload your documents and set up your payout account.</p>
-                                        </div>
-                                    </div>
                                     <button onClick={async () => { if (authUser) await signOut(); router.push("/login"); }} className="inline-flex items-center gap-3 px-8 py-3.5 rounded-2xl bg-[var(--accent-primary)] text-white font-semibold text-[14px] hover:brightness-110 transition-all shadow-lg shadow-[var(--accent-primary)]/20">
                                         Go to Login <ChevronRight className="h-4 w-4" />
                                     </button>
@@ -664,14 +815,14 @@ function OnboardingContent() {
                                     </motion.div>
                                     <h1 className="text-display-sm text-[var(--text-primary)] mb-4">Application Submitted</h1>
                                     <p className="text-body text-[var(--text-secondary)] mb-10 max-w-md mx-auto">
-                                        Your application for <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> has been received. We'll email you once reviewed.
+                                        Your application and verification documents for <span className="font-semibold text-[var(--text-primary)]">{formData.name}</span> are under review. We'll email you once approved.
                                     </p>
                                     <div className="p-6 rounded-2xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] mb-10 flex items-start gap-4 text-left">
                                         <ShieldCheck className="h-6 w-6 text-[var(--accent-primary)] flex-shrink-0" />
                                         <div>
                                             <p className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">What Happens Next?</p>
                                             <p className="text-[13px] text-[var(--text-tertiary)] leading-relaxed">
-                                                Our team reviews applications within 24–48 hours. Once approved, log in and complete identity verification inside the dashboard to unlock all features.
+                                                Our team reviews applications and documents within 24–48 hours. Once approved, you'll receive an email to log in and access your full dashboard.
                                             </p>
                                         </div>
                                     </div>
@@ -830,3 +981,383 @@ function ErrorBanner({ error, onLoginClick }: { error: string; onLoginClick?: ()
         </motion.div>
     );
 }
+
+// ── KYC form utilities (used during onboarding) ───────────────────────────────
+
+function KycFileZone({
+    label, fieldName, value, onChange, uid, stepId,
+}: {
+    label: string; fieldName: string;
+    value: string | null;
+    onChange: (url: string | null) => void;
+    uid: string; stepId: string;
+}) {
+    const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    const handleFile = async (file: File) => {
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { alert("File must be under 5MB."); return; }
+
+        // Get Firebase auth token — server route uses Admin SDK, bypassing Storage rules
+        const auth = getFirebaseAuth();
+        if (!auth.currentUser) { alert("You must be signed in to upload documents."); return; }
+        const token = await auth.currentUser.getIdToken();
+
+        setUploading(true);
+        setProgress(0);
+        try {
+            const form = new FormData();
+            form.append("file", file);
+            form.append("stepId", stepId);
+            form.append("fieldName", fieldName);
+
+            const res = await fetch("/api/kyc/upload", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${token}` },
+                body: form,
+            });
+
+            setProgress(100);
+
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({}));
+                throw new Error((data as any).error || "Upload failed.");
+            }
+
+            const { url } = await res.json();
+            onChange(url);
+        } catch (e: any) {
+            console.error("Upload error:", e);
+            alert(e.message || "Upload failed. Please try again.");
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    return (
+        <div className="space-y-1.5">
+            <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{label}</label>
+            {value ? (
+                <div className="flex items-center gap-3 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+                    <span className="text-[12px] text-emerald-400 font-medium truncate flex-1">Uploaded</span>
+                    <button type="button" onClick={() => onChange(null)}
+                        className="p-1 rounded-lg hover:bg-red-500/20 text-[var(--text-tertiary)] hover:text-red-400 transition-colors">
+                        <X className="h-3.5 w-3.5" />
+                    </button>
+                </div>
+            ) : uploading ? (
+                <div className="p-4 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-secondary)]">
+                    <div className="flex items-center gap-2 mb-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-[var(--text-tertiary)]" />
+                        <span className="text-[12px] text-[var(--text-tertiary)]">Uploading… {progress}%</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-[var(--surface-tertiary)] overflow-hidden">
+                        <div className="h-full bg-[var(--accent-primary)] rounded-full transition-all" style={{ width: `${progress}%` }} />
+                    </div>
+                </div>
+            ) : (
+                <button type="button" onClick={() => inputRef.current?.click()}
+                    className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] transition-all text-center group">
+                    <Upload className="h-5 w-5 text-[var(--text-tertiary)] group-hover:text-[var(--accent-primary)] mx-auto mb-1.5 transition-colors" />
+                    <p className="text-[11px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
+                        Click to upload · JPG, PNG or PDF · Max 5MB
+                    </p>
+                </button>
+            )}
+            <input ref={inputRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
+                onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
+        </div>
+    );
+}
+
+function KycInputField({ label, value, onChange, placeholder, type = "text" }: {
+    label: string; value: string; onChange?: (v: string) => void;
+    placeholder?: string; type?: string;
+}) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{label}</label>
+            <input type={type} value={value} onChange={(e) => onChange?.(e.target.value)} placeholder={placeholder}
+                className="w-full h-12 px-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-[14px] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/30 focus:border-[var(--accent-primary)]/50 transition-all" />
+        </div>
+    );
+}
+
+function KycSelectField({ label, value, onChange, options }: {
+    label: string; value: string; onChange: (v: string) => void;
+    options: { value: string; label: string }[];
+}) {
+    return (
+        <div className="space-y-1.5">
+            <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">{label}</label>
+            <select value={value} onChange={(e) => onChange(e.target.value)}
+                className="w-full h-12 px-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] text-[var(--text-primary)] text-[14px] focus:outline-none focus:ring-2 focus:ring-[var(--accent-primary)]/30 focus:border-[var(--accent-primary)]/50 transition-all appearance-none">
+                <option value="">Select…</option>
+                {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+        </div>
+    );
+}
+
+// ── KYC Forms ─────────────────────────────────────────────────────────────────
+
+function KycIdentityForm({ uid, initialData, onSubmit, submitting, submitLabel = "Continue" }: {
+    uid: string; initialData: Record<string, unknown>;
+    onSubmit: (data: Record<string, unknown>) => void;
+    submitting: boolean; submitLabel?: string;
+}) {
+    const [idType, setIdType]     = useState((initialData.idType as string) || "");
+    const [idNumber, setIdNumber] = useState((initialData.idNumber as string) || "");
+    const [docFront, setDocFront] = useState<string | null>((initialData.docFrontUrl as string) || null);
+    const [docBack, setDocBack]   = useState<string | null>((initialData.docBackUrl as string) || null);
+    const [selfie, setSelfie]     = useState<string | null>((initialData.selfieUrl as string) || null);
+    const needsBack = ["aadhaar", "driving_licence", "voter_id"].includes(idType);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!idType || !idNumber || !docFront || !selfie) return;
+        if (needsBack && !docBack) return;
+        onSubmit({ idType, idNumber, docFrontUrl: docFront, docBackUrl: docBack, selfieUrl: selfie });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-5">
+            <KycSelectField label="ID Type" value={idType} onChange={setIdType}
+                options={[
+                    { value: "aadhaar", label: "Aadhaar Card" },
+                    { value: "passport", label: "Passport" },
+                    { value: "driving_licence", label: "Driving Licence" },
+                    { value: "voter_id", label: "Voter ID" },
+                ]} />
+            <KycInputField label="ID Number" value={idNumber} onChange={setIdNumber} placeholder="Enter your ID number" />
+            <div className={`grid gap-4 ${needsBack ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                <KycFileZone label="Document Front" fieldName="doc_front" value={docFront} onChange={setDocFront} uid={uid} stepId="kyc_identity" />
+                {needsBack && <KycFileZone label="Document Back" fieldName="doc_back" value={docBack} onChange={setDocBack} uid={uid} stepId="kyc_identity" />}
+            </div>
+            <KycFileZone label="Selfie Photo" fieldName="selfie" value={selfie} onChange={setSelfie} uid={uid} stepId="kyc_identity" />
+            <button type="submit"
+                disabled={submitting || !idType || !idNumber || !docFront || !selfie || (needsBack && !docBack)}
+                className="w-full h-12 rounded-xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                {submitting ? "Saving…" : submitLabel}
+            </button>
+        </form>
+    );
+}
+
+function KycBusinessForm({ uid, initialData, onSubmit, submitting, submitLabel = "Continue" }: {
+    uid: string; initialData: Record<string, unknown>;
+    onSubmit: (data: Record<string, unknown>) => void;
+    submitting: boolean; submitLabel?: string;
+}) {
+    // legalName, businessType, cin come pre-filled from the Details step — not asked again
+    const legalName    = (initialData.legalName as string) || "";
+    const businessType = (initialData.businessType as string) || "";
+    const cin          = (initialData.cin as string) || "";
+
+    const [pan, setPan]       = useState((initialData.pan as string) || "");
+    const [gst, setGst]       = useState((initialData.gst as string) || "");
+    const [address, setAddress] = useState((initialData.address as string) || "");
+    const [regDoc, setRegDoc] = useState<string | null>((initialData.regDocUrl as string) || null);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!pan || !address || !regDoc) return;
+        onSubmit({ legalName, businessType, pan, cin, gst, address, regDocUrl: regDoc });
+    };
+
+    const BUSINESS_TYPE_LABELS: Record<string, string> = {
+        pvt_ltd: "Private Limited", llp: "LLP", partnership: "Partnership Firm",
+        sole_prop: "Sole Proprietorship", trust: "Trust / Society",
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Confirmed details from the previous step — no need to re-enter */}
+            <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)] space-y-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] mb-3">Confirmed from your details</p>
+                <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-[var(--text-tertiary)]">Business Name</span>
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">{legalName || "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                    <span className="text-[12px] text-[var(--text-tertiary)]">Business Type</span>
+                    <span className="text-[13px] font-semibold text-[var(--text-primary)]">{BUSINESS_TYPE_LABELS[businessType] || businessType || "—"}</span>
+                </div>
+                {cin && (
+                    <div className="flex items-center justify-between">
+                        <span className="text-[12px] text-[var(--text-tertiary)]">CIN / Reg. No.</span>
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)]">{cin}</span>
+                    </div>
+                )}
+            </div>
+            <KycInputField label="Business PAN" value={pan} onChange={setPan} placeholder="AAACB1234C" />
+            <KycInputField label="GST Number (optional)" value={gst} onChange={setGst} placeholder="27AAACB1234C1Z5" />
+            <KycInputField label="Registered Address" value={address} onChange={setAddress} placeholder="Full address as on documents" />
+            <KycFileZone label="Registration Certificate" fieldName="reg_doc" value={regDoc} onChange={setRegDoc} uid={uid} stepId="kyc_business" />
+            <button type="submit"
+                disabled={submitting || !pan || !address || !regDoc}
+                className="w-full h-12 rounded-xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                {submitting ? "Saving…" : submitLabel}
+            </button>
+        </form>
+    );
+}
+
+function KycSignatoryForm({ uid, initialData, onSubmit, submitting, submitLabel = "Continue" }: {
+    uid: string; initialData: Record<string, unknown>;
+    onSubmit: (data: Record<string, unknown>) => void;
+    submitting: boolean; submitLabel?: string;
+}) {
+    const [fullName, setFullName]       = useState((initialData.fullName as string) || "");
+    const [designation, setDesignation] = useState((initialData.designation as string) || "");
+    const [email, setEmail]             = useState((initialData.email as string) || "");
+    const [phone, setPhone]             = useState((initialData.phone as string) || "");
+    const [idType, setIdType]           = useState((initialData.idType as string) || "");
+    const [idNumber, setIdNumber]       = useState((initialData.idNumber as string) || "");
+    const [docFront, setDocFront]       = useState<string | null>((initialData.docFrontUrl as string) || null);
+    const [docBack, setDocBack]         = useState<string | null>((initialData.docBackUrl as string) || null);
+    const [selfie, setSelfie]           = useState<string | null>((initialData.selfieUrl as string) || null);
+    const [declared, setDeclared]       = useState(false);
+    const needsBack = ["aadhaar", "driving_licence", "voter_id"].includes(idType);
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!fullName || !designation || !email || !idType || !idNumber || !docFront || !selfie || !declared) return;
+        if (needsBack && !docBack) return;
+        onSubmit({ fullName, designation, email, phone, idType, idNumber, docFrontUrl: docFront, docBackUrl: docBack, selfieUrl: selfie, declared });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="p-4 rounded-xl bg-[var(--surface-secondary)] border border-[var(--border-subtle)]">
+                <p className="text-[12px] text-[var(--text-tertiary)] leading-relaxed">
+                    Provide identity details for the person who is authorized to represent this business on C1RCLE.
+                </p>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+                <KycInputField label="Full Legal Name" value={fullName} onChange={setFullName} placeholder="As on government ID" />
+                <KycSelectField label="Designation" value={designation} onChange={setDesignation}
+                    options={[
+                        { value: "director", label: "Director" },
+                        { value: "partner", label: "Partner" },
+                        { value: "proprietor", label: "Proprietor" },
+                        { value: "authorized_signatory", label: "Authorized Signatory" },
+                    ]} />
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+                <KycInputField label="Email" value={email} onChange={setEmail} type="email" placeholder="representative@company.com" />
+                <KycInputField label="Phone" value={phone} onChange={setPhone} placeholder="+91 9876543210" />
+            </div>
+            <KycSelectField label="ID Type" value={idType} onChange={setIdType}
+                options={[
+                    { value: "aadhaar", label: "Aadhaar Card" },
+                    { value: "passport", label: "Passport" },
+                    { value: "driving_licence", label: "Driving Licence" },
+                    { value: "voter_id", label: "Voter ID" },
+                ]} />
+            <KycInputField label="ID Number" value={idNumber} onChange={setIdNumber} placeholder="Enter ID number" />
+            <div className={`grid gap-4 ${needsBack ? "sm:grid-cols-2" : "grid-cols-1"}`}>
+                <KycFileZone label="Document Front" fieldName="sig_doc_front" value={docFront} onChange={setDocFront} uid={uid} stepId="kyc_signatory" />
+                {needsBack && <KycFileZone label="Document Back" fieldName="sig_doc_back" value={docBack} onChange={setDocBack} uid={uid} stepId="kyc_signatory" />}
+            </div>
+            <KycFileZone label="Selfie Photo" fieldName="sig_selfie" value={selfie} onChange={setSelfie} uid={uid} stepId="kyc_signatory" />
+            <label className="flex items-start gap-3 cursor-pointer">
+                <input type="checkbox" checked={declared} onChange={(e) => setDeclared(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 rounded border-[var(--border-subtle)] accent-[var(--accent-primary)]" />
+                <span className="text-[12px] text-[var(--text-secondary)] leading-relaxed">
+                    I confirm that I am authorized to represent this business and the information provided is accurate.
+                </span>
+            </label>
+            <button type="submit"
+                disabled={submitting || !fullName || !designation || !email || !idType || !idNumber || !docFront || !selfie || !declared || (needsBack && !docBack)}
+                className="w-full h-12 rounded-xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                {submitting ? "Saving…" : submitLabel}
+            </button>
+        </form>
+    );
+}
+
+function BankSetupForm({ uid, initialData, onSubmit, submitting, submitLabel = "Submit Application" }: {
+    uid: string; initialData: Record<string, unknown>;
+    onSubmit: (data: Record<string, unknown>) => void;
+    submitting: boolean; submitLabel?: string;
+}) {
+    const [accountHolder, setAccountHolder] = useState((initialData.accountHolder as string) || "");
+    const [accountNumber, setAccountNumber] = useState("");
+    const [confirmNumber, setConfirmNumber] = useState("");
+    const [ifsc, setIfsc]                   = useState((initialData.ifsc as string) || "");
+    const [bankName, setBankName]           = useState((initialData.bankName as string) || "");
+    const [branch, setBranch]               = useState((initialData.branch as string) || "");
+    const [accountType, setAccountType]     = useState((initialData.accountType as string) || "");
+    const [chequeDoc, setChequeDoc]         = useState<string | null>((initialData.chequeDocUrl as string) || null);
+
+    const lookupIfsc = useCallback(async () => {
+        if (ifsc.length !== 11) return;
+        try {
+            const res = await fetch(`https://ifsc.razorpay.com/${ifsc.toUpperCase()}`);
+            if (res.ok) {
+                const data = await res.json();
+                setBankName(data.BANK || "");
+                setBranch(data.BRANCH || "");
+            }
+        } catch { /* silent */ }
+    }, [ifsc]);
+
+    useEffect(() => { if (ifsc.length === 11) lookupIfsc(); }, [ifsc, lookupIfsc]);
+
+    const numbersMismatch = confirmNumber.length > 0 && accountNumber !== confirmNumber;
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!accountHolder || !accountNumber || accountNumber !== confirmNumber || !ifsc || !accountType || !chequeDoc) return;
+        onSubmit({
+            accountHolder,
+            accountNumberLast4: accountNumber.slice(-4),
+            accountNumberMasked: "*".repeat(accountNumber.length - 4) + accountNumber.slice(-4),
+            ifsc: ifsc.toUpperCase(),
+            bankName, branch, accountType,
+            chequeDocUrl: chequeDoc,
+        });
+    };
+
+    return (
+        <form onSubmit={handleSubmit} className="space-y-5">
+            <KycInputField label="Account Holder Name" value={accountHolder} onChange={setAccountHolder} placeholder="Exactly as on passbook" />
+            <div className="grid sm:grid-cols-2 gap-4">
+                <KycInputField label="Account Number" value={accountNumber} onChange={setAccountNumber} type="password" placeholder="Enter account number" />
+                <div className="space-y-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Confirm Account Number</label>
+                    <input type="text" value={confirmNumber} onChange={(e) => setConfirmNumber(e.target.value)}
+                        placeholder="Re-enter account number"
+                        className={`w-full h-12 px-4 rounded-xl bg-[var(--surface-secondary)] border text-[var(--text-primary)] text-[14px] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 transition-all ${numbersMismatch ? "border-red-500/50 focus:ring-red-500/20" : "border-[var(--border-subtle)] focus:ring-[var(--accent-primary)]/30 focus:border-[var(--accent-primary)]/50"}`} />
+                    {numbersMismatch && <p className="text-[11px] text-red-400">Account numbers don't match</p>}
+                </div>
+            </div>
+            <div className="grid sm:grid-cols-2 gap-4">
+                <KycInputField label="IFSC Code" value={ifsc} onChange={setIfsc} placeholder="SBIN0001234" />
+                <KycSelectField label="Account Type" value={accountType} onChange={setAccountType}
+                    options={[{ value: "savings", label: "Savings" }, { value: "current", label: "Current" }]} />
+            </div>
+            {bankName && (
+                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                    <span className="text-[12px] text-emerald-400 font-medium">{bankName} — {branch}</span>
+                </div>
+            )}
+            <KycFileZone label="Cancelled Cheque or Passbook Front" fieldName="cheque_doc" value={chequeDoc} onChange={setChequeDoc} uid={uid} stepId="bank_setup" />
+            <button type="submit"
+                disabled={submitting || !accountHolder || !accountNumber || accountNumber !== confirmNumber || !ifsc || !accountType || !chequeDoc}
+                className="w-full h-14 rounded-2xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--accent-primary)]/20">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+                {submitting ? "Submitting…" : submitLabel}
+            </button>
+        </form>
+    );
+}
+

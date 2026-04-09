@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { getDefaultTabVisibility } from "@/lib/rbac/types";
-import { KycBanner } from "@/components/shared/KycBanner";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -169,7 +168,6 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                         <AppleTopBar primaryAction={promoterPrimaryAction} />
                     </div>
 
-                    <KycBanner />
                     <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
