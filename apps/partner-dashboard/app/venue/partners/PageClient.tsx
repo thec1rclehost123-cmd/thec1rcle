@@ -9,7 +9,6 @@ import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell } from "@/components/venue-layout/VenuePageShell";
 import { DiscoverDirectory, StatusCard } from "@/components/partnerships/DiscoverDirectory";
 import { NetworkProfileModal, NetworkProfile } from "@/components/partnerships/NetworkProfileModal";
-import { TierSelectionModal, ContractTier } from "@/components/partnerships/TierSelectionModal";
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { BasePartnerCard } from "@/components/partnerships/BasePartnerCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -336,7 +335,7 @@ export default function VenuePartnersPage() {
                                                 {filterByUI(declinedByThem).map(c => (
                                                     <BasePartnerCard
                                                         key={c.id}
-                                                        partner={{ id: c.otherId, type: c.otherType, name: c.otherName, avatar: c.photoURL, isVerified: c.otherIsVerified, connectionStatus: "declined" }}
+                                                        partner={{ id: c.otherId, type: c.otherType, name: c.otherName, avatar: c.photoURL, isVerified: c.otherIsVerified, connectionStatus: "rejected" }}
                                                         onViewProfile={() => router.push(`/venue/partners/${c.otherId}`)}
                                                         onPrimaryAction={() => handleReRequest(c)}
                                                         primaryActionLabel="Re-request"
@@ -353,7 +352,7 @@ export default function VenuePartnersPage() {
                                                 {filterByUI(declinedByVenue).map(c => (
                                                     <BasePartnerCard
                                                         key={c.id}
-                                                        partner={{ id: c.otherId, type: c.otherType, name: c.otherName, avatar: c.photoURL, isVerified: c.otherIsVerified, connectionStatus: "declined" }}
+                                                        partner={{ id: c.otherId, type: c.otherType, name: c.otherName, avatar: c.photoURL, isVerified: c.otherIsVerified, connectionStatus: "rejected" }}
                                                         onViewProfile={() => router.push(`/venue/partners/${c.otherId}`)}
                                                         onPrimaryAction={() => handleRemove(c.id)}
                                                         primaryActionLabel="Remove"

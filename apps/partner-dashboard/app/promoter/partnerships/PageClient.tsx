@@ -302,7 +302,7 @@ export default function PromoterPartnershipsPage() {
                                                 {filterByUI(declinedByThem).map(p => (
                                                     <BasePartnerCard
                                                         key={p.id}
-                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "declined" }}
+                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "rejected" }}
                                                         onViewProfile={() => openPartnerProfile(p.otherId)}
                                                         onPrimaryAction={() => handleReRequest(p)}
                                                         primaryActionLabel="Re-request"
@@ -319,7 +319,7 @@ export default function PromoterPartnershipsPage() {
                                                 {filterByUI(declinedByPromoter).map(p => (
                                                     <BasePartnerCard
                                                         key={p.id}
-                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "declined" }}
+                                                        partner={{ id: p.otherId, type: p.otherType, name: p.otherName, avatar: p.photoURL, isVerified: p.otherIsVerified, connectionStatus: "rejected" }}
                                                         onViewProfile={() => openPartnerProfile(p.otherId)}
                                                         onPrimaryAction={() => handleRemove(p.id)}
                                                         primaryActionLabel="Remove"
