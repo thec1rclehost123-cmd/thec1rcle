@@ -113,6 +113,15 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setPermissions(EMPTY_PERMISSIONS);
                 setMembershipId(null);
                 setLoading(false);
+            } else {
+                // A new user just signed in. Immediately clear any stale profile
+                // data from the previous account and gate all guards with loading=true.
+                // Without this, Account A's profile stays visible while Account B's
+                // /api/auth/me fetch is in-flight — causing the wrong account to render.
+                setProfile(null);
+                setIsApproved(false);
+                setPermissions(EMPTY_PERMISSIONS);
+                setLoading(true);
             }
         });
 
