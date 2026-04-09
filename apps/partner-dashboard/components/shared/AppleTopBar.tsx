@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Search, X, Command, ChevronDown, Settings, LogOut } from "lucide-react";
+import { WalletPopover } from "@/components/wallet/WalletPopover";
 import Link from "next/link";
 import { NotificationCenter } from "./NotificationCenter";
 import { parseAsIST } from "@c1rcle/core/time";
@@ -102,18 +103,18 @@ export function AppleTopBar({ title, primaryAction, roleContext = "venue" }: App
                     {/* Notifications */}
                     <NotificationCenter />
 
+                    {/* Wallet */}
+                    <WalletPopover />
+
                     {/* Profile */}
                     <div className="relative">
                         <button
                             onClick={() => setProfileOpen(!profileOpen)}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle transition-all"
+                            className="flex items-center gap-1.5 px-2 py-1.5 rounded-xl bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle transition-all"
                         >
                             <div className="w-7 h-7 rounded-full bg-[var(--c1rcle-orange)] flex items-center justify-center text-white text-[11px] font-black">
                                 {profile?.displayName?.charAt(0).toUpperCase() || "?"}
                             </div>
-                            <span className="hidden lg:block text-[13px] font-semibold text-text-primary max-w-[120px] truncate">
-                                {profile?.displayName || "Account"}
-                            </span>
                             <ChevronDown className={cn("w-3.5 h-3.5 text-text-tertiary transition-transform duration-200", profileOpen && "rotate-180")} />
                         </button>
 

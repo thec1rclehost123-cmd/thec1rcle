@@ -5,7 +5,6 @@ import { LayoutDashboard, Handshake, FolderOpen } from "lucide-react";
 import { VenuePageShell, VenueFilterTabs } from "@/components/venue-layout/VenuePageShell";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { WalletPopover } from "@/components/wallet/WalletPopover";
 
 import OverviewClient from "./PageClient";
 import { PartnerPayoutsClient } from "./partner-payouts/PageClient";
@@ -35,8 +34,7 @@ export default function FinanceHub() {
         <VenuePageShell
             title="Finance"
             noPadding
-            actions={<WalletPopover />}
-            filterBar={
+filterBar={
                 <VenueFilterTabs
                     tabs={tabItems}
                     active={activeTab}
