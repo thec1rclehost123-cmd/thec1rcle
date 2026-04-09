@@ -21,7 +21,30 @@ export async function GET(req: NextRequest) {
             .get();
         const onboardingRequest = reqSnapshot.empty ? null : reqSnapshot.docs[0].data();
 
-        return NextResponse.json({ user: userData, onboardingRequest });
+        // Merge JWT claims (role, admin_role) into the user profile so the
+        // client shell can derive nav permissions without a separate token decode.
+        // In dev, custom claims may not be set — default to "super" so the UI is accessible.
+        const isDev = process.env.NODE_ENV === "development";
+        const effectiveRole = decodedToken.role || (isDev ? "admin" : undefined);
+        const effectiveAdminRole = decodedToken.admin_role || (isDev ? "super" : undefined);
+        const effectiveAdmin = decodedToken.admin ?? (isDev ? true : undefined);
+
+        const mergedUser = userData ? {
+            ...userData,
+            role: effectiveRole || userData.role,
+            admin_role: effectiveAdminRole || userData.admin_role,
+            admin: effectiveAdmin ?? userData.admin,
+        } : {
+            // If Firestore doc doesn't exist yet (new admin user), return minimal profile
+            uid: decodedToken.uid,
+            email: decodedToken.email || "",
+            displayName: decodedToken.name || "Admin",
+            role: effectiveRole,
+            admin_role: effectiveAdminRole,
+            admin: effectiveAdmin,
+        };
+
+        return NextResponse.json({ user: mergedUser, onboardingRequest });
     } catch (error: any) {
         console.error("[Auth API] GET /me Error:", error);
         return NextResponse.json({ error: "Internal server error" }, { status: 500 });
