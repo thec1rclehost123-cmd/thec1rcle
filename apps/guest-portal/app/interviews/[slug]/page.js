@@ -1,10 +1,11 @@
 import PagePlaceholder from "../../../components/PagePlaceholder";
 
-export default function InterviewDynamicPage({ params }) {
+export default async function InterviewDynamicPage({ params }) {
+  const { slug } = await params;
   return (
     <div className="px-6">
       <PagePlaceholder
-        title={params.slug.replace(/-/g, " ")}
+        title={slug.replace(/-/g, " ")}
         description="Full interview detail view will live here."
       />
     </div>

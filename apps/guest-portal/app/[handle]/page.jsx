@@ -11,7 +11,8 @@ const RESERVED_HANDLES = new Set([
 ]);
 
 export async function generateMetadata({ params }) {
-    const handle = decodeURIComponent(params.handle).toLowerCase();
+    const { handle: rawHandle } = await params;
+    const handle = decodeURIComponent(rawHandle).toLowerCase();
     if (RESERVED_HANDLES.has(handle)) return { title: "Not Found" };
 
     const promoter = await getPromoterByUsername(handle);
@@ -36,7 +37,8 @@ export async function generateMetadata({ params }) {
 export const revalidate = 60;
 
 export default async function PromoterHandlePage({ params }) {
-    const handle = decodeURIComponent(params.handle).toLowerCase();
+    const { handle: rawHandle } = await params;
+    const handle = decodeURIComponent(rawHandle).toLowerCase();
 
     if (RESERVED_HANDLES.has(handle)) notFound();
 

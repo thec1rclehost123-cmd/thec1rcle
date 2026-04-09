@@ -4,8 +4,9 @@ import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 import { getPromoterByUsername, getPromoterLinkByVanityAlias } from "../../../lib/server/promoterStore";
 
 export async function generateMetadata({ params }) {
-    const handle = decodeURIComponent(params.handle).toLowerCase();
-    const slug = decodeURIComponent(params.eventSlug);
+    const { handle: rawHandle, eventSlug: rawSlug } = await params;
+    const handle = decodeURIComponent(rawHandle).toLowerCase();
+    const slug = decodeURIComponent(rawSlug);
 
     const vanityLink = await getPromoterLinkByVanityAlias(handle, slug);
     if (vanityLink?.eventId) {
@@ -94,8 +95,9 @@ function buildRedirectQuery(searchParams) {
 }
 
 export default async function VanityEventPage({ params, searchParams }) {
-    const handle = decodeURIComponent(params.handle).toLowerCase();
-    const slug = decodeURIComponent(params.eventSlug);
+    const { handle: rawHandle, eventSlug: rawSlug } = await params;
+    const handle = decodeURIComponent(rawHandle).toLowerCase();
+    const slug = decodeURIComponent(rawSlug);
 
     const vanityLink = await getPromoterLinkByVanityAlias(handle, slug);
     if (vanityLink?.eventId && vanityLink?.code) {
