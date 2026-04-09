@@ -70,9 +70,11 @@ export default function HostProfilePage() {
         if (isComposerOpen) {
             const draft = localStorage.getItem(`host_post_draft_${profile?.activeMembership?.partnerId}`);
             if (draft) {
-                const { content, image } = JSON.parse(draft);
-                if (!composerContent) setComposerContent(content);
-                if (!composerImage) setComposerImage(image);
+                try {
+                    const { content, image } = JSON.parse(draft);
+                    if (!composerContent) setComposerContent(content);
+                    if (!composerImage) setComposerImage(image);
+                } catch { /* ignore corrupted draft */ }
             }
         }
     }, [isComposerOpen]);

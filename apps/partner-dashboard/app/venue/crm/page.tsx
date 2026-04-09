@@ -54,24 +54,40 @@ type OrderRecord = {
     createdAt: string;
 };
 
+type DoorEntryRecord = {
+    id: string;
+    guestName: string;
+    contact: string;
+    gender: string | null;
+    age: number | null;
+    eventId: string;
+    eventTitle: string | null;
+    source: "walkins" | "dinein";
+    addedAt: string;
+    partySize: number;
+};
+
 type AttendeeRow = {
     id: string;
     name: string;
     email: string;
     phone: string;
     eventName: string;
+    eventId?: string;
     tickets: number;
     totalSpend: number;
     lastPurchase: string | null;
     tags: string[];
     gender?: string;
+    age?: number | null;
+    source: "online" | "walkins" | "dinein";
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Business Logic Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function deriveAttendees(customers: CustomerRecord[], orders: OrderRecord[]) {
+function deriveAttendees(customers: CustomerRecord[], orders: OrderRecord[]): AttendeeRow[] {
     const metrics = new Map<string, { tickets: number; totalSpend: number; lastPurchase: string | null }>();
 
     orders.forEach((order) => {
@@ -98,10 +114,29 @@ function deriveAttendees(customers: CustomerRecord[], orders: OrderRecord[]) {
             tickets: metric?.tickets || 0,
             totalSpend: metric?.totalSpend || 0,
             lastPurchase: metric?.lastPurchase || customer.entryTime,
-            tags: [], // Placeholder for tags
+            tags: [],
             gender: customer.gender,
+            source: "online" as const,
         } satisfies AttendeeRow;
     });
+}
+
+function deriveDoorAttendees(entries: DoorEntryRecord[]): AttendeeRow[] {
+    return entries.map((e) => ({
+        id: `door-${e.id}`,
+        name: e.guestName,
+        email: "",
+        phone: e.contact,
+        eventName: e.eventTitle ?? "",
+        eventId: e.eventId,
+        tickets: 0,
+        totalSpend: 0,
+        lastPurchase: e.addedAt,
+        tags: [],
+        gender: e.gender ?? undefined,
+        age: e.age ?? undefined,
+        source: e.source,
+    }));
 }
 
 function formatCurrency(amount: number) {
@@ -617,6 +652,9 @@ export default function MarketingPage() {
     const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
     const [eventOpen, setEventOpen] = useState(false);
     const [eventTriggerRect, setEventTriggerRect] = useState<DOMRect | null>(null);
+
+    // Channel filter
+    const [channelFilter, setChannelFilter] = useState<"all" | "walkins" | "dinein" | "online">("all");
     const eventFilterRef = useRef<HTMLButtonElement>(null);
 
     // ── Queries ──────────────────────────────────────────────────────────────
@@ -665,11 +703,158 @@ export default function MarketingPage() {
         staleTime: 60_000,
     });
 
+    // ── Door entries — self-contained fetch using Promise.all ────────────────────
+    const [doorEntries, setDoorEntries] = useState<DoorEntryRecord[]>([]);
+    const [doorLoading, setDoorLoading] = useState(false);
+
+    useEffect(() => {
+        if (!venueId || !user) {
+            console.warn("[Marketing] useEffect skipped — venueId:", venueId, "user:", !!user);
+            return;
+        }
+
+        let cancelled = false;
+
+        (async () => {
+            setDoorLoading(true);
+            try {
+                const token = await user.getIdToken();
+                const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+
+                // ── Step 1: Fetch ALL events for this venue ───────────────────
+                const eventsRes = await fetch(
+                    `/api/venue/events?venueId=${venueId}&status=all&limit=50`,
+                    { headers }
+                );
+                if (cancelled) return;
+
+                if (!eventsRes.ok) {
+                    console.error("[Marketing] Events fetch failed:", eventsRes.status, await eventsRes.text());
+                    setDoorEntries([]);
+                    return;
+                }
+
+                const eventsPayload = await eventsRes.json();
+                const allEvents: any[] = eventsPayload.events ?? [];
+
+                if (allEvents.length === 0) {
+                    setDoorEntries([]);
+                    return;
+                }
+
+                const targetEvents = selectedEventId
+                    ? allEvents.filter((e: any) => e.id === selectedEventId)
+                    : allEvents;
+
+                // ── Step 2: Walk-ins + dine-ins per event + venue-scoped ──────
+                const [walkInResults, dineinResults, venueDineinsPayload] = await Promise.all([
+                    Promise.all(
+                        targetEvents.map((ev: any) =>
+                            fetch(`/api/venue/walk-ins?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
+                                .then(async r => {
+                                    const d = await r.json();
+                                    if (!r.ok) {
+                                        console.error(`[Marketing] Walk-ins failed for ${ev.id}:`, r.status, d);
+                                        return { ev, entries: [] };
+                                    }
+                                    return { ev, entries: d.entries ?? [] };
+                                })
+                                .catch(err => { console.error(`[Marketing] Walk-ins error for ${ev.id}:`, err); return { ev, entries: [] }; })
+                        )
+                    ),
+                    Promise.all(
+                        targetEvents.map((ev: any) =>
+                            fetch(`/api/venue/door/dinein?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
+                                .then(async r => {
+                                    const d = await r.json();
+                                    if (!r.ok) {
+                                        console.error(`[Marketing] Dine-ins failed for ${ev.id}:`, r.status, d);
+                                        return { ev, entries: [] };
+                                    }
+                                    return { ev, entries: d.entries ?? [] };
+                                })
+                                .catch(err => { console.error(`[Marketing] Dine-ins error for ${ev.id}:`, err); return { ev, entries: [] }; })
+                        )
+                    ),
+                    selectedEventId
+                        ? Promise.resolve({ entries: [] as any[] })
+                        : fetch(`/api/venue/door/dinein?eventId=venue_${venueId}&venueId=${venueId}&limit=50`, { headers })
+                            .then(async r => {
+                                const d = await r.json();
+                                if (!r.ok) {
+                                    console.error("[Marketing] Venue dine-ins failed:", r.status, d);
+                                    return { entries: [] };
+                                }
+                                return d;
+                            })
+                            .catch(err => { console.error("[Marketing] Venue dine-ins error:", err); return { entries: [] }; }),
+                ]);
+
+                if (cancelled) return;
+
+                // ── Step 3: Flatten + map ─────────────────────────────────────
+                const mapped: DoorEntryRecord[] = [
+                    ...walkInResults.flatMap(({ ev, entries }) =>
+                        entries.map((e: any) => ({
+                            id: e.id,
+                            guestName: e.guestName ?? "",
+                            contact: e.phoneFull ?? e.phoneHash ?? "",
+                            gender: e.gender ?? null,
+                            age: e.guestAge != null ? Number(e.guestAge) : null,
+                            eventId: e.eventId ?? ev.id,
+                            eventTitle: ev.title ?? ev.name ?? null,
+                            source: "walkins" as const,
+                            addedAt: e.addedAt ?? "",
+                            partySize: e.partySize ?? 1,
+                        }))
+                    ),
+                    ...dineinResults.flatMap(({ ev, entries }) =>
+                        entries.map((e: any) => ({
+                            id: e.id,
+                            guestName: e.guestName ?? "",
+                            contact: "",
+                            gender: e.gender ?? null,
+                            age: e.age != null ? Number(e.age) : null,
+                            eventId: e.eventId ?? ev.id,
+                            eventTitle: ev.title ?? ev.name ?? null,
+                            source: "dinein" as const,
+                            addedAt: e.addedAt ?? "",
+                            partySize: e.partySize ?? 1,
+                        }))
+                    ),
+                    ...(venueDineinsPayload.entries ?? []).map((e: any) => ({
+                        id: e.id,
+                        guestName: e.guestName ?? "",
+                        contact: "",
+                        gender: e.gender ?? null,
+                        age: e.age != null ? Number(e.age) : null,
+                        eventId: `venue_${venueId}`,
+                        eventTitle: null,
+                        source: "dinein" as const,
+                        addedAt: e.addedAt ?? "",
+                        partySize: e.partySize ?? 1,
+                    })),
+                ].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
+
+                setDoorEntries(mapped);
+            } catch (err) {
+                console.error("[Marketing] useEffect fetch error:", err);
+            } finally {
+                if (!cancelled) setDoorLoading(false);
+            }
+        })();
+
+        return () => { cancelled = true; };
+    }, [venueId, user, selectedEventId]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // ── Derivative State ─────────────────────────────────────────────────────
 
     const attendees = useMemo(
-        () => deriveAttendees(customersQuery.data || [], ordersQuery.data || []),
-        [customersQuery.data, ordersQuery.data]
+        () => [
+            ...deriveAttendees(customersQuery.data || [], ordersQuery.data || []),
+            ...deriveDoorAttendees(doorEntries),
+        ],
+        [customersQuery.data, ordersQuery.data, doorEntries]
     );
 
     const filteredAttendees = useMemo(
@@ -679,11 +864,14 @@ export default function MarketingPage() {
                     .join(" ")
                     .toLowerCase()
                     .includes(query.toLowerCase());
-                
-                // Event filter
+
+                // Event filter — match by eventId for door entries, by name for online
                 const selectedEvent = eventsQuery.data?.find(e => e.id === selectedEventId);
                 const eventName = selectedEvent?.title || selectedEvent?.name;
-                const matchesEvent = !selectedEventId || a.eventName === eventName;
+                const matchesEvent = !selectedEventId || (
+                    (a.eventId && a.eventId === selectedEventId) ||
+                    a.eventName === eventName
+                );
 
                 // Time filter
                 let matchesTime = true;
@@ -698,10 +886,12 @@ export default function MarketingPage() {
                                      d1.getDate() === d2.getDate();
                     }
                 }
-                
-                return matchesQuery && matchesEvent && matchesTime;
+
+                const matchesChannel = channelFilter === "all" || a.source === channelFilter;
+
+                return matchesQuery && matchesEvent && matchesTime && matchesChannel;
             }),
-        [attendees, query, selectedDate, selectedEventId, eventsQuery.data]
+        [attendees, query, selectedDate, selectedEventId, eventsQuery.data, channelFilter]
     );
 
     // ── Handlers ─────────────────────────────────────────────────────────────
@@ -726,7 +916,7 @@ export default function MarketingPage() {
 
     return (
         <VenuePageShell
-            title="Attendees"
+            title="Marketing"
             actions={
                 <VenueActionButton variant="secondary" onClick={() => setCampaignComposerOpen(true)}>
                     View WhatsApp Campaigns
@@ -782,9 +972,48 @@ export default function MarketingPage() {
                 </div>
             </div>
 
+            {/* Channel filter tabs */}
+            {(() => {
+                const counts = {
+                    all: attendees.length,
+                    walkins: attendees.filter(a => a.source === "walkins").length,
+                    dinein: attendees.filter(a => a.source === "dinein").length,
+                    online: attendees.filter(a => a.source === "online").length,
+                };
+                const tabs: { key: "all" | "walkins" | "dinein" | "online"; label: string; color: string; activeColor: string }[] = [
+                    { key: "all",     label: "All",      color: "text-white/40",     activeColor: "text-white" },
+                    { key: "walkins", label: "Walk-ins", color: "text-white/40",     activeColor: "text-emerald-400" },
+                    { key: "dinein",  label: "Dine-ins", color: "text-white/40",     activeColor: "text-blue-400" },
+                    { key: "online",  label: "Online",   color: "text-white/40",     activeColor: "text-violet-400" },
+                ];
+                return (
+                    <div className="flex items-center gap-1 p-1 rounded-2xl w-fit" style={{ background: "#1A1B1E", border: "1px solid rgba(255,255,255,0.05)" }}>
+                        {tabs.map(tab => {
+                            const isActive = channelFilter === tab.key;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setChannelFilter(tab.key)}
+                                    className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[13px] font-semibold transition-all ${
+                                        isActive ? `${tab.activeColor} bg-[#2A2B2F]` : `${tab.color} hover:text-white/60`
+                                    }`}
+                                >
+                                    {tab.label}
+                                    <span className={`text-[11px] font-bold tabular-nums px-1.5 py-0.5 rounded-full ${
+                                        isActive ? "bg-white/10 text-white/70" : "bg-white/5 text-white/25"
+                                    }`}>
+                                        {counts[tab.key]}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
+            })()}
+
             <AnimatePresence>
                 {eventOpen && (
-                    <EventFilterPopup 
+                    <EventFilterPopup
                         events={eventsQuery.data || []}
                         selectedEventId={selectedEventId}
                         onSelect={setSelectedEventId}
@@ -805,10 +1034,10 @@ export default function MarketingPage() {
                 )}
             </AnimatePresence>
 
-            <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719]">
-                <div className="grid grid-cols-[minmax(300px,1fr)_100px_140px_140px_180px_120px] gap-6 px-6 py-4 border-b border-white/[0.04] bg-[#1D1E21]">
+            <div className="overflow-hidden rounded-[28px] border border-white/[0.05] bg-[#161719] overflow-x-auto">
+                <div className="grid grid-cols-[minmax(180px,1fr)_130px_170px_56px_44px_110px_90px] gap-4 px-6 py-4 border-b border-white/[0.04] bg-[#1D1E21] min-w-[820px]">
                     <div className="flex items-center gap-3">
-                        <button 
+                        <button
                             onClick={toggleAll}
                             className={`w-5 h-5 rounded border transition-all flex items-center justify-center ${
                                 filteredAttendees.length > 0 && filteredAttendees.every(a => selectedIds.includes(a.id))
@@ -820,17 +1049,18 @@ export default function MarketingPage() {
                         </button>
                         <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Attendee</div>
                     </div>
-                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Tickets</div>
-                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Total Spend</div>
                     <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Contact</div>
-                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Tags</div>
-                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em] text-right">Activity</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Email</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em] text-center">Gender</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em] text-center">Age</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em]">Date &amp; Time</div>
+                    <div className="text-[11px] font-black text-white uppercase tracking-[0.22em] text-right">Channel</div>
                 </div>
 
-            <div className="pb-40">
-                {customersQuery.isLoading || eventsQuery.isLoading ? (
+            <div className="pb-40 min-w-[820px]">
+                {customersQuery.isLoading || doorLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
-                        <div key={i} className="h-[86px] w-full border-t border-white/[0.035] bg-[#232326] animate-pulse" />
+                        <div key={i} className="h-[72px] w-full border-t border-white/[0.035] bg-[#232326] animate-pulse" />
                     ))
                 ) : filteredAttendees.length === 0 ? (
                     <div className="py-40 text-center">
@@ -839,79 +1069,107 @@ export default function MarketingPage() {
                 ) : (
                     filteredAttendees.map((a) => {
                         const isSelected = selectedIds.includes(a.id);
+                        const isWalkin = a.source === "walkins";
+                        const isDinein = a.source === "dinein";
                         return (
                             <motion.div
                                 layout
                                 key={a.id}
                                 onClick={() => toggleAttendee(a.id)}
-                                className={`group relative grid grid-cols-[minmax(300px,1fr)_100px_140px_140px_180px_120px] items-center gap-6 px-6 py-5 border-t border-white/[0.035] transition-all cursor-pointer ${
-                                    isSelected 
-                                    ? "bg-[#2A2A2D]" 
+                                className={`group relative grid grid-cols-[minmax(180px,1fr)_130px_170px_56px_44px_110px_90px] items-center gap-4 px-6 py-4 border-t border-white/[0.035] transition-all cursor-pointer ${
+                                    isSelected
+                                    ? "bg-[#2A2A2D]"
                                     : "bg-[#232326] hover:bg-[#29292D]"
                                 }`}
                             >
                                 {/* Column 1: Identity */}
                                 <div className="flex items-center gap-3 min-w-0">
                                     <div className="relative flex-shrink-0">
-                                        <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
+                                        <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-all ${
                                             isSelected ? "bg-white text-black" : "bg-white/10 text-white/60 group-hover:bg-white/15"
                                         }`}>
-                                            {isSelected ? <Check className="h-5 w-5 stroke-[3]" /> : <span className="text-[16px] font-bold">{a.name.charAt(0)}</span>}
+                                            {isSelected ? <Check className="h-4 w-4 stroke-[3]" /> : <span className="text-[14px] font-bold">{a.name.charAt(0)}</span>}
                                         </div>
                                     </div>
                                     <div className="flex flex-col min-w-0">
-                                        <h3 className="text-[16px] font-semibold tracking-tight text-white truncate">{a.name}</h3>
-                                        <div className="flex items-center gap-2 text-[12px] font-medium text-white/40 uppercase tracking-[0.14em] mt-1">
-                                            {a.eventName}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex flex-col items-start min-w-0">
-                                    <span className="text-[15px] font-semibold tabular-nums text-white">{a.tickets}</span>
-                                </div>
-
-                                <div className="flex flex-col items-start min-w-0">
-                                    <div className="text-[18px] font-semibold tracking-tight tabular-nums text-white">
-                                        {formatCurrency(a.totalSpend)}
+                                        <h3 className="text-[14px] font-semibold tracking-tight text-white truncate">{a.name}</h3>
+                                        {a.eventName && (
+                                            <div className="text-[11px] font-medium text-white/35 uppercase tracking-[0.1em] mt-0.5 truncate">
+                                                {a.eventName}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-3">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setCampaignComposerOpen(true); }}
-                                        className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/60 hover:text-white flex items-center justify-center"
-                                    >
-                                        <MessageSquare className="h-4.5 w-4.5" />
-                                    </button>
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); }}
-                                        className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/60 hover:text-white flex items-center justify-center"
-                                    >
-                                        <Phone className="h-4.5 w-4.5" />
-                                    </button>
-                                </div>
+                                {/* Column 2: Contact */}
+                                <p className="text-[12px] tabular-nums text-white/60 truncate">
+                                    {a.phone || "—"}
+                                </p>
 
-                                <div className="flex items-center gap-2 min-w-0">
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); }}
-                                        className="w-9 h-9 rounded-full bg-black/45 flex items-center justify-center text-white/40 hover:text-white transition-all flex-shrink-0"
-                                    >
-                                        <Plus className="h-4 w-4" />
-                                    </button>
-                                    <div className="flex gap-1.5 overflow-hidden">
-                                        <span className="px-3 py-1 rounded-full bg-black/45 text-[10px] font-bold text-white/70 uppercase tracking-wider">VIP</span>
-                                    </div>
-                                </div>
+                                {/* Column 3: Email */}
+                                <p className="text-[12px] text-white/60 truncate">
+                                    {a.email || "—"}
+                                </p>
 
-                                <div className="flex items-center gap-5 justify-end">
-                                    <div className="flex flex-col items-end">
-                                        <span className="text-[12px] font-black text-white/60 tracking-[0.12em]">
-                                            {a.lastPurchase ? new Date(a.lastPurchase).toLocaleDateString("en-US", { day: 'numeric', month: 'short' }).toUpperCase() : "MAR 30"}
+                                {/* Column 4: Gender */}
+                                <div className="flex justify-center">
+                                    {a.gender ? (
+                                        <span
+                                            className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase"
+                                            style={{
+                                                background: a.gender === "male" ? "rgba(59,130,246,0.15)" : "rgba(236,72,153,0.15)",
+                                                color: a.gender === "male" ? "#60A5FA" : "#F472B6",
+                                            }}
+                                        >
+                                            {a.gender === "male" ? "M" : "F"}
                                         </span>
-                                    </div>
-                                    <button className="w-10 h-10 rounded-full bg-black/45 hover:bg-black/65 transition-all text-white/40 hover:text-white flex items-center justify-center">
-                                        <Info className="h-4.5 w-4.5" />
-                                    </button>
+                                    ) : (
+                                        <span className="text-[12px] text-white/25">—</span>
+                                    )}
+                                </div>
+
+                                {/* Column 5: Age */}
+                                <p className="text-[12px] tabular-nums text-center text-white/60">
+                                    {a.age != null ? a.age : "—"}
+                                </p>
+
+                                {/* Column 6: Date & Time */}
+                                <div className="flex flex-col">
+                                    {a.lastPurchase ? (
+                                        <>
+                                            <span className="text-[12px] font-semibold text-white/70 tabular-nums">
+                                                {new Date(a.lastPurchase).toLocaleDateString("en-GB", {
+                                                    day: "2-digit", month: "short", year: "numeric",
+                                                }).toUpperCase()}
+                                            </span>
+                                            <span className="text-[11px] text-white/35 tabular-nums">
+                                                {new Date(a.lastPurchase).toLocaleTimeString("en-IN", {
+                                                    hour: "2-digit", minute: "2-digit",
+                                                })}
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <span className="text-[12px] text-white/25">—</span>
+                                    )}
+                                </div>
+
+                                {/* Column 7: Channel badge */}
+                                <div className="flex justify-end">
+                                    {isWalkin && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-400">
+                                            Walk-in
+                                        </span>
+                                    )}
+                                    {isDinein && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-blue-500/15 text-blue-400">
+                                            Dine-in
+                                        </span>
+                                    )}
+                                    {a.source === "online" && (
+                                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-400">
+                                            Online
+                                        </span>
+                                    )}
                                 </div>
                             </motion.div>
                         );

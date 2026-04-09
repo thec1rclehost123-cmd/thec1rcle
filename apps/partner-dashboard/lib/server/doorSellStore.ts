@@ -23,7 +23,7 @@ function logsRef(eventId: string) {
 export async function createDineinEntry(
     eventId: string,
     venueId: string,
-    payload: { guestName: string; partySize: number; idempotencyKey: string },
+    payload: { guestName: string; partySize: number; idempotencyKey: string; gender?: string; age?: number },
     actor: { uid: string; name: string }
 ): Promise<DineinEntry> {
     const id = randomUUID();
@@ -35,6 +35,8 @@ export async function createDineinEntry(
         venueId,
         guestName: payload.guestName.trim(),
         partySize: Math.max(1, payload.partySize),
+        ...(payload.gender ? { gender: payload.gender as any } : {}),
+        ...(payload.age != null && payload.age > 0 ? { age: payload.age } : {}),
         addedBy: actor.uid,
         addedByName: actor.name,
         addedAt: now,

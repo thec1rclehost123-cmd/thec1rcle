@@ -3,22 +3,20 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import {
-    UserPlus, Circle, ChevronDown, Ticket, UtensilsCrossed,
+    UserPlus, Ticket, UtensilsCrossed,
 } from "lucide-react";
 import { HubTabBar } from "@/components/shared/HubTabBar";
 import { useHubTab } from "@/lib/hooks/useHubTab";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { DoorHubContext } from "@/lib/context/DoorHubContext";
-import { cn } from "@/lib/utils";
-
-// Lazy-import existing PageClients — each stays in its own chunk
-import { WalkInsClient } from "../walk-ins/PageClient";
+import type { DoorEntry } from "@/lib/context/DoorHubContext";
 import { DoorSellClient } from "./sell/PageClient";
 import { DoorDineinClient } from "./dinein/PageClient";
+import { DoorWalkInsView } from "./WalkInsView";
 
 const TABS = [
-    { key: "sell",    label: "Ticket Purchase", icon: Ticket },
+    { key: "sell",    label: "Entry Form",       icon: Ticket },
     { key: "walkins", label: "Walk-Ins",         icon: UserPlus },
     { key: "dinein",  label: "Dine-in",          icon: UtensilsCrossed },
 ];
@@ -27,14 +25,14 @@ const TABS = [
 function TabContent({ activeTab }: { activeTab: string }) {
     switch (activeTab) {
         case "sell":    return <DoorSellClient />;
-        case "walkins": return <WalkInsClient />;
+        case "walkins": return <DoorWalkInsView />;
         case "dinein":  return <DoorDineinClient />;
         default:        return <DoorSellClient />;
     }
 }
 
 export default function DoorPageClient() {
-    const { profile } = useDashboardAuth();
+    const { profile, user } = useDashboardAuth();
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -45,29 +43,126 @@ export default function DoorPageClient() {
 
     const [events, setEvents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
-    const [eventsOpen, setEventsOpen] = useState(false);
+    const [walkInEntries, setWalkInEntries] = useState<DoorEntry[]>([]);
+    const [dineInEntries, setDineInEntries] = useState<DoorEntry[]>([]);
 
-    const authHeaders = useCallback(() => ({
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${(profile as any)?._token ?? ""}`,
-    }), [profile]);
+    // localStorage keys scoped by venue + date so entries auto-expire at midnight
+    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+    const wiKey  = venueId ? `door_walkins_${venueId}_${today}`  : null;
+    const diKey  = venueId ? `door_dineins_${venueId}_${today}` : null;
+
+    // Load persisted entries from localStorage on mount (once venueId is known)
+    useEffect(() => {
+        if (!wiKey || !diKey) return;
+        try {
+            const wi = localStorage.getItem(wiKey);
+            if (wi) setWalkInEntries(JSON.parse(wi));
+        } catch { /* ignore malformed */ }
+        try {
+            const di = localStorage.getItem(diKey);
+            if (di) setDineInEntries(JSON.parse(di));
+        } catch { /* ignore malformed */ }
+    }, [wiKey, diKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Fetch authoritative entries from backend — replaces localStorage cache
+    useEffect(() => {
+        if (!venueId || !user) return;
+        (async () => {
+            try {
+                const token = await user.getIdToken();
+                const headers = { Authorization: `Bearer ${token}` };
+
+                // Walk-ins are event-scoped — only fetch when an event is selected
+                if (eventId) {
+                    const wiRes = await fetch(
+                        `/api/venue/walk-ins?eventId=${eventId}&limit=200`,
+                        { headers }
+                    );
+                    if (wiRes.ok) {
+                        const d = await wiRes.json();
+                        const fetched: DoorEntry[] = (d.entries ?? []).map((e: any) => ({
+                            id: e.id,
+                            guestName: e.guestName,
+                            contact: e.phoneFull ?? e.phoneHash ?? "",
+                            gender: (e.gender ?? "male") as DoorEntry["gender"],
+                            age: 0,
+                            type: "walkins" as const,
+                            eventId: e.eventId,
+                            submittedAt: e.addedAt,
+                        }));
+                        setWalkInEntries(fetched);
+                        try { if (wiKey) localStorage.setItem(wiKey, JSON.stringify(fetched)); } catch { /* quota */ }
+                    }
+                }
+
+                // Dine-ins: use eventId if set, otherwise scope to venue
+                const diEventId = eventId || `venue_${venueId}`;
+                const diRes = await fetch(
+                    `/api/venue/door/dinein?eventId=${encodeURIComponent(diEventId)}&limit=200`,
+                    { headers }
+                );
+                if (diRes.ok) {
+                    const d = await diRes.json();
+                    const fetched: DoorEntry[] = (d.entries ?? []).map((e: any) => ({
+                        id: e.id,
+                        guestName: e.guestName,
+                        contact: "",
+                        gender: "male" as const,
+                        age: 0,
+                        type: "dinein" as const,
+                        totalGuests: e.partySize,
+                        eventId: e.eventId,
+                        submittedAt: e.addedAt,
+                    }));
+                    setDineInEntries(fetched);
+                    try { if (diKey) localStorage.setItem(diKey, JSON.stringify(fetched)); } catch { /* quota */ }
+                }
+            } catch {
+                // silent — localStorage fallback remains visible
+            }
+        })();
+    }, [venueId, eventId, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const addEntry = useCallback((entry: DoorEntry) => {
+        if (entry.type === "walkins") {
+            setWalkInEntries(prev => {
+                const updated = [entry, ...prev];
+                try { if (wiKey) localStorage.setItem(wiKey, JSON.stringify(updated)); } catch { /* quota */ }
+                return updated;
+            });
+        } else {
+            setDineInEntries(prev => {
+                const updated = [entry, ...prev];
+                try { if (diKey) localStorage.setItem(diKey, JSON.stringify(updated)); } catch { /* quota */ }
+                return updated;
+            });
+        }
+    }, [wiKey, diKey]);
 
     const handleEventChange = useCallback((id: string) => {
         const params = new URLSearchParams(searchParams.toString());
         params.set("eventId", id);
         router.replace(`${pathname}?${params.toString()}`);
-        setEventsOpen(false);
     }, [pathname, router, searchParams]);
 
-    // Fetch events list once (only needs venueId)
+    // Fetch events using a fresh Firebase ID token — same pattern as the Events page
     useEffect(() => {
-        if (!venueId) return;
-        fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() })
-            .then(r => r.ok ? r.json() : null)
-            .then(d => { if (d) setEvents(d.events ?? []); });
-    }, [venueId, authHeaders]);
-
-    const selectedEvent = events.find(e => e.id === eventId);
+        if (!venueId || !user) return;
+        (async () => {
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch(`/api/venue/events?venueId=${venueId}&status=all`, {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (res.ok) {
+                    const d = await res.json();
+                    setEvents(d.events ?? []);
+                }
+            } catch {
+                // silent — events list is non-critical for page render
+            }
+        })();
+    }, [venueId, user]);
 
     return (
         <DoorHubContext.Provider value={{
@@ -78,6 +173,9 @@ export default function DoorPageClient() {
             openExceptions: 0,
             isLoading,
             setEventId: handleEventChange,
+            walkInEntries,
+            dineInEntries,
+            addEntry,
         }}>
             <div className="space-y-4">
                 {/* Hub header */}
@@ -92,58 +190,6 @@ export default function DoorPageClient() {
 
                 {/* Tab bar */}
                 <HubTabBar tabs={TABS} activeTab={activeTab} onTabChange={setTab} />
-
-                {/* Event selector */}
-                <div className="relative">
-                    <button
-                        onClick={() => setEventsOpen(o => !o)}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-[13px] font-medium transition-all border"
-                        style={{ background: "var(--v-card)", borderColor: "var(--v-border)", color: "var(--v-text-primary)" }}
-                    >
-                        <Circle
-                            size={8}
-                            className={selectedEvent?.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
-                        />
-                        <span className="truncate max-w-[260px]">
-                            {selectedEvent?.title ?? (events.length === 0 ? "No events found" : "Select an event to begin")}
-                        </span>
-                        <ChevronDown size={13} className="text-[var(--v-text-muted)] shrink-0 ml-1" />
-                    </button>
-
-                    {eventsOpen && events.length > 0 && (
-                        <div
-                            className="absolute top-full left-0 mt-1 z-50 min-w-[280px] rounded-xl border shadow-xl overflow-hidden"
-                            style={{ background: "var(--v-card)", borderColor: "var(--v-border)" }}
-                        >
-                            {events.map(event => (
-                                <button
-                                    key={event.id}
-                                    onClick={() => handleEventChange(event.id)}
-                                    className={cn(
-                                        "w-full flex items-center gap-3 px-4 py-3 text-left text-[13px] hover:bg-[var(--v-card-hover)] transition-colors",
-                                        event.id === eventId && "bg-[var(--v-elevated)]"
-                                    )}
-                                >
-                                    <Circle
-                                        size={8}
-                                        className={event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
-                                    />
-                                    <div>
-                                        <div className="font-medium text-[var(--v-text-primary)]">{event.title}</div>
-                                        {event.startDate && (
-                                            <div className="text-[11px] text-[var(--v-text-muted)]">
-                                                {new Date(event.startDate).toLocaleDateString("en-IN", {
-                                                    weekday: "short", month: "short", day: "numeric",
-                                                    hour: "2-digit", minute: "2-digit",
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                </div>
 
                 {/* Tab content */}
                 <Suspense fallback={<Skeleton className="h-64 w-full rounded-2xl" />}>

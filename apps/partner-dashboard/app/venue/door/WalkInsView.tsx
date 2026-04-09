@@ -1,14 +1,14 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { UtensilsCrossed, Users } from "lucide-react";
+import { UserPlus } from "lucide-react";
 import { useDoorHub } from "@/lib/context/DoorHubContext";
 
-export function DoorDineinClient() {
+export function DoorWalkInsView() {
     const hub = useDoorHub();
-    const entries = hub?.dineInEntries ?? [];
+    const entries = hub?.walkInEntries ?? [];
 
-    const totalGuests = entries.reduce((sum, e) => sum + (e.totalGuests ?? 1), 0);
+    const totalGuests = entries.reduce((sum, e) => sum + 1, 0);
 
     return (
         <div className="space-y-4 max-w-4xl">
@@ -19,19 +19,10 @@ export function DoorDineinClient() {
             >
                 <div>
                     <p className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: "var(--v-text-tertiary)" }}>
-                        Tables
+                        Walk-ins
                     </p>
                     <p className="text-[24px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
                         {entries.length}
-                    </p>
-                </div>
-                <div className="w-px h-10 self-center" style={{ background: "var(--v-border)" }} />
-                <div>
-                    <p className="text-[11px] font-bold uppercase tracking-widest mb-0.5" style={{ color: "var(--v-text-tertiary)" }}>
-                        Total Guests
-                    </p>
-                    <p className="text-[24px] font-black tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                        {totalGuests}
                     </p>
                 </div>
             </div>
@@ -43,7 +34,7 @@ export function DoorDineinClient() {
             >
                 <div className="px-5 py-3.5 border-b" style={{ borderColor: "var(--v-border)" }}>
                     <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-tertiary)" }}>
-                        Dine-in Entries
+                        Walk-in Entries
                     </p>
                 </div>
 
@@ -53,20 +44,20 @@ export function DoorDineinClient() {
                             className="w-12 h-12 rounded-2xl flex items-center justify-center"
                             style={{ background: "var(--v-elevated)" }}
                         >
-                            <UtensilsCrossed size={20} className="text-[var(--v-text-muted)]" />
+                            <UserPlus size={20} className="text-[var(--v-text-muted)]" />
                         </div>
                         <p className="text-[13px]" style={{ color: "var(--v-text-muted)" }}>
-                            No dine-in entries yet
+                            No walk-in entries yet
                         </p>
                         <p className="text-[12px]" style={{ color: "var(--v-text-muted)" }}>
-                            Use the Entry Form tab to add dine-in guests
+                            Use the Entry Form tab to add walk-in guests
                         </p>
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
                         {/* Header row */}
                         <div
-                            className="grid grid-cols-[1fr_110px_160px_56px_44px_88px_68px_72px] gap-3 px-5 py-2 min-w-[800px]"
+                            className="grid grid-cols-[1fr_110px_160px_56px_44px_88px_68px] gap-3 px-5 py-2 min-w-[720px]"
                             style={{ background: "var(--v-elevated)" }}
                         >
                             <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: "var(--v-text-muted)" }}>Name</span>
@@ -76,9 +67,8 @@ export function DoorDineinClient() {
                             <span className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--v-text-muted)" }}>Age</span>
                             <span className="text-[10px] font-bold uppercase tracking-widest text-center" style={{ color: "var(--v-text-muted)" }}>Date</span>
                             <span className="text-[10px] font-bold uppercase tracking-widest text-right" style={{ color: "var(--v-text-muted)" }}>Time</span>
-                            <span className="text-[10px] font-bold uppercase tracking-widest text-right" style={{ color: "var(--v-text-muted)" }}>Guests</span>
                         </div>
-                        <div className="divide-y min-w-[800px]" style={{ borderColor: "var(--v-border)" }}>
+                        <div className="divide-y min-w-[720px]" style={{ borderColor: "var(--v-border)" }}>
                             <AnimatePresence initial={false}>
                                 {entries.map((entry, i) => (
                                     <motion.div
@@ -86,18 +76,28 @@ export function DoorDineinClient() {
                                         initial={{ opacity: 0, x: -8 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ duration: 0.2, delay: Math.min(i * 0.03, 0.2) }}
-                                        className="grid grid-cols-[1fr_110px_160px_56px_44px_88px_68px_72px] gap-3 px-5 py-3.5 items-center hover:bg-[var(--v-card-hover)] transition-colors"
+                                        className="grid grid-cols-[1fr_110px_160px_56px_44px_88px_68px] gap-3 px-5 py-3.5 items-center hover:bg-[var(--v-card-hover)] transition-colors"
                                     >
                                         <div className="flex items-center gap-3 min-w-0">
                                             <div
-                                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
-                                                style={{ background: "rgba(251,191,36,0.1)" }}
+                                                className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[12px] font-black"
+                                                style={{
+                                                    background: entry.gender === "male" ? "rgba(59,130,246,0.1)" : "rgba(236,72,153,0.1)",
+                                                    color: entry.gender === "male" ? "#60A5FA" : "#F472B6",
+                                                }}
                                             >
-                                                <UtensilsCrossed size={14} className="text-amber-400" />
+                                                {(entry.guestName[0] ?? "?").toUpperCase()}
                                             </div>
-                                            <p className="text-[13px] font-semibold truncate" style={{ color: "var(--v-text-primary)" }}>
-                                                {entry.guestName}
-                                            </p>
+                                            <div className="min-w-0">
+                                                <p className="text-[13px] font-semibold truncate" style={{ color: "var(--v-text-primary)" }}>
+                                                    {entry.guestName}
+                                                </p>
+                                                {entry.eventTitle && (
+                                                    <p className="text-[11px] truncate" style={{ color: "var(--v-text-muted)" }}>
+                                                        {entry.eventTitle}
+                                                    </p>
+                                                )}
+                                            </div>
                                         </div>
                                         <p className="text-[12px] tabular-nums truncate" style={{ color: "var(--v-text-secondary)" }}>
                                             {entry.contact || "—"}
@@ -132,12 +132,6 @@ export function DoorDineinClient() {
                                                 minute: "2-digit",
                                             })}
                                         </p>
-                                        <div className="flex items-center gap-1 justify-end">
-                                            <Users size={12} className="text-[var(--v-text-muted)]" />
-                                            <span className="text-[13px] font-bold tabular-nums" style={{ color: "var(--v-text-primary)" }}>
-                                                {entry.totalGuests ?? 1}
-                                            </span>
-                                        </div>
                                     </motion.div>
                                 ))}
                             </AnimatePresence>

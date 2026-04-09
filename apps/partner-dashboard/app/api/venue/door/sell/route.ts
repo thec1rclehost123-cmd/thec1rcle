@@ -19,10 +19,12 @@ import { FieldValue } from "firebase-admin/firestore";
 import { z } from "zod";
 
 const SellBodySchema = z.object({
-    eventId: z.string().min(1).max(100),
+    // eventId is required for party walk-ins; optional for dine-ins (stored under venue key)
+    eventId: z.string().max(100).optional().default(""),
     guestName: z.string().min(1).max(100),
     partySize: z.number().int().min(1).max(100),
     gender: z.enum(["male", "female"]),
+    age: z.number().int().min(0).max(120).optional().default(0),
     purpose: z.enum(["party", "dinein"]),
     idempotencyKey: z.string().min(1).max(200),
 });
@@ -39,9 +41,18 @@ export async function POST(request: NextRequest) {
         const parsed = SellBodySchema.safeParse(rawBody);
         if (!parsed.success) return fail(parsed.error.issues[0].message, 422);
 
-        const { eventId, guestName, partySize, gender, purpose, idempotencyKey } = parsed.data;
+        const { guestName, partySize, gender, age, purpose, idempotencyKey } = parsed.data;
+        const eventId = parsed.data.eventId ?? "";
         const venueId = ctx.venueId;
         const actor = { uid: auth.uid, name: (auth as any).name ?? "Staff" };
+
+        // eventId is required for party (walk-in) entries
+        if (purpose === "party" && !eventId) {
+            return fail("eventId is required for walk-in entries", 422);
+        }
+
+        // For dine-ins without a specific event, scope under the venue
+        const effectiveEventId = eventId || `venue_${venueId}`;
 
         // ── Party: capacity check + walk-in write ─────────────────────────────
         if (purpose === "party") {
@@ -49,7 +60,7 @@ export async function POST(request: NextRequest) {
 
             if (isFirebaseConfigured()) {
                 const db = getAdminDb();
-                const eventRef = db.collection("events").doc(eventId);
+                const eventRef = db.collection("events").doc(effectiveEventId);
 
                 // Run inside a transaction to prevent race conditions
                 const result = await db.runTransaction(async (tx) => {
@@ -87,7 +98,7 @@ export async function POST(request: NextRequest) {
             }
 
             const entry = await createWalkIn(
-                eventId,
+                effectiveEventId,
                 venueId,
                 {
                     guestName,
@@ -99,6 +110,7 @@ export async function POST(request: NextRequest) {
                     idempotencyKey,
                     gender,
                     purpose,
+                    ...(age > 0 ? { guestAge: age } : {}),
                 },
                 actor,
                 false
@@ -108,7 +120,7 @@ export async function POST(request: NextRequest) {
         }
 
         // ── Dine-in: no capacity check ────────────────────────────────────────
-        const entry = await createDineinEntry(eventId, venueId, { guestName, partySize, idempotencyKey }, actor);
+        const entry = await createDineinEntry(effectiveEventId, venueId, { guestName, partySize, idempotencyKey, gender, ...(age > 0 ? { age } : {}) }, actor);
 
         return ok({ entryId: entry.id, purpose: "dinein", remainingCapacity: null }, "", 201);
     } catch (err: any) {

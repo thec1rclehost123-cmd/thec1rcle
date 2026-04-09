@@ -42,6 +42,8 @@ export interface DineinEntry {
     venueId: string;
     guestName: string;
     partySize: number;
+    gender?: DoorGender;
+    age?: number;
     addedBy: string;
     addedByName: string;
     addedAt: string; // ISO

@@ -79,6 +79,7 @@ export async function createWalkIn(
         source: "manual",
         ...(payload.gender ? { gender: payload.gender } : {}),
         ...(payload.purpose ? { purpose: payload.purpose } : {}),
+        ...(payload.guestAge != null && payload.guestAge > 0 ? { guestAge: payload.guestAge } : {}),
     };
 
     if (!isFirebaseConfigured()) {
@@ -140,9 +141,10 @@ export async function listWalkIns(
     }
 
     const db = getAdminDb();
+    // Avoid composite index requirement by using single-field filter only;
+    // sort by addedAt is applied client-side after fetching.
     let q: FirebaseFirestore.Query = logsRef(params.eventId ?? "_no_event")
-        .where("status", "==", "active")
-        .orderBy("addedAt", "desc");
+        .where("status", "==", "active");
 
     if (!params.eventId) {
         // Cross-event query — need collection group
@@ -170,6 +172,9 @@ export async function listWalkIns(
 
     const snap = await q.limit(limit + 1).get();
     const all = snap.docs.map((d) => ({ id: d.id, ...d.data() } as WalkInEntry));
+
+    // Sort by addedAt desc (was previously done in Firestore orderBy)
+    all.sort((a, b) => (b.addedAt ?? "").localeCompare(a.addedAt ?? ""));
 
     // Text search (Firestore doesn't support FTS natively — filter client-side for now)
     let filtered = all;

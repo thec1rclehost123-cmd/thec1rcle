@@ -53,6 +53,7 @@ export interface WalkInCreatePayload {
     idempotencyKey: string;
     gender?: WalkInGender;
     purpose?: WalkInPurpose;
+    guestAge?: number;
 }
 
 export interface WalkInSearchParams {
