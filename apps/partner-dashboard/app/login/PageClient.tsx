@@ -105,6 +105,16 @@ function LoginForm() {
     const [step, setStep] = useState<"select" | "credentials">("select");
     const [userType, setUserType] = useState<UserType | null>(null);
 
+    // Clear any stale session on mount so a different account can log in cleanly.
+    // Without this, a persistent Firebase session (Account A) auto-redirects to
+    // Account A's dashboard before the user can enter Account B's credentials.
+    useEffect(() => {
+        const auth = getFirebaseAuth();
+        if (auth.currentUser) {
+            auth.signOut();
+        }
+    }, []);
+
     // Per-ring colours: default = tri-colour, selected = single colour
     const ringColors = [
         userType === "host" ? "rgba(255,255,255,VAL)" : userType === "promoter" ? "rgba(34,197,94,VAL)" : "rgba(244,74,34,VAL)",
