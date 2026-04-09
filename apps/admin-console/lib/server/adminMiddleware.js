@@ -68,43 +68,45 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
             const decodedToken = await auth.verifyIdToken(token, true);
 
             const { role, admin_role, admin: isAdminClaim } = decodedToken;
+            const isDev = process.env.NODE_ENV === "development";
 
-            if (role !== 'admin' && isAdminClaim !== true) {
-                logAuthEvent("UNAUTHORIZED_ADMIN_ACCESS", {
-                    uid: decodedToken.uid,
-                    role,
-                    isAdminClaim,
-                    path: req.nextUrl?.pathname,
-                });
-                return genericNotFound();
-            }
+            // In dev, skip all custom-claim checks — any authenticated user can access admin
+            if (!isDev) {
+                if (role !== 'admin' && isAdminClaim !== true) {
+                    logAuthEvent("UNAUTHORIZED_ADMIN_ACCESS", {
+                        uid: decodedToken.uid,
+                        role,
+                        isAdminClaim,
+                        path: req.nextUrl?.pathname,
+                    });
+                    return genericNotFound();
+                }
 
-            // Task 1: Granular Role Hierarchy
-            const hierarchy = {
-                'super': 100,
-                'admin': 100,
-                'ops': 80,
-                'finance': 60,
-                'content': 40,
-                'support': 20,
-                'readonly': 10
-            };
+                // Granular Role Hierarchy
+                const hierarchy = {
+                    'super': 100,
+                    'admin': 100,
+                    'ops': 80,
+                    'finance': 60,
+                    'content': 40,
+                    'support': 20,
+                    'readonly': 10
+                };
 
-            const userRoleValue = hierarchy[admin_role] || hierarchy['admin'] || 0;
-            const requiredRoleValue = hierarchy[requiredRole] || 100;
+                const userRoleValue = hierarchy[admin_role] || hierarchy['admin'] || 0;
+                const requiredRoleValue = hierarchy[requiredRole] || 100;
 
-            if (userRoleValue < requiredRoleValue) {
-                logAuthEvent("PRIVILEGE_ESCALATION_ATTEMPT", {
-                    uid: decodedToken.uid,
-                    currentRole: admin_role,
-                    requiredRole,
-                    path: req.nextUrl?.pathname,
-                });
-                return genericNotFound();
-            }
+                if (userRoleValue < requiredRoleValue) {
+                    logAuthEvent("PRIVILEGE_ESCALATION_ATTEMPT", {
+                        uid: decodedToken.uid,
+                        currentRole: admin_role,
+                        requiredRole,
+                        path: req.nextUrl?.pathname,
+                    });
+                    return genericNotFound();
+                }
 
-            // Task 5: Replay & Freshness Protection (30 minute threshold — skipped in dev)
-            if (process.env.NODE_ENV !== "development") {
+                // Replay & Freshness Protection (30 minute threshold)
                 const authTime = decodedToken.auth_time * 1000;
                 const threshold = Date.now() - (30 * 60 * 1000);
                 if (authTime < threshold) {
@@ -115,15 +117,15 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
                     });
                     return genericNotFound();
                 }
-            }
 
-            // Reject tokens missing admin_role claim — do not silently downgrade
-            if (!admin_role) {
-                logAuthEvent("MISSING_ADMIN_ROLE_CLAIM", {
-                    uid: decodedToken.uid,
-                    path: req.nextUrl?.pathname,
-                });
-                return genericNotFound();
+                // Reject tokens missing admin_role claim — do not silently downgrade
+                if (!admin_role) {
+                    logAuthEvent("MISSING_ADMIN_ROLE_CLAIM", {
+                        uid: decodedToken.uid,
+                        path: req.nextUrl?.pathname,
+                    });
+                    return genericNotFound();
+                }
             }
 
             // --- 🕵️ REQUEST CONTEXT CAPTURE ---
@@ -160,7 +162,7 @@ export function withAdminAuth(handler, requiredRole = 'admin') {
                 ipAddress,
                 userAgent,
                 requestId,
-                admin_role
+                admin_role: admin_role || "super",
             };
 
             return handler(req, ...args);
