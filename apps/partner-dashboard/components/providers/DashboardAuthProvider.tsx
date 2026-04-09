@@ -127,28 +127,45 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         // doesn't act on stale isApproved=false while we're still fetching.
         setLoading(true);
 
+        // AbortController cancels in-flight fetches when the user changes.
+        // Without this, Account A's fetch can resolve AFTER Account B's and
+        // overwrite the state — causing the wrong account to appear after login.
+        const controller = new AbortController();
+
         const fetchUserData = async () => {
             try {
                 // Force-refresh ensures admin-set custom claims are picked up
                 // immediately without waiting for the 1-hour token TTL.
                 const token = await user.getIdToken(true);
-                const res = await fetch('/api/auth/me', { headers: { 'Authorization': `Bearer ${token}` } });
+
+                if (controller.signal.aborted) return;
+
+                const res = await fetch('/api/auth/me', {
+                    headers: { 'Authorization': `Bearer ${token}` },
+                    signal: controller.signal,
+                });
 
                 if (!res.ok) {
-                    setLoading(false);
+                    if (!controller.signal.aborted) setLoading(false);
                     return;
                 }
 
                 const data: MeApiResponse = await res.json();
+
+                if (controller.signal.aborted) return;
+
                 const userData = data.user;
                 const onboardingRequest = data.onboardingRequest;
 
                 if (!userData) {
-                    setLoading(false);
+                    if (!controller.signal.aborted) setLoading(false);
                     return;
                 }
 
                 const tokenResult = await user.getIdTokenResult();
+
+                if (controller.signal.aborted) return;
+
                 const claims = tokenResult.claims as Record<string, any>;
 
                 const approvedByDoc = userData.isApproved || false;
@@ -215,15 +232,19 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     activeMembership
                 });
                 lastProfileFetchRef.current = Date.now();
-            } catch (err) {
+            } catch (err: any) {
+                if (err?.name === 'AbortError') return; // expected — user changed mid-fetch
                 console.error("Error fetching user data in auth provider:", err);
-                setLoading(false);
+                if (!controller.signal.aborted) setLoading(false);
             } finally {
-                setLoading(false);
+                if (!controller.signal.aborted) setLoading(false);
             }
         };
 
         fetchUserData();
+
+        // Cancel any in-flight request when user changes or component unmounts
+        return () => controller.abort();
     }, [user]);
 
     // Re-fetch profile when tab becomes visible after 60s — ensures staff see
