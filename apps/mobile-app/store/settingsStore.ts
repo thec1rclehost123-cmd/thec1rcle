@@ -5,7 +5,10 @@
 
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+
+function getDb() { return getFirestore(getFirebaseApp()); }
 
 // Settings interface
 export interface UserSettings {
@@ -90,8 +93,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             // Then, sync from backend if user is logged in
             if (userId) {
                 try {
-                    const data = await apiFetch<UserSettings>('/api/v1/profiles/settings', { requireAuth: true });
-                    
+                    const snap = await getDoc(doc(getDb(), "users", userId));
+                    const data = snap.data()?.settings as Partial<UserSettings> | undefined;
+
                     if (data) {
                         const merged = {
                             ...DEFAULT_SETTINGS,
@@ -102,12 +106,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
                         };
 
                         set({ settings: merged, lastSyncedAt: new Date() });
-
-                        // Update local storage with backend data
                         await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
                     }
                 } catch (e) {
-                    // Ignore 404s, user just doesn't have settings yet
+                    // Ignore errors — local settings remain in effect
                 }
             }
         } catch (error) {
@@ -184,17 +186,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ syncing: true });
 
         try {
-            await apiFetch('/api/v1/profiles/settings', {
-                method: 'PATCH',
-                body: JSON.stringify({
-                    settings: {
-                        ...settings,
-                        updatedAt: new Date().toISOString(),
-                    }
-                }),
-                requireAuth: true
-            });
-
+            await setDoc(
+                doc(getDb(), "users", userId),
+                { settings: { ...settings, updatedAt: new Date().toISOString() } },
+                { merge: true }
+            );
             set({ lastSyncedAt: new Date() });
         } catch (error) {
             console.error("Failed to sync settings to backend:", error);
