@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import { getFirestore, collection, query, where, getDocs, doc, getDoc } from "firebase/firestore";
+
+function getDb() { return getFirestore(getFirebaseApp()); }
 
 // Order/Ticket type matching Firestore schema
 export interface Order {
@@ -143,47 +146,6 @@ function mapOrder(docId: string, data: any): Order {
     };
 }
 
-function mapAssignment(assignmentId: string, data: any, fallbackUserId: string): Order {
-    return {
-        id: data.assignmentId || assignmentId,
-        userId: data.redeemerId || fallbackUserId,
-        eventId: data.eventId,
-        eventTitle: data.eventTitle || "Claimed Ticket",
-        eventDate: toIso(data.eventDate) || toIso(data.eventStartDate) || toIso(data.startDate) || undefined,
-        eventStartDate: toIso(data.eventStartDate) || toIso(data.eventDate) || toIso(data.startDate) || undefined,
-        eventTime: data.eventTime || undefined,
-        eventCoverImage: data.eventImage || data.image || data.poster || undefined,
-        venueLocation: data.eventLocation || data.location || data.venue || undefined,
-        hostName: data.hostName || undefined,
-        status: "confirmed",
-        tickets: [
-            {
-                ticketId: data.originalTicketId || data.ticketId || data.tierId,
-                tierId: data.tierId || data.ticketId || data.originalTicketId || "shared",
-                tierName: data.ticketName || data.tierName || "Shared Entry",
-                quantity: Number(data.quantity) || 1,
-                price: 0,
-                subtotal: 0,
-                entryType: data.entryType,
-                isClaimed: true,
-                requiredGender: data.requiredGender || undefined,
-                receivedFrom: data.receivedFrom || undefined,
-            },
-        ],
-        totalAmount: 0,
-        createdAt: toIso(data.createdAt) || new Date().toISOString(),
-        qrData: data.qrData,
-        qrCodes: (data.qrCodes || []).map((qr: any, index: number) => ({
-            ticketId: qr.ticketId || data.originalTicketId || `${assignmentId}-${index}`,
-            ticketIndex: Number(qr.ticketIndex ?? index),
-            qrCode: qr.qrCode || qr.qrData || JSON.stringify({ assignmentId, index }),
-            qrUrl: qr.qrUrl || undefined,
-            isUsed: !!qr.isUsed,
-        })),
-        isRSVP: true,
-        source: "assignment",
-    };
-}
 
 export const useTicketsStore = create<TicketsState>((set, get) => ({
     orders: [],
@@ -195,39 +157,17 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const [ordersRes, ticketsRes] = await Promise.all([
-                apiFetch<{ success: boolean; orders: any[] }>('/api/v1/orders').catch(() => ({ orders: [] })),
-                apiFetch<{ orders: any[]; assignments: any[] }>('/api/v1/tickets/my-tickets').catch(() => ({ orders: [], assignments: [] }))
-            ]);
+            const db = getDb();
 
-            // ordersRes contains orders + rsvp_orders with enriched `event` data
-            // ticketsRes contains basic orders + assignments
-
-            const enrichedOrders = (ordersRes.orders || []).map((o: any) => {
-                const mapped = mapOrder(o.id, o);
-                if (o.event) {
-                    mapped.eventTitle = o.event.title || mapped.eventTitle;
-                    mapped.eventDate = o.event.startDate || o.event.date || mapped.eventDate;
-                    mapped.eventCoverImage = o.event.image || o.event.poster || mapped.eventCoverImage;
-                    mapped.venueLocation = o.event.venue || o.event.location || mapped.venueLocation;
-                    mapped.hostName = o.event.hostName || o.event.host?.name || mapped.hostName;
-                    mapped.eventStartDate = o.event.startDate || mapped.eventStartDate;
-                    mapped.eventTime = o.event.time || mapped.eventTime;
-                    mapped.accentColor = o.event.accentColor || mapped.accentColor;
-                }
-                return mapped;
-            });
-            
-            const assignments = (ticketsRes.assignments || []).map((d: any) => mapAssignment(d.id, d, userId));
-
-            const all: Order[] = [
-                ...enrichedOrders,
-                ...assignments,
-            ]
-                // keep only relevant statuses for wallet
+            // Query orders collection directly — no gateway needed
+            const ordersSnap = await getDocs(
+                query(collection(db, "orders"), where("userId", "==", userId))
+            );
+            const all: Order[] = ordersSnap.docs
+                .map((d) => mapOrder(d.id, d.data()))
                 .filter((o) => ["confirmed", "checked_in"].includes(o.status));
 
-            // Best-effort missing metadata resolution using /api/v1/events/:id
+            // Best-effort metadata enrichment from Firestore events collection
             const missingEventIds = Array.from(new Set(
                 all
                     .filter((o) => o.eventId && (!o.eventTitle || !o.eventDate || !o.eventCoverImage))
@@ -235,14 +175,12 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
             ));
 
             if (missingEventIds.length) {
-                const eventDocs = await Promise.all(
-                    missingEventIds.map((id) =>
-                        apiFetch<any>(`/api/v1/events/${id}`, { requireAuth: false }).catch(() => null)
-                    )
+                const eventSnaps = await Promise.all(
+                    missingEventIds.map((id) => getDoc(doc(db, "events", id)).catch(() => null))
                 );
                 const eventMap = new Map<string, any>();
-                eventDocs.forEach((ev: any) => {
-                    if (ev && ev.id) eventMap.set(ev.id, ev);
+                eventSnaps.forEach((snap) => {
+                    if (snap?.exists()) eventMap.set(snap.id, { id: snap.id, ...snap.data() });
                 });
 
                 for (const o of all) {
@@ -270,28 +208,9 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
         try {
             const cached = get().orders.find((order) => order.id === orderId);
             if (cached) return cached;
-            
-            // To fetch single order, we can rely on our full orders list
-            const ordersRes = await apiFetch<{ success: boolean; orders: any[] }>('/api/v1/orders').catch(() => null);
-            if (ordersRes && ordersRes.orders) {
-                const found = ordersRes.orders.find(o => o.id === orderId);
-                if (found) {
-                    return mapOrder(found.id, {
-                        ...found,
-                        source: found.isRSVP ? "rsvp" : undefined,
-                    });
-                }
-            }
 
-            // Fallback for assignments
-            const ticketsRes = await apiFetch<{ orders: any[]; assignments: any[] }>('/api/v1/tickets/my-tickets').catch(() => null);
-            if (ticketsRes && ticketsRes.assignments) {
-                const foundAssign = ticketsRes.assignments.find(a => a.id === orderId || a.assignmentId === orderId);
-                if (foundAssign) {
-                    return mapAssignment(foundAssign.id, foundAssign, "unknown");
-                }
-            }
-
+            const snap = await getDoc(doc(getDb(), "orders", orderId));
+            if (snap.exists()) return mapOrder(snap.id, snap.data());
             return null;
         } catch (error: any) {
             console.error("Error fetching order by ID:", error);

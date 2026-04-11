@@ -2,13 +2,9 @@ import { create } from "zustand";
 // @c1rcle/types provides the canonical Venue shape. The local Venue interface below
 // extends it with mobile-specific fields (coordinates, popularityScore, etc.).
 // When harmonizing: import type { Venue as BaseVenue } from '@c1rcle/types';
-import { apiFetch } from "@/lib/api";
-import {
-    type Coordinates,
-    findKnownVenueCoordinates,
-    normalizeVenueKey,
-    resolveVenueCoordinates,
-} from "@/lib/venueDiscovery";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import { getFirestore, collection, getDocs } from "firebase/firestore";
+import { type Coordinates } from "@/lib/venueDiscovery";
 
 export interface Venue {
     id: string;
@@ -52,7 +48,6 @@ interface VenuesState {
     fetchVenues: (filters?: { area?: string; search?: string; tablesOnly?: boolean }) => Promise<void>;
 }
 
-type VenueDocShape = Record<string, unknown> & { id: string };
 
 export const useVenuesStore = create<VenuesState>((set) => ({
     venues: [],
@@ -62,19 +57,16 @@ export const useVenuesStore = create<VenuesState>((set) => ({
     fetchVenues: async (filters = {}) => {
         set({ loading: true, error: null });
         try {
-            const queryParams = new URLSearchParams();
-            queryParams.set("limit", "150");
-            
-            const response = await apiFetch<{ venues: Venue[] }>(`/api/v1/venues?${queryParams.toString()}`, { requireAuth: false });
-            let venues = response.venues;
+            const db = getFirestore(getFirebaseApp());
+            const snap = await getDocs(collection(db, "venues"));
+            let venues: Venue[] = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Venue));
 
             if (filters.tablesOnly) {
-                venues = venues.filter((v) => v.tablesAvailable);
+                venues = venues.filter((v: Venue) => v.tablesAvailable);
             }
-
             if (filters.area) {
                 const clean = filters.area.toLowerCase().trim();
-                venues = venues.filter((v) => {
+                venues = venues.filter((v: Venue) => {
                     const a = (v.area || "").toLowerCase();
                     const n = (v.neighborhood || "").toLowerCase();
                     const addr = (v.address || "").toLowerCase();
@@ -82,18 +74,13 @@ export const useVenuesStore = create<VenuesState>((set) => ({
                     return a.includes(clean) || n.includes(clean) || addr.includes(clean) || c.includes(clean);
                 });
             }
-
             if (filters.search) {
                 const s = filters.search.toLowerCase().trim();
-                venues = venues.filter((v) => {
+                venues = venues.filter((v: Venue) => {
                     const name = (v.displayName || v.name || "").toLowerCase();
-                    const a = (v.area || "").toLowerCase();
-                    const n = (v.neighborhood || "").toLowerCase();
-                    const city = (v.city || "").toLowerCase();
-                    const tags = [...(v.tags || []), ...(v.genres || []), ...(v.vibes || [])]
-                        .join(" ")
-                        .toLowerCase();
-                    return name.includes(s) || a.includes(s) || n.includes(s) || city.includes(s) || tags.includes(s);
+                    const tags = [...(v.tags || []), ...(v.genres || []), ...(v.vibes || [])].join(" ").toLowerCase();
+                    return name.includes(s) || (v.area || "").toLowerCase().includes(s) ||
+                        (v.city || "").toLowerCase().includes(s) || tags.includes(s);
                 });
             }
 

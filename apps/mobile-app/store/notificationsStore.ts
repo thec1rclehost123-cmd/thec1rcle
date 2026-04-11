@@ -6,7 +6,13 @@
  */
 
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import {
+    getFirestore, collection, query, where, orderBy,
+    getDocs, doc, updateDoc, writeBatch, onSnapshot,
+} from "firebase/firestore";
+
+function getDb() { return getFirestore(getFirebaseApp()); }
 
 export type NotificationType =
     | "ticket_purchased"
@@ -70,25 +76,30 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const data = await apiFetch<any>(`/api/v1/profiles/notifications`, { requireAuth: true });
-            const notifications = (data.notifications || []).map((n: any) => ({
-                ...n,
-                createdAt: new Date(n.createdAt)
-            }));
+            const snap = await getDocs(
+                query(
+                    collection(getDb(), "notifications"),
+                    where("targetId", "==", userId),
+                    orderBy("createdAt", "desc")
+                )
+            );
+            const notifications: Notification[] = snap.docs.map((d) => {
+                const data = d.data();
+                return {
+                    ...data,
+                    id: d.id,
+                    createdAt: data.createdAt?.toDate?.() ?? new Date(data.createdAt),
+                } as Notification;
+            });
 
             set({
                 notifications,
-                unreadCount: notifications.filter((n: Notification) => !n.read).length,
+                unreadCount: notifications.filter((n) => !n.read).length,
                 loading: false,
             });
         } catch (error: any) {
             console.error("Failed to fetch notifications:", error);
-            set({
-                notifications: [],
-                unreadCount: 0,
-                error: error.message,
-                loading: false,
-            });
+            set({ notifications: [], unreadCount: 0, error: error.message, loading: false });
         }
     },
 
@@ -104,10 +115,7 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         });
 
         try {
-            await apiFetch(`/api/v1/profiles/notifications/${notificationId}/read`, {
-                method: "PATCH",
-                requireAuth: true
-            });
+            await updateDoc(doc(getDb(), "notifications", notificationId), { read: true });
         } catch (error) {
             console.error("Failed to mark notification as read:", error);
         }
@@ -117,34 +125,47 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         const { notifications } = get();
 
         // Optimistic update
-        set({
-            notifications: notifications.map((n) => ({ ...n, read: true })),
-            unreadCount: 0,
-        });
+        set({ notifications: notifications.map((n) => ({ ...n, read: true })), unreadCount: 0 });
 
         try {
-            await apiFetch(`/api/v1/profiles/notifications/read-all`, {
-                method: "POST",
-                requireAuth: true
-            });
+            const unread = notifications.filter((n) => !n.read);
+            if (unread.length === 0) return;
+            const batch = writeBatch(getDb());
+            unread.forEach((n) => batch.update(doc(getDb(), "notifications", n.id), { read: true }));
+            await batch.commit();
         } catch (error) {
             console.error("Failed to mark all notifications as read:", error);
         }
     },
 
     subscribeToNotifications: (userId: string) => {
-        // Switch to API interval polling gracefully degraded
         get()._unsubscribe?.();
 
-        get().fetchNotifications(userId);
-        
-        const intervalId = setInterval(() => {
-            get().fetchNotifications(userId);
-        }, 30000); // 30s poll
+        const unsubscribe = onSnapshot(
+            query(
+                collection(getDb(), "notifications"),
+                where("targetId", "==", userId),
+                orderBy("createdAt", "desc")
+            ),
+            (snap) => {
+                const notifications: Notification[] = snap.docs.map((d) => {
+                    const data = d.data();
+                    return {
+                        ...data,
+                        id: d.id,
+                        createdAt: data.createdAt?.toDate?.() ?? new Date(data.createdAt),
+                    } as Notification;
+                });
+                set({
+                    notifications,
+                    unreadCount: notifications.filter((n) => !n.read).length,
+                    loading: false,
+                });
+            },
+            (error) => console.error("Notifications listener error:", error)
+        );
 
-        const unsubscribe = () => clearInterval(intervalId);
         set({ _unsubscribe: unsubscribe });
-        
         return unsubscribe;
     },
 
