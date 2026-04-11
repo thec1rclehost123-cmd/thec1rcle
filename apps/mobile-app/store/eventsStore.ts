@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
 import { getFirebaseApp } from "@/lib/firebase/client";
 import {
     getFirestore,
@@ -211,9 +210,10 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?limit=${options?.limit || 50}`, { requireAuth: false });
-
-            set({ events: response.events, loading: false });
+            const snapshot = await getDocs(collection(getDb(), "events"));
+            const limit = options?.limit || 50;
+            const events = snapshot.docs.map(serialiseDoc).filter(isPublicEvent).slice(0, limit);
+            set({ events, loading: false });
         } catch (error: any) {
             console.error("Error fetching public events:", error);
             set({ error: error.message, loading: false });
@@ -225,35 +225,38 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         set({ searching: true, error: null });
 
         try {
-            const queryParams = new URLSearchParams();
-            if (filters.city && filters.city !== "All Cities") queryParams.set("city", filters.city);
-            if (filters.category && filters.category !== "all") queryParams.set("category", filters.category);
-            if (filters.dateFrom) queryParams.set("dateFrom", filters.dateFrom.toISOString());
-            if (filters.dateTo) queryParams.set("dateTo", filters.dateTo.toISOString());
-            queryParams.set("limit", "50");
+            // Use in-memory events if already loaded, else do a fresh Firestore scan
+            const base = get().events.length > 0
+                ? get().events
+                : (await getDocs(collection(getDb(), "events"))).docs.map(serialiseDoc).filter(isPublicEvent);
 
-            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
-            let results = response.events;
+            let results = base;
 
-            // Client-side text search
+            if (filters.city && filters.city !== "All Cities") {
+                results = results.filter((e: Event) => (e.city ?? "").toLowerCase() === filters.city!.toLowerCase());
+            }
+            if (filters.category && filters.category !== "all") {
+                results = results.filter((e: Event) => e.category === filters.category || e.type === filters.category);
+            }
+            if (filters.dateFrom) {
+                results = results.filter((e: Event) => new Date(e.startDate) >= filters.dateFrom!);
+            }
+            if (filters.dateTo) {
+                results = results.filter((e: Event) => new Date(e.startDate) <= filters.dateTo!);
+            }
             if (filters.query) {
-                const searchLower = filters.query.toLowerCase();
-                results = results.filter((event) =>
-                    event.title.toLowerCase().includes(searchLower) ||
-                    event.venue?.toLowerCase().includes(searchLower) ||
-                    event.location?.toLowerCase().includes(searchLower) ||
-                    event.hostName?.toLowerCase().includes(searchLower) ||
-                    event.description?.toLowerCase().includes(searchLower)
+                const q = filters.query.toLowerCase();
+                results = results.filter((e: Event) =>
+                    e.title.toLowerCase().includes(q) ||
+                    e.venue?.toLowerCase().includes(q) ||
+                    e.location?.toLowerCase().includes(q) ||
+                    e.hostName?.toLowerCase().includes(q) ||
+                    e.description?.toLowerCase().includes(q)
                 );
             }
-
-            // Price filter (client-side)
             if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
-                results = results.filter((event) => {
-                    const minPrice = Math.min(
-                        ...(event.tickets?.map((t) => t.price) || [Infinity])
-                    );
-
+                results = results.filter((e: Event) => {
+                    const minPrice = Math.min(...(e.tickets?.map((t: TicketTier) => t.price) || [Infinity]));
                     if (filters.priceMin && minPrice < filters.priceMin) return false;
                     if (filters.priceMax && minPrice > filters.priceMax) return false;
                     return true;
@@ -268,26 +271,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     loadMoreEvents: async () => {
-        const { lastId, hasMore, loading, events } = get() as any;
-
-        if (!hasMore || loading || !lastId) return;
-
-        set({ loading: true });
-
-        try {
-            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?limit=20&lastId=${lastId}`, { requireAuth: false });
-            const newEvents = response.events;
-
-            set({
-                events: [...events, ...newEvents],
-                loading: false,
-                lastId: newEvents.length > 0 ? newEvents[newEvents.length - 1].id : null,
-                hasMore: newEvents.length === 20,
-            });
-        } catch (error: any) {
-            console.error("Error loading more events:", error);
-            set({ error: error.message, loading: false });
-        }
+        // fetchEvents loads the full collection at once; nothing more to page through
     },
 
     getEventById: async (id: string): Promise<Event | null> => {
@@ -311,71 +295,28 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         const { categoryLoading } = get();
         if (categoryLoading[category]) return;
 
-        set((s) => ({
-            categoryLoading: { ...s.categoryLoading, [category]: true },
-        }));
+        set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: true } }));
 
         try {
-            const queryParams = new URLSearchParams();
-            queryParams.set("category", category);
-            if (city) queryParams.set("city", city);
-            queryParams.set("limit", "20");
+            const base = get().events.length > 0
+                ? get().events
+                : (await getDocs(collection(getDb(), "events"))).docs.map(serialiseDoc).filter(isPublicEvent);
 
-            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
-            const events = response.events.filter(isPublicEvent);
+            let events = base.filter((e: Event) => e.category === category || e.type === category);
+            if (city) events = events.filter((e: Event) => (e.city ?? "").toLowerCase() === city.toLowerCase());
 
             set((s) => ({
                 categoryEvents: { ...s.categoryEvents, [category]: events },
-                categoryLastId: { ...s.categoryLastId, [category]: events.length > 0 ? events[events.length - 1].id : null } as any,
-                categoryHasMore: { ...s.categoryHasMore, [category]: response.events.length === 20 },
+                categoryHasMore: { ...s.categoryHasMore, [category]: false },
                 categoryLoading: { ...s.categoryLoading, [category]: false },
             }));
         } catch (error: any) {
-            // Silence AbortError (timeout or cleanup) to prevent intrusive console.error overlays
-            if (!error.isAbort) {
-                console.error(`Error fetching category ${category}:`, error);
-            }
-            set((s) => ({
-                categoryLoading: { ...s.categoryLoading, [category]: false },
-            }));
+            if (!error.isAbort) console.error(`Error fetching category ${category}:`, error);
+            set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: false } }));
         }
     },
 
-    loadMoreByCategory: async (category: string, city?: string) => {
-        const { categoryLoading, categoryHasMore } = get();
-        const state = get() as any;
-        const lastId = state.categoryLastId?.[category];
-        
-        if (categoryLoading[category] || !categoryHasMore[category] || !lastId) return;
-
-        set((s) => ({
-            categoryLoading: { ...s.categoryLoading, [category]: true },
-        }));
-
-        try {
-            const queryParams = new URLSearchParams();
-            queryParams.set("category", category);
-            if (city) queryParams.set("city", city);
-            queryParams.set("lastId", lastId);
-            queryParams.set("limit", "20");
-
-            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
-            const newEvents = response.events;
-
-            set((s: any) => ({
-                categoryEvents: {
-                    ...s.categoryEvents,
-                    [category]: [...(s.categoryEvents[category] ?? []), ...newEvents],
-                },
-                categoryLastId: { ...s.categoryLastId, [category]: newEvents.length > 0 ? newEvents[newEvents.length - 1].id : null },
-                categoryHasMore: { ...s.categoryHasMore, [category]: newEvents.length === 20 },
-                categoryLoading: { ...s.categoryLoading, [category]: false },
-            }));
-        } catch (error: any) {
-            console.error(`Error loading more for category ${category}:`, error);
-            set((s) => ({
-                categoryLoading: { ...s.categoryLoading, [category]: false },
-            }));
-        }
+    loadMoreByCategory: async (_category: string, _city?: string) => {
+        // fetchByCategory loads all matching events at once; nothing more to page through
     },
 }));
