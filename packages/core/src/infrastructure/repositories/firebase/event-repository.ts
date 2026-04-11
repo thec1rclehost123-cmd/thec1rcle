@@ -11,18 +11,18 @@ export class FirebaseEventRepository implements IEventRepository {
         const data = doc.data() as Event;
         
         // 🛡️ SaaS: Strict Partition Check
-        if (data.workspaceId !== workspaceId) return null;
+        if (workspaceId && data.workspaceId !== workspaceId) return null;
         
         const { id: _, ...dataWithoutId } = data;
         return { id: doc.id, ...dataWithoutId } as Event;
     }
 
     async getBySlug(slug: string, workspaceId: string): Promise<Event | null> {
-        const snapshot = await this.db.collection('events')
-            .where('workspaceId', '==', workspaceId) // 🏢 SaaS: Isolated Query
-            .where('slug', '==', slug)
-            .limit(1)
-            .get();
+        let q: any = this.db.collection('events').where('slug', '==', slug).limit(1);
+        if (workspaceId) {
+            q = q.where('workspaceId', '==', workspaceId); // 🏢 SaaS: Isolated Query
+        }
+        const snapshot = await q.get();
         
         if (snapshot.empty) return null;
         const doc = snapshot.docs[0];
@@ -30,11 +30,18 @@ export class FirebaseEventRepository implements IEventRepository {
         return { id: doc.id, ...dataWithoutId } as Event;
     }
 
-    async list(filters: any, workspaceId: string): Promise<Event[]> {
-        const { city, host, venueId, lifecycle, limit = 20, lastId, sort = 'soonest' } = filters;
-        let q: any = this.db.collection('events').where('workspaceId', '==', workspaceId); // 🛡️ SaaS: Filter by Workspace
+    async list(filters: any, workspaceId?: string): Promise<Event[]> {
+        const { city, host, venueId, category, lifecycle, limit = 20, lastId, sort = 'soonest' } = filters;
+        let q: any = this.db.collection('events');
+        
+        // 🏢 SaaS: Only filter by workspace if a specific context is provided.
+        // This allows Global/Public event discovery across all partners.
+        if (workspaceId) {
+            q = q.where('workspaceId', '==', workspaceId);
+        }
 
         if (venueId) q = q.where('venueId', '==', venueId);
+        if (category) q = q.where('category', '==', category);
         if (lifecycle) {
             if (Array.isArray(lifecycle)) q = q.where('lifecycle', 'in', lifecycle);
             else q = q.where('lifecycle', '==', lifecycle);

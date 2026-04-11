@@ -9,8 +9,7 @@ import { useState, useCallback } from "react";
 import { Alert, ActionSheetIOS, Platform } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
-import { getFirebaseStorage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { apiFetch } from "@/lib/api";
 
 interface ChatImagePickerResult {
     /** Whether an upload is in progress */
@@ -97,25 +96,27 @@ export function useChatImagePicker(
             const filename = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`;
             const storagePath = `chat-images/${chatContext}/${userId}/${filename}`;
 
-            // Fetch image as blob
-            setProgress(0.3);
-            const response = await fetch(imageUri);
-            const blob = await response.blob();
-
-            // Upload to Firebase Storage
+            // Upload via API Gateway Proxy
             setProgress(0.5);
-            const storage = getFirebaseStorage();
-            const imageRef = ref(storage, storagePath);
-            await uploadBytes(imageRef, blob);
+            const formData = new FormData();
 
-            // Get download URL
-            setProgress(0.9);
-            const downloadUrl = await getDownloadURL(imageRef);
+            // @ts-ignore
+            formData.append("file", {
+                uri: imageUri,
+                name: filename,
+                type: "image/jpeg",
+            });
+
+            const uploadResult = await apiFetch<{ url: string }>("/api/v1/social/upload", {
+                method: "POST",
+                body: formData,
+                requireAuth: true,
+            });
 
             setProgress(1);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-            return downloadUrl;
+            return uploadResult.url;
         } catch (error) {
             console.error("[ChatImagePicker] Error:", error);
             Alert.alert("Upload Failed", "Could not upload the image. Please try again.");

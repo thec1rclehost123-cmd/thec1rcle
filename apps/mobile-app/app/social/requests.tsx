@@ -16,8 +16,7 @@ import {
     declineDMRequest,
     PrivateConversation,
 } from "@/lib/social";
-import { doc, getDoc } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
@@ -39,8 +38,8 @@ function RequestCard({
     isLoading: boolean;
     index: number;
 }) {
-    const timeAgo = request.createdAt?.toDate?.()
-        ? formatTimeAgo(new Date(request.createdAt.toDate()))
+    const timeAgo = request.createdAt && typeof request.createdAt === 'string'
+        ? formatTimeAgo(new Date(request.createdAt))
         : "";
 
     return (
@@ -89,7 +88,6 @@ function RequestCard({
 
 function formatTimeAgo(date: Date): string {
     const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
-
     if (seconds < 60) return "just now";
     if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
@@ -113,63 +111,51 @@ export default function DMRequestsScreen() {
 
     const loadRequests = async () => {
         if (!user?.uid) return;
-
         setLoading(true);
 
-        const pendingRequests = await getPendingDMRequests(user.uid);
+        try {
+            const pendingRequests = await getPendingDMRequests(user.uid);
 
-        // Fetch sender names and event titles
-        const db = getFirebaseDb();
-        const enrichedRequests = await Promise.all(
-            pendingRequests.map(async (request) => {
-                const senderId = request.initiatedBy;
-
-                // Get sender name
-                const senderDoc = await getDoc(doc(db, "users", senderId));
-                const senderName = senderDoc.exists()
-                    ? senderDoc.data().displayName || "Guest"
-                    : "Guest";
-
-                // Get event title
-                console.log("[debug] requests.tsx request.eventId:", request.eventId);
-                if (!request.eventId || typeof request.eventId !== "string") {
-                    console.error("[Firestore] Invalid eventId in requests enrichment:", request.eventId);
-                    return { request, senderName, eventTitle: "Event" };
-                }
-                const eventDoc = await getDoc(doc(db, "events", request.eventId));
-                const eventTitle = eventDoc.exists()
-                    ? eventDoc.data().title
-                    : "Event";
-
-                return { request, senderName, eventTitle };
-            })
-        );
-
-        setRequests(enrichedRequests);
-        setLoading(false);
+            const enrichedRequests = await Promise.all(
+                pendingRequests.map(async (request) => {
+                    const senderId = request.initiatedBy;
+                    try {
+                        const sender = await apiFetch<any>(`/api/v1/profiles/${senderId}`, { requireAuth: false });
+                        const event = await apiFetch<any>(`/api/v1/events/${request.eventId}`, { requireAuth: false });
+                        return { 
+                            request, 
+                            senderName: sender?.displayName || "Guest", 
+                            eventTitle: event?.title || "Event" 
+                        };
+                    } catch (e) {
+                        return { request, senderName: "Guest", eventTitle: "Event" };
+                    }
+                })
+            );
+            setRequests(enrichedRequests);
+        } catch (error) {
+            console.error("Error loading requests:", error);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleAccept = async (request: PrivateConversation) => {
         if (!user?.uid) return;
-
         setActionLoading(request.id);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
         const result = await acceptDMRequest(request.id, user.uid);
-
         if (result.success) {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            // Remove from list
             setRequests(prev => prev.filter(r => r.request.id !== request.id));
-            // Navigate to chat
             router.push({
                 pathname: "/social/dm/[id]",
                 params: { id: request.id }
-            });
+            } as any);
         } else {
             Alert.alert("Error", result.error || "Failed to accept request");
         }
-
         setActionLoading(null);
     };
 
@@ -195,7 +181,6 @@ export default function DMRequestsScreen() {
 
     return (
         <SafeAreaView className="flex-1 bg-midnight">
-            {/* Header */}
             <View className="flex-row items-center px-4 py-4 border-b border-white/10">
                 <Pressable onPress={() => router.back()} className="mr-4">
                     <Text className="text-gold text-lg">← Back</Text>
@@ -211,7 +196,6 @@ export default function DMRequestsScreen() {
                 contentContainerStyle={{ paddingVertical: 16 }}
                 showsVerticalScrollIndicator={false}
             >
-                {/* Loading */}
                 {loading && (
                     <View className="items-center py-20">
                         <ActivityIndicator size="large" color="#F44A22" />
@@ -219,7 +203,6 @@ export default function DMRequestsScreen() {
                     </View>
                 )}
 
-                {/* Empty state */}
                 {!loading && requests.length === 0 && (
                     <View className="items-center py-20">
                         <Text className="text-6xl mb-4">📭</Text>
@@ -230,7 +213,6 @@ export default function DMRequestsScreen() {
                     </View>
                 )}
 
-                {/* Requests list */}
                 {!loading && requests.map(({ request, senderName, eventTitle }, index) => (
                     <RequestCard
                         key={request.id}

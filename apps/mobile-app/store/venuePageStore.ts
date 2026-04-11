@@ -1,15 +1,5 @@
 import { create } from "zustand";
-import {
-    collection,
-    doc,
-    getDoc,
-    getDocs,
-    limit,
-    orderBy,
-    query,
-    where,
-} from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 import {
     type Coordinates,
     findKnownVenueCoordinates,
@@ -118,65 +108,16 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
         set({ loading: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            let venueDoc: any = null;
-            let venueId = venueIdOrSlug;
-
-            const directSnap = await getDoc(doc(db, "venues", venueIdOrSlug));
-            if (directSnap.exists()) {
-                venueDoc = { id: directSnap.id, ...directSnap.data() };
-                venueId = directSnap.id;
-            } else {
-                const slugSnap = await getDocs(query(collection(db, "venues"), where("slug", "==", venueIdOrSlug)));
-                if (!slugSnap.empty) {
-                    const matched = slugSnap.docs[0];
-                    venueDoc = { id: matched.id, ...matched.data() };
-                    venueId = matched.id;
-                }
-            }
-
-            if (!venueDoc) {
+            const data = await apiFetch<any>(`/api/v1/venues/${venueIdOrSlug}`, { requireAuth: false });
+            
+            if (!data || !data.venue) {
                 set({ loading: false, error: "Venue not found" });
                 return;
             }
 
-            const now = new Date().toISOString();
-            const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all([
-                getDocs(
-                    query(
-                        collection(db, "venue_highlights"),
-                        where("venueId", "==", venueId),
-                        where("isActive", "==", true),
-                        orderBy("order", "asc")
-                    )
-                ).catch(() => ({ docs: [] as any[] })),
-                getDocs(
-                    query(collection(db, "venue_gallery"), where("venueId", "==", venueId), orderBy("order", "asc"), limit(9))
-                ).catch(() => ({ docs: [] as any[] })),
-                getDocs(
-                    query(collection(db, "venue_menu"), where("venueId", "==", venueId), orderBy("order", "asc"))
-                ).catch(() => ({ docs: [] as any[] })),
-                getDocs(
-                    query(
-                        collection(db, "venue_facilities"),
-                        where("venueId", "==", venueId),
-                        where("isEnabled", "==", true),
-                        orderBy("order", "asc")
-                    )
-                ).catch(() => ({ docs: [] as any[] })),
-                getDocs(
-                    query(
-                        collection(db, "events"),
-                        where("venueId", "==", venueId),
-                        where("startDate", ">=", now),
-                        orderBy("startDate", "asc"),
-                        limit(10)
-                    )
-                ).catch(() => ({ docs: [] as any[] })),
-            ]);
+            const { venue: venueDoc, highlights, gallery, menu, facilities, upcomingEvents } = data;
 
-            const upcomingEvents = eventsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() }));
-            const leadEventWithCoords = upcomingEvents.find((event: any) => resolveVenueCoordinates(event));
+            const leadEventWithCoords = upcomingEvents?.find((event: any) => resolveVenueCoordinates(event));
 
             set({
                 venue: {
@@ -202,13 +143,13 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
                             venueDoc.city,
                             venueDoc.address
                         ),
-                    upcomingEventsCount: upcomingEvents.length,
+                    upcomingEventsCount: upcomingEvents?.length || 0,
                 },
-                highlights: highlightsSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueHighlight[],
-                gallery: gallerySnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueGalleryPhoto[],
-                menu: menuSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueMenuItem[],
-                facilities: facilitiesSnap.docs.map((item: any) => ({ id: item.id, ...item.data() })) as VenueFacility[],
-                upcomingEvents,
+                highlights: highlights || [],
+                gallery: gallery || [],
+                menu: menu || [],
+                facilities: facilities || [],
+                upcomingEvents: upcomingEvents || [],
                 loading: false,
             });
         } catch (error: any) {

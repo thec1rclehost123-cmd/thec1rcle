@@ -6,20 +6,7 @@
  */
 
 import { create } from "zustand";
-import { getFirebaseDb } from "@/lib/firebase";
-import {
-    collection,
-    query,
-    where,
-    orderBy,
-    limit,
-    getDocs,
-    updateDoc,
-    doc,
-    onSnapshot,
-    Timestamp,
-    writeBatch,
-} from "firebase/firestore";
+import { apiFetch } from "@/lib/api";
 
 export type NotificationType =
     | "ticket_purchased"
@@ -83,24 +70,15 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const q = query(
-                collection(getFirebaseDb(), "notifications"),
-                where("userId", "==", userId),
-                orderBy("createdAt", "desc"),
-                limit(50)
-            );
-
-            const snapshot = await getDocs(q);
-            const notifications = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate?.()
-                    || (typeof doc.data().createdAt === 'string' ? new Date(doc.data().createdAt) : new Date()),
-            })) as Notification[];
+            const data = await apiFetch<any>(`/api/v1/profiles/notifications`, { requireAuth: true });
+            const notifications = (data.notifications || []).map((n: any) => ({
+                ...n,
+                createdAt: new Date(n.createdAt)
+            }));
 
             set({
                 notifications,
-                unreadCount: notifications.filter((n) => !n.read).length,
+                unreadCount: notifications.filter((n: Notification) => !n.read).length,
                 loading: false,
             });
         } catch (error: any) {
@@ -126,8 +104,9 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         });
 
         try {
-            await updateDoc(doc(getFirebaseDb(), "notifications", notificationId), {
-                read: true,
+            await apiFetch(`/api/v1/profiles/notifications/${notificationId}/read`, {
+                method: "PATCH",
+                requireAuth: true
             });
         } catch (error) {
             console.error("Failed to mark notification as read:", error);
@@ -144,46 +123,28 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
         });
 
         try {
-            const batch = writeBatch(getFirebaseDb());
-            notifications
-                .filter((n) => !n.read)
-                .forEach((n) => {
-                    batch.update(doc(getFirebaseDb(), "notifications", n.id), { read: true });
-                });
-            await batch.commit();
+            await apiFetch(`/api/v1/profiles/notifications/read-all`, {
+                method: "POST",
+                requireAuth: true
+            });
         } catch (error) {
             console.error("Failed to mark all notifications as read:", error);
         }
     },
 
     subscribeToNotifications: (userId: string) => {
-        // Clean up any existing subscription before starting a new one
+        // Switch to API interval polling gracefully degraded
         get()._unsubscribe?.();
 
-        const q = query(
-            collection(getFirebaseDb(), "notifications"),
-            where("userId", "==", userId),
-            orderBy("createdAt", "desc"),
-            limit(50)
-        );
+        get().fetchNotifications(userId);
+        
+        const intervalId = setInterval(() => {
+            get().fetchNotifications(userId);
+        }, 30000); // 30s poll
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const notifications = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate?.()
-                    || (typeof doc.data().createdAt === 'string' ? new Date(doc.data().createdAt) : new Date()),
-            })) as Notification[];
-
-            set({
-                notifications,
-                unreadCount: notifications.filter((n) => !n.read).length,
-            });
-        }, (error) => {
-            console.error("Notification subscription error:", error);
-        });
-
+        const unsubscribe = () => clearInterval(intervalId);
         set({ _unsubscribe: unsubscribe });
+        
         return unsubscribe;
     },
 

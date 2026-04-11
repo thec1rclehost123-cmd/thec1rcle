@@ -1,14 +1,5 @@
 import { create } from "zustand";
-import {
-    collection,
-    query,
-    where,
-    orderBy,
-    getDocs,
-    doc,
-    getDoc,
-} from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 
 // Order/Ticket type matching Firestore schema
 export interface Order {
@@ -204,34 +195,39 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const [ordersSnap, rsvpSnap, assignmentsSnap] = await Promise.all([
-                getDocs(query(
-                    collection(db, "orders"),
-                    where("userId", "==", userId),
-                    orderBy("createdAt", "desc")
-                )).catch(() => ({ docs: [] as any[] })),
-                getDocs(query(
-                    collection(db, "rsvp_orders"),
-                    where("userId", "==", userId),
-                    orderBy("createdAt", "desc")
-                )).catch(() => ({ docs: [] as any[] })),
-                getDocs(query(
-                    collection(db, "ticket_assignments"),
-                    where("redeemerId", "==", userId),
-                    where("status", "==", "active")
-                )).catch(() => ({ docs: [] as any[] })),
+            const [ordersRes, ticketsRes] = await Promise.all([
+                apiFetch<{ success: boolean; orders: any[] }>('/api/v1/orders').catch(() => ({ orders: [] })),
+                apiFetch<{ orders: any[]; assignments: any[] }>('/api/v1/tickets/my-tickets').catch(() => ({ orders: [], assignments: [] }))
             ]);
 
+            // ordersRes contains orders + rsvp_orders with enriched `event` data
+            // ticketsRes contains basic orders + assignments
+
+            const enrichedOrders = (ordersRes.orders || []).map((o: any) => {
+                const mapped = mapOrder(o.id, o);
+                if (o.event) {
+                    mapped.eventTitle = o.event.title || mapped.eventTitle;
+                    mapped.eventDate = o.event.startDate || o.event.date || mapped.eventDate;
+                    mapped.eventCoverImage = o.event.image || o.event.poster || mapped.eventCoverImage;
+                    mapped.venueLocation = o.event.venue || o.event.location || mapped.venueLocation;
+                    mapped.hostName = o.event.hostName || o.event.host?.name || mapped.hostName;
+                    mapped.eventStartDate = o.event.startDate || mapped.eventStartDate;
+                    mapped.eventTime = o.event.time || mapped.eventTime;
+                    mapped.accentColor = o.event.accentColor || mapped.accentColor;
+                }
+                return mapped;
+            });
+            
+            const assignments = (ticketsRes.assignments || []).map((d: any) => mapAssignment(d.id, d, userId));
+
             const all: Order[] = [
-                ...ordersSnap.docs.map((d: any) => mapOrder(d.id, d.data())),
-                ...rsvpSnap.docs.map((d: any) => mapOrder(d.id, { ...d.data(), source: "rsvp", isRSVP: true })),
-                ...assignmentsSnap.docs.map((d: any) => mapAssignment(d.id, d.data(), userId)),
+                ...enrichedOrders,
+                ...assignments,
             ]
                 // keep only relevant statuses for wallet
                 .filter((o) => ["confirmed", "checked_in"].includes(o.status));
 
-            // Enrich missing event metadata from `events` docs (best-effort).
+            // Best-effort missing metadata resolution using /api/v1/events/:id
             const missingEventIds = Array.from(new Set(
                 all
                     .filter((o) => o.eventId && (!o.eventTitle || !o.eventDate || !o.eventCoverImage))
@@ -241,12 +237,12 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
             if (missingEventIds.length) {
                 const eventDocs = await Promise.all(
                     missingEventIds.map((id) =>
-                        getDoc(doc(db, "events", id)).catch(() => null)
+                        apiFetch<any>(`/api/v1/events/${id}`, { requireAuth: false }).catch(() => null)
                     )
                 );
                 const eventMap = new Map<string, any>();
-                eventDocs.forEach((snap: any) => {
-                    if (snap?.exists?.()) eventMap.set(snap.id, snap.data());
+                eventDocs.forEach((ev: any) => {
+                    if (ev && ev.id) eventMap.set(ev.id, ev);
                 });
 
                 for (const o of all) {
@@ -274,24 +270,31 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
         try {
             const cached = get().orders.find((order) => order.id === orderId);
             if (cached) return cached;
-
-            const db = getFirebaseDb();
-            const orderCollections = ["orders", "rsvp_orders"];
-
-            for (const collectionName of orderCollections) {
-                const orderDoc = await getDoc(doc(db, collectionName, orderId));
-                if (orderDoc.exists()) {
-                    return mapOrder(orderDoc.id, {
-                        ...orderDoc.data(),
-                        source: collectionName === "rsvp_orders" ? "rsvp" : undefined,
-                        isRSVP: collectionName === "rsvp_orders",
+            
+            // To fetch single order, we can rely on our full orders list
+            const ordersRes = await apiFetch<{ success: boolean; orders: any[] }>('/api/v1/orders').catch(() => null);
+            if (ordersRes && ordersRes.orders) {
+                const found = ordersRes.orders.find(o => o.id === orderId);
+                if (found) {
+                    return mapOrder(found.id, {
+                        ...found,
+                        source: found.isRSVP ? "rsvp" : undefined,
                     });
+                }
+            }
+
+            // Fallback for assignments
+            const ticketsRes = await apiFetch<{ orders: any[]; assignments: any[] }>('/api/v1/tickets/my-tickets').catch(() => null);
+            if (ticketsRes && ticketsRes.assignments) {
+                const foundAssign = ticketsRes.assignments.find(a => a.id === orderId || a.assignmentId === orderId);
+                if (foundAssign) {
+                    return mapAssignment(foundAssign.id, foundAssign, "unknown");
                 }
             }
 
             return null;
         } catch (error: any) {
-            console.error("Error fetching order:", error);
+            console.error("Error fetching order by ID:", error);
             return null;
         }
     },

@@ -85,8 +85,13 @@ function PremiumTabIcon({
         ],
     }));
 
-    const glowStyle = useAnimatedStyle(() => ({
-        opacity: glowOpacity.value,
+    const glowOuterStyle = useAnimatedStyle(() => ({
+        opacity: glowOpacity.value * 0.15,
+        transform: [{ scale: glowScale.value }],
+    }));
+
+    const glowInnerStyle = useAnimatedStyle(() => ({
+        opacity: glowOpacity.value * 0.25,
         transform: [{ scale: glowScale.value }],
     }));
 
@@ -98,14 +103,16 @@ function PremiumTabIcon({
 
     return (
         <View style={styles.tabIconContainer}>
-            {/* Multi-layer glow */}
-            <Animated.View style={[styles.glowOuter, glowStyle]} />
-            <Animated.View style={[styles.glowInner, glowStyle]} />
+            {/* Multi-layer glow (kept firmly behind) */}
+            <View style={styles.glowWrapper}>
+                <Animated.View style={[styles.glowOuter, glowOuterStyle]} />
+                <Animated.View style={[styles.glowInner, glowInnerStyle]} />
+            </View>
 
             {/* Icon with animation */}
             <Animated.View style={[styles.iconWrapper, iconStyle]}>
                 <TabIcon
-                    size={focused ? 26 : 22}
+                    size={focused ? 24 : 22}
                     color={focused ? colors.iris : colors.goldMetallic}
                     strokeWidth={focused ? 2.2 : 1.8}
                 />
@@ -129,7 +136,7 @@ function PremiumTabIcon({
                     entering={undefined}
                 >
                     <LinearGradient
-                        colors={[colors.iris, "#FF6B4A"]}
+                        colors={[colors.iris, colors.irisGlow]}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 0 }}
                         style={styles.activeIndicatorGradient}
@@ -367,56 +374,67 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         minWidth: 70,
-        paddingTop: 4,
+        height: 50,
+        paddingTop: 8,
+    },
+    glowWrapper: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: -1,
     },
     glowOuter: {
         position: "absolute",
-        top: -8,
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        top: -4,
+        width: 50,
+        height: 50,
+        borderRadius: 25,
         backgroundColor: colors.iris,
-        opacity: 0.2,
         shadowColor: colors.iris,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 0.8,
-        shadowRadius: 25,
+        shadowRadius: 20,
     },
     glowInner: {
         position: "absolute",
-        top: 2,
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        top: 4,
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         backgroundColor: colors.iris,
-        opacity: 0.3,
         shadowColor: colors.iris,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
-        shadowRadius: 15,
+        shadowRadius: 10,
     },
     iconWrapper: {
         alignItems: "center",
         justifyContent: "center",
-        width: 44,
-        height: 44,
+        width: 36,
+        height: 36,
+        marginBottom: 2,
     },
 
     label: {
         fontSize: 10,
         fontWeight: "600",
         color: colors.goldMetallic,
-        marginTop: 2,
+        marginTop: 4,
         letterSpacing: 0.3,
     },
     labelActive: {
         color: colors.iris,
         fontWeight: "700",
+        marginTop: 6, // Push down slightly when focused to avoid icon pop overlap
     },
     activeIndicator: {
         position: "absolute",
-        bottom: -8,
-        width: 20,
+        bottom: -16, // Move down way clear of the text
+        width: 24,
         height: 3,
         borderRadius: 2,
         overflow: "hidden",

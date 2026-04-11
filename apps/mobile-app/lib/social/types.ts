@@ -1,5 +1,4 @@
 // Event Social Layer - Core Types and Utilities
-import { Timestamp } from "firebase/firestore";
 
 // Event Lifecycle Phases
 export type EventPhase = "pre-event" | "during" | "post-event" | "expired";

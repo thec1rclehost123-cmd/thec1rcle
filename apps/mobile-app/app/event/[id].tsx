@@ -31,6 +31,7 @@ import Animated, {
 import { Image } from "expo-image";
 import * as Haptics from "expo-haptics";
 import { useEventsStore, Event, TicketTier } from "@/store/eventsStore";
+import { getEventImage, EVENT_PLACEHOLDER } from "@/lib/utils/event";
 import { useCartStore } from "@/store/cartStore";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
@@ -88,7 +89,7 @@ function TicketTierCard({
             eventTitle: event.title,
             eventDate: event.startDate,
             eventVenue: event.venue || event.location || "TBA",
-            eventCoverImage: event.coverImage,
+            eventCoverImage: getEventImage(event) ?? undefined,
             tier,
             quantity,
             promoterCode,
@@ -441,9 +442,9 @@ export default function EventDetailScreen() {
             >
                 {/* Hero Image with Parallax */}
                 <Animated.View style={[styles.heroContainer, headerAnimatedStyle]}>
-                    {event.coverImage ? (
+                    {getEventImage(event) ? (
                         <Image
-                            source={{ uri: event.coverImage }}
+                            source={{ uri: getEventImage(event)! }}
                             style={styles.heroImage}
                             contentFit="cover"
                             transition={300}

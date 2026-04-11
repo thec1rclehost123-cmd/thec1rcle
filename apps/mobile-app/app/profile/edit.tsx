@@ -29,11 +29,9 @@ import Animated, {
     withSpring,
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
-import { updateProfile as updateAuthProfile } from "firebase/auth";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
-import { getFirebaseAuth, getFirebaseStorage } from "@/lib/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { apiFetch } from "@/lib/api";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { trackScreen, track } from "@/lib/analytics";
 
@@ -213,15 +211,23 @@ export default function EditProfileScreen() {
         if (!user?.uid) return;
 
         try {
-            const response = await fetch(uri);
-            const blob = await response.blob();
+            const formData = new FormData();
+            const filename = `profile_${user.uid}_${Date.now()}.jpg`;
+            
+            // @ts-ignore
+            formData.append("file", {
+                uri,
+                name: filename,
+                type: "image/jpeg",
+            });
 
-            const storageRef = ref(getFirebaseStorage(), `users/${user.uid}/profile.jpg`);
-            await uploadBytes(storageRef, blob);
+            const response = await apiFetch<{ url: string }>("/api/v1/social/upload", {
+                method: "POST",
+                body: formData,
+                requireAuth: true,
+            });
 
-            const downloadURL = await getDownloadURL(storageRef);
-            setPhotoURL(downloadURL);
-
+            setPhotoURL(response.url);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         } catch (error) {
             console.error("Error uploading photo:", error);
@@ -280,15 +286,6 @@ export default function EditProfileScreen() {
 
             if (!success) {
                 throw new Error("Profile update failed");
-            }
-
-            const authUser = getFirebaseAuth().currentUser;
-            if (authUser) {
-                await updateAuthProfile(authUser, {
-                    displayName: updates.displayName,
-                    photoURL: updates.photoURL || null,
-                });
-                setUser(getFirebaseAuth().currentUser);
             }
 
             track("profile_updated", { hasPhoto: !!photoURL, hasCity: !!city });

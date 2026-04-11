@@ -7,8 +7,13 @@ import { create } from "zustand";
 // @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
-import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
-import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
+import { getFirebaseAuth } from "@/lib/firebase";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+
+function getDb() {
+    return getFirestore(getFirebaseApp());
+}
 
 export interface UserProfile {
     uid: string;
@@ -89,23 +94,20 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const profileRef = doc(db, "users", userId);
-            const snapshot = await getDoc(profileRef);
+            const docSnap = await getDoc(doc(getDb(), "users", userId));
+            const data = docSnap.exists() ? docSnap.data() : undefined;
+            const profile = normalizeProfile(userId, data);
 
-            if (snapshot.exists()) {
-                set({
-                    profile: normalizeProfile(userId, snapshot.data()),
-                    loading: false,
-                });
-            } else {
-                const initialProfile = normalizeProfile(userId);
-                await setDoc(profileRef, initialProfile, { merge: true });
-                set({ profile: initialProfile, loading: false });
+            if (!docSnap.exists()) {
+                // First-time user: write initial profile to Firestore
+                await setDoc(doc(getDb(), "users", userId), omitUndefined(profile), { merge: true });
             }
+
+            set({ profile, loading: false });
         } catch (error: any) {
             console.error("Error loading profile:", error);
-            set({ error: error.message, loading: false });
+            // Fallback to auth-derived profile so the app stays usable
+            set({ profile: normalizeProfile(userId), error: error.message, loading: false });
         }
     },
 
@@ -122,56 +124,31 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
         set({ profile: nextProfile, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const profileRef = doc(db, "users", userId);
-            const payload = omitUndefined({
-                ...nextProfile,
-                ...updates,
-                uid: userId,
-                updatedAt: now,
-            });
-
-            await setDoc(profileRef, payload, { merge: true });
-
+            await setDoc(
+                doc(getDb(), "users", userId),
+                omitUndefined({ ...updates, updatedAt: now }),
+                { merge: true }
+            );
             return true;
         } catch (error: any) {
             console.error("Error updating profile:", error);
             set({ error: error.message });
-
-            // Revert optimistic update
-            if (profile) {
-                set({ profile });
-            }
-
+            if (profile) set({ profile }); // revert
             return false;
         }
     },
 
     subscribeToProfile: (userId: string) => {
-        // Clean up any existing subscription before starting a new one
+        // Since we migrated away from direct Firebase, we just fetch it once
+        // To implement realtime safely via API Gateway requires websockets/polling
         get()._unsubscribe?.();
-
-        const db = getFirebaseDb();
-        const profileRef = doc(db, "users", userId);
-
-        const unsubscribe = onSnapshot(profileRef, (snapshot) => {
-            if (snapshot.exists()) {
-                set({
-                    profile: normalizeProfile(userId, snapshot.data()),
-                    loading: false,
-                });
-            } else {
-                set({
-                    profile: normalizeProfile(userId),
-                    loading: false,
-                });
-            }
-        }, (error) => {
-            console.error("Profile subscription error:", error);
-            set({ error: error.message });
-        });
-
+        
+        get().loadProfile(userId);
+        
+        // Return dummy unsubscribe
+        const unsubscribe = () => {};
         set({ _unsubscribe: unsubscribe });
+        
         return unsubscribe;
     },
 

@@ -1,0 +1,7 @@
+<svg width="400" height="500" viewBox="0 0 400 500" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="400" height="500" fill="#121212"/>
+  <rect x="50" y="50" width="300" height="400" rx="20" stroke="white" stroke-opacity="0.1" stroke-dasharray="10 10"/>
+  <path d="M200 220C216.569 220 230 206.569 230 190C230 173.431 216.569 160 200 160C183.431 160 170 173.431 170 190C170 206.569 183.431 220 200 220Z" fill="white" fill-opacity="0.2"/>
+  <path d="M260 320H140C134.477 320 130 315.523 130 310V290C130 267.909 147.909 250 170 250H230C252.091 250 270 267.909 270 290V310C270 315.523 265.523 320 260 320Z" fill="white" fill-opacity="0.2"/>
+  <text x="200" y="380" text-anchor="middle" fill="white" fill-opacity="0.3" font-family="sans-serif" font-size="14" font-weight="bold" style="text-transform: uppercase; letter-spacing: 0.2em;">No Poster Available</text>
+</svg>

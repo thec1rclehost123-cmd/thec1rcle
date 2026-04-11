@@ -5,8 +5,7 @@
 
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getFirebaseDb } from "@/lib/firebase";
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import { apiFetch } from "@/lib/api";
 
 // Settings interface
 export interface UserSettings {
@@ -90,24 +89,25 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
             // Then, sync from backend if user is logged in
             if (userId) {
-                const db = getFirebaseDb();
-                const settingsRef = doc(db, "userSettings", userId);
-                const snapshot = await getDoc(settingsRef);
+                try {
+                    const data = await apiFetch<UserSettings>('/api/v1/profiles/settings', { requireAuth: true });
+                    
+                    if (data) {
+                        const merged = {
+                            ...DEFAULT_SETTINGS,
+                            ...data,
+                            notifications: { ...DEFAULT_SETTINGS.notifications, ...data.notifications },
+                            privacy: { ...DEFAULT_SETTINGS.privacy, ...data.privacy },
+                            appearance: { ...DEFAULT_SETTINGS.appearance, ...data.appearance },
+                        };
 
-                if (snapshot.exists()) {
-                    const backendSettings = snapshot.data() as UserSettings;
-                    const merged = {
-                        ...DEFAULT_SETTINGS,
-                        ...backendSettings,
-                        notifications: { ...DEFAULT_SETTINGS.notifications, ...backendSettings.notifications },
-                        privacy: { ...DEFAULT_SETTINGS.privacy, ...backendSettings.privacy },
-                        appearance: { ...DEFAULT_SETTINGS.appearance, ...backendSettings.appearance },
-                    };
+                        set({ settings: merged, lastSyncedAt: new Date() });
 
-                    set({ settings: merged, lastSyncedAt: new Date() });
-
-                    // Update local storage with backend data
-                    await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+                        // Update local storage with backend data
+                        await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+                    }
+                } catch (e) {
+                    // Ignore 404s, user just doesn't have settings yet
                 }
             }
         } catch (error) {
@@ -184,13 +184,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ syncing: true });
 
         try {
-            const db = getFirebaseDb();
-            const settingsRef = doc(db, "userSettings", userId);
-
-            await setDoc(settingsRef, {
-                ...settings,
-                updatedAt: new Date().toISOString(),
-            }, { merge: true });
+            await apiFetch('/api/v1/profiles/settings', {
+                method: 'PATCH',
+                body: JSON.stringify({
+                    settings: {
+                        ...settings,
+                        updatedAt: new Date().toISOString(),
+                    }
+                }),
+                requireAuth: true
+            });
 
             set({ lastSyncedAt: new Date() });
         } catch (error) {

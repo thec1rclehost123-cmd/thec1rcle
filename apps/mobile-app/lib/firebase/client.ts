@@ -12,15 +12,11 @@ import {
     User,
     Auth
 } from "firebase/auth";
-import { getFirestore, Firestore, doc, getDoc, setDoc } from "firebase/firestore";
-import { getStorage, FirebaseStorage } from "firebase/storage";
-import { getFunctions, Functions } from "firebase/functions";
 import { Platform } from "react-native";
 import { firebaseConfig } from "./config";
 
 // Initialize Firebase App (singleton)
 let firebaseApp: FirebaseApp;
-let firebaseFunctions: Functions;
 
 export function getFirebaseApp(): FirebaseApp {
     if (!firebaseApp) {
@@ -32,24 +28,6 @@ export function getFirebaseApp(): FirebaseApp {
 // Firebase Auth
 export function getFirebaseAuth(): Auth {
     return getAuth(getFirebaseApp());
-}
-
-// Firestore Database
-export function getFirebaseDb(): Firestore {
-    return getFirestore(getFirebaseApp());
-}
-
-// Firebase Storage
-export function getFirebaseStorage(): FirebaseStorage {
-    return getStorage(getFirebaseApp());
-}
-
-// Firebase Functions
-export function getFirebaseFunctions(): Functions {
-    if (!firebaseFunctions) {
-        firebaseFunctions = getFunctions(getFirebaseApp());
-    }
-    return firebaseFunctions;
 }
 
 // ─── Auth helper functions ───────────────────────────────────────
@@ -80,38 +58,6 @@ export function subscribeToAuthState(callback: (user: User | null) => void) {
 }
 
 // ─── Social Login ────────────────────────────────────────────────
-
-/**
- * Ensure a Firestore user profile exists after social login.
- * Mirrors the guest-portal's AuthProvider.ensureProfile() behavior.
- */
-async function ensureUserProfile(user: User): Promise<void> {
-    try {
-        const db = getFirebaseDb();
-        const profileRef = doc(db, "users", user.uid);
-        const snapshot = await getDoc(profileRef);
-
-        if (!snapshot.exists()) {
-            const now = new Date().toISOString();
-            await setDoc(profileRef, {
-                uid: user.uid,
-                email: user.email || "",
-                displayName: user.displayName || "Member",
-                photoURL: user.photoURL || "",
-                gender: "",
-                phoneNumber: user.phoneNumber || "",
-                attendedEvents: [],
-                city: "",
-                instagram: "",
-                createdAt: now,
-                updatedAt: now,
-            });
-        }
-    } catch (error) {
-        console.error("[Auth] Failed to ensure user profile:", error);
-        // Don't block login — profile can be created later
-    }
-}
 
 /**
  * Sign in with Apple (uses expo-apple-authentication)
@@ -146,9 +92,7 @@ export async function loginWithApple(): Promise<{ user: User }> {
     const auth = getFirebaseAuth();
     const result = await signInWithCredential(auth, oAuthCredential);
 
-    // Create Firestore profile if needed (same as website)
-    await ensureUserProfile(result.user);
-
+    // Profile creation is now handled by the API Gateway during first request/handshake
     return { user: result.user };
 }
 
@@ -180,9 +124,7 @@ export async function loginWithGoogle(): Promise<{ user: User }> {
     const auth = getFirebaseAuth();
     const result = await signInWithCredential(auth, googleCredential);
 
-    // Create Firestore profile if needed (same as website)
-    await ensureUserProfile(result.user);
-
+    // Profile creation is now handled by the API Gateway during first request/handshake
     return { user: result.user };
 }
 

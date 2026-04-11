@@ -5,10 +5,11 @@ import { StatusBar } from "expo-status-bar";
 import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { View, AppState, AppStateStatus } from "react-native";
+import { View, AppState, AppStateStatus, DeviceEventEmitter } from "react-native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initAuthListener, useAuthStore } from "@/store/authStore";
 import { useCartStore } from "@/store/cartStore";
+import { useProfileStore } from "@/store/profileStore";
 import { subscribeToDeepLinks, parseDeepLink } from "@/lib/deeplinks";
 import {
     addNotificationReceivedListener,
@@ -59,6 +60,15 @@ function useProtectedRoute(user: unknown) {
             setProfileSetupChecked(true);
         });
     }, [user]);
+
+    const { profileSetupJustCompleted, setProfileSetupJustCompleted } = useAuthStore();
+
+    useEffect(() => {
+        if (profileSetupJustCompleted) {
+            setNeedsProfileSetup(false);
+            setProfileSetupJustCompleted(false);
+        }
+    }, [profileSetupJustCompleted, setProfileSetupJustCompleted]);
 
     useEffect(() => {
         // Wait for navigation + onboarding check to be ready

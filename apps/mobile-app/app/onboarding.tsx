@@ -9,6 +9,7 @@ import {
     View,
     Text,
     Pressable,
+    TouchableOpacity,
     StyleSheet,
     Dimensions,
     FlatList,
@@ -28,12 +29,12 @@ import Animated, {
     useSharedValue,
     withTiming,
     FadeIn,
+    useAnimatedScrollHandler,
 } from "react-native-reanimated";
 import { Compass, Ticket, Shield } from "lucide-react-native";
 import { colors } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const SlidesFlatList = FlatList as any;
 
 const ONBOARDING_KEY = "c1rcle_onboarding_complete";
 
@@ -158,20 +159,32 @@ function SlideItem({ item, index, scrollX }: {
 
 export default function OnboardingScreen() {
     const [currentIndex, setCurrentIndex] = useState(0);
-    const flatListRef = useRef<FlatList>(null);
+    const scrollViewRef = useRef<any>(null);
     const scrollX = useSharedValue(0);
 
     const isLastSlide = currentIndex === SLIDES.length - 1;
+
+    const onScroll = useAnimatedScrollHandler({
+        onScroll: (e) => {
+            scrollX.value = e.contentOffset.x;
+        },
+    });
 
     const handleNext = useCallback(async () => {
         if (isLastSlide) {
             await markOnboardingComplete();
             router.replace("/(auth)/login");
         } else {
-            flatListRef.current?.scrollToIndex({
-                index: currentIndex + 1,
-                animated: true,
-            });
+            const nextIndex = currentIndex + 1;
+            const ref = scrollViewRef.current as any;
+            if (ref) {
+                if (typeof ref.scrollTo === "function") {
+                    ref.scrollTo({ x: nextIndex * SCREEN_WIDTH, y: 0, animated: true });
+                } else if (typeof ref.getNode === "function") {
+                    ref.getNode().scrollTo({ x: nextIndex * SCREEN_WIDTH, y: 0, animated: true });
+                }
+            }
+            setCurrentIndex(nextIndex);
         }
     }, [currentIndex, isLastSlide]);
 
@@ -179,18 +192,6 @@ export default function OnboardingScreen() {
         await markOnboardingComplete();
         router.replace("/(auth)/login");
     }, []);
-
-    const onViewableItemsChanged = useRef(
-        ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-            if (viewableItems.length > 0 && viewableItems[0].index != null) {
-                setCurrentIndex(viewableItems[0].index);
-            }
-        }
-    ).current;
-
-    const viewabilityConfig = useRef({
-        itemVisiblePercentThreshold: 50,
-    }).current;
 
     return (
         <SafeAreaView style={styles.container}>
@@ -204,28 +205,29 @@ export default function OnboardingScreen() {
             )}
 
             {/* Slides */}
-            <SlidesFlatList
-                ref={flatListRef}
-                data={SLIDES}
+            <Animated.ScrollView
+                ref={scrollViewRef}
+                style={{ flex: 1 }}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 bounces={false}
-                keyExtractor={(item: OnboardingSlide) => item.id}
-                onViewableItemsChanged={onViewableItemsChanged}
-                viewabilityConfig={viewabilityConfig}
-                onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
-                    scrollX.value = e.nativeEvent.contentOffset.x;
-                }}
+                onScroll={onScroll}
                 scrollEventThrottle={16}
-                renderItem={({ item, index }: ListRenderItemInfo<OnboardingSlide>) => (
+                onMomentumScrollEnd={(e: any) => {
+                    const newIndex = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+                    setCurrentIndex(newIndex);
+                }}
+            >
+                {SLIDES.map((item, index) => (
                     <SlideItem
+                        key={item.id}
                         item={item}
                         index={index}
                         scrollX={scrollX}
                     />
-                )}
-            />
+                ))}
+            </Animated.ScrollView>
 
             {/* Bottom section */}
             <View style={styles.bottom}>
@@ -246,7 +248,7 @@ export default function OnboardingScreen() {
                 </View>
 
                 {/* CTA Button */}
-                <Pressable onPress={handleNext} style={styles.ctaButton}>
+                <TouchableOpacity onPress={handleNext} style={styles.ctaButton} activeOpacity={0.8}>
                     <LinearGradient
                         colors={[colors.iris, "#FF6B4A"]}
                         start={{ x: 0, y: 0 }}
@@ -257,7 +259,7 @@ export default function OnboardingScreen() {
                             {isLastSlide ? "Get Started" : "Next"}
                         </Text>
                     </LinearGradient>
-                </Pressable>
+                </TouchableOpacity>
             </View>
         </SafeAreaView>
     );
@@ -340,6 +342,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         paddingBottom: 24,
         gap: 24,
+        zIndex: 10,
+        elevation: 10,
     },
     dotsContainer: {
         flexDirection: "row",

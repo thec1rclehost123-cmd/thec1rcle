@@ -4,8 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useAuth } from "@/hooks/useAuth";
-import { doc, setDoc } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
 
 export default function SignupScreen() {
     const [fullName, setFullName] = useState("");
@@ -42,16 +40,8 @@ export default function SignupScreen() {
         const result = await signup(email.trim(), password);
 
         if (result.success) {
-            // Create user profile in Firestore
-            try {
-                const db = getFirebaseDb();
-                // Note: The user will be set in auth state, we can get UID from there
-                // For now, navigate to explore - profile will be created via auth listener
-                router.replace("/(tabs)/explore");
-            } catch (err) {
-                console.error("Error creating user profile:", err);
-                router.replace("/(tabs)/explore");
-            }
+            // Profile setup is handled by the navigation guard redirecting to /profile-setup
+            router.replace("/(tabs)/explore");
         }
     };
 

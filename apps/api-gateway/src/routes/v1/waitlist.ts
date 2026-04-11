@@ -44,6 +44,63 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
     });
 
     /**
+     * GET /api/v1/waitlist/status
+     */
+    fastify.get('/status', {
+        preHandler: [fastify.validate({ querystring: z.object({
+            eventId: z.string(),
+            email: z.string()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const { eventId, email } = request.query;
+        
+        try {
+            const col = fastify.db.collection("waitlist");
+            
+            // Get total waiting count
+            const totalSnap = await col
+                .where("eventId", "==", eventId)
+                .where("status", "==", "waiting")
+                .count()
+                .get();
+            
+            const totalWaiting = totalSnap.data().count;
+
+            // Check if user is on waitlist
+            const userSnap = await col
+                .where("eventId", "==", eventId)
+                .where("email", "==", email)
+                .where("status", "==", "waiting")
+                .limit(1)
+                .get();
+
+            if (userSnap.empty) {
+                return { joined: false, totalWaiting };
+            }
+
+            const userDoc = userSnap.docs[0];
+            const userCreatedAt = userDoc.data().createdAt;
+
+            // Calculate position
+            const beforeSnap = await col
+                .where("eventId", "==", eventId)
+                .where("status", "==", "waiting")
+                .where("createdAt", "<", userCreatedAt)
+                .count()
+                .get();
+
+            return { 
+                joined: true, 
+                position: beforeSnap.data().count + 1,
+                totalWaiting 
+            };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /waitlist/status: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
      * GET /api/v1/waitlist/verify
      */
     fastify.get('/verify', {

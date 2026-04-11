@@ -1,6 +1,23 @@
 {
   "indexes": [
     {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lifecycle", "order": "ASCENDING" },
+        { "fieldPath": "startDate", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "events",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "lifecycle",  "order": "ASCENDING" },
+        { "fieldPath": "city",       "order": "ASCENDING" },
+        { "fieldPath": "startDate",  "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "venue_daily_stats",
       "queryScope": "COLLECTION",
       "fields": [
@@ -38,13 +55,6 @@
       "fields": [
         { "fieldPath": "venueId",   "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "event_live_stats",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "eventId", "order": "ASCENDING" }
       ]
     },
     {

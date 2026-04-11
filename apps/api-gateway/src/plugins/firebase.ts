@@ -44,19 +44,30 @@ export default fp(async (fastify) => {
             privateKey = privateKey.substring(1, privateKey.length - 1);
         }
 
-        privateKey = privateKey?.replace(/\\n/g, '\n');
+        // Handle both double-escaped (\\n) and single-escaped (\n) literals
+        privateKey = privateKey?.replace(/\\\\n/g, '\n').replace(/\\n/g, '\n').trim();
 
-        if (!privateKey) {
-            console.error('FIREBASE_PRIVATE_KEY is missing or empty!');
+        if (privateKey && !privateKey.endsWith('\n')) {
+            privateKey += '\n';
         }
 
-        initializeApp({
-            credential: cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey,
-            }),
-        });
+        if (!privateKey) {
+            fastify.log.error('FIREBASE_PRIVATE_KEY is missing or empty!');
+        }
+
+        try {
+            initializeApp({
+                credential: cert({
+                    projectId: process.env.FIREBASE_PROJECT_ID,
+                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                    privateKey: privateKey,
+                }),
+            });
+            fastify.log.info('Firebase Admin initialized successfully');
+        } catch (err: any) {
+            fastify.log.error(`Firebase initialization failed: ${err.message}`);
+            throw err;
+        }
     }
 
     const db = getFirestore();

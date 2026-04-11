@@ -10,6 +10,8 @@ interface AuthState {
     setUser: (user: User | null) => void;
     setLoading: (loading: boolean) => void;
     setInitialized: (initialized: boolean) => void;
+    profileSetupJustCompleted: boolean;
+    setProfileSetupJustCompleted: (val: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -19,6 +21,8 @@ export const useAuthStore = create<AuthState>((set) => ({
     setUser: (user) => set({ user }),
     setLoading: (loading) => set({ loading }),
     setInitialized: (initialized) => set({ initialized, loading: false }),
+    profileSetupJustCompleted: false,
+    setProfileSetupJustCompleted: (val) => set({ profileSetupJustCompleted: val }),
 }));
 
 // Initialize auth listener (call this once in root layout)

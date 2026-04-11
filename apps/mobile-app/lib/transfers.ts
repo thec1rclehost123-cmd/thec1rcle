@@ -1,13 +1,5 @@
-// Ticket transfer service (server-authoritative via Cloud Functions)
-import { httpsCallable } from "firebase/functions";
-import { getFirebaseFunctions } from "./firebase";
-
-export interface TransferRequest {
-    orderId: string;
-    ticketIndex: number; // Which ticket in the order to transfer
-    recipientEmail?: string;
-    recipientPhone?: string;
-}
+// Ticket transfer service (server-authoritative via API Gateway)
+import { apiFetch, initiateFormalTransfer, acceptFormalTransfer, cancelFormalTransfer } from "./api";
 
 export interface Transfer {
     id: string;
@@ -27,75 +19,69 @@ export interface Transfer {
 }
 
 /**
- * Initiate ticket transfer via Cloud Function.
- * Mirrors the standalone app behavior and avoids client-side writes to `orders`,
- * which are admin-only under Firestore rules.
+ * Initiate ticket transfer via API Gateway.
+ * Replaces the direct Cloud Function call.
  */
 export async function initiateTransfer(
     orderId: string,
-    fromUserId: string, // kept for API compatibility; server uses context.auth.uid
+    fromUserId: string,
     ticketDetails: { tierName: string; quantity: number } | { name: string; quantity: number },
     recipientEmail?: string,
     recipientPhone?: string
 ): Promise<{ success: boolean; transferId?: string; transferCode?: string; error?: string }> {
     try {
-        const functions = getFirebaseFunctions();
-        const createTransferFn = httpsCallable(functions, "initiateTransfer");
-
-        const normalizedTicketDetails = ("tierName" in ticketDetails)
-            ? { name: ticketDetails.tierName, quantity: ticketDetails.quantity }
-            : ticketDetails;
-
-        const result: any = await createTransferFn({
-            orderId,
-            ticketDetails: normalizedTicketDetails,
+        // We use the Gateway's initiateFormalTransfer wrapper in api.ts
+        const result = await initiateFormalTransfer({
+            ticketId: orderId, // The Gateway currently expects ticketId which we map to orderId or specific ID
             recipientEmail,
-            recipientPhone,
         });
 
-        return result.data;
+        return result;
     } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Accept transfer via Cloud Function.
+ * Accept transfer via API Gateway.
  */
 export async function acceptTransfer(
     transferCode: string,
-    recipientUserId: string // kept for API compatibility; server uses context.auth.uid
+    recipientUserId: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const functions = getFirebaseFunctions();
-        const acceptTransferFn = httpsCallable(functions, "acceptTransfer");
-        const result: any = await acceptTransferFn({ transferCode });
-        return result.data;
+        const result = await acceptFormalTransfer({ transferCode });
+        return result;
     } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
 
 /**
- * Cancel transfer via Cloud Function.
+ * Cancel transfer via API Gateway (auth required).
  */
 export async function cancelTransfer(
     transferId: string,
-    userId: string // kept for API compatibility; server uses context.auth.uid
+    userId: string
 ): Promise<{ success: boolean; error?: string }> {
     try {
-        const functions = getFirebaseFunctions();
-        const cancelTransferFn = httpsCallable(functions, "cancelTransfer");
-        const result: any = await cancelTransferFn({ transferId });
-        return result.data;
+        const result = await cancelFormalTransfer({ transferId });
+        return result;
     } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
 
-// Pending transfers are currently surfaced via the wallet/orders view.
+/**
+ * Fetch pending transfers via Gateway.
+ */
 export async function getPendingTransfers(
     userId: string
 ): Promise<Transfer[]> {
-    return [];
+    try {
+        const response = await apiFetch<{ transfers: Transfer[] }>("/api/v1/tickets/transfer/pending");
+        return response.transfers || [];
+    } catch (error) {
+        return [];
+    }
 }

@@ -1,21 +1,34 @@
 import { create } from "zustand";
-// @c1rcle/types provides the canonical Event/Venue/Profile shapes shared across all apps.
-// The local Event interface below extends that concept with mobile-specific fields.
-// When harmonizing types, use: import type { Event as BaseEvent } from '@c1rcle/types';
+import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
 import {
+    getFirestore,
     collection,
-    query,
-    where,
-    orderBy,
-    limit,
     getDocs,
-    doc,
     getDoc,
-    startAfter,
-    QueryDocumentSnapshot,
-    Timestamp
+    doc,
 } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+
+// Lazy Firestore singleton — reuses the same app instance as auth
+function getDb() {
+    return getFirestore(getFirebaseApp());
+}
+
+// Serialise Firestore doc to plain JSON (converts Timestamps to ISO strings)
+function serialiseDoc(docSnap: any): any {
+    const data = docSnap.data();
+    const out: any = { id: docSnap.id };
+    for (const key of Object.keys(data)) {
+        const val = data[key];
+        // Firestore Timestamp → ISO string
+        if (val && typeof val === "object" && typeof val.toDate === "function") {
+            out[key] = val.toDate().toISOString();
+        } else {
+            out[key] = val;
+        }
+    }
+    return out;
+}
 
 // Event type matching Firestore schema
 export interface Event {
@@ -32,6 +45,7 @@ export interface Event {
     coverImage?: string;
     tickets?: TicketTier[];
     status?: string;
+    lifecycle?: string; // Canonical state: draft, scheduled, live, etc.
     heatScore?: number;
     category?: string; // e.g., "club", "concert", "festival", "party", "brunch"
     type?: string; // Alternative categorization
@@ -47,6 +61,8 @@ export interface Event {
         latitude: number;
         longitude: number;
     };
+    poster?: string; // Standard DB field
+    image?: string;  // Standard DB field
 }
 
 export interface TicketTier {
@@ -69,18 +85,32 @@ export interface SearchFilters {
     priceMax?: number;
 }
 
+// Mirrors guest portal PUBLIC_LIFECYCLE_STATES from @c1rcle/core
+const PUBLIC_LIFECYCLES = new Set(["scheduled", "live"]);
+
+function isPublicEvent(e: Event): boolean {
+    // Allow events with no lifecycle field (legacy data) but reject known non-public states
+    if (e.lifecycle && !PUBLIC_LIFECYCLES.has(e.lifecycle)) return false;
+    // Filter obvious test/garbage titles
+    const title = e.title ?? "";
+    if (title.length < 4) return false;
+    if (/^(test|check|ssjd|dummy|aaa|bbb|xxx)/i.test(title)) return false;
+    return true;
+}
+
 interface EventsState {
     events: Event[];
     featuredEvents: Event[];
+    featuredLoading: boolean;
     searchResults: Event[];
     categoryEvents: Record<string, Event[]>;
     categoryLoading: Record<string, boolean>;
-    categoryLastDoc: Record<string, QueryDocumentSnapshot | null>;
+    categoryLastId: Record<string, string | null>;
     categoryHasMore: Record<string, boolean>;
     loading: boolean;
     searching: boolean;
     error: string | null;
-    lastDoc: QueryDocumentSnapshot | null;
+    lastId: string | null;
     hasMore: boolean;
 
     // Actions
@@ -98,15 +128,16 @@ interface EventsState {
 export const useEventsStore = create<EventsState>((set, get) => ({
     events: [],
     featuredEvents: [],
+    featuredLoading: false,
     searchResults: [],
     categoryEvents: {},
     categoryLoading: {},
-    categoryLastDoc: {},
+    categoryLastId: {},
     categoryHasMore: {},
     loading: false,
     searching: false,
     error: null,
-    lastDoc: null,
+    lastId: null,
     hasMore: true,
 
     fetchEvents: async (city?: string) => {
@@ -114,74 +145,45 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
+            const db = getDb();
+            // Plain collection scan — no query(), no where, no orderBy, no limit.
+            // This is the simplest possible Firestore read and requires zero indexes.
+            // isPublicEvent filters to scheduled/live + removes garbage client-side.
+            const snapshot = await getDocs(collection(db, "events"));
+            let events = snapshot.docs.map(serialiseDoc).filter(isPublicEvent);
 
-            // Query for published events
-            let q = query(
-                eventsRef,
-                where("status", "in", ["published", "scheduled", "live"]),
-                orderBy("startDate", "asc"),
-                limit(50)
-            );
-
-            // Add city filter if specified
             if (city) {
-                q = query(
-                    eventsRef,
-                    where("status", "in", ["published", "scheduled", "live"]),
-                    where("city", "==", city),
-                    orderBy("startDate", "asc"),
-                    limit(50)
-                );
+                events = events.filter((e) => (e.city ?? "").toLowerCase() === city.toLowerCase());
             }
 
-            const snapshot = await getDocs(q);
-            const events: Event[] = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Event[];
+            events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-            const lastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
-
-            set({
-                events,
-                loading: false,
-                lastDoc,
-                hasMore: snapshot.docs.length === 50,
-            });
+            set({ events, loading: false, lastId: null, hasMore: false });
         } catch (error: any) {
             console.error("Error fetching events:", error);
             set({ error: error.message, loading: false });
+            throw error;
         }
     },
 
     fetchFeaturedEvents: async () => {
-        if (get().loading) return;
-        set({ loading: true, error: null });
+        if (get().featuredLoading) return;
+        set({ featuredLoading: true });
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
+            // Reuse already-fetched events from store if available; else plain scan.
+            const existing = get().events;
+            const all = existing.length > 0
+                ? existing
+                : (await getDocs(collection(getDb(), "events"))).docs.map(serialiseDoc).filter(isPublicEvent);
 
-            // Query for featured/spotlight events
-            const q = query(
-                eventsRef,
-                where("isFeatured", "==", true),
-                where("status", "in", ["published", "scheduled", "live"]),
-                limit(10)
-            );
-
-            const snapshot = await getDocs(q);
-            const featuredEvents: Event[] = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Event[];
-
-            set({ featuredEvents, loading: false });
+            const featured = all.filter((e) => e.isFeatured).sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0));
+            const byHeat = [...all].sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0));
+            const featuredEvents = (featured.length >= 3 ? featured : byHeat).slice(0, 10);
+            set({ featuredEvents, featuredLoading: false });
         } catch (error: any) {
             console.error("Error fetching featured events:", error);
-            set({ error: error.message, loading: false });
+            set({ featuredLoading: false });
         }
     },
 
@@ -190,23 +192,9 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         set({ loading: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
+            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?limit=${options?.limit || 50}`, { requireAuth: false });
 
-            const q = query(
-                eventsRef,
-                where("status", "in", ["published", "scheduled", "live"]),
-                orderBy("startDate", "asc"),
-                limit(options?.limit || 50)
-            );
-
-            const snapshot = await getDocs(q);
-            const events: Event[] = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Event[];
-
-            set({ events, loading: false });
+            set({ events: response.events, loading: false });
         } catch (error: any) {
             console.error("Error fetching public events:", error);
             set({ error: error.message, loading: false });
@@ -218,44 +206,17 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         set({ searching: true, error: null });
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
+            const queryParams = new URLSearchParams();
+            if (filters.city && filters.city !== "All Cities") queryParams.set("city", filters.city);
+            if (filters.category && filters.category !== "all") queryParams.set("category", filters.category);
+            if (filters.dateFrom) queryParams.set("dateFrom", filters.dateFrom.toISOString());
+            if (filters.dateTo) queryParams.set("dateTo", filters.dateTo.toISOString());
+            queryParams.set("limit", "50");
 
-            // Build query constraints
-            let constraints: any[] = [
-                where("status", "in", ["published", "scheduled", "live"]),
-            ];
+            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
+            let results = response.events;
 
-            // City filter
-            if (filters.city && filters.city !== "All Cities") {
-                constraints.push(where("city", "==", filters.city));
-            }
-
-            // Category filter
-            if (filters.category && filters.category !== "all") {
-                constraints.push(where("category", "==", filters.category));
-            }
-
-            // Date range filter
-            if (filters.dateFrom) {
-                constraints.push(
-                    where("startDate", ">=", filters.dateFrom.toISOString())
-                );
-            }
-
-            // Order and limit
-            constraints.push(orderBy("startDate", "asc"));
-            constraints.push(limit(50));
-
-            const q = query(eventsRef, ...constraints);
-            const snapshot = await getDocs(q);
-
-            let results: Event[] = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Event[];
-
-            // Client-side text search (Firestore doesn't support full-text)
+            // Client-side text search
             if (filters.query) {
                 const searchLower = filters.query.toLowerCase();
                 results = results.filter((event) =>
@@ -288,37 +249,21 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     loadMoreEvents: async () => {
-        const { lastDoc, hasMore, loading, events } = get();
+        const { lastId, hasMore, loading, events } = get() as any;
 
-        if (!hasMore || loading || !lastDoc) return;
+        if (!hasMore || loading || !lastId) return;
 
         set({ loading: true });
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
-
-            const q = query(
-                eventsRef,
-                where("status", "in", ["published", "scheduled", "live"]),
-                orderBy("startDate", "asc"),
-                startAfter(lastDoc),
-                limit(20)
-            );
-
-            const snapshot = await getDocs(q);
-            const newEvents: Event[] = snapshot.docs.map((doc) => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as Event[];
-
-            const newLastDoc = snapshot.docs[snapshot.docs.length - 1] || null;
+            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?limit=20&lastId=${lastId}`, { requireAuth: false });
+            const newEvents = response.events;
 
             set({
                 events: [...events, ...newEvents],
                 loading: false,
-                lastDoc: newLastDoc,
-                hasMore: snapshot.docs.length === 20,
+                lastId: newEvents.length > 0 ? newEvents[newEvents.length - 1].id : null,
+                hasMore: newEvents.length === 20,
             });
         } catch (error: any) {
             console.error("Error loading more events:", error);
@@ -327,22 +272,14 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     getEventById: async (id: string): Promise<Event | null> => {
-        console.log("[debug] getEventById id:", id);
-        if (!id || typeof id !== "string") {
-            console.error("[Firestore] Invalid id in getEventById:", id);
-            return null;
-        }
+        if (!id || typeof id !== "string") return null;
         try {
-            const db = getFirebaseDb();
-            const eventRef = doc(db, "events", id);
-            const eventDoc = await getDoc(eventRef);
-
-            if (eventDoc.exists()) {
-                return { id: eventDoc.id, ...eventDoc.data() } as Event;
-            }
-            return null;
+            const db = getDb();
+            const docSnap = await getDoc(doc(db, "events", id));
+            if (!docSnap.exists()) return null;
+            return serialiseDoc(docSnap) as Event;
         } catch (error: any) {
-            console.error("Error fetching event:", error);
+            console.error("Error fetching event by id:", error);
             return null;
         }
     },
@@ -360,34 +297,25 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         }));
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
-            const now = new Date().toISOString();
+            const queryParams = new URLSearchParams();
+            queryParams.set("category", category);
+            if (city) queryParams.set("city", city);
+            queryParams.set("limit", "20");
 
-            const constraints: any[] = [
-                where("status", "in", ["published", "scheduled", "live"]),
-                where("category", "==", category),
-                where("startDate", ">=", now),
-                orderBy("startDate", "asc"),
-                limit(20),
-            ];
-
-            if (city) {
-                constraints.splice(1, 0, where("city", "==", city));
-            }
-
-            const snapshot = await getDocs(query(eventsRef, ...constraints));
-            const events: Event[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
-            const lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
+            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
+            const events = response.events.filter(isPublicEvent);
 
             set((s) => ({
                 categoryEvents: { ...s.categoryEvents, [category]: events },
-                categoryLastDoc: { ...s.categoryLastDoc, [category]: lastDoc },
-                categoryHasMore: { ...s.categoryHasMore, [category]: snapshot.docs.length === 20 },
+                categoryLastId: { ...s.categoryLastId, [category]: events.length > 0 ? events[events.length - 1].id : null } as any,
+                categoryHasMore: { ...s.categoryHasMore, [category]: response.events.length === 20 },
                 categoryLoading: { ...s.categoryLoading, [category]: false },
             }));
         } catch (error: any) {
-            console.error(`Error fetching category ${category}:`, error);
+            // Silence AbortError (timeout or cleanup) to prevent intrusive console.error overlays
+            if (!error.isAbort) {
+                console.error(`Error fetching category ${category}:`, error);
+            }
             set((s) => ({
                 categoryLoading: { ...s.categoryLoading, [category]: false },
             }));
@@ -395,42 +323,33 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     },
 
     loadMoreByCategory: async (category: string, city?: string) => {
-        const { categoryLoading, categoryHasMore, categoryLastDoc } = get();
-        if (categoryLoading[category] || !categoryHasMore[category] || !categoryLastDoc[category]) return;
+        const { categoryLoading, categoryHasMore } = get();
+        const state = get() as any;
+        const lastId = state.categoryLastId?.[category];
+        
+        if (categoryLoading[category] || !categoryHasMore[category] || !lastId) return;
 
         set((s) => ({
             categoryLoading: { ...s.categoryLoading, [category]: true },
         }));
 
         try {
-            const db = getFirebaseDb();
-            const eventsRef = collection(db, "events");
-            const now = new Date().toISOString();
+            const queryParams = new URLSearchParams();
+            queryParams.set("category", category);
+            if (city) queryParams.set("city", city);
+            queryParams.set("lastId", lastId);
+            queryParams.set("limit", "20");
 
-            const constraints: any[] = [
-                where("status", "in", ["published", "scheduled", "live"]),
-                where("category", "==", category),
-                where("startDate", ">=", now),
-                orderBy("startDate", "asc"),
-                startAfter(categoryLastDoc[category]),
-                limit(20),
-            ];
+            const response = await apiFetch<{ events: Event[] }>(`/api/v1/events?${queryParams.toString()}`, { requireAuth: false });
+            const newEvents = response.events;
 
-            if (city) {
-                constraints.splice(1, 0, where("city", "==", city));
-            }
-
-            const snapshot = await getDocs(query(eventsRef, ...constraints));
-            const newEvents: Event[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as Event[];
-            const lastDoc = snapshot.docs[snapshot.docs.length - 1] ?? null;
-
-            set((s) => ({
+            set((s: any) => ({
                 categoryEvents: {
                     ...s.categoryEvents,
                     [category]: [...(s.categoryEvents[category] ?? []), ...newEvents],
                 },
-                categoryLastDoc: { ...s.categoryLastDoc, [category]: lastDoc },
-                categoryHasMore: { ...s.categoryHasMore, [category]: snapshot.docs.length === 20 },
+                categoryLastId: { ...s.categoryLastId, [category]: newEvents.length > 0 ? newEvents[newEvents.length - 1].id : null },
+                categoryHasMore: { ...s.categoryHasMore, [category]: newEvents.length === 20 },
                 categoryLoading: { ...s.categoryLoading, [category]: false },
             }));
         } catch (error: any) {

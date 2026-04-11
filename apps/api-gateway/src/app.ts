@@ -3,7 +3,11 @@ import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import compress from '@fastify/compress';
 import websocket from '@fastify/websocket';
+import multipart from '@fastify/multipart';
 import * as Sentry from '@sentry/node';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import crypto from 'crypto';
 import { config } from './config';
 import firebasePlugin from './plugins/firebase';
@@ -45,6 +49,10 @@ import venueRoutes from './routes/v1/venues';
 import matchingRoutes from './routes/v1/matching';
 import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
+import socialRoutes from './routes/v1/social';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const server = Fastify({
     trustProxy: process.env.NODE_ENV === 'production',
@@ -160,6 +168,11 @@ async function main() {
         encodings: ['gzip', 'deflate', 'br']
     });
     await server.register(websocket);
+    await server.register(multipart, {
+        limits: {
+            fileSize: 10 * 1024 * 1024 // 10MB
+        }
+    });
     await server.register(firebasePlugin);
     await server.register(redisPlugin);
     await server.register(cachePlugin);
@@ -168,6 +181,12 @@ async function main() {
     await server.register(featureFlagsPlugin);
     await server.register(rateLimitPlugin);
     await server.register(validatePlugin);
+
+    // Register Static File Hosting
+    await server.register(fastifyStatic, {
+        root: path.join(__dirname, '../public'),
+        prefix: '/', // Serve at root so /events/xxx.jpg works
+    });
 
     // Register Routes
     await server.register(eventRoutes, { prefix: '/api/v1' });
@@ -204,6 +223,7 @@ async function main() {
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
     await server.register(venueRoutes, { prefix: '/api/v1' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
+    await server.register(socialRoutes, { prefix: '/api/v1' });
 
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {

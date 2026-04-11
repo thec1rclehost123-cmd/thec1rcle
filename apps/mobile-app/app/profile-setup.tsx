@@ -22,6 +22,7 @@ import { router } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import * as Haptics from "expo-haptics";
+import { DeviceEventEmitter } from "react-native";
 import Animated, {
     FadeInRight,
     FadeOutLeft,
@@ -29,6 +30,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
+import { apiFetch } from "@/lib/api";
 import { colors, radii, gradients } from "@/lib/design/theme";
 
 export const PROFILE_SETUP_KEY = "c1rcle_profile_setup_complete";
@@ -76,7 +78,7 @@ function ProgressDots({ step }: { step: number }) {
 }
 
 export default function ProfileSetupScreen() {
-    const { user } = useAuthStore();
+    const { user, setProfileSetupJustCompleted } = useAuthStore();
     const { updateProfile } = useProfileStore();
 
     const [step, setStep] = useState(1);
@@ -115,7 +117,7 @@ export default function ProfileSetupScreen() {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") return;
         const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ["images"],
             allowsEditing: true,
             aspect: [1, 1],
             quality: 0.8,
@@ -129,16 +131,44 @@ export default function ProfileSetupScreen() {
         if (!user?.uid) return;
         setSaving(true);
         try {
+            let uploadedPhotoUrl = user.photoURL || undefined;
+
+            // 1. Upload photo if changed
+            if (photoUri && photoUri !== user.photoURL) {
+                const formData = new FormData();
+                const filename = `profile_setup_${user.uid}.jpg`;
+                
+                // @ts-ignore
+                formData.append("file", {
+                    uri: photoUri,
+                    name: filename,
+                    type: "image/jpeg",
+                });
+
+                const uploadResponse = await apiFetch<{ url: string }>("/api/v1/social/upload", {
+                    method: "POST",
+                    body: formData,
+                    requireAuth: true,
+                });
+                uploadedPhotoUrl = uploadResponse.url;
+            }
+
+            // 2. Save profile updates
             await updateProfile(user.uid, {
                 displayName: name.trim() || user.displayName || "",
                 city: city || undefined,
                 vibeTags: vibeTags.length > 0 ? vibeTags : undefined,
+                photoURL: uploadedPhotoUrl,
             });
+
             await AsyncStorage.setItem(PROFILE_SETUP_KEY, "true");
+            setProfileSetupJustCompleted(true);
             router.replace("/(tabs)/explore");
-        } catch {
-            // Still navigate — non-fatal
+        } catch (error) {
+            console.error("[ProfileSetup] Finalize error:", error);
+            // Still navigate as fallback, or show alert
             await AsyncStorage.setItem(PROFILE_SETUP_KEY, "true");
+            setProfileSetupJustCompleted(true);
             router.replace("/(tabs)/explore");
         } finally {
             setSaving(false);
@@ -147,6 +177,7 @@ export default function ProfileSetupScreen() {
 
     const handleSkip = async () => {
         await AsyncStorage.setItem(PROFILE_SETUP_KEY, "true");
+        setProfileSetupJustCompleted(true);
         router.replace("/(tabs)/explore");
     };
 

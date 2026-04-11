@@ -89,8 +89,18 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
 
         const scored = events
             .filter((e) => {
+                // Only show scheduled/live events (mirrors guest portal PUBLIC_LIFECYCLE_STATES)
+                const lifecycle = e.lifecycle;
+                if (lifecycle && lifecycle !== "scheduled" && lifecycle !== "live") return false;
+
+                // Filter out test/garbage data
+                const title = e.title?.toLowerCase() ?? "";
+                if (title.length < 4) return false;
+                if (/^(test|check|ssjd|dummy|aaa|bbb|xxx|yyy|zzz)/i.test(e.title ?? "")) return false;
+
+                if (!e.startDate) return true;
                 const start = new Date(e.startDate).getTime();
-                return start > now;
+                return isNaN(start) ? true : start > now;
             })
             .map((e) => ({
                 event: e,

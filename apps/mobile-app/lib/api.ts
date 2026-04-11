@@ -8,11 +8,42 @@ import Constants from "expo-constants";
 import { getFirebaseAuth } from "./firebase";
 
 // Fastify API Gateway base URL
-const API_BASE =
-    process.env.EXPO_PUBLIC_API_BASE_URL || "https://api.thec1rcle.com";
+// In development, dynamically derive the gateway URL from the Expo dev server host.
+// This means it works on any machine/IP without needing to hardcode the env var.
+// The API Gateway runs on port 4000, same machine as the Metro bundler.
+function getApiBase(): string {
+    // Explicit override via env var always wins
+    if (process.env.EXPO_PUBLIC_API_BASE_URL) {
+        return process.env.EXPO_PUBLIC_API_BASE_URL;
+    }
+
+    // In development, derive host from Expo's manifest
+    if (__DEV__) {
+        const debuggerHost =
+            Constants.expoConfig?.hostUri ||
+            (Constants.manifest2 as any)?.extra?.expoClient?.hostUri ||
+            (Constants.manifest as any)?.debuggerHost;
+
+        if (debuggerHost) {
+            // debuggerHost is "10.x.x.x:8081" — strip the port
+            const host = debuggerHost.split(":")[0];
+            
+            // 🛡️ ENHANCEMENT: If we have an explicit base URL from ENV, use it.
+            // Otherwise default to the host machine on the standard dev port (4000).
+            const devUrl = process.env.EXPO_PUBLIC_API_BASE_URL || `http://${host}:4000`;
+            console.log(`[API] Dev mode — using gateway: ${devUrl}`);
+            return devUrl;
+        }
+    }
+
+    return "https://api.thec1rcle.com";
+}
+
+const API_BASE = getApiBase();
 
 // All mobile HTTP calls go through the versioned gateway prefix
 const API_PREFIX = "/api/v1";
+
 
 /**
  * Get the current user's Firebase ID token for authenticated requests.
@@ -34,8 +65,9 @@ async function apiFetch<T = any>(
     const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
     const appVersion = Constants.expoConfig?.version ?? "unknown";
+    const isFormData = fetchOptions.body instanceof FormData;
     const headers: Record<string, string> = {
-        "Content-Type": "application/json",
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
         "X-App-Version": appVersion,
         ...(fetchOptions.headers as Record<string, string>),
     };
@@ -53,6 +85,7 @@ async function apiFetch<T = any>(
     }
 
     const url = `${API_BASE}${path}`;
+    console.log(`[API] Fetching URL: ${url}`);
 
     // Step 1: Set timeout based on path
     const isCheckout = path.includes("/checkout") || path.includes("/payments");
@@ -84,6 +117,14 @@ async function apiFetch<T = any>(
 
         return data as T;
     } catch (error: any) {
+        // Handle explicit abort/timeout
+        if (error.name === "AbortError" || error.message?.includes("Aborted")) {
+            const timeoutError = new Error("Request timed out. Please try again.");
+            (timeoutError as any).isTimeout = true;
+            (timeoutError as any).isAbort = true;
+            throw timeoutError;
+        }
+
         // If it's already an Error with a message from above, rethrow
         if (error.message && !error.message.includes("fetch")) {
             throw error;

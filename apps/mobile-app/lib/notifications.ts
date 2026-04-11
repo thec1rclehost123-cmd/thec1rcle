@@ -2,9 +2,8 @@
 import * as Notifications from "expo-notifications";
 import * as Device from "expo-device";
 import { Platform } from "react-native";
-import { doc, updateDoc, arrayUnion } from "firebase/firestore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getFirebaseDb } from "./firebase";
+import { apiFetch } from "./api";
 
 const PUSH_TOKEN_KEY = "@c1rcle/pushToken";
 
@@ -48,7 +47,6 @@ export async function getExpoPushToken(): Promise<string | null> {
         const hasPermission = await requestNotificationPermissions();
         if (!hasPermission) return null;
 
-        // Get project ID from app config
         const token = await Notifications.getExpoPushTokenAsync({
             projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
         });
@@ -60,18 +58,23 @@ export async function getExpoPushToken(): Promise<string | null> {
     }
 }
 
-// Register push token with user profile
+// Register push token with user profile — via API gateway
 export async function registerPushToken(userId: string): Promise<boolean> {
     try {
         const token = await getExpoPushToken();
         if (!token) return false;
 
-        const db = getFirebaseDb();
-        const userRef = doc(db, "users", userId);
-
-        await updateDoc(userRef, {
-            pushTokens: arrayUnion(token),
-            lastTokenUpdate: new Date().toISOString(),
+        await apiFetch("/api/v1/profiles", {
+            method: "PATCH",
+            body: JSON.stringify({
+                type: "user",
+                id: userId,
+                updates: {
+                    pushToken: token,
+                    lastTokenUpdate: new Date().toISOString(),
+                },
+            }),
+            requireAuth: true,
         });
 
         return true;
@@ -110,7 +113,6 @@ export async function scheduleEventReminder(
 ): Promise<string | null> {
     const reminderTime = new Date(eventDate.getTime() - hoursBeforeEvent * 60 * 60 * 1000);
 
-    // Don't schedule if reminder time has passed
     if (reminderTime <= new Date()) {
         return null;
     }
@@ -169,7 +171,7 @@ export async function setBadgeCount(count: number): Promise<void> {
 }
 
 /**
- * Refresh push token — only writes to Firestore if the token has changed since
+ * Refresh push token — only writes to API if the token has changed since
  * the last registration. Safe to call on every foreground resume and auth change.
  */
 export async function refreshPushToken(userId: string): Promise<void> {
@@ -180,10 +182,17 @@ export async function refreshPushToken(userId: string): Promise<void> {
         const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
         if (storedToken === newToken) return; // token unchanged — skip write
 
-        const db = getFirebaseDb();
-        await updateDoc(doc(db, "users", userId), {
-            pushTokens: arrayUnion(newToken),
-            lastTokenUpdate: new Date().toISOString(),
+        await apiFetch("/api/v1/profiles", {
+            method: "PATCH",
+            body: JSON.stringify({
+                type: "user",
+                id: userId,
+                updates: {
+                    pushToken: newToken,
+                    lastTokenUpdate: new Date().toISOString(),
+                },
+            }),
+            requireAuth: true,
         });
 
         await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);

@@ -1,0 +1,840 @@
+import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const ChatMessageBody = z.object({
+    eventId: z.string(),
+    text: z.string().optional(),
+    imageUrl: z.string().optional(),
+    videoUrl: z.string().optional(),
+    replyToId: z.string().optional(),
+    metadata: z.record(z.string(), z.any()).optional()
+}).strict();
+
+const ReportBody = z.object({
+    targetId: z.string(),
+    targetType: z.enum(['user', 'event', 'media', 'message']),
+    reason: z.string(),
+    details: z.string().optional()
+}).strict();
+
+const BlockBody = z.object({
+    targetUid: z.string()
+}).strict();
+
+export default async function socialRoutes(fastify: FastifyInstance) {
+    /**
+     * POST /api/v1/social/chat
+     * Send a message to an event group chat
+     */
+    fastify.post('/social/chat', {
+        preHandler: [fastify.validate({ body: ChatMessageBody })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        const { eventId, text, imageUrl, videoUrl, replyToId, metadata } = request.body;
+
+        try {
+            const message = {
+                eventId,
+                userId,
+                senderName: request.user.name || 'Anonymous',
+                senderPhoto: request.user.picture || '',
+                text: text || '',
+                imageUrl: imageUrl || null,
+                videoUrl: videoUrl || null,
+                replyToId: replyToId || null,
+                createdAt: new Date().toISOString(),
+                metadata: metadata || {}
+            };
+
+            const docRef = await fastify.db.collection("eventGroupMessages").add(message);
+            return { success: true, id: docRef.id, message };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/chat: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/entitlement/:eventId
+     * Check if current user has entitlement for event social features
+     */
+    fastify.get('/social/entitlement/:eventId', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId } = request.params;
+
+        try {
+            // 1. Check orders
+            const ordersSnap = await fastify.db.collection("orders")
+                .where("userId", "==", userId)
+                .where("eventId", "==", eventId)
+                .where("status", "in", ["confirmed", "checked_in"])
+                .limit(1)
+                .get();
+
+            if (!ordersSnap.empty) {
+                const order = ordersSnap.docs[0].data();
+                return {
+                    entitlement: {
+                        id: ordersSnap.docs[0].id,
+                        type: "ticket_purchased",
+                        status: "active",
+                        grantedAt: order.createdAt
+                    }
+                };
+            }
+
+            // 2. Check guestlist
+            const guestlistSnap = await fastify.db.collection("guestlist")
+                .where("userId", "==", userId)
+                .where("eventId", "==", eventId)
+                .where("status", "==", "approved")
+                .limit(1)
+                .get();
+
+            if (!guestlistSnap.empty) {
+                const entry = guestlistSnap.docs[0].data();
+                return {
+                    entitlement: {
+                        id: guestlistSnap.docs[0].id,
+                        type: "guestlist_approved",
+                        status: "active",
+                        grantedAt: entry.approvedAt || entry.createdAt
+                    }
+                };
+            }
+
+            return { entitlement: null };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/entitlement/:eventId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/can-dm
+     * Verify if current user can DM another user in context of an event
+     */
+    fastify.post('/social/can-dm', {
+        preHandler: [fastify.validate({ body: z.object({ recipientId: z.string(), eventId: z.string() }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { recipientId, eventId } = request.body;
+
+        try {
+            // 1. Check if recipient blocked sender
+            const blockSnap = await fastify.db.collection("userBlocks")
+                .where("blockerUid", "==", recipientId)
+                .where("blockedUid", "==", userId)
+                .limit(1)
+                .get();
+
+            if (!blockSnap.empty) {
+                return { allowed: false, reason: "Unable to message this user" };
+            }
+
+            // 2. Check if both have tickets/guestlist (Simplified)
+            // In a real scenario, you'd check both uids for confirmed orders for eventId
+            const [myEntitlement, theirEntitlement] = await Promise.all([
+                fastify.db.collection("orders").where("userId", "==", userId).where("eventId", "==", eventId).where("status", "==", "confirmed").limit(1).get(),
+                fastify.db.collection("orders").where("userId", "==", recipientId).where("eventId", "==", eventId).where("status", "==", "confirmed").limit(1).get(),
+            ]);
+
+            if (myEntitlement.empty) return { allowed: false, reason: "You need a ticket to message" };
+            if (theirEntitlement.empty) return { allowed: false, reason: "This user is not an attendee" };
+
+            return { allowed: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/can-dm: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/mute
+     * Mute a user in an event group chat
+     */
+    fastify.post('/social/mute', {
+        preHandler: [fastify.validate({ body: z.object({
+            eventId: z.string(),
+            targetUid: z.string(),
+            durationMinutes: z.number().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId, targetUid, durationMinutes = 60 } = request.body;
+
+        try {
+            // Verify permission (requester must be host/venue/admin)
+            await fastify.verifyPartnerAccess(request, eventId);
+
+            const mutedUntil = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
+            await fastify.db.collection("eventMutes").add({
+                eventId,
+                userId: targetUid,
+                mutedByUserId: userId,
+                mutedUntil,
+                createdAt: new Date().toISOString()
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/mute: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/is-muted/:eventId
+     */
+    fastify.get('/social/is-muted/:eventId', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId } = request.params;
+
+        try {
+            const snapshot = await fastify.db.collection("eventMutes")
+                .where("eventId", "==", eventId)
+                .where("userId", "==", userId)
+                .get();
+
+            const now = new Date();
+            const isMuted = snapshot.docs.some(doc => {
+                const mutedUntil = new Date(doc.data().mutedUntil);
+                return mutedUntil > now;
+            });
+
+            return { isMuted };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/is-muted/:eventId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/remove-from-chat
+     */
+    fastify.post('/social/remove-from-chat', {
+        preHandler: [fastify.validate({ body: z.object({
+            eventId: z.string(),
+            targetUid: z.string(),
+            reason: z.string().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId, targetUid, reason } = request.body;
+
+        try {
+            await fastify.verifyPartnerAccess(request, eventId);
+
+            await fastify.db.collection("eventChatRemovals").add({
+                eventId,
+                userId: targetUid,
+                removedByUserId: userId,
+                reason: reason || null,
+                createdAt: new Date().toISOString()
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/remove-from-chat: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/media/:eventId
+     * Fetch media for an event gallery
+     */
+    fastify.get('/social/media/:eventId', async (request: any, reply) => {
+        const { eventId } = request.params;
+        const { limit = 50 } = request.query;
+
+        try {
+            const snapshot = await fastify.db.collection("eventMedia")
+                .where("eventId", "==", eventId)
+                .where("isApproved", "==", true)
+                .orderBy("createdAt", "desc")
+                .limit(Number(limit))
+                .get();
+
+            const media = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { media };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/media/:eventId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/media
+     * Save media metadata after storage upload
+     */
+    fastify.post('/social/media', {
+        preHandler: [fastify.validate({ body: z.object({
+            eventId: z.string(),
+            mediaUrl: z.string(),
+            thumbnailUrl: z.string().optional(),
+            type: z.enum(['image', 'video']),
+            caption: z.string().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        const { eventId, mediaUrl, thumbnailUrl, type, caption } = request.body;
+
+        try {
+            const mediaData = {
+                eventId,
+                userId,
+                userName: request.user.name || 'Anonymous',
+                userAvatar: request.user.picture || '',
+                mediaUrl,
+                thumbnailUrl: thumbnailUrl || null,
+                type,
+                caption: caption || null,
+                likes: 0,
+                likedBy: [],
+                createdAt: new Date().toISOString(),
+                isApproved: true,
+                isFlagged: false
+            };
+
+            const docRef = await fastify.db.collection("eventMedia").add(mediaData);
+            return { success: true, id: docRef.id, media: mediaData };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/media: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/unblock
+     */
+    fastify.post('/social/unblock', {
+        preHandler: [fastify.validate({ body: z.object({ targetUid: z.string() }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { targetUid } = request.body;
+
+        try {
+            const snapshot = await fastify.db.collection("userBlocks")
+                .where("blockerUid", "==", userId)
+                .where("blockedUid", "==", targetUid)
+                .get();
+
+            const batch = fastify.db.batch();
+            snapshot.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/unblock: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/is-removed/:eventId
+     */
+    fastify.get('/social/is-removed/:eventId', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId } = request.params;
+
+        try {
+            const snapshot = await fastify.db.collection("eventChatRemovals")
+                .where("eventId", "==", eventId)
+                .where("userId", "==", userId)
+                .limit(1)
+                .get();
+
+            return { isRemoved: !snapshot.empty };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/is-removed/:eventId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/location/start
+     */
+    fastify.post('/social/location/start', {
+        preHandler: [fastify.validate({ body: z.object({
+            eventId: z.string().optional(),
+            latitude: z.number(),
+            longitude: z.number(),
+            durationHours: z.number().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId, latitude, longitude, durationHours = 4 } = request.body;
+
+        try {
+            const sessionId = `loc_${userId}_${Date.now()}`;
+            const expiresAt = new Date(Date.now() + durationHours * 60 * 60 * 1000).toISOString();
+            
+            await fastify.db.collection("locationSessions").doc(sessionId).set({
+                id: sessionId,
+                userId,
+                eventId: eventId || null,
+                sharedWith: [],
+                location: { latitude, longitude },
+                lastUpdate: new Date().toISOString(),
+                expiresAt,
+                isActive: true,
+                createdAt: new Date().toISOString()
+            });
+
+            return { success: true, sessionId };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/location/start: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * PATCH /api/v1/social/location/:id
+     */
+    fastify.patch('/social/location/:id', {
+        preHandler: [fastify.validate({ body: z.object({
+            latitude: z.number(),
+            longitude: z.number()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { id } = request.params;
+        const { latitude, longitude } = request.body;
+
+        try {
+            const docRef = fastify.db.collection("locationSessions").doc(id);
+            const doc = await docRef.get();
+            
+            if (!doc.exists || doc.data()?.userId !== userId) {
+                return reply.status(403).send({ error: "Forbidden" });
+            }
+
+            await docRef.update({
+                location: { latitude, longitude },
+                lastUpdate: new Date().toISOString()
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in PATCH /social/location/:id: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/sos
+     */
+    fastify.post('/social/sos', {
+        preHandler: [fastify.validate({ body: z.object({
+            eventId: z.string().optional(),
+            latitude: z.number().optional(),
+            longitude: z.number().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { eventId, latitude, longitude } = request.body;
+
+        try {
+            const sosRef = await fastify.db.collection("sosAlerts").add({
+                userId,
+                eventId: eventId || null,
+                location: (latitude && longitude) ? { latitude, longitude } : null,
+                status: "triggered",
+                triggeredAt: new Date().toISOString()
+            });
+
+            // Note: In production, trigger SMS/Push here
+            return { success: true, sosId: sosRef.id };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/sos: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/dm/requests
+     */
+    fastify.get('/social/dm/requests', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        try {
+            const snapshot = await fastify.db.collection("privateConversations")
+                .where("participants", "array-contains", userId)
+                .where("status", "==", "pending")
+                .get();
+
+            const requests = snapshot.docs
+                .filter(doc => doc.data().initiatedBy !== userId)
+                .map(doc => ({ id: doc.id, ...doc.data() }));
+
+            return { requests };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/dm/requests: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/dm/request
+     */
+    fastify.post('/social/dm/request', {
+        preHandler: [fastify.validate({ body: z.object({
+            recipientId: z.string(),
+            eventId: z.string()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { recipientId, eventId } = request.body;
+
+        try {
+            // Logic similar to initiateDMRequest
+            const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+            
+            const convoRef = await fastify.db.collection("privateConversations").add({
+                eventId,
+                participants: [userId, recipientId],
+                status: "pending",
+                initiatedBy: userId,
+                createdAt: new Date().toISOString(),
+                expiresAt,
+                isSaved: false
+            });
+
+            return { success: true, conversationId: convoRef.id };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/dm/request: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/dm/:id/accept
+     */
+    fastify.post('/social/dm/:id/accept', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        const { id } = request.params;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        try {
+            const docRef = fastify.db.collection("privateConversations").doc(id);
+            const doc = await docRef.get();
+            if (!doc.exists) return reply.status(404).send({ error: "Not found" });
+            
+            await docRef.update({
+                status: "accepted",
+                acceptedAt: new Date().toISOString()
+            });
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/dm/:id/accept: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/dm/:id/send
+     */
+    fastify.post('/social/dm/:id/send', {
+        preHandler: [fastify.validate({ body: z.object({
+            text: z.string().optional(),
+            imageUrl: z.string().optional()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        const { id } = request.params;
+        const { text, imageUrl } = request.body;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        try {
+            const convoRef = fastify.db.collection("privateConversations").doc(id);
+            const convoDoc = await convoRef.get();
+            if (!convoDoc.exists) return reply.status(404).send({ error: "Not found" });
+
+            const msgRef = await fastify.db.collection("directMessages").add({
+                conversationId: id,
+                senderId: userId,
+                content: text || imageUrl,
+                type: text ? "text" : "image",
+                createdAt: new Date().toISOString()
+            });
+
+            await convoRef.update({
+                lastMessage: {
+                    content: text || "📷 Photo",
+                    senderId: userId,
+                    createdAt: new Date().toISOString()
+                }
+            });
+
+            return { success: true, messageId: msgRef.id };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/dm/:id/send: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/dm/:id/messages
+     */
+    fastify.get('/social/dm/:id/messages', async (request: any, reply) => {
+        const { id } = request.params;
+        const { limit = 50 } = request.query;
+
+        try {
+            const snapshot = await fastify.db.collection("directMessages")
+                .where("conversationId", "==", id)
+                .orderBy("createdAt", "desc")
+                .limit(Number(limit))
+                .get();
+
+            const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { messages };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/dm/:id/messages: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/dm/:id
+     */
+    fastify.get('/social/dm/:id', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        const { id } = request.params;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        try {
+            const doc = await fastify.db.collection("privateConversations").doc(id).get();
+            if (!doc.exists) return reply.status(404).send({ error: "Not found" });
+            
+            const data = doc.data();
+            if (!data?.participants.includes(userId)) {
+                return reply.status(403).send({ error: "Forbidden" });
+            }
+
+            return { conversation: { id: doc.id, ...data } };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/dm/:id: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/typing
+     */
+    fastify.post('/social/typing', {
+        preHandler: [fastify.validate({ body: z.object({
+            chatId: z.string(),
+            chatType: z.enum(['group', 'dm']),
+            isTyping: z.boolean(),
+            userName: z.string()
+        }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        const { chatId, chatType, isTyping, userName } = request.body;
+
+        try {
+            const typingId = `${chatType}_${chatId}_${userId}`;
+            const docRef = fastify.db.collection("typingIndicators").doc(typingId);
+            
+            if (isTyping) {
+                await docRef.set({
+                    chatId,
+                    chatType,
+                    userId,
+                    userName,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                await docRef.delete();
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/typing: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/typing/:chatId
+     */
+    fastify.get('/social/typing/:chatId', async (request: any, reply) => {
+        const { chatId } = request.params;
+        
+        try {
+            const snapshot = await fastify.db.collection("typingIndicators")
+                .where("chatId", "==", chatId)
+                .get();
+
+            const typers = snapshot.docs.map(doc => doc.data());
+            return { typers };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/typing/:chatId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/chat/:eventId
+     * Fetch messages for an event (standard polling fallback)
+     */
+    fastify.get('/social/chat/:eventId', async (request: any, reply) => {
+        const { eventId } = request.params;
+        const { limit = 50, lastTimestamp } = request.query;
+
+        try {
+            let query = fastify.db.collection("eventGroupMessages")
+                .where("eventId", "==", eventId)
+                .orderBy("createdAt", "desc")
+                .limit(Number(limit));
+
+            if (lastTimestamp) {
+                query = query.startAfter(lastTimestamp);
+            }
+
+            const snapshot = await query.get();
+            const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+            return { messages: messages.reverse() };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/chat/:eventId: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/report
+     * Report a user, message, or media
+     */
+    fastify.post('/social/report', {
+        preHandler: [fastify.validate({ body: ReportBody })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        const { targetId, targetType, reason, details } = request.body;
+
+        try {
+            const reportId = await fastify.moderationService.reportItem({
+                reporterId: userId,
+                targetId,
+                targetType,
+                reason,
+                details: details || ''
+            });
+
+            return { success: true, reportId };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/report: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/block
+     * Block a user
+     */
+    fastify.post('/social/block', {
+        preHandler: [fastify.validate({ body: BlockBody })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        const { targetUid } = request.body;
+
+        try {
+            await fastify.db.collection("userBlocks").add({
+                blockerUid: userId,
+                blockedUid: targetUid,
+                createdAt: new Date().toISOString()
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /social/block: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/social/blocks
+     * Get list of users blocked by current user
+     */
+    fastify.get('/social/blocks', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+        try {
+            const snapshot = await fastify.db.collection("userBlocks")
+                .where("blockerUid", "==", userId)
+                .get();
+
+            const blocks = snapshot.docs.map(doc => doc.data().blockedUid);
+            return { blockedUserIds: blocks };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /social/blocks: ${error.message}`);
+            return reply.status(500).send({ error: "Internal Server Error" });
+        }
+    });
+
+    /**
+     * POST /api/v1/social/upload
+     * Proxy image uploads to Firebase Storage
+     */
+    fastify.post('/social/upload', async (request: any, reply: any) => {
+        try {
+            const result = await handleUpload(request, fastify);
+            return result;
+        } catch (error: any) {
+            fastify.log.error(`Upload failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Upload failed' });
+        }
+    });
+}
+
+/**
+ * Handle multipart image upload to Firebase Storage
+ */
+async function handleUpload(request: any, fastify: any) {
+    const data = await request.file();
+    if (!data) throw new Error('No file uploaded');
+
+    const bucket = fastify.firebase.storage().bucket();
+    const fileName = `uploads/${Date.now()}_${data.filename}`;
+    const file = bucket.file(fileName);
+
+    const stream = file.createWriteStream({
+        metadata: {
+            contentType: data.mimetype,
+        },
+        public: true,
+    });
+
+    await new Promise((resolve, reject) => {
+        data.file.pipe(stream)
+            .on('finish', resolve)
+            .on('error', reject);
+    });
+
+    const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+    return { url: publicUrl };
+}

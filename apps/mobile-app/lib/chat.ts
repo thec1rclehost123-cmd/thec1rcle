@@ -1,20 +1,5 @@
-// Event-based chat service
-import {
-    doc,
-    setDoc,
-    getDoc,
-    collection,
-    query,
-    where,
-    orderBy,
-    limit,
-    getDocs,
-    addDoc,
-    onSnapshot,
-    serverTimestamp,
-    Timestamp,
-} from "firebase/firestore";
-import { getFirebaseDb } from "./firebase";
+// Event-based chat service via API Gateway
+import { apiFetch } from "./api";
 
 export interface ChatMessage {
     id: string;
@@ -56,92 +41,44 @@ export interface DirectChat {
     createdAt: any;
 }
 
-// Check if user has ticket for event (required for chat access)
+/**
+ * Check if user has ticket for event (required for chat access)
+ * Proxied via Gateway
+ */
 export async function hasEventAccess(
     userId: string,
     eventId: string
 ): Promise<boolean> {
     try {
-        const db = getFirebaseDb();
-        const ordersQuery = query(
-            collection(db, "orders"),
-            where("userId", "==", userId),
-            where("eventId", "==", eventId),
-            where("status", "in", ["confirmed", "checked_in"])
-        );
-
-        const snapshot = await getDocs(ordersQuery);
-        return !snapshot.empty;
+        const response = await apiFetch<{ entitlement: any }>(`/api/v1/social/entitlement/${eventId}`);
+        return !!response.entitlement;
     } catch (error) {
-        console.error("Error checking event access:", error);
         return false;
     }
 }
 
-// Get or create event chat room
+/**
+ * Get or create event chat room via Gateway
+ */
 export async function getEventChat(
     eventId: string,
     userId: string
 ): Promise<{ chat: EventChat | null; error?: string }> {
-    console.log("[debug] getEventChat eventId:", eventId);
-    if (!eventId || typeof eventId !== "string") {
-        console.error("[Firestore] Invalid eventId in getEventChat:", eventId);
-        return { chat: null, error: "Invalid event ID" };
-    }
     try {
-        // First verify user has access
-        const hasAccess = await hasEventAccess(userId, eventId);
-        if (!hasAccess) {
-            return { chat: null, error: "You need a ticket to access this chat" };
-        }
-
-        const db = getFirebaseDb();
-        const chatId = `event_${eventId}`;
-        const chatRef = doc(db, "eventChats", chatId);
-        const chatDoc = await getDoc(chatRef);
-
-        if (chatDoc.exists()) {
-            // Add user to participants if not already
-            const data = chatDoc.data();
-            if (!data.participants.includes(userId)) {
-                await setDoc(chatRef, {
-                    ...data,
-                    participants: [...data.participants, userId],
-                    participantCount: data.participantCount + 1,
-                }, { merge: true });
-            }
-            return { chat: { id: chatDoc.id, ...data } as EventChat };
-        }
-
-        // Get event details
-        const eventRef = doc(db, "events", eventId);
-        const eventDoc = await getDoc(eventRef);
-
-        if (!eventDoc.exists()) {
-            return { chat: null, error: "Event not found" };
-        }
-
-        const eventData = eventDoc.data();
-
-        // Create new chat room
-        const newChat: Omit<EventChat, "id"> = {
-            eventId,
-            eventTitle: eventData.title,
-            eventDate: eventData.startDate,
-            participants: [userId],
-            participantCount: 1,
-            createdAt: serverTimestamp(),
-        };
-
-        await setDoc(chatRef, newChat);
-
-        return { chat: { id: chatId, ...newChat } as EventChat };
+        // We use the Gateway's group chat endpoint
+        const response = await apiFetch<any>(`/api/v1/social/group-chat/${eventId}`, {
+            method: "POST",
+            requireAuth: true
+        });
+        return { chat: response.chat };
     } catch (error: any) {
         return { chat: null, error: error.message };
     }
 }
 
-// Send message to event chat
+/**
+ * Send message to event chat via Gateway
+ */
 export async function sendEventMessage(
     eventChatId: string,
     senderId: string,
@@ -150,154 +87,84 @@ export async function sendEventMessage(
     senderAvatar?: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
-        const db = getFirebaseDb();
-
-        const message: Omit<ChatMessage, "id"> = {
-            eventChatId,
-            senderId,
-            senderName,
-            senderAvatar: senderAvatar || undefined,
-            content,
-            type: "text",
-            createdAt: serverTimestamp(),
-            readBy: [senderId],
-        };
-
-        const msgRef = await addDoc(collection(db, "eventMessages"), message);
-
-        // Update last message in chat
-        const chatRef = doc(db, "eventChats", eventChatId);
-        await setDoc(chatRef, {
-            lastMessage: {
-                content,
-                senderId,
-                senderName,
-                createdAt: serverTimestamp(),
-            },
-        }, { merge: true });
-
-        return { success: true, messageId: msgRef.id };
+        const eventId = eventChatId.replace("event_", "");
+        const response = await apiFetch<any>(`/api/v1/social/chat`, {
+            method: "POST",
+            body: JSON.stringify({
+                eventId,
+                text: content,
+            }),
+            requireAuth: true
+        });
+        return { success: true, messageId: response.id };
     } catch (error: any) {
         return { success: false, error: error.message };
     }
 }
 
-// Subscribe to event chat messages
+/**
+ * Subscribe to event chat messages via Polling (Gateway fallback)
+ */
 export function subscribeToEventMessages(
     eventChatId: string,
     onMessage: (messages: ChatMessage[]) => void,
     messageLimit: number = 50
 ): () => void {
-    const db = getFirebaseDb();
-    const messagesQuery = query(
-        collection(db, "eventMessages"),
-        where("eventChatId", "==", eventChatId),
-        orderBy("createdAt", "desc"),
-        limit(messageLimit)
-    );
+    let active = true;
+    const eventId = eventChatId.replace("event_", "");
 
-    return onSnapshot(messagesQuery, (snapshot) => {
-        const messages = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data(),
-        })) as ChatMessage[];
+    async function poll() {
+        if (!active) return;
+        try {
+            const response = await apiFetch<{ messages: ChatMessage[] }>(
+                `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,
+                { requireAuth: true }
+            );
+            if (active && response.messages) onMessage(response.messages);
+        } catch (e) {}
+    }
 
-        onMessage(messages.reverse()); // Reverse to show oldest first
-    });
+    poll();
+    const intervalId = setInterval(poll, 3000); // 3s poll for messages
+
+    return () => {
+        active = false;
+        clearInterval(intervalId);
+    };
 }
 
-// Get user's event chats (events they have tickets to)
+/**
+ * Get user's event chats via Gateway
+ */
 export async function getUserEventChats(
     userId: string
 ): Promise<EventChat[]> {
     try {
-        const db = getFirebaseDb();
-
-        // Get user's orders
-        const ordersQuery = query(
-            collection(db, "orders"),
-            where("userId", "==", userId),
-            where("status", "in", ["confirmed", "checked_in"])
-        );
-        const ordersSnap = await getDocs(ordersQuery);
-
-        const eventIds = ordersSnap.docs.map(doc => doc.data().eventId);
-
-        if (eventIds.length === 0) return [];
-
-        // Get chats for those events
-        const chats: EventChat[] = [];
-
-        for (const eventId of eventIds) {
-            const chatId = `event_${eventId}`;
-            const chatRef = doc(db, "eventChats", chatId);
-            const chatDoc = await getDoc(chatRef);
-
-            if (chatDoc.exists()) {
-                chats.push({ id: chatDoc.id, ...chatDoc.data() } as EventChat);
-            } else {
-                // Create placeholder chat info from order
-                const order = ordersSnap.docs.find(d => d.data().eventId === eventId)?.data();
-                if (order) {
-                    chats.push({
-                        id: chatId,
-                        eventId,
-                        eventTitle: order.eventTitle || "Event Chat",
-                        eventDate: order.eventDate,
-                        participants: [],
-                        participantCount: 0,
-                        createdAt: null,
-                    });
-                }
-            }
-        }
-
-        // Sort by event date (upcoming first)
-        return chats.sort((a, b) => {
-            const dateA = new Date(a.eventDate || 0);
-            const dateB = new Date(b.eventDate || 0);
-            return dateA.getTime() - dateB.getTime();
-        });
+        const response = await apiFetch<{ chats: EventChat[] }>("/api/v1/social/my-chats");
+        return response.chats || [];
     } catch (error) {
-        console.error("Error getting user chats:", error);
         return [];
     }
 }
 
-// Direct message between users (must have been at same event)
+/**
+ * Direct message between users via Gateway
+ */
 export async function startDirectChat(
     userId: string,
     otherUserId: string,
     eventId?: string
 ): Promise<{ chatId: string | null; error?: string }> {
     try {
-        const db = getFirebaseDb();
-
-        // Check if chat already exists
-        const existingQuery = query(
-            collection(db, "directChats"),
-            where("participants", "array-contains", userId)
-        );
-        const existingSnap = await getDocs(existingQuery);
-
-        const existingChat = existingSnap.docs.find(doc =>
-            doc.data().participants.includes(otherUserId)
-        );
-
-        if (existingChat) {
-            return { chatId: existingChat.id };
-        }
-
-        // Create new direct chat
-        const chatData: Omit<DirectChat, "id"> = {
-            participants: [userId, otherUserId],
-            eventId: eventId || undefined,
-            createdAt: serverTimestamp(),
-        };
-
-        const chatRef = await addDoc(collection(db, "directChats"), chatData);
-
-        return { chatId: chatRef.id };
+        const response = await apiFetch<any>("/api/v1/social/dm/request", {
+            method: "POST",
+            body: JSON.stringify({
+                recipientId: otherUserId,
+                eventId: eventId || "unknown"
+            }),
+            requireAuth: true
+        });
+        return { chatId: response.conversationId };
     } catch (error: any) {
         return { chatId: null, error: error.message };
     }

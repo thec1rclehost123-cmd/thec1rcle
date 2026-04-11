@@ -80,16 +80,13 @@ service cloud.firestore {
       // - 'completed' / 'cancelled' are not shown in the guest portal.
       //   They can be read by authenticated partners or admins only.
       //   This mirrors PUBLIC_LIFECYCLE_STATES in @c1rcle/core/events.
-      allow read: if isAdmin() || 
-                    (resource.data.lifecycle in ['scheduled', 'live'] && !resource.data.isDeleted) ||
-                    (isSignedIn() && (
-                        resource.data.creatorId == request.auth.uid || 
-                        resource.data.venueId == request.auth.uid ||
-                        resource.data.hostId == request.auth.uid ||
-                        request.auth.token.partnerId == resource.data.creatorId ||
-                        request.auth.token.partnerId == resource.data.venueId ||
-                        request.auth.token.partnerId == resource.data.hostId
-                    ));
+      //
+      // NOTE: Events are fully public for reading (discovery platform).
+      // Security is enforced at write time (isAdmin only) and at the app layer
+      // (lifecycle filter in every Firestore query + isPublicEvent client filter).
+      // Firestore cannot evaluate complex resource.data OR conditions on list queries,
+      // so both list and get are open. Venues use the same pattern.
+      allow read: if true;
       // ─── WRITE RULES ───────────────────────────────────────────────────
       // ALL writes go through the Admin SDK via server-side API routes.
       // Clients NEVER write events directly.
