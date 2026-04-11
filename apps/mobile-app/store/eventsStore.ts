@@ -89,14 +89,31 @@ export interface SearchFilters {
 const PUBLIC_LIFECYCLES = new Set(["scheduled", "live"]);
 
 function isPublicEvent(e: Event): boolean {
-    // Allow events with no lifecycle field (legacy data) but reject known non-public states
-    if (e.lifecycle && !PUBLIC_LIFECYCLES.has(e.lifecycle)) return false;
-    // Filter obvious test/garbage titles
-    const title = e.title ?? "";
-    if (title.length < 4) return false;
-    if (/^(test|check|ssjd|dummy|aaa|bbb|xxx)/i.test(title)) return false;
+    // Strictly mirror guest portal filterAndSortEvents from @c1rcle/core/event-engine:
+    // 1. lifecycle must be in PUBLIC_LIFECYCLE_STATES — no fallback for missing field
+    if (!e.lifecycle || !PUBLIC_LIFECYCLES.has(e.lifecycle)) return false;
+
+    // 2. Reject deleted events
+    if ((e as any).isDeleted === true) return false;
+
+    // 3. Exclude past events — normalize date-only strings (YYYY-MM-DD) to end-of-day
+    //    so today's events aren't filtered out (mirrors guest portal behaviour)
+    const nowIso = new Date().toISOString();
+    const end = e.endDate || e.startDate;
+    const endNormalized = end && end.length === 10 ? end + "T23:59:59.999Z" : end;
+    if (!endNormalized || endNormalized < nowIso) return false;
+
+    // 4. Basic title sanity check
+    if ((e.title ?? "").length < 2) return false;
+
     return true;
 }
+
+// Robust heat score extractor (mirrors Guest Portal logic)
+export function getHeatScore(e: Event): number {
+    return e.heatScore ?? (e as any).stats?.heatScore ?? 0;
+}
+
 
 interface EventsState {
     events: Event[];
@@ -177,9 +194,11 @@ export const useEventsStore = create<EventsState>((set, get) => ({
                 ? existing
                 : (await getDocs(collection(getDb(), "events"))).docs.map(serialiseDoc).filter(isPublicEvent);
 
-            const featured = all.filter((e) => e.isFeatured).sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0));
-            const byHeat = [...all].sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0));
-            const featuredEvents = (featured.length >= 3 ? featured : byHeat).slice(0, 10);
+            const featured = all.filter((e) => e.isFeatured).sort((a, b) => getHeatScore(b) - getHeatScore(a));
+            const byHeat = [...all].sort((a, b) => getHeatScore(b) - getHeatScore(a));
+            
+            // Sync with Guest Portal: prioritises isFeatured flag, fills with heat, limit 6
+            const featuredEvents = (featured.length >= 3 ? featured : byHeat).slice(0, 6);
             set({ featuredEvents, featuredLoading: false });
         } catch (error: any) {
             console.error("Error fetching featured events:", error);

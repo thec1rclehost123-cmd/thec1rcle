@@ -106,6 +106,14 @@ service cloud.firestore {
       }
     }
 
+    // --- ⏳ WAITLIST ---
+    match /waitlist/{entryId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
     // --- 🔖 RSVP / LIKES ---
     // Tracks which events users have saved (used by RSVP toggle and interested counts)
     match /likes/{likeId} {

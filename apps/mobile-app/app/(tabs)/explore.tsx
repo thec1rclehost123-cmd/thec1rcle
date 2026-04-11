@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Image } from "expo-image";
-import { useEventsStore, type Event } from "@/store/eventsStore";
+import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
 import { useRecommendationsStore } from "@/store/recommendationsStore";
 import { getEventImage } from "@/lib/utils/event";
 import { useTicketsStore } from "@/store/ticketsStore";
@@ -104,7 +104,7 @@ function applyDateFilter(events: Event[], filter: DateFilter): Event[] {
 
 function applySortTab(events: Event[], sort: SortTab): Event[] {
     const copy = [...events];
-    if (sort === "trending")  return copy.sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0));
+    if (sort === "trending")  return copy.sort((a, b) => getHeatScore(b) - getHeatScore(a));
     if (sort === "soonest")   return copy.sort((a, b) => getEventTime(a) - getEventTime(b));
     if (sort === "this-week") {
         const now = Date.now();
@@ -460,7 +460,7 @@ export default function ExploreScreen() {
     const heroSlides = useMemo(() => {
         const src = featuredEvents.length > 0 ? featuredEvents : allEvents;
         return [...src]
-            .sort((a, b) => (b.heatScore ?? 0) - (a.heatScore ?? 0))
+            .sort((a, b) => getHeatScore(b) - getHeatScore(a))
             .slice(0, 6);
     }, [featuredEvents, allEvents]);
 

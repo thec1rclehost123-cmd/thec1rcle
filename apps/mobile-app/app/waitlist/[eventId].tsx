@@ -10,11 +10,14 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { apiFetch } from "@/lib/api";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import { getFirestore, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
 import { Event, useEventsStore } from "@/store/eventsStore";
 import { colors, radii, gradients } from "@/lib/design/theme";
+
+function getDb() { return getFirestore(getFirebaseApp()); }
 
 export default function WaitlistScreen() {
     const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -45,10 +48,31 @@ export default function WaitlistScreen() {
     const checkWaitlistStatus = async () => {
         if (!eventId || !user?.email) return;
         try {
-            const res = await apiFetch<any>(`/api/v1/waitlist/status?eventId=${eventId}&email=${user.email}`, { requireAuth: true });
-            setAlreadyJoined(res.joined);
-            setPosition(res.position);
-            setTotalWaiting(res.totalWaiting);
+            const db = getDb();
+            const col = collection(db, "waitlist");
+
+            // Total waiting count
+            const totalSnap = await getDocs(
+                query(col, where("eventId", "==", eventId), where("status", "==", "waiting"))
+            );
+            setTotalWaiting(totalSnap.size);
+
+            // Check if this user is on the waitlist
+            const userSnap = await getDocs(
+                query(col, where("eventId", "==", eventId), where("email", "==", user.email), where("status", "==", "waiting"))
+            );
+
+            if (userSnap.empty) {
+                setAlreadyJoined(false);
+            } else {
+                setAlreadyJoined(true);
+                const userCreatedAt = userSnap.docs[0].data().createdAt;
+                // Position = docs created before this user + 1
+                const beforeSnap = await getDocs(
+                    query(col, where("eventId", "==", eventId), where("status", "==", "waiting"), where("createdAt", "<", userCreatedAt))
+                );
+                setPosition(beforeSnap.size + 1);
+            }
         } catch (e) {
             console.error("Error checking waitlist status:", e);
         } finally {
@@ -61,18 +85,17 @@ export default function WaitlistScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setJoining(true);
         try {
-            await apiFetch("/api/v1/waitlist/join", {
-                method: "POST",
-                body: JSON.stringify({
-                    eventId,
-                    userId: user.uid,
-                    email: user.email,
-                    phone: (user as any).phoneNumber ?? null,
-                }),
-                requireAuth: true
+            await addDoc(collection(getDb(), "waitlist"), {
+                eventId,
+                userId: user.uid,
+                email: user.email,
+                phone: (user as any).phoneNumber ?? null,
+                status: "waiting",
+                createdAt: serverTimestamp(),
             });
             await checkWaitlistStatus();
         } catch (err: any) {
+            console.error("Error joining waitlist:", err);
             await checkWaitlistStatus();
         } finally {
             setJoining(false);
