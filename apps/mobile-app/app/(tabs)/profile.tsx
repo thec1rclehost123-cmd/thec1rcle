@@ -471,6 +471,14 @@ export default function ProfileScreen() {
                             onPress={() => Alert.alert("Coming Soon", "Privacy settings will be available soon")}
                             delay={450}
                         />
+                        <View style={styles.menuDivider} />
+                        <MenuItem
+                            icon="✅"
+                            label="Get Verified"
+                            sublabel={profile?.isVerified ? "Your profile is verified" : "Add a blue checkmark to your profile"}
+                            onPress={() => router.push("/verification" as any)}
+                            delay={475}
+                        />
                     </View>
 
                     {/* Tickets Section */}

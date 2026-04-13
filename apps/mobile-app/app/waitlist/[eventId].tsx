@@ -11,6 +11,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { apiFetch } from "@/lib/api";
 import { getFirebaseApp } from "@/lib/firebase/client";
 import { getFirestore, collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 import { useAuthStore } from "@/store/authStore";
@@ -48,33 +49,59 @@ export default function WaitlistScreen() {
     const checkWaitlistStatus = async () => {
         if (!eventId || !user?.email) return;
         try {
-            const db = getDb();
-            const col = collection(db, "waitlist");
+            // Priority 1: API Gateway (Centralized logic)
+            const data = await apiFetch(`/api/v1/waitlist/status?eventId=${eventId}&email=${user.email}`, {
+                requireAuth: true
+            });
 
-            // Total waiting count
-            const totalSnap = await getDocs(
-                query(col, where("eventId", "==", eventId), where("status", "==", "waiting"))
-            );
-            setTotalWaiting(totalSnap.size);
-
-            // Check if this user is on the waitlist
-            const userSnap = await getDocs(
-                query(col, where("eventId", "==", eventId), where("email", "==", user.email), where("status", "==", "waiting"))
-            );
-
-            if (userSnap.empty) {
-                setAlreadyJoined(false);
-            } else {
+            if (data.joined) {
                 setAlreadyJoined(true);
-                const userCreatedAt = userSnap.docs[0].data().createdAt;
-                // Position = docs created before this user + 1
-                const beforeSnap = await getDocs(
-                    query(col, where("eventId", "==", eventId), where("status", "==", "waiting"), where("createdAt", "<", userCreatedAt))
-                );
-                setPosition(beforeSnap.size + 1);
+                setPosition(data.position);
+            } else {
+                setAlreadyJoined(false);
+                setPosition(null);
             }
-        } catch (e) {
-            console.error("Error checking waitlist status:", e);
+            setTotalWaiting(data.totalWaiting || 0);
+        } catch (e: any) {
+            // Priority 2: Fallback to direct Firestore if API is unreachable (Network request failed)
+            if (e.message?.includes("Network request failed")) {
+                console.warn("[Waitlist] API Gateway unreachable, falling back to direct Firestore.");
+                try {
+                    const db = getDb();
+                    const col = collection(db, "waitlist");
+                    
+                    // Fetch all docs for this eventId (simple query, no composite index needed)
+                    const snap = await getDocs(query(col, where("eventId", "==", eventId)));
+                    const allEntries = snap.docs.map(d => ({ id: d.id, ...d.data() } as any));
+                    
+                    // Filter for "waiting" status in JS
+                    const waitingEntries = allEntries
+                        .filter((entry: any) => entry.status === "waiting")
+                        .sort((a: any, b: any) => {
+                            const timeA = a.createdAt?.toMillis?.() || 0;
+                            const timeB = b.createdAt?.toMillis?.() || 0;
+                            return timeA - timeB;
+                        });
+
+                    setTotalWaiting(waitingEntries.length);
+
+                    const userEntry = waitingEntries.find((entry: any) => entry.email === user.email);
+                    
+                    if (userEntry) {
+                        setAlreadyJoined(true);
+                        // Position is the index in the sorted array + 1
+                        const userIndex = waitingEntries.findIndex((entry: any) => entry.id === userEntry.id);
+                        setPosition(userIndex + 1);
+                    } else {
+                        setAlreadyJoined(false);
+                        setPosition(null);
+                    }
+                } catch (fsErr: any) {
+                    console.error("[Waitlist] Firestore fallback failed:", fsErr);
+                }
+            } else {
+                console.error("Error checking waitlist status:", e);
+            }
         } finally {
             setChecking(false);
         }
@@ -85,18 +112,36 @@ export default function WaitlistScreen() {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         setJoining(true);
         try {
-            await addDoc(collection(getDb(), "waitlist"), {
-                eventId,
-                userId: user.uid,
-                email: user.email,
-                phone: (user as any).phoneNumber ?? null,
-                status: "waiting",
-                createdAt: serverTimestamp(),
+            // Try API first
+            await apiFetch(`/api/v1/waitlist/join`, {
+                method: "POST",
+                body: JSON.stringify({
+                    eventId,
+                    userId: user.uid,
+                    email: user.email,
+                    phone: (user as any).phoneNumber ?? null,
+                })
             });
             await checkWaitlistStatus();
         } catch (err: any) {
-            console.error("Error joining waitlist:", err);
-            await checkWaitlistStatus();
+            if (err.message?.includes("Network request failed")) {
+                // Fallback to direct Firestore join
+                try {
+                    await addDoc(collection(getDb(), "waitlist"), {
+                        eventId,
+                        userId: user.uid,
+                        email: user.email,
+                        phone: (user as any).phoneNumber ?? null,
+                        status: "waiting",
+                        createdAt: serverTimestamp(),
+                    });
+                    await checkWaitlistStatus();
+                } catch (fsErr) {
+                    console.error("Error joining waitlist via Firestore:", fsErr);
+                }
+            } else {
+                console.error("Error joining waitlist:", err);
+            }
         } finally {
             setJoining(false);
         }
@@ -115,20 +160,24 @@ export default function WaitlistScreen() {
                 {checking ? (
                     <ActivityIndicator color={colors.iris} size="large" />
                 ) : alreadyJoined ? (
-                    <Animated.View entering={FadeInDown.springify()} style={styles.card}>
-                        <View style={styles.positionCircle}><Text style={styles.positionNumber}>#{position ?? "—"}</Text></View>
-                        <Text style={styles.cardTitle}>You're on the list</Text>
-                        <Text style={styles.cardSubtitle}>You're #{position} of {totalWaiting} people waiting.</Text>
-                        <View style={styles.infoRow}><Text style={styles.infoText}>Notification will be sent to {user?.email}</Text></View>
+                    <Animated.View entering={FadeInDown.springify()}>
+                        <View style={styles.card}>
+                            <View style={styles.positionCircle}><Text style={styles.positionNumber}>#{position ?? "—"}</Text></View>
+                            <Text style={styles.cardTitle}>You're on the list</Text>
+                            <Text style={styles.cardSubtitle}>You're #{position} of {totalWaiting} people waiting.</Text>
+                            <View style={styles.infoRow}><Text style={styles.infoText}>Notification will be sent to {user?.email}</Text></View>
+                        </View>
                     </Animated.View>
                 ) : (
-                    <Animated.View entering={FadeInDown.springify()} style={styles.card}>
-                        <Text style={styles.soldOutBadge}>SOLD OUT</Text>
-                        <Text style={styles.cardTitle}>{event?.title ?? "Event"}</Text>
-                        <Text style={styles.cardSubtitle}>{totalWaiting > 0 ? `${totalWaiting} people are already waiting.` : "Tickets are sold out."}</Text>
-                        <View style={styles.howItWorks}>
-                            <Text style={styles.howTitle}>How it works</Text>
-                            <Text style={styles.howText}>1. Join the list. 2. We'll notify you when a spot opens. 3. Buy within 15 mins.</Text>
+                    <Animated.View entering={FadeInDown.springify()}>
+                        <View style={styles.card}>
+                            <Text style={styles.soldOutBadge}>SOLD OUT</Text>
+                            <Text style={styles.cardTitle}>{event?.title ?? "Event"}</Text>
+                            <Text style={styles.cardSubtitle}>{totalWaiting > 0 ? `${totalWaiting} people are already waiting.` : "Tickets are sold out."}</Text>
+                            <View style={styles.howItWorks}>
+                                <Text style={styles.howTitle}>How it works</Text>
+                                <Text style={styles.howText}>1. Join the list. 2. We'll notify you when a spot opens. 3. Buy within 15 mins.</Text>
+                            </View>
                         </View>
                     </Animated.View>
                 )}

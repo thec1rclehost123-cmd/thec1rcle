@@ -195,9 +195,12 @@ service cloud.firestore {
 
     // --- 🔔 PARTNER NOTIFICATIONS ---
 
-    // Notifications: Real-time alerts for venue/host/promoter partners
+    // Notifications: Real-time alerts for venue/host/promoter partners and consumer users
     match /notifications/{notifId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.targetId == request.auth.token.partnerId);
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.targetId == request.auth.token.partnerId ||
+        resource.data.targetId == request.auth.uid
+      ));
       allow write: if false; // Created and updated only by server-side Admin SDK
     }
 
@@ -301,6 +304,49 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isSignedIn(); // Backend creates on checkout
       allow update, delete: if false; // Redemptions are immutable
+    }
+
+    // --- ❤️ DATING / MATCHING LAYER ---
+
+    // User Likes (swipe right)
+    match /userLikes/{likeId} {
+      allow read: if isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update, delete: if false; // Likes are immutable
+    }
+
+    // User Passes (swipe left — kept to avoid reshowing profiles)
+    match /userPasses/{passId} {
+      allow read: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Mutual Matches
+    match /userMatches/{matchId} {
+      allow read: if isSignedIn() && (
+        resource.data.user1Id == request.auth.uid ||
+        resource.data.user2Id == request.auth.uid
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.user1Id == request.auth.uid ||
+        request.resource.data.user2Id == request.auth.uid
+      );
+      allow update: if isSignedIn() && (
+        resource.data.user1Id == request.auth.uid ||
+        resource.data.user2Id == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    // Verification Requests
+    match /verificationRequests/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isAdmin();
     }
 
     // --- 💬 EVENT SOCIAL LAYER ---

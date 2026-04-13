@@ -10,13 +10,18 @@ import {
     StyleSheet,
     Dimensions,
     Modal,
+    DeviceEventEmitter,
+    type NativeScrollEvent,
+    type NativeSyntheticEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { Image } from "expo-image";
+import MapView, { PROVIDER_DEFAULT } from "react-native-maps";
 import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
 import { useRecommendationsStore } from "@/store/recommendationsStore";
+import { useProfileStore } from "@/store/profileStore";
 import { getEventImage } from "@/lib/utils/event";
 import { useTicketsStore } from "@/store/ticketsStore";
 import { cacheEvents, getCachedEvents, updateLastSyncTime } from "@/lib/cache";
@@ -25,41 +30,48 @@ import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
-    withTiming,
-    withRepeat,
-    withSequence,
     FadeInDown,
     FadeInRight,
     FadeIn,
-    runOnJS,
 } from "react-native-reanimated";
-import { colors, radii, shadows } from "@/lib/design/theme";
+import { colors } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { trackScreen } from "@/lib/analytics";
 import { formatEventDate, safeDate } from "@/lib/utils/date";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const CAROUSEL_CARD_WIDTH = SCREEN_WIDTH * 0.72;
-const GRID_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2; // 2-column grid
+const HERO_CARD_WIDTH = SCREEN_WIDTH - 64;
+const FOR_YOU_CARD_WIDTH = SCREEN_WIDTH * 0.78;
+const FOR_YOU_CARD_HEIGHT = 220;
+const GRID_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 const PURE_BLACK = "#000000";
 
-// ── Sort tabs — mirrors guest portal sortTabs ──────────────────────────────────
-const SORT_TABS = [
-    { id: "trending", label: "Trending" },
-    { id: "soonest",  label: "Soonest" },
-    { id: "this-week", label: "This Week" },
-    { id: "price-low", label: "Price ↑" },
-] as const;
-type SortTab = typeof SORT_TABS[number]["id"];
+const DEFAULT_MAP_REGION = {
+    latitude: 19.076,
+    longitude: 72.8777,
+    latitudeDelta: 0.15,
+    longitudeDelta: 0.15,
+};
 
-// ── Date filters ───────────────────────────────────────────────────────────────
+// ── Date filter pills ─────────────────────────────────────────────────────────
 const DATE_FILTERS = [
-    { id: "any",      label: "Any Date" },
-    { id: "today",    label: "Today" },
-    { id: "weekend",  label: "Weekend" },
+    { id: "tonight",   label: "Tonight" },
+    { id: "weekend",   label: "Weekend" },
     { id: "this-week", label: "This Week" },
 ] as const;
 type DateFilter = typeof DATE_FILTERS[number]["id"];
+
+// ── Category filter pills ─────────────────────────────────────────────────────
+const CATEGORY_FILTERS = [
+    { id: "all",      label: "All" },
+    { id: "club",     label: "Clubbing" },
+    { id: "concert",  label: "Concerts" },
+    { id: "festival", label: "Festivals" },
+    { id: "party",    label: "Parties" },
+    { id: "brunch",   label: "Brunch" },
+    { id: "comedy",   label: "Comedy" },
+] as const;
+type CategoryFilter = typeof CATEGORY_FILTERS[number]["id"];
 
 // ── Category config ────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -72,24 +84,25 @@ const CATEGORIES = [
     { id: "music",    label: "Music",        emoji: "🎵", keywords: ["music"] },
 ] as const;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 function getLowestPrice(event: Event): number {
     if (!event.tickets?.length) return 0;
     return event.tickets.reduce((min, t) => (t.price < min ? t.price : min), event.tickets[0].price);
 }
 
-function getEventTime(event: Event): number {
-    const d = safeDate(event.startDate);
-    return d ? d.getTime() : Number.MAX_SAFE_INTEGER;
+function getGreeting(): string {
+    const h = new Date().getHours();
+    if (h < 12) return "Good Morning";
+    if (h < 17) return "Good Afternoon";
+    return "Good Evening";
 }
 
 function applyDateFilter(events: Event[], filter: DateFilter): Event[] {
-    if (filter === "any") return events;
     const now = new Date();
     return events.filter((e) => {
         const d = safeDate(e.startDate);
         if (!d) return false;
-        if (filter === "today") return d.toDateString() === now.toDateString();
+        if (filter === "tonight") return d.toDateString() === now.toDateString();
         if (filter === "this-week") {
             const weekAhead = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
             return d >= now && d <= weekAhead;
@@ -102,27 +115,6 @@ function applyDateFilter(events: Event[], filter: DateFilter): Event[] {
     });
 }
 
-function applySortTab(events: Event[], sort: SortTab): Event[] {
-    const copy = [...events];
-    if (sort === "trending")  return copy.sort((a, b) => getHeatScore(b) - getHeatScore(a));
-    if (sort === "soonest")   return copy.sort((a, b) => getEventTime(a) - getEventTime(b));
-    if (sort === "this-week") {
-        const now = Date.now();
-        const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
-        return copy.sort((a, b) => {
-            const ta = getEventTime(a), tb = getEventTime(b);
-            const aIn = ta >= now && ta <= weekAhead;
-            const bIn = tb >= now && tb <= weekAhead;
-            if (aIn && !bIn) return -1;
-            if (!aIn && bIn) return 1;
-            return ta - tb;
-        });
-    }
-    if (sort === "price-low") return copy.sort((a, b) => getLowestPrice(a) - getLowestPrice(b));
-    return copy;
-}
-
-// Match events to a category flexibly (category field OR tags OR title keywords)
 function matchCategory(event: Event, keywords: readonly string[]): boolean {
     const cat = (event.category ?? event.type ?? "").toLowerCase();
     const tags = (event.tags ?? []).map((t: string) => t.toLowerCase());
@@ -130,78 +122,53 @@ function matchCategory(event: Event, keywords: readonly string[]): boolean {
     return keywords.some((kw) => cat.includes(kw) || tags.some((t) => t.includes(kw)) || title.includes(kw));
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────────
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-
-function PulseDot() {
-    const scale = useSharedValue(1);
-    useEffect(() => {
-        scale.value = withRepeat(
-            withSequence(withTiming(1.4, { duration: 600 }), withTiming(1, { duration: 600 })),
-            -1, false
-        );
-    }, []);
-    return <Animated.View style={[styles.pulseDot, useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }))]} />;
+function applyCategoryFilter(events: Event[], category: CategoryFilter): Event[] {
+    if (category === "all") return events;
+    const cat = CATEGORIES.find((c) => c.id === category);
+    if (!cat) return events;
+    return events.filter((e) => matchCategory(e, cat.keywords));
 }
 
-function SearchTrigger() {
+// ── AnimatedPressable ──────────────────────────────────────────────────────────
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+
+// ── Profile Avatar (header) ────────────────────────────────────────────────────
+function HeaderProfileAvatar() {
+    const profile = useProfileStore((s) => s.profile);
+    const initials = profile?.displayName
+        ? profile.displayName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
+        : "ME";
+
     return (
         <Pressable
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push("/search"); }}
-            style={styles.searchTrigger}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push("/(tabs)/profile");
+            }}
+            style={styles.avatarRing}
         >
-            <Text style={styles.searchIcon}>🔍</Text>
-            <Text style={styles.searchPlaceholder}>Search events, venues, artists…</Text>
+            {profile?.photoURL ? (
+                <Image
+                    source={{ uri: profile.photoURL }}
+                    style={styles.avatarImage}
+                    contentFit="cover"
+                />
+            ) : (
+                <View style={styles.avatarFallback}>
+                    <Text style={styles.avatarInitials}>{initials}</Text>
+                </View>
+            )}
         </Pressable>
     );
 }
 
-// ── Featured Carousel — auto-slides like guest portal hero ────────────────────
-function FeaturedCarousel({ events }: { events: Event[] }) {
-    const [active, setActive] = useState(0);
-    const activeRef = useRef(0);
-    const opacity = useSharedValue(1);
-
-    useEffect(() => {
-        if (events.length < 2) return;
-        const id = setInterval(() => {
-            const next = (activeRef.current + 1) % events.length;
-            const swap = () => {
-                activeRef.current = next;
-                setActive(next);
-                opacity.value = withTiming(1, { duration: 400 });
-            };
-            opacity.value = withTiming(0, { duration: 300 }, () => {
-                runOnJS(swap)();
-            });
-        }, 4000);
-        return () => clearInterval(id);
-    }, [events.length]);
-
-    const fadeStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
-
-    if (!events.length) return null;
-
-    return (
-        <View style={styles.heroSection}>
-            <Animated.View style={fadeStyle}>
-                <HeroSlide event={events[active]} />
-            </Animated.View>
-            {events.length > 1 && (
-                <View style={styles.heroDots}>
-                    {events.map((_, i) => (
-                        <View key={i} style={[styles.heroDot, i === active && styles.heroDotActive]} />
-                    ))}
-                </View>
-            )}
-        </View>
-    );
-}
-
+// ── Hero slide card ────────────────────────────────────────────────────────────
 function HeroSlide({ event }: { event: Event }) {
     const scale = useSharedValue(1);
     const img = getEventImage(event);
     const price = getLowestPrice(event);
+    const isFree = price === 0;
+    const isSoldOut = (event as any).soldOut ?? false;
 
     return (
         <AnimatedPressable
@@ -219,124 +186,166 @@ function HeroSlide({ event }: { event: Event }) {
                 <LinearGradient colors={["#2D1A14", "#1A0A0A", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
             )}
             <LinearGradient
-                colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.92)"]}
-                locations={[0, 0.5, 1]}
+                colors={["transparent", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.92)"]}
+                locations={[0.35, 0.65, 1]}
                 style={StyleSheet.absoluteFillObject}
             />
-            {/* FEATURED badge */}
-            <View style={styles.heroBadgeWrap}>
-                <LinearGradient colors={["#F44A22", "#FF6B4A"]} style={styles.heroBadge}>
-                    <Text style={styles.heroBadgeText}>FEATURED</Text>
-                </LinearGradient>
-            </View>
             {event.category && (
-                <View style={styles.heroCatPill}>
-                    <Text style={styles.heroCatText}>{event.category.toUpperCase()}</Text>
+                <View style={styles.heroCatTag}>
+                    <Text style={styles.heroCatTagText}>{event.category.toUpperCase()}</Text>
                 </View>
             )}
             <View style={styles.heroContent}>
                 <Text style={styles.heroTitle} numberOfLines={2}>{event.title}</Text>
-                <Text style={styles.heroVenue} numberOfLines={1}>📍 {event.venue ?? event.location ?? "TBA"}</Text>
+                <Text style={styles.heroVenueLine} numberOfLines={1}>
+                    {event.venue ?? event.location ?? "TBA"}
+                    {event.startDate ? ` • ${formatEventDate(event.startDate)}` : ""}
+                </Text>
                 <View style={styles.heroFooter}>
-                    <Text style={styles.heroDate}>{formatEventDate(event.startDate)}</Text>
-                    <View style={styles.heroPricePill}>
-                        <Text style={styles.heroPriceText}>
-                            {price === 0 ? "Free" : `from ₹${price.toLocaleString("en-IN")}`}
-                        </Text>
-                    </View>
+                    <Text style={styles.heroPriceLabel}>
+                        {isSoldOut ? "Sold Out" : (isFree ? "Free" : `₹${price.toLocaleString("en-IN")}`)}
+                    </Text>
+                    <Pressable
+                        style={[styles.heroCtaBtn, isSoldOut && styles.heroCtaBtnSoldOut]}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                            router.push({ pathname: "/event/[id]", params: { id: event.id } });
+                        }}
+                    >
+                        <Text style={styles.heroCtaText}>{isSoldOut ? "Sold Out" : "Get Tickets"}</Text>
+                    </Pressable>
                 </View>
-                {/* Get Tickets CTA — matches guest portal */}
-                <Pressable
-                    style={styles.heroCtaBtn}
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        router.push({ pathname: "/event/[id]", params: { id: event.id } });
-                    }}
-                >
-                    <Text style={styles.heroCtaText}>Get Tickets →</Text>
-                </Pressable>
             </View>
         </AnimatedPressable>
     );
 }
 
-// ── Sort Tab Row ───────────────────────────────────────────────────────────────
-function SortTabRow({ active, onChange }: { active: SortTab; onChange: (v: SortTab) => void }) {
+function FeaturedCarousel({ events }: { events: Event[] }) {
+    if (!events.length) return null;
     return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.sortTabContent}>
-            {SORT_TABS.map((t) => (
+        <View style={styles.heroSection}>
+            <FlatList
+                data={events}
+                horizontal
+                keyExtractor={(e) => e.id}
+                snapToInterval={HERO_CARD_WIDTH + 12}
+                decelerationRate="fast"
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.heroCarouselContent}
+                renderItem={({ item }) => <HeroSlide event={item} />}
+            />
+        </View>
+    );
+}
+
+// ── Category filter pills ─────────────────────────────────────────────────────
+function CategoryFilterRow({ active, onChange }: { active: CategoryFilter; onChange: (v: CategoryFilter) => void }) {
+    return (
+        <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.catFilterContent}
+            style={styles.catFilterRow}
+        >
+            {CATEGORY_FILTERS.map((f) => (
                 <Pressable
-                    key={t.id}
-                    onPress={() => { Haptics.selectionAsync(); onChange(t.id); }}
-                    style={[styles.sortTab, active === t.id && styles.sortTabActive]}
+                    key={f.id}
+                    onPress={() => { Haptics.selectionAsync(); onChange(f.id); }}
+                    style={[styles.catFilterPill, active === f.id && styles.catFilterPillActive]}
                 >
-                    <Text style={[styles.sortTabText, active === t.id && styles.sortTabTextActive]}>{t.label}</Text>
+                    <Text style={[styles.catFilterText, active === f.id && styles.catFilterTextActive]}>
+                        {f.label}
+                    </Text>
                 </Pressable>
             ))}
         </ScrollView>
     );
 }
 
-// ── Date filter pills ──────────────────────────────────────────────────────────
+// ── Date filter pills ─────────────────────────────────────────────────────────
 function DateFilterRow({ active, onChange }: { active: DateFilter; onChange: (v: DateFilter) => void }) {
     return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRowContent} style={styles.filterRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRowContent}>
             {DATE_FILTERS.map((f) => (
                 <Pressable
                     key={f.id}
                     onPress={() => { Haptics.selectionAsync(); onChange(f.id); }}
                     style={[styles.filterPill, active === f.id && styles.filterPillActive]}
                 >
-                    <Text style={[styles.filterPillText, active === f.id && styles.filterPillTextActive]}>{f.label}</Text>
+                    <Text style={[styles.filterPillText, active === f.id && styles.filterPillTextActive]}>
+                        {f.label}
+                    </Text>
                 </Pressable>
             ))}
         </ScrollView>
     );
 }
 
-// ── Carousel card (For You + Category sections) ────────────────────────────────
-function CarouselCard({ event, index }: { event: Event; index: number }) {
+// ── For You / Similar to you — large card ─────────────────────────────────────
+function LargeEventCard({ event, index }: { event: Event; index: number }) {
     const scale = useSharedValue(1);
     const price = getLowestPrice(event);
     const img = getEventImage(event);
+    const isSoldOut = (event as any).soldOut ?? false;
+    const isFree = price === 0;
 
     return (
         <Animated.View
             entering={FadeInRight.delay(index * 50).springify().damping(18)}
-            style={[useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })), styles.carouselCard]}
+            style={[useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })), styles.largeCard]}
         >
             <AnimatedPressable
                 onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); }}
                 onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: "/event/[id]", params: { id: event.id } }); }}
+                onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: "/event/[id]", params: { id: event.id } });
+                }}
                 style={{ flex: 1 }}
             >
-                <View style={styles.carouselImgWrap}>
+                {/* Full bleed image */}
+                <View style={styles.largeCardImg}>
                     {img ? (
                         <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={300} />
                     ) : (
                         <LinearGradient colors={["#2D1A14", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
                     )}
-                    <LinearGradient colors={["transparent", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFillObject} />
+                    <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.88)"]}
+                        locations={[0.45, 1]}
+                        style={StyleSheet.absoluteFillObject}
+                    />
+                    {/* SOLD OUT banner */}
+                    {isSoldOut && (
+                        <View style={styles.largeCardSoldOut}>
+                            <Text style={styles.largeCardSoldOutText}>SOLD OUT</Text>
+                        </View>
+                    )}
                 </View>
-                <View style={styles.carouselBody}>
-                    <Text style={styles.carouselTitle} numberOfLines={2}>{event.title}</Text>
-                    <Text style={styles.carouselVenue} numberOfLines={1}>{event.venue ?? event.location ?? ""}</Text>
-                    <View style={styles.carouselMeta}>
-                        <Text style={styles.carouselDate}>{formatEventDate(event.startDate)}</Text>
-                        {price > 0 && <Text style={styles.carouselPrice}>₹{price.toLocaleString("en-IN")}</Text>}
+                {/* Info row */}
+                <View style={styles.largeCardBody}>
+                    <View style={styles.largeCardInfo}>
+                        <Text style={styles.largeCardTitle} numberOfLines={1}>{event.title}</Text>
+                        <Text style={styles.largeCardVenue} numberOfLines={1}>
+                            {event.venue ?? event.location ?? ""}
+                            {event.startDate ? ` • ${formatEventDate(event.startDate)}` : ""}
+                        </Text>
                     </View>
+                    <Text style={styles.largeCardPrice}>
+                        {isSoldOut ? "Sold Out" : (isFree ? "Free" : `₹${price.toLocaleString("en-IN")}`)}
+                    </Text>
                 </View>
             </AnimatedPressable>
         </Animated.View>
     );
 }
 
-// ── Grid card — 2-col layout for "All Events" section ─────────────────────────
+// ── Grid card ─────────────────────────────────────────────────────────────────
 function GridCard({ event, index }: { event: Event; index: number }) {
     const scale = useSharedValue(1);
     const price = getLowestPrice(event);
     const img = getEventImage(event);
+    const isSoldOut = (event as any).soldOut ?? false;
 
     return (
         <Animated.View
@@ -346,7 +355,10 @@ function GridCard({ event, index }: { event: Event; index: number }) {
             <AnimatedPressable
                 onPressIn={() => { scale.value = withSpring(0.96, { damping: 15, stiffness: 400 }); }}
                 onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: "/event/[id]", params: { id: event.id } }); }}
+                onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: "/event/[id]", params: { id: event.id } });
+                }}
                 style={{ flex: 1 }}
             >
                 <View style={styles.gridImgWrap}>
@@ -356,8 +368,13 @@ function GridCard({ event, index }: { event: Event; index: number }) {
                         <LinearGradient colors={["#2D1A14", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
                     )}
                     <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} locations={[0.3, 1]} style={StyleSheet.absoluteFillObject} />
-                    {price === 0 && (
+                    {/* FREE badge */}
+                    {price === 0 && !isSoldOut && (
                         <View style={styles.gridFreeBadge}><Text style={styles.gridFreeBadgeText}>FREE</Text></View>
+                    )}
+                    {/* SOLD OUT overlay */}
+                    {isSoldOut && (
+                        <View style={styles.gridSoldOut}><Text style={styles.gridSoldOutText}>SOLD OUT</Text></View>
                     )}
                 </View>
                 <View style={styles.gridBody}>
@@ -365,7 +382,7 @@ function GridCard({ event, index }: { event: Event; index: number }) {
                     <Text style={styles.gridVenue} numberOfLines={1}>{event.venue ?? event.location ?? ""}</Text>
                     <View style={styles.gridFooter}>
                         <Text style={styles.gridDate}>{formatEventDate(event.startDate)}</Text>
-                        {price > 0 && <Text style={styles.gridPrice}>₹{price.toLocaleString("en-IN")}</Text>}
+                        {price > 0 && !isSoldOut && <Text style={styles.gridPrice}>₹{price.toLocaleString("en-IN")}</Text>}
                     </View>
                 </View>
             </AnimatedPressable>
@@ -374,54 +391,65 @@ function GridCard({ event, index }: { event: Event; index: number }) {
 }
 
 // ── Section header ─────────────────────────────────────────────────────────────
-function SectionHeader({ title, emoji, onViewAll }: { title: string; emoji: string; onViewAll?: () => void }) {
+function SectionHeader({
+    title,
+    onViewAll,
+    viewAllLabel = "See All",
+}: {
+    title: string;
+    onViewAll?: () => void;
+    viewAllLabel?: string;
+}) {
     return (
         <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleRow}>
-                <Text style={styles.sectionEmoji}>{emoji}</Text>
-                <Text style={styles.sectionTitle}>{title}</Text>
-            </View>
+            <Text style={styles.sectionTitle}>{title}</Text>
             {onViewAll && (
                 <Pressable onPress={onViewAll} hitSlop={8}>
-                    <Text style={styles.viewAll}>View All →</Text>
+                    <Text style={styles.viewAll}>{viewAllLabel}</Text>
                 </Pressable>
             )}
         </View>
     );
 }
 
-// ── Category section ───────────────────────────────────────────────────────────
-function CategorySection({ cat, events, isLoading, dateFilter }: {
-    cat: typeof CATEGORIES[number];
-    events: Event[];
-    isLoading: boolean;
-    dateFilter: DateFilter;
-}) {
-    const filtered = useMemo(() => applyDateFilter(events, dateFilter), [events, dateFilter]);
-    if (!isLoading && filtered.length === 0) return null;
-
+// ── Map preview section ────────────────────────────────────────────────────────
+function MapSection({ eventCount }: { eventCount: number }) {
     return (
-        <Animated.View entering={FadeInDown.delay(80).springify().damping(18)} style={styles.section}>
+        <View style={styles.section}>
             <SectionHeader
-                title={cat.label}
-                emoji={cat.emoji}
-                onViewAll={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: "/events/[category]", params: { category: cat.id } }); }}
+                title="Map"
+                onViewAll={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push("/map");
+                }}
+                viewAllLabel="View →"
             />
-            {isLoading && filtered.length === 0 ? (
-                <View style={styles.carouselLoader}><ActivityIndicator size="small" color={colors.iris} /></View>
-            ) : (
-                <FlatList
-                    data={filtered.slice(0, 8)}
-                    keyExtractor={(e) => e.id}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    snapToInterval={CAROUSEL_CARD_WIDTH + 12}
-                    decelerationRate="fast"
-                    contentContainerStyle={styles.carouselContent}
-                    renderItem={({ item, index }) => <CarouselCard event={item} index={index} />}
+            <Pressable
+                style={styles.mapCard}
+                onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push("/map");
+                }}
+            >
+                <MapView
+                    style={StyleSheet.absoluteFillObject}
+                    provider={PROVIDER_DEFAULT}
+                    initialRegion={DEFAULT_MAP_REGION}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    rotateEnabled={false}
+                    pitchEnabled={false}
+                    toolbarEnabled={false}
+                    userInterfaceStyle="dark"
                 />
-            )}
-        </Animated.View>
+                {/* Dark overlay so badge is readable */}
+                <View style={styles.mapOverlay} />
+                {/* Events nearby badge */}
+                <View style={styles.mapBadge}>
+                    <Text style={styles.mapBadgeText}>📍 {eventCount}+ events nearby</Text>
+                </View>
+            </Pressable>
+        </View>
     );
 }
 
@@ -433,47 +461,36 @@ export default function ExploreScreen() {
     const { recommendations, score, loadBrowsed } = useRecommendationsStore();
     const ticketsStore = useTicketsStore();
 
-    const [dateFilter, setDateFilter]       = useState<DateFilter>("any");
-    const [sortTab, setSortTab]             = useState<SortTab>("trending");
-    const [cityFilter, setCityFilter]       = useState("all");
-    const [showCityModal, setShowCityModal] = useState(false);
-    const [isOffline, setIsOffline]         = useState(false);
-    const [cachedEvents, setCachedEvents]   = useState<Event[]>([]);
-    const [refreshing, setRefreshing]       = useState(false);
-    const [showAllEvents, setShowAllEvents] = useState(false); // expand grid
+    const [dateFilter, setDateFilter]         = useState<DateFilter>("tonight");
+    const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+    const [cityFilter, setCityFilter]         = useState("all");
+    const [showCityModal, setShowCityModal]   = useState(false);
+    const [isOffline, setIsOffline]           = useState(false);
+    const [cachedEvents, setCachedEvents]     = useState<Event[]>([]);
+    const [refreshing, setRefreshing]         = useState(false);
+    const [showAllEvents, setShowAllEvents]   = useState(false);
 
     const allEvents = events.length > 0 ? events : cachedEvents;
 
-    // City options derived from events
     const cityOptions = useMemo(() => {
         const seen = new Map<string, string>();
         allEvents.forEach((e) => {
             const city = e.city ?? e.location ?? "";
             if (city) seen.set(city.toLowerCase(), city);
         });
-        return [{ value: "all", label: "All Cities" }, ...Array.from(seen.entries()).map(([, label]) => ({ value: label.toLowerCase(), label }))];
+        return [
+            { value: "all", label: "Mumbai" },
+            ...Array.from(seen.entries()).map(([, label]) => ({ value: label.toLowerCase(), label })),
+        ];
     }, [allEvents]);
 
-    const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ?? "All Cities";
+    const activeCityLabel = cityOptions.find((o) => o.value === cityFilter)?.label ?? "Mumbai";
 
-    // Featured carousel slides (up to 6)
     const heroSlides = useMemo(() => {
         const src = featuredEvents.length > 0 ? featuredEvents : allEvents;
-        return [...src]
-            .sort((a, b) => getHeatScore(b) - getHeatScore(a))
-            .slice(0, 6);
+        return [...src].sort((a, b) => getHeatScore(b) - getHeatScore(a)).slice(0, 6);
     }, [featuredEvents, allEvents]);
 
-    // Category events — flexible matching via keywords + tags + title
-    const categoryEventsMap = useMemo(() => {
-        const map: Record<string, Event[]> = {};
-        for (const cat of CATEGORIES) {
-            map[cat.id] = allEvents.filter((e) => matchCategory(e, cat.keywords));
-        }
-        return map;
-    }, [allEvents]);
-
-    // Filtered + sorted events for "All Events" grid
     const filteredEvents = useMemo(() => {
         let result = allEvents;
         if (cityFilter !== "all") {
@@ -483,11 +500,19 @@ export default function ExploreScreen() {
             });
         }
         result = applyDateFilter(result, dateFilter);
-        result = applySortTab(result, sortTab);
+        result = applyCategoryFilter(result, categoryFilter);
         return result;
-    }, [allEvents, cityFilter, dateFilter, sortTab]);
+    }, [allEvents, cityFilter, dateFilter, categoryFilter]);
 
-    // Recommendations
+    // "Similar to you" — events NOT in recommendations, by heat score
+    const similarEvents = useMemo(() => {
+        const recIds = new Set(recommendations.map((e) => e.id));
+        return [...allEvents]
+            .filter((e) => !recIds.has(e.id))
+            .sort((a, b) => getHeatScore(b) - getHeatScore(a))
+            .slice(0, 8);
+    }, [allEvents, recommendations]);
+
     const pastOrderCategories = useMemo(() => {
         const orders = (ticketsStore as any).orders ?? [];
         return Array.from(new Set(orders.flatMap((o: any) => {
@@ -533,36 +558,81 @@ export default function ExploreScreen() {
 
     const isInitialLoading = loading && allEvents.length === 0;
 
-    // Grid rows: pair events into rows of 2
     const gridEvents = showAllEvents ? filteredEvents : filteredEvents.slice(0, 8);
     const gridRows: Event[][] = [];
     for (let i = 0; i < gridEvents.length; i += 2) {
         gridRows.push(gridEvents.slice(i, i + 2));
     }
 
+    const greeting = getGreeting();
+
+    // ── Auto-hide tab bar on scroll ──────────────────────────────────────────
+    const lastScrollY = useRef(0);
+    const handleScroll = useCallback(
+        (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+            const y    = e.nativeEvent.contentOffset.y;
+            const diff = y - lastScrollY.current;
+            lastScrollY.current = y;
+
+            if (y < 20) {
+                // Always show at the very top
+                DeviceEventEmitter.emit("tabBarScroll", { hide: false });
+            } else if (diff > 8) {
+                // Scrolling DOWN — hide
+                DeviceEventEmitter.emit("tabBarScroll", { hide: true });
+            } else if (diff < -8) {
+                // Scrolling UP — show
+                DeviceEventEmitter.emit("tabBarScroll", { hide: false });
+            }
+        },
+        []
+    );
+
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
             <ScrollView
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />}
+                scrollEventThrottle={16}
+                onScroll={handleScroll}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+                refreshControl={
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
+                }
             >
                 {/* ── Header ── */}
                 <View style={styles.header}>
                     <View style={styles.headerRow}>
-                        <View style={styles.headerLeft}>
-                            <PulseDot />
-                            <Text style={styles.headerTitle}>Explore</Text>
-                        </View>
-                        <NotificationBell variant="solid" />
-                    </View>
-                    <SearchTrigger />
-                    <View style={styles.filtersWrap}>
-                        <DateFilterRow active={dateFilter} onChange={setDateFilter} />
-                        <Pressable onPress={() => setShowCityModal(true)} style={styles.cityBtn}>
-                            <Text style={styles.cityBtnText}>📍 {activeCityLabel}</Text>
+                        {/* Left: greeting + location */}
+                        <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
+                            <Text style={styles.greetingText}>{greeting}</Text>
+                            <View style={styles.cityRow}>
+                                <Text style={styles.locationPin}>📍</Text>
+                                <Text style={styles.cityName}>{activeCityLabel}</Text>
+                                <Text style={styles.cityChevron}> ∨</Text>
+                            </View>
                         </Pressable>
+
+                        {/* Right: bell + profile avatar */}
+                        <View style={styles.headerRight}>
+                            <NotificationBell variant="solid" />
+                            <HeaderProfileAvatar />
+                        </View>
                     </View>
+
+                    {/* Search bar */}
+                    <Pressable
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            router.push("/search");
+                        }}
+                        style={styles.searchBar}
+                    >
+                        <Text style={styles.searchBarIcon}>🔍</Text>
+                        <Text style={styles.searchBarPlaceholder}>Search events...</Text>
+                    </Pressable>
+
+                    {/* Date filter pills */}
+                    <DateFilterRow active={dateFilter} onChange={setDateFilter} />
                 </View>
 
                 {/* Offline banner */}
@@ -580,42 +650,73 @@ export default function ExploreScreen() {
                     </View>
                 )}
 
-                {/* ── Featured Carousel (auto-slides like guest portal) ── */}
+                {/* ── Featured Carousel ── */}
                 {!isInitialLoading && heroSlides.length > 0 && (
                     <FeaturedCarousel events={heroSlides} />
                 )}
 
-                {/* ── Sort Tabs ── */}
+                {/* ── Category filter pills ── */}
                 {allEvents.length > 0 && (
-                    <View style={styles.sortTabRow}>
-                        <SortTabRow active={sortTab} onChange={setSortTab} />
-                    </View>
+                    <CategoryFilterRow active={categoryFilter} onChange={setCategoryFilter} />
                 )}
 
-                {/* ── For You (Recommendations) ── */}
+                {/* ── For You ── */}
                 {recommendations.length > 0 && (
                     <View style={styles.section}>
-                        <SectionHeader title="For You" emoji="✨" />
+                        <SectionHeader
+                            title="For You"
+                            onViewAll={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push("/search");
+                            }}
+                        />
                         <FlatList
                             data={recommendations}
                             keyExtractor={(e) => e.id}
                             horizontal
                             showsHorizontalScrollIndicator={false}
-                            snapToInterval={CAROUSEL_CARD_WIDTH + 12}
+                            snapToInterval={FOR_YOU_CARD_WIDTH + 12}
                             decelerationRate="fast"
-                            contentContainerStyle={styles.carouselContent}
-                            renderItem={({ item, index }) => <CarouselCard event={item} index={index} />}
+                            contentContainerStyle={styles.largeCarouselContent}
+                            renderItem={({ item, index }) => <LargeEventCard event={item} index={index} />}
                         />
                     </View>
                 )}
 
-                {/* ── All Events Grid — main content, mirrors guest portal event grid ── */}
+                {/* ── Similar to you ── */}
+                {similarEvents.length > 0 && (
+                    <View style={styles.section}>
+                        <SectionHeader
+                            title="Similar to you"
+                            onViewAll={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push("/search");
+                            }}
+                        />
+                        <FlatList
+                            data={similarEvents}
+                            keyExtractor={(e) => e.id}
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            snapToInterval={FOR_YOU_CARD_WIDTH + 12}
+                            decelerationRate="fast"
+                            contentContainerStyle={styles.largeCarouselContent}
+                            renderItem={({ item, index }) => <LargeEventCard event={item} index={index} />}
+                        />
+                    </View>
+                )}
+
+                {/* ── All Events grid ── */}
                 {filteredEvents.length > 0 && (
                     <View style={styles.section}>
                         <SectionHeader
-                            title={`What's on in ${activeCityLabel}`}
-                            emoji="🗓️"
-                            onViewAll={filteredEvents.length > 8 && !showAllEvents ? () => setShowAllEvents(true) : undefined}
+                            title="All Events"
+                            onViewAll={
+                                filteredEvents.length > 8 && !showAllEvents
+                                    ? () => setShowAllEvents(true)
+                                    : undefined
+                            }
+                            viewAllLabel="See All"
                         />
                         <View style={styles.gridContainer}>
                             {gridRows.map((row, ri) => (
@@ -623,14 +724,15 @@ export default function ExploreScreen() {
                                     {row.map((event, ci) => (
                                         <GridCard key={event.id} event={event} index={ri * 2 + ci} />
                                     ))}
-                                    {/* fill empty slot in last odd row */}
                                     {row.length === 1 && <View style={styles.gridCard} />}
                                 </View>
                             ))}
                         </View>
                         {filteredEvents.length > 8 && !showAllEvents && (
                             <Pressable style={styles.loadMoreBtn} onPress={() => setShowAllEvents(true)}>
-                                <Text style={styles.loadMoreText}>Load More Events ({filteredEvents.length - 8} more)</Text>
+                                <Text style={styles.loadMoreText}>
+                                    Load More ({filteredEvents.length - 8} more)
+                                </Text>
                             </Pressable>
                         )}
                         {filteredEvents.length === 0 && !loading && (
@@ -643,18 +745,12 @@ export default function ExploreScreen() {
                     </View>
                 )}
 
-                {/* ── Category Carousels ── */}
-                {CATEGORIES.map((cat) => (
-                    <CategorySection
-                        key={cat.id}
-                        cat={cat}
-                        events={categoryEventsMap[cat.id] ?? []}
-                        isLoading={loading}
-                        dateFilter={dateFilter}
-                    />
-                ))}
+                {/* ── Map section ── */}
+                {allEvents.length > 0 && (
+                    <MapSection eventCount={allEvents.length > 31 ? 31 : allEvents.length} />
+                )}
 
-                {/* No content state */}
+                {/* No content */}
                 {!loading && allEvents.length === 0 && !isOffline && (
                     <View style={styles.emptyState}>
                         <Text style={styles.emptyEmoji}>🎪</Text>
@@ -665,7 +761,12 @@ export default function ExploreScreen() {
             </ScrollView>
 
             {/* ── City Picker Modal ── */}
-            <Modal visible={showCityModal} transparent animationType="slide" onRequestClose={() => setShowCityModal(false)}>
+            <Modal
+                visible={showCityModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowCityModal(false)}
+            >
                 <Pressable style={styles.modalOverlay} onPress={() => setShowCityModal(false)} />
                 <View style={[styles.cityModal, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.cityModalHandle} />
@@ -674,13 +775,24 @@ export default function ExploreScreen() {
                         {cityOptions.map((opt) => (
                             <Pressable
                                 key={opt.value}
-                                onPress={() => { Haptics.selectionAsync(); setCityFilter(opt.value); setShowCityModal(false); }}
+                                onPress={() => {
+                                    Haptics.selectionAsync();
+                                    setCityFilter(opt.value);
+                                    setShowCityModal(false);
+                                }}
                                 style={styles.cityOption}
                             >
-                                <Text style={[styles.cityOptionText, cityFilter === opt.value && styles.cityOptionTextActive]}>
+                                <Text
+                                    style={[
+                                        styles.cityOptionText,
+                                        cityFilter === opt.value && styles.cityOptionTextActive,
+                                    ]}
+                                >
                                     {opt.label}
                                 </Text>
-                                {cityFilter === opt.value && <Text style={styles.cityOptionCheck}>✓</Text>}
+                                {cityFilter === opt.value && (
+                                    <Text style={styles.cityOptionCheck}>✓</Text>
+                                )}
                             </Pressable>
                         ))}
                     </ScrollView>
@@ -694,138 +806,194 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: PURE_BLACK },
 
-    // Header
-    header: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8, gap: 12 },
+    // ── Header ──────────────────────────────────────────────────────────────────
+    header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, gap: 12 },
     headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    headerLeft: { flexDirection: "row", alignItems: "center", gap: 10 },
-    headerTitle: { color: "#FFFFFF", fontSize: 32, fontWeight: "800", letterSpacing: -0.5 },
-    pulseDot: {
-        width: 9, height: 9, borderRadius: 5,
-        backgroundColor: "#4CAF50",
-        shadowColor: "#4CAF50", shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.9, shadowRadius: 5,
-    },
+    locationBlock: { flex: 1, gap: 2 },
+    greetingText: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "500" },
+    cityRow: { flexDirection: "row", alignItems: "center" },
+    locationPin: { fontSize: 16, marginRight: 4 },
+    cityName: { color: "#FFFFFF", fontSize: 26, fontWeight: "800", letterSpacing: -0.6 },
+    cityChevron: { color: "rgba(255,255,255,0.55)", fontSize: 18, fontWeight: "600", marginTop: 2 },
+    headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
 
-    // Search
-    searchTrigger: {
-        flexDirection: "row", alignItems: "center", gap: 10,
-        backgroundColor: "rgba(255,255,255,0.07)", borderRadius: 14,
-        borderWidth: 1, borderColor: "rgba(255,255,255,0.09)",
-        paddingHorizontal: 14, paddingVertical: 12,
+    // Profile avatar in header
+    avatarRing: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        borderWidth: 2,
+        borderColor: colors.iris,
+        overflow: "hidden",
     },
-    searchIcon: { fontSize: 16 },
-    searchPlaceholder: { color: "rgba(255,255,255,0.45)", fontSize: 15, flex: 1 },
+    avatarImage: { width: "100%", height: "100%" },
+    avatarFallback: {
+        width: "100%",
+        height: "100%",
+        backgroundColor: colors.base[100],
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    avatarInitials: { color: colors.gold, fontSize: 11, fontWeight: "700" },
 
-    // Filters
-    filtersWrap: { flexDirection: "row", alignItems: "center", gap: 8 },
-    filterRow: { flex: 1 },
-    filterRowContent: { gap: 8, paddingRight: 8 },
+    // ── Search bar ───────────────────────────────────────────────────────────────
+    searchBar: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.10)",
+        paddingHorizontal: 14,
+        paddingVertical: 13,
+    },
+    searchBarIcon: { fontSize: 15 },
+    searchBarPlaceholder: { color: "rgba(255,255,255,0.38)", fontSize: 15, flex: 1 },
+
+    // ── Date filter pills ────────────────────────────────────────────────────────
+    filterRowContent: { gap: 8, paddingRight: 4 },
     filterPill: {
-        paddingHorizontal: 14, paddingVertical: 7, borderRadius: 100,
-        backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 100,
+        backgroundColor: "rgba(255,255,255,0.06)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.09)",
     },
-    filterPillActive: { backgroundColor: "rgba(244,74,34,0.18)", borderColor: "rgba(244,74,34,0.45)" },
+    filterPillActive: {
+        backgroundColor: "rgba(244,74,34,0.16)",
+        borderColor: "rgba(244,74,34,0.5)",
+    },
     filterPillText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
     filterPillTextActive: { color: "#F44A22" },
-    cityBtn: {
-        paddingHorizontal: 12, paddingVertical: 7, borderRadius: 100,
-        backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", flexShrink: 0,
-    },
-    cityBtnText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
 
-    // Offline
+    // ── Offline / loading ────────────────────────────────────────────────────────
     offlineBanner: {
-        marginHorizontal: 16, marginBottom: 8, paddingHorizontal: 14, paddingVertical: 10,
-        borderRadius: 10, backgroundColor: "rgba(255,170,0,0.1)", borderWidth: 1, borderColor: "rgba(255,170,0,0.25)",
+        marginHorizontal: 16, marginBottom: 8,
+        paddingHorizontal: 14, paddingVertical: 10,
+        borderRadius: 10,
+        backgroundColor: "rgba(255,170,0,0.1)",
+        borderWidth: 1, borderColor: "rgba(255,170,0,0.25)",
     },
     offlineText: { color: "#FFAA00", fontSize: 13, fontWeight: "500" },
-
-    // Loading
     loadingWrap: { paddingTop: 60, alignItems: "center", gap: 12 },
     loadingText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
 
-    // Hero carousel
-    heroSection: { position: "relative", marginTop: 12 },
+    // ── Featured hero carousel ───────────────────────────────────────────────────
+    heroSection: { marginTop: 16 },
+    heroCarouselContent: { paddingHorizontal: 16, gap: 12 },
     heroSlide: {
-        width: SCREEN_WIDTH,
-        height: 320,
-        position: "relative",
+        width: HERO_CARD_WIDTH,
+        height: 330,
+        borderRadius: 20,
         overflow: "hidden",
+        position: "relative",
     },
-    heroBadgeWrap: { position: "absolute", top: 14, left: 16, zIndex: 2, borderRadius: 8, overflow: "hidden" },
-    heroBadge: { paddingHorizontal: 10, paddingVertical: 4 },
-    heroBadgeText: { color: "#fff", fontSize: 10, fontWeight: "800", letterSpacing: 0.8 },
-    heroCatPill: {
-        position: "absolute", top: 14, right: 16, zIndex: 2,
-        backgroundColor: "rgba(255,255,255,0.15)", borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2,
+    heroCatTag: {
+        position: "absolute", top: 12, right: 12, zIndex: 2,
+        backgroundColor: "rgba(255,255,255,0.18)",
+        borderRadius: 6, paddingHorizontal: 9, paddingVertical: 3,
+        borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
     },
-    heroCatText: { color: "#fff", fontSize: 10, fontWeight: "700", letterSpacing: 0.6 },
-    heroContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 18, gap: 5 },
-    heroTitle: { color: "#fff", fontSize: 24, fontWeight: "800", letterSpacing: -0.5 },
-    heroVenue: { color: "rgba(255,255,255,0.7)", fontSize: 13 },
-    heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 2 },
-    heroDate: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "500" },
-    heroPricePill: {
-        backgroundColor: "rgba(244,74,34,0.25)", borderRadius: 20,
-        paddingHorizontal: 12, paddingVertical: 3, borderWidth: 1, borderColor: "rgba(244,74,34,0.4)",
-    },
-    heroPriceText: { color: "#FF6B4A", fontSize: 12, fontWeight: "700" },
-    heroCtaBtn: {
-        marginTop: 8, alignSelf: "flex-start",
-        backgroundColor: "#FFFFFF", borderRadius: 100,
-        paddingHorizontal: 20, paddingVertical: 9,
-    },
-    heroCtaText: { color: "#000", fontSize: 13, fontWeight: "800", letterSpacing: 0.3 },
-    heroDots: { flexDirection: "row", justifyContent: "center", gap: 6, marginTop: 10, marginBottom: 4 },
-    heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: "rgba(255,255,255,0.25)" },
-    heroDotActive: { width: 20, backgroundColor: "#F44A22" },
+    heroCatTagText: { color: "#FFFFFF", fontSize: 10, fontWeight: "700", letterSpacing: 0.7 },
+    heroContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, gap: 4 },
+    heroTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "800", letterSpacing: -0.4, lineHeight: 28 },
+    heroVenueLine: { color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: "500", marginTop: 2 },
+    heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
+    heroPriceLabel: { color: "rgba(255,255,255,0.75)", fontSize: 15, fontWeight: "700" },
+    heroCtaBtn: { backgroundColor: "#F44A22", borderRadius: 100, paddingHorizontal: 18, paddingVertical: 9 },
+    heroCtaBtnSoldOut: { backgroundColor: "rgba(255,255,255,0.18)" },
+    heroCtaText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
 
-    // Sort tabs
-    sortTabRow: { marginTop: 16 },
-    sortTabContent: { paddingHorizontal: 16, gap: 8 },
-    sortTab: {
+    // ── Category filter pills ────────────────────────────────────────────────────
+    catFilterRow: { marginTop: 20 },
+    catFilterContent: { paddingHorizontal: 16, gap: 8 },
+    catFilterPill: {
         paddingHorizontal: 16, paddingVertical: 8, borderRadius: 100,
-        backgroundColor: "rgba(255,255,255,0.06)", borderWidth: 1, borderColor: "rgba(255,255,255,0.08)",
+        backgroundColor: "rgba(255,255,255,0.07)",
+        borderWidth: 1, borderColor: "rgba(255,255,255,0.09)",
     },
-    sortTabActive: { backgroundColor: "#F44A22", borderColor: "#F44A22" },
-    sortTabText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
-    sortTabTextActive: { color: "#fff" },
+    catFilterPillActive: {
+        backgroundColor: "rgba(255,255,255,0.14)",
+        borderColor: "rgba(255,255,255,0.22)",
+    },
+    catFilterText: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" },
+    catFilterTextActive: { color: "#FFFFFF" },
 
-    // Sections
+    // ── Sections ─────────────────────────────────────────────────────────────────
     section: { marginTop: 28 },
-    sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 12 },
-    sectionTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-    sectionEmoji: { fontSize: 18 },
-    sectionTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "700", letterSpacing: -0.2 },
-    viewAll: { color: "#F44A22", fontSize: 13, fontWeight: "600" },
-
-    // Carousel
-    carouselContent: { paddingHorizontal: 16, gap: 12 },
-    carouselCard: {
-        width: CAROUSEL_CARD_WIDTH, borderRadius: 16, overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+    sectionHeader: {
+        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+        paddingHorizontal: 16, marginBottom: 12,
     },
-    carouselImgWrap: { height: 150, position: "relative" },
-    carouselBody: { padding: 12, gap: 3 },
-    carouselTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: -0.1 },
-    carouselVenue: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
-    carouselMeta: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 6 },
-    carouselDate: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
-    carouselPrice: { color: "#F44A22", fontSize: 11, fontWeight: "700" },
-    carouselLoader: { height: 120, alignItems: "center", justifyContent: "center" },
+    sectionTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "700", letterSpacing: -0.2 },
+    viewAll: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "600" },
 
-    // Grid (All Events)
+    // ── Large cards (For You, Similar to you) ────────────────────────────────────
+    largeCarouselContent: { paddingHorizontal: 16, gap: 12 },
+    largeCard: {
+        width: FOR_YOU_CARD_WIDTH,
+        height: FOR_YOU_CARD_HEIGHT,
+        borderRadius: 16,
+        overflow: "hidden",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.07)",
+    },
+    largeCardImg: {
+        flex: 1,
+        position: "relative",
+    },
+    largeCardSoldOut: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        alignItems: "center",
+        paddingVertical: 8,
+        backgroundColor: "rgba(0,0,0,0.55)",
+    },
+    largeCardSoldOutText: {
+        color: "#F44A22",
+        fontSize: 11,
+        fontWeight: "800",
+        letterSpacing: 1.0,
+    },
+    largeCardBody: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        gap: 8,
+    },
+    largeCardInfo: { flex: 1, gap: 2 },
+    largeCardTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: -0.1 },
+    largeCardVenue: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
+    largeCardPrice: { color: "#F44A22", fontSize: 13, fontWeight: "700", flexShrink: 0 },
+
+    // ── Grid (All Events) ─────────────────────────────────────────────────────────
     gridContainer: { paddingHorizontal: 16, gap: 12 },
     gridRow: { flexDirection: "row", gap: 12 },
     gridCard: {
         width: GRID_CARD_WIDTH, flex: 1, borderRadius: 16, overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.04)", borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
     },
     gridImgWrap: { height: 160, position: "relative" },
     gridFreeBadge: {
         position: "absolute", top: 8, right: 8,
-        backgroundColor: "#10B981", borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2,
+        backgroundColor: "#10B981", borderRadius: 6,
+        paddingHorizontal: 6, paddingVertical: 2,
     },
     gridFreeBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
+    gridSoldOut: {
+        position: "absolute", bottom: 0, left: 0, right: 0,
+        alignItems: "center", paddingVertical: 5,
+        backgroundColor: "rgba(0,0,0,0.6)",
+    },
+    gridSoldOutText: { color: "#F44A22", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
     gridBody: { padding: 10, gap: 3 },
     gridTitle: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
     gridVenue: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
@@ -833,7 +1001,7 @@ const styles = StyleSheet.create({
     gridDate: { color: "rgba(255,255,255,0.35)", fontSize: 10 },
     gridPrice: { color: "#F44A22", fontSize: 10, fontWeight: "700" },
 
-    // Load more
+    // ── Load more ─────────────────────────────────────────────────────────────────
     loadMoreBtn: {
         marginHorizontal: 16, marginTop: 16, paddingVertical: 14,
         borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
@@ -841,13 +1009,38 @@ const styles = StyleSheet.create({
     },
     loadMoreText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" },
 
-    // Empty state
+    // ── Map section ───────────────────────────────────────────────────────────────
+    mapCard: {
+        marginHorizontal: 16,
+        height: 180,
+        borderRadius: 20,
+        overflow: "hidden",
+        position: "relative",
+    },
+    mapOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0,0,0,0.25)",
+    },
+    mapBadge: {
+        position: "absolute",
+        bottom: 16,
+        alignSelf: "center",
+        backgroundColor: "rgba(0,0,0,0.75)",
+        borderRadius: 100,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.12)",
+    },
+    mapBadgeText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+
+    // ── Empty state ───────────────────────────────────────────────────────────────
     emptyState: { alignItems: "center", paddingVertical: 60, gap: 8 },
     emptyEmoji: { fontSize: 40 },
     emptyText: { color: "#FFFFFF", fontSize: 18, fontWeight: "700" },
     emptySubtext: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
 
-    // City modal
+    // ── City modal ────────────────────────────────────────────────────────────────
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
     cityModal: {
         backgroundColor: "#111111", borderTopLeftRadius: 24, borderTopRightRadius: 24,

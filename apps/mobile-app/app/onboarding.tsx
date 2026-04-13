@@ -33,6 +33,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Compass, Ticket, Shield } from "lucide-react-native";
 import { colors } from "@/lib/design/theme";
+import { useAuthStore } from "@/store/authStore";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -158,6 +159,7 @@ function SlideItem({ item, index, scrollX }: {
 // ────────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
+    const { setOnboardingJustCompleted } = useAuthStore();
     const [currentIndex, setCurrentIndex] = useState(0);
     const scrollViewRef = useRef<any>(null);
     const scrollX = useSharedValue(0);
@@ -173,6 +175,7 @@ export default function OnboardingScreen() {
     const handleNext = useCallback(async () => {
         if (isLastSlide) {
             await markOnboardingComplete();
+            setOnboardingJustCompleted(true);
             router.replace("/(auth)/login");
         } else {
             const nextIndex = currentIndex + 1;
@@ -190,6 +193,7 @@ export default function OnboardingScreen() {
 
     const handleSkip = useCallback(async () => {
         await markOnboardingComplete();
+        setOnboardingJustCompleted(true);
         router.replace("/(auth)/login");
     }, []);
 

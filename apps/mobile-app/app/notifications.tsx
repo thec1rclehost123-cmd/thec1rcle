@@ -89,48 +89,50 @@ function NotificationItem({
             exiting={SlideOutRight.springify()}
             layout={Layout.springify()}
         >
-            <Swipeable renderRightActions={renderRightActions}>
-                <AnimatedPressable
-                    onPressIn={handlePressIn}
-                    onPressOut={handlePressOut}
-                    onPress={handlePress}
-                    style={[
-                        animatedStyle,
-                        styles.notificationItem,
-                        !notification.read && styles.notificationUnread,
-                    ]}
-                >
-                    {/* Icon */}
-                    <View style={[
-                        styles.iconContainer,
-                        !notification.read && styles.iconContainerUnread,
-                    ]}>
-                        <Text style={styles.icon}>{icon}</Text>
-                    </View>
-
-                    {/* Content */}
-                    <View style={styles.content}>
-                        <Text style={[
-                            styles.title,
-                            !notification.read && styles.titleUnread,
-                        ]} numberOfLines={1}>
-                            {notification.title}
-                        </Text>
-                        <Text style={styles.body} numberOfLines={2}>
-                            {notification.body}
-                        </Text>
-                        <Text style={styles.time}>{timeAgo}</Text>
-                    </View>
-
-                    {/* Unread indicator */}
-                    {!notification.read && (
-                        <View style={styles.unreadDot} />
-                    )}
-
-                    {/* Arrow */}
-                    <Text style={styles.arrow}>›</Text>
-                </AnimatedPressable>
-            </Swipeable>
+            <View>
+                <Swipeable renderRightActions={renderRightActions}>
+                    <AnimatedPressable
+                        onPressIn={handlePressIn}
+                        onPressOut={handlePressOut}
+                        onPress={handlePress}
+                        style={[
+                            animatedStyle,
+                            styles.notificationItem,
+                            !notification.read && styles.notificationUnread,
+                        ]}
+                    >
+                        {/* Icon */}
+                        <View style={[
+                            styles.iconContainer,
+                            !notification.read && styles.iconContainerUnread,
+                        ]}>
+                            <Text style={styles.icon}>{icon}</Text>
+                        </View>
+    
+                        {/* Content */}
+                        <View style={styles.content}>
+                            <Text style={[
+                                styles.title,
+                                !notification.read && styles.titleUnread,
+                            ]} numberOfLines={1}>
+                                {notification.title}
+                            </Text>
+                            <Text style={styles.body} numberOfLines={2}>
+                                {notification.body}
+                            </Text>
+                            <Text style={styles.time}>{timeAgo}</Text>
+                        </View>
+    
+                        {/* Unread indicator */}
+                        {!notification.read && (
+                            <View style={styles.unreadDot} />
+                        )}
+    
+                        {/* Arrow */}
+                        <Text style={styles.arrow}>›</Text>
+                    </AnimatedPressable>
+                </Swipeable>
+            </View>
         </Animated.View>
     );
 }

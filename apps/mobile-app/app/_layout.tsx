@@ -36,78 +36,95 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 function useProtectedRoute(user: unknown) {
     const segments = useSegments();
     const navigationState = useRootNavigationState();
-    const [onboardingChecked, setOnboardingChecked] = useState(false);
-    const [needsOnboarding, setNeedsOnboarding] = useState(false);
-    const [needsProfileSetup, setNeedsProfileSetup] = useState(false);
-    const [profileSetupChecked, setProfileSetupChecked] = useState(false);
+    
+    // Core check states
+    const [isReady, setIsReady] = useState(false);
+    const [status, setStatus] = useState<{
+        onboardingComplete: boolean;
+        profileComplete: boolean;
+    }>({ onboardingComplete: false, profileComplete: false });
 
-    // Check onboarding status once on mount
-    useEffect(() => {
-        hasCompletedOnboarding().then((completed) => {
-            setNeedsOnboarding(!completed);
-            setOnboardingChecked(true);
-        });
-    }, []);
+    const { 
+        profileSetupJustCompleted, setProfileSetupJustCompleted,
+        onboardingJustCompleted, setOnboardingJustCompleted
+    } = useAuthStore();
 
-    // Check profile setup when user logs in
+    // Combined initialization check
     useEffect(() => {
-        if (!user) {
-            setProfileSetupChecked(false);
-            return;
+        async function checkStatus() {
+            const [onboarding, profile] = await Promise.all([
+                hasCompletedOnboarding(),
+                user ? hasCompletedProfileSetup() : Promise.resolve(true) 
+            ]);
+            
+            setStatus({ 
+                onboardingComplete: onboarding, 
+                profileComplete: profile 
+            });
+            setIsReady(true);
         }
-        hasCompletedProfileSetup().then((completed) => {
-            setNeedsProfileSetup(!completed);
-            setProfileSetupChecked(true);
-        });
-    }, [user]);
-
-    const { profileSetupJustCompleted, setProfileSetupJustCompleted } = useAuthStore();
+        checkStatus();
+    }, [user, profileSetupJustCompleted, onboardingJustCompleted]);
 
     useEffect(() => {
-        if (profileSetupJustCompleted) {
-            setNeedsProfileSetup(false);
-            setProfileSetupJustCompleted(false);
-        }
-    }, [profileSetupJustCompleted, setProfileSetupJustCompleted]);
+        // Essential guards: Wait for nav and status checks to settle
+        if (!navigationState?.key || !isReady) return;
 
-    useEffect(() => {
-        // Wait for navigation + onboarding check to be ready
-        if (!navigationState?.key || !onboardingChecked) return;
-
-        const currentPath = segments.join("/");
         const inAuthGroup = segments[0] === "(auth)";
         const inOnboarding = segments[0] === "onboarding";
         const inScanner = segments[0] === "scanner";
-        const inProfileSetup = currentPath === "profile-setup";
-
-        // Scanner routes are public — no auth needed (security staff)
+        const inProfileSetup = segments[0] === "profile-setup";
+        
+        // 1. Critical Public Routes (Scanner)
         if (inScanner) return;
 
-        // First-time user — show onboarding before auth
-        if (needsOnboarding && !inOnboarding && !user) {
-            router.replace("/onboarding");
+        // 2. Onboarding Flow (Strictly for brand-new users before auth)
+        if (!status.onboardingComplete) {
+            if (!inOnboarding) {
+                router.replace("/onboarding");
+            }
             return;
         }
 
-        if (user && profileSetupChecked && needsProfileSetup && !inProfileSetup) {
-            router.replace("/profile-setup" as Href);
-            return;
-        }
-
-        if (!user && !inAuthGroup && !inOnboarding) {
-            router.replace("/(auth)/login");
-        } else if (user && (inAuthGroup || inOnboarding)) {
-            // Just authenticated — check profile setup
-            if (profileSetupChecked && needsProfileSetup) {
+        // 3. Authenticated State Management
+        if (!user) {
+            // Not logged in — restrict to (auth) group
+            if (!inAuthGroup && !inOnboarding) {
+                router.replace("/(auth)/login");
+            }
+        } else {
+            // Logged in — handle post-auth flow
+            if (inAuthGroup || inOnboarding) {
+                // Already authenticated — move to next logical step
+                if (!status.profileComplete) {
+                    router.replace("/profile-setup" as Href);
+                } else {
+                    router.replace("/(tabs)/explore");
+                }
+            } else if (!status.profileComplete && !inProfileSetup) {
+                // authenticated but profile missing
                 router.replace("/profile-setup" as Href);
-            } else if (profileSetupChecked) {
+            } else if (status.profileComplete && inProfileSetup) {
+                // Setup done — exit setup
                 router.replace("/(tabs)/explore");
             }
-        } else if (user && inProfileSetup && profileSetupChecked && !needsProfileSetup) {
-            // Profile setup already done — skip to tabs
-            router.replace("/(tabs)/explore");
         }
-    }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding, needsProfileSetup, profileSetupChecked]);
+    }, [user, segments, navigationState?.key, isReady, status]);
+
+    // Handle the "Just Completed" event from screens
+    useEffect(() => {
+        if (profileSetupJustCompleted) {
+            setStatus(prev => ({ ...prev, profileComplete: true }));
+            setProfileSetupJustCompleted(false);
+        }
+    }, [profileSetupJustCompleted]);
+
+    useEffect(() => {
+        if (onboardingJustCompleted) {
+            setStatus(prev => ({ ...prev, onboardingComplete: true }));
+            setOnboardingJustCompleted(false);
+        }
+    }, [onboardingJustCompleted]);
 }
 
 /**
@@ -414,6 +431,16 @@ export default function RootLayout() {
                                 {/* Profile Edit (Modal) */}
                                 <Stack.Screen
                                     name="profile/edit"
+                                    options={{
+                                        headerShown: false,
+                                        presentation: "modal",
+                                        animation: "slide_from_bottom",
+                                    }}
+                                />
+
+                                {/* Verification */}
+                                <Stack.Screen
+                                    name="verification"
                                     options={{
                                         headerShown: false,
                                         presentation: "modal",

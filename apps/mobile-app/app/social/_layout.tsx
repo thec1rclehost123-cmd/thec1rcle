@@ -17,6 +17,7 @@ export default function SocialLayout() {
             <Stack.Screen name="requests" />
             <Stack.Screen name="contacts" />
             <Stack.Screen name="gallery/[eventId]" />
+            <Stack.Screen name="matches" />
         </Stack>
     );
 }

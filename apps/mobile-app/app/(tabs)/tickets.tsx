@@ -25,6 +25,7 @@ import * as Haptics from "expo-haptics";
 import Animated, {
     FadeIn,
     FadeInDown,
+    FadeOut,
     useSharedValue,
     useAnimatedStyle,
     withSpring,
@@ -38,6 +39,8 @@ import { SkeletonList } from "@/components/ui/Skeleton";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
 import { buildCalendarEventUrl } from "@/lib/calendar";
+import { Wallet, CircleUser, Ticket as TicketIcon } from "lucide-react-native";
+
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -308,13 +311,29 @@ function TicketCard({ order, onShowQR, index }: {
 
     const totalTickets = order.tickets?.reduce((sum, t) => sum + t.quantity, 0) || 1;
     const shortId = order.id.replace(/-/g, "").substring(0, 8).toUpperCase();
-    // Derive a short host/promoter name from eventTitle or use a placeholder
     const hostName = (order as any).hostName || (order as any).promoterName || "";
+    
+    // Format date like "Mar 12th • 5 PM"
     const dateStr = (() => {
         const d = safeDate(order.eventDate);
         if (!d) return "";
-        return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" }) +
-            " at " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+        
+        const day = d.getDate();
+        const month = d.toLocaleDateString("en-US", { month: "short" });
+        const time = d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }).replace(":00", "");
+        
+        // Add ordinal suffix (st, nd, rd, th)
+        const suffix = (day: number) => {
+            if (day > 3 && day < 21) return "th";
+            switch (day % 10) {
+                case 1: return "st";
+                case 2: return "nd";
+                case 3: return "rd";
+                default: return "th";
+            }
+        };
+
+        return `${month} ${day}${suffix(day)} • ${time}`;
     })();
 
     return (
@@ -339,42 +358,47 @@ function TicketCard({ order, onShowQR, index }: {
                 />
             )}
 
-            {/* Gradient overlay for legibility */}
+            {/* Premium Gradient Overlay */}
             <LinearGradient
-                colors={["rgba(0,0,0,0.45)", "rgba(0,0,0,0.15)", "rgba(0,0,0,0.7)"]}
-                locations={[0, 0.4, 1]}
+                colors={["rgba(0,0,0,0.4)", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.85)"]}
+                locations={[0, 0.45, 1]}
                 style={StyleSheet.absoluteFill}
             />
 
-            {/* Top row: host name (left) | event title + date (right) */}
-            <View style={styles.ticketTopRow}>
-                <View style={styles.ticketHostBadge}>
-                    <Text style={styles.ticketHostText} numberOfLines={1}>
-                        {hostName || "C1RCLE"}
+            {/* content container */}
+            <View style={styles.ticketContent}>
+                {/* Host Name Badge */}
+                <View style={styles.hostBadge}>
+                    <Text style={styles.hostText} numberOfLines={1}>
+                        {(hostName || "THE C1RCLE").toUpperCase()}
                     </Text>
                 </View>
-                <View style={styles.ticketTitleBlock}>
-                    <Text style={styles.ticketTitleOverlay} numberOfLines={1}>
-                        {order.eventTitle || "Event"}
+
+                {/* Event Info */}
+                <View style={styles.eventInfo}>
+                    <Text style={styles.eventTitle} numberOfLines={2}>
+                        {order.eventTitle}
                     </Text>
-                    {dateStr ? <Text style={styles.ticketDateOverlay}>{dateStr}</Text> : null}
+                    <Text style={styles.eventDateText}>
+                        {dateStr}
+                    </Text>
+                </View>
+
+                {/* Bottom Row */}
+                <View style={styles.ticketCardBottom}>
+                    <Text style={styles.ticketCardOrderId}>{shortId}</Text>
+                    
+                    <View style={styles.ticketCardQty}>
+                        <Text style={styles.ticketCardQtyText}>{totalTickets}x</Text>
+                        <TicketIcon size={14} color="#fff" />
+                    </View>
                 </View>
             </View>
 
-            {/* Torn-edge notches */}
-            <View style={styles.ticketTornRow}>
-                <View style={styles.ticketNotchLeft} />
-                <View style={styles.ticketTornLine} />
-                <View style={styles.ticketNotchRight} />
-            </View>
-
-            {/* Bottom row: order ID (left) | quantity + icon (right) */}
-            <View style={styles.ticketBottomRow}>
-                <Text style={styles.ticketOrderId}>{shortId}</Text>
-                <View style={styles.ticketQuantityBadge}>
-                    <Text style={styles.ticketQuantityText}>{totalTickets}x</Text>
-                    <Text style={styles.ticketQuantityIcon}>⬡</Text>
-                </View>
+            {/* Side Notches (Punch holes) */}
+            <View style={styles.notchContainer}>
+                <View style={styles.notchLeft} />
+                <View style={styles.notchRight} />
             </View>
         </AnimatedPressable>
     );
@@ -450,37 +474,60 @@ function CountdownHero({ order, onViewTicket }: { order: Order; onViewTicket: ()
     );
 }
 
-// Tab Button
-function TabButton({
-    label,
-    count,
-    isActive,
-    onPress
-}: {
-    label: string;
-    count: number;
-    isActive: boolean;
-    onPress: () => void;
+// Animated Segmented Control Header
+function SegmentedHeader({ 
+    activeTab, 
+    setActiveTab, 
+    upcomingCount, 
+    pastCount 
+}: { 
+    activeTab: "upcoming" | "past"; 
+    setActiveTab: (tab: "upcoming" | "past") => void;
+    upcomingCount: number;
+    pastCount: number;
 }) {
+    const slideAnim = useSharedValue(activeTab === "upcoming" ? 0 : 1);
+
+    const handleTabPress = (tab: "upcoming" | "past") => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setActiveTab(tab);
+        slideAnim.value = withSpring(tab === "upcoming" ? 0 : 1, { 
+            damping: 22, 
+            stiffness: 220, 
+            mass: 0.8 
+        });
+    };
+
+    const animatedBgStyle = useAnimatedStyle(() => ({
+        transform: [{ translateX: slideAnim.value * 80 }], // Adjust based on tab width
+    }));
+
     return (
-        <Pressable onPress={onPress} style={styles.tabButton}>
-            {isActive ? (
-                <LinearGradient
-                    colors={gradients.primary as [string, string]}
-                    style={styles.tabButtonActive}
-                >
-                    <Text style={styles.tabButtonTextActive}>
-                        {label} ({count})
+        <View style={styles.headerRow}>
+            <Pressable onPress={() => router.push("/wallet")} style={styles.headerIconBtn}>
+                <Wallet size={24} color={colors.gold} />
+            </Pressable>
+
+            <View style={styles.segmentedContainer}>
+                <Animated.View style={[styles.segmentedActiveBg, animatedBgStyle]} />
+                <Pressable onPress={() => handleTabPress("upcoming")} style={styles.segmentedTab}>
+                    <Text style={[styles.segmentedTabText, activeTab === "upcoming" && styles.segmentedTabTextActive]}>
+                        Upcoming
                     </Text>
-                </LinearGradient>
-            ) : (
-                <View style={styles.tabButtonInactive}>
-                    <Text style={styles.tabButtonTextInactive}>
-                        {label} ({count})
+                </Pressable>
+                <Pressable onPress={() => handleTabPress("past")} style={styles.segmentedTab}>
+                    <Text style={[styles.segmentedTabText, activeTab === "past" && styles.segmentedTabTextActive]}>
+                        Past
                     </Text>
+                </Pressable>
+            </View>
+
+            <Pressable onPress={() => router.push("/profile")} style={styles.avatarBtn}>
+                <View style={styles.avatarCircle}>
+                    <Text style={styles.avatarInitial}>A</Text>
                 </View>
-            )}
-        </Pressable>
+            </Pressable>
+        </View>
     );
 }
 
@@ -634,41 +681,12 @@ export default function TicketsScreen() {
             >
                 {/* Header */}
                 <View style={styles.header}>
-                    <View style={styles.headerTop}>
-                        <View>
-                            <Text style={styles.headerTitle}>My Tickets</Text>
-                            <Text style={styles.headerSubtitle}>Your event passes</Text>
-                        </View>
-
-                        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                            {isOffline && (
-                                <View style={styles.offlineBadge}>
-                                    <Text style={styles.offlineText}>Offline</Text>
-                                </View>
-                            )}
-                            <NotificationBell variant="solid" />
-                        </View>
-                    </View>
-
-                    {/* Receive ticket card */}
-                    <Pressable
-                        onPress={() => router.push("/transfer")}
-                        style={styles.receiveCard}
-                    >
-                        <LinearGradient
-                            colors={["rgba(244, 74, 34, 0.15)", "rgba(244, 74, 34, 0.05)"]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.receiveCardGradient}
-                        >
-                            <Text style={styles.receiveIcon}>📥</Text>
-                            <View style={styles.receiveContent}>
-                                <Text style={styles.receiveTitle}>Receive Ticket</Text>
-                                <Text style={styles.receiveSubtitle}>Enter transfer code</Text>
-                            </View>
-                            <Text style={styles.receiveArrow}>→</Text>
-                        </LinearGradient>
-                    </Pressable>
+                    <SegmentedHeader 
+                        activeTab={activeTab} 
+                        setActiveTab={setActiveTab}
+                        upcomingCount={upcomingOrders.length}
+                        pastCount={pastOrders.length}
+                    />
 
                     {showPendingReservationBanner && pendingReservation ? (
                         <View style={styles.pendingReservationCard}>
@@ -688,22 +706,6 @@ export default function TicketsScreen() {
                             </View>
                         </View>
                     ) : null}
-
-                    {/* Tabs */}
-                    <View style={styles.tabContainer}>
-                        <TabButton
-                            label="Upcoming"
-                            count={upcomingOrders.length}
-                            isActive={activeTab === "upcoming"}
-                            onPress={() => setActiveTab("upcoming")}
-                        />
-                        <TabButton
-                            label="Past"
-                            count={pastOrders.length}
-                            isActive={activeTab === "past"}
-                            onPress={() => setActiveTab("past")}
-                        />
-                    </View>
                 </View>
 
                 {/* Countdown Hero — next event ≤ 7 days away */}
@@ -735,7 +737,12 @@ export default function TicketsScreen() {
                 )}
 
                 {/* Tickets */}
-                <View style={styles.ticketsList}>
+                <Animated.View 
+                    key={activeTab}
+                    entering={FadeIn.duration(400)}
+                    exiting={FadeOut.duration(300)}
+                    style={styles.ticketsList}
+                >
                     {groupedDisplayedOrders.map((group, groupIndex) => (
                         <View key={group.label} style={styles.ticketGroup}>
                             <View style={styles.ticketGroupHeader}>
@@ -750,12 +757,12 @@ export default function TicketsScreen() {
                                     onShowQR={() => {
                                         router.push({ pathname: "/ticket/[id]", params: { id: order.id } } as any);
                                     }}
-                                    index={groupIndex * 3 + index}
+                                    index={index} // Use index instead of cumulative to refresh animation on tab switch
                                 />
                             ))}
                         </View>
                     ))}
-                </View>
+                </Animated.View>
 
                 {/* Empty State */}
                 {!loading && displayedOrders.length === 0 && !error && (
@@ -805,24 +812,80 @@ const styles = StyleSheet.create({
     // Header
     header: {
         paddingHorizontal: 20,
-        paddingTop: 16,
+        paddingTop: 12,
+        paddingBottom: 20,
     },
-    headerTop: {
+    headerRow: {
         flexDirection: "row",
-        alignItems: "flex-start",
+        alignItems: "center",
         justifyContent: "space-between",
-        marginBottom: 20,
+        marginBottom: 8,
     },
-    headerTitle: {
-        color: colors.gold,
-        fontSize: 34,
+    headerIconBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    segmentedContainer: {
+        flexDirection: "row",
+        backgroundColor: "rgba(0,0,0,0.4)",
+        borderRadius: radii.pill,
+        padding: 4,
+        width: 164, // Slightly wider for better spacing
+        position: "relative",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.05)",
+    },
+    segmentedActiveBg: {
+        position: "absolute",
+        top: 4,
+        left: 4,
+        width: 78,
+        bottom: 4,
+        borderRadius: radii.pill,
+        backgroundColor: "rgba(255,255,255,0.12)",
+        shadowColor: "#fff",
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    segmentedTab: {
+        flex: 1,
+        paddingVertical: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1,
+    },
+    segmentedTabText: {
+        color: "rgba(255,255,255,0.4)",
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    segmentedTabTextActive: {
+        color: "#fff",
+    },
+    avatarBtn: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+    },
+    avatarCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: colors.iris,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "rgba(255,255,255,0.1)",
+    },
+    avatarInitial: {
+        color: "#fff",
+        fontSize: 18,
         fontWeight: "800",
-        letterSpacing: -0.5,
-    },
-    headerSubtitle: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        marginTop: 4,
     },
     offlineBadge: {
         backgroundColor: "rgba(255, 170, 0, 0.15)",
@@ -906,123 +969,9 @@ const styles = StyleSheet.create({
         fontWeight: "700",
     },
 
-    // Receive card
+    // Hidden Receive Card (relying on design mockup)
     receiveCard: {
-        marginBottom: 20,
-    },
-    receiveCardGradient: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderRadius: radii.xl,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.2)",
-    },
-    receiveIcon: {
-        fontSize: 28,
-        marginRight: 14,
-    },
-    receiveContent: {
-        flex: 1,
-    },
-    receiveTitle: {
-        color: colors.gold,
-        fontSize: 16,
-        fontWeight: "600",
-    },
-    receiveSubtitle: {
-        color: colors.goldMetallic,
-        fontSize: 13,
-        marginTop: 2,
-    },
-    receiveArrow: {
-        color: colors.iris,
-        fontSize: 20,
-        fontWeight: "600",
-    },
-    pendingReservationCard: {
-        marginBottom: 20,
-        paddingHorizontal: 18,
-        paddingVertical: 16,
-        borderRadius: radii.xl,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.24)",
-        backgroundColor: "rgba(244, 74, 34, 0.08)",
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 12,
-    },
-    pendingReservationCopy: {
-        flex: 1,
-    },
-    pendingReservationEyebrow: {
-        color: colors.iris,
-        fontSize: 10,
-        fontWeight: "800",
-        textTransform: "uppercase",
-        letterSpacing: 1,
-    },
-    pendingReservationTitle: {
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: "700",
-        marginTop: 4,
-    },
-    pendingReservationActions: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-    },
-    pendingReservationDismiss: {
-        color: "rgba(255,255,255,0.55)",
-        fontSize: 12,
-        fontWeight: "700",
-    },
-    pendingReservationButton: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: radii.pill,
-        backgroundColor: colors.iris,
-    },
-    pendingReservationButtonText: {
-        color: "#fff",
-        fontSize: 12,
-        fontWeight: "800",
-        textTransform: "uppercase",
-        letterSpacing: 0.6,
-    },
-
-    // Tabs
-    tabContainer: {
-        flexDirection: "row",
-        backgroundColor: colors.base[50],
-        borderRadius: radii.pill,
-        padding: 4,
-        marginBottom: 20,
-    },
-    tabButton: {
-        flex: 1,
-    },
-    tabButtonActive: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        borderRadius: radii.pill,
-        alignItems: "center",
-    },
-    tabButtonInactive: {
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        alignItems: "center",
-    },
-    tabButtonTextActive: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 14,
-    },
-    tabButtonTextInactive: {
-        color: colors.goldMetallic,
-        fontSize: 14,
+        display: "none",
     },
 
     // Ticket list
@@ -1052,110 +1001,104 @@ const styles = StyleSheet.create({
         letterSpacing: 0.7,
     },
 
-    // Full-bleed boarding-pass ticket card
+    // Ticket Card
     ticketCard: {
-        height: 190,
-        borderRadius: radii["2xl"],
-        overflow: "visible",
+        height: 200,
+        borderRadius: 32, // Matches radii["2xl"] or slightly larger
+        overflow: "hidden",
         marginBottom: 16,
-        position: "relative",
+        backgroundColor: colors.base[50],
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.4,
+        shadowRadius: 16,
+        elevation: 8,
     },
-    ticketTopRow: {
-        flexDirection: "row",
-        alignItems: "flex-start",
+    ticketContent: {
+        flex: 1,
+        padding: 20,
         justifyContent: "space-between",
-        paddingHorizontal: 14,
-        paddingTop: 14,
     },
-    ticketHostBadge: {
-        backgroundColor: "rgba(255,255,255,0.15)",
-        paddingHorizontal: 8,
-        paddingVertical: 3,
+    hostBadge: {
+        alignSelf: "flex-start",
+        backgroundColor: "rgba(255,255,255,0.12)",
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: radii.pill,
-        maxWidth: "45%",
+        backdropFilter: "blur(10px)",
     },
-    ticketHostText: {
-        color: "rgba(255,255,255,0.9)",
-        fontSize: 11,
+    hostText: {
+        color: "rgba(255,255,255,0.8)",
+        fontSize: 10,
+        fontWeight: "800",
+        letterSpacing: 1.2,
+    },
+    eventInfo: {
+        marginTop: "auto",
+        marginBottom: 10,
+    },
+    eventTitle: {
+        color: "#fff",
+        fontSize: 24,
+        fontWeight: "900",
+        letterSpacing: -0.5,
+        marginBottom: 4,
+    },
+    eventDateText: {
+        color: "rgba(255,255,255,0.65)",
+        fontSize: 14,
         fontWeight: "600",
     },
-    ticketTitleBlock: {
-        alignItems: "flex-end",
-        flex: 1,
-        marginLeft: 8,
-    },
-    ticketTitleOverlay: {
-        color: "#fff",
-        fontSize: 14,
-        fontWeight: "700",
-        textAlign: "right",
-    },
-    ticketDateOverlay: {
-        color: "rgba(255,255,255,0.75)",
-        fontSize: 11,
-        marginTop: 2,
-        textAlign: "right",
-    },
-    ticketTornRow: {
+    ticketCardBottom: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 10,
+    },
+    ticketCardOrderId: {
+        color: "rgba(255,255,255,0.35)",
+        fontSize: 13,
+        fontWeight: "600",
+        letterSpacing: 1.5,
+    },
+    ticketCardQty: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        backgroundColor: "rgba(255,255,255,0.1)",
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: radii.pill,
+    },
+    ticketCardQtyText: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "700",
+    },
+    notchContainer: {
         position: "absolute",
-        left: 0,
-        right: 0,
-        bottom: 44,
-    },
-    ticketNotchLeft: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: colors.base.DEFAULT,
-        marginLeft: -9,
-    },
-    ticketTornLine: {
-        flex: 1,
-        height: 1,
-        borderStyle: "dashed",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.25)",
-    },
-    ticketNotchRight: {
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: colors.base.DEFAULT,
-        marginRight: -9,
-    },
-    ticketBottomRow: {
-        position: "absolute",
+        top: 0,
         bottom: 0,
         left: 0,
         right: 0,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 14,
-        paddingBottom: 12,
+        justifyContent: "center",
+        pointerEvents: "none",
     },
-    ticketOrderId: {
-        color: "rgba(255,255,255,0.6)",
-        fontSize: 12,
-        fontWeight: "500",
-        letterSpacing: 1,
-        fontVariant: ["tabular-nums"],
+    notchLeft: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.base.DEFAULT,
+        position: "absolute",
+        left: -10,
     },
-    ticketQuantityBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 4,
-    },
-    ticketQuantityText: {
-        color: "rgba(255,255,255,0.8)",
-        fontSize: 12,
-        fontWeight: "600",
-    },
-    ticketQuantityIcon: {
-        color: "rgba(255,255,255,0.6)",
-        fontSize: 14,
+    notchRight: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: colors.base.DEFAULT,
+        position: "absolute",
+        right: -10,
     },
 
     // Detail sheet

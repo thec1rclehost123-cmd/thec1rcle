@@ -1,446 +1,256 @@
-/**
- * Premium Tab Bar Layout
- * Liquid glass, aurora glow, breathing animations
- * Gen-Z approved 🔥
- */
-
 import { Tabs } from "expo-router";
-import { View, Text, StyleSheet, Platform, Dimensions, AppState, AppStateStatus } from "react-native";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Compass, MapPin, Ticket, MessageCircle, Sparkles, type LucideIcon } from "lucide-react-native";
+import { View, StyleSheet, Pressable, DeviceEventEmitter } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+    Compass,
+    MapPin,
+    Ticket,
+    MessageCircle,
+    Heart,
+    type LucideIcon,
+} from "lucide-react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
     withTiming,
-    withRepeat,
-    withSequence,
-    interpolate,
-    cancelAnimation,
-    Easing,
 } from "react-native-reanimated";
-import { useEffect, useRef } from "react";
+import React, { useEffect } from "react";
 import * as Haptics from "expo-haptics";
-import { colors } from "@/lib/design/theme";
+import { BlurView } from "expo-blur";
+import Svg, { Polygon, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
+import { colors, gradients } from "@/lib/design/theme";
+import { LinearGradient } from "expo-linear-gradient";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
-// ============================================
-// PREMIUM TAB ICON
-// ============================================
-function PremiumTabIcon({
-    Icon,
-    label,
-    focused,
-}: {
-    Icon: LucideIcon;
-    label: string;
-    focused: boolean;
-}) {
-    const scale = useSharedValue(1);
-    const translateY = useSharedValue(0);
-    const glowOpacity = useSharedValue(0);
-    const glowScale = useSharedValue(1);
-    const rotation = useSharedValue(0);
-
-    useEffect(() => {
-        if (focused) {
-            // Pop up and scale
-            scale.value = withSpring(1.15, { damping: 10, stiffness: 400 });
-            translateY.value = withSpring(-6, { damping: 12, stiffness: 400 });
-            glowOpacity.value = withTiming(1, { duration: 200 });
-
-            // Breathing glow
-            glowScale.value = withRepeat(
-                withSequence(
-                    withTiming(1.3, { duration: 1000, easing: Easing.inOut(Easing.sin) }),
-                    withTiming(1, { duration: 1000, easing: Easing.inOut(Easing.sin) })
-                ),
-                -1,
-                true
-            );
-
-            // Subtle wiggle on select
-            rotation.value = withSequence(
-                withTiming(-5, { duration: 50 }),
-                withTiming(5, { duration: 50 }),
-                withTiming(-3, { duration: 50 }),
-                withTiming(0, { duration: 50 })
-            );
-        } else {
-            scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-            translateY.value = withSpring(0, { damping: 15, stiffness: 300 });
-            glowOpacity.value = withTiming(0, { duration: 200 });
-            glowScale.value = withTiming(1, { duration: 200 });
-            rotation.value = withTiming(0, { duration: 100 });
-        }
-    }, [focused]);
-
-    const iconStyle = useAnimatedStyle(() => ({
-        transform: [
-            { scale: scale.value },
-            { translateY: translateY.value },
-            { rotate: `${rotation.value}deg` },
-        ],
-    }));
-
-    const glowOuterStyle = useAnimatedStyle(() => ({
-        opacity: glowOpacity.value * 0.15,
-        transform: [{ scale: glowScale.value }],
-    }));
-
-    const glowInnerStyle = useAnimatedStyle(() => ({
-        opacity: glowOpacity.value * 0.25,
-        transform: [{ scale: glowScale.value }],
-    }));
-
-    const labelStyle = useAnimatedStyle(() => ({
-        opacity: interpolate(translateY.value, [0, -6], [0.6, 1]),
-        transform: [{ scale: interpolate(translateY.value, [0, -6], [0.9, 1]) }],
-    }));
-    const TabIcon = Icon as any;
+// viewBox is 100×62. All cone coordinates live in this space.
+// The SVG stretches to fill the tab slot (width="100%") so it's always centred.
+//   cx=50 is the horizontal centre
+//   tip: same width as the bar (~26% of 100)
+//   base: ~74% of 100, spread across the full bottom edge
+function SpotlightCone() {
+    const tipL = 37;   // narrow top-left  (26px wide band)
+    const tipR = 63;   // narrow top-right
+    const bL   = 13;   // wide bottom-left  (74px wide band)
+    const bR   = 87;   // wide bottom-right
+    const tipY = 3;    // just below the bar
+    const bY   = 62;   // bottom of the pill
 
     return (
-        <View style={styles.tabIconContainer}>
-            {/* Multi-layer glow (kept firmly behind) */}
-            <View style={styles.glowWrapper}>
-                <Animated.View style={[styles.glowOuter, glowOuterStyle]} />
-                <Animated.View style={[styles.glowInner, glowInnerStyle]} />
-            </View>
-
-            {/* Icon with animation */}
-            <Animated.View style={[styles.iconWrapper, iconStyle]}>
-                <TabIcon
-                    size={focused ? 24 : 22}
-                    color={focused ? colors.iris : colors.goldMetallic}
-                    strokeWidth={focused ? 2.2 : 1.8}
-                />
-            </Animated.View>
-
-            {/* Label */}
-            <Animated.Text
-                style={[
-                    styles.label,
-                    focused && styles.labelActive,
-                    labelStyle,
-                ]}
-            >
-                {label}
-            </Animated.Text>
-
-            {/* Active indicator line */}
-            {focused && (
-                <Animated.View
-                    style={styles.activeIndicator}
-                    entering={undefined}
-                >
-                    <LinearGradient
-                        colors={[colors.iris, colors.irisGlow]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={styles.activeIndicatorGradient}
-                    />
-                </Animated.View>
-            )}
-        </View>
+        <Svg
+            width="100%"
+            height="100%"
+            viewBox="0 0 100 62"
+            preserveAspectRatio="none"
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+            pointerEvents="none"
+        >
+            <Defs>
+                <SvgGradient id="coneGrad" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0"    stopColor={colors.iris} stopOpacity="0.7"  />
+                    <Stop offset="0.55" stopColor={colors.iris} stopOpacity="0.2"  />
+                    <Stop offset="1"    stopColor={colors.iris} stopOpacity="0.0"  />
+                </SvgGradient>
+            </Defs>
+            {/* Trapezoid: narrow at top (bar width), wide at bottom */}
+            <Polygon
+                points={`${tipL},${tipY} ${tipR},${tipY} ${bR},${bY} ${bL},${bY}`}
+                fill="url(#coneGrad)"
+            />
+        </Svg>
     );
 }
 
-// ============================================
-// PREMIUM TAB BAR BACKGROUND
-// ============================================
-function PremiumTabBarBackground() {
-    const auroraX = useSharedValue(0);
-    const auroraOpacity = useSharedValue(0.5);
+// ── Tab routes shown in the bar ───────────────────────────────────────────────
+const VISIBLE_ROUTES = ["explore", "inbox", "social", "tickets", "venues"] as const;
+type VisibleRoute = typeof VISIBLE_ROUTES[number];
 
-    const appState = useRef(AppState.currentState);
+const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
+    explore:  Compass,
+    inbox:    MessageCircle,
+    social:   Heart,
+    tickets:  Ticket,
+    venues:   MapPin,
+};
 
-    const startAuroraAnimations = () => {
-        auroraX.value = withRepeat(
-            withSequence(
-                withTiming(50, { duration: 8000, easing: Easing.inOut(Easing.sin) }),
-                withTiming(-50, { duration: 8000, easing: Easing.inOut(Easing.sin) })
-            ),
-            -1,
-            true
-        );
-        auroraOpacity.value = withRepeat(
-            withSequence(
-                withTiming(0.7, { duration: 3000 }),
-                withTiming(0.4, { duration: 3000 })
-            ),
-            -1,
-            true
-        );
-    };
+// ── Custom floating pill tab bar ───────────────────────────────────────────────
+function CustomTabBar({ state, navigation }: any) {
+    const insets   = useSafeAreaInsets();
+    const translateY = useSharedValue(0);
+    const opacity    = useSharedValue(1);
 
+    // Listen to scroll events emitted from screens
     useEffect(() => {
-        startAuroraAnimations();
-
-        const subscription = AppState.addEventListener("change", (nextAppState: AppStateStatus) => {
-            if (nextAppState === "background" || nextAppState === "inactive") {
-                cancelAnimation(auroraX);
-                cancelAnimation(auroraOpacity);
-            } else if (
-                appState.current.match(/inactive|background/) &&
-                nextAppState === "active"
-            ) {
-                startAuroraAnimations();
+        const sub = DeviceEventEmitter.addListener(
+            "tabBarScroll",
+            ({ hide }: { hide: boolean }) => {
+                translateY.value = withSpring(
+                    hide ? 120 : 0,
+                    { damping: 22, stiffness: 220, mass: 0.8 }
+                );
+                opacity.value = withTiming(hide ? 0 : 1, { duration: 180 });
             }
-            appState.current = nextAppState;
-        });
-
-        return () => subscription.remove();
+        );
+        return () => sub.remove();
     }, []);
 
-    const auroraStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: auroraX.value }],
-        opacity: auroraOpacity.value,
+    const animStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }],
+        opacity: opacity.value,
     }));
 
+    const activeRouteName = state.routes[state.index]?.name;
+
+    // Only show the 5 visible routes
+    const visibleRoutes = state.routes.filter(
+        (r: any) => (VISIBLE_ROUTES as readonly string[]).includes(r.name)
+    );
+
+    const handlePress = (route: any) => {
+        // Always snap tab bar back into view on any tap
+        translateY.value = withSpring(0, { damping: 20, stiffness: 250, mass: 0.7 });
+        opacity.value = withTiming(1, { duration: 150 });
+
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+        const isFocused = activeRouteName === route.name;
+        const event = navigation.emit({
+            type: "tabPress",
+            target: route.key,
+            canPreventDefault: true,
+        });
+
+        if (!isFocused && !event.defaultPrevented) {
+            navigation.navigate(route.name);
+        }
+    };
+
     return (
-        <View style={styles.tabBarBgContainer}>
-            {/* Base blur */}
-            <BlurView
-                intensity={80}
-                tint="dark"
-                style={StyleSheet.absoluteFill}
-            />
-
-            {/* Dark gradient base */}
+        <Animated.View
+            style={[
+                styles.tabBarContainer,
+                { bottom: insets.bottom > 0 ? insets.bottom + 8 : 20 },
+                animStyle,
+            ]}
+        >
+            <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
             <LinearGradient
-                colors={["rgba(22,22,22,0.85)", "rgba(22,22,22,0.95)", "rgba(22,22,22,1)"]}
-                style={StyleSheet.absoluteFill}
-            />
-
-            {/* Aurora accent */}
-            <Animated.View style={[styles.auroraContainer, auroraStyle]}>
-                <LinearGradient
-                    colors={[
-                        "transparent",
-                        "rgba(244, 74, 34, 0.15)",
-                        "rgba(138, 43, 226, 0.1)",
-                        "transparent",
-                    ]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.auroraGradient}
-                />
-            </Animated.View>
-
-            {/* Top border with gradient */}
-            <LinearGradient
-                colors={[
-                    "rgba(255,255,255,0.02)",
-                    "rgba(244, 74, 34, 0.2)",
-                    "rgba(255,255,255,0.02)",
-                ]}
+                colors={["rgba(44, 44, 46, 0.7)", "rgba(28, 28, 30, 0.85)"]}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.topBorderGradient}
-            />
+                end={{ x: 0, y: 1 }}
+                style={styles.tabBarGradient}
+            >
 
-            {/* Subtle noise texture overlay */}
-            <View style={styles.noiseOverlay} />
-        </View>
+            {visibleRoutes.map((route: any) => {
+                const isFocused = activeRouteName === route.name;
+                const Icon = TAB_ICONS[route.name as VisibleRoute];
+                if (!Icon) return null;
+                const IconComp = Icon as any;
+
+                return (
+                    <Pressable
+                        key={route.key}
+                        onPress={() => handlePress(route)}
+                        style={styles.tabItem}
+                    >
+                        {isFocused && (
+                            <>
+                                {/* Orange bar — the "light source" at the top edge */}
+                                <View style={styles.spotlightBar} />
+
+                                {/* True triangular cone via SVG trapezoid + gradient */}
+                                <SpotlightCone />
+                            </>
+                        )}
+
+                        {/* Icon — glows orange when active, no circle background */}
+                        <View style={styles.iconWrap}>
+                            <IconComp
+                                size={22}
+                                color={isFocused ? colors.iris : "rgba(255,255,255,0.38)"}
+                                strokeWidth={isFocused ? 2.0 : 1.7}
+                            />
+                        </View>
+                    </Pressable>
+                );
+            })}
+            </LinearGradient>
+        </Animated.View>
     );
 }
 
-// ============================================
-// MAIN TAB LAYOUT
-// ============================================
-export default function PremiumTabLayout() {
+
+// ── Root tab layout ────────────────────────────────────────────────────────────
+export default function TabLayout() {
     return (
         <Tabs
-            screenOptions={{
-                headerShown: false,
-                tabBarStyle: styles.tabBar,
-                tabBarBackground: () => <PremiumTabBarBackground />,
-                tabBarActiveTintColor: colors.iris,
-                tabBarInactiveTintColor: colors.goldMetallic,
-                tabBarShowLabel: false,
-            }}
-            screenListeners={{
-                tabPress: () => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                },
-            }}
+            tabBar={(props) => <CustomTabBar {...props} />}
+            screenOptions={{ headerShown: false }}
         >
-            <Tabs.Screen
-                name="explore"
-                options={{
-                    title: "Explore",
-                    tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon Icon={Compass} label="Explore" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="venues"
-                options={{
-                    title: "Venues",
-                    tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon Icon={MapPin} label="Venues" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="tickets"
-                options={{
-                    title: "Tickets",
-                    tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon Icon={Ticket} label="Tickets" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="inbox"
-                options={{
-                    title: "Inbox",
-                    tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon Icon={MessageCircle} label="Inbox" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="profile"
-                options={{
-                    title: "Profile",
-                    tabBarIcon: ({ focused }) => (
-                        <PremiumTabIcon Icon={Sparkles} label="Me" focused={focused} />
-                    ),
-                }}
-            />
-            <Tabs.Screen
-                name="social"
-                options={{
-                    href: null,
-                }}
-            />
-            <Tabs.Screen
-                name="dating"
-                options={{
-                    href: null,
-                }}
-            />
+            <Tabs.Screen name="explore"  options={{ title: "Explore" }} />
+            <Tabs.Screen name="inbox"    options={{ title: "Inbox" }} />
+            <Tabs.Screen name="social"   options={{ title: "Social" }} />
+            <Tabs.Screen name="tickets"  options={{ title: "Tickets" }} />
+            <Tabs.Screen name="venues"   options={{ title: "Venues" }} />
+            {/* Hidden — accessed via header avatar */}
+            <Tabs.Screen name="profile"  options={{ href: null }} />
+            <Tabs.Screen name="dating"   options={{ href: null }} />
         </Tabs>
     );
 }
 
-// ============================================
-// STYLES
-// ============================================
+// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-    tabBar: {
+    tabBarContainer: {
         position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        height: Platform.OS === "ios" ? 92 : 76,
-        backgroundColor: "transparent",
-        borderTopWidth: 0,
-        elevation: 0,
-        paddingBottom: Platform.OS === "ios" ? 28 : 12,
-        paddingTop: 12,
+        left: 20,
+        right: 20,
+        height: 64,
+        borderRadius: 32,
+        overflow: "hidden",
+        backgroundColor: "rgba(0,0,0,0.2)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.5,
+        shadowRadius: 24,
+        elevation: 15,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
     },
-    tabBarBgContainer: {
-        ...StyleSheet.absoluteFillObject,
+    tabBarGradient: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "stretch",
+        justifyContent: "space-around",
+        paddingHorizontal: 4,
+    },
+
+    tabItem: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
         overflow: "hidden",
     },
-    auroraContainer: {
+    // Bright bar at the very top — the "light source"
+    spotlightBar: {
         position: "absolute",
         top: 0,
-        left: -100,
-        right: -100,
-        height: "100%",
-    },
-    auroraGradient: {
-        flex: 1,
-    },
-    topBorderGradient: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 1,
-    },
-    noiseOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        opacity: 0.02,
-        // Noise texture would go here
-    },
-    tabIconContainer: {
-        alignItems: "center",
-        justifyContent: "center",
-        minWidth: 70,
-        height: 50,
-        paddingTop: 8,
-    },
-    glowWrapper: {
-        position: "absolute",
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: -1,
-    },
-    glowOuter: {
-        position: "absolute",
-        top: -4,
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        backgroundColor: colors.iris,
-        shadowColor: colors.iris,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.8,
-        shadowRadius: 20,
-    },
-    glowInner: {
-        position: "absolute",
-        top: 4,
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+        alignSelf: "center",
+        width: 28,
+        height: 3,
+        borderRadius: 2,
         backgroundColor: colors.iris,
         shadowColor: colors.iris,
         shadowOffset: { width: 0, height: 0 },
         shadowOpacity: 1,
-        shadowRadius: 10,
+        shadowRadius: 8,
     },
-    iconWrapper: {
+    // Icon container — no active background, icon color change conveys state
+    iconWrap: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
         alignItems: "center",
         justifyContent: "center",
-        width: 36,
-        height: 36,
-        marginBottom: 2,
-    },
-
-    label: {
-        fontSize: 10,
-        fontWeight: "600",
-        color: colors.goldMetallic,
-        marginTop: 4,
-        letterSpacing: 0.3,
-    },
-    labelActive: {
-        color: colors.iris,
-        fontWeight: "700",
-        marginTop: 6, // Push down slightly when focused to avoid icon pop overlap
-    },
-    activeIndicator: {
-        position: "absolute",
-        bottom: -16, // Move down way clear of the text
-        width: 24,
-        height: 3,
-        borderRadius: 2,
-        overflow: "hidden",
-    },
-    activeIndicatorGradient: {
-        flex: 1,
-        borderRadius: 2,
     },
 });
