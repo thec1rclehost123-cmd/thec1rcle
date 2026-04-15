@@ -9,7 +9,7 @@ import { queryIncidents, createIncident } from "@c1rcle/core/security-logger";
 
 export const dynamic = "force-dynamic";
 
-async function GET(req) {
+async function handleGet(req) {
     const { searchParams } = new URL(req.url);
     const status     = searchParams.get("status")     || undefined;
     const severity   = searchParams.get("severity")   || undefined;
@@ -20,7 +20,7 @@ async function GET(req) {
     return NextResponse.json({ ok: true, incidents, count: incidents.length });
 }
 
-async function POST(req) {
+async function handlePost(req) {
     const body = await req.json();
     const { entityType, entityId, severity, reason, evidence, linkedEventId } = body;
 
@@ -49,5 +49,5 @@ async function POST(req) {
     return NextResponse.json({ ok: true, incidentId }, { status: 201 });
 }
 
-export const GET  = withAdminAuth(GET);
-export const POST = withAdminAuth(POST);
+export const GET  = withAdminAuth(handleGet);
+export const POST = withAdminAuth(handlePost);

@@ -18,7 +18,7 @@ const VALID_TRANSITIONS = {
     false_positive: [],
 };
 
-async function GET(_req, { params }) {
+async function handleGet(_req, { params }) {
     const incident = await getIncident(params.id);
     if (!incident) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -26,7 +26,7 @@ async function GET(_req, { params }) {
     return NextResponse.json({ ok: true, incident });
 }
 
-async function PATCH(req, { params }) {
+async function handlePatch(req, { params }) {
     const incident = await getIncident(params.id);
     if (!incident) {
         return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -58,5 +58,5 @@ async function PATCH(req, { params }) {
     return NextResponse.json({ ok: true });
 }
 
-export const GET   = withAdminAuth(GET);
-export const PATCH = withAdminAuth(PATCH);
+export const GET   = withAdminAuth(handleGet);
+export const PATCH = withAdminAuth(handlePatch);
