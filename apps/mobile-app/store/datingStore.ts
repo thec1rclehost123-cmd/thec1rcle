@@ -155,6 +155,9 @@ export const useDatingStore = create<DatingState>((set, get) => ({
                     if (!snap.exists()) continue;
                     const data = snap.data();
                     if (data.isVisible === false) continue; // respect opt-out
+                    // Only show users who have completed (or verified) their Social Profile
+                    const spState = data?.socialProfile?.state;
+                    if (spState !== "complete" && spState !== "verified") continue;
                     const meta = eventMeta[eventId];
                     profiles.push({
                         userId: uid,

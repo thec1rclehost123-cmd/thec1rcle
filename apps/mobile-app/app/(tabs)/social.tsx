@@ -26,6 +26,8 @@ import * as Haptics from "expo-haptics";
 import { colors } from "@/lib/design/theme";
 import { useAuthStore } from "@/store/authStore";
 import { useDatingStore, type DatingProfile, type Match } from "@/store/datingStore";
+import { useSocialProfileStore } from "@/store/socialProfileStore";
+import { SoftBlockSheet } from "@/components/SoftBlockSheet";
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get("window");
 const CARD_W = SCREEN_W - 40;
@@ -248,13 +250,20 @@ export default function SocialScreen() {
         passUser,
         removeTopProfile,
     } = useDatingStore();
+    const { checkAccess, loadSocialProfile } = useSocialProfileStore();
 
     const [pendingMatch, setPendingMatch] = useState<Match | null>(null);
 
     useEffect(() => {
         if (user?.uid) {
-            fetchProfiles(user.uid);
-            fetchMatches(user.uid);
+            loadSocialProfile(user.uid).then(() => {
+                // Only load swipe profiles if user is verified
+                const { socialState: state } = useSocialProfileStore.getState();
+                if (state === "verified" || state === "complete") {
+                    fetchProfiles(user.uid);
+                    fetchMatches(user.uid);
+                }
+            });
         }
     }, [user?.uid]);
 
@@ -280,11 +289,12 @@ export default function SocialScreen() {
         [profiles, user?.uid]
     );
 
-    // Button-triggered like / pass
+    // Button-triggered like / pass — guard: must be verified
     const handleLikeBtn = useCallback(() => {
+        if (!checkAccess("verified", "dating")) return;
         if (profiles.length === 0) return;
         handleSwipedOff("like");
-    }, [profiles, handleSwipedOff]);
+    }, [profiles, handleSwipedOff, checkAccess]);
 
     const handlePassBtn = useCallback(() => {
         if (profiles.length === 0) return;
@@ -407,6 +417,9 @@ export default function SocialScreen() {
                     />
                 )}
             </Modal>
+
+            {/* Soft block sheet — shown when gated feature is accessed */}
+            <SoftBlockSheet />
         </View>
     );
 }

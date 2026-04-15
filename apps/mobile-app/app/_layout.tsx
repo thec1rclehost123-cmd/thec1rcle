@@ -448,6 +448,16 @@ export default function RootLayout() {
                                     }}
                                 />
 
+                                {/* Social Setup flow */}
+                                <Stack.Screen
+                                    name="social-setup"
+                                    options={{
+                                        headerShown: false,
+                                        presentation: "modal",
+                                        animation: "slide_from_bottom",
+                                    }}
+                                />
+
                                 {/* Legal Pages */}
                                 <Stack.Screen
                                     name="legal/terms"

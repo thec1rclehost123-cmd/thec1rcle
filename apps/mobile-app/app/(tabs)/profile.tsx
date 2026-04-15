@@ -20,6 +20,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
 import { useTicketsStore } from "@/store/ticketsStore";
+import { useSocialProfileStore } from "@/store/socialProfileStore";
 import { registerPushToken } from "@/lib/notifications";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -146,6 +147,7 @@ export default function ProfileScreen() {
     const { user } = useAuthStore();
     const { signOut, loading: authLoading } = useAuth();
     const { orders, fetchUserOrders } = useTicketsStore();
+    const { socialState, loadSocialProfile } = useSocialProfileStore();
     const profile = useProfileStore((state) => state.profile);
     const profileLoading = useProfileStore((state) => state.loading);
     const loadProfile = useProfileStore((state) => state.loadProfile);
@@ -181,6 +183,7 @@ export default function ProfileScreen() {
             await Promise.allSettled([
                 fetchUserOrders(user.uid),
                 loadProfile(user.uid),
+                loadSocialProfile(user.uid),
             ]);
 
             const permissions = await Notifications.getPermissionsAsync();
@@ -403,6 +406,51 @@ export default function ProfileScreen() {
                     <View style={styles.statsDivider} />
                     <StatsCard value={upcomingEvents} label="Upcoming" delay={320} />
                 </View>
+
+                {/* Social Profile Card */}
+                <Animated.View
+                    entering={FadeInDown.delay(360).springify().damping(15)}
+                    style={styles.socialCard}
+                >
+                    <View style={styles.socialCardLeft}>
+                        <View style={[
+                            styles.socialDot,
+                            socialState === "verified" && styles.socialDotVerified,
+                            socialState === "complete" && styles.socialDotComplete,
+                        ]} />
+                        <View style={styles.socialCardText}>
+                            <Text style={styles.socialCardTitle}>
+                                {socialState === "verified"
+                                    ? "✅ Social Profile — Verified"
+                                    : socialState === "complete"
+                                    ? "Social Profile — Active"
+                                    : "Set Up Social Profile"}
+                            </Text>
+                            <Text style={styles.socialCardSub}>
+                                {socialState === "verified"
+                                    ? "Dating, messaging & event likes unlocked"
+                                    : socialState === "complete"
+                                    ? "Verify your profile to unlock dating & chat"
+                                    : "Unlock event likes, dating & connections"}
+                            </Text>
+                        </View>
+                    </View>
+                    <Pressable
+                        style={styles.socialCardBtn}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            if (socialState === "complete") {
+                                router.push("/verification" as any);
+                            } else {
+                                router.push("/social-setup" as any);
+                            }
+                        }}
+                    >
+                        <Text style={styles.socialCardBtnText}>
+                            {socialState === "verified" ? "Edit" : socialState === "complete" ? "Verify" : "Setup"}
+                        </Text>
+                    </Pressable>
+                </Animated.View>
 
                 {/* Your Story — activity feed */}
                 {pastOrders.length > 0 && (
@@ -824,6 +872,62 @@ const styles = StyleSheet.create({
     },
 
     // Menu
+    // Social Profile Card
+    socialCard: {
+        marginHorizontal: 20,
+        marginBottom: 20,
+        backgroundColor: "rgba(244,74,34,0.08)",
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.18)",
+        padding: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    socialCardLeft: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    socialDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: "rgba(255,255,255,0.2)",
+        flexShrink: 0,
+    },
+    socialDotComplete: {
+        backgroundColor: "#FFAA00",
+    },
+    socialDotVerified: {
+        backgroundColor: colors.success,
+    },
+    socialCardText: { flex: 1 },
+    socialCardTitle: {
+        color: "#fff",
+        fontSize: 13,
+        fontWeight: "700",
+        marginBottom: 2,
+    },
+    socialCardSub: {
+        color: "rgba(255,255,255,0.45)",
+        fontSize: 11,
+        lineHeight: 15,
+    },
+    socialCardBtn: {
+        backgroundColor: colors.iris,
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 10,
+    },
+    socialCardBtnText: {
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: "700",
+    },
+
     menuContainer: {
         paddingHorizontal: 20,
     },

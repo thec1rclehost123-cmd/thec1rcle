@@ -1,3 +1,8 @@
+/**
+ * venues.tsx
+ * Two-tab screen: Venues | Hosts
+ * 2-column poster grid (BookMyShow-style), search bar, no filter chips.
+ */
 import { useEffect, useMemo, useState } from "react";
 import {
     View,
@@ -7,219 +12,188 @@ import {
     TextInput,
     FlatList,
     RefreshControl,
+    Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
-import * as Location from "expo-location";
-import { Ionicons } from "@expo/vector-icons";
+import { Search, X, MapPin, Building2, Users, Heart } from "lucide-react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { colors } from "@/lib/design/theme";
 import { useVenuesStore, Venue } from "@/store/venuesStore";
-import { VenueCard, VenueSkeleton } from "@/components/venues/VenueCard";
-import { calculateDistanceKm, type Coordinates, getVenueLocationLabel } from "@/lib/venueDiscovery";
+import { useEventsStore } from "@/store/eventsStore";
+import { useFollowStore } from "@/store/followStore";
+import { useAuth } from "@/hooks/useAuth";
+import { getVenueDisplayName, getVenueLocationLabel, formatCompactCount } from "@/lib/venueDiscovery";
 
-const AnyFlatList = FlatList as any;
+const { width: SCREEN_W } = Dimensions.get("window");
+const H_PAD = 16;
+const COL_GAP = 10;
+const CARD_W = (SCREEN_W - H_PAD * 2 - COL_GAP) / 2;
+const CARD_H = CARD_W * 1.45;
 
-type SortMode = "popular" | "nearby" | "events" | "tables";
-type DisplayVenue = Venue & { distanceKm?: number | null };
+type Tab = "venues" | "hosts";
 
+interface DerivedHost {
+    id: string;
+    name: string;
+    photoURL?: string;
+    eventsCount: number;
+}
+
+// ── Poster card ───────────────────────────────────────────────────────────────
+function PosterCard({
+    imageUrl,
+    title,
+    subtitle,
+    badge,
+    index,
+    onPress,
+    onFollow,
+    isFollowed,
+}: {
+    imageUrl?: string | null;
+    title: string;
+    subtitle?: string;
+    badge?: string;
+    index: number;
+    onPress: () => void;
+    onFollow?: () => void;
+    isFollowed?: boolean;
+}) {
+    return (
+        <Animated.View
+            entering={FadeInDown.delay(Math.min(index * 40, 240)).springify().damping(18)}
+            style={styles.posterCard}
+        >
+            <Pressable
+                onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    onPress();
+                }}
+                style={{ flex: 1 }}
+            >
+                {/* Image */}
+                <View style={styles.posterImgWrap}>
+                    {imageUrl ? (
+                        <Image
+                            source={{ uri: imageUrl }}
+                            style={StyleSheet.absoluteFillObject}
+                            contentFit="cover"
+                            transition={300}
+                        />
+                    ) : (
+                        <LinearGradient
+                            colors={["#1E1E22", "#111113"]}
+                            style={StyleSheet.absoluteFillObject}
+                        />
+                    )}
+                    {/* Gradient scrim */}
+                    <LinearGradient
+                        colors={["transparent", "rgba(0,0,0,0.72)", "rgba(0,0,0,0.94)"]}
+                        locations={[0.45, 0.78, 1]}
+                        style={StyleSheet.absoluteFillObject}
+                    />
+                    {/* Badge top-right */}
+                    {badge && (
+                        <View style={styles.posterBadge}>
+                            <Text style={styles.posterBadgeText}>{badge}</Text>
+                        </View>
+                    )}
+                    {/* Follow button top-left */}
+                    {onFollow && (
+                        <Pressable
+                            style={[styles.posterFollowBtn, isFollowed && styles.posterFollowBtnActive]}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                onFollow();
+                            }}
+                            hitSlop={8}
+                        >
+                            <Heart
+                                size={13}
+                                color={isFollowed ? "#F44A22" : "#fff"}
+                                fill={isFollowed ? "#F44A22" : "none"}
+                                strokeWidth={2}
+                            />
+                        </Pressable>
+                    )}
+                </View>
+
+                {/* Info below image */}
+                <View style={styles.posterInfo}>
+                    <Text style={styles.posterTitle} numberOfLines={2}>{title}</Text>
+                    {subtitle ? (
+                        <Text style={styles.posterSubtitle} numberOfLines={1}>{subtitle}</Text>
+                    ) : null}
+                </View>
+            </Pressable>
+        </Animated.View>
+    );
+}
+
+function PosterSkeleton() {
+    return (
+        <View style={[styles.posterCard, styles.posterSkeleton]} />
+    );
+}
+
+// ── Main screen ───────────────────────────────────────────────────────────────
 export default function VenuesTab() {
     const insets = useSafeAreaInsets();
-    const { venues, loading, error, fetchVenues } = useVenuesStore();
+    const { venues, loading: venuesLoading, fetchVenues } = useVenuesStore();
+    const { events } = useEventsStore();
+    const { user } = useAuth();
+    const { isFollowingVenue, isFollowingHost, toggleVenueFollow, toggleHostFollow, fetchFollows, loaded } = useFollowStore();
 
+    const [activeTab, setActiveTab] = useState<Tab>("venues");
     const [search, setSearch] = useState("");
-    const [activeArea, setActiveArea] = useState<string | null>(null);
-    const [activeType, setActiveType] = useState<string | null>(null);
-    const [sortMode, setSortMode] = useState<SortMode>("popular");
     const [refreshing, setRefreshing] = useState(false);
-    const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
-    const [locationDenied, setLocationDenied] = useState(false);
 
+    useEffect(() => { void fetchVenues(); }, []);
     useEffect(() => {
-        void fetchVenues();
-    }, [fetchVenues]);
+        if (user?.uid && !loaded) void fetchFollows(user.uid);
+    }, [user?.uid, loaded, fetchFollows]);
 
-    useEffect(() => {
-        if (sortMode !== "nearby" || userLocation || locationDenied) {
-            return;
-        }
-
-        let cancelled = false;
-
-        async function loadUserLocation() {
-            try {
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                if (cancelled) {
-                    return;
-                }
-
-                if (status !== "granted") {
-                    setLocationDenied(true);
-                    return;
-                }
-
-                const currentPosition = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced,
+    // Derive hosts from events — unique by hostName, sort by event count
+    const hosts = useMemo<DerivedHost[]>(() => {
+        const map = new Map<string, DerivedHost>();
+        events.forEach((e) => {
+            if (!e.hostName) return;
+            const key = e.hostId ?? e.hostName;
+            const existing = map.get(key);
+            if (existing) {
+                existing.eventsCount += 1;
+            } else {
+                map.set(key, {
+                    id: key,
+                    name: e.hostName,
+                    photoURL: undefined,
+                    eventsCount: 1,
                 });
-
-                if (!cancelled) {
-                    setUserLocation({
-                        latitude: currentPosition.coords.latitude,
-                        longitude: currentPosition.coords.longitude,
-                    });
-                }
-            } catch {
-                if (!cancelled) {
-                    setLocationDenied(true);
-                }
-            }
-        }
-
-        void loadUserLocation();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [locationDenied, sortMode, userLocation]);
-
-    const areaOptions = useMemo(() => {
-        const counts = new Map<string, number>();
-
-        venues.forEach((venue) => {
-            const label = getVenueLocationLabel(venue);
-            if (!label) {
-                return;
-            }
-            counts.set(label, (counts.get(label) || 0) + 1);
-        });
-
-        return [...counts.entries()]
-            .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
-            .slice(0, 10)
-            .map(([label]) => label);
-    }, [venues]);
-
-    const venueTypes = useMemo(() => {
-        const values = new Set<string>();
-        venues.forEach((venue) => {
-            if (venue.venueType?.trim()) {
-                values.add(venue.venueType.trim());
             }
         });
-        return [...values].sort((left, right) => left.localeCompare(right)).slice(0, 8);
-    }, [venues]);
+        return [...map.values()].sort((a, b) => b.eventsCount - a.eventsCount);
+    }, [events]);
 
-    const filtered = useMemo<DisplayVenue[]>(() => {
-        const searchValue = search.trim().toLowerCase();
+    const filteredVenues = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return venues;
+        return venues.filter((v) => {
+            const hay = [v.displayName, v.name, v.neighborhood, v.area, v.city, ...(v.tags ?? [])]
+                .filter(Boolean).join(" ").toLowerCase();
+            return hay.includes(q);
+        });
+    }, [venues, search]);
 
-        return venues
-            .filter((venue) => {
-                if (activeArea) {
-                    const locationMatch = [
-                        venue.neighborhood,
-                        venue.area,
-                        venue.city,
-                        venue.address,
-                    ]
-                        .filter(Boolean)
-                        .join(" ")
-                        .toLowerCase();
-
-                    if (!locationMatch.includes(activeArea.toLowerCase())) {
-                        return false;
-                    }
-                }
-
-                if (activeType && venue.venueType?.toLowerCase() !== activeType.toLowerCase()) {
-                    return false;
-                }
-
-                if (!searchValue) {
-                    return true;
-                }
-
-                const searchHaystack = [
-                    venue.displayName,
-                    venue.name,
-                    venue.neighborhood,
-                    venue.area,
-                    venue.city,
-                    venue.description,
-                    ...(venue.tags || []),
-                    ...(venue.vibes || []),
-                    ...(venue.genres || []),
-                ]
-                    .filter(Boolean)
-                    .join(" ")
-                    .toLowerCase();
-
-                return searchHaystack.includes(searchValue);
-            })
-            .map((venue) => ({
-                ...venue,
-                distanceKm:
-                    userLocation && venue.coordinates
-                        ? calculateDistanceKm(userLocation, venue.coordinates)
-                        : null,
-            }));
-    }, [activeArea, activeType, search, userLocation, venues]);
-
-    const sortedVenues = useMemo(() => {
-        const next = [...filtered];
-
-        switch (sortMode) {
-            case "nearby":
-                next.sort((left, right) => {
-                    const leftDistance = left.distanceKm ?? null;
-                    const rightDistance = right.distanceKm ?? null;
-
-                    if (leftDistance !== null && rightDistance !== null) {
-                        return leftDistance - rightDistance;
-                    }
-                    if (leftDistance !== null) {
-                        return -1;
-                    }
-                    if (rightDistance !== null) {
-                        return 1;
-                    }
-                    return (right.popularityScore || 0) - (left.popularityScore || 0);
-                });
-                break;
-            case "events":
-                next.sort((left, right) => {
-                    const byEvents = (right.upcomingEventsCount || 0) - (left.upcomingEventsCount || 0);
-                    if (byEvents !== 0) {
-                        return byEvents;
-                    }
-                    const leftDate = left.nextEventDate ? Date.parse(left.nextEventDate) : Number.MAX_SAFE_INTEGER;
-                    const rightDate = right.nextEventDate ? Date.parse(right.nextEventDate) : Number.MAX_SAFE_INTEGER;
-                    return leftDate - rightDate;
-                });
-                break;
-            case "tables":
-                next.sort((left, right) => {
-                    const byTables = Number(Boolean(right.tablesAvailable)) - Number(Boolean(left.tablesAvailable));
-                    if (byTables !== 0) {
-                        return byTables;
-                    }
-                    return (right.popularityScore || 0) - (left.popularityScore || 0);
-                });
-                break;
-            case "popular":
-            default:
-                next.sort((left, right) => (right.popularityScore || 0) - (left.popularityScore || 0));
-                break;
-        }
-
-        return next;
-    }, [filtered, sortMode]);
-
-    const activeVenueCount = useMemo(
-        () => sortedVenues.filter((venue) => (venue.upcomingEventsCount || 0) > 0).length,
-        [sortedVenues]
-    );
+    const filteredHosts = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        if (!q) return hosts;
+        return hosts.filter((h) => h.name.toLowerCase().includes(q));
+    }, [hosts, search]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -227,196 +201,175 @@ export default function VenuesTab() {
         setRefreshing(false);
     };
 
-    const openVenue = (venue: Venue) => {
-        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push(`/venue/${venue.slug || venue.id}` as never);
-    };
+    // Build pairs for 2-column layout
+    const venuePairs = useMemo(() => {
+        const rows: Venue[][] = [];
+        for (let i = 0; i < filteredVenues.length; i += 2) {
+            rows.push(filteredVenues.slice(i, i + 2));
+        }
+        return rows;
+    }, [filteredVenues]);
+
+    const hostPairs = useMemo(() => {
+        const rows: DerivedHost[][] = [];
+        for (let i = 0; i < filteredHosts.length; i += 2) {
+            rows.push(filteredHosts.slice(i, i + 2));
+        }
+        return rows;
+    }, [filteredHosts]);
+
+    const isLoading = venuesLoading && venues.length === 0;
+    const count = activeTab === "venues" ? filteredVenues.length : filteredHosts.length;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <AnyFlatList
-                data={loading && sortedVenues.length === 0 ? [] : sortedVenues}
-                keyExtractor={(item: Venue) => item.id}
-                renderItem={({ item }: { item: Venue }) => (
-                    <VenueCard venue={item} onPress={() => openVenue(item)} />
-                )}
-                ListHeaderComponent={
-                    <>
-                        <View style={styles.header}>
-                            <View>
-                                <Text style={styles.headerSubtitle}>Discover</Text>
-                                <Text style={styles.headerTitle}>Venues</Text>
-                                <Text style={styles.headerMeta}>
-                                    {sortedVenues.length} places, {activeVenueCount} with upcoming events
-                                </Text>
-                            </View>
+            {/* ── Header ── */}
+            <View style={styles.header}>
+                <View>
+                    <Text style={styles.headerLabel}>DISCOVER</Text>
+                    <Text style={styles.headerTitle}>
+                        {activeTab === "venues" ? "Venues" : "Hosts"}
+                    </Text>
+                    <Text style={styles.headerMeta}>{count} {activeTab === "venues" ? "places" : "organisers"}</Text>
+                </View>
+                <Pressable
+                    onPress={() => router.push({ pathname: "/map", params: { mode: "venues" } })}
+                    style={styles.mapBtn}
+                >
+                    <MapPin size={18} color="#fff" strokeWidth={2} />
+                </Pressable>
+            </View>
+
+            {/* ── Segment control ── */}
+            <View style={styles.segmentWrap}>
+                <View style={styles.segmentTrack}>
+                    {(["venues", "hosts"] as Tab[]).map((tab) => {
+                        const isActive = activeTab === tab;
+                        const Icon = tab === "venues" ? Building2 : Users;
+                        return (
                             <Pressable
-                                onPress={() => router.push({ pathname: "/map", params: { mode: "venues" } })}
-                                style={styles.headerMapButton}
-                            >
-                                <Ionicons name="map-outline" size={18} color="#fff" />
-                            </Pressable>
-                        </View>
-
-                        <View style={styles.filterSection}>
-                            <View style={styles.searchBarContainer}>
-                                <BlurView intensity={18} tint="dark" style={StyleSheet.absoluteFill} />
-                                <Ionicons name="search" size={20} color="rgba(255,255,255,0.35)" style={styles.searchIcon} />
-                                <TextInput
-                                    style={styles.searchInput}
-                                    placeholder="Search venues, area..."
-                                    placeholderTextColor="rgba(255,255,255,0.35)"
-                                    value={search}
-                                    onChangeText={setSearch}
-                                />
-                                {search.length > 0 && (
-                                    <Pressable onPress={() => setSearch("")} style={styles.clearButton}>
-                                        <Ionicons name="close-circle" size={18} color="rgba(255,255,255,0.35)" />
-                                    </Pressable>
-                                )}
-                            </View>
-
-                            <AnyFlatList
-                                data={[
-                                    { key: "popular", label: "Popular" },
-                                    { key: "nearby", label: "Nearby" },
-                                    { key: "events", label: "Has Events" },
-                                    { key: "tables", label: "Tables" },
+                                key={tab}
+                                style={[
+                                    styles.segmentPill,
+                                    isActive && styles.segmentPillActive,
                                 ]}
-                                keyExtractor={(item: { key: string }) => item.key}
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.sortList}
-                                renderItem={({ item }: { item: { key: string; label: string } }) => (
-                                    <Pressable
-                                        onPress={() => {
-                                            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                            setSortMode(item.key as SortMode);
-                                        }}
-                                        style={[styles.sortChip, sortMode === item.key && styles.sortChipActive]}
-                                    >
-                                        <Text style={[styles.sortChipText, sortMode === item.key && styles.sortChipTextActive]}>
-                                            {item.label}
-                                        </Text>
-                                    </Pressable>
-                                )}
-                            />
-
-                            <AnyFlatList
-                                data={areaOptions}
-                                keyExtractor={(a: string) => a}
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={styles.areaList}
-                                renderItem={({ item: area }: { item: string }) => (
-                                    <Pressable
-                                        onPress={() => {
-                                            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                            setActiveArea(activeArea === area ? null : area);
-                                        }}
-                                        style={[
-                                            styles.areaChip,
-                                            activeArea === area && styles.areaChipActive,
-                                        ]}
-                                    >
-                                        <Text style={[
-                                            styles.areaChipText,
-                                            activeArea === area && styles.areaChipActiveText,
-                                        ]}>
-                                            {area}
-                                        </Text>
-                                    </Pressable>
-                                )}
-                            />
-
-                            {venueTypes.length > 0 ? (
-                                <AnyFlatList
-                                    data={venueTypes}
-                                    keyExtractor={(value: string) => value}
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.areaList}
-                                    renderItem={({ item }: { item: string }) => (
-                                        <Pressable
-                                            onPress={() => {
-                                                void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                                setActiveType(activeType === item ? null : item);
-                                            }}
-                                            style={[
-                                                styles.areaChip,
-                                                activeType === item && styles.areaChipActive,
-                                            ]}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.areaChipText,
-                                                    activeType === item && styles.areaChipActiveText,
-                                                ]}
-                                            >
-                                                {item}
-                                            </Text>
-                                        </Pressable>
-                                    )}
-                                />
-                            ) : null}
-
-                            {(activeArea || activeType || search) ? (
-                                <Pressable
-                                    onPress={() => {
-                                        setActiveArea(null);
-                                        setActiveType(null);
-                                        setSearch("");
-                                    }}
-                                    style={styles.resetInlineButton}
-                                >
-                                    <Text style={styles.resetInlineText}>Reset filters</Text>
-                                </Pressable>
-                            ) : null}
-
-                            {sortMode === "nearby" && locationDenied ? (
-                                <Text style={styles.helperText}>
-                                    Nearby sort needs location access. Showing venues with saved coordinates first.
-                                </Text>
-                            ) : null}
-                            {error ? <Text style={styles.helperText}>{error}</Text> : null}
-                        </View>
-
-                        {loading && sortedVenues.length === 0 && (
-                            <View>
-                                <VenueSkeleton />
-                                <VenueSkeleton />
-                                <VenueSkeleton />
-                            </View>
-                        )}
-                    </>
-                }
-                ListEmptyComponent={
-                    !loading ? (
-                        <View style={styles.emptyState}>
-                            <Ionicons name="location-outline" size={64} color="rgba(255,255,255,0.12)" />
-                            <Text style={styles.emptyText}>No venues found</Text>
-                            <Pressable
-                                style={styles.resetButton}
                                 onPress={() => {
-                                    setActiveArea(null);
-                                    setActiveType(null);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    setActiveTab(tab);
                                     setSearch("");
                                 }}
                             >
-                                <Text style={styles.resetButtonText}>Clear Filters</Text>
+                                <Icon
+                                    size={14}
+                                    color={isActive ? "#fff" : "rgba(255,255,255,0.36)"}
+                                    strokeWidth={isActive ? 2.2 : 1.8}
+                                />
+                                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+                                    {tab === "venues" ? "Venues" : "Hosts"}
+                                </Text>
                             </Pressable>
+                        );
+                    })}
+                </View>
+            </View>
+
+            {/* ── Search ── */}
+            <View style={styles.searchWrap}>
+                <Search size={17} color="rgba(255,255,255,0.35)" strokeWidth={2} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder={activeTab === "venues" ? "Search venues, area…" : "Search hosts…"}
+                    placeholderTextColor="rgba(255,255,255,0.3)"
+                    value={search}
+                    onChangeText={setSearch}
+                    returnKeyType="search"
+                />
+                {search.length > 0 && (
+                    <Pressable onPress={() => setSearch("")} hitSlop={8}>
+                        <X size={16} color="rgba(255,255,255,0.35)" strokeWidth={2} />
+                    </Pressable>
+                )}
+            </View>
+
+            {/* ── Grid ── */}
+            {isLoading ? (
+                <View style={styles.skeletonGrid}>
+                    {[0, 1, 2, 3].map((i) => <PosterSkeleton key={i} />)}
+                </View>
+            ) : (
+                <FlatList
+                    data={activeTab === "venues" ? venuePairs : hostPairs}
+                    keyExtractor={(_, i) => String(i)}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.gridContent}
+                    refreshControl={
+                        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
+                    }
+                    renderItem={({ item: row, index: rowIdx }) => (
+                        <View style={styles.gridRow}>
+                            {activeTab === "venues"
+                                ? (row as Venue[]).map((venue, col) => {
+                                    const img = venue.coverImage || venue.coverURL || venue.bannerImage || venue.photoURL || venue.image;
+                                    const name = getVenueDisplayName(venue);
+                                    const area = getVenueLocationLabel(venue);
+                                    const badge = venue.upcomingEventsCount
+                                        ? `${venue.upcomingEventsCount} events`
+                                        : venue.venueType ?? undefined;
+                                    return (
+                                        <PosterCard
+                                            key={venue.id}
+                                            imageUrl={img}
+                                            title={name}
+                                            subtitle={area ?? undefined}
+                                            badge={badge}
+                                            index={rowIdx * 2 + col}
+                                            onPress={() => router.push(`/venue/${venue.slug || venue.id}` as never)}
+                                            isFollowed={isFollowingVenue(venue.id)}
+                                            onFollow={() => {
+                                                if (!user?.uid) return;
+                                                void toggleVenueFollow(venue.id, name, user.uid);
+                                            }}
+                                        />
+                                    );
+                                })
+                                : (row as DerivedHost[]).map((host, col) => (
+                                    <PosterCard
+                                        key={host.id}
+                                        imageUrl={host.photoURL}
+                                        title={host.name}
+                                        subtitle={`${host.eventsCount} event${host.eventsCount !== 1 ? "s" : ""}`}
+                                        badge="HOST"
+                                        index={rowIdx * 2 + col}
+                                        onPress={() => {}}
+                                        isFollowed={isFollowingHost(host.id)}
+                                        onFollow={() => {
+                                            if (!user?.uid) return;
+                                            void toggleHostFollow(host.id, host.name, user.uid);
+                                        }}
+                                    />
+                                ))
+                            }
+                            {/* Fill empty last cell if odd count */}
+                            {row.length === 1 && <View style={styles.posterCard} />}
                         </View>
-                    ) : null
-                }
-                contentContainerStyle={styles.listContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.iris}
-                    />
-                }
-            />
+                    )}
+                    ListEmptyComponent={
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyIcon}>
+                                {activeTab === "venues" ? "🏛️" : "🎧"}
+                            </Text>
+                            <Text style={styles.emptyTitle}>
+                                {search ? "No results found" : activeTab === "venues" ? "No venues yet" : "No hosts yet"}
+                            </Text>
+                            <Text style={styles.emptyBody}>
+                                {search
+                                    ? `No ${activeTab} match "${search}"`
+                                    : "Check back soon"}
+                            </Text>
+                        </View>
+                    }
+                />
+            )}
         </View>
     );
 }
@@ -424,174 +377,224 @@ export default function VenuesTab() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.base.DEFAULT,
+        backgroundColor: "#0A0A0B",
     },
-    listContent: {
-        paddingBottom: 120,
-    },
+
+    // Header
     header: {
         flexDirection: "row",
         alignItems: "flex-start",
         justifyContent: "space-between",
         paddingHorizontal: 20,
         paddingTop: 12,
-        paddingBottom: 10,
+        paddingBottom: 14,
     },
-    headerSubtitle: {
+    headerLabel: {
         color: colors.iris,
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: "800",
-        textTransform: "uppercase",
         letterSpacing: 2,
+        textTransform: "uppercase",
     },
     headerTitle: {
         color: "#fff",
-        fontSize: 34,
+        fontSize: 32,
         fontWeight: "900",
-        textTransform: "uppercase",
-        letterSpacing: -1,
+        letterSpacing: -0.8,
         marginTop: 2,
+        textTransform: "uppercase",
     },
     headerMeta: {
-        color: "rgba(255,255,255,0.5)",
+        color: "rgba(255,255,255,0.35)",
         fontSize: 12,
-        fontWeight: "600",
-        marginTop: 8,
+        fontWeight: "500",
+        marginTop: 4,
     },
-    headerMapButton: {
-        width: 46,
-        height: 46,
-        borderRadius: 23,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(255,255,255,0.08)",
+    mapBtn: {
+        width: 42,
+        height: 42,
+        borderRadius: 21,
+        backgroundColor: "rgba(255,255,255,0.07)",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
     },
-    filterSection: {
-        marginBottom: 18,
+
+    // Segment control
+    segmentWrap: {
+        paddingHorizontal: 16,
+        marginBottom: 14,
     },
-    sortList: {
-        paddingHorizontal: 20,
-        gap: 10,
-        paddingBottom: 12,
-    },
-    sortChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 999,
-        backgroundColor: "rgba(255,255,255,0.04)",
+    segmentTrack: {
+        flexDirection: "row",
+        backgroundColor: "#161618",
+        borderRadius: 14,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
+        borderColor: "rgba(255,255,255,0.07)",
+        padding: 4,
+        gap: 4,
     },
-    sortChipActive: {
-        backgroundColor: "rgba(244,74,34,0.18)",
-        borderColor: "rgba(244,74,34,0.35)",
-    },
-    sortChipText: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 12,
-        fontWeight: "800",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-    },
-    sortChipTextActive: {
-        color: "#fff",
-    },
-    searchBarContainer: {
+    segmentPill: {
+        flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "rgba(255,255,255,0.05)",
-        marginHorizontal: 20,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        height: 54,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
-        overflow: "hidden",
+        justifyContent: "center",
+        gap: 6,
+        paddingVertical: 12,
+        borderRadius: 11,
     },
-    searchIcon: {
-        marginRight: 12,
+    segmentPillActive: {
+        backgroundColor: "#F44A22",
+        shadowColor: "#F44A22",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    segmentText: {
+        color: "rgba(255,255,255,0.38)",
+        fontSize: 13,
+        fontWeight: "600",
+        letterSpacing: 0.1,
+    },
+    segmentTextActive: {
+        color: "#fff",
+        fontWeight: "700",
+        fontSize: 13,
+    },
+
+    // Search
+    searchWrap: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+        marginHorizontal: 16,
+        marginBottom: 16,
+        backgroundColor: "rgba(255,255,255,0.05)",
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        paddingHorizontal: 14,
+        paddingVertical: 12,
     },
     searchInput: {
         flex: 1,
         color: "#fff",
-        fontSize: 15,
-        fontWeight: "600",
+        fontSize: 14,
+        fontWeight: "500",
+        padding: 0,
     },
-    clearButton: {
-        padding: 4,
+
+    // Grid
+    gridContent: {
+        paddingHorizontal: H_PAD,
+        paddingBottom: 120,
+        gap: COL_GAP,
     },
-    areaList: {
-        paddingHorizontal: 20,
-        gap: 10,
-        paddingBottom: 10,
+    gridRow: {
+        flexDirection: "row",
+        gap: COL_GAP,
     },
-    areaChip: {
-        paddingHorizontal: 14,
-        paddingVertical: 10,
-        borderRadius: 999,
-        backgroundColor: "rgba(255,255,255,0.06)",
+
+    // Poster card
+    posterCard: {
+        width: CARD_W,
+        height: CARD_H,
+        borderRadius: 16,
+        overflow: "hidden",
+        backgroundColor: "rgba(255,255,255,0.04)",
+    },
+    posterSkeleton: {
+        opacity: 0.4,
+    },
+    posterImgWrap: {
+        flex: 1,
+        position: "relative",
+    },
+    posterFollowBtn: {
+        position: "absolute",
+        top: 10,
+        left: 10,
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        backgroundColor: "rgba(0,0,0,0.45)",
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
-    },
-    areaChipActive: {
-        backgroundColor: `${colors.iris}25`,
-        borderColor: `${colors.iris}35`,
-    },
-    areaChipText: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 12,
-        fontWeight: "800",
-        letterSpacing: 0.6,
-        textTransform: "uppercase",
-    },
-    areaChipActiveText: {
-        color: "#fff",
-    },
-    resetInlineButton: {
-        marginHorizontal: 20,
-        marginTop: 4,
-        alignSelf: "flex-start",
-    },
-    resetInlineText: {
-        color: colors.gold,
-        fontSize: 12,
-        fontWeight: "800",
-        textTransform: "uppercase",
-        letterSpacing: 0.6,
-    },
-    helperText: {
-        color: "rgba(255,255,255,0.52)",
-        fontSize: 12,
-        fontWeight: "600",
-        lineHeight: 18,
-        paddingHorizontal: 20,
-        paddingTop: 4,
-    },
-    emptyState: {
+        borderColor: "rgba(255,255,255,0.15)",
         alignItems: "center",
-        padding: 40,
+        justifyContent: "center",
     },
-    emptyText: {
-        color: "rgba(255,255,255,0.65)",
-        fontSize: 16,
-        fontWeight: "700",
-        marginTop: 16,
-        textAlign: "center",
+    posterFollowBtnActive: {
+        backgroundColor: "rgba(244,74,34,0.18)",
+        borderColor: "rgba(244,74,34,0.45)",
     },
-    resetButton: {
-        marginTop: 18,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
+    posterBadge: {
+        position: "absolute",
+        top: 10,
+        right: 10,
+        backgroundColor: "rgba(244,74,34,0.85)",
+        borderRadius: 6,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
     },
-    resetButtonText: {
-        color: colors.gold,
+    posterBadgeText: {
+        color: "#fff",
+        fontSize: 9,
+        fontWeight: "800",
+        letterSpacing: 0.5,
+        textTransform: "uppercase",
+    },
+    posterInfo: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding: 12,
+    },
+    posterTitle: {
+        color: "#fff",
         fontSize: 13,
         fontWeight: "800",
+        letterSpacing: -0.2,
+        lineHeight: 17,
+    },
+    posterSubtitle: {
+        color: "rgba(255,255,255,0.5)",
+        fontSize: 11,
+        fontWeight: "500",
+        marginTop: 3,
+    },
+
+    // Skeleton grid
+    skeletonGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: COL_GAP,
+        paddingHorizontal: H_PAD,
+    },
+
+    // Empty state
+    emptyState: {
+        alignItems: "center",
+        paddingTop: 60,
+        paddingHorizontal: 32,
+    },
+    emptyIcon: {
+        fontSize: 52,
+        marginBottom: 16,
+    },
+    emptyTitle: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 17,
+        fontWeight: "700",
+        marginBottom: 8,
+        textAlign: "center",
+    },
+    emptyBody: {
+        color: "rgba(255,255,255,0.3)",
+        fontSize: 13,
+        textAlign: "center",
+        lineHeight: 19,
     },
 });

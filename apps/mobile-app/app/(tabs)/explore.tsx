@@ -25,6 +25,8 @@ import { useProfileStore } from "@/store/profileStore";
 import { getEventImage } from "@/lib/utils/event";
 import { useTicketsStore } from "@/store/ticketsStore";
 import { cacheEvents, getCachedEvents, updateLastSyncTime } from "@/lib/cache";
+import { useEventInterestStore } from "@/store/eventInterestStore";
+import { useAuth } from "@/hooks/useAuth";
 import * as Haptics from "expo-haptics";
 import Animated, {
     useSharedValue,
@@ -284,10 +286,28 @@ function DateFilterRow({ active, onChange }: { active: DateFilter; onChange: (v:
 // ── For You / Similar to you — large card ─────────────────────────────────────
 function LargeEventCard({ event, index }: { event: Event; index: number }) {
     const scale = useSharedValue(1);
+    const heartScale = useSharedValue(1);
     const price = getLowestPrice(event);
     const img = getEventImage(event);
     const isSoldOut = (event as any).soldOut ?? false;
     const isFree = price === 0;
+
+    const { user } = useAuth();
+    const { likedEventIds, toggleInterest } = useEventInterestStore();
+    const profile = useProfileStore((s) => s.profile);
+    const isLiked = likedEventIds.has(event.id);
+
+    const handleLike = () => {
+        if (!user?.uid) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        heartScale.value = withSpring(1.4, { damping: 6 }, () => {
+            heartScale.value = withSpring(1, { damping: 10 });
+        });
+        toggleInterest(event.id, user.uid, {
+            displayName: profile?.displayName ?? "",
+            photoURL: profile?.photoURL ?? null,
+        });
+    };
 
     return (
         <Animated.View
@@ -321,6 +341,12 @@ function LargeEventCard({ event, index }: { event: Event; index: number }) {
                             <Text style={styles.largeCardSoldOutText}>SOLD OUT</Text>
                         </View>
                     )}
+                    {/* Like button */}
+                    <Animated.View style={[styles.likeBtn, useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }))]}>
+                        <Pressable onPress={handleLike} hitSlop={10}>
+                            <Text style={styles.likeBtnIcon}>{isLiked ? "❤️" : "🤍"}</Text>
+                        </Pressable>
+                    </Animated.View>
                 </View>
                 {/* Info row */}
                 <View style={styles.largeCardBody}>
@@ -343,9 +369,27 @@ function LargeEventCard({ event, index }: { event: Event; index: number }) {
 // ── Grid card ─────────────────────────────────────────────────────────────────
 function GridCard({ event, index }: { event: Event; index: number }) {
     const scale = useSharedValue(1);
+    const heartScale = useSharedValue(1);
     const price = getLowestPrice(event);
     const img = getEventImage(event);
     const isSoldOut = (event as any).soldOut ?? false;
+
+    const { user } = useAuth();
+    const { likedEventIds, toggleInterest } = useEventInterestStore();
+    const profile = useProfileStore((s) => s.profile);
+    const isLiked = likedEventIds.has(event.id);
+
+    const handleLike = () => {
+        if (!user?.uid) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        heartScale.value = withSpring(1.4, { damping: 6 }, () => {
+            heartScale.value = withSpring(1, { damping: 10 });
+        });
+        toggleInterest(event.id, user.uid, {
+            displayName: profile?.displayName ?? "",
+            photoURL: profile?.photoURL ?? null,
+        });
+    };
 
     return (
         <Animated.View
@@ -376,6 +420,12 @@ function GridCard({ event, index }: { event: Event; index: number }) {
                     {isSoldOut && (
                         <View style={styles.gridSoldOut}><Text style={styles.gridSoldOutText}>SOLD OUT</Text></View>
                     )}
+                    {/* Like button */}
+                    <Animated.View style={[styles.gridLikeBtn, useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }))]}>
+                        <Pressable onPress={handleLike} hitSlop={10}>
+                            <Text style={styles.gridLikeBtnIcon}>{isLiked ? "❤️" : "🤍"}</Text>
+                        </Pressable>
+                    </Animated.View>
                 </View>
                 <View style={styles.gridBody}>
                     <Text style={styles.gridTitle} numberOfLines={2}>{event.title}</Text>
@@ -460,6 +510,8 @@ export default function ExploreScreen() {
     const { events, featuredEvents, loading, fetchEvents, fetchFeaturedEvents } = useEventsStore();
     const { recommendations, score, loadBrowsed } = useRecommendationsStore();
     const ticketsStore = useTicketsStore();
+    const { user } = useAuth();
+    const { loadUserInterests } = useEventInterestStore();
 
     const [dateFilter, setDateFilter]         = useState<DateFilter>("tonight");
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
@@ -525,7 +577,8 @@ export default function ExploreScreen() {
         trackScreen("Explore");
         void loadBrowsed();
         void loadData();
-    }, []);
+        if (user?.uid) void loadUserInterests(user.uid);
+    }, [user?.uid]);
 
     useEffect(() => {
         if (allEvents.length > 0) score(allEvents, pastOrderCategories);
@@ -960,6 +1013,19 @@ const styles = StyleSheet.create({
         fontWeight: "800",
         letterSpacing: 1.0,
     },
+    likeBtn: {
+        position: "absolute",
+        top: 8,
+        right: 8,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "rgba(0,0,0,0.55)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    likeBtnIcon: { fontSize: 16 },
+
     largeCardBody: {
         flexDirection: "row",
         alignItems: "center",
@@ -994,6 +1060,18 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.6)",
     },
     gridSoldOutText: { color: "#F44A22", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
+    gridLikeBtn: {
+        position: "absolute",
+        top: 7,
+        right: 7,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: "rgba(0,0,0,0.55)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    gridLikeBtnIcon: { fontSize: 13 },
     gridBody: { padding: 10, gap: 3 },
     gridTitle: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
     gridVenue: { color: "rgba(255,255,255,0.4)", fontSize: 11 },

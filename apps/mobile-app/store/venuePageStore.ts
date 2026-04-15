@@ -1,10 +1,21 @@
 import { create } from "zustand";
-import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
+import {
+    getFirestore,
+    doc,
+    getDoc,
+    getDocs,
+    collection,
+    query,
+    where,
+} from "firebase/firestore";
 import {
     type Coordinates,
     findKnownVenueCoordinates,
     resolveVenueCoordinates,
 } from "@/lib/venueDiscovery";
+
+function getDb() { return getFirestore(getFirebaseApp()); }
 
 export interface VenueHighlight {
     id: string;
@@ -108,16 +119,85 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
         set({ loading: true, error: null });
 
         try {
-            const data = await apiFetch<any>(`/api/v1/venues/${venueIdOrSlug}`, { requireAuth: false });
-            
-            if (!data || !data.venue) {
+            const db = getDb();
+            let venueDoc: any = null;
+            let venueId = venueIdOrSlug;
+
+            // 1. Try fetch by doc ID first
+            const directSnap = await getDoc(doc(db, "venues", venueIdOrSlug));
+            if (directSnap.exists()) {
+                venueDoc = { id: directSnap.id, ...directSnap.data() };
+            } else {
+                // 2. Fall back to slug query
+                const slugSnap = await getDocs(
+                    query(collection(db, "venues"), where("slug", "==", venueIdOrSlug))
+                );
+                if (!slugSnap.empty) {
+                    const d = slugSnap.docs[0];
+                    venueDoc = { id: d.id, ...d.data() };
+                    venueId = d.id;
+                }
+            }
+
+            if (!venueDoc) {
                 set({ loading: false, error: "Venue not found" });
                 return;
             }
 
-            const { venue: venueDoc, highlights, gallery, menu, facilities, upcomingEvents } = data;
+            // 3. Fetch all sub-data in parallel — sort client-side to avoid composite index requirements
+            const now = new Date().toISOString();
 
-            const leadEventWithCoords = upcomingEvents?.find((event: any) => resolveVenueCoordinates(event));
+            const [highlightsSnap, gallerySnap, menuSnap, facilitiesSnap, eventsSnap] = await Promise.all([
+                getDocs(query(
+                    collection(db, "venue_highlights"),
+                    where("venueId", "==", venueId),
+                    where("isActive", "==", true)
+                )).catch(() => null),
+                getDocs(query(
+                    collection(db, "venue_gallery"),
+                    where("venueId", "==", venueId)
+                )).catch(() => null),
+                getDocs(query(
+                    collection(db, "venue_menu"),
+                    where("venueId", "==", venueId)
+                )).catch(() => null),
+                getDocs(query(
+                    collection(db, "venue_facilities"),
+                    where("venueId", "==", venueId),
+                    where("isEnabled", "==", true)
+                )).catch(() => null),
+                getDocs(query(
+                    collection(db, "events"),
+                    where("venueId", "==", venueId)
+                )).catch(() => null),
+            ]);
+
+            const toItems = (snap: any) =>
+                snap ? snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) : [];
+
+            const highlights: VenueHighlight[] = toItems(highlightsSnap)
+                .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            const gallery: VenueGalleryPhoto[] = toItems(gallerySnap)
+                .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0))
+                .slice(0, 9);
+            const menu: VenueMenuItem[] = toItems(menuSnap)
+                .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            const facilities: VenueFacility[] = toItems(facilitiesSnap)
+                .sort((a: any, b: any) => (a.order ?? 0) - (b.order ?? 0));
+            const upcomingEvents: any[] = toItems(eventsSnap)
+                .filter((e: any) => {
+                    const end = e.endDate || e.startDate;
+                    const normalized = end && end.length === 10 ? end + "T23:59:59.999Z" : end;
+                    return normalized && normalized >= now && !e.isDeleted;
+                })
+                .sort((a: any, b: any) => {
+                    const aDate = a.startDate ?? "";
+                    const bDate = b.startDate ?? "";
+                    return aDate < bDate ? -1 : aDate > bDate ? 1 : 0;
+                })
+                .slice(0, 10);
+
+            const leadEventWithCoords = upcomingEvents.find((e: any) => resolveVenueCoordinates(e));
 
             set({
                 venue: {
@@ -143,13 +223,13 @@ export const useVenuePageStore = create<VenuePageState>((set) => ({
                             venueDoc.city,
                             venueDoc.address
                         ),
-                    upcomingEventsCount: upcomingEvents?.length || 0,
+                    upcomingEventsCount: upcomingEvents.length,
                 },
-                highlights: highlights || [],
-                gallery: gallery || [],
-                menu: menu || [],
-                facilities: facilities || [],
-                upcomingEvents: upcomingEvents || [],
+                highlights,
+                gallery,
+                menu,
+                facilities,
+                upcomingEvents,
                 loading: false,
             });
         } catch (error: any) {

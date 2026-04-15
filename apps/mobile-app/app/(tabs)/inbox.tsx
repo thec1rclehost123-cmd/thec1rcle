@@ -1,952 +1,561 @@
-import { useEffect, useState, useCallback } from "react";
+/**
+ * inbox.tsx — Chats screen
+ * Two tabs: Event Chats | Private Chats
+ * Empty state UI — static for now, backend wiring comes later.
+ */
+import { useState } from "react";
 import {
     View,
     Text,
     ScrollView,
     Pressable,
-    RefreshControl,
     StyleSheet,
+    Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
-import { useTicketsStore } from "@/store/ticketsStore";
-import {
-    getEventPhase,
-    getPhaseInfo,
-    EventPhase,
-    getPendingDMRequests,
-    getAttendeeCount,
-} from "@/lib/social";
-import * as Haptics from "expo-haptics";
 import Animated, {
     FadeIn,
     FadeInDown,
-    FadeInRight,
-    useSharedValue,
-    useAnimatedStyle,
-    withSpring,
+    FadeInUp,
 } from "react-native-reanimated";
-import { colors, radii, gradients } from "@/lib/design/theme";
-import { NotificationBell } from "@/components/ui/NotificationBell";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { SkeletonList } from "@/components/ui/Skeleton";
-import { safeDate } from "@/lib/utils/date";
-import { trackScreen } from "@/lib/analytics";
+import {
+    Search,
+    Plus,
+    MessageCircle,
+    CalendarDays,
+    Users,
+    Sparkles,
+    ArrowRight,
+    Lock,
+} from "lucide-react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { colors } from "@/lib/design/theme";
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const { width: SCREEN_W } = Dimensions.get("window");
 
-// Premium Event Chat Card
-function EventChatCard({
-    event,
-    phase,
-    attendeeCount,
-    hasUnread,
-    index
-}: {
-    event: {
-        id: string;
-        title: string;
-        date: string;
-        coverImage?: string;
-    };
-    phase: EventPhase;
-    attendeeCount: number;
-    hasUnread?: boolean;
-    index: number;
-}) {
-    const phaseInfo = getPhaseInfo(phase);
-    const scale = useSharedValue(1);
+// ── Empty state — Event Chats ─────────────────────────────────────────────────
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
+function EventChatsEmpty() {
+    return (
+        <Animated.View entering={FadeInUp.delay(80).springify().damping(18)} style={es.container}>
 
-    const handlePressIn = () => {
-        scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
-    };
+            {/* Decorative background glow */}
+            <View style={es.glowBg} />
 
-    const handlePressOut = () => {
-        scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    };
+            {/* Icon cluster */}
+            <View style={es.iconCluster}>
+                {/* Back cards */}
+                <Animated.View entering={FadeInDown.delay(160).springify()} style={[es.floatCard, es.floatCardLeft]}>
+                    <CalendarDays size={18} color="rgba(244,74,34,0.6)" strokeWidth={1.5} />
+                </Animated.View>
+                <Animated.View entering={FadeInDown.delay(200).springify()} style={[es.floatCard, es.floatCardRight]}>
+                    <Users size={18} color="rgba(244,74,34,0.6)" strokeWidth={1.5} />
+                </Animated.View>
 
-    const handlePress = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push({
-            pathname: "/social/group/[eventId]",
-            params: { eventId: event.id, eventTitle: event.title }
-        });
-    };
+                {/* Main icon */}
+                <Animated.View entering={FadeInDown.delay(120).springify().damping(14)} style={es.mainIcon}>
+                    <LinearGradient
+                        colors={["rgba(244,74,34,0.18)", "rgba(244,74,34,0.06)"]}
+                        style={es.mainIconGradient}
+                    >
+                        <MessageCircle size={40} color={colors.iris} strokeWidth={1.4} />
+                    </LinearGradient>
+                </Animated.View>
+            </View>
 
-    if (phase === "expired") {
-        return (
-            <Animated.View
-                entering={FadeInDown.delay(index * 50).springify()}
-                style={styles.archivedCard}
-            >
-                <Text style={styles.archivedTitle}>{event.title}</Text>
-                <Text style={styles.archivedSubtitle}>Chat archived</Text>
+            {/* Text */}
+            <Animated.Text entering={FadeInDown.delay(220).springify()} style={es.title}>
+                No event chats yet
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.delay(260).springify()} style={es.body}>
+                When you get a ticket to an event, a group chat with all attendees unlocks automatically.
+            </Animated.Text>
+
+            {/* Feature pills */}
+            <Animated.View entering={FadeInDown.delay(300).springify()} style={es.pillRow}>
+                {["Group chat", "Photo gallery", "Meet attendees"].map((f) => (
+                    <View key={f} style={es.pill}>
+                        <Text style={es.pillText}>{f}</Text>
+                    </View>
+                ))}
             </Animated.View>
-        );
-    }
 
-    return (
-        <AnimatedPressable
-            entering={FadeInDown.delay(index * 60).springify()}
-            onPressIn={handlePressIn}
-            onPressOut={handlePressOut}
-            onPress={handlePress}
-            style={[animatedStyle, styles.chatCard]}
-        >
-            <View style={styles.chatCardHeader}>
-                <Text style={styles.chatCardTitle} numberOfLines={1}>
-                    {event.title}
+            {/* CTA */}
+            <Animated.View entering={FadeInDown.delay(360).springify().damping(16)} style={{ width: "100%" }}>
+                <Pressable
+                    style={es.ctaBtn}
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        router.push("/(tabs)/explore");
+                    }}
+                >
+                    <Sparkles size={16} color="#fff" strokeWidth={2} />
+                    <Text style={es.ctaBtnText}>Explore Events</Text>
+                    <ArrowRight size={16} color="#fff" strokeWidth={2} />
+                </Pressable>
+            </Animated.View>
+
+            {/* Bottom info card */}
+            <Animated.View entering={FadeInDown.delay(420).springify()} style={es.infoCard}>
+                <Lock size={13} color="rgba(255,255,255,0.3)" strokeWidth={1.8} />
+                <Text style={es.infoText}>
+                    Chats open 24h before the event and close 48h after.
                 </Text>
-
-                {/* Phase badge */}
-                <View style={[styles.phaseBadge, { backgroundColor: `${phaseInfo.color}20` }]}>
-                    <Text style={styles.phaseBadgeIcon}>{phaseInfo.icon}</Text>
-                    <Text style={[styles.phaseBadgeText, { color: phaseInfo.color }]}>
-                        {phaseInfo.label}
-                    </Text>
-                </View>
-            </View>
-
-            <View style={styles.chatCardFooter}>
-                <View style={styles.attendeesPreview}>
-                    {/* Attendee avatars */}
-                    <View style={styles.attendeeAvatars}>
-                        {[0, 1, 2].map((i) => (
-                            <View
-                                key={i}
-                                style={[
-                                    styles.attendeeAvatar,
-                                    { marginLeft: i > 0 ? -6 : 0, zIndex: 3 - i }
-                                ]}
-                            >
-                                <LinearGradient
-                                    colors={["rgba(244, 74, 34, 0.3)", "rgba(244, 74, 34, 0.1)"]}
-                                    style={styles.attendeeAvatarGradient}
-                                >
-                                    <Text style={styles.attendeeAvatarEmoji}>👤</Text>
-                                </LinearGradient>
-                            </View>
-                        ))}
-                    </View>
-                    <Text style={styles.attendeeCount}>{attendeeCount} in chat</Text>
-                </View>
-
-                <View style={styles.chatCardActions}>
-                    {hasUnread && <View style={styles.unreadDot} />}
-                    <Text style={styles.chatCardArrow}>›</Text>
-                </View>
-            </View>
-        </AnimatedPressable>
-    );
-}
-
-// Premium DM Request Card
-function DMRequestCard({ count, onPress }: { count: number; onPress: () => void }) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
-    return (
-        <AnimatedPressable
-            entering={FadeInDown.delay(100).springify()}
-            onPressIn={() => {
-                scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
-            }}
-            onPressOut={() => {
-                scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-            }}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onPress();
-            }}
-            style={[animatedStyle, styles.dmRequestCard]}
-        >
-            <LinearGradient
-                colors={["rgba(244, 74, 34, 0.15)", "rgba(244, 74, 34, 0.05)"]}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.dmRequestGradient}
-            >
-                <View style={styles.dmRequestIcon}>
-                    <Text style={styles.dmRequestIconText}>📨</Text>
-                </View>
-                <View style={styles.dmRequestContent}>
-                    <Text style={styles.dmRequestTitle}>
-                        {count} Message Request{count > 1 ? "s" : ""}
-                    </Text>
-                    <Text style={styles.dmRequestSubtitle}>
-                        People want to connect with you
-                    </Text>
-                </View>
-                <Text style={styles.dmRequestArrow}>→</Text>
-            </LinearGradient>
-        </AnimatedPressable>
-    );
-}
-
-// Live Now Card — enhanced card for events currently happening
-function LiveNowCard({
-    event,
-    attendeeCount,
-    index,
-}: {
-    event: { id: string; title: string; date: string };
-    attendeeCount: number;
-    index: number;
-}) {
-    const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
-    return (
-        <Animated.View
-            entering={FadeInDown.delay(index * 60).springify()}
-            style={[animatedStyle, styles.liveNowCard]}
-        >
-            <LinearGradient
-                colors={["rgba(244, 74, 34, 0.12)", "rgba(244, 74, 34, 0.04)"]}
-                style={styles.liveNowGradient}
-            >
-                <View style={styles.liveNowHeader}>
-                    <View style={styles.liveNowBadge}>
-                        <View style={styles.liveDot} />
-                        <Text style={styles.liveBadgeText}>LIVE</Text>
-                    </View>
-                    <Text style={styles.liveNowTitle} numberOfLines={1}>{event.title}</Text>
-                </View>
-                <Text style={styles.liveNowAttendees}>{attendeeCount} attendees online</Text>
-                <View style={styles.liveNowActions}>
-                    <Pressable
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            router.push({
-                                pathname: "/social/group/[eventId]",
-                                params: { eventId: event.id, eventTitle: event.title },
-                            });
-                        }}
-                        style={styles.liveNowBtn}
-                    >
-                        <LinearGradient
-                            colors={gradients.primary as [string, string]}
-                            style={styles.liveNowBtnGradient}
-                        >
-                            <Text style={styles.liveNowBtnText}>Open Chat</Text>
-                        </LinearGradient>
-                    </Pressable>
-                    <Pressable
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            router.push({
-                                pathname: "/social/gallery/[eventId]" as any,
-                                params: { eventId: event.id },
-                            });
-                        }}
-                        style={styles.liveNowBtnSecondary}
-                    >
-                        <Text style={styles.liveNowBtnSecondaryText}>View Gallery</Text>
-                    </Pressable>
-                </View>
-            </LinearGradient>
+            </Animated.View>
         </Animated.View>
     );
 }
 
-// Quick Action Button
-function QuickActionButton({
-    icon,
-    label,
-    onPress,
-    delay,
-}: {
-    icon: string;
-    label: string;
-    onPress: () => void;
-    delay: number;
-}) {
-    const scale = useSharedValue(1);
+// ── Empty state — Private Chats ───────────────────────────────────────────────
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
+function PrivateChatsEmpty() {
+    // Decorative fake avatar blobs
+    const BLOBS = [
+        { delay: 140, left: 32,  top: 0,   size: 52, img: "👩🏻" },
+        { delay: 180, left: 108, top: -16, size: 60, img: "🧑🏽" },
+        { delay: 220, left: 188, top: 0,   size: 52, img: "👩🏾" },
+        { delay: 160, left: 70,  top: 52,  size: 48, img: "🧔🏻" },
+        { delay: 200, left: 152, top: 52,  size: 48, img: "👩🏼" },
+    ];
 
     return (
-        <AnimatedPressable
-            entering={FadeInRight.delay(delay).springify()}
-            onPressIn={() => {
-                scale.value = withSpring(0.95, { damping: 15, stiffness: 400 });
-            }}
-            onPressOut={() => {
-                scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-            }}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onPress();
-            }}
-            style={[animatedStyle, styles.quickActionButton]}
-        >
-            <Text style={styles.quickActionIcon}>{icon}</Text>
-            <Text style={styles.quickActionLabel}>{label}</Text>
-        </AnimatedPressable>
+        <Animated.View entering={FadeInUp.delay(80).springify().damping(18)} style={es.container}>
+
+            <View style={[es.glowBg, { backgroundColor: "rgba(129,140,248,0.08)" }]} />
+
+            {/* Floating avatar cluster */}
+            <Animated.View entering={FadeInDown.delay(100).springify()} style={pc.avatarCluster}>
+                {BLOBS.map((b, i) => (
+                    <Animated.View
+                        key={i}
+                        entering={FadeInDown.delay(b.delay).springify().damping(15)}
+                        style={[
+                            pc.blob,
+                            {
+                                left: b.left,
+                                top: b.top,
+                                width: b.size,
+                                height: b.size,
+                                borderRadius: b.size / 2,
+                            },
+                        ]}
+                    >
+                        <Text style={{ fontSize: b.size * 0.55 }}>{b.img}</Text>
+                    </Animated.View>
+                ))}
+
+                {/* Center glow ring */}
+                <View style={pc.centerRing} />
+            </Animated.View>
+
+            {/* Text */}
+            <Animated.Text entering={FadeInDown.delay(260).springify()} style={es.title}>
+                No messages yet
+            </Animated.Text>
+            <Animated.Text entering={FadeInDown.delay(300).springify()} style={es.body}>
+                Match with people attending the same events and start a private conversation.
+            </Animated.Text>
+
+            {/* How it works */}
+            <Animated.View entering={FadeInDown.delay(340).springify()} style={pc.stepsCard}>
+                <Text style={pc.stepsTitle}>How it works</Text>
+                {[
+                    { n: "1", text: "Get a ticket to any event" },
+                    { n: "2", text: "Like someone on the Meet tab" },
+                    { n: "3", text: "If they like you back — it's a match!" },
+                ].map((step) => (
+                    <View key={step.n} style={pc.stepRow}>
+                        <View style={pc.stepNum}>
+                            <Text style={pc.stepNumText}>{step.n}</Text>
+                        </View>
+                        <Text style={pc.stepText}>{step.text}</Text>
+                    </View>
+                ))}
+            </Animated.View>
+
+            {/* CTA */}
+            <Animated.View entering={FadeInDown.delay(420).springify().damping(16)} style={{ width: "100%" }}>
+                <Pressable
+                    style={[es.ctaBtn, { backgroundColor: "#818CF8" }]}
+                    onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                        router.push("/(tabs)/social");
+                    }}
+                >
+                    <Users size={16} color="#fff" strokeWidth={2} />
+                    <Text style={es.ctaBtnText}>Discover People</Text>
+                    <ArrowRight size={16} color="#fff" strokeWidth={2} />
+                </Pressable>
+            </Animated.View>
+        </Animated.View>
     );
 }
 
+// ── Main screen ───────────────────────────────────────────────────────────────
+
+type Tab = "events" | "private";
+
 export default function InboxScreen() {
-    const { user } = useAuthStore();
-    const { orders, fetchUserOrders } = useTicketsStore();
     const insets = useSafeAreaInsets();
+    const [activeTab, setActiveTab] = useState<Tab>("events");
 
-    const [eventChats, setEventChats] = useState<Array<{
-        id: string;
-        title: string;
-        date: string;
-        phase: EventPhase;
-        attendeeCount: number;
-    }>>([]);
-    const [dmRequestCount, setDmRequestCount] = useState(0);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    useEffect(() => {
-        trackScreen("Connect");
-    }, []);
-
-    useEffect(() => {
-        loadData();
-    }, [user?.uid]);
-
-    const loadData = async () => {
-        if (!user?.uid) return;
-
-        setLoading(true);
-
-        try {
-            await fetchUserOrders(user.uid);
-            const requests = await getPendingDMRequests(user.uid);
-            setDmRequestCount(requests.length);
-        } catch (error) {
-            console.error("Error loading inbox:", error);
-        }
-
-        setLoading(false);
+    const switchTab = (tab: Tab) => {
+        Haptics.selectionAsync();
+        setActiveTab(tab);
     };
-
-    // Process orders into event chats
-    useEffect(() => {
-        const processChats = async () => {
-            const chats = await Promise.all(
-                orders.map(async (order) => {
-                    const eventDate = safeDate(order.eventDate) ?? new Date();
-                    const phase = getEventPhase(eventDate);
-                    const attendeeCount = await getAttendeeCount(order.eventId || "");
-
-                    return {
-                        id: order.eventId || order.id,
-                        title: order.eventTitle || "Event",
-                        date: order.eventDate || "",
-                        phase,
-                        attendeeCount,
-                    };
-                })
-            );
-
-            const phasePriority: Record<EventPhase, number> = {
-                "during": 0,
-                "pre-event": 1,
-                "post-event": 2,
-                "expired": 3,
-            };
-
-            chats.sort((a, b) => phasePriority[a.phase] - phasePriority[b.phase]);
-            setEventChats(chats);
-        };
-
-        if (orders.length > 0) {
-            processChats();
-        } else {
-            setEventChats([]);
-        }
-    }, [orders]);
-
-    const onRefresh = useCallback(async () => {
-        setRefreshing(true);
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        await loadData();
-        setRefreshing(false);
-    }, [user?.uid]);
-
-    const liveChats = eventChats.filter(c => c.phase === "during");
-    const preEventChats = eventChats.filter(c => c.phase === "pre-event" || c.phase === "post-event");
-    const archivedChats = eventChats.filter(c => c.phase === "expired");
-    const activeChats = [...liveChats, ...preEventChats];
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={{ paddingBottom: 120 }}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={colors.iris}
-                    />
-                }
+
+            {/* ── Header ── */}
+            <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
+                <Text style={styles.headerTitle}>Chats</Text>
+                <Pressable style={styles.searchBtn}>
+                    <Search size={20} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
+                </Pressable>
+            </Animated.View>
+
+            {/* ── Segment control ── */}
+            <Animated.View
+                entering={FadeInDown.delay(60).springify().damping(20)}
+                style={styles.segmentWrap}
             >
-                {/* Header */}
-                <View style={styles.header}>
-                    <View>
-                        <Text style={styles.headerTitle}>Social</Text>
-                        <Text style={styles.headerSubtitle}>Connect with other attendees</Text>
-                    </View>
-                    <NotificationBell variant="solid" />
-                </View>
-
-                {/* Quick Actions */}
-                <View style={styles.quickActions}>
-                    <QuickActionButton
-                        icon="💾"
-                        label="Saved"
-                        onPress={() => router.push("/social/contacts")}
-                        delay={100}
-                    />
-                    <QuickActionButton
-                        icon="📭"
-                        label="Requests"
-                        onPress={() => router.push("/social/requests")}
-                        delay={150}
-                    />
-                    <QuickActionButton
-                        icon="👥"
-                        label="Friends"
-                        onPress={() => router.push("/social/contacts")}
-                        delay={200}
-                    />
-                </View>
-
-                {/* DM Requests */}
-                {dmRequestCount > 0 && (
-                    <DMRequestCard
-                        count={dmRequestCount}
-                        onPress={() => router.push("/social/requests")}
-                    />
-                )}
-
-                {/* Loading skeleton */}
-                {loading && <SkeletonList type="notification" count={4} />}
-
-                {/* Live Now section — events currently happening */}
-                {!loading && liveChats.length > 0 && (
-                    <View style={styles.section}>
-                        <View style={styles.sectionHeaderRow}>
-                            <Text style={styles.sectionTitle}>Live Now</Text>
-                            <View style={styles.livePillBadge}>
-                                <View style={styles.liveDotSmall} />
-                                <Text style={styles.livePillText}>{liveChats.length}</Text>
-                            </View>
-                        </View>
-                        {liveChats.map((chat, index) => (
-                            <LiveNowCard
-                                key={chat.id}
-                                event={chat}
-                                attendeeCount={chat.attendeeCount}
-                                index={index}
-                            />
-                        ))}
-                    </View>
-                )}
-
-                {/* Pre/Post Event Chats */}
-                {!loading && preEventChats.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitle}>Event Chats</Text>
-                        {preEventChats.map((chat, index) => (
-                            <EventChatCard
-                                key={chat.id}
-                                event={chat}
-                                phase={chat.phase}
-                                attendeeCount={chat.attendeeCount}
-                                index={index}
-                            />
-                        ))}
-                    </View>
-                )}
-
-                {/* Empty State */}
-                {!loading && activeChats.length === 0 && archivedChats.length === 0 && (
-                    <Animated.View
-                        entering={FadeIn.delay(200)}
-                        style={styles.emptyContainer}
-                    >
-                        <Text style={styles.emptyEmoji}>💬</Text>
-                        <Text style={styles.emptyTitle}>No Event Chats Yet</Text>
-                        <Text style={styles.emptyText}>
-                            When you get tickets to events, you'll be able to chat with other attendees!
-                        </Text>
-                        <Pressable
-                            onPress={() => router.push("/(tabs)/explore")}
-                        >
-                            <LinearGradient
-                                colors={gradients.primary as [string, string]}
-                                style={styles.emptyButton}
+                <View style={styles.segmentTrack}>
+                    {(["events", "private"] as Tab[]).map((tab) => {
+                        const isActive = activeTab === tab;
+                        const label = tab === "events" ? "Event Chats" : "Private Chats";
+                        const activeColor = tab === "events" ? "#F44A22" : "#818CF8";
+                        const Icon = tab === "events" ? MessageCircle : Lock;
+                        return (
+                            <Pressable
+                                key={tab}
+                                style={[
+                                    styles.segmentPill,
+                                    isActive && { backgroundColor: activeColor, shadowColor: activeColor },
+                                    isActive && styles.segmentPillActiveShadow,
+                                ]}
+                                onPress={() => switchTab(tab)}
                             >
-                                <Text style={styles.emptyButtonText}>Find Events</Text>
-                            </LinearGradient>
-                        </Pressable>
-                    </Animated.View>
-                )}
+                                <Icon
+                                    size={14}
+                                    color={isActive ? "#fff" : "rgba(255,255,255,0.36)"}
+                                    strokeWidth={isActive ? 2.2 : 1.8}
+                                />
+                                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
+                                    {label}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+            </Animated.View>
 
-                {/* Archived Chats */}
-                {!loading && archivedChats.length > 0 && (
-                    <View style={styles.section}>
-                        <Text style={styles.sectionTitleMuted}>
-                            Archived ({archivedChats.length})
-                        </Text>
-                        {archivedChats.slice(0, 3).map((chat, index) => (
-                            <EventChatCard
-                                key={chat.id}
-                                event={chat}
-                                phase={chat.phase}
-                                attendeeCount={chat.attendeeCount}
-                                index={index}
-                            />
-                        ))}
-                        {archivedChats.length > 3 && (
-                            <Text style={styles.moreArchived}>
-                                +{archivedChats.length - 3} more archived
-                            </Text>
-                        )}
-                    </View>
-                )}
-
-                {/* Privacy Info */}
-                <Animated.View
-                    entering={FadeInDown.delay(300)}
-                    style={styles.privacyCard}
-                >
-                    <Text style={styles.privacyIcon}>🔒</Text>
-                    <View style={styles.privacyContent}>
-                        <Text style={styles.privacyTitle}>Your privacy matters</Text>
-                        <Text style={styles.privacyText}>
-                            Only ticket holders can see and chat with each other. Private messages require acceptance, and you can block anyone at any time.
-                        </Text>
-                    </View>
-                </Animated.View>
+            {/* ── Content ── */}
+            <ScrollView
+                style={styles.scroll}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+            >
+                {activeTab === "events" ? <EventChatsEmpty /> : <PrivateChatsEmpty />}
             </ScrollView>
+
+            {/* ── Floating compose button ── */}
+            <Pressable
+                style={[styles.fab, { bottom: insets.bottom + 90 }]}
+                onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
+            >
+                <Plus size={24} color="#fff" strokeWidth={2.5} />
+            </Pressable>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+// ── Shared empty-state styles ─────────────────────────────────────────────────
+
+const es = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: colors.base.DEFAULT,
-    },
-    scrollView: {
-        flex: 1,
-        paddingHorizontal: 20,
-    },
-
-    // Header
-    header: {
-        flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
-        paddingTop: 16,
+        paddingTop: 20,
+        paddingHorizontal: 8,
         paddingBottom: 20,
     },
-    headerTitle: {
-        color: colors.gold,
-        fontSize: 34,
-        fontWeight: "800",
-        letterSpacing: -0.5,
+    glowBg: {
+        position: "absolute",
+        top: 0,
+        width: SCREEN_W * 0.8,
+        height: 220,
+        borderRadius: SCREEN_W * 0.4,
+        backgroundColor: "rgba(244,74,34,0.07)",
+        alignSelf: "center",
     },
-    headerSubtitle: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        marginTop: 4,
-    },
-
-    // Quick Actions
-    quickActions: {
-        flexDirection: "row",
-        gap: 12,
-        marginBottom: 20,
-    },
-    quickActionButton: {
-        flex: 1,
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        padding: 16,
-        alignItems: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-    },
-    quickActionIcon: {
-        fontSize: 24,
-        marginBottom: 8,
-    },
-    quickActionLabel: {
-        color: colors.gold,
-        fontSize: 13,
-        fontWeight: "500",
-    },
-
-    // DM Request Card
-    dmRequestCard: {
-        marginBottom: 20,
-    },
-    dmRequestGradient: {
-        flexDirection: "row",
-        alignItems: "center",
-        borderRadius: radii.xl,
-        padding: 16,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.2)",
-    },
-    dmRequestIcon: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: "rgba(244, 74, 34, 0.2)",
+    iconCluster: {
+        width: 120,
+        height: 120,
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 14,
+        marginBottom: 28,
+        position: "relative",
     },
-    dmRequestIconText: {
-        fontSize: 20,
+    mainIcon: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.2)",
     },
-    dmRequestContent: {
+    mainIconGradient: {
         flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
     },
-    dmRequestTitle: {
+    floatCard: {
+        position: "absolute",
+        width: 36,
+        height: 36,
+        borderRadius: 10,
+        backgroundColor: "rgba(244,74,34,0.1)",
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.18)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    floatCardLeft: { left: -4, top: 8 },
+    floatCardRight: { right: -4, top: 8 },
+    title: {
+        color: "#fff",
+        fontSize: 22,
+        fontWeight: "800",
+        letterSpacing: -0.4,
+        textAlign: "center",
+        marginBottom: 10,
+    },
+    body: {
+        color: "rgba(255,255,255,0.4)",
+        fontSize: 14,
+        textAlign: "center",
+        lineHeight: 21,
+        marginBottom: 20,
+        paddingHorizontal: 16,
+    },
+    pillRow: {
+        flexDirection: "row",
+        gap: 8,
+        flexWrap: "wrap",
+        justifyContent: "center",
+        marginBottom: 28,
+    },
+    pill: {
+        backgroundColor: "rgba(244,74,34,0.1)",
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.2)",
+        borderRadius: 50,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    pillText: {
         color: colors.iris,
-        fontSize: 16,
+        fontSize: 12,
         fontWeight: "600",
     },
-    dmRequestSubtitle: {
-        color: colors.goldMetallic,
-        fontSize: 13,
-        marginTop: 2,
+    ctaBtn: {
+        backgroundColor: colors.iris,
+        borderRadius: 16,
+        paddingVertical: 16,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 8,
+        marginBottom: 16,
+        shadowColor: colors.iris,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+        elevation: 8,
     },
-    dmRequestArrow: {
-        color: colors.iris,
-        fontSize: 20,
-        fontWeight: "600",
+    ctaBtnText: {
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: "700",
     },
+    infoCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        paddingHorizontal: 8,
+    },
+    infoText: {
+        color: "rgba(255,255,255,0.22)",
+        fontSize: 12,
+        flex: 1,
+        lineHeight: 17,
+    },
+});
 
-    // Section
-    section: {
+// ── Private chats empty-state styles ─────────────────────────────────────────
+
+const pc = StyleSheet.create({
+    avatarCluster: {
+        width: 240,
+        height: 120,
+        position: "relative",
+        marginBottom: 32,
+    },
+    blob: {
+        position: "absolute",
+        backgroundColor: "#1C1C1E",
+        borderWidth: 2,
+        borderColor: "rgba(255,255,255,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    centerRing: {
+        position: "absolute",
+        left: 84,
+        top: 10,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        borderWidth: 2,
+        borderColor: "rgba(129,140,248,0.3)",
+        backgroundColor: "rgba(129,140,248,0.05)",
+    },
+    stepsCard: {
+        width: "100%",
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.07)",
+        padding: 16,
+        gap: 12,
         marginBottom: 24,
     },
-    sectionTitle: {
-        color: colors.gold,
-        fontSize: 20,
-        fontWeight: "700",
-        marginBottom: 16,
-    },
-    sectionTitleMuted: {
-        color: colors.goldMetallic,
-        fontSize: 16,
-        fontWeight: "600",
-        marginBottom: 12,
-    },
-
-    // Chat Card
-    chatCard: {
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        padding: 16,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-    },
-    chatCardHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 12,
-    },
-    chatCardTitle: {
-        color: colors.gold,
-        fontSize: 16,
-        fontWeight: "600",
-        flex: 1,
-        marginRight: 12,
-    },
-    phaseBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: radii.pill,
-    },
-    phaseBadgeIcon: {
-        fontSize: 12,
-        marginRight: 4,
-    },
-    phaseBadgeText: {
+    stepsTitle: {
+        color: "rgba(255,255,255,0.4)",
         fontSize: 11,
-        fontWeight: "600",
+        fontWeight: "700",
+        textTransform: "uppercase",
+        letterSpacing: 0.8,
+        marginBottom: 4,
     },
-    chatCardFooter: {
+    stepRow: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
+        gap: 12,
     },
-    attendeesPreview: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    attendeeAvatars: {
-        flexDirection: "row",
-        marginRight: 10,
-    },
-    attendeeAvatar: {
+    stepNum: {
         width: 24,
         height: 24,
         borderRadius: 12,
-        borderWidth: 2,
-        borderColor: colors.base[50],
-        overflow: "hidden",
-    },
-    attendeeAvatarGradient: {
-        flex: 1,
+        backgroundColor: "rgba(129,140,248,0.15)",
+        borderWidth: 1,
+        borderColor: "rgba(129,140,248,0.3)",
         alignItems: "center",
         justifyContent: "center",
     },
-    attendeeAvatarEmoji: {
-        fontSize: 10,
-    },
-    attendeeCount: {
-        color: colors.goldMetallic,
-        fontSize: 13,
-    },
-    chatCardActions: {
-        flexDirection: "row",
-        alignItems: "center",
-    },
-    unreadDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: colors.iris,
-        marginRight: 8,
-    },
-    chatCardArrow: {
-        color: colors.goldMetallic,
-        fontSize: 24,
-        fontWeight: "300",
-    },
-
-    // Archived Card
-    archivedCard: {
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        padding: 16,
-        marginBottom: 12,
-        opacity: 0.5,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-    },
-    archivedTitle: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        fontWeight: "500",
-    },
-    archivedSubtitle: {
-        color: colors.goldMetallic,
+    stepNumText: {
+        color: "#818CF8",
         fontSize: 12,
-        marginTop: 4,
-        opacity: 0.7,
-    },
-    moreArchived: {
-        color: colors.goldMetallic,
-        fontSize: 13,
-        textAlign: "center",
-        marginTop: 8,
-    },
-
-    // Section header row
-    sectionHeaderRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 16,
-        gap: 10,
-    },
-    livePillBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "rgba(244, 74, 34, 0.15)",
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: radii.pill,
-        gap: 5,
-    },
-    liveDotSmall: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.iris,
-    },
-    livePillText: {
-        color: colors.iris,
-        fontSize: 11,
-        fontWeight: "700",
-    },
-
-    // Live Now Card
-    liveNowCard: {
-        marginBottom: 12,
-        borderRadius: radii.xl,
-        overflow: "hidden",
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.25)",
-    },
-    liveNowGradient: {
-        padding: 16,
-    },
-    liveNowHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 6,
-    },
-    liveNowBadge: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: "rgba(244, 74, 34, 0.2)",
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: radii.pill,
-        gap: 5,
-    },
-    liveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: colors.iris,
-    },
-    liveBadgeText: {
-        color: colors.iris,
-        fontSize: 10,
         fontWeight: "800",
-        letterSpacing: 0.5,
     },
-    liveNowTitle: {
-        color: colors.gold,
-        fontSize: 16,
-        fontWeight: "700",
-        flex: 1,
-    },
-    liveNowAttendees: {
-        color: colors.goldMetallic,
+    stepText: {
+        color: "rgba(255,255,255,0.65)",
         fontSize: 13,
-        marginBottom: 14,
-    },
-    liveNowActions: {
-        flexDirection: "row",
-        gap: 10,
-    },
-    liveNowBtn: {
+        fontWeight: "500",
         flex: 1,
-        borderRadius: radii.lg,
-        overflow: "hidden",
     },
-    liveNowBtnGradient: {
-        paddingVertical: 10,
-        alignItems: "center",
-    },
-    liveNowBtnText: {
-        color: "#fff",
-        fontSize: 14,
-        fontWeight: "600",
-    },
-    liveNowBtnSecondary: {
-        flex: 1,
-        paddingVertical: 10,
-        alignItems: "center",
-        borderRadius: radii.lg,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.12)",
-        backgroundColor: "rgba(255, 255, 255, 0.05)",
-    },
-    liveNowBtnSecondaryText: {
-        color: colors.gold,
-        fontSize: 14,
-        fontWeight: "600",
-    },
+});
 
-    // Empty
-    emptyContainer: {
+// ── Main screen styles ────────────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: "#111113",
+    },
+    header: {
+        flexDirection: "row",
         alignItems: "center",
-        paddingVertical: 60,
+        justifyContent: "space-between",
         paddingHorizontal: 20,
+        paddingTop: 10,
+        paddingBottom: 14,
     },
-    emptyEmoji: {
-        fontSize: 56,
-        marginBottom: 16,
-    },
-    emptyTitle: {
-        color: colors.gold,
-        fontSize: 22,
-        fontWeight: "700",
-        marginBottom: 8,
-    },
-    emptyText: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        textAlign: "center",
-        marginBottom: 24,
-        lineHeight: 22,
-    },
-    emptyButton: {
-        paddingVertical: 14,
-        paddingHorizontal: 28,
-        borderRadius: radii.pill,
-    },
-    emptyButtonText: {
+    headerTitle: {
         color: "#fff",
-        fontSize: 16,
-        fontWeight: "600",
+        fontSize: 32,
+        fontWeight: "800",
+        letterSpacing: -0.5,
     },
-
-    // Privacy
-    privacyCard: {
-        flexDirection: "row",
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        padding: 16,
-        marginTop: 8,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
+    searchBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.07)",
+        alignItems: "center",
+        justifyContent: "center",
     },
-    privacyIcon: {
-        fontSize: 20,
-        marginRight: 12,
-    },
-    privacyContent: {
-        flex: 1,
-    },
-    privacyTitle: {
-        color: colors.gold,
-        fontSize: 14,
-        fontWeight: "600",
+    segmentWrap: {
+        paddingHorizontal: 20,
         marginBottom: 4,
     },
-    privacyText: {
-        color: colors.goldMetallic,
+    segmentTrack: {
+        flexDirection: "row",
+        backgroundColor: "#161618",
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.07)",
+        padding: 4,
+        gap: 4,
+    },
+    segmentPill: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        paddingVertical: 12,
+        borderRadius: 11,
+    },
+    segmentPillActiveShadow: {
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    segmentText: {
+        color: "rgba(255,255,255,0.38)",
         fontSize: 13,
-        lineHeight: 18,
+        fontWeight: "600",
+        letterSpacing: 0.1,
+    },
+    segmentTextActive: {
+        color: "#fff",
+        fontWeight: "700",
+        fontSize: 13,
+    },
+    scroll: { flex: 1 },
+    scrollContent: {
+        paddingHorizontal: 16,
+        paddingBottom: 140,
+        paddingTop: 12,
+    },
+    fab: {
+        position: "absolute",
+        right: 20,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        backgroundColor: colors.iris,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: colors.iris,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.45,
+        shadowRadius: 14,
+        elevation: 10,
     },
 });

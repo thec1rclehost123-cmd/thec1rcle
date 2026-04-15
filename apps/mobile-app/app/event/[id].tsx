@@ -38,6 +38,9 @@ import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
 import { VenueSheet } from "@/components/ui/VenueSheet";
 import { HostSheet } from "@/components/ui/HostSheet";
+import { useEventInterestStore } from "@/store/eventInterestStore";
+import { useAuth } from "@/hooks/useAuth";
+import { useProfileStore } from "@/store/profileStore";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const HEADER_HEIGHT = 400;
@@ -229,15 +232,20 @@ export default function EventDetailScreen() {
         state.items.reduce((sum, item) => sum + item.quantity, 0)
     );
     const insets = useSafeAreaInsets();
+    const { user } = useAuth();
+    const profile = useProfileStore((s) => s.profile);
+    const { likedEventIds, toggleInterest, fetchInterestedUsers, interestedUsers } = useEventInterestStore();
 
     const [event, setEvent] = useState<Event | null>(null);
     const [loading, setLoading] = useState(true);
-    const [isLiked, setIsLiked] = useState(false);
     const [venueCoords, setVenueCoords] = useState<{ latitude: number; longitude: number } | null>(null);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);
     const [showVenueSheet, setShowVenueSheet] = useState(false);
     const [showHostSheet, setShowHostSheet] = useState(false);
     const miniMapRef = useRef<MapView>(null);
+
+    const isLiked = id ? likedEventIds.has(id) : false;
+    const eventInterested = id ? (interestedUsers[id] ?? []) : [];
 
     const scrollY = useSharedValue(0);
 
@@ -252,6 +260,7 @@ export default function EventDetailScreen() {
             const eventData = await getEventById(id);
             setEvent(eventData);
             setLoading(false);
+            void fetchInterestedUsers(id);
 
             // Geocode venue
             if (eventData) {
@@ -299,8 +308,12 @@ export default function EventDetailScreen() {
     }));
 
     const handleLike = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setIsLiked(!isLiked);
+        if (!user?.uid || !id) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        toggleInterest(id, user.uid, {
+            displayName: profile?.displayName ?? "",
+            photoURL: profile?.photoURL ?? null,
+        });
     };
 
     const handleShare = () => {
@@ -591,35 +604,80 @@ export default function EventDetailScreen() {
                         </Animated.View>
                     )}
 
-                    {/* Attendees Preview */}
+                    {/* Attendees / Interested Preview */}
                     <Animated.View
                         entering={FadeInDown.delay(200).springify()}
                         style={styles.attendeesCard}
                     >
-                        <Text style={styles.attendeesTitle}>👥 Who's Going</Text>
+                        <View style={styles.attendeesHeaderRow}>
+                            <Text style={styles.attendeesTitle}>👥 Who's Going</Text>
+                            {eventInterested.length > 0 && (
+                                <View style={styles.interestedBadge}>
+                                    <Text style={styles.interestedBadgeText}>
+                                        ❤️ {eventInterested.length} interested
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
                         <View style={styles.attendeesRow}>
                             <View style={styles.attendeesAvatars}>
-                                {[0, 1, 2, 3, 4].map((i) => (
-                                    <View
-                                        key={i}
-                                        style={[
-                                            styles.attendeeAvatar,
-                                            { marginLeft: i > 0 ? -10 : 0, zIndex: 5 - i }
-                                        ]}
-                                    >
-                                        <LinearGradient
-                                            colors={["rgba(244, 74, 34, 0.3)", "rgba(244, 74, 34, 0.1)"]}
-                                            style={styles.attendeeAvatarGradient}
+                                {eventInterested.length > 0
+                                    ? eventInterested.slice(0, 5).map((u, i) => (
+                                        <View
+                                            key={u.userId}
+                                            style={[
+                                                styles.attendeeAvatar,
+                                                { marginLeft: i > 0 ? -10 : 0, zIndex: 5 - i }
+                                            ]}
                                         >
-                                            <Text style={styles.attendeeAvatarEmoji}>👤</Text>
-                                        </LinearGradient>
-                                    </View>
-                                ))}
+                                            {u.photoURL ? (
+                                                <Image
+                                                    source={{ uri: u.photoURL }}
+                                                    style={styles.attendeeAvatarImg}
+                                                    contentFit="cover"
+                                                />
+                                            ) : (
+                                                <LinearGradient
+                                                    colors={["rgba(244, 74, 34, 0.4)", "rgba(244, 74, 34, 0.15)"]}
+                                                    style={styles.attendeeAvatarGradient}
+                                                >
+                                                    <Text style={styles.attendeeAvatarInitial}>
+                                                        {(u.displayName?.[0] ?? "?").toUpperCase()}
+                                                    </Text>
+                                                </LinearGradient>
+                                            )}
+                                        </View>
+                                    ))
+                                    : [0, 1, 2, 3, 4].map((i) => (
+                                        <View
+                                            key={i}
+                                            style={[
+                                                styles.attendeeAvatar,
+                                                { marginLeft: i > 0 ? -10 : 0, zIndex: 5 - i }
+                                            ]}
+                                        >
+                                            <LinearGradient
+                                                colors={["rgba(244, 74, 34, 0.3)", "rgba(244, 74, 34, 0.1)"]}
+                                                style={styles.attendeeAvatarGradient}
+                                            >
+                                                <Text style={styles.attendeeAvatarEmoji}>👤</Text>
+                                            </LinearGradient>
+                                        </View>
+                                    ))
+                                }
                             </View>
                             <Text style={styles.attendeesCount}>
-                                +{event.stats?.rsvps || 0} attending
+                                {eventInterested.length > 0
+                                    ? `+${eventInterested.length} interested`
+                                    : `+${event.stats?.rsvps || 0} attending`
+                                }
                             </Text>
                         </View>
+                        {eventInterested.length === 0 && (
+                            <Text style={styles.interestedHint}>
+                                ❤️ Tap the heart to show interest
+                            </Text>
+                        )}
                     </Animated.View>
 
                     {/* About Section */}
@@ -952,11 +1010,29 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(255, 255, 255, 0.06)",
     },
+    attendeesHeaderRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginBottom: 12,
+    },
     attendeesTitle: {
         color: colors.gold,
         fontSize: 16,
         fontWeight: "600",
-        marginBottom: 12,
+    },
+    interestedBadge: {
+        backgroundColor: "rgba(244,74,34,0.12)",
+        borderRadius: 10,
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.25)",
+    },
+    interestedBadgeText: {
+        color: "#F44A22",
+        fontSize: 11,
+        fontWeight: "700",
     },
     attendeesRow: {
         flexDirection: "row",
@@ -974,6 +1050,10 @@ const styles = StyleSheet.create({
         borderColor: colors.base[50],
         overflow: "hidden",
     },
+    attendeeAvatarImg: {
+        width: "100%",
+        height: "100%",
+    },
     attendeeAvatarGradient: {
         flex: 1,
         alignItems: "center",
@@ -982,9 +1062,20 @@ const styles = StyleSheet.create({
     attendeeAvatarEmoji: {
         fontSize: 16,
     },
+    attendeeAvatarInitial: {
+        color: "#fff",
+        fontSize: 15,
+        fontWeight: "700",
+    },
     attendeesCount: {
         color: colors.goldMetallic,
         fontSize: 14,
+    },
+    interestedHint: {
+        color: "rgba(255,255,255,0.25)",
+        fontSize: 12,
+        marginTop: 10,
+        textAlign: "center",
     },
 
     // Section

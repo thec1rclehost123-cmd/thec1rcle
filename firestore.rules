@@ -310,24 +310,31 @@ service cloud.firestore {
 
     // User Likes (swipe right)
     match /userLikes/{likeId} {
-      allow read: if isSignedIn() && (
+      // list: allow signed-in users — where clause in query constrains results
+      // get:  verify ownership on individual doc reads
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (
         resource.data.fromUserId == request.auth.uid ||
         resource.data.toUserId == request.auth.uid
       );
       allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
-      allow update, delete: if false; // Likes are immutable
+      allow update, delete: if false;
     }
 
     // User Passes (swipe left — kept to avoid reshowing profiles)
     match /userPasses/{passId} {
-      allow read: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
       allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
       allow update, delete: if false;
     }
 
     // Mutual Matches
     match /userMatches/{matchId} {
-      allow read: if isSignedIn() && (
+      // list: allow signed-in users — queries are always filtered by user1Id or user2Id
+      // get:  verify participation on individual doc reads
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (
         resource.data.user1Id == request.auth.uid ||
         resource.data.user2Id == request.auth.uid
       );
@@ -347,6 +354,14 @@ service cloud.firestore {
       allow read: if isSignedIn() && request.auth.uid == userId;
       allow create, update: if isSignedIn() && request.auth.uid == userId;
       allow delete: if isAdmin();
+    }
+
+    // Verification Attempts (sub-collection; Cloud Function writes results)
+    match /verificationAttempts/{userId}/attempts/{attemptId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isAdmin(); // Cloud Function updates result async
+      allow delete: if false;
     }
 
     // --- 💬 EVENT SOCIAL LAYER ---
@@ -435,6 +450,35 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // --- ❤️ EVENT INTEREST (Likes / Who's Going) ---
+
+    // eventInterest/{eventId}/interestedUsers/{userId}
+    // Any signed-in user can read who's interested in an event.
+    // Only the owner can write their own interest doc.
+    match /eventInterest/{eventId}/interestedUsers/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // userEventInterests/{userId}/events/{eventId} — mirror for user-centric queries
+    match /userEventInterests/{userId}/events/{eventId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- 🎫 EVENT GROUP CHAT MEMBERS (auto-join on ticket purchase) ---
+
+    // eventGroupChatMembers/{eventId}/members/{userId}
+    // Any signed-in user can read who's in the group chat.
+    // Users can only write their own membership doc.
+    match /eventGroupChatMembers/{eventId}/members/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
     // Event Chats (legacy, for backwards compatibility)
     match /eventChats/{chatId} {
       allow read: if isSignedIn();
@@ -569,6 +613,31 @@ service cloud.firestore {
         request.auth.token.partnerId != null
       ));
       allow write: if false; // Backend only
+    }
+
+    // --- 👥 FOLLOWS (Venues & Hosts) ---
+
+    // User-centric follow lookups — only the owner can read/write
+    match /userFollows/{userId}/venues/{venueId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /userFollows/{userId}/hosts/{hostId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Venue-centric follower mirrors — any signed-in user can read counts/members
+    match /venueFollowers/{venueId}/followers/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Host-centric follower mirrors
+    match /hostFollowers/{hostId}/followers/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     // --- 🏁 DEFAULT CATCH-ALL (STRICT) ---

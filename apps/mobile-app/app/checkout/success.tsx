@@ -12,6 +12,8 @@ import Animated, {
     withDelay
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
+import { useEventInterestStore } from "@/store/eventInterestStore";
+import { useProfileStore } from "@/store/profileStore";
 
 interface OrderDetails {
     id: string;
@@ -30,6 +32,8 @@ export default function CheckoutSuccessScreen() {
     const { orderId } = useLocalSearchParams<{ orderId: string }>();
     const { user } = useAuthStore();
     const { fetchUserOrders, getOrderById } = useTicketsStore();
+    const { joinEventGroupChat } = useEventInterestStore();
+    const profile = useProfileStore((s) => s.profile);
     const [order, setOrder] = useState<OrderDetails | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -70,6 +74,13 @@ export default function CheckoutSuccessScreen() {
             const storeOrder = await getOrderById(orderId).catch(() => null);
             if (storeOrder) {
                 setOrder(mapStoreOrder(storeOrder));
+                // Auto-join event group chat on confirmed ticket purchase
+                if (user?.uid && storeOrder.eventId) {
+                    void joinEventGroupChat(storeOrder.eventId, user.uid, {
+                        displayName: profile?.displayName ?? user.displayName ?? "",
+                        photoURL: profile?.photoURL ?? user.photoURL ?? null,
+                    });
+                }
             }
         } catch (error) {
             console.error("Error fetching order:", error);

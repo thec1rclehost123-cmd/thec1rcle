@@ -15,12 +15,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { Heart } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { colors, radii } from "@/lib/design/theme";
 import { EventCard } from "@/components/ui/EventCard";
 import { PremiumButton } from "@/components/ui/PremiumButton";
 import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from "@/store/venuePageStore";
+import { useFollowStore } from "@/store/followStore";
+import { useAuth } from "@/hooks/useAuth";
 import { formatCompactCount } from "@/lib/venueDiscovery";
 
 const AnyFlatList = FlatList as any;
@@ -44,6 +47,21 @@ export default function VenuePageScreen() {
     const [activeTab, setActiveTab] = useState<"events" | "menu">("events");
     const [storyModal, setStoryModal] = useState<{ highlight: VenueHighlight; imageIndex: number } | null>(null);
     const [menuModalIndex, setMenuModalIndex] = useState<number | null>(null);
+
+    const { user } = useAuth();
+    const { isFollowingVenue, toggleVenueFollow, fetchFollows, loaded } = useFollowStore();
+    const isFollowing = venue ? isFollowingVenue(venue.id) : false;
+
+    useEffect(() => {
+        if (user?.uid && !loaded) void fetchFollows(user.uid);
+    }, [user?.uid, loaded, fetchFollows]);
+
+    const handleFollow = () => {
+        if (!user?.uid || !venue) return;
+        void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        const name = venue.displayName || venue.name || "Venue";
+        void toggleVenueFollow(venue.id, name, user.uid);
+    };
 
     useEffect(() => {
         if (!id) return;
@@ -173,21 +191,41 @@ export default function VenuePageScreen() {
                 </View>
 
                 <View style={styles.body}>
+                    {/* ── CTA rows ── */}
+
+                    {/* Row 1: Follow + Map + Directions */}
+                    <View style={styles.ctaRow}>
+                        <Pressable
+                            style={[styles.followBtn, isFollowing && styles.followBtnActive]}
+                            onPress={handleFollow}
+                        >
+                            <Heart
+                                size={16}
+                                color={isFollowing ? "#F44A22" : "rgba(255,255,255,0.85)"}
+                                fill={isFollowing ? "#F44A22" : "none"}
+                                strokeWidth={2}
+                            />
+                            <Text style={[styles.followBtnText, isFollowing && styles.followBtnTextActive]}>
+                                {isFollowing ? "Following" : "Follow"}
+                            </Text>
+                        </Pressable>
+
+                        <Pressable
+                            onPress={() => router.push({ pathname: "/map", params: { mode: "venues", venueId: venue.id } })}
+                            style={styles.ctaSecondary}
+                        >
+                            <Ionicons name="map-outline" size={18} color="#fff" />
+                        </Pressable>
+                        <Pressable onPress={handleDirections} style={styles.ctaSecondary}>
+                            <Ionicons name="location-outline" size={18} color="#fff" />
+                        </Pressable>
+                    </View>
+
+                    {/* Row 2: Reservation — full width, only if available */}
                     {(venue.hasReservation || venue.whatsapp || venue.phone) ? (
-                        <View style={styles.ctaRow}>
-                            <PremiumButton fullWidth onPress={handleReservation} style={styles.ctaPrimary}>
-                                {venue.primaryCta || "Get Reservation"}
-                            </PremiumButton>
-                            <Pressable
-                                onPress={() => router.push({ pathname: "/map", params: { mode: "venues", venueId: venue.id } })}
-                                style={styles.ctaSecondary}
-                            >
-                                <Ionicons name="map-outline" size={18} color="#fff" />
-                            </Pressable>
-                            <Pressable onPress={handleDirections} style={styles.ctaSecondary}>
-                                <Ionicons name="location-outline" size={18} color="#fff" />
-                            </Pressable>
-                        </View>
+                        <PremiumButton fullWidth onPress={handleReservation} style={styles.ctaReservation}>
+                            {venue.primaryCta || "Get Reservation"}
+                        </PremiumButton>
                     ) : null}
 
                     {venue.description ? (
@@ -532,7 +570,7 @@ const styles = StyleSheet.create({
     ctaRow: {
         flexDirection: "row",
         gap: 12,
-        marginBottom: 24,
+        marginBottom: 12,
     },
     ctaPrimary: {
         flex: 1,
@@ -546,6 +584,33 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(255,255,255,0.08)",
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.08)",
+    },
+    followBtn: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 7,
+        height: 56,
+        borderRadius: radii.xl,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+    },
+    followBtnActive: {
+        backgroundColor: "rgba(244,74,34,0.12)",
+        borderColor: "rgba(244,74,34,0.4)",
+    },
+    followBtnText: {
+        color: "rgba(255,255,255,0.85)",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    followBtnTextActive: {
+        color: "#F44A22",
+    },
+    ctaReservation: {
+        marginBottom: 24,
     },
     section: {
         marginBottom: 28,
