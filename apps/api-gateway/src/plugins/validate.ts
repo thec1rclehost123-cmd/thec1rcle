@@ -1,6 +1,7 @@
 import fp from 'fastify-plugin';
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { ZodSchema, ZodError } from 'zod';
+import { buildErrorResponse, buildValidationDetails } from '../lib/api-contracts';
 
 export interface ValidationSchemas {
     body?: ZodSchema;
@@ -35,15 +36,12 @@ export default fp(async (fastify: FastifyInstance) => {
                         validationErrors: zodError.errors
                     }, 'Validation Failed');
 
-                    return reply.status(400).send({
-                        error: 'Bad Request',
+                    return reply.status(400).send(buildErrorResponse({
+                        code: 'VALIDATION_ERROR',
                         message: 'Validation failed',
                         requestId: request.id,
-                        details: (zodError.issues || []).map((e: any) => ({
-                            path: (e.path || []).join('.'),
-                            message: e.message
-                        }))
-                    });
+                        details: buildValidationDetails(zodError.issues || []),
+                    }));
                 }
                 throw error;
             }

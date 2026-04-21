@@ -7,7 +7,7 @@ import Link from "next/link";
 
 export default function AccessGranted() {
     return (
-        <div className="flex flex-col items-center justify-center text-center space-y-8 max-w-[400px]">
+        <div className="flex w-full max-w-[360px] flex-col items-center justify-center text-center space-y-8 px-4">
             <motion.div
                 initial={{ scale: 0, rotate: -180 }}
                 animate={{ scale: 1, rotate: 0 }}
@@ -40,18 +40,18 @@ export default function AccessGranted() {
             >
                 <Link
                     href="/explore"
-                    className="group relative h-16 flex items-center justify-center rounded-3xl bg-white text-black font-black uppercase tracking-[0.5em] text-xs transition-all hover:scale-[1.02] active:scale-95"
+                    className="group relative flex h-14 w-full items-center justify-center rounded-2xl bg-white px-4 text-black font-black uppercase tracking-[0.28em] text-[10px] transition-all hover:scale-[1.02] active:scale-95"
                 >
-                    <span className="relative z-10 flex items-center gap-3">
+                    <span className="relative z-10 flex items-center justify-center gap-2 text-center">
                         Continue to Explore
                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </span>
                 </Link>
                 <Link
                     href="/tickets"
-                    className="group h-16 flex items-center justify-center rounded-3xl border border-white/10 bg-white/5 text-white/60 font-black uppercase tracking-[0.5em] text-xs transition-all hover:bg-white/10 hover:text-white"
+                    className="group flex h-14 w-full items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 text-white/60 font-black uppercase tracking-[0.28em] text-[10px] transition-all hover:bg-white/10 hover:text-white"
                 >
-                    <span className="flex items-center gap-3">
+                    <span className="flex items-center justify-center gap-2 text-center">
                         Go to Tickets
                         <Ticket className="w-4 h-4 opacity-40 group-hover:opacity-100" />
                     </span>

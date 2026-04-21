@@ -13,6 +13,16 @@ import { persist, createJSONStorage } from "zustand/middleware";
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+const dedupeEvents = (events = []) => {
+    const seen = new Set();
+    return events.filter((event) => {
+        const id = event?.id;
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+    });
+};
+
 export const useExploreStore = create(
     persist(
         (set, get) => ({
@@ -26,7 +36,7 @@ export const useExploreStore = create(
             hasMore: true,
             lastFetchedAt: null,
 
-            fetchEvents: async (city = null, reset = false) => {
+            fetchEvents: async (city = null, reset = false, sort = "soonest") => {
                 const { lastFetchedAt, status, nextCursor, events: existingEvents, revalidating } = get();
 
                 // ⚡ Guard: Already fetching
@@ -56,7 +66,7 @@ export const useExploreStore = create(
                 try {
                     const cursor = reset ? "" : (nextCursor || "");
 
-                    let url = `/api/events?limit=24&sort=soonest`;
+                    let url = `/api/events?limit=24&sort=${encodeURIComponent(sort)}`;
                     if (city) url += `&city=${encodeURIComponent(city)}`;
                     if (cursor) url += `&lastId=${cursor}`;
 
@@ -64,10 +74,14 @@ export const useExploreStore = create(
                     if (!response.ok) throw new Error("Unable to fetch events");
 
                     const payload = await response.json();
-                    const newEvents = Array.isArray(payload.events) ? payload.events : [];
+                    const newEvents = Array.isArray(payload.events)
+                        ? payload.events
+                        : Array.isArray(payload.items)
+                            ? payload.items
+                            : [];
                     // Only append when paginating (cursor set). Without a cursor we're
                     // fetching from page 1 — replace to avoid duplicating stale entries.
-                    const updatedEvents = (reset || !cursor) ? newEvents : [...existingEvents, ...newEvents];
+                    const updatedEvents = dedupeEvents((reset || !cursor) ? newEvents : [...existingEvents, ...newEvents]);
 
                     set({
                         events: updatedEvents,

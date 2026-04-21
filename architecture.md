@@ -19,8 +19,8 @@ graph TD
     end
 
     subgraph "API Layer"
-        NEAR["Next.js API Routes (Direct Firestore)"]
-        FAST["Fastify API Gateway (Complex Logic)"]
+        NEAR["Next.js API Routes (Helpers / Thin Bridges Only)"]
+        FAST["Fastify API Gateway (Primary Backend)"]
     end
 
     subgraph "Core Logic"
@@ -35,13 +35,13 @@ graph TD
         FBC["Firebase Functions (Async Tasks)"]
     end
 
-    GP -- calls --> NEAR
-    PD -- calls --> NEAR
+    GP -- web helpers / bridges --> NEAR
+    PD -- web helpers / bridges --> NEAR
     AC -- calls --> NEAR
     MA -- calls --> FAST
     SA -- calls --> FAST
     
-    NEAR -- uses --> CORE
+    NEAR -- forwards / bridges --> FAST
     FAST -- uses --> CORE
     
     CORE -- talks to --> FS
@@ -76,8 +76,8 @@ The system is split into multiple independent applications and shared packages:
 *   **Mobile/Scanner Apps**: Mobile clients for guest convenience and operational efficiency (QR scanning).
 
 ### Backend Services
-*   **Next.js API Routes**: Dedicated backends for each web app, providing direct, low-latency Firestore access.
-*   **Fastify API Gateway**: A centralized TypeScript backend used for complex business logic, mobile app support, and real-time features (WebSockets).
+*   **Next.js API Routes**: Web-specific helpers, runtime-specific handlers, and temporary migration bridges only. They are not a second business backend.
+*   **Fastify API Gateway**: The centralized TypeScript backend for protected business logic, mobile support, scanner flows, validation, RBAC, caching, and shared contracts.
 *   **Firebase Functions**: Serverless environment for asynchronous background tasks, webhooks, and heavy processing.
 
 ### Shared Packages
@@ -96,12 +96,13 @@ The system is split into multiple independent applications and shared packages:
 
 # API Architecture
 
-*   **Service-Specific**: Next.js apps call their own internal `/app/api/*` routes. These routes have direct access to `firebase-admin` for high-speed Firestore operations.
-*   **Gateway**: The Fastify Gateway provides a versioned REST API (`/api/v1/*`) with:
+*   **Service-Specific**: Next.js apps may use internal `/app/api/*` routes only for web-specific helpers, webhook/runtime handlers, or thin bridges to Fastify.
+*   **Gateway**: The Fastify Gateway provides the versioned REST API (`/api/v1/*`) for product backend ownership with:
     *   Zod-based request validation.
     *   Redis-based caching and rate limiting.
-    *   Unified error handling.
-*   **Engines**: All heavy lifting is abstracted into engines in `@c1rcle/core`, ensuring that the same business rules apply regardless of which API is calling them.
+    *   Unified error handling and request correlation.
+    *   Shared auth context and RBAC enforcement.
+*   **Core Services**: Business logic belongs in `@c1rcle/core` and is reused by the gateway instead of living in React components or app-local route handlers.
 
 # State Management
 
@@ -163,7 +164,8 @@ thec1rcle/
 # Architectural Principles
 
 1.  **Stability over Style**: Prefer working, stable code over experimental pattern changes.
-2.  **Domain Isolation**: Business logic belongs in `@c1rcle/core` "Engines," not in UI components or API handler skins.
-3.  **Conservative Modification**: Change the minimum code required to fix a bug or add a feature.
-4.  **Shared Foundation**: Use shared packages (`ui`, `core`, `types`) to ensure consistency and reduce duplication across the frontend and mobile apps.
-5.  **Performance by Default**: Utilize server-side rendering, GPU-accelerated animations, and aggressive caching (Redis/React Query) to maintain a premium feel.
+2.  **Backend Ownership**: Protected business actions go through Fastify. Frontend apps ask for things; the backend decides things; the database remembers things.
+3.  **Domain Isolation**: Business logic belongs in `@c1rcle/core` services and repositories, not in UI components or app-local route handlers.
+4.  **Conservative Modification**: Change the minimum code required to fix a bug or add a feature.
+5.  **Shared Foundation**: Use shared packages (`ui`, `core`, `types`) to ensure consistency and reduce duplication across the frontend and mobile apps.
+6.  **Performance by Default**: Use read models, bounded caching, and background work instead of raw heavy queries on live request paths.

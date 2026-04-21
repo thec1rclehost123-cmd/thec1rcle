@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Mail, Lock, User, ArrowRight, Chrome, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "../../components/providers/AuthProvider";
 import PageShell from "../../components/PageShell";
+import { buildAuthCallbackUrl, getReturnUrl } from "../../lib/auth/guestRouteAccess";
 
 export default function AuthPage() {
     return (
@@ -20,7 +21,7 @@ function AuthContent() {
     const { login, register, loginWithGoogle, user, loading } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
-    const returnUrl = searchParams.get("returnUrl") || searchParams.get("next") || "/profile";
+    const returnUrl = getReturnUrl(searchParams);
 
     const [mode, setMode] = useState("login");
     const [form, setForm] = useState({ email: "", password: "", name: "" });
@@ -29,7 +30,7 @@ function AuthContent() {
 
     useEffect(() => {
         if (user && !loading) {
-            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
+            router.replace(buildAuthCallbackUrl(returnUrl));
         }
     }, [user, loading, router, returnUrl]);
 
@@ -38,7 +39,7 @@ function AuthContent() {
         setStatus({ type: "", message: "" });
         try {
             await loginWithGoogle();
-            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
+            router.replace(buildAuthCallbackUrl(returnUrl));
         } catch (err) {
             setStatus({ type: "error", message: err.message });
             setSubmitting(false);
@@ -56,7 +57,7 @@ function AuthContent() {
                 if (!form.name.trim()) throw new Error("Name is required");
                 await register(form.email, form.password, form.name);
             }
-            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(returnUrl)}`);
+            router.replace(buildAuthCallbackUrl(returnUrl));
         } catch (err) {
             setStatus({ type: "error", message: err.message });
             setSubmitting(false);

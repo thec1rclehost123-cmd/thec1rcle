@@ -41,11 +41,11 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
     }, [search]);
 
     useEffect(() => {
-        fetchData({ activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, true);
+        fetchData({ activeTab, search: debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, true);
     }, [activeTab, debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData]);
 
     const handleLoadMore = () => {
-        fetchData({ activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, false);
+        fetchData({ activeTab, search: debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, false);
     };
 
     const handleFollow = (id) => {
@@ -230,7 +230,7 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
                                 <h3 className="text-2xl font-black text-black dark:text-white uppercase tracking-tight">Sync Error</h3>
                                 <p className="text-black/40 dark:text-white/40 text-sm">{error}</p>
                                 <button
-                                    onClick={() => fetchData({ activeTab, search, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, true)}
+                                    onClick={() => fetchData({ activeTab, search: debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, true)}
                                     className="px-8 py-3 rounded-full bg-black dark:bg-white text-white dark:text-black text-[11px] font-black uppercase tracking-widest hover:opacity-90 transition-all"
                                 >
                                     Retry

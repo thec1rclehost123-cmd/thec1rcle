@@ -1,5 +1,8 @@
-import PageClient from './PageClient';
+import { redirect } from 'next/navigation';
+import { getProfileEntryRedirect } from '../../lib/auth/guestRouteAccess';
+import { getGuestBootstrapFromSession } from '../../lib/server/guestBootstrap';
 
-export default function Page(props) {
-  return <PageClient {...props} />;
+export default async function Page() {
+  const bootstrap = await getGuestBootstrapFromSession();
+  redirect(getProfileEntryRedirect(bootstrap));
 }

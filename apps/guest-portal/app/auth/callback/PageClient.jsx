@@ -1,12 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, AlertCircle, ArrowRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "../../../components/providers/AuthProvider";
+import { buildLoginUrl, getReturnUrl, shouldRouteCallbackToOnboarding } from "../../../lib/auth/guestRouteAccess";
 
 export default function AuthCallbackPage() {
     return (
@@ -19,19 +20,23 @@ export default function AuthCallbackPage() {
 function AuthCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, profile, loading: authLoading } = useAuth();
+    const { user, profile, bootstrap, loading: authLoading } = useAuth();
     const [status, setStatus] = useState("processing"); // processing, success, error
     const [errorMessage, setErrorMessage] = useState("");
 
-    const returnUrl = searchParams.get("returnUrl") || "/explore";
+    const returnUrl = getReturnUrl(searchParams, "/explore");
+    const onboardingRedirect = useMemo(
+        () => buildLoginUrl(returnUrl, { onboarding: true }),
+        [returnUrl]
+    );
 
     useEffect(() => {
         // If auth is no longer loading and we have a user, redirect
         if (!authLoading) {
             if (user) {
                 // Block access if onboarding was never completed
-                if (profile !== null && profile?.onboardingComplete === false) {
-                    router.replace(`/login?next=${encodeURIComponent(returnUrl)}`);
+                if (shouldRouteCallbackToOnboarding({ bootstrap, profile })) {
+                    router.replace(onboardingRedirect);
                     return;
                 }
                 setStatus("success");
@@ -59,7 +64,7 @@ function AuthCallbackContent() {
                 }
             }
         }
-    }, [user, profile, authLoading, router, returnUrl, searchParams]);
+    }, [user, profile, bootstrap, authLoading, router, returnUrl, searchParams, onboardingRedirect]);
 
     return (
         <div className="relative h-[100dvh] bg-black flex items-center justify-center overflow-hidden">

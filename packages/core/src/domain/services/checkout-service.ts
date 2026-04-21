@@ -5,6 +5,8 @@ import { calculatePricing } from '@c1rcle/core/pricing-engine';
 // @ts-ignore
 import { createReservation, releaseReservation } from '@c1rcle/core/inventory-engine';
 // @ts-ignore
+import { consumeAdmission } from '@c1rcle/core/surge';
+// @ts-ignore
 import { sendEvent, Events } from '@c1rcle/core/inngest-client';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
@@ -36,25 +38,35 @@ export class CheckoutService {
         private eventRepo: IEventRepository
     ) { }
 
-    async validatePricing(params: any, workspaceId: string): Promise<any> {
-        const event = await this.eventRepo.getById(params.eventId, workspaceId);
+    async validatePricing(params: any, workspaceId?: string | null): Promise<any> {
+        const event = await this.eventRepo.getById(params.eventId, workspaceId || undefined as any);
         if (!event) throw new Error('Event not found');
 
         return calculatePricing({ ...params, event });
     }
 
-    async reserveItems(eventId: string, userId: string, deviceId: string | null, items: any[], workspaceId: string): Promise<any> {
-        const event = await this.eventRepo.getById(eventId, workspaceId);
+    async reserveItems(
+        eventId: string,
+        userId: string,
+        deviceId: string | null,
+        items: any[],
+        workspaceId?: string | null,
+        options: { queueId?: string | null } = {}
+    ): Promise<any> {
+        const event = await this.eventRepo.getById(eventId, workspaceId || undefined as any);
         if (!event) throw new Error('Event not found');
 
         const result = await createReservation(event, userId, deviceId, items);
+        const resolvedWorkspaceId = workspaceId || (event as any).workspaceId || null;
 
         if (result.success) {
             await this.orderRepo.createReservation({
                 id: result.reservationId,
                 eventId,
+                workspaceId: resolvedWorkspaceId,
                 customerId: userId,
                 deviceId: deviceId,
+                queueId: options.queueId || null,
                 items,
                 status: 'active',
                 createdAt: new Date().toISOString(),
@@ -73,7 +85,7 @@ export class CheckoutService {
         userPhone: string,
         promoCode?: string,
         promoterCode?: string
-    }, workspaceId: string): Promise<any> {
+    }, workspaceId?: string | null): Promise<any> {
         const { reservationId, userId, userName, userEmail, userPhone, promoCode, promoterCode } = params;
 
         const reservation = await this.orderRepo.getReservationById(reservationId);
@@ -84,7 +96,8 @@ export class CheckoutService {
             throw new Error('Reservation has expired');
         }
 
-        const event = await this.eventRepo.getById(reservation.eventId, workspaceId);
+        const resolvedWorkspaceId = workspaceId || reservation.workspaceId || null;
+        const event = await this.eventRepo.getById(reservation.eventId, resolvedWorkspaceId || undefined as any);
         if (!event) throw new Error('Event not found');
 
         const pricingResult = await calculatePricing({
@@ -103,6 +116,7 @@ export class CheckoutService {
             id: orderId,
             eventId: event.id,
             eventName: (event as any).title,
+            workspaceId: resolvedWorkspaceId || (event as any).workspaceId || null,
             userId,
             userName,
             userEmail,
@@ -170,12 +184,28 @@ export class CheckoutService {
         const order = await this.orderRepo.getOrderById(orderId);
         if (!order) throw new Error('Order not found');
         if (order.userId !== userId) throw new Error('Forbidden');
+        if (order.status === 'confirmed') {
+            throw new Error('Order is already confirmed');
+        }
+        if (order.status !== 'payment_pending') {
+            throw new Error(`Order is ${order.status}`);
+        }
 
         const { keyId, keySecret } = razorpayConfig;
         if (!keyId || !keySecret) {
             // Mock for Dev
+            const razorpayOrderId = `order_mock_${Date.now()}`;
+            await this.orderRepo.createPaymentRecord({
+                orderId,
+                razorpayOrderId,
+                workspaceId: order.workspaceId || null,
+                amount: order.totalAmount,
+                status: 'initiated',
+                userId,
+                createdAt: new Date().toISOString()
+            });
             return {
-                razorpayOrderId: `order_mock_${Date.now()}`,
+                razorpayOrderId,
                 amount: order.totalAmount,
                 currency: "INR",
                 key: "rzp_test_DEVELOPMENT"
@@ -208,6 +238,7 @@ export class CheckoutService {
         await this.orderRepo.createPaymentRecord({
             orderId,
             razorpayOrderId: rzpOrder.id,
+            workspaceId: order.workspaceId || null,
             amount: order.totalAmount,
             status: 'initiated',
             userId,
@@ -227,16 +258,32 @@ export class CheckoutService {
         razorpayOrderId: string,
         razorpayPaymentId: string,
         userId: string
-    }): Promise<void> {
+    }): Promise<{ success: true, alreadyConfirmed: boolean, order: Order | null }> {
         const { orderId, razorpayOrderId, razorpayPaymentId, userId } = params;
+
+        const order = await this.orderRepo.getOrderById(orderId);
+        if (!order) throw new Error('Order not found');
+        if (order.userId !== userId) throw new Error('Unauthorized');
+
+        const replayPayment = await this.orderRepo.getPaymentRecordByPaymentId(razorpayPaymentId);
+        if (replayPayment && replayPayment.orderId !== orderId) {
+            throw new Error('Payment already linked to another order');
+        }
+
+        if (order.status === 'confirmed') {
+            return { success: true, alreadyConfirmed: true, order };
+        }
 
         let finalOrder: any = null;
 
         await this.orderRepo.runInTransaction(async (transaction) => {
-            const order = await this.orderRepo.getOrderById(orderId);
-            if (!order) throw new Error('Order not found');
-            if (order.status === 'confirmed') return;
-            if (order.userId !== userId) throw new Error('Unauthorized');
+            const freshOrder = await this.orderRepo.getOrderById(orderId);
+            if (!freshOrder) throw new Error('Order not found');
+            if (freshOrder.status === 'confirmed') {
+                finalOrder = freshOrder;
+                return;
+            }
+            if (freshOrder.userId !== userId) throw new Error('Unauthorized');
 
             const updates: Partial<Order> = {
                 status: 'confirmed',
@@ -247,7 +294,7 @@ export class CheckoutService {
             };
 
             await Promise.all([
-                this.orderRepo.updateOrder(orderId, updates, order.isRSVP, transaction),
+                this.orderRepo.updateOrder(orderId, updates, freshOrder.isRSVP, transaction),
                 this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
                     status: 'verified',
                     razorpayPaymentId: razorpayPaymentId,
@@ -255,11 +302,22 @@ export class CheckoutService {
                 }, transaction)
             ]);
 
-            finalOrder = { ...order, ...updates };
+            finalOrder = { ...freshOrder, ...updates };
         });
 
         // Trigger fulfillment workflow (fallback for missed webhooks)
         if (finalOrder) {
+            if (finalOrder.reservationId) {
+                try {
+                    const reservation = await this.orderRepo.getReservationById(finalOrder.reservationId);
+                    if (reservation?.queueId) {
+                        await consumeAdmission(getAdminDb(), reservation.queueId);
+                    }
+                } catch (e: any) {
+                    console.error('[checkout] failed to consume queue admission:', e.message);
+                }
+            }
+
             // Fire-and-forget: update event stats so analytics are current
             (async () => {
                 try {
@@ -292,6 +350,8 @@ export class CheckoutService {
                 }
             })();
         }
+
+        return { success: true, alreadyConfirmed: false, order: finalOrder };
     }
 
     async cancelCheckout(reservationId: string, orderId?: string): Promise<any> {

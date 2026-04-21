@@ -4,6 +4,10 @@ import { IOrderRepository, Order, Reservation, PaymentRecord } from '../../../do
 export class FirebaseOrderRepository implements IOrderRepository {
     constructor(private db: Firestore) { }
 
+    private paymentRecordDocId(orderId: string, razorpayOrderId: string): string {
+        return `${orderId}__${razorpayOrderId}`;
+    }
+
     async getOrderById(id: string): Promise<Order | null> {
         const doc = await this.db.collection('orders').doc(id).get();
         if (doc.exists) return { id: doc.id, ...doc.data() } as Order;
@@ -64,7 +68,9 @@ export class FirebaseOrderRepository implements IOrderRepository {
     }
 
     async createPaymentRecord(payment: PaymentRecord): Promise<void> {
-        await this.db.collection('payments').add(payment);
+        await this.db.collection('payments')
+            .doc(this.paymentRecordDocId(payment.orderId, payment.razorpayOrderId))
+            .set(payment, { merge: true });
     }
 
     async updatePaymentRecord(orderId: string, razorpayOrderId: string, updates: Partial<PaymentRecord>, transaction?: Transaction): Promise<void> {
@@ -88,6 +94,16 @@ export class FirebaseOrderRepository implements IOrderRepository {
         const snapshot = await this.db.collection('payments')
             .where('orderId', '==', orderId)
             .where('razorpayOrderId', '==', razorpayOrderId)
+            .limit(1)
+            .get();
+
+        if (snapshot.empty) return null;
+        return snapshot.docs[0].data() as PaymentRecord;
+    }
+
+    async getPaymentRecordByPaymentId(paymentId: string): Promise<PaymentRecord | null> {
+        const snapshot = await this.db.collection('payments')
+            .where('razorpayPaymentId', '==', paymentId)
             .limit(1)
             .get();
 

@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { hasStaffPermission } from '@c1rcle/core/staff-engine';
 import { z } from 'zod';
+import { logPaymentEvent } from '../../lib/securityLogger';
 
 const OrderEventParam = z.object({
     eventId: z.string()
@@ -17,6 +18,90 @@ const OrderIdParam = z.object({
 const CancelOrderBody = z.object({
     reason: z.string().optional()
 });
+
+const CANCEL_WINDOW_HOURS = 48;
+const FREE_CANCELLATION_HOURS = 24;
+
+async function resolveOrderAccess(fastify: FastifyInstance, orderId: string, actorId?: string | null) {
+    const order = await fastify.orderRepo.getOrderById(orderId);
+    if (!order) return { order: null, event: null, allowed: false as const };
+
+    const eventDoc = await fastify.db.collection('events').doc(order.eventId).get();
+    const event = eventDoc.exists ? ({ id: eventDoc.id, ...eventDoc.data() } as any) : null;
+
+    if (actorId && order.userId === actorId) {
+        return { order, event, allowed: true as const };
+    }
+
+    if (actorId && event?.venueId) {
+        const canView = await hasStaffPermission(fastify.db, event.venueId, actorId, 'viewFinance');
+        if (canView) return { order, event, allowed: true as const };
+    }
+
+    return { order, event, allowed: false as const };
+}
+
+function buildCancellationDecision(order: any, event: any) {
+    const now = new Date();
+    let canCancel = true;
+    let refundPercentage = 100;
+    let reason: string | null = null;
+
+    if (order.status === 'cancelled') {
+        return { canCancel: false, reason: 'Order is already cancelled', refundPercentage: 0 };
+    }
+
+    if (!['confirmed', 'payment_pending', 'pending_payment', 'reserved'].includes(order.status)) {
+        return {
+            canCancel: false,
+            reason: `Orders with status "${order.status}" cannot be cancelled`,
+            refundPercentage: 0,
+        };
+    }
+
+    if (event) {
+        const eventStart = new Date(event.startDate || event.date);
+        const hoursUntilEvent = (eventStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+        if (hoursUntilEvent <= 0) {
+            canCancel = false;
+            reason = 'Event has already started';
+        } else if (hoursUntilEvent < CANCEL_WINDOW_HOURS) {
+            refundPercentage = 75;
+        }
+
+        const policySource = order.cancellationPolicySnapshot || {
+            policy: event.cancellationPolicy,
+            refundPercent: event.cancellationRefundPercent,
+        };
+
+        if (policySource.policy === 'no_refund') {
+            refundPercentage = 0;
+        } else if (policySource.policy === 'partial') {
+            refundPercentage = policySource.refundPercent || 50;
+        }
+
+        const purchaseDate = new Date(order.createdAt);
+        const hoursSincePurchase = (now.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60);
+        if (hoursSincePurchase <= FREE_CANCELLATION_HOURS) {
+            refundPercentage = 100;
+        }
+
+        if (event.lifecycle === 'cancelled') {
+            refundPercentage = 100;
+        }
+    }
+
+    return {
+        canCancel,
+        reason,
+        refundPercentage,
+        refundAmount: Math.round((Number(order.totalAmount || 0) * (refundPercentage / 100)) * 100) / 100,
+        orderTotal: Number(order.totalAmount || 0),
+        eventTitle: event?.title || null,
+        freeCancellationWindow: `${FREE_CANCELLATION_HOURS}h from purchase`,
+    };
+}
 
 export default async function orderRoutes(fastify: FastifyInstance) {
     /**
@@ -65,6 +150,51 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
     });
 
+    fastify.get('/:id', {
+        preHandler: [fastify.validate({ params: OrderIdParam })]
+    }, async (request: any, reply) => {
+        const { id: orderId } = request.params;
+        const actorId = request.user?.uid;
+        if (!actorId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        try {
+            const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId);
+            if (!order) return reply.status(404).send({ error: 'Order not found' });
+            if (!allowed) return reply.status(403).send({ error: 'Unauthorized' });
+
+            return {
+                success: true,
+                order: {
+                    ...order,
+                    status: order.status === 'pending_payment' ? 'payment_pending' : order.status,
+                },
+                event,
+            };
+        } catch (error: any) {
+            fastify.log.error(`GET /orders/${orderId} failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    fastify.get('/:id/cancel', {
+        preHandler: [fastify.validate({ params: OrderIdParam })]
+    }, async (request: any, reply) => {
+        const { id: orderId } = request.params;
+        const actorId = request.user?.uid;
+        if (!actorId) return reply.status(401).send({ error: 'Authentication required' });
+
+        try {
+            const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId);
+            if (!order) return reply.status(404).send({ error: 'Order not found' });
+            if (!allowed || order.userId !== actorId) return reply.status(403).send({ error: 'Unauthorized' });
+
+            return buildCancellationDecision(order, event);
+        } catch (error: any) {
+            fastify.log.error(`GET /orders/${orderId}/cancel failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
     /**
      * POST /api/v1/orders/:id/cancel
      * Cancel a user's own order and release inventory
@@ -77,61 +207,101 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
         try {
-            const orderRef = fastify.db.collection('orders').doc(orderId);
-            const orderDoc = await orderRef.get();
+            const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, userId);
+            if (!order) return reply.status(404).send({ error: 'Order not found' });
+            if (!allowed || order.userId !== userId) return reply.status(403).send({ error: 'You can only cancel your own orders' });
 
-            // Try rsvp_orders if not found in orders
-            let isRsvp = false;
-            let resolvedRef = orderRef;
-            let order: any = null;
-
-            if (!orderDoc.exists) {
-                const rsvpRef = fastify.db.collection('rsvp_orders').doc(orderId);
-                const rsvpDoc = await rsvpRef.get();
-                if (!rsvpDoc.exists) return reply.status(404).send({ error: 'Order not found' });
-                order = { id: rsvpDoc.id, ...rsvpDoc.data() };
-                resolvedRef = rsvpRef;
-                isRsvp = true;
-            } else {
-                order = { id: orderDoc.id, ...orderDoc.data() };
-            }
-
-            if (order.userId !== userId) return reply.status(403).send({ error: 'You can only cancel your own orders' });
-            if (order.status === 'cancelled') return reply.status(409).send({ error: 'Order is already cancelled', alreadyCancelled: true });
-            if (!['confirmed', 'pending_payment', 'reserved'].includes(order.status)) {
-                return reply.status(400).send({ error: `Orders with status "${order.status}" cannot be cancelled` });
-            }
-
-            // Check event hasn't started
-            const eventDoc = await fastify.db.collection('events').doc(order.eventId).get();
-            if (eventDoc.exists) {
-                const event = eventDoc.data() as any;
-                const eventStart = new Date(event.startDate || event.date);
-                if (eventStart <= new Date()) {
-                    return reply.status(400).send({ error: 'Cannot cancel — the event has already started' });
-                }
+            const decision = buildCancellationDecision(order, event);
+            if (!decision.canCancel) {
+                return reply.status(400).send({ error: decision.reason, cancellationAllowed: false });
             }
 
             const reason = request.body?.reason || 'User requested cancellation';
             const now = new Date().toISOString();
+            let refundResult: any = null;
+            const paymentId = order.paymentId || order.payment?.razorpayPaymentId || order.paymentDetails?.razorpayPaymentId;
+            const isPaidOrder = order.status === 'confirmed' && Number(order.totalAmount || 0) > 0;
 
-            await resolvedRef.update({
+            if (isPaidOrder && paymentId && (decision.refundPercentage || 0) > 0) {
+                if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+                    const authHeader = Buffer.from(`${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`).toString('base64');
+                    const refundAmountPaise = Math.round(Number(order.totalAmount || 0) * ((decision.refundPercentage || 0) / 100) * 100);
+                    const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Basic ${authHeader}`,
+                        },
+                        body: JSON.stringify({
+                            amount: refundAmountPaise,
+                            notes: {
+                                orderId,
+                                eventId: order.eventId,
+                                reason,
+                                refundPercentage: decision.refundPercentage,
+                                initiatedBy: 'guest',
+                            }
+                        })
+                    });
+
+                    if (response.ok) {
+                        refundResult = await response.json();
+                    } else {
+                        const refundError = await response.text();
+                        refundResult = { status: 'failed', error: refundError };
+                    }
+                } else {
+                    refundResult = { id: `refund_mock_${Date.now()}`, status: 'processing' };
+                }
+            }
+
+            await fastify.orderRepo.updateOrder(orderId, {
                 status: 'cancelled',
                 cancelledAt: now,
                 cancellationReason: reason,
                 cancelledBy: userId,
                 cancelledByType: 'guest',
+                refundPercentage: decision.refundPercentage || 0,
+                refundStatus: refundResult?.status === 'failed'
+                    ? 'failed'
+                    : refundResult?.id
+                        ? 'processing'
+                        : ((decision.refundPercentage || 0) === 0 ? 'not_applicable' : 'pending'),
+                razorpayRefundId: refundResult?.id || null,
                 updatedAt: now,
-            });
+            }, order.isRSVP);
+
+            if (order.reservationId) {
+                await fastify.checkoutService.cancelCheckout(order.reservationId, orderId).catch(() => undefined);
+            }
 
             // Bust cached order list for this user
             await fastify.cache.delete('orders', userId);
+            logPaymentEvent(request, 'ORDER_CANCELLED', {
+                orderId,
+                userId,
+                refundPercentage: decision.refundPercentage || 0,
+                razorpayRefundId: refundResult?.id || null,
+            });
 
             return {
                 success: true,
                 orderId,
                 status: 'cancelled',
-                message: 'Order cancelled. Refund will be processed per event policy within 5-7 business days.',
+                refund: {
+                    percentage: decision.refundPercentage || 0,
+                    amount: decision.refundAmount || 0,
+                    status: refundResult?.id
+                        ? 'processing'
+                        : ((decision.refundPercentage || 0) === 0 ? 'not_applicable' : 'pending'),
+                    razorpayRefundId: refundResult?.id || null,
+                    estimatedDays: '5-7 business days',
+                },
+                message: (decision.refundPercentage || 0) === 100
+                    ? 'Order cancelled. A full refund has been initiated.'
+                    : (decision.refundPercentage || 0) > 0
+                        ? `Order cancelled. A ${decision.refundPercentage}% refund has been initiated.`
+                        : 'Order cancelled. No refund applicable per event policy.',
             };
         } catch (error: any) {
             fastify.log.error(`POST /orders/${orderId}/cancel failed: ${error.message}`);

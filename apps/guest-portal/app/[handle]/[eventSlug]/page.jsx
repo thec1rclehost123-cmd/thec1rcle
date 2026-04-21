@@ -1,7 +1,9 @@
 import { notFound, redirect } from "next/navigation";
-import { getEvent } from "../../../lib/server/eventStore";
+import { fetchPublicEvent } from "../../../lib/server/publicDiscoveryBridge";
 import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 import { getPromoterByUsername, getPromoterLinkByVanityAlias } from "../../../lib/server/promoterStore";
+
+const getEvent = async (identifier) => (await fetchPublicEvent(identifier))?.event || null;
 
 export async function generateMetadata({ params }) {
     const { handle: rawHandle, eventSlug: rawSlug } = await params;

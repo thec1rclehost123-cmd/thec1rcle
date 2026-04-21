@@ -1,5 +1,4 @@
-import { listEvents } from "../../lib/server/eventStore";
-import { getFeaturedEvents } from "../../lib/server/featuredFeed";
+import { fetchFeaturedEvents, fetchPublicEvents } from "../../lib/server/publicDiscoveryBridge.js";
 import ExploreClient from "../../components/ExploreClient";
 
 export const revalidate = 60;
@@ -9,15 +8,15 @@ export default async function ExplorePage() {
   let initialFeaturedEvents = [];
   try {
     const [eventsResult, featuredResult] = await Promise.allSettled([
-      listEvents({ limit: 12, sort: "soonest" }),
-      getFeaturedEvents(),
+      fetchPublicEvents({ limit: 12, sort: "soonest" }, { cache: "force-cache" }),
+      fetchFeaturedEvents({ limit: 6 }, { cache: "force-cache" }),
     ]);
 
     if (eventsResult.status === "fulfilled") {
-      initialEvents = eventsResult.value || [];
+      initialEvents = eventsResult.value?.items || [];
     }
     if (featuredResult.status === "fulfilled") {
-      initialFeaturedEvents = featuredResult.value || [];
+      initialFeaturedEvents = featuredResult.value?.items || [];
     }
   } catch {
     // ExploreClient will client-fetch on mount as fallback

@@ -1,13 +1,29 @@
 import { cache } from "react";
 import { getAdminDb, isFirebaseConfigured } from "./firebase/admin";
-import { DEFAULT_CITY, getCategoryFilters, listEvents } from "./server/eventStore";
 import { formatEventTime, getEventHref } from "./eventCardUtils";
-import { getFeaturedEvents } from "./server/featuredFeed";
+import { fetchFeaturedEvents, fetchPublicEvents } from "./server/publicDiscoveryBridge.js";
 
 export const heroVideoSrc = "/background-video.mp4";
 
 const SELECTS_COLLECTION = "homepage_selects";
 const INTERVIEWS_COLLECTION = "homepage_interviews";
+const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
+const FALLBACK_CATEGORIES = [
+  "Parties",
+  "Fitness",
+  "Art",
+  "Fashion",
+  "Tech",
+  "Popups",
+  "Campus",
+  "Afters",
+  "Community",
+  "Culinary",
+  "Health & Wellness",
+  "Music",
+  "Events",
+  "Connections"
+];
 
 const toPlainDocument = (doc) => ({
   id: doc.id,
@@ -38,6 +54,20 @@ const mapHeroCards = (events) =>
   }));
 
 const mapEventGrid = (events) => events.slice(0, 8);
+
+const getCategoryFilters = (events = []) => {
+  const unique = Array.from(
+    new Set(
+      events
+        .map((event) => event.category)
+        .filter(Boolean)
+        .map((category) => category.trim())
+    )
+  );
+
+  if (unique.length) return unique;
+  return [...FALLBACK_CATEGORIES];
+};
 
 const buildStats = (events, city) => {
   const now = new Date();
@@ -73,8 +103,8 @@ const getCity = (city) => city || DEFAULT_CITY;
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
   const [featuredEvents, events, selects, interviews] = await Promise.all([
-    getFeaturedEvents(),
-    listEvents({ city: selectedCity, limit: 30, sort: "heat" }),
+    fetchFeaturedEvents({ limit: 6, city: selectedCity }, { cache: "force-cache" }).then((result) => result?.items || []),
+    fetchPublicEvents({ city: selectedCity, limit: 30, sort: "heat" }, { cache: "force-cache" }).then((result) => result?.items || []),
     loadCollection(SELECTS_COLLECTION),
     loadCollection(INTERVIEWS_COLLECTION),
   ]);

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import { getEvent } from "../../../lib/server/eventStore";
+import { fetchCheckoutEvent } from "../../../lib/server/checkoutGatewayBridge.js";
 import CheckoutContainer from "../../../components/CheckoutContainer";
 import FunnelShell from "../../../components/FunnelShell";
 
 export async function generateMetadata({ params }) {
     const { eventId } = await params;
     const identifier = decodeURIComponent(eventId);
-    const event = await getEvent(identifier);
+    const event = await fetchCheckoutEvent(identifier);
     if (!event) return { title: "Checkout" };
     return { title: `Checkout | ${event.title}` };
 }
@@ -15,7 +15,9 @@ export default async function CheckoutPage({ params, searchParams }) {
     const { eventId } = await params;
     const resolvedSearchParams = await searchParams;
     const identifier = decodeURIComponent(eventId);
-    const event = await getEvent(identifier);
+    const event = await fetchCheckoutEvent(identifier, {
+        cache: "no-store",
+    });
 
     if (!event) {
         notFound();

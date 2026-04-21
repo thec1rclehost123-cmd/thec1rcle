@@ -295,14 +295,14 @@ export default function EditProfileModal({ open, onClose }) {
 
                     {/* Edit Form Modal */}
                     {!cropperOpen && (
-                        <div className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden">
-                            <div className="flex min-h-full items-center justify-center p-4 sm:p-6 text-center">
+                        <div className="fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden overscroll-contain">
+                            <div className="flex min-h-[100dvh] items-start justify-center p-4 sm:items-center sm:p-6 text-center">
                                 <motion.div
                                     initial={{ scale: 0.95, opacity: 0, y: 20 }}
                                     animate={{ scale: 1, opacity: 1, y: 0 }}
                                     exit={{ scale: 0.95, opacity: 0, y: 20 }}
                                     onClick={(e) => e.stopPropagation()}
-                                    className="relative w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden rounded-[32px] border border-black/[0.08] dark:border-white/20 bg-white dark:bg-[#0A0A0A] p-6 sm:p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] dark:shadow-[0_0_120px_rgba(244,74,34,0.2)] backdrop-blur-3xl"
+                                    className="relative my-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-y-auto overflow-x-hidden overscroll-contain rounded-[32px] border border-black/[0.08] dark:border-white/20 bg-white dark:bg-[#0A0A0A] p-6 sm:my-0 sm:max-h-[calc(100dvh-3rem)] sm:p-7 shadow-[0_20px_60px_rgba(0,0,0,0.14)] dark:shadow-[0_0_120px_rgba(244,74,34,0.2)] backdrop-blur-3xl"
                                 >
                                     {/* Glow Layer */}
                                     <div className="absolute -top-[20%] -right-[20%] h-[50%] w-[50%] rounded-full bg-orange/5 blur-[100px] pointer-events-none" />
@@ -326,9 +326,8 @@ export default function EditProfileModal({ open, onClose }) {
                                         </button>
                                     </div>
 
-                                    <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden min-h-0">
-                                        {/* Scrollable Content Area */}
-                                        <div className="flex-1 overflow-y-auto pr-1 -mr-1 space-y-6 scrollbar-hide py-1">
+                                    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+                                        <div className="space-y-6 py-1">
                                             {/* Profile Picture Upload - Premium Card */}
                                             <div className="group rounded-[24px] border border-black/[0.04] dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.03] p-5 transition-all hover:bg-black/[0.03] dark:hover:bg-white/[0.04]">
                                                 <label className="mb-4 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">

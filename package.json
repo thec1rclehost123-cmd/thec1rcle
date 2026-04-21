@@ -20,7 +20,10 @@
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "doctor:stack": "node scripts/doctor-stack.mjs",
+    "guardrails:check": "node scripts/check-backend-boundaries.mjs",
+    "guardrails:inventory": "node scripts/generate-phase0-route-inventory.mjs",
     "backfill:event-partners": "node scripts/backfill-event-partner-snapshots.mjs",
+    "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
     "install:all": "npx npm install",
     "postinstall": "node scripts/patchExpoRouter.js"
   },

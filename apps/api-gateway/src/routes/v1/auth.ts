@@ -1,6 +1,24 @@
 import { FastifyInstance } from 'fastify';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildGuestAuthBootstrap } from '../../lib/guest-auth';
+import { sendGuestOtp, verifyGuestOtp } from '../../lib/guest-otp';
+
+const AuthCheckSchema = z.object({
+    email: z.string().email(),
+}).strict();
+
+const OtpSendSchema = z.object({
+    type: z.enum(['email', 'phone']),
+    recipient: z.string().min(3),
+}).strict();
+
+const OtpVerifySchema = z.object({
+    type: z.enum(['email', 'phone']),
+    recipient: z.string().min(3),
+    code: z.string().min(4).max(10),
+}).strict();
 
 const OnboardSchema = z.object({
     type: z.string(),
@@ -29,58 +47,133 @@ const HostVerificationSchema = z.object({
     country: z.string().optional()
 }).catchall(z.any()); // Allowed catchall just for host-verification because frontend fields vary, but will use .strict() in standard entities.
 
+async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: string) {
+    const reqSnapshot = await fastify.db.collection('onboarding_requests')
+        .where('uid', '==', userId)
+        .limit(1)
+        .get();
+
+    if (reqSnapshot.empty) return null;
+
+    const doc = reqSnapshot.docs[0];
+    const raw = doc.data();
+    return {
+        id: doc.id,
+        status: raw.status,
+        type: raw.type,
+        submittedAt: raw.submittedAt ?? raw.createdAt ?? null,
+        reviewedAt: raw.reviewedAt ?? null,
+        rejectionReason: raw.rejectionReason ?? null,
+    };
+}
+
+async function getUnreadNotificationCount(fastify: FastifyInstance, userId: string) {
+    try {
+        const snapshot = await fastify.db.collection('notifications')
+            .where('userId', '==', userId)
+            .where('isRead', '==', false)
+            .count()
+            .get();
+        return snapshot.data().count || 0;
+    } catch (error) {
+        fastify.log.warn({ userId, error }, 'Unable to load guest unread notification count');
+        return 0;
+    }
+}
+
 export default async function authRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/auth/me
-     * Fetch the current authenticated user's profile and onboarding request
+     * Canonical guest auth/profile/shell bootstrap.
      */
     fastify.get('/me', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
-            const userDoc = await fastify.db.collection('users').doc(userId).get();
-            const raw = userDoc.exists ? userDoc.data() : null;
+            const [userDoc, onboardingRequest, unreadNotificationCount] = await Promise.all([
+                fastify.db.collection('users').doc(userId).get(),
+                getGuestOnboardingRequest(fastify, userId),
+                getUnreadNotificationCount(fastify, userId),
+            ]);
 
-            // Project only safe public fields — never return tokens, private metadata, or internal flags
-            const userData = raw ? {
-                uid: raw.uid,
-                email: raw.email,
-                displayName: raw.displayName,
-                photoURL: raw.photoURL ?? null,
-                handle: raw.handle ?? null,
-                role: raw.role ?? null,
-                partnerType: raw.partnerType ?? null,
-                partnerId: raw.partnerId ?? null,
-                isApproved: raw.isApproved ?? false,
-                isVerified: raw.isVerified ?? false,
-                city: raw.city ?? null,
-                createdAt: raw.createdAt ?? null,
-            } : null;
-
-            // Find any onboarding requests
-            const reqSnapshot = await fastify.db.collection('onboarding_requests')
-                .where('uid', '==', userId)
-                .limit(1)
-                .get();
-
-            const rawRequest = reqSnapshot.empty ? null : reqSnapshot.docs[0].data();
-            const onboardingRequest = rawRequest ? {
-                id: reqSnapshot.docs[0].id,
-                status: rawRequest.status,
-                type: rawRequest.type,
-                submittedAt: rawRequest.createdAt ?? null,
-                reviewedAt: rawRequest.reviewedAt ?? null,
-                rejectionReason: rawRequest.rejectionReason ?? null,
-            } : null;
-
-            return {
-                user: userData,
-                onboardingRequest
-            };
+            return buildGuestAuthBootstrap({
+                user: request.user,
+                rawProfile: userDoc.exists ? { uid: userDoc.id, ...userDoc.data() } : null,
+                onboardingRequest,
+                unreadNotificationCount,
+            });
         } catch (error: any) {
             fastify.log.error(`Error in GET /auth/me: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: 'Internal Server Error',
+                requestId: request.id,
+            }));
+        }
+    });
+
+    /**
+     * POST /api/v1/auth/check
+     * Login-step identity existence check. Returns only an exists boolean.
+     */
+    fastify.post('/check', {
+        preHandler: [fastify.validate({ body: AuthCheckSchema })],
+    }, async (request: any, reply) => {
+        const { email } = request.body;
+
+        try {
+            await fastify.auth.getUserByEmail(email);
+            return { exists: true };
+        } catch (error: any) {
+            if (error?.code === 'auth/user-not-found') return { exists: false };
+            fastify.log.error(`Error in POST /auth/check: ${error.message}`);
+            return reply.status(500).send(buildErrorResponse({
+                code: 'AUTH_CHECK_FAILED',
+                message: 'Check protocol failed',
+                requestId: request.id,
+            }));
+        }
+    });
+
+    /**
+     * POST /api/v1/auth/otp/send
+     */
+    fastify.post('/otp/send', {
+        config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+        preHandler: [fastify.validate({ body: OtpSendSchema })],
+    }, async (request: any, reply) => {
+        const { type, recipient } = request.body;
+
+        try {
+            return await sendGuestOtp(fastify.db, type, recipient);
+        } catch (error: any) {
+            fastify.log.warn({ requestId: request.id, type, error: error.message }, 'OTP send failed');
+            return reply.status(400).send(buildErrorResponse({
+                code: 'OTP_SEND_FAILED',
+                message: error.message || 'An unexpected error occurred during OTP dispatch.',
+                requestId: request.id,
+            }));
+        }
+    });
+
+    /**
+     * POST /api/v1/auth/otp/verify
+     */
+    fastify.post('/otp/verify', {
+        config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
+        preHandler: [fastify.validate({ body: OtpVerifySchema })],
+    }, async (request: any, reply) => {
+        const { type, recipient, code } = request.body;
+
+        try {
+            return await verifyGuestOtp(fastify.db, type, recipient, code);
+        } catch (error: any) {
+            return reply.status(400).send(buildErrorResponse({
+                code: 'OTP_VERIFY_FAILED',
+                message: error.message || 'Protocol mismatch.',
+                requestId: request.id,
+            }));
         }
     });
 
@@ -92,13 +185,17 @@ export default async function authRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: OnboardSchema })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const body = request.body;
         const { type, email, name, ...rest } = body;
 
         if (!type || !email || !name) {
-            return reply.status(400).send({ error: "Missing required fields" });
+            return reply.status(400).send(buildErrorResponse({
+                code: 'BAD_REQUEST',
+                message: 'Missing required fields',
+                requestId: request.id,
+            }));
         }
 
         try {
@@ -130,7 +227,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
             return { success: true, requestId };
         } catch (error: any) {
             fastify.log.error(`Error in POST /auth/onboard: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: 'Internal Server Error',
+                requestId: request.id,
+            }));
         }
     });
 
@@ -142,7 +243,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
         const email = request.user?.email;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const body = request.body;
 
@@ -162,7 +263,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
             return { success: true, applicationId: applicationRef.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /auth/host-verification: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: 'Internal Server Error',
+                requestId: request.id,
+            }));
         }
     });
 }

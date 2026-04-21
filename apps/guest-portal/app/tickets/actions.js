@@ -1,142 +1,146 @@
 "use server";
 
 import { verifyAuth } from "../../lib/server/auth";
+import { callGatewayJson, getBearerTokenFromRequest, getGatewayErrorMessage } from "../../lib/server/gatewayBridge.js";
 import {
-    createShareBundle as createShareBundleStore,
-    getShareBundleByToken,
-    claimTicketSlot,
-    getUserClaimedTickets,
-    assignPartner as assignPartnerStore,
-    createPartnerClaimLink as createPartnerClaimLinkStore,
-    claimPartnerSlot as claimPartnerSlotStore,
-    transferCoupleTicket as transferCoupleTicketStore,
-    initiateTransfer as initiateTransferStore,
-    acceptTransfer as acceptTransferStore,
-    cancelTransfer as cancelTransferStore
-} from "../../lib/server/ticketShareStore";
-import { getEvent } from "../../lib/server/eventStore";
-import { findUserByEmail as findUserByEmailStore } from "../../lib/server/profileStore";
-import { sendEmailOtp, verifyEmailOtp } from "../../lib/server/verification";
+    acceptTransfer as acceptTransferViaGateway,
+    assignPairPartner,
+    cancelTransfer as cancelTransferViaGateway,
+    claimPairSlot,
+    claimShareBundle,
+    createPairLink,
+    createShareBundle as createShareBundleViaGateway,
+    fetchGuestWallet,
+    lookupGuestUserByEmail,
+    previewShareBundle,
+    transferCoupleTicket as transferCoupleTicketViaGateway,
+    initiateTransfer as initiateTransferViaGateway,
+} from "../../lib/server/gp5GatewayBridge.js";
 
-export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
+async function getActionToken() {
+    return getBearerTokenFromRequest(undefined, { allowSessionCookie: true });
+}
+
+async function ensureUser() {
     const user = await verifyAuth();
     if (!user) throw new Error("Unauthorized");
+    return user;
+}
 
-    return await createShareBundleStore(orderId, user.uid, eventId, quantity, tierId);
+async function callAuthenticatedGateway(path, { method = "GET", body } = {}) {
+    const token = await getActionToken();
+    if (!token) throw new Error("Unauthorized");
+
+    const { response, data } = await callGatewayJson(path, {
+        method,
+        token,
+        body,
+    });
+
+    if (!response.ok) {
+        throw new Error(getGatewayErrorMessage(data));
+    }
+
+    return data;
+}
+
+export async function getUserTickets() {
+    return fetchGuestWallet();
+}
+
+export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
+    const bundle = await createShareBundleViaGateway({ orderId, eventId, quantity, tierId });
+    return bundle.bundle;
 }
 
 export async function getShareBundle(token) {
-    const bundle = await getShareBundleByToken(token);
-    if (!bundle) return null;
-
-    const event = await getEvent(bundle.eventId);
-
-    // Check for existing claim if user is logged in
-    let existingAssignment = null;
-    try {
-        const user = await verifyAuth();
-        if (user) {
-            const claims = await getUserClaimedTickets(user.uid);
-            existingAssignment = claims.find(c => c.bundleId === bundle.id) || null;
-        }
-    } catch (e) {
-        // Not logged in or error, ignore
-    }
-
-    return { ...bundle, event, existingAssignment };
+    const preview = await previewShareBundle(token);
+    return preview?.bundle || null;
 }
 
 export async function claimTicket(token) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-
-    return await claimTicketSlot(token, user.uid);
+    return claimShareBundle(token);
 }
 
 export async function assignPartner(ticketId, partnerUserId, metadata) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await assignPartnerStore(ticketId, user.uid, partnerUserId, metadata);
+    const result = await assignPairPartner({ ticketId, partnerUserId, metadata });
+    return result.assignment;
 }
 
 export async function createPartnerClaimLink(ticketId, eventId) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await createPartnerClaimLinkStore(ticketId, user.uid, eventId);
+    return createPairLink({ ticketId, eventId });
 }
 
 export async function claimPartnerSlot(token) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await claimPartnerSlotStore(token, user.uid);
+    return claimPairSlot(token);
 }
 
 export async function transferCoupleTicket(ticketId, newOwnerId) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await transferCoupleTicketStore(ticketId, user.uid, newOwnerId);
+    return transferCoupleTicketViaGateway({ ticketId, newOwnerId });
 }
 
 export async function findUserByEmail(email) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await findUserByEmailStore(email);
+    const result = await lookupGuestUserByEmail(email);
+    return result.user;
 }
 
 export async function assignPartnerByEmail(ticketId, email, metadata) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-
-    const partner = await findUserByEmailStore(email);
+    const user = await ensureUser();
+    const partner = await findUserByEmail(email);
     if (!partner) throw new Error("User not found with this email");
     if (partner.uid === user.uid) throw new Error("You cannot assign yourself as partner");
 
-    return await assignPartnerStore(ticketId, user.uid, partner.uid, metadata);
+    return assignPartner(ticketId, partner.uid, metadata);
 }
 
 export async function initiateTransfer(ticketId, recipientEmail) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await initiateTransferStore(ticketId, user.uid, recipientEmail);
+    const result = await initiateTransferViaGateway({ ticketId, recipientEmail });
+    return result.transfer;
 }
 
 export async function acceptTransfer(transferId) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await acceptTransferStore(transferId, user.uid);
+    return acceptTransferViaGateway(transferId);
 }
 
 export async function cancelTransfer(transferId) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await cancelTransferStore(transferId, user.uid);
+    return cancelTransferViaGateway(transferId);
 }
 
 export async function sendTransferOTP() {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
-    return await sendEmailOtp(user.email, 'transaction');
+    const user = await ensureUser();
+    return callAuthenticatedGateway("/auth/otp/send", {
+        method: "POST",
+        body: {
+            type: "transaction",
+            recipient: user.email,
+        },
+    });
 }
 
 export async function verifyAndInitiateTransfer(ticketId, recipientEmail, code) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
+    const user = await ensureUser();
+    await callAuthenticatedGateway("/auth/otp/verify", {
+        method: "POST",
+        body: {
+            type: "transaction",
+            recipient: user.email,
+            code,
+        },
+    });
 
-    // 1. Verify OTP
-    await verifyEmailOtp(user.email, code, 'transaction');
-
-    // 2. Proceed with transfer
-    return await initiateTransferStore(ticketId, user.uid, recipientEmail);
+    return initiateTransfer(ticketId, recipientEmail);
 }
 
 export async function verifyAndCreateShareBundle(orderId, eventId, quantity, tierId, code) {
-    const user = await verifyAuth();
-    if (!user) throw new Error("Unauthorized");
+    const user = await ensureUser();
+    await callAuthenticatedGateway("/auth/otp/verify", {
+        method: "POST",
+        body: {
+            type: "transaction",
+            recipient: user.email,
+            code,
+        },
+    });
 
-    // 1. Verify OTP
-    await verifyEmailOtp(user.email, code, 'transaction');
-
-    // 2. Proceed with share
-    return await createShareBundleStore(orderId, user.uid, eventId, quantity, tierId);
+    return createShareBundle(orderId, eventId, quantity, tierId);
 }
-

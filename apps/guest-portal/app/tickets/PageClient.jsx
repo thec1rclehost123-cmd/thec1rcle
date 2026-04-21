@@ -1402,7 +1402,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
 };
 
 function TicketsContent() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, bootstrap, loading: authLoading } = useAuth();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState("upcoming");
     const [selectedTicket, setSelectedTicket] = useState(null);
@@ -1449,10 +1449,10 @@ function TicketsContent() {
 
     // Load tickets on mount — uses cache if available, fetches if stale
     useEffect(() => {
-        if (user?.uid) {
+        if (!authLoading && bootstrap?.routeAccess?.isAuthenticated && user?.uid) {
             loadTickets(user.uid);
         }
-    }, [user?.uid, loadTickets]);
+    }, [authLoading, bootstrap?.routeAccess?.isAuthenticated, user?.uid, loadTickets]);
 
     // Fetch cover wallets for tickets with cover entry type
     useEffect(() => {
@@ -1752,7 +1752,7 @@ function TicketsContent() {
                                     Login to Access
                                 </span>
                             </Link>
-                            <Link href="/login?mode=register" className="flex-1 px-8 py-4 rounded-full border border-black/10 dark:border-white/10 text-black dark:text-white font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
+                            <Link href="/signup" className="flex-1 px-8 py-4 rounded-full border border-black/10 dark:border-white/10 text-black dark:text-white font-bold uppercase tracking-widest hover:bg-black/5 dark:hover:bg-white/5 transition-colors active:scale-95 flex items-center justify-center">
                                 <span className="text-xs">Sign Up</span>
                             </Link>
                         </div>

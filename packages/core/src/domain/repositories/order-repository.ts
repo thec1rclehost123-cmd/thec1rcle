@@ -2,6 +2,7 @@ export interface Order {
     id: string;
     eventId: string;
     eventName: string;
+    workspaceId?: string | null;
     userId: string;
     userName: string;
     userEmail: string;
@@ -32,8 +33,10 @@ export interface Order {
 export interface Reservation {
     id: string;
     eventId: string;
+    workspaceId?: string | null;
     customerId: string;
     deviceId?: string | null;
+    queueId?: string | null;
     items: any[];
     status: 'active' | 'expired' | 'converted' | 'released';
     createdAt: string;
@@ -46,6 +49,7 @@ export interface Reservation {
 export interface PaymentRecord {
     orderId: string;
     razorpayOrderId: string;
+    workspaceId?: string | null;
     amount: number;
     status: 'initiated' | 'verified' | 'failed';
     userId: string;
@@ -66,6 +70,7 @@ export interface IOrderRepository {
     createPaymentRecord(payment: PaymentRecord): Promise<void>;
     updatePaymentRecord(orderId: string, razorpayOrderId: string, updates: Partial<PaymentRecord>, transaction?: any): Promise<void>;
     getPaymentRecord(orderId: string, razorpayOrderId: string): Promise<PaymentRecord | null>;
+    getPaymentRecordByPaymentId(paymentId: string): Promise<PaymentRecord | null>;
 
     runInTransaction<T>(action: (transaction: any) => Promise<T>): Promise<T>;
 }

@@ -1,11 +1,13 @@
 "use server";
 
-import { getUserEvents as getUserEventsStore, getUserProfile } from "../../lib/server/profileStore";
+import { fetchGuestProfile } from "../../lib/server/gp5GatewayBridge.js";
 
 export async function getUserEvents(profileUserId, viewerUserId) {
-    return await getUserEventsStore(profileUserId, viewerUserId);
+    const result = await fetchGuestProfile(profileUserId);
+    return result.events;
 }
 
 export async function fetchProfile(userId) {
-    return await getUserProfile(userId);
+    const result = await fetchGuestProfile(userId);
+    return result.profile;
 }

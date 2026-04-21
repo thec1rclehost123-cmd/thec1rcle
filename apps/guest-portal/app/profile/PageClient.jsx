@@ -13,7 +13,7 @@ export default function ProfileRedirect() {
       if (user) {
         router.replace(`/profile/${user.uid}`);
       } else {
-        router.replace("/explore");
+        router.replace("/login?next=/profile");
       }
     }
   }, [user, loading, router]);

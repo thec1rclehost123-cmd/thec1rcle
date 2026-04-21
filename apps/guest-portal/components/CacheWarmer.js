@@ -16,7 +16,7 @@ import { useTicketsStore } from "../store/ticketsStore";
  * already there — zero loading spinner.
  */
 export default function CacheWarmer() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, bootstrap, loading: authLoading } = useAuth();
     const pathname = usePathname();
 
     // Store Actions
@@ -62,7 +62,7 @@ export default function CacheWarmer() {
 
     useEffect(() => {
         // 3. Pre-warm Tickets (only if user is logged in)
-        if (user && !authLoading) {
+        if (user && !authLoading && bootstrap?.routeAccess?.isAuthenticated) {
             const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
             const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
 
@@ -73,7 +73,7 @@ export default function CacheWarmer() {
 
             return () => cancel(id);
         }
-    }, [user, authLoading, loadTickets]);
+    }, [user, bootstrap?.routeAccess?.isAuthenticated, authLoading, loadTickets]);
 
     return null;
 }

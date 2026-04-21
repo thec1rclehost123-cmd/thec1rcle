@@ -33,6 +33,7 @@ import analyticsRoutes from './routes/v1/analytics';
 import tableRoutes from './routes/v1/tables';
 import waitlistRoutes from './routes/v1/waitlist';
 import searchRoutes from './routes/v1/search';
+import publicRoutes from './routes/v1/public';
 import calendarRoutes from './routes/v1/calendar';
 import promoRoutes from './routes/v1/promos';
 import cmsRoutes from './routes/v1/cms';
@@ -44,12 +45,15 @@ import refundRoutes from './routes/v1/refunds';
 import registerRoutes from './routes/v1/registers';
 import promoterConnectionsRoutes from './routes/v1/promoter-connections';
 import notificationsRoutes from './routes/v1/notifications';
+import guestNotificationRoutes from './routes/v1/guest-notifications';
 import venueSettingsRoutes from './routes/v1/venue-settings';
 import venueRoutes from './routes/v1/venues';
 import matchingRoutes from './routes/v1/matching';
 import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
 import socialRoutes from './routes/v1/social';
+import guestProfileRoutes from './routes/v1/guest-profiles';
+import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -143,12 +147,18 @@ async function main() {
 
         const isProd = process.env.NODE_ENV === 'production';
         const statusCode = error.statusCode || 500;
+        const code = error.code || (statusCode >= 500 ? 'INTERNAL_ERROR' : 'REQUEST_ERROR');
+        const message = isProd && statusCode >= 500
+            ? 'Internal Server Error'
+            : (error.message || 'Request failed');
+        const details = error.details || undefined;
 
-        if (isProd && statusCode >= 500) {
-            reply.status(statusCode).send({ error: 'Internal Server Error', requestId: request.id });
-        } else {
-            reply.status(statusCode).send(error);
-        }
+        reply.status(statusCode).send(buildErrorResponse({
+            code,
+            message,
+            requestId: request.id,
+            details,
+        }));
     });
 
     // Register Core Plugins
@@ -204,6 +214,7 @@ async function main() {
     await server.register(tableRoutes, { prefix: '/api/v1/tables' });
     await server.register(waitlistRoutes, { prefix: '/api/v1/waitlist' });
     await server.register(searchRoutes, { prefix: '/api/v1/search' });
+    await server.register(publicRoutes, { prefix: '/api/v1/public' });
     await server.register(calendarRoutes, { prefix: '/api/v1/calendar' });
     await server.register(promoRoutes, { prefix: '/api/v1/promos' });
 
@@ -220,10 +231,12 @@ async function main() {
     await server.register(registerRoutes, { prefix: '/api/v1/registers' });
     await server.register(promoterConnectionsRoutes, { prefix: '/api/v1/promoter-connections' });
     await server.register(notificationsRoutes, { prefix: '/api/v1/notifications' });
+    await server.register(guestNotificationRoutes, { prefix: '/api/v1' });
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
     await server.register(venueRoutes, { prefix: '/api/v1' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
     await server.register(socialRoutes, { prefix: '/api/v1' });
+    await server.register(guestProfileRoutes, { prefix: '/api/v1' });
 
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {

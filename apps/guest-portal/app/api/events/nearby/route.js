@@ -3,8 +3,7 @@
  * Delegates geo-distance event query to API Gateway
  */
 import { NextResponse } from "next/server";
-
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+import { getGatewayBaseUrl } from "../../../../lib/server/gatewayBridge.js";
 
 export const revalidate = 60;
 
@@ -13,10 +12,17 @@ export const revalidate = 60;
  * Returns events within a given radius sorted by distance
  */
 export async function GET(request) {
-    if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-    const { searchParams } = new URL(request.url);
-    const res = await fetch(`${GATEWAY_URL}/api/v1/events/nearby?${searchParams.toString()}`, {
-        headers: { "Authorization": request.headers.get("Authorization") || "" }
-    });
-    return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
+    try {
+        const { searchParams } = new URL(request.url);
+        const res = await fetch(`${getGatewayBaseUrl()}/events/nearby?${searchParams.toString()}`, {
+            headers: {
+                Authorization: request.headers.get("Authorization") || "",
+                "x-request-id": request.headers.get("x-request-id") || "",
+            },
+        });
+        return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
+    } catch (error) {
+        console.error("GET /api/events/nearby bridge error", error);
+        return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+    }
 }

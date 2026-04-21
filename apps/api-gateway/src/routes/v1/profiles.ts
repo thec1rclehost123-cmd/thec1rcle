@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { filterSafeProfileUpdates } from '@c1rcle/core/profile-engine';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildGuestProfileCreatePayload, buildGuestProfileUpdates, normalizeGuestProfile } from '../../lib/guest-auth';
 
 const ProfileIdParam = z.object({ id: z.string() }).strict();
 const ProfileTypeQuery = z.object({ type: z.string().optional() }).strict();
@@ -20,8 +22,10 @@ const UserProfileCreateBody = z.object({
     gender: z.string().optional(),
     phone: z.string().optional(),
     photoURL: z.string().optional(),
+    avatar: z.string().optional(),
     city: z.string().optional(),
     instagram: z.string().optional(),
+    onboardingComplete: z.boolean().optional(),
     isVerified: z.boolean().optional(),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional()
@@ -56,24 +60,56 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: ProfileUpdateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { type = 'user', updates, id: targetId } = request.body;
-        const safeUpdates = filterSafeProfileUpdates(updates);
-
-        if (Object.keys(safeUpdates).length === 0) {
-            return reply.status(400).send({ error: "No valid fields to update" });
-        }
 
         try {
             const actualId = type === 'user' ? userId : targetId;
-            if (!actualId) return reply.status(400).send({ error: "ID required for this update type" });
+            if (!actualId) {
+                return reply.status(400).send(buildErrorResponse({
+                    code: 'BAD_REQUEST',
+                    message: 'ID required for this update type',
+                    requestId: request.id,
+                }));
+            }
+
+            let safeUpdates: Record<string, any>;
+
+            if (type === 'user') {
+                const existingDoc = await fastify.db.collection('users').doc(userId).get();
+                const result = buildGuestProfileUpdates(updates, existingDoc.exists ? existingDoc.data() || {} : {});
+
+                if (result.error) {
+                    return reply.status(result.statusCode || 400).send(buildErrorResponse({
+                        code: result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'PROFILE_UPDATE_INVALID',
+                        message: result.error,
+                        requestId: request.id,
+                    }));
+                }
+
+                safeUpdates = result.safeUpdates;
+            } else {
+                safeUpdates = filterSafeProfileUpdates(updates);
+            }
+
+            if (Object.keys(safeUpdates).length === 0) {
+                return reply.status(400).send(buildErrorResponse({
+                    code: 'NO_VALID_FIELDS',
+                    message: 'No valid fields to update',
+                    requestId: request.id,
+                }));
+            }
 
             await fastify.profileService.updateProfile(actualId, type as any, safeUpdates);
             return { success: true, message: "Profile updated successfully" };
         } catch (error: any) {
             fastify.log.error(`Error in PATCH /profiles: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: 'Internal Server Error',
+                requestId: request.id,
+            }));
         }
     });
 
@@ -115,26 +151,41 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     fastify.post('/users/profile', {
         preHandler: [fastify.validate({ body: UserProfileCreateBody })]
     }, async (request: any, reply) => {
-        const body = request.body as any;
-        const { uid, email, displayName, age, gender, phone, photoURL, createdAt, updatedAt } = body;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
-        if (!uid || !email) return reply.status(400).send({ error: 'uid and email are required' });
+        const body = request.body as any;
+        const { uid } = body;
+
+        if (uid && uid !== userId) {
+            return reply.status(403).send(buildErrorResponse({
+                code: 'FORBIDDEN',
+                message: 'Cannot create a profile for another user',
+                requestId: request.id,
+            }));
+        }
 
         const now = new Date().toISOString();
-        const profileDoc = {
-            uid, email, displayName: displayName || '', age: age || null, gender: gender || null,
-            phone: phone || null, photoURL: photoURL || '', attendedEvents: [],
-            city: body.city || '', instagram: body.instagram || '',
-            isVerified: body.isVerified ?? true,
-            createdAt: createdAt || now, updatedAt: updatedAt || now,
-        };
+        const profileDoc = buildGuestProfileCreatePayload(body, request.user, now);
+
+        if (!profileDoc.uid || !profileDoc.email) {
+            return reply.status(400).send(buildErrorResponse({
+                code: 'BAD_REQUEST',
+                message: 'uid and email are required',
+                requestId: request.id,
+            }));
+        }
 
         try {
             await fastify.profileService.createProfile(profileDoc);
-            return { success: true, uid };
+            return { success: true, uid: profileDoc.uid, profile: normalizeGuestProfile(profileDoc, request.user) };
         } catch (error: any) {
             fastify.log.error(`Error in POST /users/profile: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: 'Internal Server Error',
+                requestId: request.id,
+            }));
         }
     });
 }

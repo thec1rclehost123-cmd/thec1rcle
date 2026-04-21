@@ -2,32 +2,31 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { getHostBySlug as getHostBySlugBase } from "../../../lib/server/hostStore";
-import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
-import { listEvents } from "../../../lib/server/eventStore";
+import { fetchPublicHost } from "../../../lib/server/publicDiscoveryBridge.js";
 import { CheckCircle2, MapPin, ExternalLink, Instagram, Music, Play, Calendar, ChevronRight } from "lucide-react";
 import { ShimmerImage } from "@c1rcle/ui";
 import ProfileClient from "../../venue/[slug]/ProfileClient";
 import HostFollowCta from "../../../components/profile/HostFollowCta";
-import PublicProfileUnavailable from "../../../components/profile/PublicProfileUnavailable";
-import { isPublicProfileEnabled } from "../../../lib/server/publicProfile";
 
 // Cache host lookup so metadata + page share a single Firestore fetch
-const getHostBySlug = cache(getHostBySlugBase);
+const getHostPublicProfile = cache(fetchPublicHost);
+
+function normalizeEventCard(event) {
+    return {
+        ...event,
+        name: event.name || event.title,
+        coverImage: event.coverImage || event.image || event.posterUrl,
+        startDate: event.startDate || event.startAt,
+    };
+}
 
 export const revalidate = 60;
 
 export async function generateMetadata({ params }) {
     const { slug } = await params;
-    const host = await getHostBySlug(slug);
+    const data = await getHostPublicProfile(slug);
+    const host = data?.host;
     if (!host) return { title: "Host Not Found" };
-    if (!isPublicProfileEnabled(host)) {
-        return {
-            title: `${host.name || host.displayName || "Host"} | Profile Offline`,
-            description: "This host does not have a public profile right now.",
-            robots: { index: false, follow: true },
-        };
-    }
 
     return {
         title: `${host.name || host.displayName} | THE C1RCLE`,
@@ -43,25 +42,16 @@ export async function generateMetadata({ params }) {
 export default async function HostPublicPage({ params }) {
     const { slug } = await params;
 
-    // Fetch host details (cached — shared with generateMetadata)
-    const host = await getHostBySlug(slug);
+    const data = await getHostPublicProfile(slug);
+    const host = data?.host;
     if (!host) notFound();
-    if (!isPublicProfileEnabled(host)) {
-        return <PublicProfileUnavailable type="host" name={host.name || host.displayName} />;
-    }
 
-    // Fetch posts, highlights, stats, and host's events in parallel.
-    // Using the host filter directly instead of fetching all 100 events.
-    const [posts, highlights, stats, hostEvents] = await Promise.all([
-        getProfilePosts(host.id, "host"),
-        getProfileHighlights(host.id, "host"),
-        getProfileStats(host.id, "host"),
-        listEvents({ host: host.handle || host.name, limit: 50 })
-    ]);
-
-    const now = new Date();
-    const upcomingEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) > now);
-    const pastEvents = hostEvents.filter(e => new Date(e.startDate || e.startAt) <= now).slice(0, 6);
+    const posts = data.posts || [];
+    const highlights = data.highlights || [];
+    const stats = data.stats || {};
+    const upcomingEvents = (data.upcomingEvents || []).map(normalizeEventCard);
+    const pastEvents = (data.pastEvents || []).map(normalizeEventCard).slice(0, 6);
+    const hostEvents = [...upcomingEvents, ...pastEvents];
 
     // Normalize host object to match ProfileClient expectations
     const hostProfile = {

@@ -18,7 +18,7 @@ export default function PartnerClaimPage() {
         if (!authLoading && !user) {
             // Store redirect URL
             const currentUrl = window.location.pathname;
-            router.push(`/login?returnUrl=${encodeURIComponent(currentUrl)}`);
+            router.push(`/login?next=${encodeURIComponent(currentUrl)}`);
         }
     }, [user, authLoading, router]);
 

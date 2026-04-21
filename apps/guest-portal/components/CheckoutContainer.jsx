@@ -30,7 +30,6 @@ import {
     normalizeReservationItems,
     hydrateReservationItems,
 } from "./checkout/checkoutUtils";
-import { getFirebaseDb } from "../lib/firebase/client";
 
 export default function CheckoutContainer({ event, initialTickets = [] }) {
     const router = useRouter();
@@ -99,36 +98,47 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         }
     }, []);
 
-    // Scarcity Engine: stream live ticket availability from Firestore
+    // Scarcity Engine: poll the Gateway-backed event detail bridge for live tier availability.
     const [liveTiers, setLiveTiers] = useState(null);
     useEffect(() => {
-        console.log("[debug] CheckoutContainer event.id:", event?.id);
         if (!event?.id || typeof event.id !== "string") {
-            if (event?.id) console.error("[Firestore] Invalid event.id in CheckoutContainer:", event.id);
             return;
         }
-        let unsubscribe;
-        (async () => {
-            const { onSnapshot, doc } = await import("firebase/firestore");
-            const db = await getFirebaseDb();
-            unsubscribe = onSnapshot(
-                doc(db, "events", event.id),
-                (snap) => {
-                    if (!snap.exists()) return;
-                    const data = snap.data();
-                    const rawTiers = data?.ticketCatalog?.tiers ?? data?.tickets ?? [];
-                    const tiers = Array.isArray(rawTiers) ? rawTiers : [];
-                    setLiveTiers(tiers.map(tier => ({
+        let cancelled = false;
+
+        const syncLiveInventory = async () => {
+            try {
+                const response = await fetch(`/api/events/${encodeURIComponent(event.id)}`, { cache: "no-store" });
+                if (!response.ok) return;
+
+                const payload = await response.json();
+                const latestEvent = payload?.event || payload;
+                const rawTiers = latestEvent?.ticketCatalog?.tiers ?? latestEvent?.tickets ?? [];
+                const tiers = Array.isArray(rawTiers) ? rawTiers : [];
+
+                if (!cancelled) {
+                    setLiveTiers(tiers.map((tier) => ({
                         ...tier,
-                        _liveAvailable: Math.max(0,
+                        _liveAvailable: Math.max(
+                            0,
                             Number(tier.remaining ?? tier.quantity ?? 0) - Number(tier.lockedQuantity || 0)
                         ),
                     })));
-                },
-                (err) => { console.error("[Checkout] Live inventory listener error:", err); }
-            );
-        })().catch((err) => { console.error("[Checkout] Failed to start live inventory listener:", err); });
-        return () => unsubscribe?.();
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("[Checkout] Failed to refresh live inventory:", err);
+                }
+            }
+        };
+
+        syncLiveInventory();
+        const intervalId = setInterval(syncLiveInventory, 15000);
+
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
     }, [event?.id]);
 
     // Clamp selected quantities when live inventory drops below current selection
@@ -160,6 +170,11 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     }, [user, profile]);
 
     // Fetch authoritative server-side pricing when user reaches payment step
+    const selectedTicketSignature = useMemo(
+        () => JSON.stringify(normalizeReservationItems(selectedTickets)),
+        [selectedTickets]
+    );
+
     useEffect(() => {
         if (step !== 3 || selectedTickets.length === 0) return;
         let cancelled = false;
@@ -189,7 +204,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
 
         fetchPricing();
         return () => { cancelled = true; };
-    }, [step, appliedPromoCode, user]);
+    }, [step, appliedPromoCode, promoterCode, event?.id, selectedTicketSignature, user, getToken]);
 
     // Proactively prefetch tickets page for instant navigation on success
     useEffect(() => {
@@ -340,7 +355,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                 token = await getToken();
             } else {
                 const currentPath = window.location.pathname + window.location.search;
-                router.push(`/login?returnUrl=${encodeURIComponent(currentPath)}`);
+                router.push(`/login?next=${encodeURIComponent(currentPath)}`);
                 return;
             }
 

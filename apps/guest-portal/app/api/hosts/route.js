@@ -1,28 +1,20 @@
 import { NextResponse } from "next/server";
-import { listHosts } from "../../../lib/server/hostStore";
+import { adaptPublicList, fetchPublicHosts } from "../../../lib/server/publicDiscoveryBridge.js";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request) {
     try {
         const { searchParams } = new URL(request.url);
+        const data = await fetchPublicHosts(Object.fromEntries(searchParams.entries()), {
+            requestId: request.headers.get("x-request-id") || undefined,
+        });
 
-        const filters = {
-            search: searchParams.get("search"),
-            role: searchParams.get("role"),
-            vibe: searchParams.get("vibe"),
-            status: searchParams.get("status"),
-            time: searchParams.get("time"),
-            sort: searchParams.get("sort") || "Popular"
-        };
-
-        const hosts = await listHosts(filters);
-        return NextResponse.json(
-            { hosts, hasMore: false, nextCursor: null },
-            { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } }
-        );
+        return NextResponse.json(adaptPublicList(data, "hosts"), {
+            headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" },
+        });
     } catch (error) {
-        console.error("GET /api/hosts error", error);
+        console.error("GET /api/hosts bridge error", error);
         return NextResponse.json({ error: "Failed to load hosts" }, { status: 500 });
     }
 }

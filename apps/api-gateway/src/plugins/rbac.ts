@@ -40,6 +40,7 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
             // @ts-ignore
             const workspaceId = request.workspaceId;
             let effectiveRole = user.role;
+            const activeMembership = request.authContext?.activeMembership || user.activeMembership || null;
 
             if (workspaceId) {
                 // In a production system, we would fetch the user's role specifically for this workspace
@@ -47,8 +48,8 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
                 // effectiveRole = membership.data()?.role || 'guest';
                 
                 // For now, if activeMembership matches the workspace, we use that role
-                if (user.activeMembership?.partnerId === workspaceId) {
-                    effectiveRole = user.activeMembership.role;
+                if (activeMembership?.partnerId === workspaceId) {
+                    effectiveRole = activeMembership.role;
                 }
             }
 

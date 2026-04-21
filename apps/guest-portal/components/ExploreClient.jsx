@@ -12,7 +12,6 @@ const ExploreCarouselHeader = dynamic(() => import("./ExploreCarouselHeader"), {
 });
 import ExploreFilterBar from "./ExploreFilterBar";
 import ExploreEventGrid from "./ExploreEventGrid";
-import { getFirebaseDb } from "../lib/firebase/client";
 import { GridSkeleton } from "@c1rcle/ui";
 import { useExploreStore } from "../store/exploreStore";
 
@@ -62,6 +61,13 @@ const toDate = (value) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date;
+};
+const toEventEndDate = (value) => {
+  if (!value) return null;
+  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T23:59:59.999Z`
+    : value;
+  return toDate(normalized);
 };
 const isSameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
@@ -135,9 +141,7 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
   const fetchEvents = useExploreStore(s => s.fetchEvents);
   const hasMore = useExploreStore(s => s.hasMore);
 
-  // Real-time Trending listener — top-20 events in current city by heatScore
-  const [liveEvents, setLiveEvents] = useState(null);
-  const trendingUnsubRef = useRef(null);
+  const [trendingEvents, setTrendingEvents] = useState(null);
 
   const [selectedCity, setSelectedCity] = useState("");
   const [filters, setFilters] = useState({
@@ -206,59 +210,29 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
 
   useEffect(() => {
     if (activeSort !== "Trending" || !selectedCity) {
-      if (trendingUnsubRef.current) {
-        trendingUnsubRef.current();
-        trendingUnsubRef.current = null;
-      }
-      setLiveEvents(null);
+      setTrendingEvents(null);
       return;
     }
 
-    let cancelled = false;
+    const controller = new AbortController();
 
-    async function setupTrendingListener() {
+    async function loadTrendingEvents() {
       try {
-        const { collection, query, where, orderBy, limit, onSnapshot } = await import("firebase/firestore");
-
-        const db = await getFirebaseDb();
-        const q = query(
-          collection(db, "events"),
-          where("cityKey", "==", selectedCity),
-          where("lifecycle", "in", ["scheduled", "live"]),
-          where("isDeleted", "==", false),
-          orderBy("heatScore", "desc"),
-          limit(20)
-        );
-        const unsub = onSnapshot(
-          q,
-          (snapshot) => {
-            if (cancelled) return;
-            setLiveEvents(snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
-          },
-          (err) => {
-            console.error("Trending listener error", err);
-            setLiveEvents(null);
-          }
-        );
-        if (cancelled) {
-          unsub();
-        } else {
-          trendingUnsubRef.current = unsub;
-        }
+        const response = await fetch(`/api/events?limit=24&sort=heat&city=${encodeURIComponent(selectedCity)}`, {
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error("Unable to load trending events");
+        const payload = await response.json();
+        setTrendingEvents(Array.isArray(payload.events) ? payload.events : []);
       } catch (err) {
-        console.error("Failed to set up trending listener", err);
+        if (err.name === "AbortError") return;
+        console.error("Failed to load trending events", err);
+        setTrendingEvents(null);
       }
     }
 
-    setupTrendingListener();
-
-    return () => {
-      cancelled = true;
-      if (trendingUnsubRef.current) {
-        trendingUnsubRef.current();
-        trendingUnsubRef.current = null;
-      }
-    };
+    loadTrendingEvents();
+    return () => controller.abort();
   }, [activeSort, selectedCity]);
 
   const eventTypeOptions = useMemo(() => {
@@ -295,8 +269,10 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
     }));
   }, [cityOptions]);
 
-  // When Trending is active and the listener has data, use live docs; otherwise use store cache
-  const eventsSource = useMemo(() => liveEvents ?? events, [liveEvents, events]);
+  const eventsSource = useMemo(
+    () => (activeSort === "Trending" && trendingEvents ? trendingEvents : events),
+    [activeSort, trendingEvents, events]
+  );
 
   const processedEvents = useMemo(() => {
     return eventsSource.map((event) => {
@@ -388,8 +364,8 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
 
     return processedEvents
       .filter((event) => {
-        const eventEnd = event.endDate || event.startDate;
-        if (eventEnd && eventEnd < now.toISOString()) return false;
+        const eventEnd = toEventEndDate(event.endDate || event.startDate);
+        if (eventEnd && eventEnd < now) return false;
 
         return (
           matchesCity(event) &&
@@ -421,7 +397,7 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
     : "No filters applied";
 
   const handleLoadMore = () => {
-    fetchEvents(false);
+    fetchEvents(selectedCity, false, activeSort === "Trending" ? "heat" : "soonest");
   };
 
   const handleFilterChange = (field, value) => {

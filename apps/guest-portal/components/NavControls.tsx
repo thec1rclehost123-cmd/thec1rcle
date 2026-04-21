@@ -2,13 +2,23 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
 import ThemeToggle from "./ThemeToggle";
 import { navLinks } from "./DesktopNavLinks";
+import { buildLoginUrl, buildSignupUrl, getReturnUrl } from "../lib/auth/guestRouteAccess";
 
 export default function NavControls() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const { user, logout } = useAuth();
+    const pathname = usePathname();
+    const searchParams = useSearchParams();
+    const returnUrl = getReturnUrl(searchParams);
+    const isLoginPage = pathname === "/login";
+    const isSignupPage = pathname === "/signup";
+    const authToggleHref = isSignupPage ? buildLoginUrl(returnUrl) : buildSignupUrl(returnUrl);
+    const authToggleLabel = isSignupPage ? "Login" : "Sign Up";
+    const isAuthPage = isLoginPage || isSignupPage;
 
     const toggleMenu = () => setIsMenuOpen((prev) => !prev);
     const closeMenu = () => setIsMenuOpen(false);
@@ -16,21 +26,21 @@ export default function NavControls() {
     return (
         <>
             <div className="flex items-center gap-3">
-                {user ? (
+                {user && !isAuthPage ? (
                     <Link
                         href="/profile"
                         className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-black dark:text-white hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all font-heading"
                     >
                         Profile
                     </Link>
-                ) : (
+                ) : !isAuthPage ? (
                     <Link
-                        href="/login"
+                        href="/login?next=/profile"
                         className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-md transform-gpu font-heading"
                     >
                         Login
                     </Link>
-                )}
+                ) : null}
 
                 <ThemeToggle />
 
@@ -117,13 +127,15 @@ export default function NavControls() {
                                 </button>
                             </>
                         ) : (
-                            <Link
-                                href="/login"
-                                onClick={closeMenu}
-                                className="block w-full py-5 text-center rounded-3xl bg-white text-black text-sm font-bold uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(255,255,255,0.3)]"
-                            >
-                                Login / Sign Up
-                            </Link>
+                            !isAuthPage ? (
+                                <Link
+                                    href="/login?next=/profile"
+                                    onClick={closeMenu}
+                                    className="block w-full py-5 text-center rounded-3xl bg-white text-black text-sm font-bold uppercase tracking-[0.2em] shadow-[0_0_30px_rgba(255,255,255,0.3)]"
+                                >
+                                    Login / Sign Up
+                                </Link>
+                            ) : null
                         )}
                     </div>
                 </div>

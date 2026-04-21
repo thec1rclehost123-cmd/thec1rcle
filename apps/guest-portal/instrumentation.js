@@ -24,21 +24,25 @@ export function register() {
             }
         }
 
-        Sentry.init({
-            dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || "",
-            // 10% trace sampling in production — enough for performance insights without quota burn.
-            // Errors are always captured regardless of this rate.
-            tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
-            debug: false,
-            environment: process.env.NODE_ENV || "development",
-        });
+        if (process.env.NODE_ENV !== "development") {
+            Sentry.init({
+                dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || "",
+                // 10% trace sampling in production — enough for performance insights without quota burn.
+                // Errors are always captured regardless of this rate.
+                tracesSampleRate: process.env.NODE_ENV === "production" ? 0.1 : 1.0,
+                debug: false,
+                environment: process.env.NODE_ENV || "development",
+            });
+        }
     }
 
     if (process.env.NEXT_RUNTIME === "edge") {
-        Sentry.init({
-            dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || "",
-            tracesSampleRate: 1,
-            debug: false,
-        });
+        if (process.env.NODE_ENV !== "development") {
+            Sentry.init({
+                dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || "",
+                tracesSampleRate: 1,
+                debug: false,
+            });
+        }
     }
 }

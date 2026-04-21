@@ -45,6 +45,7 @@
         "./inventory-engine": "./inventory-engine.js",
         "./order-engine": "./order-engine.js",
         "./event-engine": "./event-engine.js",
+        "./guest-event-conversion": "./guest-event-conversion.js",
         "./scan-engine": "./scan-engine.js",
         "./ticket-engine": "./ticket-engine.js",
         "./staff-engine": "./staff-engine.js",

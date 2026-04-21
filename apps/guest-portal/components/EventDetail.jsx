@@ -717,7 +717,7 @@ export default function EventDetail({
 
   const handleNotifyMe = useCallback(async (ticket) => {
     if (!user) {
-      router.push(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+      router.push(`/login?next=${encodeURIComponent(window.location.pathname)}`);
       return;
     }
     setWaitlistState((s) => ({ ...s, [ticket.id]: "loading" }));

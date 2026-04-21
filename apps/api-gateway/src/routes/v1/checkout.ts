@@ -3,6 +3,8 @@ import { FastifyInstance } from 'fastify';
 import { validatePromoCode } from '@c1rcle/core/promo-service';
 // @ts-ignore
 import { calculatePricing } from '@c1rcle/core/pricing-engine';
+// @ts-ignore
+import { flagPaymentFailure } from '@c1rcle/core/surge';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 
@@ -28,7 +30,8 @@ const CheckoutPromoBody = z.object({
 const CheckoutReserveBody = z.object({
     eventId: z.string(),
     items: z.array(z.any()),
-    deviceId: z.string().optional()
+    deviceId: z.string().optional(),
+    admissionToken: z.string().optional()
 }).strict();
 
 const CheckoutInitiateBody = z.object({
@@ -49,6 +52,17 @@ const CheckoutCancelBody = z.object({
     reservationId: z.string().optional(),
     orderId: z.string().optional()
 }).strict();
+
+const CheckoutFailureBody = z.object({
+    admissionToken: z.string()
+}).strict();
+
+function extractQueueId(admissionToken?: string | null): string | null {
+    if (!admissionToken) return null;
+    const parts = String(admissionToken).split(':');
+    if (parts.length !== 4) return null;
+    return parts[2] || null;
+}
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
     /**
@@ -143,17 +157,28 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     fastify.post('/checkout/reserve', {
         preHandler: [fastify.validate({ body: CheckoutReserveBody })]
     }, async (request: any, reply) => {
-        const { eventId, items, deviceId } = request.body;
+        const { eventId, items, deviceId, admissionToken } = request.body;
         const userId = request.user?.uid;
         if (!userId) {
             return reply.status(401).send({ success: false, error: 'Authentication required to reserve tickets' });
         }
 
         try {
-            const workspaceId = request.workspaceId;
-            if (!workspaceId) return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
-
-            const result = await fastify.checkoutService.reserveItems(eventId, userId, deviceId || null, items, workspaceId);
+            const result = await fastify.checkoutService.reserveItems(
+                eventId,
+                userId,
+                deviceId || null,
+                items,
+                request.workspaceId,
+                { queueId: extractQueueId(admissionToken) }
+            );
+            request.log.info({
+                eventId,
+                userId,
+                reservationId: result?.reservationId,
+                workspaceId: request.workspaceId || null,
+                queueId: extractQueueId(admissionToken),
+            }, 'Checkout reservation created');
             return result;
         } catch (error: any) {
             fastify.log.error(`Reservation failed: ${error.message}`);
@@ -174,14 +199,43 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            const workspaceId = request.workspaceId;
-            if (!workspaceId) return reply.status(400).send({ success: false, error: 'Missing x-workspace-id header' });
-
             const result = await fastify.checkoutService.initiateCheckout({
                 ...request.body,
                 userId
-            }, workspaceId);
-            return result;
+            }, request.workspaceId);
+
+            request.log.info({
+                eventId: result?.order?.eventId || request.body?.eventId,
+                orderId: result?.order?.id,
+                reservationId: request.body?.reservationId,
+                userId,
+                workspaceId: result?.order?.workspaceId || request.workspaceId || null,
+            }, 'Checkout initiated');
+
+            if (!result?.requiresPayment || !result?.order?.id) {
+                return result;
+            }
+
+            const payment = await fastify.checkoutService.preparePayment(result.order.id, userId, {
+                keyId: process.env.RAZORPAY_KEY_ID,
+                keySecret: process.env.RAZORPAY_KEY_SECRET
+            });
+
+            return {
+                success: true,
+                requiresPayment: true,
+                order: {
+                    id: result.order.id,
+                    totalAmount: result.pricing?.grandTotal ?? result.order.totalAmount,
+                },
+                pricing: result.pricing,
+                razorpay: {
+                    orderId: payment.razorpayOrderId,
+                    amount: payment.amount,
+                    currency: payment.currency,
+                    key: payment.key,
+                }
+            };
         } catch (error: any) {
             const isContention = error.code === 10 || error.code === 'ABORTED' ||
                 (error.message || '').toUpperCase().includes('ABORTED');
@@ -202,6 +256,24 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
             fastify.log.error(`Initiate checkout failed: ${error.message}`);
             return reply.status(500).send({ success: false, error: "Internal server error" });
+        }
+    });
+
+    fastify.post('/checkout/failure', {
+        preHandler: [fastify.validate({ body: CheckoutFailureBody })]
+    }, async (request: any, reply) => {
+        const queueId = extractQueueId(request.body?.admissionToken);
+        if (!queueId) {
+            return reply.status(400).send({ success: false, error: 'Invalid token' });
+        }
+
+        try {
+            await flagPaymentFailure(fastify.db, queueId);
+            request.log.info({ queueId }, 'Checkout payment failure retry window restored');
+            return { success: true, message: 'Retry window activated' };
+        } catch (error: any) {
+            fastify.log.error(`Checkout failure restore failed: ${error.message}`);
+            return reply.status(500).send({ success: false, error: 'Internal Server Error' });
         }
     });
 

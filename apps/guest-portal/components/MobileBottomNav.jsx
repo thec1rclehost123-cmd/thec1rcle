@@ -11,13 +11,13 @@ import { motion } from "framer-motion";
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth") return null;
+  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/signup" || pathname === "/auth") return null;
 
   const navItems = [
     { label: "Explore", href: "/explore", icon: Compass },
     { label: "Tickets", href: "/tickets", icon: Ticket },
     { label: "App", href: "/app", icon: Smartphone },
-    { label: user ? "Profile" : "Login", href: user ? "/profile" : "/login", icon: User }
+    { label: user ? "Profile" : "Login", href: user ? "/profile" : "/login?next=/profile", icon: User }
   ];
 
   const handleNavClick = (e, href) => {

@@ -35,6 +35,9 @@ import { FirebaseWorkspaceRepository } from '@c1rcle/core/workspace-repo';
 import { WorkspaceService } from '@c1rcle/core/workspace-service';
 // @ts-ignore
 import { BillingService } from '@c1rcle/core/billing-service';
+import { PublicDiscoveryService } from '../services/public-discovery';
+import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-context';
+import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 
 export default fp(async (fastify) => {
     if (!getApps().length) {
@@ -89,6 +92,7 @@ export default fp(async (fastify) => {
     const workspaceRepo = new FirebaseWorkspaceRepository(db);
     const workspaceService = new WorkspaceService(workspaceRepo);
     const billingService = new BillingService(db);
+    const publicDiscoveryService = new PublicDiscoveryService(db);
 
     fastify.decorate('db', db);
     fastify.decorate('auth', auth);
@@ -105,13 +109,32 @@ export default fp(async (fastify) => {
     fastify.decorate('moderationService', moderationService);
     fastify.decorate('workspaceService', workspaceService);
     fastify.decorate('billingService', billingService);
+    fastify.decorate('publicDiscoveryService', publicDiscoveryService);
+    fastify.decorate('writeAuditLog', (entry: AuditLogInput) => persistAuditLog(fastify, entry));
 
     fastify.log.info('Firebase Admin, AuthService, Repositories, and Services initialized');
 
     // Simple Request-level User & Workspace Decoration
     fastify.decorateRequest('user', null);
+    fastify.decorateRequest('authContext', null);
     fastify.decorateRequest('workspaceId', null);
     fastify.decorateRequest('workspace', null); // 🏢 SaaS: Full workspace metadata
+
+    async function loadMemberships(uid: string) {
+        const activeQuery = db.collection('partner_memberships')
+            .where('uid', '==', uid)
+            .where('isActive', '==', true)
+            .limit(25);
+
+        const snapshot = await activeQuery.get().catch(async () =>
+            db.collection('partner_memberships')
+                .where('uid', '==', uid)
+                .limit(25)
+                .get()
+        );
+
+        return snapshot.docs.map((doc) => doc.data());
+    }
 
     // Global Auth Hook (Extract Token)
     fastify.addHook('onRequest', async (request, reply) => {
@@ -125,14 +148,23 @@ export default fp(async (fastify) => {
         if (internalKey && token === internalKey) {
             // @ts-ignore
             request.user = { uid: 'system', role: 'system', isSystem: true };
+            // @ts-ignore
+            request.authContext = buildRequestAuthContext({ uid: 'system', role: 'system', isSystem: true }, []);
             return;
         }
 
         try {
             const user = await authService.verifyToken(token);
             if (user) {
+                const memberships = await loadMemberships(user.uid).catch(() => []);
+                const authContext = buildRequestAuthContext(user, memberships);
                 // @ts-ignore
-                request.user = user;
+                request.user = {
+                    ...user,
+                    activeMembership: authContext.activeMembership || user.activeMembership || null,
+                };
+                // @ts-ignore
+                request.authContext = authContext;
             } else {
                 request.log.warn('Auth service could not verify token');
             }
@@ -248,11 +280,15 @@ declare module 'fastify' {
         moderationService: any;
         workspaceService: any;
         billingService: any;
+        publicDiscoveryService: any;
+        invalidatePublicDiscovery: (target?: 'events' | 'hosts' | 'venues' | 'search' | 'all') => Promise<void>;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
         requireFeature: (feature: string) => (request: any, reply: any) => Promise<void>;
+        writeAuditLog: (entry: AuditLogInput) => Promise<void>;
     }
     interface FastifyRequest {
         user: DecodedIdToken | null;
+        authContext: RequestAuthContext | null;
         workspaceId: string | null;
         workspace: any | null;
     }

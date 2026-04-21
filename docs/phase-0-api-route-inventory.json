@@ -1,0 +1,4957 @@
+{
+  "generated_at": "2026-04-20T23:00:38.754Z",
+  "summary": {
+    "total_routes": 254,
+    "by_classification": {
+      "temporary_bridge": 25,
+      "legacy_backend_logic": 202,
+      "allowed_web_helper": 27
+    },
+    "by_surface": {
+      "auth": 17,
+      "guest": 42,
+      "promoter": 29,
+      "scanner": 11,
+      "webhook": 1,
+      "shared": 29,
+      "host": 41,
+      "venue": 84
+    }
+  },
+  "routes": [
+    {
+      "route": "apps/guest-portal/app/api/auth/check/route.js",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/host-verification/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/me/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/onboard/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/otp/send/route.js",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/otp/verify/route.js",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/profile/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/auth/session/route.js",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "GP-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/auth\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminApp"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/calculate/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/checkoutService\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/cancel/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/orderStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/failure/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/queueStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/initiate/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/checkoutService\"",
+            "from \"@/lib/server/orderStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/promo/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/checkoutService\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/checkout/reserve/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/checkoutService\"",
+            "from \"@/lib/server/surgeStore\"",
+            "from \"@/lib/server/queueStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/email-preview/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/entitlements/[id]/qr/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/[eventId]/queue/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/[eventId]/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/[eventId]/rsvp/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/[eventId]/track/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/[eventId]/view/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/nearby/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/events/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/follow/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify social/profile relationship routes + relationship services",
+      "target_phase": "GP-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/notificationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/hosts/[slug]/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/hosts/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/inngest/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "App-local web helper or worker bridge",
+      "target_phase": "GP-1",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/notifications/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/notificationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/orders/[orderId]/cancel/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/orderStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/orders/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/orderStore\"",
+            "from \"../../../lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/passes/apple/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from '@/lib/server/orderStore'",
+            "from '@/lib/server/eventStore'"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/passes/google/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from '@/lib/server/orderStore'",
+            "from '@/lib/server/eventStore'"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/payments/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/orderStore\"",
+            "from \"../../../lib/server/profileStore\"",
+            "from \"../../../lib/server/qrStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/profile/[userId]/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify profiles routes + ProfileService",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../../lib/server/profileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/promoter/links/click/route.js",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "GP-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/recommendations/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-3",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/reservations/route.js",
+      "surface": "guest",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "GP-4",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/search/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/claim/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/couple/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/cover-wallet/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/download/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from '@/lib/server/orderStore'",
+            "from '@/lib/server/eventStore'",
+            "from '@/lib/server/profileStore'"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/profileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/scan/route.js",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\"",
+            "from \"@/lib/server/qrStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/share/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/transfer/pending/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/tickets/transfer/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "GP-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/ticketShareStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/venues/[venueId]/follow-status/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify social/profile relationship routes + relationship services",
+      "target_phase": "GP-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../../../lib/server/notificationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/venues/[venueId]/follow/route.js",
+      "surface": "guest",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify social/profile relationship routes + relationship services",
+      "target_phase": "GP-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../../../lib/server/notificationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/guest-portal/app/api/venues/[venueId]/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/venues/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "GP-2",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/waitlist/route.js",
+      "surface": "guest",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify waitlist routes + WaitlistService",
+      "target_phase": "GP-5",
+      "violations": []
+    },
+    {
+      "route": "apps/guest-portal/app/api/webhooks/payment/route.js",
+      "surface": "webhook",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "App-local web helper or worker bridge",
+      "target_phase": "GP-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/orderStore\"",
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/notificationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/assistant/chat/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues",
+            "hosts",
+            "partner_memberships"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/create-account/route.ts",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@c1rcle/core/admin\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/host-verification/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/me/route.ts",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffProfileStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "partner_memberships"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/onboard-status/route.ts",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/onboard/route.ts",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/otp/send/route.ts",
+      "surface": "auth",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminAuth",
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/otp/verify/route.ts",
+      "surface": "auth",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/auth/profile/route.ts",
+      "surface": "auth",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify auth routes + auth/profile services",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/discovery/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "partnerships",
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/door-entry/route.ts",
+      "surface": "scanner",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/event-codes/route.ts",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/cancel/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/duplicate/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/guestlist/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@c1rcle/core/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/promoters/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/promoterConnectionStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/slotStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/[id]/surge/route.js",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/create/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/slotStore\"",
+            "from \"@/lib/server/calendarStore\"",
+            "from \"@/lib/server/partnershipStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/events/route.js",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/finance/breakdown/route.js",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"../../../../lib/server/financeStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/guestlist/route.ts",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-3",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/analytics/[type]/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+      "target_phase": "H-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/analyticsStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/analytics/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+      "target_phase": "H-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/analyticsStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/analytics/time-series/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+      "target_phase": "H-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/audience/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/broadcast/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/attendees/[attendeeId]/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/attendees/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/finance/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues",
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/guestlist/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/overview/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/promoters/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/resubmit/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/slotStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/submission-history/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/submit/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/slotStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/[id]/tickets/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/events/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/finance/bank-accounts/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner host finance routes + FinanceService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/finance/disputes/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner host finance routes + FinanceService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/finance/overview/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify partner host finance routes + FinanceService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/finance/payouts/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner host finance routes + FinanceService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/invite/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/notifications/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "H-6",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/ops/tonight/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner host routes + Host operations services",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/orders/[orderId]/cancel/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/orders/[orderId]/resend-receipt/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/orders/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "H-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/overview/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/overview/summary/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/page/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "hosts"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/partnerships/request/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/partnerships/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/partnershipStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/profile/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify profiles routes + ProfileService",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "hosts"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/promoter-requests/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterConnectionStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/promoters/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/settings/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-6",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/hostSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/settings/session/revoke/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-6",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminApp",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/slot-requests/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/slotStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/team/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-6",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "partner_memberships"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/upload/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminStorage"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/host/venue-calendar/route.ts",
+      "surface": "host",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "H-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/calendarStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\"",
+            "from \"@/lib/server/partnershipStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/inngest/route.js",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "App-local web helper or worker bridge",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/kyc/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/kyc/upload/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@c1rcle/core/admin\"",
+            "getAdminStorage"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/analytics/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter analytics routes + AnalyticsService",
+      "target_phase": "P-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/events/[id]/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/events/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/finance/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter finance routes + CommissionService",
+      "target_phase": "P-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\"",
+            "from \"@/lib/server/promoterFinanceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/guests/route.ts",
+      "surface": "promoter",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/overview/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/partner/promoter/profile/route.ts",
+      "surface": "promoter",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/payment/initiate/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/paymentStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/payment/webhook/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/bookingStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/payments/payout-webhook/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/payments/payouts/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/payments/readiness/route.ts",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/poster/generate/route.ts",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/profile/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify profiles routes + ProfileService",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/profileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/analytics/[type]/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter analytics routes + AnalyticsService",
+      "target_phase": "P-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/analyticsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/commissions/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter finance routes + CommissionService",
+      "target_phase": "P-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterFinanceStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/connections/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterConnectionStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/events/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/finance/bank-accounts/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter finance routes + CommissionService",
+      "target_phase": "P-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/guests/route.ts",
+      "surface": "promoter",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/links/[id]/analytics/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/links/[id]/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/links/click/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/links/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/eventStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "promoters"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/notifications/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "P-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "payouts",
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/partners/[id]/route.ts",
+      "surface": "promoter",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/payouts/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter finance routes + CommissionService",
+      "target_phase": "P-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterAuthMiddleware\"",
+            "from \"@/lib/server/promoterFinanceStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "payouts"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/identity/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/notifications/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/payout/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminApp",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterSettingsStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/security/logout-all/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminApp",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/settings/verification/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/stats/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/promoterAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/promoter/upload/route.ts",
+      "surface": "promoter",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner promoter routes + promoter services",
+      "target_phase": "P-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminStorage",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/reservations/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/reservationStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/scan/auth/route.ts",
+      "surface": "auth",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/scan/route.ts",
+      "surface": "scanner",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/scan/stats/route.ts",
+      "surface": "scanner",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/search/sync/route.js",
+      "surface": "shared",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-1",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/setup/provision-venue/route.js",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminAuth",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/slots/[id]/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/slotStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/slots/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-1",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/slotStore\"",
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues",
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/aggregation/backfill/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/alerts/[id]/dismiss/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from '@/lib/firebase/admin'",
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/analytics/[type]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue analytics routes + AnalyticsService",
+      "target_phase": "V-6",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/analyticsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/analytics/time-series/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue analytics routes + AnalyticsService",
+      "target_phase": "V-6",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/availability/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/broadcast/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/calendar/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/calendarStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/crm/customers/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/crm/online/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/devices/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffService\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/door/all-entries/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/door/capacity/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/door/dinein/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/doorSellStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/door/sell/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/walkInStore\"",
+            "from \"@/lib/server/doorSellStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/attendees/[attendeeId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/attendees/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/finance/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "hosts",
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/overview/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/promoters/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterConnectionStore\"",
+            "from \"@/lib/server/promoterLinkStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/[id]/tickets/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify tickets routes + ticket/entitlement services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/events/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/facilities/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venuePageStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/bank-accounts/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/cover-recon/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/disputes/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/host-payouts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/splitFinanceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/ledger/route.ts",
+      "surface": "venue",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/overview/route.ts",
+      "surface": "venue",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/payments/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify checkout/payments routes + CheckoutService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/splitFinanceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/payouts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/promoter-payouts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/splitFinanceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/finance/venue-payouts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue finance routes + FinanceService",
+      "target_phase": "V-5",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/splitFinanceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/gallery/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venuePageStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/exceptions/[exceptionId]/resolve/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/exceptions/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guest-rules/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/[guestId]/check-in/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/[guestId]/deny/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/[guestId]/flag/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/[guestId]/re-entry/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/[guestId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/export/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/manual-lookup/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/guests/search/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/guestListStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/host-allocations/[hostId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/promoter-allocations/[promoterId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/scanner/devices/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/scanner/stream/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/scanner/summary/route.ts",
+      "surface": "scanner",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify scan routes + ScannerService",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guest-ops/[eventId]/summary/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue routes + Venue operations services",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/guestOpsMiddleware\"",
+            "from \"@/lib/server/scanLogStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/guestlist-package/[eventId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "guest_lists"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/highlights/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venuePageStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/marketing/campaigns/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/menu/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venuePageStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/notifications/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "partnerships",
+            "notifications"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/notifications/send/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify notifications routes + NotificationService",
+      "target_phase": "V-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/orders/[orderId]/cancel/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/orders/[orderId]/resend-receipt/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"firebase-admin/firestore\"",
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/orders/latest/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/orders/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify orders routes + OrderService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "events",
+            "orders"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/overview/alerts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from '@/lib/firebase/admin'",
+            "getAdminDb",
+            "isFirebaseConfigured"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/overview/next-event-intelligence/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/eventIntelligenceStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/overview/summary/route.ts",
+      "surface": "venue",
+      "classification": "temporary_bridge",
+      "data_access_mode": "gateway_client",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/overview/tonight/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/orderStore\"",
+            "from \"@/lib/server/promoterLinkStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/page/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venuePageStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/partners/[id]/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/partnerships/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/partnershipStore\"",
+            "from \"@/lib/server/hostAuthMiddleware\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/presence/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/profile/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify profiles routes + ProfileService",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/promoter-requests/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/promoterConnectionStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/registers/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/registerStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/reservations/[id]/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/reservations/route.ts",
+      "surface": "venue",
+      "classification": "allowed_web_helper",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": []
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/security/alerts/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/securityStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/security/sync/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/securityStore\"",
+            "from \"@/lib/server/orderStore\"",
+            "from \"@/lib/server/eventStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/settings/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-7",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/venueSettingsStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/slots/[slotId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/calendarStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/slots/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/calendarStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff-profiles/[profileId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffProfileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff-profiles/assign/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffProfileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff-profiles/assignments/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff-profiles/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffProfileStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff/accept/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb",
+            "getAdminAuth"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffService\"",
+            "from \"@/lib/server/staffProfileStore\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "venues",
+            "partner_memberships"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/staff/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify partner venue staff routes + StaffService",
+      "target_phase": "V-4",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminDb"
+          ]
+        },
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/staffService\""
+          ]
+        },
+        {
+          "type": "protected_firestore_write",
+          "message": "App-local route performs protected Firestore writes directly.",
+          "evidence": [
+            "users",
+            "venues"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/system-status/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "getAdminDb"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/tables/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/tableStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/upload/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "direct_firebase_admin",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "direct_admin_import",
+          "message": "App-local route imports Firebase Admin or admin helpers directly.",
+          "evidence": [
+            "from \"@/lib/firebase/admin\"",
+            "getAdminStorage"
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/walk-ins/[eventId]/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/walkInStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venue/walk-ins/route.ts",
+      "surface": "venue",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify API gateway route + domain service",
+      "target_phase": "V-3",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/walkInStore\""
+          ]
+        }
+      ]
+    },
+    {
+      "route": "apps/partner-dashboard/app/api/venues/[id]/calendar/route.ts",
+      "surface": "shared",
+      "classification": "legacy_backend_logic",
+      "data_access_mode": "web_only",
+      "target_owner": "Fastify public/events routes + discovery/event services",
+      "target_phase": "V-2",
+      "violations": [
+        {
+          "type": "business_module_import",
+          "message": "App-local route imports business/store modules instead of staying a thin bridge/helper.",
+          "evidence": [
+            "from \"@/lib/server/calendarStore\"",
+            "from \"@/lib/server/partnershipStore\""
+          ]
+        }
+      ]
+    }
+  ]
+}

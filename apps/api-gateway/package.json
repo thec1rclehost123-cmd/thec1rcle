@@ -8,6 +8,8 @@
     "dev:staging": "node ../../node_modules/tsx/dist/cli.mjs watch --env-file=.env.staging src/app.ts",
     "dev:prod": "node ../../node_modules/tsx/dist/cli.mjs watch --env-file=.env.production src/app.ts",
     "start": "node --env-file=.env.production dist/app.js",
+    "test": "node ../../node_modules/vitest/vitest.mjs run",
+    "test:watch": "node ../../node_modules/vitest/vitest.mjs",
     "build": "node ../../node_modules/typescript/bin/tsc",
     "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
     "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { Mail, Lock, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
@@ -13,8 +13,8 @@ const RitualBackground = dynamic(() => import("../../components/RitualBackground
 import CountrySelect from "../../components/ui/CountrySelect";
 import PhoneInput from "../../components/ui/PhoneInput";
 import VerifyPanel from "../../components/VerifyPanel";
-import AccessGranted from "../../components/ui/AccessGranted";
 import { authService } from "../../lib/authService";
+import { buildAuthCallbackUrl, buildLoginUrl, buildSignupUrl, getReturnUrl } from "../../lib/auth/guestRouteAccess";
 import { countries } from "../../lib/data/countries";
 
 const CITIES = ["Mumbai", "Pune", "Bengaluru", "Goa"];
@@ -42,6 +42,33 @@ function clearSessionPersistence() {
     });
 }
 
+function getPersistedForm(form) {
+    return {
+        ...form,
+        password: "",
+    };
+}
+
+function getLoginErrorMessage(error) {
+    switch (error?.code) {
+        case "auth/operation-not-allowed":
+            return "Google sign-in is not enabled for this Firebase project.";
+        case "auth/unauthorized-domain":
+            return "This domain is not authorized for Google sign-in.";
+        case "auth/invalid-credential":
+        case "auth/wrong-password":
+            return "Incorrect email or password.";
+        case "auth/user-not-found":
+            return "No account found for this email.";
+        case "auth/too-many-requests":
+            return "Too many login attempts. Please try again later.";
+        case "auth/network-request-failed":
+            return "Network error. Check your connection and try again.";
+        default:
+            return error?.message || "Unable to sign in right now.";
+    }
+}
+
 const baseForm = {
     email: "",
     password: "",
@@ -56,7 +83,7 @@ const baseForm = {
 export default function LoginPage() {
     return (
         <Suspense fallback={<div className="min-h-screen bg-black" />}>
-            <div className="relative h-screen w-full bg-black overflow-hidden flex flex-col md:flex-row selection:bg-orange/30 selection:text-white">
+            <div className="relative min-h-screen w-full bg-black overflow-x-hidden overflow-y-auto md:overflow-hidden flex flex-col md:flex-row selection:bg-orange/30 selection:text-white">
                 <RitualBackground />
                 <LoginForm />
             </div>
@@ -65,45 +92,63 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-    const { user, loading, login, loginWithGoogle, updateUserProfile, error: authError } = useAuth();
+    const { user, loading, login, register, loginWithGoogle, updateUserProfile, error: authError } = useAuth();
     const { toast } = useToast();
+    const pathname = usePathname();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const forceOnboarding = searchParams.get("onboarding") === "1";
+    const forceSignup = pathname === "/signup" || searchParams.get("mode") === "signup" || searchParams.get("mode") === "register";
 
-    const [isLoginMode, setIsLoginMode] = useState(true); // Toggle between traditional Login vs Signup
+    const [isLoginMode, setIsLoginMode] = useState(() => !forceOnboarding && !forceSignup); // Toggle between traditional Login vs Signup
 
     // ── Restore from sessionStorage on mount ──────────────────────────────
     const [form, setForm] = useState(() => {
         const saved = readSession(SESSION_KEYS.form, null);
         if (saved) {
-            try { return { ...baseForm, ...JSON.parse(saved) }; } catch { /* noop */ }
+            try { return { ...baseForm, ...JSON.parse(saved), password: "" }; } catch { /* noop */ }
         }
         return baseForm;
     });
     const [step, setStep] = useState(() => {
         const s = parseInt(readSession(SESSION_KEYS.step, "1"), 10);
+        if (forceOnboarding) {
+            if (isNaN(s) || s < 3) return 3;
+            return s;
+        }
         return isNaN(s) ? 1 : s;
     });
     const [isNewUser, setIsNewUser] = useState(
         () => readSession(SESSION_KEYS.isNewUser, "false") === "true"
     );
     const [isOnboarding, setIsOnboarding] = useState(
-        () => readSession(SESSION_KEYS.isOnboarding, "false") === "true"
+        () => forceOnboarding || readSession(SESSION_KEYS.isOnboarding, "false") === "true"
     );
 
     const [status, setStatus] = useState({ type: "", message: "" });
     const [mounted, setMounted] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [phoneVerified, setPhoneVerified] = useState(false);
+    const formRef = useRef(null);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    const redirectUrl = useMemo(
-        () => searchParams.get("returnUrl") || searchParams.get("next") || searchParams.get("redirect") || "/profile",
-        [searchParams]
-    );
+    const redirectUrl = useMemo(() => getReturnUrl(searchParams), [searchParams]);
+
+    useEffect(() => {
+        if (!forceOnboarding) return;
+        setIsLoginMode(false);
+        setIsNewUser(false);
+        setIsOnboarding(true);
+        setStep((current) => (current < 3 ? 3 : current));
+    }, [forceOnboarding]);
+
+    useEffect(() => {
+        if (forceOnboarding || !forceSignup) return;
+        setIsLoginMode(false);
+    }, [forceOnboarding, forceSignup]);
 
     // ── Persist step/form/flags to sessionStorage ─────────────────────────
     useEffect(() => {
@@ -112,8 +157,7 @@ function LoginForm() {
                 sessionStorage.setItem(SESSION_KEYS.step, String(step));
                 sessionStorage.setItem(SESSION_KEYS.isNewUser, String(isNewUser));
                 sessionStorage.setItem(SESSION_KEYS.isOnboarding, String(isOnboarding));
-                // Never persist password
-                sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify(form));
+                sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify(getPersistedForm(form)));
             } catch { /* noop */ }
         }
     }, [step, form, isNewUser, isOnboarding]);
@@ -121,7 +165,7 @@ function LoginForm() {
     // ── Redirect already-logged-in users (not mid-onboarding) ─────────────
     useEffect(() => {
         if (user && !loading && !isNewUser && !isOnboarding && step < 7) {
-            router.replace(`/auth/callback?returnUrl=${encodeURIComponent(redirectUrl)}`);
+            router.replace(buildAuthCallbackUrl(redirectUrl));
         }
     }, [user, loading, router, redirectUrl, step, isNewUser, isOnboarding]);
 
@@ -149,7 +193,7 @@ function LoginForm() {
         try {
             const { user: googleUser, profile: googleProfile } = await loginWithGoogle();
 
-            if (!googleProfile?.phone || !googleProfile?.gender) {
+            if (googleProfile?.onboardingComplete !== true) {
                 setIsLoginMode(false);
                 setIsOnboarding(true);
                 setStep(3);
@@ -162,17 +206,20 @@ function LoginForm() {
             }
         } catch (err) {
             console.error("Google Auth error:", err);
-            setStatus({ type: "error", message: "Failed to sign in with Google." });
+            setStatus({ type: "error", message: getLoginErrorMessage(err) });
         } finally {
             setSubmitting(false);
         }
     };
 
     const toggleMode = () => {
-        setIsLoginMode(!isLoginMode);
-        setStep(1);
         setStatus({ type: "", message: "" });
-        setForm(baseForm);
+        clearSessionPersistence();
+        if (isLoginMode) {
+            router.push(buildSignupUrl(redirectUrl));
+            return;
+        }
+        router.push(buildLoginUrl(redirectUrl));
     };
     // ── Email / Password Auth ─────────────────────────────────────────────
     const handleInitialAuth = async () => {
@@ -180,23 +227,21 @@ function LoginForm() {
         try {
             const { profile: loadedProfile } = await login(cleanForm.email, form.password, true);
             // Existing user who never finished onboarding → force them through
-            if (loadedProfile && loadedProfile.onboardingComplete === false) {
+            if (loadedProfile?.onboardingComplete !== true) {
+                setIsLoginMode(false);
+                setIsNewUser(false);
                 setIsOnboarding(true);
                 setStep(3);
             }
             // Otherwise the redirect useEffect handles navigation
         } catch (err) {
-            if (
-                err.code === "auth/user-not-found" ||
-                err.code === "auth/invalid-credential" ||
-                err.message?.includes("not-found")
-            ) {
+            if (err?.code === "auth/user-not-found") {
                 setIsLoginMode(false);
                 setIsNewUser(true);
                 setStep(3);
                 setStatus({ type: "info", message: "Creating your new account..." });
             } else {
-                setStatus({ type: "error", message: err.message });
+                setStatus({ type: "error", message: getLoginErrorMessage(err) });
             }
         } finally {
             setSubmitting(false);
@@ -207,7 +252,13 @@ function LoginForm() {
     const nextStep = async () => {
         setStatus({ type: "", message: "" });
 
-        if (step === 1 && form.email && form.password) {
+        if (step === 1 && form.email && form.password && !isLoginMode) {
+            setIsNewUser(true);
+            setStep(3);
+            return;
+        }
+
+        if (step === 1 && form.email && form.password && isLoginMode) {
             setSubmitting(true);
             try {
                 const res = await fetch("/api/auth/check", {
@@ -295,18 +346,16 @@ function LoginForm() {
         }
 
         try {
-            console.log("[AUTH-TRACE] Sending payload to finalizeSignup...");
-            await authService.finalizeSignup({
-                ...cleanForm,
-                password: form.password,
-                name: form.name.trim(),
+            await register(cleanForm.email, form.password, {
+                displayName: form.name.trim(),
                 age: parseInt(form.age, 10),
                 gender: form.gender,
-                city: form.city
+                phone: cleanForm.phone,
+                city: form.city,
+                onboardingComplete: true
             });
-            await login(cleanForm.email, form.password, true);
             clearSessionPersistence();
-            setStep(9); // success step
+            router.push("/");
         } catch (err) {
             setStatus({ type: "error", message: err.message });
         } finally {
@@ -339,13 +388,12 @@ function LoginForm() {
     // ── City auto-transition ──────────────────────────────────────────────────
     const handleCitySelect = (city) => {
         setForm(prev => ({ ...prev, city }));
-        // If we are in the multi-step registration (step 7), auto-advance
-        if (step === 7) {
-            setTimeout(() => setStep(8), 500);
-        } else if (isNewUser) {
-            handleStartRegistration();
-        } else if (isOnboarding) {
-            handleCompleteOnboarding(city);
+        if (isOnboarding) {
+            setTimeout(() => handleCompleteOnboarding(city), 150);
+            return;
+        }
+        if (isNewUser) {
+            setTimeout(() => handleStartRegistration(), 150);
         }
     };
 
@@ -372,7 +420,11 @@ function LoginForm() {
     };
 
     // ── UI helpers ────────────────────────────────────────────────────────
-    const totalSteps = isLoginMode ? 2 : ((isNewUser || isOnboarding) ? 7 : 7);
+    const totalSteps = 7;
+    const currentProgressStep = isLoginMode ? 1 : Math.min(step - 1, totalSteps);
+    const headingEyebrow = step >= 3 ? "Identity" : (isLoginMode ? "Member Access" : "Create Account");
+    const primaryActionLabel = step === 1 ? "Continue" : "Continue";
+    const googleCtaLabel = step === 1 ? "Continue with Google" : "Use Google";
 
     const stepHeading = () => {
         if (step === 1) return <>{isLoginMode ? "Welcome" : "Join the"} <br /><span className="text-orange">{isLoginMode ? "Back." : "Circle."}</span></>;
@@ -420,8 +472,8 @@ function LoginForm() {
             </div>
 
             {/* Right Panel / Form */}
-            <div className="flex-1 flex flex-col justify-center items-center px-4 md:px-12 relative z-10 w-full h-full min-h-screen bg-black/50 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none">
-                <div className="w-full max-w-[380px] py-12 flex flex-col gap-8">
+            <div className="flex-1 flex flex-col justify-start md:justify-center items-center px-4 md:px-12 relative z-10 w-full min-h-screen bg-black/50 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none">
+                <div className="mx-auto flex w-full max-w-[380px] flex-col gap-8 pt-24 pb-10 md:py-12">
                     {/* Step heading — hidden during success screen */}
                     {step < 9 && (
                         <div className="text-center md:text-left">
@@ -432,7 +484,7 @@ function LoginForm() {
                                 className="space-y-4"
                             >
                                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange mb-3">
-                                    {(isLoginMode) ? "Member Access" : "Identity"}
+                                    {headingEyebrow}
                                 </p>
                                 <h1 className="text-4xl md:text-5xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9] text-white">
                                     {stepHeading()}
@@ -441,7 +493,7 @@ function LoginForm() {
                         </div>
                     )}
 
-                    <div className="relative">
+                    <div className="relative w-full">
                         <AnimatePresence mode="wait">
                             {step <= 7 ? (
                                 <motion.div
@@ -450,11 +502,19 @@ function LoginForm() {
                                     animate={{ opacity: 1, scale: 1 }}
                                     exit={{ opacity: 0, scale: 0.95 }}
                                     transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                                    className="relative glass-panel bg-white/[0.03] border border-white/10 backdrop-blur-2xl rounded-[32px] p-8 shadow-2xl overflow-hidden"
+                                    className="relative flex min-h-[430px] w-full flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] px-8 pt-8 pb-10 shadow-2xl backdrop-blur-2xl glass-panel"
                                 >
                                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
-                                    <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className="space-y-8">
+                                    <form
+                                        ref={formRef}
+                                        onSubmit={(e) => {
+                                            e.preventDefault();
+                                            if (!formRef.current?.reportValidity()) return;
+                                            nextStep();
+                                        }}
+                                        className="flex flex-1 flex-col space-y-8"
+                                    >
                                         <AnimatePresence mode="wait">
                                             <motion.div
                                                 key={`${step}-${isLoginMode}`}
@@ -462,6 +522,7 @@ function LoginForm() {
                                                 animate={{ opacity: 1, x: 0 }}
                                                 exit={{ opacity: 0, x: -20 }}
                                                 transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                                                className="flex-1"
                                             >
                                                 {/* ---- STEP 1: EMAIL & PASSWORD (UNIFIED) ---- */}
                                                 {step === 1 && (
@@ -510,7 +571,7 @@ function LoginForm() {
                                                                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                                                                         </svg>
                                                                     )}
-                                                                    Sign In with Google
+                                                                    {googleCtaLabel}
                                                                 </div>
                                                             </button>
                                                         </div>
@@ -581,16 +642,19 @@ function LoginForm() {
                                                 {!isLoginMode && step === 7 && (
                                                     <div className="space-y-4">
                                                         <label className="text-[10px] font-black uppercase tracking-[0.3em] text-white/70 block">Where are you based?</label>
-                                                        <div className="grid grid-cols-2 gap-3">
+                                                        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/35">
+                                                            Choose your city to complete setup.
+                                                        </p>
+                                                        <div className="grid grid-cols-2 gap-3 rounded-[24px] border border-white/8 bg-white/[0.02] p-3">
                                                             {CITIES.map(city => (
                                                                 <button
                                                                     type="button"
                                                                     key={city}
                                                                     disabled={submitting}
                                                                     onClick={() => handleCitySelect(city)}
-                                                                    className={`h-14 rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] transition-all border disabled:opacity-50 ${form.city === city
-                                                                        ? "bg-orange text-white border-orange"
-                                                                        : "bg-white/[0.03] text-white/60 border-white/10 hover:border-orange/30 hover:text-white"
+                                                                    className={`flex h-16 items-center justify-center rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] transition-all border disabled:opacity-50 ${form.city === city
+                                                                        ? "bg-orange text-white border-orange shadow-[0_12px_24px_rgba(255,90,0,0.25)]"
+                                                                        : "bg-white/[0.06] text-white/75 border-white/12 hover:border-orange/30 hover:bg-white/[0.1] hover:text-white"
                                                                         }`}
                                                                 >
                                                                     {submitting && form.city === city
@@ -615,37 +679,37 @@ function LoginForm() {
                                             </motion.p>
                                         )}
 
-                                        {(isLoginMode || step <= 7) && (
-                                            <button
-                                                type="submit"
-                                                disabled={submitting}
-                                                className="group relative w-full h-12 flex items-center justify-center rounded-xl bg-white text-black font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 overflow-hidden shadow-lg"
-                                            >
-                                                <div className="absolute inset-0 bg-gradient-to-r from-orange to-gold opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                                <span className="relative z-10 flex items-center gap-3 group-hover:text-white transition-colors">
-                                                    {submitting ? (
-                                                        <Loader2 className="h-5 w-5 animate-spin" />
-                                                    ) : (
-                                                        <>
-                                                            {isLoginMode ? "Login to Profile" : "Continue"}
-                                                            <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                                                        </>
-                                                    )}
-                                                </span>
-                                            </button>
-                                        )}
-                                    </form>
+                                        <div className="mt-auto space-y-6">
+                                            {(isLoginMode || step <= 7) && (
+                                                <button
+                                                    type="submit"
+                                                    disabled={submitting}
+                                                    className="group relative w-full h-12 flex items-center justify-center rounded-xl bg-white text-black font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-50 overflow-hidden shadow-lg"
+                                                >
+                                                    <div className="absolute inset-0 bg-gradient-to-r from-orange to-gold opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                                    <span className="relative z-10 flex items-center gap-3 group-hover:text-white transition-colors">
+                                                        {submitting ? (
+                                                            <Loader2 className="h-5 w-5 animate-spin" />
+                                                        ) : (
+                                                            <>
+                                                                {primaryActionLabel}
+                                                                <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                                                            </>
+                                                        )}
+                                                    </span>
+                                                </button>
+                                            )}
 
-                                    {!isLoginMode && (
-                                        <div className="mt-8 flex justify-center md:justify-start gap-3">
-                                            {Array.from({ length: totalSteps }).map((_, i) => (
-                                                <div
-                                                    key={i}
-                                                    className={`h-1 transition-all duration-500 rounded-full ${i + 1 === step ? "w-8 bg-orange" : "w-1.5 bg-white/10"}`}
-                                                />
-                                            ))}
+                                            <div className="flex min-h-2 items-center justify-center gap-3 px-1">
+                                                {Array.from({ length: totalSteps }).map((_, i) => (
+                                                    <div
+                                                        key={i}
+                                                        className={`h-1 transition-all duration-500 rounded-full ${i + 1 === currentProgressStep ? "w-8 bg-orange" : "w-1.5 bg-white/10"}`}
+                                                    />
+                                                ))}
+                                            </div>
                                         </div>
-                                    )}
+                                    </form>
                                 </motion.div>
                             ) : step === 8 ? (
                                 <motion.div
@@ -663,20 +727,11 @@ function LoginForm() {
                                         error={status.message}
                                     />
                                 </motion.div>
-                            ) : (
-                                <motion.div
-                                    key="granted"
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    className="w-full flex justify-center"
-                                >
-                                    <AccessGranted />
-                                </motion.div>
-                            )}
+                            ) : null}
                         </AnimatePresence>
                     </div>
 
-                    {step < 8 && (
+                    {step === 1 && !isOnboarding && (
                         <motion.div
                             initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}
                             className="text-center w-full mt-4"
@@ -699,4 +754,3 @@ function LoginForm() {
         </div>
     );
 }
-

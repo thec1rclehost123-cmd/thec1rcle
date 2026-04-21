@@ -1,12 +1,20 @@
 import { notFound } from "next/navigation";
-import { getVenueBySlug, listVenues } from "../../../lib/server/venueStore";
-import { getProfilePosts, getProfileHighlights, getProfileStats } from "../../../lib/server/partnerProfileStore";
-import { listEvents } from "../../../lib/server/eventStore";
+import { cache } from "react";
+import { fetchPublicVenue } from "../../../lib/server/publicDiscoveryBridge.js";
 import VenuePageClient from "../../../components/venue/VenuePageClient";
-import PublicProfileUnavailable from "../../../components/profile/PublicProfileUnavailable";
-import { isPublicProfileEnabled } from "../../../lib/server/publicProfile";
 
-export const revalidate = 0; // Disable caching for real-time updates during debugging
+export const revalidate = 120;
+
+const getVenuePublicProfile = cache(fetchPublicVenue);
+
+function normalizeEventCard(event) {
+    return {
+        ...event,
+        name: event.name || event.title,
+        coverImage: event.coverImage || event.image || event.posterUrl,
+        startDate: event.startDate || event.startAt,
+    };
+}
 
 /**
  * Venue Public Page - Fully Dynamic
@@ -16,15 +24,9 @@ export const revalidate = 0; // Disable caching for real-time updates during deb
 
 export async function generateMetadata({ params }) {
     const { slug } = await params;
-    const venue = await getVenueBySlug(slug);
+    const data = await getVenuePublicProfile(slug);
+    const venue = data?.venue;
     if (!venue) return { title: "Venue Not Found" };
-    if (!isPublicProfileEnabled(venue)) {
-        return {
-            title: `${venue.name || "Venue"} | Profile Offline`,
-            description: "This venue does not have a public profile right now.",
-            robots: { index: false, follow: true },
-        };
-    }
 
     return {
         title: `${venue.name} | THE C1RCLE`,
@@ -40,47 +42,15 @@ export async function generateMetadata({ params }) {
 export default async function VenuePublicPage({ params }) {
     const { slug } = await params;
 
-    // Fetch venue details using slug (which contains venue_id)
-    const venue = await getVenueBySlug(slug);
+    const data = await getVenuePublicProfile(slug);
+    const venue = data?.venue;
     if (!venue) notFound();
-    if (!isPublicProfileEnabled(venue)) {
-        return <PublicProfileUnavailable type="venue" name={venue.name} />;
-    }
 
-    // Fetch all related data in parallel using venue.id
-    const [highlights, stats, allEvents, allVenues] = await Promise.all([
-        getProfileHighlights(venue.id, "venue").catch(() => []),
-        getProfileStats(venue.id, "venue").catch(() => null),
-        listEvents({ limit: 100 }).catch(() => []),
-        listVenues({}).catch(() => [])
-    ]);
-
-    // Filter events for this venue
-    const venueEvents = allEvents.filter(e => {
-        // Match by venueId directly
-        if (e.venueId && e.venueId === venue.id) return true;
-        // Match by venue name as fallback
-        if (e.venue && venue.name && e.venue.toLowerCase() === venue.name.toLowerCase()) return true;
-        return false;
-    });
-
-    const now = new Date();
-
-    // Upcoming events: future dates only, sorted chronologically
-    const upcomingEvents = venueEvents
-        .filter(e => new Date(e.startDate || e.startAt) > now)
-        .sort((a, b) => new Date(a.startDate || a.startAt) - new Date(b.startDate || b.startAt));
-
-    // Past events: already happened, sorted most recent first
-    const pastEvents = venueEvents
-        .filter(e => new Date(e.startDate || e.startAt) <= now)
-        .sort((a, b) => new Date(b.startDate || b.startAt) - new Date(a.startDate || a.startAt))
-        .slice(0, 20);
-
-    // Get similar venues (same area or city)
-    const similarVenues = allVenues
-        .filter(v => v.id !== venue.id && (v.area === venue.area || v.city === venue.city))
-        .slice(0, 6);
+    const highlights = data.highlights || [];
+    const stats = data.stats || null;
+    const upcomingEvents = (data.upcomingEvents || []).map(normalizeEventCard);
+    const pastEvents = (data.pastEvents || []).map(normalizeEventCard).slice(0, 20);
+    const similarVenues = data.similarVenues || [];
 
     return (
         <main className="min-h-screen bg-white dark:bg-[#0A0A0A] text-black dark:text-white selection:bg-[#F44A22]/40 selection:text-white font-body overflow-x-hidden transition-colors duration-300">

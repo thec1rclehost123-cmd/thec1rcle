@@ -4,6 +4,10 @@
  */
 
 export const authService = {
+    getErrorMessage(data, fallback = "Request failed") {
+        return data?.error?.message || data?.message || data?.error || fallback;
+    },
+
     async sendOtp(type, recipient) {
         const res = await fetch("/api/auth/otp/send", {
             method: "POST",
@@ -11,7 +15,7 @@ export const authService = {
             body: JSON.stringify({ type, recipient })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(this.getErrorMessage(data));
         return data;
     },
 
@@ -22,19 +26,7 @@ export const authService = {
             body: JSON.stringify({ type, recipient, code })
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
+        if (!res.ok) throw new Error(this.getErrorMessage(data));
         return data.success;
-    },
-
-    async finalizeSignup(form) {
-        console.log(`[AUTH-SERVICE] Sending registration payload. Password length: ${form.password?.length || 0}`);
-        const res = await fetch("/api/auth/register", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(form)
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        return data;
     }
 };

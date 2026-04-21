@@ -14,6 +14,8 @@ import { getFirebaseAuth } from "../../lib/firebase/client";
 const AuthContext = createContext({
   user: null,
   profile: null,
+  bootstrap: null,
+  unreadNotificationCount: 0,
   loading: true,
   login: async () => { },
   register: async () => { },
@@ -41,12 +43,35 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
   };
 };
 
+const getApiErrorMessage = (data, fallback = "Request failed") => (
+  data?.error?.message || data?.message || data?.error || fallback
+);
+
+const normalizeRegistrationDetails = (detailsOrName, gender, age) => {
+  if (detailsOrName && typeof detailsOrName === "object") return detailsOrName;
+  return {
+    displayName: detailsOrName,
+    gender,
+    age: parseInt(age, 10) || age,
+  };
+};
+
+const normalizeBootstrapPayload = (data) => ({
+  bootstrap: data || null,
+  profile: data?.profile || data?.user || null,
+  unreadNotificationCount: data?.shell?.unreadNotificationCount || 0,
+});
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [bootstrap, setBootstrap] = useState(null);
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const userRef = useRef(user);
   const profileRef = useRef(profile);
+  useEffect(() => { userRef.current = user; }, [user]);
   useEffect(() => { profileRef.current = profile; }, [profile]);
 
   // ── Token cache: avoids a network round-trip to Google on every click ────────
@@ -56,7 +81,7 @@ export function AuthProvider({ children }) {
   const tokenRefreshTimerRef = useRef(null);
 
   const getCachedToken = useCallback(async (forceUser) => {
-    const firebaseUser = forceUser || user;
+    const firebaseUser = forceUser || userRef.current;
     if (!firebaseUser) return null;
     const now = Date.now();
     const { token, expiresAt } = tokenCacheRef.current;
@@ -67,7 +92,7 @@ export function AuthProvider({ children }) {
     // Firebase tokens expire in 1 hour — cache for 55 minutes
     tokenCacheRef.current = { token: fresh, expiresAt: now + 55 * 60 * 1000 };
     return fresh;
-  }, [user]);
+  }, []);
 
   // Schedule a proactive token refresh 55 minutes after login so the next
   // click after an hour never blocks waiting for a network round-trip
@@ -84,47 +109,83 @@ export function AuthProvider({ children }) {
     }, 55 * 60 * 1000);
   }, []);
 
+  const syncSession = useCallback(async (firebaseUser) => {
+    if (!firebaseUser) {
+      await fetch("/api/auth/session", { method: "DELETE" });
+      return null;
+    }
+
+    const idToken = await getCachedToken(firebaseUser);
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken })
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error(getApiErrorMessage(data, "Unable to synchronize session."));
+    }
+    return idToken;
+  }, [getCachedToken]);
+
+  const loadBootstrap = useCallback(async (token) => {
+    const res = await fetch('/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const next = normalizeBootstrapPayload(data);
+    setBootstrap(next.bootstrap);
+    setUnreadNotificationCount(next.unreadNotificationCount);
+    if (next.profile) {
+      setProfile(next.profile);
+    }
+    return next;
+  }, []);
+
   const ensureProfile = useCallback(async (firebaseUser, overrides = {}) => {
     try {
       const token = await getCachedToken(firebaseUser);
-      const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
       const payload = buildProfilePayload(firebaseUser, overrides);
 
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.user) {
-          // Sync photo if missing in DB but present in Firebase
-          if ((!data.user.photoURL || !data.user.avatar) && firebaseUser.photoURL) {
-            const syncPayload = {
-              photoURL: firebaseUser.photoURL,
-              avatar: firebaseUser.photoURL
-            };
-            // Awaited so profile state is consistent before returning
-            try {
-              await fetch('/api/auth/profile', {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify(syncPayload)
-              });
-            } catch (syncErr) {
-              console.warn("[Auth] Photo sync failed", syncErr);
+      const bootstrapData = await loadBootstrap(token);
+      const nextProfile = bootstrapData?.profile || null;
+
+      if (nextProfile) {
+        // Sync photo if missing in DB but present in Firebase
+        if ((!nextProfile.photoURL || !nextProfile.avatar) && firebaseUser.photoURL) {
+          const syncPayload = {
+            photoURL: firebaseUser.photoURL,
+            avatar: firebaseUser.photoURL
+          };
+          // Awaited so profile state is consistent before returning
+          try {
+            const syncRes = await fetch('/api/auth/profile', {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+              },
+              body: JSON.stringify({ type: 'user', updates: syncPayload })
+            });
+            if (syncRes.ok) {
+              const refreshed = await loadBootstrap(token);
+              return refreshed?.profile || { ...nextProfile, ...syncPayload };
             }
-            const updatedProfile = { ...data.user, ...syncPayload };
-            setProfile(updatedProfile);
-            return updatedProfile;
+          } catch (syncErr) {
+            console.warn("[Auth] Photo sync failed", syncErr);
           }
-          setProfile(data.user);
-          return data.user;
+          const updatedProfile = { ...nextProfile, ...syncPayload };
+          setProfile(updatedProfile);
+          return updatedProfile;
         }
+
+        return nextProfile;
       }
 
-      await fetch('/api/auth/profile', {
+      const createRes = await fetch('/api/auth/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -132,14 +193,21 @@ export function AuthProvider({ children }) {
         },
         body: JSON.stringify(payload)
       });
-      setProfile(payload);
-      return payload;
+      const createData = await createRes.json().catch(() => ({}));
+      if (!createRes.ok) {
+        throw new Error(getApiErrorMessage(createData, "Unable to create profile."));
+      }
+
+      const refreshed = await loadBootstrap(token);
+      const createdProfile = refreshed?.profile || createData?.profile || payload;
+      setProfile(createdProfile);
+      return createdProfile;
     } catch (profileError) {
       console.error("ensureProfile error", profileError);
       setError("Unable to ensure profile via API.");
       return null;
     }
-  }, []);
+  }, [getCachedToken, loadBootstrap]);
 
   useEffect(() => {
     let unsubscribe;
@@ -158,13 +226,8 @@ export function AuthProvider({ children }) {
           if (authUser) {
             try {
               // getCachedToken seeds the cache here — all subsequent clicks are instant
-              const idToken = await getCachedToken(authUser);
+              await syncSession(authUser);
               scheduleTokenRefresh(authUser);
-              await fetch("/api/auth/session", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ idToken })
-              });
             } catch (err) {
               console.warn("[Auth] Session sync failed", err);
             }
@@ -177,7 +240,7 @@ export function AuthProvider({ children }) {
             }
             // Clear session cookie on logout
             try {
-              await fetch("/api/auth/session", { method: "DELETE" });
+              await syncSession(null);
             } catch {
               // non-fatal — cookie will expire naturally
             }
@@ -191,6 +254,8 @@ export function AuthProvider({ children }) {
             }
           } else {
             setProfile(null);
+            setBootstrap(null);
+            setUnreadNotificationCount(0);
           }
           setLoading(false);
         });
@@ -208,7 +273,7 @@ export function AuthProvider({ children }) {
       mounted = false;
       unsubscribe?.();
     };
-  }, [ensureProfile]);
+  }, [ensureProfile, syncSession, scheduleTokenRefresh]);
 
   const login = useCallback(async (email, password, rememberMe = true) => {
     const {
@@ -220,30 +285,40 @@ export function AuthProvider({ children }) {
     const auth = await getFirebaseAuth();
     await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
     const credential = await signInWithEmailAndPassword(auth, email, password);
+    await syncSession(credential.user);
     const profile = await ensureProfile(credential.user);
     return { user: credential.user, profile };
-  }, [ensureProfile]);
+  }, [ensureProfile, syncSession]);
 
-  const register = useCallback(async (email, password, displayName, gender, age) => {
+  const register = useCallback(async (email, password, detailsOrName, gender, age) => {
     const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
     const auth = await getFirebaseAuth();
+    const details = normalizeRegistrationDetails(detailsOrName, gender, age);
+    const displayName = details.displayName || details.name;
     const credential = await createUserWithEmailAndPassword(auth, email, password);
     if (displayName) {
       await updateProfile(credential.user, { displayName });
     }
-    await ensureProfile(credential.user, {
+    await syncSession(credential.user);
+    const profile = await ensureProfile(credential.user, {
       displayName: displayName || credential.user.displayName,
-      gender,
-      age: parseInt(age, 10) || age
+      gender: details.gender,
+      age: details.age !== undefined ? (parseInt(details.age, 10) || details.age) : undefined,
+      phone: details.phone,
+      city: details.city,
+      instagram: details.instagram,
+      onboardingComplete: details.onboardingComplete === true
     });
-    return credential.user;
-  }, [ensureProfile]);
+    return { user: credential.user, profile };
+  }, [ensureProfile, syncSession]);
 
   const logout = useCallback(async () => {
     const { signOut } = await import("firebase/auth");
     const auth = await getFirebaseAuth();
     await signOut(auth);
     setProfile(null);
+    setBootstrap(null);
+    setUnreadNotificationCount(0);
     setUser(null);
   }, []);
 
@@ -252,9 +327,10 @@ export function AuthProvider({ children }) {
     const auth = await getFirebaseAuth();
     const provider = new GoogleAuthProvider();
     const credential = await signInWithPopup(auth, provider);
+    await syncSession(credential.user);
     const profile = await ensureProfile(credential.user);
     return { user: credential.user, profile };
-  }, [ensureProfile]);
+  }, [ensureProfile, syncSession]);
 
   const updateEventList = useCallback(
     async (field, eventId, shouldInclude) => {
@@ -273,7 +349,7 @@ export function AuthProvider({ children }) {
       });
 
       const token = await getCachedToken();
-      await fetch('/api/auth/profile', {
+      const res = await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -281,6 +357,10 @@ export function AuthProvider({ children }) {
         },
         body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getApiErrorMessage(data, "Unable to update profile."));
+      }
     },
     [user?.uid, getCachedToken]
   );
@@ -290,7 +370,7 @@ export function AuthProvider({ children }) {
       if (!user?.uid) throw new Error("Not logged in");
 
       const token = await getCachedToken();
-      await fetch('/api/auth/profile', {
+      const res = await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -299,15 +379,25 @@ export function AuthProvider({ children }) {
         body: JSON.stringify({ type: 'user', updates })
       });
 
-      setProfile((prev) => ({ ...prev, ...updates }));
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(getApiErrorMessage(data, "Unable to update profile."));
+      }
+
+      const refreshed = await loadBootstrap(token);
+      if (!refreshed?.profile) {
+        setProfile((prev) => ({ ...prev, ...updates }));
+      }
     },
-    [user?.uid]
+    [user?.uid, getCachedToken, loadBootstrap]
   );
 
   const value = useMemo(
     () => ({
       user,
       profile,
+      bootstrap,
+      unreadNotificationCount,
       loading,
       error,
       login,
@@ -318,7 +408,7 @@ export function AuthProvider({ children }) {
       updateUserProfile,
       getToken: getCachedToken,
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, getCachedToken]
+    [user, profile, bootstrap, unreadNotificationCount, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, getCachedToken]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

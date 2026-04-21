@@ -117,7 +117,9 @@ export const useTicketsStore = create(
                 set({ status: "loading", error: null });
 
                 try {
-                    const res = await fetch("/api/tickets");
+                    const res = await fetch("/api/tickets", {
+                        credentials: "same-origin",
+                    });
                     if (!res.ok) throw new Error(`HTTP ${res.status}`);
                     const data = await res.json();
 

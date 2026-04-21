@@ -1,12 +1,13 @@
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import EventRSVP from "../../../components/EventRSVP";
-import { getEvent as getEventBase, getEventInterested } from "../../../lib/server/eventStore";
+import { fetchPublicEvent } from "../../../lib/server/publicDiscoveryBridge";
 import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
 import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 
-// Cache getEvent so metadata + page render share a single Firestore fetch
-const getEvent = cache(getEventBase);
+// Cache the gateway-backed event detail so metadata + page render share a fetch.
+const getEventDetail = cache(async (identifier) => fetchPublicEvent(identifier));
+const getEvent = async (identifier) => (await getEventDetail(identifier))?.event || null;
 
 export async function generateMetadata({ params }) {
   const { eventId } = await params;
@@ -68,11 +69,9 @@ export default async function EventDetailPage({ params }) {
   const { eventId } = await params;
   const identifier = decodeURIComponent(eventId);
 
-  // Fetch event and social proof in parallel
-  const [event, interestedData] = await Promise.all([
-    getEvent(identifier),
-    getEventInterested(identifier)
-  ]);
+  const detail = await getEventDetail(identifier);
+  const event = detail?.event || null;
+  const interestedData = detail?.interestedData || { count: 0, users: [] };
 
   if (!event) {
     return (

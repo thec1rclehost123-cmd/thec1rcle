@@ -65,7 +65,14 @@ const nextConfig = {
         destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
       }
     ]
-  }
+  },
+  webpack: (config) => {
+    config.ignoreWarnings = [
+      { module: /@opentelemetry/ },
+      { module: /@sentry/ },
+    ];
+    return config;
+  },
 };
 
 // Skip Sentry wrapping in development — it adds compilation overhead and network calls.

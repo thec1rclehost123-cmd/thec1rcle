@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import EventDetail from "./EventDetail";
 import { useAuth } from "./providers/AuthProvider";
@@ -9,7 +9,6 @@ import { saveIntent } from "../lib/utils/intentStore";
 import { useSocialActions } from "../hooks/useSocialActions";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { getFirebaseDb } from "../lib/firebase/client";
 
 const NotLiveModal = ({ isOpen, onClose }) => (
   <AnimatePresence>
@@ -65,7 +64,6 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   const { toast } = useToast();
   const [promoterCode, setPromoterCode] = useState(null);
   const [liveInterestedData, setLiveInterestedData] = useState(interestedData);
-  const unsubscribeRef = useRef(null);
   const [notLiveModalOpen, setNotLiveModalOpen] = useState(() => {
     const isPastFromStatus = event?.status === "past" || event?.lifecycle === "completed";
     const isPastFromDate = event?.endDate && new Date(event.endDate) < new Date();
@@ -95,43 +93,6 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
       fetch(`/api/events/${event.id}/view`, { method: "POST" })
         .catch(() => { /* non-critical */ });
     }
-  }, [event?.id]);
-
-  // Real-time interested count — listens to stats.saves on the event doc.
-  // Lazy-loads firebase/firestore to keep it out of the initial bundle.
-  useEffect(() => {
-    console.log("[debug] EventRSVP event.id:", event?.id);
-    if (!event?.id || typeof event.id !== "string") {
-        if (event?.id) console.error("[Firestore] Invalid event.id in EventRSVP:", event.id);
-        return;
-    }
-    let cancelled = false;
-
-    (async () => {
-      try {
-        const { onSnapshot, doc } = await import("firebase/firestore");
-        const db = await getFirebaseDb();
-        if (cancelled) return;
-        unsubscribeRef.current = onSnapshot(
-          doc(db, "events", event.id),
-          (snap) => {
-            if (!snap.exists()) return;
-            const saves = snap.data()?.stats?.saves;
-            if (typeof saves === "number") {
-              setLiveInterestedData(prev => ({ ...prev, count: saves }));
-            }
-          },
-          () => { /* silently ignore permission / network errors */ }
-        );
-      } catch {
-        // Firebase client unavailable (e.g. missing env vars in dev) — no-op
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      unsubscribeRef.current?.();
-    };
   }, [event?.id]);
 
   const ensureAuthenticated = (type) => {
@@ -193,6 +154,10 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         if (!ensureAuthenticated("RSVP")) return;
         const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
         toggleRSVP(!hasRSVPd);
+        setLiveInterestedData(prev => ({
+          ...prev,
+          count: Math.max(0, Number(prev?.count || 0) + (hasRSVPd ? -1 : 1))
+        }));
         break;
 
       case "LIKE":
