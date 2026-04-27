@@ -8,7 +8,6 @@ import { GuestStatusChip } from "@/components/guest-ops/chips/GuestStatusChip";
 import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
-import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { cn } from "@/lib/utils";
 import {
@@ -47,8 +46,7 @@ const SEARCH_TABS: { value: SearchField; label: string; icon: React.ElementType;
 ];
 
 export default function DoorSearchPageClient() {
-    const { profile } = useDashboardAuth();
-    const role = profile?.activeMembership?.role ?? "";
+    const { hasPermission } = useDashboardAuth();
 
     const {
         eventId, venueId, events, summary, openExceptions,
@@ -79,8 +77,7 @@ export default function DoorSearchPageClient() {
     const inputRef = useRef<HTMLInputElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
-    const canManage = permissions.includes("MANAGE_GUEST_OPS");
+    const canManage = hasPermission("MANAGE_GUEST_OPS");
 
     // ── Scanner codes state ────────────────────────────────────────────────────
     const [codes, setCodes] = useState<ScannerCode[]>([]);

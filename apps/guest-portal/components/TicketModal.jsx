@@ -30,20 +30,6 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
     }
   };
 
-  const total = useMemo(() => {
-    return tickets.reduce((sum, ticket) => {
-      const qty = Number(quantities[ticket.id] || 0);
-      return sum + qty * Number(ticket.price || 0);
-    }, 0);
-  }, [tickets, quantities]);
-
-  const totalQuantity = useMemo(() => {
-    return Object.values(quantities).reduce((sum, qty) => sum + Number(qty), 0);
-  }, [quantities]);
-
-  const isBelowMin = totalQuantity > 0 && totalQuantity < minTicketsPerOrder;
-  const isAboveMax = totalQuantity > maxTicketsPerOrder;
-
   return (
     <AnimatePresence>
       {open && (
@@ -121,66 +107,44 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                     )}
                   </AnimatePresence>
 
-                  <div className="flex items-center rounded-full border border-black/[0.06] dark:border-white/10 bg-black/[0.04] dark:bg-black/40 p-1.5 h-12">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = quantities[ticket.id] || 0;
-                        if (current > 0) {
-                          setQuantities(prev => ({ ...prev, [ticket.id]: current - 1 }));
-                        }
-                      }}
-                      className="flex h-9 w-12 items-center justify-center rounded-full text-black/60 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors active:scale-90"
-                      disabled={!quantities[ticket.id]}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="w-8 text-center text-base font-bold text-black dark:text-white tabular-nums">{quantities[ticket.id] || 0}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = quantities[ticket.id] || 0;
-                        if (current < ticket.quantity) {
+                    <div className="flex items-center rounded-full border border-black/[0.06] dark:border-white/10 bg-black/[0.04] dark:bg-black/40 p-1.5 h-12">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = quantities[ticket.id] || 0;
+                          if (current > 0) {
+                            setQuantities(prev => ({ ...prev, [ticket.id]: current - 1 }));
+                          }
+                        }}
+                        className="flex h-9 w-12 items-center justify-center rounded-full text-black/60 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors active:scale-90"
+                        disabled={!quantities[ticket.id]}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="w-8 text-center text-base font-bold text-black dark:text-white tabular-nums">{quantities[ticket.id] || 0}</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const current = quantities[ticket.id] || 0;
                           setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
-                        }
-                      }}
-                      className="flex h-9 w-12 items-center justify-center rounded-full text-black/60 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors active:scale-90 disabled:opacity-30"
-                      disabled={(quantities[ticket.id] || 0) >= ticket.quantity || totalQuantity >= maxTicketsPerOrder}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </button>
-                  </div>
+                        }}
+                        className="flex h-9 w-12 items-center justify-center rounded-full text-black/60 dark:text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors active:scale-90 disabled:opacity-30"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
                 </div>
               ))}
             </div>
 
             <div className="mt-6 border-t border-black/[0.06] dark:border-white/10 pt-4 px-2 space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-black/60 dark:text-white/60">Total</p>
-                <p className="text-2xl font-bold text-black dark:text-white">₹{total}</p>
-              </div>
-              {totalQuantity > 0 && (
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest">Quantity</p>
-                  <p className={`text-[10px] font-bold ${isAboveMax ? "text-red-500" : "text-black/60 dark:text-white/60"}`}>
-                    {totalQuantity} / {maxTicketsPerOrder}
-                  </p>
-                </div>
-              )}
-              {isAboveMax && (
-                <p className="text-[10px] text-red-500 font-bold mt-1">Maximum {maxTicketsPerOrder} tickets allowed per account.</p>
-              )}
-              {isBelowMin && (
-                <p className="text-[10px] text-orange-400 font-bold">Min {minTicketsPerOrder} tickets required.</p>
-              )}
             </div>
             <button
               type="button"
               onClick={handlePurchase}
-              disabled={totalQuantity === 0 || isBelowMin || isAboveMax}
               className="w-full rounded-full bg-white py-4 text-xs font-bold uppercase tracking-[0.3em] text-black transition hover:bg-white/90 active:scale-[0.98] mt-4"
             >
-              {total === 0 ? "Confirm RSVP" : "Purchase Tickets"}
+              Purchase Tickets
             </button>
           </motion.div>
         </motion.div>

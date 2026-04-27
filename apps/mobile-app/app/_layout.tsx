@@ -23,6 +23,7 @@ import { hasCompletedOnboarding } from "@/app/onboarding";
 import { hasCompletedProfileSetup } from "@/app/profile-setup";
 import { colors } from "@/lib/design/theme";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import { DemoDataProvider } from "@/components/DemoDataProvider";
 
 // Prevent auto-hide until we're ready
 SplashScreen.preventAutoHideAsync().catch(() => {
@@ -277,6 +278,7 @@ export default function RootLayout() {
 
     return (
         <QueryProvider>
+            <DemoDataProvider>
             <ErrorBoundary>
                 <SafeAreaProvider>
                     <RootGestureHandlerView style={{ flex: 1 }} onLayout={onLayoutRootView}>
@@ -499,6 +501,7 @@ export default function RootLayout() {
                     </RootGestureHandlerView>
                 </SafeAreaProvider>
             </ErrorBoundary>
+            </DemoDataProvider>
         </QueryProvider>
     );
 }

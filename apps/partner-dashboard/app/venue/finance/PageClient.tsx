@@ -87,10 +87,12 @@ function InitiatePayoutModal({
     available,
     currency,
     onClose,
+    instantFeeRate = 0,
 }: {
     available: number;
     currency: string;
     onClose: () => void;
+    instantFeeRate?: number;
 }) {
     const [amount, setAmount] = useState("");
     const [method, setMethod] = useState<"standard" | "instant">("standard");
@@ -98,7 +100,7 @@ function InitiatePayoutModal({
     const [success, setSuccess] = useState(false);
 
     const max = available;
-    const fee = method === "instant" ? Number(amount || 0) * 0.03 : 0;
+    const fee = method === "instant" ? Number(amount || 0) * instantFeeRate : 0;
 
     const handleSubmit = async () => {
         if (!amount || Number(amount) <= 0) return;
@@ -385,6 +387,7 @@ export default function VenueFinancePageClient() {
     // Modals
     const [showPayoutModal, setShowPayoutModal] = useState(false);
     const [showAddBankModal, setShowAddBankModal] = useState(false);
+    const [instantFeeRate, setInstantFeeRate] = useState(0);
 
     // ── Fetchers ──────────────────────────────────────────────────────────────
 
@@ -441,6 +444,19 @@ export default function VenueFinancePageClient() {
         fetchPayouts(1);
         fetchAccounts();
     }, [fetchBalance, fetchPayouts, fetchAccounts]);
+
+    useEffect(() => {
+        (async () => {
+            try {
+                const token = await getToken();
+                const res = await fetch("/api/finance/payout-config", {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                const data = await res.json();
+                if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate);
+            } catch (err) {}
+        })();
+    }, [getToken]);
 
     const handlePageChange = (next: number) => {
         setPage(next);
@@ -717,6 +733,7 @@ export default function VenueFinancePageClient() {
                         available={balance.available}
                         currency={settings.currency}
                         onClose={() => setShowPayoutModal(false)}
+                        instantFeeRate={instantFeeRate}
                     />
                 )}
             </AnimatePresence>

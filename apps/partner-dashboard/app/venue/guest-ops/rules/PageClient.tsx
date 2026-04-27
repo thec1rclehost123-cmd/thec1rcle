@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
-import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     Settings2, Save, Loader2, AlertTriangle, CheckCircle2, Lock,
@@ -22,7 +21,7 @@ type ToggleField =
     | "exportEnabled";
 
 export default function GuestRulesPageClient() {
-    const { profile } = useDashboardAuth();
+    const { profile, hasPermission } = useDashboardAuth();
     const role = profile?.activeMembership?.role ?? "";
 
     const {
@@ -41,8 +40,7 @@ export default function GuestRulesPageClient() {
     const [allocations, setAllocations] = useState<GuestAllocation[]>([]);
     const [allocLoading, setAllocLoading] = useState(false);
 
-    const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
-    const canManage = permissions.includes("MANAGE_GUEST_OPS");
+    const canManage = hasPermission("MANAGE_GUEST_OPS");
     const isOwner = role === "OWNER";
 
     const fetchRulesAndAllocations = useCallback(async () => {

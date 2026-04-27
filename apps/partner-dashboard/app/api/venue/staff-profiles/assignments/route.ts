@@ -1,33 +1,11 @@
-/**
- * GET /api/venue/staff-profiles/assignments?venueId=
- *   → returns all { uid, staffProfileId } pairs for active memberships in this venue
- *   Used by the Access Profiles page to build profile → staff maps in one request
- */
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireManagementRole } from "@/lib/rbac/staffProfileEnforcer";
-import { getAdminDb } from "@/lib/firebase/admin";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export async function GET(request: Request) {
-    try {
-        const ctx = await requireManagementRole(request);
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-        const db = getAdminDb();
-        const snap = await db
-            .collection("partner_memberships")
-            .where("partnerId", "==", ctx.venueId)
-            .where("isActive", "==", true)
-            .get();
-
-        const assignments = snap.docs.map((doc) => ({
-            uid: doc.data().uid as string,
-            staffProfileId: (doc.data().staffProfileId as string | null) ?? null,
-        }));
-
-        return NextResponse.json({ assignments });
-    } catch (err: any) {
-        console.error("[staff-profiles/assignments GET]", err.message);
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
+export async function GET(req: NextRequest) {
+    const ctx = await requireManagementRole(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff-profiles/assignments?${searchParams}`, {});
 }

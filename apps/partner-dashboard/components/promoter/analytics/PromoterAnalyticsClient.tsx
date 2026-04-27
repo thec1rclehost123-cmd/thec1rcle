@@ -116,14 +116,7 @@ export function PromoterAnalyticsClient() {
     const activities = data?.activities || [];
     const eventOptions = useMemo(() => {
         const links = Array.isArray(eventsData?.links) ? eventsData.links : [];
-        const seen = new Set<string>();
-        return links.reduce((acc: Array<{ id: string; title: string }>, link: any) => {
-            const id = String(link?.eventId || "");
-            if (!id || seen.has(id)) return acc;
-            seen.add(id);
-            acc.push({ id, title: link?.eventTitle || "Untitled Event" });
-            return acc;
-        }, []);
+        return links; // Presume backend returns ready-to-use options or links map directly to options
     }, [eventsData]);
 
     // Chart data points based on selected metric

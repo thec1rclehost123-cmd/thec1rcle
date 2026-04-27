@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 
-export const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+export const GATEWAY_URL = process.env.GATEWAY_URL;
 
 /**
  * Standard utility wrapper for API Gateway proxy requests.
  * Parses the JSON response automatically and ensures a properly formatted NextResponse.
+ * Hard-fails with 503 if GATEWAY_URL is not set, 502 if gateway is unreachable.
  */
 export async function proxyToGateway(req: Request, url: string, init: RequestInit): Promise<NextResponse> {
     if (!GATEWAY_URL) {
@@ -13,11 +14,14 @@ export async function proxyToGateway(req: Request, url: string, init: RequestIni
 
     try {
         const forwardedHeaders = new Headers(init.headers);
-    
-        // Forward critical headers
-        ['authorization', 'x-partner-id', 'x-venue-id', 'x-host-id', 'content-type'].forEach(h => {
+
+        ['authorization', 'x-partner-id', 'x-venue-id', 'x-host-id', 'x-workspace-id', 'x-request-id', 'x-forwarded-for', 'content-type'].forEach(h => {
             const val = req.headers.get(h);
             if (val && !forwardedHeaders.has(h)) {
+                // Special case: Do NOT forward content-type for FormData, let fetch generate it with the correct boundary
+                if (h === 'content-type' && init.body instanceof FormData) {
+                    return;
+                }
                 forwardedHeaders.set(h, val);
             }
         });
@@ -33,25 +37,5 @@ export async function proxyToGateway(req: Request, url: string, init: RequestIni
     } catch (err) {
         console.error("[API Gateway Proxy Error]", err);
         return NextResponse.json({ error: "Failed to communicate with underlying service" }, { status: 502 });
-    }
-}
-
-/**
- * Attempt to proxy to gateway, but return null on failure (for fallback logic).
- */
-export async function tryProxyToGateway(req: Request, url: string, init: RequestInit): Promise<any | null> {
-    if (!GATEWAY_URL) return null;
-    try {
-        const forwardedHeaders = new Headers(init.headers);
-        ['authorization', 'x-partner-id', 'x-venue-id', 'x-host-id', 'content-type'].forEach(h => {
-            const val = req.headers.get(h);
-            if (val && !forwardedHeaders.has(h)) forwardedHeaders.set(h, val);
-        });
-
-        const res = await fetch(url, { ...init, headers: forwardedHeaders, signal: AbortSignal.timeout(4000) });
-        if (!res.ok) return null;
-        return await res.json().catch(() => null);
-    } catch {
-        return null;
     }
 }

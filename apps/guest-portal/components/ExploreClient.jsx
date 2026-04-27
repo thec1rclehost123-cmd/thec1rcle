@@ -79,9 +79,6 @@ const isWeekend = (date) => {
 const getStartingPrice = (event) => {
   if (typeof event.startingPrice === "number") return event.startingPrice;
   if (typeof event.priceRange?.min === "number") return event.priceRange.min;
-  if (Array.isArray(event.tickets) && event.tickets.length) {
-    return event.tickets.reduce((min, ticket) => Math.min(min, Number(ticket.price) || 0), Infinity);
-  }
   return 0;
 };
 
@@ -274,124 +271,14 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
     [activeSort, trendingEvents, events]
   );
 
-  const processedEvents = useMemo(() => {
-    return eventsSource.map((event) => {
-      const searchHaystack = [
-        event.title,
-        event.location,
-        event.city,
-        event.host,
-        event.description,
-        ...(event.tags || [])
-      ].join(" ").toLowerCase();
+  const processedEvents = eventsSource;
 
-      const parsedDate = toDate(event.startDateTime || event.startDate);
-      const parsedTime = parsedDate ? parsedDate.getTime() : Number.MAX_SAFE_INTEGER;
-      const startingPrice = getStartingPrice(event);
-
-      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const eventType = slugify(primaryTag || event.eventType || event.category || "");
-
-      return {
-        ...event,
-        _searchHaystack: searchHaystack,
-        _parsedDate: parsedDate,
-        _parsedTime: parsedTime,
-        _startingPrice: startingPrice,
-        _eventType: eventType,
-      };
-    });
-  }, [eventsSource]);
-
-  const filteredEvents = useMemo(() => {
-    if (!processedEvents.length) return [];
-    const typeFilter = filters.eventType || "all";
-    const priceFilter = filters.price;
-    const curatedFilter = filters.curatedCategory || "all";
-    const normalizedSearch = debouncedSearch.trim().toLowerCase();
-    const targetCity = selectedCity || cityOptions[0]?.value || "";
-    const customStart = filters.datePreset === "custom" && filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
-    const customEnd =
-      filters.datePreset === "custom" && filters.endDate ? new Date(`${filters.endDate}T23:59:59`) : null;
-    const now = new Date();
-
-    const matchesDatePreset = (event) => {
-      if (filters.datePreset === "any") return true;
-      const eventDate = event._parsedDate;
-      if (!eventDate) return true;
-      if (filters.datePreset === "today") {
-        return isSameDay(eventDate, now);
-      }
-      if (filters.datePreset === "weekend") {
-        return isWeekend(eventDate);
-      }
-      if (filters.datePreset === "custom") {
-        if (customStart && eventDate < customStart) return false;
-        if (customEnd && eventDate > customEnd) return false;
-        return true;
-      }
-      return true;
-    };
-
-    const matchesSearch = (event) => {
-      if (!normalizedSearch) return true;
-      return event._searchHaystack.includes(normalizedSearch);
-    };
-
-    const matchesCity = (event) => {
-      if (!targetCity) return true;
-      return event.cityKey === targetCity;
-    };
-    const matchesType = (event) => {
-      if (typeFilter === "all") return true;
-      return event._eventType === typeFilter;
-    };
-
-    const matchesCuratedCategory = (event) => {
-      if (curatedFilter === "all") return true;
-      const keywords = curatedCategoryMatchers[curatedFilter] || [];
-      return keywords.some((keyword) => event._searchHaystack.includes(keyword));
-    };
-
-    const matchesPrice = (event) => {
-      if (priceFilter === "all") return true;
-      if (priceFilter === "free") return event._startingPrice <= 0 || event.isFree;
-      if (priceFilter === "paid") return event._startingPrice > 0;
-      return true;
-    };
-
-    const comparator = sortComparators[activeSort] || sortComparators.Trending;
-
-    return processedEvents
-      .filter((event) => {
-        const eventEnd = toEventEndDate(event.endDate || event.startDate);
-        if (eventEnd && eventEnd < now) return false;
-
-        return (
-          matchesCity(event) &&
-          matchesType(event) &&
-          matchesCuratedCategory(event) &&
-          matchesPrice(event) &&
-          matchesSearch(event) &&
-          matchesDatePreset(event)
-        );
-      })
-      .sort(comparator);
-  }, [processedEvents, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
+  const filteredEvents = processedEvents;
 
   const activeCityLabel = cityOptions.find((option) => option.value === selectedCity)?.label || cityOptions[0]?.label || "your city";
   const fallbackCities = cityOptions.filter((option) => option.value !== selectedCity).slice(0, 2);
   const showCustomRange = filters.datePreset === "custom";
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (filters.datePreset !== "any") count += 1;
-    if (filters.price !== "all") count += 1;
-    if (filters.eventType !== "all") count += 1;
-    if (filters.curatedCategory && filters.curatedCategory !== "all") count += 1;
-    if (filters.startDate || filters.endDate) count += 1;
-    if (searchTerm.trim()) count += 1;
-    return count;
-  }, [filters.datePreset, filters.price, filters.eventType, filters.curatedCategory, filters.startDate, filters.endDate, searchTerm]);
+  const activeFilterCount = 0;
   const filterSummaryLabel = activeFilterCount
     ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
     : "No filters applied";

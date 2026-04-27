@@ -5,8 +5,8 @@
  *   1. Guest list  — /api/venue/guest-ops/[id]/guests        (online purchases + manual adds)
  *   2. Scanner stream — /api/venue/guest-ops/[id]/scanner/stream  (door / offline scans)
  *
- * Both are polled every 30 s.  In dev, if either source fails the hook
- * automatically falls back to mock data and sets `isUsingMock = true`.
+ * Both are polled every 30 s. When the backend fails, the hook exposes an
+ * explicit error state and clears rendered attendee data.
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
@@ -37,7 +37,6 @@ export interface UseEventAttendeesReturn {
     totalCount: number;
     isLoading: boolean;
     isError: boolean;
-    isUsingMock: boolean;
     /** Force an immediate re-fetch (e.g. after a manual action) */
     refresh: () => void;
 }
@@ -123,6 +122,7 @@ export function useEventAttendees(
         } catch (err: any) {
             if (!mountedRef.current) return;
             console.error("[useEventAttendees] fetch error:", err?.message);
+            setAttendees([]);
             setIsError(true);
         } finally {
             if (mountedRef.current) setIsLoading(false);
@@ -149,7 +149,6 @@ export function useEventAttendees(
         totalCount: attendees.length,
         isLoading,
         isError,
-        isUsingMock: false,
         refresh: fetchAll,
     };
 }

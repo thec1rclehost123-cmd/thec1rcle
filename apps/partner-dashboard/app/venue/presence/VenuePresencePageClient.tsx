@@ -950,8 +950,8 @@ export default function VenuePresencePageClient() {
                                     <SectionHeader title="Audience Overview" subtitle="Understand your community and reach" icon={Users} />
                                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                                         <EngagementStat label="Total Followers" value={data?.stats?.followersCount || 0} change="+12%" positive />
-                                        <EngagementStat label="This Month" value={Math.floor((data?.stats?.followersCount || 0) * 0.15)} change="+8%" positive />
-                                        <EngagementStat label="Engagement Rate" value={`${((data?.stats?.totalLikes || 0) / Math.max(data?.stats?.followersCount || 1, 1) * 100).toFixed(1)}%`} change="+3%" positive />
+                                        <EngagementStat label="This Month" value="—" change="" positive={false} />
+                                        <EngagementStat label="Engagement Rate" value={data?.stats?.engagementRate != null ? `${data.stats.engagementRate}%` : "—"} change="" positive />
                                         <EngagementStat label="Page Views" value={data?.stats?.totalViews || 0} change="+24%" positive />
                                     </div>
                                 </section>
@@ -959,32 +959,8 @@ export default function VenuePresencePageClient() {
                                 {/* Follower Growth */}
                                 <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Follower Growth" subtitle="Track your audience expansion over time" icon={TrendingUp} />
-                                    <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8">
-                                        <div className="flex items-end gap-1.5 h-40">
-                                            {(() => {
-                                                const total = data?.stats?.followersCount || 0;
-                                                const months = ["Sep", "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"];
-                                                const factors = [0.35, 0.42, 0.55, 0.63, 0.74, 0.88, 1.0];
-                                                return months.map((m, i) => {
-                                                    const val = Math.floor(total * factors[i]);
-                                                    const pct = total > 0 ? (val / total) * 100 : 0;
-                                                    return (
-                                                        <div key={m} className="flex-1 flex flex-col items-center gap-2">
-                                                            <div className="w-full relative group">
-                                                                <div
-                                                                    className="w-full bg-gradient-to-t from-indigo-600 to-indigo-400 rounded-t-lg transition-all hover:from-indigo-500 hover:to-indigo-300"
-                                                                    style={{ height: `${Math.max(8, pct * 1.4)}px` }}
-                                                                />
-                                                                <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-surface-base rounded-lg text-[9px] font-bold text-text-primary shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap border border-border-subtle">
-                                                                    {formatNumber(val)}
-                                                                </div>
-                                                            </div>
-                                                            <span className="text-[9px] font-bold text-text-tertiary uppercase">{m}</span>
-                                                        </div>
-                                                    );
-                                                });
-                                            })()}
-                                        </div>
+                                    <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 flex items-center justify-center h-40">
+                                        <p className="text-[13px] text-text-tertiary">Growth data not yet available</p>
                                     </div>
                                 </section>
 

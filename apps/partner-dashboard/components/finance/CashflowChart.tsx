@@ -223,8 +223,8 @@ export function CashflowChart({
         );
     };
 
-    // Compute total money-in to display as the headline number
-    const totalMoneyIn = data?.reduce((sum, d) => sum + (d.moneyIn ?? 0), 0) ?? 0;
+    // Total money-in provided by backend headline metrics
+    const totalMoneyIn = 0; 
 
     return (
         <div className={cn(className)} style={{ position: "relative", overflow: "hidden", borderRadius: "1.5rem" }}>

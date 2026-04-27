@@ -26,121 +26,6 @@ function subDays(date: Date, days: number): Date {
     return new Date(date.getTime() - days * 86_400_000);
 }
 
-function buildEmbeddedEventAnalyticsPayload(overview: any, finance: any) {
-    const totalRevenue = Number(finance?.gross ?? overview?.grossRevenue ?? 0);
-    const totalNetPayable = Number(finance?.net ?? overview?.estimatedEarnings ?? 0);
-    const ticketsSold = Number(overview?.ticketsSold ?? 0);
-    const totalCheckIns = Number(overview?.totalCheckedIn ?? 0);
-    const guestlistSignups = Number(overview?.guestListSize ?? 0);
-    const capacity = Number(overview?.capacity ?? 0);
-    const views = Number(overview?.views ?? 0);
-    const refundAmount = Number(finance?.refundAmount ?? 0);
-    const avgTicketPrice = ticketsSold > 0 ? totalRevenue / ticketsSold : 0;
-    const repeatGuests = Number(overview?.repeatGuests ?? 0);
-    const uniqueAttendees = Number(overview?.uniqueAttendees ?? 0);
-    const repeatGuestRate = uniqueAttendees > 0 ? (repeatGuests / uniqueAttendees) * 100 : 0;
-    const firstTimeGuestRate = uniqueAttendees > 0 ? (Number(overview?.firstTimeGuests ?? 0) / uniqueAttendees) * 100 : 0;
-    const promoterDrivenSales = Number(overview?.topPromoter?.revenue ?? 0);
-    const directSales = Math.max(totalRevenue - promoterDrivenSales, 0);
-    const purchaseToArrival = ticketsSold > 0 ? (Math.min(totalCheckIns, ticketsSold) / ticketsSold) * 100 : 0;
-
-    return {
-        dataReady: totalRevenue > 0 || ticketsSold > 0 || totalCheckIns > 0 || views > 0,
-        totalRevenue,
-        totalNetPayable,
-        ticketsSold,
-        totalCheckIns,
-        guestlistSignups,
-        occupancyRate: capacity > 0 ? (totalCheckIns / capacity) * 100 : 0,
-        sellThroughRate: Number(overview?.sellThrough ?? 0),
-        avgTicketPrice,
-        refundAmount,
-        refundRate: totalRevenue > 0 ? (refundAmount / totalRevenue) * 100 : 0,
-        noShowRate: ticketsSold > 0 ? (Math.max(ticketsSold - Math.min(totalCheckIns, ticketsSold), 0) / ticketsSold) * 100 : 0,
-        repeatGuests,
-        repeatGuestRate,
-        firstTimeGuestRate,
-        promoterDrivenSales,
-        directSales,
-        pendingPayout: finance?.settlementStatus === "paid" ? 0 : totalNetPayable,
-        completedPayout: finance?.settlementStatus === "paid" ? totalNetPayable : 0,
-        profitEstimate: Number(finance?.net ?? 0),
-        contributionMargin: totalRevenue > 0 ? (Number(finance?.net ?? 0) / totalRevenue) * 100 : 0,
-        revenueTimeline: Array.isArray(overview?.salesTimeline)
-            ? overview.salesTimeline.map((point: any) => ({
-                date: point.label ?? point.date,
-                revenue: Number(point.revenue ?? 0),
-                gross: Number(point.revenue ?? 0),
-                net: Number(point.revenue ?? 0),
-            }))
-            : [],
-        ticketsTimeline: Array.isArray(overview?.salesTimeline)
-            ? overview.salesTimeline.map((point: any) => ({
-                date: point.label ?? point.date,
-                tickets: Number(point.tickets ?? 0),
-            }))
-            : [],
-        revenueByTicketType: Array.isArray(finance?.ticketMix)
-            ? finance.ticketMix.map((tier: any) => ({
-                type: tier.tierName ?? "General",
-                revenue: Number(tier.revenue ?? 0),
-                pct: totalRevenue > 0 ? (Number(tier.revenue ?? 0) / totalRevenue) * 100 : 0,
-            }))
-            : [],
-        funnel: [
-            { stage: "Page Views", count: views },
-            { stage: "Guestlist Starts", count: guestlistSignups },
-            { stage: "Purchases", count: ticketsSold },
-            { stage: "Arrived & Checked In", count: totalCheckIns },
-        ],
-        viewToPurchase: views > 0 ? (ticketsSold / views) * 100 : 0,
-        viewToGuestlist: views > 0 ? (guestlistSignups / views) * 100 : 0,
-        checkoutAbandonRate: 0,
-        purchaseToArrival,
-        guestlistToArrival: guestlistSignups > 0 ? (Math.min(totalCheckIns, guestlistSignups) / guestlistSignups) * 100 : 0,
-        totalUniqueGuests: uniqueAttendees,
-        newGuests: Number(overview?.firstTimeGuests ?? 0),
-        topEvents: [{
-            id: "current-event",
-            title: "Current Event",
-            date: "",
-            venue: "",
-            revenue: totalRevenue,
-            net: totalNetPayable,
-            issued: ticketsSold,
-            checkIns: totalCheckIns,
-            capacity,
-            occupancy: capacity > 0 ? (totalCheckIns / capacity) * 100 : 0,
-            sellThrough: Number(overview?.sellThrough ?? 0),
-            refunds: refundAmount,
-            noShows: Math.max(ticketsSold - Math.min(totalCheckIns, ticketsSold), 0),
-            guestlistSignups,
-            guestlistArrivals: Math.min(totalCheckIns, guestlistSignups),
-            avgOrderValue: avgTicketPrice,
-            avgTicketPrice,
-            repeatGuestShare: repeatGuestRate,
-            firstTimeGuestShare: firstTimeGuestRate,
-            peakArrivalWindow: overview?.peakCheckInHour?.label ?? "—",
-            score: Number(overview?.conversionRate ?? 0),
-            qualityScore: Number(overview?.conversionRate ?? 0),
-            efficiencyScore: Number(overview?.sellThrough ?? 0),
-            profitEstimate: Number(finance?.net ?? 0),
-            status: "complete",
-            scanSuccessRate: purchaseToArrival,
-        }],
-        entryCurve: Array.isArray(overview?.hourlyTimeline)
-            ? overview.hourlyTimeline.map((point: any) => ({
-                hour: point.label ?? `${point.hour}:00`,
-                count: Number(point.checkIns ?? 0),
-                pct: totalCheckIns > 0 ? (Number(point.checkIns ?? 0) / totalCheckIns) * 100 : 0,
-            }))
-            : [],
-        totalScans: totalCheckIns,
-        successfulScans: totalCheckIns,
-        rejectedScans: 0,
-        capacityUtilization: capacity > 0 ? (totalCheckIns / capacity) * 100 : 0,
-    };
-}
 
 export default function EventAnalyticsClient({
     role,
@@ -196,13 +81,9 @@ export default function EventAnalyticsClient({
             };
 
             if (useEmbeddedEventAnalytics && eventId) {
-                const [overviewRes, financeRes] = await Promise.all([
-                    fetch(`/api/venue/events/${eventId}/overview`, { headers }),
-                    fetch(`/api/venue/events/${eventId}/finance`, { headers }),
-                ]);
-                if (!overviewRes.ok || !financeRes.ok) throw new Error("Failed to load event analytics");
-                const [overview, finance] = await Promise.all([overviewRes.json(), financeRes.json()]);
-                return buildEmbeddedEventAnalyticsPayload(overview, finance);
+                const res = await fetch(`/api/venue/events/${eventId}/computed-analytics`, { headers });
+                if (!res.ok) throw new Error("Failed to load event analytics");
+                return res.json();
             }
 
             const url = `/api/${role}/analytics/overview?${idParam}=${entityId}&eventId=${eventId}`;

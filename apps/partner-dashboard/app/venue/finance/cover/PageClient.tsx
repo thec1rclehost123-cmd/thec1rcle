@@ -24,6 +24,8 @@ interface Reconciliation {
     exceptionList: Array<{ type: string; walletId: string; description: string }>;
     isLive: boolean;
     ticketRevenuePaise?: number;
+    payoutTotal?: number;
+    venueTicketSplitPct?: number;
 }
 
 export function CoverReconClient() {
@@ -67,9 +69,8 @@ export function CoverReconClient() {
     }
 
     const totalRedeemable = recon ? recon.grossCollection - recon.totalRedeemed : 0;
-    const payoutTotal = recon
-        ? Math.round((recon.ticketRevenuePaise || 0) * 0.70) + recon.breakageRevenue
-        : 0;
+    const payoutTotal = recon?.payoutTotal ?? 0;
+    const splitPct = recon?.venueTicketSplitPct ?? 70;
 
     return (
         <VenuePageShell
@@ -159,8 +160,8 @@ export function CoverReconClient() {
                         <div className="flex flex-wrap items-center gap-2 text-[13px] text-text-secondary">
                             <span className="font-semibold text-text-primary">
                                 {recon.ticketRevenuePaise
-                                    ? `${formatINRFromPaise(recon.ticketRevenuePaise)} ticket rev. × 70%`
-                                    : "Ticket Revenue × 70%"}
+                                    ? `${formatINRFromPaise(recon.ticketRevenuePaise)} ticket rev. × ${splitPct}%`
+                                    : `Ticket Revenue × ${splitPct}%`}
                             </span>
                             <span className="text-text-tertiary">+</span>
                             <span className="font-semibold text-emerald-400">

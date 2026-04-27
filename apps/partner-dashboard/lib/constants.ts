@@ -13,11 +13,6 @@ export const PAGE_SIZE_MAX_GUESTS = 500;
 export const PAGE_SIZE_MAX_LIST = 200;
 export const PAGE_SIZE_MAX_EVENTS = 100;
 
-// Promoter tier thresholds (total conversions)
-export const TIER_GOLD_THRESHOLD = 200;
-export const TIER_SILVER_THRESHOLD = 100;
-export const TIER_BRONZE_THRESHOLD = 30;
-
 // Finance
 export const REVENUE_COMPACT_THRESHOLD = 100_000; // ₹1L — show compact format above this
 

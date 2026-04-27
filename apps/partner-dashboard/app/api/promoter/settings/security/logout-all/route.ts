@@ -1,18 +1,13 @@
-import { NextRequest } from "next/server";
-import { isFirebaseConfigured, getAdminApp } from "@/lib/firebase/admin";
-import { withAuth } from "@/lib/server/withAuth";
-import { ok, fail } from "@/lib/server/apiResponse";
+import { NextRequest, NextResponse } from "next/server";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export const POST = withAuth(async (req: NextRequest, auth) => {
-    try {
-        if (isFirebaseConfigured()) {
-            const { getAuth } = await import("firebase-admin/auth");
-            await getAuth(getAdminApp()).revokeRefreshTokens(auth.uid);
-        }
-
-        return ok({});
-    } catch (error: any) {
-        console.error("[POST /api/promoter/settings/security/logout-all]", error);
-        return fail("Failed to revoke sessions");
-    }
-});
+export async function POST(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/settings/security/logout-all`, {
+        method: "POST",
+        body: JSON.stringify({ promoterId: ctx.promoterId, ...body }),
+    });
+}

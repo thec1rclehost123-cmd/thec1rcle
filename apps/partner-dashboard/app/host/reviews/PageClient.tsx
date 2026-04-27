@@ -75,11 +75,11 @@ export default function HostReviewsPage() {
                 const enriched: EventReview[] = (data.events || [])
                     .filter((e: any) => e.lifecycle !== "draft" && e.startDate)
                     .map((event: any) => {
-                        const ticketsSold = event.tickets?.reduce((acc: number, t: any) => acc + (Number(t.sold || t.quantity || 0)), 0) || 0;
-                        const capacity = event.capacity || 500;
-                        const revenue = event.tickets?.reduce((acc: number, t: any) => acc + (Number(t.price || 0) * Number(t.sold || t.quantity || 0)), 0) || 0;
-                        const checkedIn = Number(event.stats?.checkedIn || event.checkedIn || 0);
-                        const turnoutRate = ticketsSold > 0 ? Math.round((checkedIn / ticketsSold) * 100) : 0;
+                        const ticketsSold = Number(event.stats?.ticketsSold ?? event.ticketsSold ?? 0);
+                        const capacity = event.capacity || 0;
+                        const revenue = Number(event.stats?.revenue ?? event.revenue ?? 0);
+                        const checkedIn = Number(event.stats?.checkedIn ?? event.checkedIn ?? 0);
+                        const turnoutRate = Number(event.stats?.turnoutRate ?? event.turnoutRate ?? 0);
                         const rawSatisfactionScore =
                             event.stats?.satisfactionScore ??
                             event.analytics?.satisfactionScore ??

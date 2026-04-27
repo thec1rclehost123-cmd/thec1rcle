@@ -14,61 +14,116 @@ const AssignBody = z.object({
     status: z.string()
 }).strict();
 
+/** Resolve venueId from an eventId. */
+async function getEventVenueId(db: any, eventId: string): Promise<string | null> {
+    const doc = await db.collection('events').doc(eventId).get();
+    if (!doc.exists) return null;
+    return (doc.data() as any).venueId || null;
+}
+
 export default async function tableRoutes(fastify: FastifyInstance) {
     /**
-     * GET /api/v1/tables/floor-plan/:venueId
+     * GET /api/v1/venue/tables
+     * Supports:
+     * - ?venueId=... (Master floor plan)
+     * - ?eventId=... (Tonight's assignments)
      */
-    fastify.get('/floor-plan/:venueId', {
-        preHandler: [fastify.validate({ params: VenueIdParam })]
-    }, async (request, reply) => {
-        const { venueId } = request.params as { venueId: string };
-        try {
-            return await getFloorPlan(venueId);
-        } catch (error: any) {
-            reply.status(500).send({ error: "Internal server error" });
+    fastify.get('/venue/tables', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { venueId, eventId } = request.query as any;
+
+        if (eventId) {
+            const vid = await getEventVenueId(fastify.db, eventId);
+            if (!vid) return reply.status(404).send({ error: 'Event not found' });
+            await fastify.verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            
+            // Return event assignments
+            try {
+                const snap = await fastify.db.collection('table_assignments')
+                    .where('eventId', '==', eventId)
+                    .get();
+                
+                const bookings = snap.docs.filter(d => d.data().status === 'reserved').map(d => ({ id: d.id, ...d.data() }));
+                const blockedTables = snap.docs.filter(d => d.data().status === 'blocked').map(d => d.data().tableId);
+                
+                return { bookings, blockedTables };
+            } catch (error) {
+                return { bookings: [], blockedTables: [] };
+            }
         }
+
+        if (venueId) {
+            await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            
+            // Return master tables
+            const snap = await fastify.db.collection('venues').doc(venueId).collection('tables').get();
+            const tables = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            
+            // Add some legacy metadata the dashboard expects
+            (tables as any).totalCapacity = tables.reduce((acc, t) => acc + (parseInt(t.capacity) || 0), 0);
+            
+            return tables;
+        }
+
+        return reply.status(400).send({ error: 'Missing venueId or eventId' });
     });
 
     /**
-     * POST /api/v1/tables/floor-plan/:venueId
+     * POST /api/v1/venue/tables
+     * Supports:
+     * - Add/Update table definition (if table body provided)
+     * - Update status (if action: updateStatus provided)
      */
-    fastify.post('/floor-plan/:venueId', {
-        preHandler: [fastify.validate({ params: VenueIdParam, body: FloorPlanBody })]
-    }, async (request, reply) => {
-        const { venueId } = request.params as { venueId: string };
-        const tableData = request.body as any;
-        try {
-            return await updateMasterTable(venueId, tableData);
-        } catch (error: any) {
-            reply.status(400).send({ error: "Request failed" });
+    fastify.post('/venue/tables', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { venueId, table, action, eventId, tableId, status, notes } = request.body as any;
+
+        if (action === 'updateStatus') {
+            const vid = await getEventVenueId(fastify.db, eventId);
+            await fastify.verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            
+            const assignmentId = `${eventId}_${tableId}`;
+            if (status === 'available') {
+                await fastify.db.collection('table_assignments').doc(assignmentId).delete();
+            } else {
+                await fastify.db.collection('table_assignments').doc(assignmentId).set({
+                    eventId,
+                    tableId,
+                    status,
+                    notes: notes || '',
+                    updatedAt: new Date().toISOString(),
+                    updatedBy: request.user.uid
+                }, { merge: true });
+            }
+            return { success: true };
         }
+
+        if (venueId && table) {
+            await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            
+            if (table.id) {
+                await fastify.db.collection('venues').doc(venueId).collection('tables').doc(table.id).set(table, { merge: true });
+            } else {
+                await fastify.db.collection('venues').doc(venueId).collection('tables').add(table);
+            }
+            return { success: true };
+        }
+
+        return reply.status(400).send({ error: 'Invalid request' });
     });
 
     /**
-     * POST /api/v1/tables/assign
+     * DELETE /api/v1/venue/tables?tableId=...
      */
-    fastify.post('/assign', {
-        preHandler: [fastify.validate({ body: AssignBody })]
-    }, async (request, reply) => {
-        const { eventId, tableId, bookingId, status } = request.body as any;
-        try {
-            return await assignTable(eventId, tableId, bookingId, status);
-        } catch (error: any) {
-            reply.status(400).send({ error: "Request failed" });
-        }
-    });
-
-    /**
-     * GET /api/v1/tables/assignments/:eventId
-     */
-    fastify.get('/assignments/:eventId', {
-        preHandler: [fastify.validate({ params: EventIdParam })]
-    }, async (request, reply) => {
-        const { eventId } = request.params as { eventId: string };
-        try {
-            return await getEventAssignments(eventId);
-        } catch (error: any) {
-            reply.status(500).send({ error: "Internal server error" });
-        }
+    fastify.delete('/venue/tables', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { tableId } = request.query as any;
+        // Search across all venue table subcollections (or use a better way if we had venueId)
+        // For now, assume tableId is unique across the system if using doc lookup
+        // Ideally we'd need venueId here too.
+        return reply.status(501).send({ error: 'Delete requires venueId context - not implemented safely yet' });
     });
 }

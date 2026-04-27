@@ -14,7 +14,6 @@ import { motion } from "framer-motion";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import VenueChart, { ChartSkeleton } from "@/components/ui/VenueChart";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getPermissionsForRole } from "@/lib/rbac/types";
 import {
     formatINRCompact,
     formatNumber,
@@ -387,20 +386,13 @@ async function fetchOrdersPage(
 
 
 export default function VenueDashboardStreaming() {
-    const { profile, user } = useDashboardAuth();
+    const { profile, user, hasPermission } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const membership = profile?.activeMembership;
     const venueName = membership?.partnerName || "Venue Overview";
 
-    const permissions = useMemo(() => {
-        if (!membership) return [];
-        return membership.permissions?.length
-            ? membership.permissions
-            : getPermissionsForRole(membership.partnerType, membership.role);
-    }, [membership]);
-
-    const canViewOrders = permissions.includes("VIEW_GUESTLIST");
-    const canViewRevenue = permissions.includes("VIEW_FINANCIALS");
+    const canViewOrders = hasPermission("VIEW_GUESTLIST");
+    const canViewRevenue = hasPermission("VIEW_FINANCIALS");
 
     const [selectedRange, setSelectedRange] = useState<OverviewRange>("1m");
     const [selectedMetric, setSelectedMetric] = useState<OverviewMetric>("tickets");

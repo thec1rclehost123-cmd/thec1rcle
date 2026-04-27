@@ -27,14 +27,14 @@ const StaffUpdateSchema = z.object({
 
 export default async function staffRoutes(fastify: FastifyInstance) {
     /**
-     * GET /api/v1/staff/permissions
-     * Returns staff permissions for a user at a specific venue
+     * GET /api/v1/venue/staff
+     * List all staff members for a venue
      */
-    fastify.get('/permissions', {
-        preHandler: [fastify.validate({ querystring: VenueQuerySchema })]
+    fastify.get('/venue/staff', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
-        const userId = request.user?.uid;
+        const actorId = request.user?.uid;
 
         if (!userId) return reply.status(401).send({ error: "Unauthorized" });
         if (!venueId) return reply.status(400).send({ error: "venueId is required" });
@@ -58,10 +58,10 @@ export default async function staffRoutes(fastify: FastifyInstance) {
     });
 
     /**
-     * POST /api/v1/staff/invite
+     * POST /api/v1/venue/staff
      * Invite a new staff member to a venue
      */
-    fastify.post('/invite', {
+    fastify.post('/venue/staff', {
         preHandler: [
             fastify.validate({ body: StaffInviteSchema }),
             fastify.requireRoles(['admin', 'partner', 'host'])
@@ -96,11 +96,28 @@ export default async function staffRoutes(fastify: FastifyInstance) {
     });
 
     /**
-     * GET /api/v1/staff/list
-     * List all staff members for a venue
+     * GET /api/v1/venue/staff-profiles
      */
-    fastify.get('/list', {
-        preHandler: [fastify.validate({ querystring: VenueQuerySchema })]
+    fastify.get('/venue/staff-profiles', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
+    }, async (request: any, reply) => {
+        const { venueId } = request.query;
+        const actorId = request.user?.uid;
+
+        try {
+            const snapshot = await fastify.db.collection('staff_profiles')
+                .where("venueId", "==", venueId)
+                .get();
+
+            const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            return { profiles };
+        } catch (error: any) {
+            return { profiles: [] };
+        }
+    });
+
+    fastify.get('/venue/staff/permissions', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         const actorId = request.user?.uid;
@@ -120,10 +137,10 @@ export default async function staffRoutes(fastify: FastifyInstance) {
     });
 
     /**
-     * PATCH /api/v1/staff/:id
+     * PATCH /api/v1/venue/staff
      * Update staff member
      */
-    fastify.patch('/:id', {
+    fastify.patch('/venue/staff', {
         preHandler: [
             fastify.validate({ params: StaffIdParamSchema, body: StaffUpdateSchema }),
             fastify.requireRoles(['admin', 'partner', 'host'])

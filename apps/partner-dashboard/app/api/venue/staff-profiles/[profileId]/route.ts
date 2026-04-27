@@ -1,109 +1,33 @@
-/**
- * GET    /api/venue/staff-profiles/[profileId]?venueId=
- * PATCH  /api/venue/staff-profiles/[profileId]?venueId=
- * DELETE /api/venue/staff-profiles/[profileId]?venueId=
- */
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireManagementRole } from "@/lib/rbac/staffProfileEnforcer";
-import {
-    getStaffProfile,
-    updateStaffProfile,
-    deleteStaffProfile,
-    listProfileAudit,
-} from "@/lib/server/staffProfileStore";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export async function GET(
-    request: Request,
-    { params }: { params: Promise<{ profileId: string }> }
-) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ profileId: string }> }) {
     const { profileId } = await params;
-    try {
-        const { profileId } = await params;
-        const ctx = await requireManagementRole(request);
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-        const profile = await getStaffProfile(ctx.venueId, profileId);
-        if (!profile) return NextResponse.json({ error: "Not found" }, { status: 404 });
-
-        const { searchParams } = new URL(request.url);
-        const includeAudit = searchParams.get("audit") === "1";
-        const audit = includeAudit
-            ? await listProfileAudit(ctx.venueId, profileId, 20)
-            : undefined;
-
-        return NextResponse.json(
-            { profile, audit },
-            { headers: { "Cache-Control": "private, no-store" } }
-        );
-    } catch (err: any) {
-        console.error("[staff-profiles/:id GET]", err.message);
-        return NextResponse.json({ error: "Failed to process staff profile request" }, { status: 500 });
-    }
+    const ctx = await requireManagementRole(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff-profiles/${profileId}?${searchParams}`, {});
 }
 
-export async function PATCH(
-    request: Request,
-    { params }: { params: Promise<{ profileId: string }> }
-) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ profileId: string }> }) {
     const { profileId } = await params;
-    try {
-        const { profileId } = await params;
-        const ctx = await requireManagementRole(request);
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-        const body = await request.json();
-
-        const allowed = [
-            "profileName",
-            "tabVisibility",
-            "actionPermissions",
-            "piiPolicy",
-            "eventScope",
-            "guestlistScope",
-            "isActive",
-        ] as const;
-
-        const updates: Record<string, unknown> = {};
-        for (const key of allowed) {
-            if (key in body) updates[key] = body[key];
-        }
-
-        const profile = await updateStaffProfile(
-            ctx.venueId,
-            profileId,
-            updates as any,
-            { uid: ctx.uid, name: "" }
-        );
-
-        return NextResponse.json({ profile });
-    } catch (err: any) {
-        if (err.message === "Staff profile not found") {
-            return NextResponse.json({ error: "Not found" }, { status: 404 });
-        }
-        console.error("[staff-profiles/:id PATCH]", err);
-        return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
-    }
+    const ctx = await requireManagementRole(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff-profiles/${profileId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
 }
 
-export async function DELETE(
-    request: Request,
-    { params }: { params: Promise<{ profileId: string }> }
-) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ profileId: string }> }) {
     const { profileId } = await params;
-    try {
-        const { profileId } = await params;
-        const ctx = await requireManagementRole(request);
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-        await deleteStaffProfile(ctx.venueId, profileId, {
-            uid: ctx.uid,
-            name: "",
-        });
-
-        return NextResponse.json({ ok: true });
-    } catch (err: any) {
-        console.error("[staff-profiles/:id DELETE]", err.message);
-        return NextResponse.json({ error: "Failed to process staff profile request" }, { status: 500 });
-    }
+    const ctx = await requireManagementRole(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff-profiles/${profileId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ venueId: ctx.venueId }),
+    });
 }

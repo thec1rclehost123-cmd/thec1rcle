@@ -238,12 +238,9 @@ function formatEventDate(dateStr) {
 }
 
 function getMinPrice(event) {
-    const tiers = event.tickets || event.tiers || event.ticketTiers || [];
-    if (!Array.isArray(tiers) || tiers.length === 0) return null;
-    const prices = tiers.map(t => Number(t.price || t.amount || 0)).filter(p => p > 0);
-    if (prices.length === 0) return null;
-    const min = Math.min(...prices);
-    return `₹${min.toLocaleString("en-IN")}`;
+    const price = event.startingPrice ?? event.priceRange?.min ?? null;
+    if (price === null || price <= 0) return null;
+    return `₹${Number(price).toLocaleString("en-IN")}`;
 }
 
 function formatNum(n) {

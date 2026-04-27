@@ -1,38 +1,16 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { withAuth } from '@/lib/server/withAuth'
-import { ok, fail } from '@/lib/server/apiResponse'
-import { getAdminDb } from '@/lib/firebase/admin'
+import { NextRequest, NextResponse } from "next/server";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export const dynamic = 'force-dynamic'
+export const dynamic = "force-dynamic";
 
-/**
- * PATCH /api/venue/alerts/[id]/dismiss
- *
- * Marks an alert as dismissed in Firestore.
- * Verifies the alert belongs to the authenticated user's venue before writing.
- */
-export const PATCH = withAuth(async (req: NextRequest, auth, ctx) => {
-    const alertId = ctx?.params?.id || ""
-    if (!alertId) return fail('Alert ID is required', 400)
-
-    try {
-        const db = getAdminDb()
-        const alertRef = db.collection('venue_alerts').doc(alertId)
-        const snap = await alertRef.get()
-
-        if (!snap.exists) return fail('Alert not found', 404)
-
-        const alertData = snap.data()!
-        const venueId = alertData.venueId as string | undefined
-        if (venueId && (auth as any).partnerId && (auth as any).partnerId !== venueId) {
-            return fail('Forbidden', 403)
-        }
-
-        await alertRef.update({ dismissed: true, dismissedAt: new Date().toISOString() })
-
-        return ok(null, 'Alert dismissed')
-    } catch (err: any) {
-        console.error('[PATCH /api/venue/alerts/[id]/dismiss]', err)
-        return fail('Failed to dismiss alert')
-    }
-})
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/alerts/${id}/dismiss`, {
+        method: "PATCH",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
+}

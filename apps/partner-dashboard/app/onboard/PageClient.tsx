@@ -79,8 +79,8 @@ async function apiSendOtp(type: "email" | "phone", recipient: string) {
         body: JSON.stringify({ type, recipient }),
     });
     if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to send code.");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || data.error || "Failed to send code.");
     }
 }
 
@@ -90,8 +90,10 @@ async function apiVerifyOtp(type: "email" | "phone", recipient: string, code: st
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, recipient, code }),
     });
-    const data = await res.json();
-    if (!res.ok || !data.success) throw new Error(data.error || "Incorrect code.");
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+        throw new Error(data.message || data.error || "Incorrect code.");
+    }
     return true;
 }
 

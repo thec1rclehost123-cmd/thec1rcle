@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import {
     Search, SlidersHorizontal, Tag, Plus, Info,
     Instagram, MessageCircle, Phone,
-    Loader2, AlertTriangle, FlaskConical, RefreshCw,
+    Loader2, AlertTriangle, RefreshCw,
 } from "lucide-react";
 import { VenueTable, type Column } from "@/components/ui/VenueTable";
 import { Avatar } from "@/components/ui/Avatar";
@@ -46,21 +46,15 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
 
     const [search,   setSearch]   = useState("");
     const [selected, setSelected] = useState<Set<string>>(new Set());
-    const [useMock,  setUseMock]  = useState(false);
 
     // ── Live data hook ──────────────────────────────────────────────────────
     const {
-        attendees: liveAttendees,
+        attendees,
         totalCount,
         isLoading,
         isError,
-        isUsingMock: apiUsingMock,
         refresh,
     } = useEventAttendees(eventId, venueId);
-
-    // The "Mock Data" toggle overrides to a stable set for UI testing
-    const attendees = useMock ? liveAttendees.slice(0, 10) : liveAttendees;
-    const showingMock = useMock || apiUsingMock;
 
     // ── Search filter ───────────────────────────────────────────────────────
     const filtered = useMemo(() => {
@@ -288,38 +282,11 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
                         title="Refresh"
                         onClick={refresh}
                     />
-
-                    {/* Mock Data toggle */}
-                    <button
-                        onClick={() => setUseMock(v => !v)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors"
-                        style={{
-                            background: useMock ? "rgba(251,191,36,0.12)" : "var(--v-elevated)",
-                            border: `1px solid ${useMock ? "rgba(251,191,36,0.3)" : "var(--v-border)"}`,
-                            color: useMock ? "#FBBF24" : "var(--v-text-tertiary)",
-                        }}
-                        title={useMock ? "Disable mock data" : "Enable mock data for UI testing"}
-                    >
-                        <FlaskConical size={11} />
-                        Mock
-                    </button>
                 </div>
             </div>
 
             {/* Status banners */}
-            {showingMock && (
-                <div
-                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
-                    style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}
-                >
-                    <FlaskConical size={14} />
-                    {useMock
-                        ? "Mock mode enabled — showing sample attendee data for UI testing."
-                        : "Dev mode — API unreachable, showing cached sample data. Check console for details."}
-                </div>
-            )}
-
-            {isError && !showingMock && (
+            {isError && (
                 <div
                     className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
                     style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}

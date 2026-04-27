@@ -1,67 +1,31 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUnifiedVenueCalendar, blockDate, unblockDate, getOperatingCalendar } from "@/lib/server/calendarStore";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import { fail } from "@/lib/server/apiResponse";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 export async function GET(req: NextRequest) {
-    try {
-        // No action restriction — any active venue member can read the calendar
-        const ctx = await requireVenueAccess(req);
-        if ("error" in ctx) {
-            console.warn("[Calendar API] Access denied:", ctx.error);
-            return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-        }
-
-        const { searchParams } = new URL(req.url);
-        const view = searchParams.get("view") || "classic";
-        const startDate = searchParams.get("startDate") || new Date().toISOString().split('T')[0];
-        const endDate = searchParams.get("endDate") || new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-        const venueId = ctx.venueId; // This is the partnerId (venue or host)
-
-        if (view === "operating") {
-            const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-            const data = await getOperatingCalendar(venueId, "venue", startDate, endDate, token);
-            return NextResponse.json(data);
-        }
-
-        const data = await getUnifiedVenueCalendar(venueId, startDate, endDate);
-        return NextResponse.json(data);
-    } catch (error: any) {
-        console.error("[Calendar API] GET Error:", error);
-        return fail("Failed to fetch calendar: " + (error.message || "Unknown error"));
-    }
-}
-
-
-export async function POST(req: NextRequest) {
-    // No action restriction — any active venue member can manage the calendar
     const ctx = await requireVenueAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/calendar?${searchParams}`, {});
+}
 
-    try {
-        const body = await req.json();
-        const { action, date, reason } = body;
-        const venueId = ctx.venueId;
+export async function POST(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "manage_calendar");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/calendar`, {
+        method: "POST",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
+}
 
-        if (action === "block") {
-            const result = await blockDate(venueId, date, reason, {
-                uid: ctx.uid,
-                role: "venue",
-            }, body.startTime, body.endTime);
-            return NextResponse.json({ success: true, entry: result });
-        }
-
-        if (action === "unblock") {
-            const result = await unblockDate(venueId, date, {
-                uid: ctx.uid,
-                role: "venue",
-            });
-            return NextResponse.json({ success: true, entry: result });
-        }
-
-        return fail("Invalid action", 400);
-    } catch (error: any) {
-        console.error("Error updating calendar:", error);
-        return fail("Failed to update calendar");
-    }
+export async function DELETE(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "manage_calendar");
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/calendar?${searchParams}`, {
+        method: "DELETE",
+    });
 }

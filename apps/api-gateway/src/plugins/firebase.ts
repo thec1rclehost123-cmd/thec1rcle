@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
+import { getStorage } from 'firebase-admin/storage';
 
 // @ts-ignore
 import { FirebaseAuthService } from '@c1rcle/core/auth-infra';
@@ -65,6 +66,7 @@ export default fp(async (fastify) => {
                     clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
                     privateKey: privateKey,
                 }),
+                storageBucket: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.firebasestorage.app`,
             });
             fastify.log.info('Firebase Admin initialized successfully');
         } catch (err: any) {
@@ -75,6 +77,7 @@ export default fp(async (fastify) => {
 
     const db = getFirestore();
     const auth = getAuth();
+    const storage = getStorage();
 
     const authService = new FirebaseAuthService(auth);
     const profileRepo = new FirebaseProfileRepository(db);
@@ -96,6 +99,7 @@ export default fp(async (fastify) => {
 
     fastify.decorate('db', db);
     fastify.decorate('auth', auth);
+    fastify.decorate('storage', storage);
     fastify.decorate('authService', authService);
     fastify.decorate('profileRepo', profileRepo);
     fastify.decorate('profileService', profileService);
@@ -196,6 +200,70 @@ export default fp(async (fastify) => {
         }
     });
 
+    // Auth Guard — rejects unauthenticated requests immediately
+    fastify.decorate('requireAuth', async (request: any, reply: any) => {
+        if (!request.user) {
+            return reply.status(401).send({ error: 'Unauthorized: Authentication required' });
+        }
+    });
+
+    // Partner Access Guard — auth + ownership/membership check in one preHandler
+    // Usage: preHandler: [fastify.requirePartnerAccess((req) => req.params.id)]
+    fastify.decorate('requirePartnerAccess', (getPartnerId: (request: any) => string) => {
+        return async (request: any, reply: any) => {
+            if (!request.user) {
+                return reply.status(401).send({ error: 'Unauthorized: Authentication required' });
+            }
+            try {
+                await fastify.verifyPartnerAccess(request, getPartnerId(request));
+            } catch {
+                return reply.status(403).send({ error: 'Forbidden: Insufficient access to this resource' });
+            }
+        };
+    });
+
+    // Admin Guard — role check + optional IP allowlist + mandatory audit log on every access.
+    // Set ADMIN_IP_ALLOWLIST=1.2.3.4,5.6.7.8 in production to restrict to known ops IPs.
+    fastify.decorate('requireAdmin', async (request: any, reply: any) => {
+        if (!request.user) {
+            return reply.status(401).send({ error: 'Unauthorized: Authentication required' });
+        }
+        if (request.user.role !== 'admin') {
+            fastify.log.warn({
+                uid: request.user.uid,
+                route: `${request.method} ${request.url}`,
+                ip: request.ip,
+                requestId: request.id,
+            }, 'SECURITY: Non-admin attempted admin route access');
+            return reply.status(403).send({ error: 'Forbidden: Admin access required' });
+        }
+
+        // IP allowlist — enforced only when the env var is explicitly set
+        const allowlist = process.env.ADMIN_IP_ALLOWLIST;
+        if (allowlist) {
+            const allowedIPs = allowlist.split(',').map((ip: string) => ip.trim()).filter(Boolean);
+            if (allowedIPs.length > 0 && !allowedIPs.includes(request.ip)) {
+                fastify.log.error({
+                    uid: request.user.uid,
+                    ip: request.ip,
+                    allowedIPs,
+                    route: `${request.method} ${request.url}`,
+                    requestId: request.id,
+                }, 'SECURITY: Admin access BLOCKED — IP not in allowlist');
+                return reply.status(403).send({ error: 'Forbidden: Access not permitted from this location' });
+            }
+        }
+
+        // Every admin route access is permanently and visibly logged
+        fastify.log.warn({
+            uid: request.user.uid,
+            email: request.user.email,
+            route: `${request.method} ${request.url}`,
+            ip: request.ip,
+            requestId: request.id,
+        }, 'AUDIT: Admin route accessed');
+    });
+
     // Feature Gating Guard
     fastify.decorate('requireFeature', (feature: string) => {
         return async (request: any, reply: any) => {
@@ -281,8 +349,12 @@ declare module 'fastify' {
         workspaceService: any;
         billingService: any;
         publicDiscoveryService: any;
+        storage: ReturnType<typeof getStorage>;
         invalidatePublicDiscovery: (target?: 'events' | 'hosts' | 'venues' | 'search' | 'all') => Promise<void>;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
+        requireAuth: (request: any, reply: any) => Promise<void>;
+        requirePartnerAccess: (getPartnerId: (request: any) => string) => (request: any, reply: any) => Promise<void>;
+        requireAdmin: (request: any, reply: any) => Promise<void>;
         requireFeature: (feature: string) => (request: any, reply: any) => Promise<void>;
         writeAuditLog: (entry: AuditLogInput) => Promise<void>;
     }

@@ -47,7 +47,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
      * GET /api/v1/registers/:venueId/:date
      */
     fastify.get('/:venueId/:date', {
-        preHandler: [fastify.validate({ params: VenueDateParams })]
+        preHandler: [fastify.requirePartnerAccess((req) => (req.params as any).venueId), fastify.validate({ params: VenueDateParams })]
     }, async (request: any, reply) => {
         const { venueId, date } = request.params;
         return getOrCreate(fastify.db, venueId, date);
@@ -57,7 +57,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
      * GET /api/v1/registers/:venueId/range
      */
     fastify.get('/:venueId/range', {
-        preHandler: [fastify.validate({ params: RangeParams, querystring: RangeQuery })]
+        preHandler: [fastify.requirePartnerAccess((req) => (req.params as any).venueId), fastify.validate({ params: RangeParams, querystring: RangeQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.params;
         const { startDate, endDate } = request.query;
@@ -74,7 +74,7 @@ export default async function registerRoutes(fastify: FastifyInstance) {
      * Generic partial update for notes, footfall, status, dayClose, etc.
      */
     fastify.patch('/:venueId/:date', {
-        preHandler: [fastify.validate({ params: VenueDateParams, body: PatchBody })]
+        preHandler: [fastify.requirePartnerAccess((req) => (req.params as any).venueId), fastify.validate({ params: VenueDateParams, body: PatchBody })]
     }, async (request: any, reply) => {
         const { venueId, date } = request.params;
         const id = makeId(venueId, date);

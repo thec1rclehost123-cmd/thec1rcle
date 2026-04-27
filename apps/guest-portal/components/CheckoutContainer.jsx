@@ -98,66 +98,22 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         }
     }, []);
 
-    // Scarcity Engine: poll the Gateway-backed event detail bridge for live tier availability.
-    const [liveTiers, setLiveTiers] = useState(null);
+    // Hydrate selected tickets from reservation if present
     useEffect(() => {
-        if (!event?.id || typeof event.id !== "string") {
-            return;
+        if (cartReservation?.items && selectedTickets.length === 0) {
+            setSelectedTickets(hydrateReservationItems(cartReservation.items, event.tickets ?? []));
         }
-        let cancelled = false;
+    }, [cartReservation, event.tickets]);
 
-        const syncLiveInventory = async () => {
-            try {
-                const response = await fetch(`/api/events/${encodeURIComponent(event.id)}`, { cache: "no-store" });
-                if (!response.ok) return;
-
-                const payload = await response.json();
-                const latestEvent = payload?.event || payload;
-                const rawTiers = latestEvent?.ticketCatalog?.tiers ?? latestEvent?.tickets ?? [];
-                const tiers = Array.isArray(rawTiers) ? rawTiers : [];
-
-                if (!cancelled) {
-                    setLiveTiers(tiers.map((tier) => ({
-                        ...tier,
-                        _liveAvailable: Math.max(
-                            0,
-                            Number(tier.remaining ?? tier.quantity ?? 0) - Number(tier.lockedQuantity || 0)
-                        ),
-                    })));
-                }
-            } catch (err) {
-                if (!cancelled) {
-                    console.error("[Checkout] Failed to refresh live inventory:", err);
-                }
-            }
-        };
-
-        syncLiveInventory();
-        const intervalId = setInterval(syncLiveInventory, 15000);
-
-        return () => {
-            cancelled = true;
-            clearInterval(intervalId);
-        };
-    }, [event?.id]);
-
-    // Clamp selected quantities when live inventory drops below current selection
     useEffect(() => {
-        if (!liveTiers) return;
-        setSelectedTickets(prev => {
-            const next = prev.map(sel => {
-                const live = liveTiers.find(t => t.id === sel.id);
-                if (!live) return sel;
-                if (sel.quantity > live._liveAvailable) {
-                    return live._liveAvailable > 0 ? { ...sel, quantity: live._liveAvailable } : null;
-                }
-                return sel;
-            }).filter(Boolean);
-            return next.length !== prev.length || next.some((t, i) => t?.quantity !== prev[i]?.quantity)
-                ? next
-                : prev;
-        });
-    }, [liveTiers]);
+        if (user || profile) {
+            setAttendeeDetails(prev => ({
+                name: prev.name || user?.displayName || profile?.name || "",
+                email: prev.email || user?.email || profile?.email || "",
+                phone: prev.phone || profile?.phone || ""
+            }));
+        }
+    }, [user, profile]);
 
     useEffect(() => {
         if (user || profile) {
@@ -176,7 +132,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
     );
 
     useEffect(() => {
-        if (step !== 3 || selectedTickets.length === 0) return;
+        if (step !== 3 || !pricingResult?.hasItems) return;
         let cancelled = false;
 
         const fetchPricing = async () => {
@@ -213,26 +169,12 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         }
     }, [isSuccess, router]);
 
-    // Calculate totals with discounts
-    const subtotal = useMemo(() => {
-        return selectedTickets.reduce((sum, t) => sum + (t.price * t.quantity), 0);
-    }, [selectedTickets]);
-
-    const totalDiscount = promoDiscount + promoterDiscount;
-    const totalAmount = Math.max(0, subtotal - totalDiscount);
-    const displayTotal = pricingResult?.grandTotal ?? totalAmount;
-    const displayFees = pricingResult?.fees?.total ?? 0;
-    const isFreeOrder = pricingResult ? pricingResult.isFree : totalAmount === 0;
-    const feeBreakdown = useMemo(() => {
-        const fees = pricingResult?.fees;
-        if (!fees) return [];
-
-        return [
-            { label: "Platform fee", value: Number(fees.platform) || 0 },
-            { label: "Payment fee", value: Number(fees.payment) || 0 },
-            { label: "GST on fees", value: Number(fees.gst) || 0 }
-        ].filter((item) => item.value > 0);
-    }, [pricingResult]);
+    const subtotal = pricingResult?.subtotal;
+    const totalDiscount = pricingResult?.discount;
+    const displayFees = pricingResult?.fees?.total;
+    const displayTotal = pricingResult?.grandTotal;
+    const needToKnowItems = pricingResult?.needToKnow;
+    const feeBreakdown = pricingResult?.fees?.breakdown ?? [];
 
     // Handle promo code application
     const handleApplyPromoCode = async (code) => {
@@ -251,7 +193,6 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                         tierId: t.id,
                         quantity: t.quantity,
                         price: t.price,
-                        subtotal: t.price * t.quantity
                     }))
                 })
             });
@@ -292,53 +233,22 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         setStep(1);
     };
 
-    const totalSelectedQuantity = useMemo(() => {
-        return selectedTickets.reduce((sum, t) => sum + Number(t.quantity), 0);
-    }, [selectedTickets]);
-
-    const minTickets = event.isRSVP ? 1 : (event.minTicketsPerOrder || 1);
-    const maxTickets = event.isRSVP ? 1 : (event.maxTicketsPerOrder || 10);
-
-    const isBelowMin = totalSelectedQuantity > 0 && totalSelectedQuantity < minTickets;
-    const isAboveMax = totalSelectedQuantity > maxTickets;
-
-    const canProceedStep1 = totalSelectedQuantity >= minTickets && totalSelectedQuantity <= maxTickets;
+    const canProceedStep1 = pricingResult?.canProceed ?? false;
     const canProceedStep2 = attendeeDetails.name.trim() !== "" && attendeeDetails.email.trim() !== "";
 
-    const displayTiers = liveTiers ?? event.tickets ?? [];
-    const needToKnowItems = useMemo(() => buildNeedToKnowItems(event, selectedTickets), [event, selectedTickets]);
-
-    useEffect(() => {
-        if (displayFees <= 0) {
-            setFeesBreakdownOpen(false);
-        }
-    }, [displayFees]);
+    const displayTiers = event.tickets ?? [];
 
     const handleTicketChange = (ticketId, delta) => {
-        const totalFreeQuantity = selectedTickets.reduce((sum, st) => sum + (Number(st.price || 0) === 0 ? st.quantity : 0), 0);
         const updated = displayTiers.map(t => {
             const sel = selectedTickets.find(st => st.id === t.id);
             const currentQty = sel ? sel.quantity : 0;
             let newQty = currentQty;
             if (t.id === ticketId) {
-                if (delta > 0 && totalSelectedQuantity >= maxTickets) {
-                    return { ...t, quantity: currentQty };
-                }
-                newQty = Math.max(0, currentQty + delta);
-                const isFree = Number(t.price || 0) === 0;
-                const rawAvailable = t._liveAvailable ?? Number(t.remaining ?? t.quantity ?? 10);
-                
-                let limit = isFree ? 1 : (event.maxTicketsPerOrder || 10);
-                if (isFree) {
-                    limit = Math.max(0, Math.min(1, currentQty + (1 - totalFreeQuantity)));
-                }
-
-                const available = Math.min(rawAvailable, limit);
-                if (newQty > available) newQty = available;
+                newQty = currentQty + delta;
             }
-            return { ...t, id: t.id, quantity: newQty, price: Number(t.price || 0), name: t.name };
+            return { ...t, id: t.id, quantity: newQty, price: Number(t.price), name: t.name };
         });
-        setSelectedTickets(updated.filter(t => t.quantity > 0));
+        setSelectedTickets(updated);
     };
 
     const handlePayment = async () => {
@@ -636,18 +546,9 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     {displayTiers.map((ticket) => {
                                         const sel = selectedTickets.find(st => st.id === ticket.id);
                                         const qty = sel ? sel.quantity : 0;
-                                        const totalFreeQuantity = selectedTickets.reduce((sum, st) => sum + (Number(st.price || 0) === 0 ? st.quantity : 0), 0);
-                                        const isFree = Number(ticket.price || 0) === 0;
-                                        const rawAvailable = ticket._liveAvailable ?? Number(ticket.remaining ?? ticket.quantity ?? 0);
-                                        
-                                        let ticketLimit = isFree ? 1 : (event.maxTicketsPerOrder || 10);
-                                        if (isFree) {
-                                            ticketLimit = Math.max(0, Math.min(1, qty + (1 - totalFreeQuantity)));
-                                        }
-                                        
-                                        const available = Math.min(rawAvailable, ticketLimit);
-                                        const isSoldOut = rawAvailable <= 0;
-                                        const isLow = !isSoldOut && rawAvailable <= 5;
+                                        const isSoldOut = ticket.isSoldOut;
+                                        const isLow = ticket.isLow;
+                                        const available = ticket.maxAvailablePerUser || 10;
                                         return (
                                             <div key={ticket.id} className={`p-5 rounded-[28px] border transition-all duration-500 ${isSoldOut ? "border-red-500/30 bg-red-500/[0.03] opacity-60" : qty > 0 ? "border-orange/20 bg-orange/5" : "border-white/5 bg-white/[0.02]"}`}>
                                                 <div className="flex items-center justify-between gap-4">
@@ -678,18 +579,15 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     })}
                                 </div>
                                 <div className="space-y-2">
-                                    {isBelowMin && (
-                                        <p className="text-[10px] text-orange font-bold uppercase tracking-widest text-center">Minimum {minTickets} tickets required</p>
-                                    )}
-                                    {isAboveMax && (
-                                        <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTickets} tickets allowed per account</p>
+                                    {pricingResult?.error && (
+                                        <p className="text-[10px] text-orange font-bold uppercase tracking-widest text-center">{pricingResult.error}</p>
                                     )}
                                     <button 
                                         onClick={() => setStep(2)} 
                                         disabled={!canProceedStep1} 
                                         className="w-full h-[64px] flex items-center justify-center rounded-full bg-[#CA3E22] text-white font-black uppercase tracking-[0.3em] transition-all hover:bg-[#D44426] hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:hover:scale-100 disabled:hover:bg-[#CA3E22] shadow-[0_4px_30px_rgba(202,62,34,0.3)] text-[12px]"
                                     >
-                                        CONTINUE • ₹{subtotal.toLocaleString('en-IN')}
+                                        CONTINUE {pricingResult?.grandTotal ? `• ₹${pricingResult.grandTotal.toLocaleString('en-IN')}` : ''}
                                     </button>
                                 </div>
                             </motion.div>
@@ -734,7 +632,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                     <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Payment & <br />Checkout</h1>
                                 </div>
-                                {!isFreeOrder && (
+                                {!pricingResult?.isFree && (
                                     <div className="space-y-8 flex-1 flex flex-col justify-center">
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             {[
@@ -758,7 +656,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                 )}
 
-                                {isFreeOrder && (
+                                {pricingResult?.isFree && (
                                     <div className="flex-1 flex flex-col items-center justify-center space-y-6">
                                         <div className="h-20 w-20 rounded-full bg-orange/10 flex items-center justify-center border border-orange/20">
                                             <CheckCircle2 className="h-10 w-10 text-orange" />
@@ -780,7 +678,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         </div>
                                     ) : (
                                         <>
-                                            {event.isRSVP ? "Confirm Registration" : isFreeOrder ? "Finalize Free Pass" : "Confirm Order"}
+                                            {event.isRSVP ? "Confirm Registration" : pricingResult?.isFree ? "Finalize Free Pass" : "Confirm Order"}
                                             <Lock className="ml-3 h-4 w-4" />
                                         </>
                                     )}
@@ -790,7 +688,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     </AnimatePresence>
 
                     <div className="mt-6 md:hidden">
-                        <NeedToKnowCard items={needToKnowItems} />
+                        <NeedToKnowCard items={pricingResult?.needToKnow || []} />
                     </div>
                 </div>
 
@@ -820,7 +718,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                 <p className="truncate text-[13px] font-black uppercase tracking-[0.08em] text-white">{t.name}</p>
                                                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-white/28">{t.quantity} ticket{t.quantity > 1 ? "s" : ""}</p>
                                             </div>
-                                            <p className="shrink-0 text-[18px] font-black tracking-tight text-white">₹{(t.price * t.quantity).toLocaleString('en-IN')}</p>
+                                            <p className="shrink-0 text-[18px] font-black tracking-tight text-white">{t.displayLineTotal || `₹${(t.price).toLocaleString('en-IN')}`}</p>
                                         </div>
                                 ))
                             ) : (
@@ -847,7 +745,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                             {/* Subtotal */}
                             <div className="flex justify-between items-center">
                                 <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/40">Subtotal</span>
-                                <span className="text-[13px] font-semibold text-white/68">₹{subtotal.toLocaleString('en-IN')}</span>
+                                <span className="text-[13px] font-semibold text-white/68">{subtotal !== null ? `₹${subtotal.toLocaleString('en-IN')}` : '—'}</span>
                             </div>
 
                             {/* Discounts */}
@@ -904,7 +802,10 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     <p className="mt-1 text-[11px] text-white/32">Inclusive of all confirmed charges.</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white">₹{displayTotal.toLocaleString('en-IN')}</p>
+                                    {displayTotal !== null
+                                        ? <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white">₹{displayTotal.toLocaleString('en-IN')}</p>
+                                        : <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white/30">—</p>
+                                    }
                                     <p className="mt-1 text-[8px] font-black uppercase tracking-[0.36em] text-white/22">Grand Total</p>
                                 </div>
                             </div>

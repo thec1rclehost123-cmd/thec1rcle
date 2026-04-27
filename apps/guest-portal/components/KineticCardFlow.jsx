@@ -91,7 +91,7 @@ function EventCardFace({ event, overlayOpacity, imageScale, imageFilter, accentO
     const poster = resolvePoster(event);
     const dateLabel = getDateLabel(event);
     const venueLabel = getVenueLabel(event);
-    const isLive = event?.lifecycle === "live";
+    const isLive = event?.isLive;
 
     return (
         <>
@@ -125,7 +125,7 @@ function EventCardFace({ event, overlayOpacity, imageScale, imageFilter, accentO
             />
             <motion.div
                 className="absolute inset-x-8 bottom-0 h-24 rounded-full bg-[#ff6a3d] blur-3xl"
-                style={{ opacity: accentOpacity }}
+                style={{ opacity: accentOpacity, className: cn(event.isLive ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400") }}
             />
 
             <div className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/12 bg-black/35 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.28em] text-white/90 backdrop-blur-md">
@@ -303,7 +303,7 @@ export default function KineticCardFlow({ events = [] }) {
         return (
             <div
                 ref={containerRef}
-                className="relative mx-auto flex w-full items-center justify-center px-4"
+                className={cn("relative mx-auto flex w-full items-center justify-center px-4", events[0]?.isLive ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
                 style={{ minHeight: staticHeight + 48 }}
             >
                 <SingleFeaturedCard

@@ -9,13 +9,6 @@ interface CommissionTier {
     label: string;
 }
 
-const DEFAULT_TIERS: CommissionTier[] = [
-    { threshold: 0, rate: 10, label: "Base" },
-    { threshold: 10, rate: 12, label: "Silver" },
-    { threshold: 25, rate: 15, label: "Gold" },
-    { threshold: 50, rate: 18, label: "Platinum" },
-    { threshold: 100, rate: 20, label: "Diamond" },
-];
 
 const TIER_STYLES: Record<string, { gradient: string; icon: any; badge: string; glow: string }> = {
     Base: { gradient: "from-slate-400 to-slate-500", icon: Zap, badge: "bg-slate-100 text-slate-700", glow: "" },
@@ -31,7 +24,7 @@ interface TierProgressProps {
     variant?: "full" | "compact" | "inline";
 }
 
-export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, variant = "full" }: TierProgressProps) {
+export default function TierProgressBar({ currentSales, tiers = [], variant = "full" }: TierProgressProps) {
     const { currentTier, nextTier, progress, salesToNext } = useMemo(() => {
         // Find current tier (last tier where threshold <= currentSales)
         let current = tiers[0];
@@ -188,4 +181,4 @@ export default function TierProgressBar({ currentSales, tiers = DEFAULT_TIERS, v
     );
 }
 
-export { DEFAULT_TIERS, type CommissionTier };
+export type { CommissionTier };

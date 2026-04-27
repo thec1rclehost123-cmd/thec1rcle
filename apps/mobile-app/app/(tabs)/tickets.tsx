@@ -74,7 +74,8 @@ function QRModal({ visible, order, onClose }: {
     if (!order) return null;
 
     const qrData = (order as any).qrData || order.id;
-    const totalTickets = order.tickets?.reduce((sum, t) => sum + t.quantity, 0) || 1;
+    const totalGuests = (order as any).totalGuests ?? 0;
+    const totalRevenue = (order as any).totalRevenue ?? 0;
     const ticketType = order.tickets?.[0]?.tierName || "General Entry";
     const dateStr = (() => {
         const d = safeDate(order.eventDate);
@@ -87,7 +88,7 @@ function QRModal({ visible, order, onClose }: {
         title: order.eventTitle || "THE C1RCLE Event",
         startDate: order.eventStartDate || order.eventDate,
         location: order.venueLocation,
-        description: `${ticketType} · ${totalTickets} ticket${totalTickets > 1 ? "s" : ""}`,
+        description: `${ticketType} · ${totalGuests} ticket${totalGuests > 1 ? "s" : ""}`,
     });
 
     const handleTransfer = () => {
@@ -115,7 +116,7 @@ function QRModal({ visible, order, onClose }: {
             eventTime: formatEventTime(order.eventDate),
             venue: order.venueLocation || "TBA",
             ticketType,
-            ticketCount: totalTickets,
+            ticketCount: totalGuests,
             qrCodeData: order.id,
         };
         await addToWallet(passData);
@@ -199,7 +200,7 @@ function QRModal({ visible, order, onClose }: {
                             <View style={styles.heroBottomRow}>
                                 <Text style={styles.heroOrderId}>{shortId}</Text>
                                 <View style={styles.heroQtyBadge}>
-                                    <Text style={styles.heroQtyText}>{totalTickets}x</Text>
+                                    <Text style={styles.heroQtyText}>{totalGuests}x</Text>
                                     <Text style={styles.heroQtyIcon}>⬡</Text>
                                 </View>
                             </View>
@@ -286,10 +287,7 @@ function QRModal({ visible, order, onClose }: {
                             <View style={styles.breakdownRow}>
                                 <Text style={styles.breakdownTotalLabel}>Total</Text>
                                 <Text style={styles.breakdownTotalValue}>
-                                    {(() => {
-                                        const total = order.tickets?.reduce((s, t) => s + t.price * t.quantity, 0) ?? 0;
-                                        return total > 0 ? `₹${total.toLocaleString("en-IN")}` : "Free";
-                                    })()}
+                                        {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN")}` : "Free"}
                                 </Text>
                             </View>
                         </Animated.View>
@@ -309,7 +307,7 @@ function TicketCard({ order, onShowQR, index }: {
     const scale = useSharedValue(1);
     const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
-    const totalTickets = order.tickets?.reduce((sum, t) => sum + t.quantity, 0) || 1;
+    const totalGuests = (order as any).totalGuests ?? 0;
     const shortId = order.id.replace(/-/g, "").substring(0, 8).toUpperCase();
     const hostName = (order as any).hostName || (order as any).promoterName || "";
     
@@ -389,7 +387,7 @@ function TicketCard({ order, onShowQR, index }: {
                     <Text style={styles.ticketCardOrderId}>{shortId}</Text>
                     
                     <View style={styles.ticketCardQty}>
-                        <Text style={styles.ticketCardQtyText}>{totalTickets}x</Text>
+                        <Text style={styles.ticketCardQtyText}>{totalGuests}x</Text>
                         <TicketIcon size={14} color="#fff" />
                     </View>
                 </View>
@@ -407,6 +405,10 @@ function TicketCard({ order, onShowQR, index }: {
 // Countdown Hero — shown when a ticket event is ≤7 days away
 function CountdownHero({ order, onViewTicket }: { order: Order; onViewTicket: () => void }) {
     const [timeLeft, setTimeLeft] = useState({ hours: 0, minutes: 0, seconds: 0 });
+
+    function getLowestPrice(event: any): number {
+        return event.minPrice ?? 0;
+    }
 
     useEffect(() => {
         const eventDate = safeDate(order.eventDate);
@@ -546,6 +548,11 @@ function getOrderGroupLabel(order: Order): string {
 export default function TicketsScreen() {
     const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
     const { user } = useAuthStore();
+    const stats = (user as any).stats ?? {};
+    const kpiActiveLinks = stats.activeLinks ?? 0;
+    const kpiClicks = stats.totalClicks ?? 0;
+    const kpiSales = stats.totalSales ?? 0;
+    const kpiEarnings = stats.totalEarnings ?? 0;
 
     // React Query: primary data source for orders (gateway-backed, cached 5min)
     const ordersQuery = useQuery({

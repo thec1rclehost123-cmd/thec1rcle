@@ -20,7 +20,7 @@ function validateOtpConfig() {
 async function sendEmail(recipient: string, code: string) {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
-        if (process.env.NODE_ENV !== 'development') {
+        if (process.env.NODE_ENV === 'production') {
             throw new Error('Email provider not configured');
         }
         console.log(`MOCK EMAIL OTP for ${recipient}: ${code}`);
@@ -144,7 +144,10 @@ export async function verifyGuestOtp(db: Firestore, type: 'email' | 'phone', rec
     }
 
     const storedHash = data.codeHash || data.code;
-    if (hashOtp(code) !== storedHash) {
+    const inputHash = hashOtp(code);
+    
+    if (inputHash !== storedHash) {
+        fastify.log.warn({ recipient, inputHash, storedHash }, 'OTP Hash Mismatch');
         await docRef.update({ attempts: (data.attempts || 0) + 1 });
         throw new Error('Invalid authorization code.');
     }

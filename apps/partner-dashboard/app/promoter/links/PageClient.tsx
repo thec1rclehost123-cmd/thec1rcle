@@ -295,10 +295,10 @@ export default function PromoLinksPage() {
         fetchData();
     };
 
-    const kpiActiveLinks = stats.activeLinks ?? counts.active;
-    const kpiClicks = stats.lifetimeClicks ?? stats.totalClicks ?? links.reduce((sum, link) => sum + Number(link.clicks || link.clickCount || 0), 0);
-    const kpiSales = stats.totalConversions ?? stats.totalSales ?? links.reduce((sum, link) => sum + Number(link.conversions || link.conversionCount || 0), 0);
-    const kpiEarnings = stats.clearedCommission ?? stats.totalEarnings ?? links.reduce((sum, link) => sum + Number(link.commission || link.clearedCommission || 0), 0);
+    const kpiActiveLinks = stats.activeLinks ?? 0;
+    const kpiClicks = stats.totalClicks ?? 0;
+    const kpiSales = stats.totalSales ?? 0;
+    const kpiEarnings = stats.totalEarnings ?? 0;
 
     return (
         <VenuePageShell

@@ -92,13 +92,8 @@ export default function ReservationsPage() {
         rejected: reservations.filter(r => r.status === "rejected").length,
     };
 
-    const totalGuests = reservations
-        .filter(r => r.status === "approved")
-        .reduce((sum, r) => sum + (r.guests || 0), 0);
-
-    const totalRevenue = reservations
-        .filter(r => r.status === "approved" && r.totalAmount)
-        .reduce((sum, r) => sum + (r.totalAmount || 0), 0);
+    const totalGuests = (reservations as any).totalGuests ?? 0;
+    const totalRevenue = (reservations as any).totalRevenue ?? 0;
 
 
     const formatTime = (time: string) => {

@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 const serverEnvSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    GATEWAY_URL: z.string().url().optional(),
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
@@ -14,7 +15,6 @@ const serverEnvSchema = z.object({
 
 const clientEnvSchema = z.object({
     NEXT_PUBLIC_SENTRY_DSN: z.string().optional().or(z.literal('')),
-    NEXT_PUBLIC_GATEWAY_URL: z.string().url().optional(),
     NEXT_PUBLIC_APP_URL: z.string().url().optional(),
     NEXT_PUBLIC_GUEST_PORTAL_URL: z.string().url().optional(),
     NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
@@ -24,7 +24,6 @@ const clientEnvSchema = z.object({
 const _serverEnv = serverEnvSchema.safeParse(process.env);
 const _clientEnv = clientEnvSchema.safeParse({
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    NEXT_PUBLIC_GATEWAY_URL: process.env.NEXT_PUBLIC_GATEWAY_URL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_GUEST_PORTAL_URL: process.env.NEXT_PUBLIC_GUEST_PORTAL_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,

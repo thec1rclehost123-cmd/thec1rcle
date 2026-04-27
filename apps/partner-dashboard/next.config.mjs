@@ -74,14 +74,6 @@ const nextConfig = {
       { source: '/api/clubs/:path*', destination: '/api/venues/:path*', permanent: true }
     ]
   },
-  async rewrites() {
-    return [
-      {
-        source: '/api/v1/:path*',
-        destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
-      }
-    ]
-  }
 };
 
 // Skip Sentry wrapper in local development — it adds webpack overhead on every HMR cycle

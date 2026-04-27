@@ -120,7 +120,7 @@ function StandaloneGuestOpsShell({
                                     total={kpis.totalExpected}
                                     emphasis
                                 />
-                                <DoorStatusBadge status={summary?.doorStatus ?? "open"} />
+                                <DoorStatusBadge status={summary?.doorStatus ?? "open"} isLive={!!summary?.isLive} />
                             </div>
                         ) : (
                             <div className="flex items-center gap-3 flex-wrap flex-1">
@@ -130,7 +130,7 @@ function StandaloneGuestOpsShell({
                                 <KPIBadge icon={<Flag size={13} className="text-amber-400" />}          label="Flagged"    value={kpis.flagged} />
                                 <KPIBadge icon={<ScanLine size={13} className="text-blue-400" />}      label="Dupe Scans" value={kpis.duplicateScans} />
                                 <KPIBadge icon={<Wifi size={13} className="text-teal-400" />}          label="Devices"    value={kpis.onlineDevices} />
-                                <DoorStatusBadge status={summary?.doorStatus ?? "open"} />
+                                <DoorStatusBadge status={summary?.doorStatus ?? "open"} isLive={!!summary?.isLive} />
                             </div>
                         )
                     ) : isLoading ? (
@@ -253,7 +253,7 @@ function EventSelector({ events, selectedId, onChange }: {
             >
                 <Circle
                     size={8}
-                    className={selected?.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
+                    className={selected?.isLive ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400"}
                 />
                 <span className="truncate">{selected?.title ?? "Select Event"}</span>
                 <ChevronDown size={13} className="ml-1 text-[var(--v-text-muted)] shrink-0" />
@@ -275,7 +275,7 @@ function EventSelector({ events, selectedId, onChange }: {
                         >
                             <Circle
                                 size={8}
-                                className={cn(event.status === "live" ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
+                                className={cn(event.isLive ? "text-green-400 fill-green-400" : "text-slate-400 fill-slate-400")}
                             />
                             <div>
                                 <div className="font-medium text-[var(--v-text-primary)]">{event.title}</div>
@@ -323,9 +323,8 @@ function KPIBadge({ icon, label, value, total, emphasis }: {
     );
 }
 
-function DoorStatusBadge({ status }: { status: DoorStatus }) {
+function DoorStatusBadge({ status, isLive }: { status: DoorStatus; isLive?: boolean }) {
     const cfg = DOOR_STATUS_CONFIG[status] ?? { label: status.toUpperCase(), color: "text-slate-400" };
-    const isLive = status === "open";
     return (
         <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-[var(--v-elevated)]">
             <Circle

@@ -6,12 +6,9 @@ export default async function adminRoutes(fastify: FastifyInstance) {
      * Fetch admin audit logs
      */
     fastify.get('/logs', {
-        preHandler: [fastify.requireRoles(['admin'])]
+        preHandler: [fastify.requireAdmin]
     }, async (request: any, reply) => {
         const actorId = request.user?.uid;
-        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
-
-        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
 
         try {
             const snapshot = await fastify.db.collection('admin_audit_logs')

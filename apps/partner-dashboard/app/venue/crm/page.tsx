@@ -669,7 +669,9 @@ export default function MarketingPage() {
             });
             if (!response.ok) throw new Error("Failed to fetch events");
             const data = await response.json();
-            return (data.events || data || []) as any[];
+            if (Array.isArray(data?.events)) return data.events as any[];
+            if (Array.isArray(data)) return data as any[];
+            throw new Error("Malformed events response");
         }
     });
 
@@ -683,7 +685,8 @@ export default function MarketingPage() {
             });
             if (!response.ok) throw new Error("Failed to fetch attendees");
             const payload = await response.json();
-            return (payload.customers || []) as CustomerRecord[];
+            if (!Array.isArray(payload?.customers)) throw new Error("Malformed attendees response");
+            return payload.customers as CustomerRecord[];
         },
         staleTime: 60_000,
     });
@@ -698,7 +701,8 @@ export default function MarketingPage() {
             });
             if (!response.ok) throw new Error("Failed to fetch order history");
             const payload = await response.json();
-            return (payload.orders || []) as OrderRecord[];
+            if (!Array.isArray(payload?.orders)) throw new Error("Malformed order response");
+            return payload.orders as OrderRecord[];
         },
         staleTime: 60_000,
     });
@@ -706,6 +710,7 @@ export default function MarketingPage() {
     // ── Door entries — self-contained fetch using Promise.all ────────────────────
     const [doorEntries, setDoorEntries] = useState<DoorEntryRecord[]>([]);
     const [doorLoading, setDoorLoading] = useState(false);
+    const [doorError, setDoorError] = useState<string | null>(null);
 
     useEffect(() => {
         if (!venueId || !user) {
@@ -718,6 +723,7 @@ export default function MarketingPage() {
         (async () => {
             setDoorLoading(true);
             try {
+                setDoorError(null);
                 const token = await user.getIdToken();
                 const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
 
@@ -729,9 +735,7 @@ export default function MarketingPage() {
                 if (cancelled) return;
 
                 if (!eventsRes.ok) {
-                    console.error("[Marketing] Events fetch failed:", eventsRes.status, await eventsRes.text());
-                    setDoorEntries([]);
-                    return;
+                    throw new Error(`Failed to load CRM events (${eventsRes.status})`);
                 }
 
                 const eventsPayload = await eventsRes.json();
@@ -754,12 +758,10 @@ export default function MarketingPage() {
                                 .then(async r => {
                                     const d = await r.json();
                                     if (!r.ok) {
-                                        console.error(`[Marketing] Walk-ins failed for ${ev.id}:`, r.status, d);
-                                        return { ev, entries: [] };
+                                        throw new Error(d.error || `Walk-ins failed for ${ev.id}`);
                                     }
                                     return { ev, entries: d.entries ?? [] };
                                 })
-                                .catch(err => { console.error(`[Marketing] Walk-ins error for ${ev.id}:`, err); return { ev, entries: [] }; })
                         )
                     ),
                     Promise.all(
@@ -768,12 +770,10 @@ export default function MarketingPage() {
                                 .then(async r => {
                                     const d = await r.json();
                                     if (!r.ok) {
-                                        console.error(`[Marketing] Dine-ins failed for ${ev.id}:`, r.status, d);
-                                        return { ev, entries: [] };
+                                        throw new Error(d.error || `Dine-ins failed for ${ev.id}`);
                                     }
                                     return { ev, entries: d.entries ?? [] };
                                 })
-                                .catch(err => { console.error(`[Marketing] Dine-ins error for ${ev.id}:`, err); return { ev, entries: [] }; })
                         )
                     ),
                     selectedEventId
@@ -782,12 +782,10 @@ export default function MarketingPage() {
                             .then(async r => {
                                 const d = await r.json();
                                 if (!r.ok) {
-                                    console.error("[Marketing] Venue dine-ins failed:", r.status, d);
-                                    return { entries: [] };
+                                    throw new Error(d.error || "Venue dine-ins failed");
                                 }
                                 return d;
-                            })
-                            .catch(err => { console.error("[Marketing] Venue dine-ins error:", err); return { entries: [] }; }),
+                            }),
                 ]);
 
                 if (cancelled) return;
@@ -837,8 +835,10 @@ export default function MarketingPage() {
                 ].sort((a, b) => b.addedAt.localeCompare(a.addedAt));
 
                 setDoorEntries(mapped);
-            } catch (err) {
+            } catch (err: any) {
                 console.error("[Marketing] useEffect fetch error:", err);
+                setDoorEntries([]);
+                setDoorError(err?.message || "Failed to load door entries");
             } finally {
                 if (!cancelled) setDoorLoading(false);
             }
@@ -851,11 +851,17 @@ export default function MarketingPage() {
 
     const attendees = useMemo(
         () => [
-            ...deriveAttendees(customersQuery.data || [], ordersQuery.data || []),
+            ...deriveAttendees(customersQuery.data ?? [], ordersQuery.data ?? []),
             ...deriveDoorAttendees(doorEntries),
         ],
         [customersQuery.data, ordersQuery.data, doorEntries]
     );
+
+    const loadError =
+        (eventsQuery.error instanceof Error && eventsQuery.error.message) ||
+        (customersQuery.error instanceof Error && customersQuery.error.message) ||
+        (ordersQuery.error instanceof Error && ordersQuery.error.message) ||
+        doorError;
 
     const filteredAttendees = useMemo(
         () =>
@@ -1014,7 +1020,7 @@ export default function MarketingPage() {
             <AnimatePresence>
                 {eventOpen && (
                     <EventFilterPopup
-                        events={eventsQuery.data || []}
+                        events={eventsQuery.data ?? []}
                         selectedEventId={selectedEventId}
                         onSelect={setSelectedEventId}
                         onClose={() => setEventOpen(false)}
@@ -1058,7 +1064,11 @@ export default function MarketingPage() {
                 </div>
 
             <div className="pb-40 min-w-[820px]">
-                {customersQuery.isLoading || doorLoading ? (
+                {loadError ? (
+                    <div className="py-20 text-center">
+                        <div className="text-red-400 text-[16px] font-medium tracking-tight">{loadError}</div>
+                    </div>
+                ) : customersQuery.isLoading || ordersQuery.isLoading || eventsQuery.isLoading || doorLoading ? (
                     Array.from({ length: 6 }).map((_, i) => (
                         <div key={i} className="h-[72px] w-full border-t border-white/[0.035] bg-[#232326] animate-pulse" />
                     ))

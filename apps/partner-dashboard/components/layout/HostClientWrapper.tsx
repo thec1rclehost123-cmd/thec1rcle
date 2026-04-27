@@ -21,7 +21,6 @@ import { ApprovalGuard } from "@/components/guards/ApprovalGuard";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getDefaultTabVisibility } from "@/lib/rbac/types";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
 import { usePathname } from "next/navigation";
 
@@ -86,20 +85,10 @@ interface HostClientWrapperProps {
 export function HostClientWrapper({ children }: HostClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { tabVisibility: ctxTabVisibility, profile } = useDashboardAuth();
+    const { tabVisibility } = useDashboardAuth();
     const pathname = usePathname();
 
     const hostPrimaryAction = { label: "+ Create Event", href: "/host/create/select-venue", icon: PlusCircle };
-
-    // Use server-resolved tabVisibility from auth context if set (custom staff profiles).
-    // Fall back to role-based defaults so host COHOST/STAFF only see permitted tabs
-    // even without a custom staff profile configured.
-    const membership = profile?.activeMembership;
-    const tabVisibility = ctxTabVisibility ?? (
-        membership?.role
-            ? getDefaultTabVisibility(membership.partnerType, membership.role)
-            : null
-    );
 
     const filteredSections = useMemo(
         () => applyTabVisibility(MENU_SECTIONS, tabVisibility),

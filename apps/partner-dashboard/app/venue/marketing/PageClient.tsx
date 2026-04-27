@@ -110,7 +110,8 @@ export default function VenueMarketingPageClient() {
             });
             if (!response.ok) throw new Error("Failed to fetch attendees");
             const payload = await response.json();
-            return (payload.customers || []) as CustomerRecord[];
+            if (!Array.isArray(payload?.customers)) throw new Error("Malformed attendees response");
+            return payload.customers as CustomerRecord[];
         },
         staleTime: 60_000,
     });
@@ -125,15 +126,21 @@ export default function VenueMarketingPageClient() {
             });
             if (!response.ok) throw new Error("Failed to fetch order history");
             const payload = await response.json();
-            return (payload.orders || []) as OrderRecord[];
+            if (!Array.isArray(payload?.orders)) throw new Error("Malformed order response");
+            return payload.orders as OrderRecord[];
         },
         staleTime: 60_000,
     });
 
     const recipients = useMemo(
-        () => deriveRecipients(customersQuery.data || [], ordersQuery.data || []),
+        () => deriveRecipients(customersQuery.data ?? [], ordersQuery.data ?? []),
         [customersQuery.data, ordersQuery.data]
     );
+
+    const loadError =
+        (customersQuery.error instanceof Error && customersQuery.error.message) ||
+        (ordersQuery.error instanceof Error && ordersQuery.error.message) ||
+        null;
 
     const filteredRecipients = useMemo(
         () =>
@@ -249,7 +256,11 @@ export default function VenueMarketingPageClient() {
             </div>
 
             <div className="dashboard-panel p-6">
-                {customersQuery.isLoading || ordersQuery.isLoading ? (
+                {loadError ? (
+                    <div className="rounded-[18px] border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
+                        {loadError}
+                    </div>
+                ) : customersQuery.isLoading || ordersQuery.isLoading ? (
                     <div className="space-y-3">
                         {Array.from({ length: 6 }).map((_, index) => (
                             <div key={index} className="h-16 animate-pulse rounded-[18px] bg-[var(--v-elevated)]" />

@@ -67,9 +67,7 @@ function TicketTierCard({
     const { addItem } = useCartStore();
 
     // Compute sold percentage for progress bar
-    const soldPercent = tier.quantity > 0
-        ? Math.max(0, Math.min(100, ((tier.quantity - tier.remaining) / tier.quantity) * 100))
-        : 0;
+    const soldPercent = tier.soldPercent ?? 0;
 
     const scale = useSharedValue(1);
 
@@ -80,7 +78,7 @@ function TicketTierCard({
     const handleQuantityChange = (delta: number) => {
         Haptics.selectionAsync();
         if (delta > 0) {
-            setQuantity(Math.min(tier.remaining, quantity + 1));
+            setQuantity(quantity + 1);
         } else {
             setQuantity(Math.max(1, quantity - 1));
         }
@@ -228,9 +226,7 @@ function HeaderButton({
 export default function EventDetailScreen() {
     const { id, ref } = useLocalSearchParams<{ id: string; ref?: string }>();
     const { getEventById } = useEventsStore();
-    const cartCount = useCartStore((state) =>
-        state.items.reduce((sum, item) => sum + item.quantity, 0)
-    );
+    const cartCount = 0; // Handled by backend/cart-status
     const insets = useSafeAreaInsets();
     const { user } = useAuth();
     const profile = useProfileStore((s) => s.profile);
@@ -391,9 +387,7 @@ export default function EventDetailScreen() {
     })();
     const formattedTime = formatEventTime(event.startDate);
 
-    const lowestPrice = event.tickets?.reduce((min, tier) => {
-        return tier.price < min ? tier.price : min;
-    }, event.tickets[0]?.price || 0) || 0;
+    const lowestPrice = event.minPrice || 0;
     const hasAvailableTickets = event.tickets?.some((tier) => tier.remaining > 0) ?? false;
 
     return (

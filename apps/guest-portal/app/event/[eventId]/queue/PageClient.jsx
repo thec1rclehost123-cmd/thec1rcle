@@ -63,9 +63,7 @@ const WaitingRoom = () => {
             } else if (data.status === "waiting") {
                 setQueueData(data);
                 setStatus("waiting");
-                // Lane-aware wait estimation
-                const pos = data.lanePosition || data.position || 0;
-                setWaitTime(Math.ceil(pos * 0.3));
+                setWaitTime(data.estimatedWaitMinutes ?? null);
             } else if (data.status === "expired" || data.status === "abandoned") {
                 setStatus("expired");
                 clearInterval(timerRef.current);
@@ -122,7 +120,7 @@ const WaitingRoom = () => {
         return () => clearInterval(timerRef.current);
     }, [eventId, user]);
 
-    const lowestPrice = eventData?.tickets?.reduce((min, t) => Math.min(min, t.price), Infinity) || 0;
+    const lowestPrice = eventData?.startingPrice ?? eventData?.priceRange?.min ?? 0;
 
     return (
         <div className="relative min-h-screen flex flex-col items-center justify-center p-6 bg-black overflow-hidden font-sans">

@@ -172,91 +172,9 @@ function buildTagline(event, venueLabel) {
   return "";
 }
 
-function getAvailability(ticket) {
-  const quantity = Number(ticket.quantity || ticket.totalQuantity || 0);
-  const remaining =
-    ticket.remaining !== undefined
-      ? Number(ticket.remaining)
-      : ticket.remainingQuantity !== undefined
-        ? Number(ticket.remainingQuantity)
-        : quantity;
+function getTierBadge(ticket) {
+  if (ticket?.badge) return ticket.badge;
 
-  if (remaining <= 0 && quantity > 0) {
-    return {
-      label: "Sold out",
-      isSoldOut: true,
-      tone: "text-white/[0.35]",
-      barClass: "bg-white/10",
-      fill: 0,
-    };
-  }
-
-  if (quantity > 0 && remaining >= 0) {
-    const fill = Math.max(0, Math.min(1, remaining / quantity));
-    if (fill <= 0.12) {
-      return {
-        label: `${remaining} left`,
-        isSoldOut: false,
-        tone: "text-rose-300",
-        barClass: "bg-rose-500",
-        fill,
-      };
-    }
-    if (fill <= 0.35) {
-      return {
-        label: "Few left",
-        isSoldOut: false,
-        tone: "text-amber-200",
-        barClass: "bg-amber-400",
-        fill,
-      };
-    }
-    return {
-      label: "Available",
-      isSoldOut: false,
-      tone: "text-emerald-200",
-      barClass: "bg-emerald-400",
-      fill,
-    };
-  }
-
-  return {
-    label: "Open",
-    isSoldOut: false,
-    tone: "text-white/[0.65]",
-    barClass: "bg-white",
-    fill: 1,
-  };
-}
-
-function getTierLimit(ticket, pendingTotalFree = 0, currentQty = 0) {
-  const maxPerOrder = Number(ticket?.maxPerOrder || 10);
-  const remaining =
-    ticket?.remaining !== undefined
-      ? Number(ticket.remaining)
-      : ticket?.remainingQuantity !== undefined
-        ? Number(ticket.remainingQuantity)
-        : ticket?.quantity !== undefined
-          ? Number(ticket.quantity)
-          : maxPerOrder;
-
-  const isFree = Number(ticket?.price || 0) === 0;
-  let computedMax = maxPerOrder;
-
-  if (isFree) {
-    computedMax = Math.max(0, Math.min(1, currentQty + (1 - pendingTotalFree)));
-  }
-
-  if (remaining > 0) {
-    return Math.max(0, Math.min(computedMax, remaining));
-  }
-  if (ticket?.quantity === 0 || ticket?.remaining === 0 || ticket?.remainingQuantity === 0) {
-    return 0;
-  }
-  return maxPerOrder;
-}
-
-function getTierBadge(ticket, startingPrice) {
   const name = String(ticket?.name || "").toLowerCase();
   const entryType = String(ticket?.entryType || "").toLowerCase();
 
@@ -269,7 +187,7 @@ function getTierBadge(ticket, startingPrice) {
   if (name.includes("ladies") || name.includes("female") || ticket?.gender === "female") {
     return { label: "Ladies", classes: "border-pink-300/20 bg-pink-300/10 text-pink-100" };
   }
-  if (Number(ticket?.price || 0) === Number(startingPrice || 0) && String(ticket?.name || "").toLowerCase().includes("early")) {
+  if (ticket?.isLowestPrice && String(ticket?.name || "").toLowerCase().includes("early")) {
     return { label: "Early", classes: "border-white/[0.15] bg-white/[0.08] text-white" };
   }
   return null;
@@ -628,7 +546,7 @@ export default function EventDetail({
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
-  const [quantities, setQuantities] = useState({});
+  const [selectedTickets, setSelectedTickets] = useState([]);
   const [crowdModalOpen, setCrowdModalOpen] = useState(false);
   const [waitlistState, setWaitlistState] = useState({});
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
@@ -676,44 +594,12 @@ export default function EventDetail({
       .sort((first, second) => Number(first?.price || 0) - Number(second?.price || 0));
   }, [event?.tickets]);
 
-  const startingPrice = useMemo(() => {
-    if (tickets.length === 0) return 0;
-    return tickets.reduce((minimum, ticket) => {
-      const price = Number(ticket?.price || 0);
-      return price < minimum ? price : minimum;
-    }, Number.MAX_SAFE_INTEGER);
-  }, [tickets]);
-
-  const selectedTickets = useMemo(() => {
-    return Object.entries(quantities)
-      .filter(([, quantity]) => Number(quantity) > 0)
-      .map(([id, quantity]) => ({ id, quantity }));
-  }, [quantities]);
-
-  const totalSelected = useMemo(() => {
-    return Object.values(quantities).reduce((sum, quantity) => sum + Number(quantity || 0), 0);
-  }, [quantities]);
-
-  const totalPrice = useMemo(() => {
-    return tickets.reduce((sum, ticket) => {
-      return sum + Number(ticket?.price || 0) * Number(quantities[ticket.id] || 0);
-    }, 0);
-  }, [tickets, quantities]);
-
-  const totalFreeSelected = useMemo(() => {
-    return tickets.reduce((sum, ticket) => {
-      const isFree = Number(ticket?.price || 0) === 0;
-      return sum + (isFree ? Number(quantities[ticket.id] || 0) : 0);
-    }, 0);
-  }, [tickets, quantities]);
-
   const crowdPeople = useMemo(() => {
     if (interestedData?.users?.length) {
       return selectInterestedUsersForDisplay(interestedData.users, 12);
     }
     return [];
   }, [interestedData]);
-  const visibleCrowdPeople = crowdPeople.slice(0, 5);
 
   const handleNotifyMe = useCallback(async (ticket) => {
     if (!user) {
@@ -738,44 +624,28 @@ export default function EventDetail({
     }
   }, [user, event?.id, router]);
 
-  const setQuantity = (ticket, nextQuantity) => {
-    const limit = getTierLimit(ticket);
-    const safeQuantity = Math.max(0, Math.min(limit, nextQuantity));
-    setQuantities((current) => ({
-      ...current,
-      [ticket.id]: safeQuantity,
-    }));
+  const handleTicketChange = (ticketId, delta) => {
+    setSelectedTickets(prev => {
+        const sel = prev.find(st => st.id === ticketId);
+        const currentQty = sel ? sel.quantity : 0;
+        const newQty = Math.max(0, currentQty + delta);
+        
+        if (newQty === 0) return prev.filter(st => st.id !== ticketId);
+        if (sel) return prev.map(st => st.id === ticketId ? { ...st, quantity: newQty } : st);
+        
+        const ticket = event.tickets?.find(t => t.id === ticketId);
+        return [...prev, { id: ticketId, quantity: newQty, name: ticket?.name, price: ticket?.price }];
+    });
   };
 
   const handlePrimaryAction = () => {
-    if (selectedTickets.length > 0) {
-      onAction?.("BOOK", { tickets: selectedTickets });
-      return;
-    }
-    onAction?.("BOOK", {});
+    onAction?.("BOOK", { tickets: selectedTickets });
   };
 
-  /* ─── Schedule helper ──────────────────────────────────────────────────── */
-  const scheduleDate = event?.startDate ? formatEventDate(event.startDate) : "Date soon";
-  const scheduleDoorNote = event?.doorPolicy || (timeShort ? `Doors into your sector for 30 minutes past start time.` : "");
   const tagline = buildTagline(event, venueLabel);
-  const cityLabel = event?.cityLabel || event?.city || host?.city || "";
-  const isFreeEntry = tickets.length > 0 && tickets.every((ticket) => Number(ticket?.price || 0) === 0);
-  const startsFree = tickets.length > 0 && Number(startingPrice || 0) === 0;
-  const entryLabel = tickets.length > 0 ? (isFreeEntry ? "Free RSVP" : startsFree ? "From Free" : `From ${formatINR(startingPrice)}`) : "Tickets Soon";
-  const ticketLeadCopy = tickets.length > 0
-    ? "Reserve your spot."
-    : "Ticket tiers will appear here once the drop is live.";
   const noteLabel = event?.doorPolicy ? "Door policy" : event?.dressCode ? "Dress code" : "Heads up";
   const noteValue = event?.doorPolicy || (event?.dressCode ? String(event.dressCode).replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase()) : "Arrive early for the smoothest entry window.");
   const stickySupportLabel = [venueLabel, timeLabel || dateShort].filter(Boolean).join(" · ");
-  const primaryActionLabel = selectedTickets.length > 0
-    ? `Continue • ${formatINR(totalPrice)}`
-    : tickets.length > 0
-      ? isFreeEntry
-        ? "Get On The List"
-        : "Get Tickets"
-      : "Get Tickets";
 
   return (
     <div 
@@ -783,29 +653,20 @@ export default function EventDetail({
       style={{ "--event-accent": dominantColor }}
     >
       <div className="pointer-events-none fixed inset-0 z-0">
-        {/* Layer 1: Base Black */}
         <div className="absolute inset-0 bg-black" />
-        
-        {/* Layer 2: Primary centralized glow from dominant color */}
         <div
           className="absolute inset-0 opacity-100 mix-blend-screen"
           style={{
             background: `radial-gradient(ellipse at 50% 30%, rgba(var(--event-accent), 0.9), transparent 85%)`,
           }}
         />
-
-        {/* Layer 3: Secondary diffuse glow */}
         <div
           className="absolute inset-0 opacity-80 mix-blend-screen"
           style={{
             background: `radial-gradient(circle at 50% 50%, rgba(var(--event-accent), 0.5), transparent 85%)`,
           }}
         />
-
-        {/* Layer 4: Grain/Noise */}
         <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat", backgroundSize: "256px 256px" }} />
-
-        {/* Layer 5: Black Vignette Gradients from all 4 sides (focusing light to center) */}
         <div className="absolute left-0 right-0 top-0 h-[15vh] bg-gradient-to-b from-black via-black/60 to-transparent" />
         <div className="absolute left-0 right-0 bottom-0 h-[40vh] bg-gradient-to-t from-black via-black/90 to-transparent" />
         <div className="absolute top-0 bottom-0 left-0 w-[25vw] bg-gradient-to-r from-black via-black/80 to-transparent" />
@@ -827,13 +688,7 @@ export default function EventDetail({
                   <div className="min-w-0">
                     <SectionLabel>Get on the list</SectionLabel>
                     <div className="mt-2 text-[clamp(1.15rem,2vw,1.45rem)] font-semibold leading-tight text-white">
-                      {tickets.length > 0
-                        ? isFreeEntry
-                          ? "Free RSVP is open now."
-                          : startsFree
-                            ? "Entry starts free."
-                            : `Tickets start at ${formatINR(startingPrice)}.`
-                        : "Ticket drop coming soon."}
+                      {event.statusLabel || "Tickets are available"}
                     </div>
                     <div className="mt-2 truncate text-[14px] text-white/48">
                       {stickySupportLabel}
@@ -857,7 +712,7 @@ export default function EventDetail({
                         boxShadow: `0 16px 46px rgba(${dominantColor}, 0.34), inset 0 1px 0 rgba(255,255,255,0.24), 0 0 20px rgba(${dominantColor}, 0.4)`,
                       }}
                     >
-                      {primaryActionLabel}
+                      {selectedTickets.length > 0 ? "Continue" : "Get Tickets"}
                     </button>
                   </div>
                 </div>
@@ -970,7 +825,6 @@ export default function EventDetail({
                 </div>
               </GlassCard>
 
-              {/* Left Column content continues without extra wrapper */}
                 <GlassCard className="p-5 sm:p-6" glowColor={dominantColor}>
                   <SectionLabel>About the event</SectionLabel>
 
@@ -1103,7 +957,6 @@ export default function EventDetail({
               </div>
 
               <aside className="relative flex flex-col gap-2.5 sm:gap-3 order-1 lg:order-2">
-                {/* Ambient glow specifically behind the poster element */}
                 <div 
                   className="pointer-events-none absolute -inset-20 z-[-1] opacity-60 blur-[80px] transition-opacity duration-700"
                   style={{ background: `radial-gradient(circle, rgba(var(--event-accent), 0.5) 0%, transparent 60%)` }}
@@ -1150,10 +1003,10 @@ export default function EventDetail({
                   <div className="border-b border-white/[0.08] px-5 py-5">
                     <SectionLabel>Tickets</SectionLabel>
                     <div className="mt-3 text-[28px] font-black uppercase tracking-[-0.04em] text-white">
-                      {entryLabel}
+                      {event.entryLabel || "Tickets"}
                     </div>
                     <div className="mt-2 max-w-[28ch] text-[13px] leading-6 text-white/48">
-                      {ticketLeadCopy}
+                      {event.ticketLeadCopy || "Reserve your spot."}
                     </div>
                   </div>
 
@@ -1165,30 +1018,21 @@ export default function EventDetail({
                     ) : null}
 
                     {tickets.map((ticket) => {
-                      const availability = getAvailability(ticket);
-                      const badge = getTierBadge(ticket, startingPrice);
-                      const quantity = Number(quantities[ticket.id] || 0);
-                      const limit = getTierLimit(ticket, totalFreeSelected, quantity);
-                      const isSelected = quantity > 0;
+                      const sel = selectedTickets.find(st => st.id === ticket.id);
+                      const qty = sel ? sel.quantity : 0;
+                      const isSoldOut = ticket.isSoldOut;
+                      const isScarce = ticket.isLow;
+                      const badge = getTierBadge(ticket);
 
                       return (
                         <div
                           key={ticket.id}
                           className={`relative overflow-hidden rounded-[20px] border px-5 py-5 transition-all duration-300 ${
-                            isSelected
+                            qty > 0
                               ? "border-white/20 bg-white/[0.08] shadow-lg"
                               : "border-white/[0.06] bg-black/40 hover:bg-black/60"
-                          } ${availability.isSoldOut ? "opacity-60 grayscale" : ""}`}
-                          style={
-                            isSelected
-                              ? {
-                                  borderColor: `rgba(${dominantColor}, 0.3)`,
-                                  boxShadow: `0 12px 36px rgba(${dominantColor}, 0.12)`,
-                                }
-                              : undefined
-                          }
+                          } ${isSoldOut ? "opacity-60 grayscale" : ""}`}
                         >
-                          {/* Top Section */}
                           <div className="flex items-start justify-between gap-3 relative z-10">
                             <div>
                               {badge ? (
@@ -1196,12 +1040,11 @@ export default function EventDetail({
                                   {badge.label}
                                 </span>
                               ) : null}
-                              <div className={`${badge ? "mt-2" : ""} text-[16px] font-bold tracking-wide text-white`}>
+                              <p className={`text-[10px] font-bold uppercase tracking-widest ${isSoldOut ? 'text-red-500' : isScarce ? 'text-orange' : 'text-emerald-500'}`}>
+                                {ticket.availabilityLabel}
+                              </p>
+                              <div className="text-[16px] font-bold tracking-wide text-white mt-1">
                                 {ticket.name || "Entry Tier"}
-                              </div>
-                              <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">
-                                <div className={`h-1.5 w-1.5 rounded-full ${availability.isSoldOut ? "bg-red-500/50" : availability.fill > 0.8 ? "bg-amber-500/80" : "bg-emerald-500/80"}`} />
-                                {availability.label}
                               </div>
                             </div>
 
@@ -1209,48 +1052,40 @@ export default function EventDetail({
                               <div className="text-[20px] font-black tracking-[-0.04em] text-white">
                                 {Number(ticket.price || 0) === 0 ? "Free" : formatINR(ticket.price)}
                               </div>
-                              <div className="mt-1 text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
-                                {Number(ticket.price || 0) === 0 ? (quantity >= 1 || (totalFreeSelected >= 1 && quantity === 0) ? "Limit Reached" : "Limit 1") : limit > 0 ? `Limit ${limit}` : "Closed"}
-                              </div>
                             </div>
                           </div>
 
-                          {/* Bottom Section */}
                           <div className="mt-4 flex items-center justify-between border-t border-white/[0.06] pt-4 relative z-10">
                             <div className="text-[11px] font-semibold text-white/40">
-                              {isSelected ? "Selected" : "Select Quantity"}
+                              {qty > 0 ? "Selected" : "Select Quantity"}
                             </div>
                             
-                            {availability.isSoldOut ? (
+                            {isSoldOut ? (
                               <button
                                 type="button"
                                 onClick={() => handleNotifyMe(ticket)}
                                 disabled={waitlistState[ticket.id] === "loading" || waitlistState[ticket.id] === "joined"}
                                 className="rounded-xl border border-white/8 px-4 py-2 text-[10px] font-black uppercase tracking-[0.16em] text-white/50 transition hover:border-white/15 hover:text-white/70 disabled:cursor-not-allowed disabled:opacity-40"
                               >
-                                {waitlistState[ticket.id] === "joined"
-                                  ? "You're on the list"
-                                  : waitlistState[ticket.id] === "loading"
-                                    ? "..."
-                                    : "Notify Me"}
+                                {waitlistState[ticket.id] === "joined" ? "You're on the list" : "Notify Me"}
                               </button>
                             ) : (
                               <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/40 px-1 py-1 backdrop-blur-md">
                                 <button
                                   type="button"
-                                  onClick={() => setQuantity(ticket, quantity - 1)}
-                                  disabled={quantity <= 0}
+                                  onClick={() => handleTicketChange(ticket.id, -1)}
+                                  disabled={qty <= 0}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
                                 >
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
                                 <span className="w-4 text-center text-[14px] font-bold text-white">
-                                  {quantity}
+                                  {qty}
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setQuantity(ticket, quantity + 1)}
-                                  disabled={quantity >= limit}
+                                  onClick={() => handleTicketChange(ticket.id, 1)}
+                                  disabled={isSoldOut}
                                   className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
                                 >
                                   <Plus className="h-3.5 w-3.5" />
@@ -1287,7 +1122,7 @@ export default function EventDetail({
                         </div>
                       </div>
                       <div className="text-[17px] font-black text-white">
-                        {selectedTickets.length > 0 ? formatINR(totalPrice) : tickets.length > 0 ? (isFreeEntry ? "Free" : formatINR(startingPrice)) : "--"}
+                        {tickets.length > 0 ? (isFreeEntry ? "Free" : formatINR(startingPrice)) : "--"}
                       </div>
                     </div>
 

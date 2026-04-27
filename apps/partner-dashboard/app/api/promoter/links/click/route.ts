@@ -1,18 +1,5 @@
 import { NextRequest } from "next/server";
-import { recordLinkClick, getPromoterLinkByCode } from "@/lib/server/promoterLinkStore";
-import { getEvent } from "@/lib/server/eventStore";
-import { ok, fail } from "@/lib/server/apiResponse";
-
-function isPromoterAllowedForEvent(event: any, promoterId: string) {
-    const globallyEnabled = event?.promotersEnabled === true || event?.promoterSettings?.enabled === true;
-    if (!globallyEnabled) return false;
-
-    const allowedPromoterIds = Array.isArray(event?.promoterSettings?.allowedPromoterIds)
-        ? event.promoterSettings.allowedPromoterIds.map((id: string) => String(id))
-        : [];
-
-    return allowedPromoterIds.length === 0 || allowedPromoterIds.includes(String(promoterId));
-}
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * POST /api/promoter/links/click
@@ -22,31 +9,9 @@ function isPromoterAllowedForEvent(event: any, promoterId: string) {
  * Sources: wa (WhatsApp), ig (Instagram), tw (Twitter/X), fb (Facebook), em (Email), ot (Other)
  */
 export async function POST(req: NextRequest) {
-    try {
-        const { code, source } = await req.json();
-
-        if (!code) return fail("code is required", 400);
-
-        // Validate source if provided
-        const validSources = ["wa", "ig", "tw", "fb", "em", "ot"];
-        const cleanSource = source && validSources.includes(source) ? source : null;
-
-        // Get the link by code
-        const link = await getPromoterLinkByCode(code);
-
-        if (!link) return fail("Link not found or inactive", 404);
-
-        const event = await getEvent(link.eventId);
-        if (!event || !isPromoterAllowedForEvent(event, link.promoterId)) {
-            return fail("Link not found or inactive", 404);
-        }
-
-        // Record the click with source attribution
-        await recordLinkClick(link.id, cleanSource);
-
-        return ok({ eventId: link.eventId, source: cleanSource });
-    } catch (error: any) {
-        console.error("[Promoter Links Click API] POST Error:", error);
-        return fail("Failed to record click");
-    }
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/links/click`, {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
 }

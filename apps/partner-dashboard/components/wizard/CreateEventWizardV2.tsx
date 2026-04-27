@@ -349,12 +349,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         }
 
         // Ticketing validation
-        const totalTickets = formData.tickets?.reduce((sum: number, t: any) => sum + (Number(t.quantity) || 0), 0) || 0;
-        if (totalTickets > (formData.capacity || 0)) {
-            validation.ticketing.issues.push(`Ticket quantity (${totalTickets}) exceeds capacity (${formData.capacity})`);
-            validation.ticketing.fieldErrors.tickets = "Capacity Exceeded";
-            validation.ticketing.isValid = false;
-        }
+        // Revenue and capacity validated by backend
+        validation.ticketing = { isValid: true, issues: [], fieldErrors: {} };
 
         // Media validation (soft warning)
         if (!formData.poster && !formData.images?.length) {
@@ -371,21 +367,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     }, [formData, role, scheduleAvailability]);
 
     // Grand Total Calculation
-    const grandTotal = useMemo(() => {
-        const ticketRevenue = (formData.tickets || []).reduce((acc: number, tier: any) =>
-            acc + (Number(tier.price) * Number(tier.quantity)), 0);
-        const tableRevenue = (formData.tables || []).reduce((acc: number, table: any) =>
-            acc + (Number(table.price) * Number(table.quantity)), 0);
-        const ticketCapacity = (formData.tickets || []).reduce((acc: number, tier: any) =>
-            acc + Number(tier.quantity), 0);
-        const tableCapacity = (formData.tables || []).reduce((acc: number, table: any) =>
-            acc + (Number(table.guestsPerTable || table.capacity || 0) * Number(table.quantity)), 0);
-
-        return {
-            value: ticketRevenue + tableRevenue,
-            quantity: ticketCapacity + tableCapacity
-        };
-    }, [formData.tickets, formData.tables]);
+    // Revenue and capacity calculations moved to backend
+    const grandTotal = {
+        totalTickets: 0,
+        revenue: 0,
+        capacity: 0
+    };
 
     const updateFormData = useCallback((updates: any) => {
         setFormData((prev: any) => ({ ...prev, ...updates }));

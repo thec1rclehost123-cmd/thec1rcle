@@ -1,30 +1,11 @@
-/**
- * GET /api/venue/finance/promoter-payouts?venueId=&cursor=
- */
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import { getPromoterPayoutsData } from "@/lib/server/splitFinanceStore";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export async function GET(request: Request) {
-    try {
-        const ctx = await requireVenueAccess(request, "finance:read_promoter_payouts");
-        if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-        const { searchParams } = new URL(request.url);
-        const token = request.headers.get("Authorization")?.replace("Bearer ", "") ?? "";
-
-        const data = await getPromoterPayoutsData(
-            ctx.venueId,
-            token,
-            searchParams.get("cursor") ?? undefined
-        );
-
-        return NextResponse.json(data, {
-            headers: { "Cache-Control": "private, max-age=30" },
-        });
-    } catch (err: any) {
-        console.error("[finance/promoter-payouts GET]", err.message);
-        return NextResponse.json({ error: "Failed to fetch promoter payouts" }, { status: 500 });
-    }
+export async function GET(req: NextRequest) {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/finance/promoter-payouts?${searchParams}`, {});
 }

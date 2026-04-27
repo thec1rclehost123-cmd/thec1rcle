@@ -50,9 +50,12 @@ import venueSettingsRoutes from './routes/v1/venue-settings';
 import venueRoutes from './routes/v1/venues';
 import matchingRoutes from './routes/v1/matching';
 import authRoutes from './routes/v1/auth';
+import kycRoutes from './routes/v1/kyc';
 import adminRoutes from './routes/v1/admin';
 import socialRoutes from './routes/v1/social';
 import guestProfileRoutes from './routes/v1/guest-profiles';
+import discoveryRoutes from './routes/v1/discovery';
+import doorRoutes from './routes/v1/door';
 import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -102,6 +105,21 @@ async function main() {
     server.addHook('onRequest', async (request, reply) => {
         Sentry.setTag("request_id", request.id);
         reply.header('x-request-id', request.id);
+    });
+
+    // 🛡️ SECURITY HEADERS — applied to every response
+    server.addHook('onSend', async (_request, reply) => {
+        reply.header('X-Content-Type-Options', 'nosniff');
+        reply.header('X-Frame-Options', 'DENY');
+        reply.header('X-XSS-Protection', '1; mode=block');
+        reply.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+        reply.header('X-Permitted-Cross-Domain-Policies', 'none');
+        // HSTS only in production (dev uses plain HTTP)
+        if (process.env.NODE_ENV === 'production') {
+            reply.header('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
+        }
+        // Minimal CSP — API gateway returns JSON, not HTML, but defence-in-depth
+        reply.header('Content-Security-Policy', "default-src 'none'");
     });
 
     // ⚡ PERFORMANCE LOGGING: Track request duration
@@ -206,7 +224,6 @@ async function main() {
     await server.register(scanRoutes, { prefix: '/api/v1/scan' });
     await server.register(coverChargeRoutes, { prefix: '/api/v1/cover-charge' });
     await server.register(ticketRoutes, { prefix: '/api/v1' });
-    await server.register(staffRoutes, { prefix: '/api/v1' });
     await server.register(profileRoutes, { prefix: '/api/v1' });
     await server.register(financeRoutes, { prefix: '/api/v1' });
     await server.register(promoterRoutes, { prefix: '/api/v1' });
@@ -225,6 +242,7 @@ async function main() {
     await server.register(orderRoutes, { prefix: '/api/v1/orders' });
     await server.register(partnershipRoutes, { prefix: '/api/v1/partnerships' });
     await server.register(authRoutes, { prefix: '/api/v1/auth' });
+    await server.register(kycRoutes, { prefix: '/api/v1/kyc' });
     await server.register(adminRoutes, { prefix: '/api/v1/admin' });
     await server.register(promoterLinksRoutes, { prefix: '/api/v1/promoter-links' });
     await server.register(refundRoutes, { prefix: '/api/v1/refunds' });
@@ -235,6 +253,8 @@ async function main() {
     await server.register(venueSettingsRoutes, { prefix: '/api/v1/venue-settings' });
     await server.register(venueRoutes, { prefix: '/api/v1' });
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
+    await server.register(discoveryRoutes, { prefix: '/api/v1/discovery' });
+    await server.register(doorRoutes, { prefix: '/api/v1' });
     await server.register(socialRoutes, { prefix: '/api/v1' });
     await server.register(guestProfileRoutes, { prefix: '/api/v1' });
 
