@@ -1,68 +1,4 @@
 {
-  "apps/guest-portal/app/api/auth/session/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-1",
-    "target_owner": "Fastify auth routes + auth/profile services",
-    "reason": "Legacy auth app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-1 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/follow/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-3",
-    "target_owner": "Fastify API gateway route + domain service",
-    "reason": "Legacy guest app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-3 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/passes/apple/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-1",
-    "target_owner": "Fastify tickets routes + ticket/entitlement services",
-    "reason": "Legacy guest app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-1 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/passes/google/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-1",
-    "target_owner": "Fastify tickets routes + ticket/entitlement services",
-    "reason": "Legacy guest app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-1 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/promoter/links/click/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-1",
-    "target_owner": "Fastify partner promoter routes + promoter services",
-    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-1 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/tickets/scan/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-5",
-    "target_owner": "Fastify tickets routes + ticket/entitlement services",
-    "reason": "Legacy scanner app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-5 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/venues/[venueId]/follow-status/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-3",
-    "target_owner": "Fastify social/profile relationship routes + relationship services",
-    "reason": "Legacy guest app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-3 migration completes and this route becomes a thin bridge or is deleted."
-  },
-  "apps/guest-portal/app/api/venues/[venueId]/follow/route.js": {
-    "classification": "legacy_backend_logic",
-    "phase": "GP-3",
-    "target_owner": "Fastify social/profile relationship routes + relationship services",
-    "reason": "Legacy guest app/api route still owns backend logic during Phase 0.",
-    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
-    "remove_when": "Remove when GP-3 migration completes and this route becomes a thin bridge or is deleted."
-  },
   "apps/partner-dashboard/app/api/assistant/chat/route.ts": {
     "classification": "legacy_backend_logic",
     "phase": "V-1",
@@ -85,6 +21,14 @@
     "target_owner": "Fastify auth routes + auth/profile services",
     "reason": "Legacy auth app/api route still owns backend logic during Phase 0.",
     "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when V-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/auth/session/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "V-1",
+    "target_owner": "Fastify auth routes + auth/profile services",
+    "reason": "Legacy auth app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current session DTO behavior exactly while re-homing ownership into Fastify and packages/core.",
     "remove_when": "Remove when V-1 migration completes and this route becomes a thin bridge or is deleted."
   },
   "apps/partner-dashboard/app/api/auth/onboard-status/route.ts": {

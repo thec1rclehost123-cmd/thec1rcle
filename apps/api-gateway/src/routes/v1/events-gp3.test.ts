@@ -85,11 +85,16 @@ describe('event routes GP-3 conversion contracts', () => {
         await authenticated.close();
     });
 
-    it('GET/POST /events/:id/queue preserve surge and waiting room shapes', async () => {
+    it('GET/POST /events/:id/queue preserve surge and waiting room shapes while enforcing authenticated joins', async () => {
+        const unauthenticated = await buildServer();
+        const rejected = await unauthenticated.inject({ method: 'POST', url: '/api/v1/events/event_1/queue', payload: {} });
+        expect(rejected.statusCode).toBe(401);
+        await unauthenticated.close();
+
         const server = await buildServer({ authenticated: true });
 
         const surge = await server.inject({ method: 'GET', url: '/api/v1/events/event_1/queue' });
-        const joined = await server.inject({ method: 'POST', url: '/api/v1/events/event_1/queue', payload: { userId: 'client_user' } });
+        const joined = await server.inject({ method: 'POST', url: '/api/v1/events/event_1/queue', payload: {} });
         const status = await server.inject({ method: 'GET', url: '/api/v1/events/event_1/queue?queueId=queue_1' });
 
         expect(surge.statusCode).toBe(200);
@@ -98,6 +103,7 @@ describe('event routes GP-3 conversion contracts', () => {
         expect(status.json()).toMatchObject({ id: 'queue_1', lanePosition: 2 });
         expect(getEventSurgeStatus).toHaveBeenCalledWith(expect.anything(), 'event_1');
         expect(joinEventQueue).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ eventId: 'event_1', userId: 'user_1' }));
+        expect(joinEventQueue).not.toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ userId: 'client_user' }));
         expect(getEventQueueStatus).toHaveBeenCalledWith(expect.anything(), 'queue_1');
 
         await server.close();

@@ -134,7 +134,7 @@ function VerificationCard({ title, identifier, icon, verified, loading, value, o
                     onComplete={onComplete}
                 />
                 {!verified && (
-                    <ResendTimer onResend={onResend} disabled={loading} />
+                    <ResendTimer initialSeconds={60} onResend={onResend} disabled={loading} />
                 )}
             </div>
         </motion.div>

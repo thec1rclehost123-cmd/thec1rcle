@@ -1,219 +1,40 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "./providers/AuthProvider";
-import { getFirebaseStorage } from "../lib/firebase/client";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import Image from "next/image";
-import Cropper from "react-easy-crop";
 import GenderSelector from "./GenderSelector";
 import ShimmerImage from "./ShimmerImage";
+import { AvatarCropDialog } from "../features/profile/components/AvatarCropDialog";
+import { useEditProfileFlow } from "../features/profile/hooks/useEditProfileFlow";
 
 export default function EditProfileModal({ open, onClose }) {
-    const { user, profile, updateUserProfile, changePassword } = useAuth();
-    const isGoogleUser = user?.providerData?.some(p => p.providerId === 'google.com');
-    const [loading, setLoading] = useState(false);
-    const [uploadingImage, setUploadingImage] = useState(false);
-    const [error, setError] = useState("");
-    const [success, setSuccess] = useState("");
-    const [imagePreview, setImagePreview] = useState(profile?.photoURL || profile?.avatar || "");
-    const [cropperOpen, setCropperOpen] = useState(false);
-    const [imageSrc, setImageSrc] = useState(null);
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-    const fileInputRef = useRef(null);
-    const [formData, setFormData] = useState({
-        displayName: profile?.displayName || "",
-        instagram: profile?.instagram || "",
-        phoneNumber: profile?.phoneNumber || "",
-        photoURL: profile?.photoURL || profile?.avatar || "",
-        city: profile?.city || "",
-        gender: profile?.gender || ""
-    });
-
-    const [passwordData, setPasswordData] = useState({
-        currentPassword: "",
-        newPassword: "",
-        confirmPassword: ""
-    });
-
-    const handleChange = (e) => {
-        setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    };
-
-    const handlePasswordChange = (e) => {
-        setPasswordData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
-    };
-
-    const handleFileClick = () => {
-        fileInputRef.current?.click();
-    };
-
-    const onCropComplete = useCallback((croppedArea, croppedAreaPixels) => {
-        setCroppedAreaPixels(croppedAreaPixels);
-    }, []);
-
-    const createImage = (url) =>
-        new Promise((resolve, reject) => {
-            const image = new window.Image();
-            image.addEventListener("load", () => resolve(image));
-            image.addEventListener("error", (error) => reject(error));
-            image.setAttribute("crossOrigin", "anonymous");
-            image.src = url;
-        });
-
-    const getCroppedImg = async (imageSrc, pixelCrop) => {
-        const image = await createImage(imageSrc);
-        const canvas = document.createElement("canvas");
-        const ctx = canvas.getContext("2d");
-
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-
-        ctx.drawImage(
-            image,
-            pixelCrop.x,
-            pixelCrop.y,
-            pixelCrop.width,
-            pixelCrop.height,
-            0,
-            0,
-            pixelCrop.width,
-            pixelCrop.height
-        );
-
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, "image/jpeg", 0.95);
-        });
-    };
-
-    const handleFileChange = async (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        // Validate file type
-        if (!file.type.startsWith("image/")) {
-            setError("Please upload an image file (JPG, PNG, GIF, etc.)");
-            return;
-        }
-
-        // Validate file size (max 10MB before crop)
-        if (file.size > 10 * 1024 * 1024) {
-            setError("Image must be smaller than 10MB");
-            return;
-        }
-
-        setError("");
-        const reader = new FileReader();
-        reader.onload = () => {
-            setImageSrc(reader.result);
-            setCropperOpen(true);
-        };
-        reader.readAsDataURL(file);
-    };
-
-    const handleCropSave = async () => {
-        if (!croppedAreaPixels || !imageSrc) return;
-
-        setUploadingImage(true);
-        setError("");
-        setCropperOpen(false);
-
-        try {
-            const croppedBlob = await getCroppedImg(imageSrc, croppedAreaPixels);
-
-            // Upload to Firebase Storage
-            const storage = await getFirebaseStorage();
-            const fileName = `${profile?.uid || Date.now()}-${Date.now()}.jpg`;
-            const storageRef = ref(storage, `profile-pictures/${fileName}`);
-
-            await uploadBytes(storageRef, croppedBlob);
-            const downloadURL = await getDownloadURL(storageRef);
-
-            // Update form data and preview
-            setFormData((prev) => ({ ...prev, photoURL: downloadURL, avatar: downloadURL }));
-            setImagePreview(downloadURL);
-            setImageSrc(null);
-        } catch (err) {
-            console.error("Upload error:", err);
-            if (err.code === 'storage/quota-exceeded') {
-                setError("Firebase storage quota exceeded. Please try again later or synchronize with Google/Social account.");
-                // Fallback: If it's a social user, we can try to use their provider photoURL directly
-                if (user?.photoURL) {
-                    setFormData(prev => ({ ...prev, photoURL: user.photoURL, avatar: user.photoURL }));
-                    setImagePreview(user.photoURL);
-                }
-            } else {
-                setError("Failed to upload image. Please try again.");
-            }
-        } finally {
-            setUploadingImage(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
-        }
-    };
-
-    const handleCropCancel = () => {
-        setCropperOpen(false);
-        setImageSrc(null);
-        setCrop({ x: 0, y: 0 });
-        setZoom(1);
-        if (fileInputRef.current) {
-            fileInputRef.current.value = "";
-        }
-    };
-
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        setError("");
-        setSuccess("");
-        try {
-            // Quota Cleanse: If the photo is from Firebase Storage and we know there's a quota issue,
-            // we should swap it for the user's Auth photo (lh3.googleusercontent.com) which is free.
-            if (formData.photoURL?.includes('firebasestorage.googleapis.com')) {
-                const isSocialUser = user?.photoURL && (user.photoURL.includes('googleusercontent.com') || user.photoURL.includes('facebook') || user.photoURL.includes('dicebear'));
-                if (isSocialUser) {
-                    formData.photoURL = user.photoURL;
-                    formData.avatar = user.photoURL;
-                }
-            }
-
-            // Update profile
-            await updateUserProfile(formData);
-
-            // Update password if requested
-            if (passwordData.newPassword) {
-                if (passwordData.newPassword !== passwordData.confirmPassword) {
-                    throw new Error("New passwords do not match");
-                }
-                if (!passwordData.currentPassword) {
-                    throw new Error("Current password is required to change password");
-                }
-                await changePassword(passwordData.currentPassword, passwordData.newPassword);
-            }
-
-            setSuccess("Profile updated successfully!");
-            setTimeout(() => {
-                onClose();
-            }, 1000);
-        } catch (err) {
-            setError(err.message || "Failed to update profile. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    const {
+        crop,
+        cropperOpen,
+        error,
+        fileInputRef,
+        formData,
+        handleChange,
+        handleCropCancel,
+        handleCropSave,
+        handleFileChange,
+        handleFileClick,
+        handlePasswordChange,
+        handleSubmit,
+        imagePreview,
+        imageSrc,
+        isGoogleUser,
+        loading,
+        mounted,
+        onCropComplete,
+        passwordData,
+        profile,
+        setCrop,
+        setFormData,
+        setZoom,
+        success,
+        uploadingImage,
+        zoom,
+    } = useEditProfileFlow({ onClose });
 
     if (!mounted) return null;
 
@@ -235,62 +56,16 @@ export default function EditProfileModal({ open, onClose }) {
 
                     {/* Cropper Modal */}
                     {cropperOpen && (
-                        <motion.div
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.95 }}
-                            className="fixed inset-0 z-[60] flex items-center justify-center p-4"
-                        >
-                            <div className="relative w-full max-w-3xl bg-white dark:bg-black rounded-3xl border border-black/[0.08] dark:border-white/20 overflow-hidden">
-                                <div className="p-6 border-b border-black/[0.06] dark:border-white/10">
-                                    <h3 className="text-xl font-bold text-black dark:text-white uppercase tracking-widest">Crop Profile Picture</h3>
-                                </div>
-                                <div className="relative h-[500px] bg-[#FAFAF9] dark:bg-black">
-                                    <Cropper
-                                        image={imageSrc}
-                                        crop={crop}
-                                        zoom={zoom}
-                                        aspect={1}
-                                        cropShape="round"
-                                        showGrid={false}
-                                        onCropChange={setCrop}
-                                        onZoomChange={setZoom}
-                                        onCropComplete={onCropComplete}
-                                    />
-                                </div>
-                                <div className="p-6 space-y-4 bg-gradient-to-b from-white dark:from-black to-white/95 dark:to-black/95">
-                                    <div className="space-y-2">
-                                        <label className="text-xs text-black/60 dark:text-white/60 uppercase tracking-widest">Zoom</label>
-                                        <input
-                                            type="range"
-                                            min={1}
-                                            max={3}
-                                            step={0.1}
-                                            value={zoom}
-                                            onChange={(e) => setZoom(parseFloat(e.target.value))}
-                                            className="w-full h-2 bg-black/10 dark:bg-white/10 rounded-full appearance-none cursor-pointer accent-iris"
-                                        />
-                                    </div>
-                                    <div className="flex gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={handleCropCancel}
-                                            className="flex-1 rounded-full border border-black/10 dark:border-white/20 px-6 py-3 text-sm uppercase tracking-widest text-black/80 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 transition-all"
-                                        >
-                                            Cancel
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={handleCropSave}
-                                            disabled={uploadingImage}
-                                            className="flex-1 rounded-full bg-gradient-to-r from-iris to-iris-glow px-6 py-3 text-sm uppercase tracking-widest text-white font-bold hover:shadow-lg transition-all disabled:opacity-50"
-                                        >
-                                            {uploadingImage ? "Uploading..." : "Save"}
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
+                        <AvatarCropDialog
+                            crop={crop}
+                            imageSrc={imageSrc}
+                            onCancel={handleCropCancel}
+                            onCropChange={setCrop}
+                            onCropComplete={onCropComplete}
+                            onSave={handleCropSave}
+                            onZoomChange={setZoom}
+                            zoom={zoom}
+                        />
                     )}
 
                     {/* Edit Form Modal */}

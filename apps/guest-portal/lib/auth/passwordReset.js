@@ -1,4 +1,4 @@
-import { sendPasswordResetEmail } from "firebase/auth";
+import { getApiErrorMessage, guestApi } from "../api/client";
 
 function getGuestPortalBaseUrl() {
     return (
@@ -22,7 +22,7 @@ function buildActionCodeSettings(email) {
     };
 }
 
-export async function sendOperationalPasswordResetEmail(auth, email) {
+export async function sendOperationalPasswordResetEmail(email) {
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!normalizedEmail) {
         const error = new Error("Please enter your email address");
@@ -31,10 +31,18 @@ export async function sendOperationalPasswordResetEmail(auth, email) {
     }
 
     const actionCodeSettings = buildActionCodeSettings(normalizedEmail);
-    if (actionCodeSettings) {
-        return sendPasswordResetEmail(auth, normalizedEmail, actionCodeSettings);
+    const { response, data } = await guestApi.auth.passwordReset({
+        email: normalizedEmail,
+        continueUrl: actionCodeSettings?.url,
+    });
+
+    if (!response.ok) {
+        const error = new Error(getApiErrorMessage(data, "Failed to send reset email. Please try again."));
+        error.code = data?.error?.code || "auth/reset-failed";
+        throw error;
     }
-    return sendPasswordResetEmail(auth, normalizedEmail);
+
+    return data;
 }
 
 export function getPasswordResetErrorMessage(error, { generic = false } = {}) {

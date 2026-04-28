@@ -39,11 +39,12 @@ describe('public discovery routes GP-2 contracts', () => {
         expect(response.json()).toMatchObject({ items: [{ id: 'event_1' }], hasMore: false });
         expect(publicDiscoveryService.listEvents).toHaveBeenCalledWith(expect.objectContaining({
             limit: 12,
-            city: 'Pune, IN',
+            cityKey: 'pune-in',
             lastId: 'event_0',
-            sort: 'Popular',
+            sort: 'heat',
             search: 'party',
         }));
+        expect(publicDiscoveryService.listEvents).not.toHaveBeenCalledWith(expect.objectContaining({ city: 'Pune, IN' }));
 
         await server.close();
     });
@@ -51,11 +52,15 @@ describe('public discovery routes GP-2 contracts', () => {
     it('GET /public/events/featured is registered before event detail and returns featured items', async () => {
         const { server, publicDiscoveryService } = await buildServer();
 
-        const response = await server.inject({ method: 'GET', url: '/public/events/featured?limit=6' });
+        const response = await server.inject({ method: 'GET', url: '/public/events/featured?limit=6&city=Pune&sort=Trending' });
 
         expect(response.statusCode).toBe(200);
         expect(response.json()).toMatchObject({ items: [{ id: 'event_featured' }] });
-        expect(publicDiscoveryService.listFeaturedEvents).toHaveBeenCalledWith(expect.objectContaining({ limit: 6 }));
+        expect(publicDiscoveryService.listFeaturedEvents).toHaveBeenCalledWith(expect.objectContaining({
+            limit: 6,
+            cityKey: 'pune-in',
+            sort: 'heat',
+        }));
         expect(publicDiscoveryService.getEventDetail).not.toHaveBeenCalled();
 
         await server.close();
@@ -108,6 +113,20 @@ describe('public discovery routes GP-2 contracts', () => {
         expect(response.statusCode).toBe(200);
         expect(response.json()).toMatchObject({ events: [{ id: 'event_1', title: 'after' }] });
         expect(publicDiscoveryService.search).toHaveBeenCalledWith('after', 10);
+
+        await server.close();
+    });
+
+    it('GET /public/homepage/selects and /public/homepage/interviews keep homepage curation behind Fastify', async () => {
+        const { server } = await buildServer();
+
+        const selects = await server.inject({ method: 'GET', url: '/public/homepage/selects' });
+        const interviews = await server.inject({ method: 'GET', url: '/public/homepage/interviews' });
+
+        expect(selects.statusCode).toBe(200);
+        expect(selects.json()).toEqual([]);
+        expect(interviews.statusCode).toBe(200);
+        expect(interviews.json()).toEqual([]);
 
         await server.close();
     });

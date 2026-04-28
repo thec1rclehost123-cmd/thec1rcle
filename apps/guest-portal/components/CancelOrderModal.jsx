@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { cancelGuestOrder, getOrderCancelEligibility } from "../features/orders/api/orderApi";
 
 /**
  * CancelOrderModal — Guest-facing order cancellation with eligibility check.
@@ -30,40 +31,15 @@ export default function CancelOrderModal({ isOpen, onClose, order, onSuccess }) 
         }
     }, [isOpen, order?.orderId]);
 
-    const getAuthHeaders = async () => {
-        try {
-            const { getAuth } = await import("firebase/auth");
-            const auth = getAuth();
-            const user = auth.currentUser;
-            if (user) {
-                const token = await user.getIdToken();
-                return { Authorization: `Bearer ${token}` };
-            }
-        } catch (e) {
-            console.error("Failed to get auth token:", e);
-        }
-        return {};
-    };
-
     const checkEligibility = async () => {
         setLoading(true);
         setError(null);
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch(`/api/orders/${order.orderId}/cancel`, {
-                headers,
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Failed to check cancellation eligibility");
-                setStep("check");
-            } else {
-                setEligibility(data);
-                setStep(data.canCancel ? "confirm" : "check");
-            }
+            const data = await getOrderCancelEligibility(order.orderId);
+            setEligibility(data);
+            setStep(data.canCancel ? "confirm" : "check");
         } catch (err) {
-            setError("Network error. Please try again.");
+            setError(err.message || "Network error. Please try again.");
         } finally {
             setLoading(false);
         }
@@ -73,27 +49,12 @@ export default function CancelOrderModal({ isOpen, onClose, order, onSuccess }) 
         setStep("processing");
         setError(null);
         try {
-            const headers = await getAuthHeaders();
-            const res = await fetch(`/api/orders/${order.orderId}/cancel`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...headers,
-                },
-                body: JSON.stringify({ reason: reason || "User requested cancellation" }),
-            });
-            const data = await res.json();
-
-            if (!res.ok) {
-                setError(data.error || "Failed to cancel order");
-                setStep("confirm");
-            } else {
-                setResult(data);
-                setStep("result");
-                onSuccess?.(data);
-            }
+            const data = await cancelGuestOrder(order.orderId, reason);
+            setResult(data);
+            setStep("result");
+            onSuccess?.(data);
         } catch (err) {
-            setError("Network error. Please try again.");
+            setError(err.message || "Network error. Please try again.");
             setStep("confirm");
         }
     };

@@ -1,9 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "../../../../components/providers/AuthProvider";
-import { claimPartnerSlot } from "../../actions";
+import { claimPartnerSlot } from "../../../../features/tickets/ticketApi";
+import { invalidateGuestNotifications } from "../../../../features/notifications/notificationsQueries";
+import { invalidateTicketsQueries } from "../../../../features/tickets/ticketsQueries";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 
@@ -11,6 +14,7 @@ export default function PartnerClaimPage() {
     const { token } = useParams();
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
+    const queryClient = useQueryClient();
     const [status, setStatus] = useState("verifying"); // verifying, ready, claiming, success, error
     const [error, setError] = useState(null);
 
@@ -32,6 +36,12 @@ export default function PartnerClaimPage() {
         setStatus("claiming");
         try {
             await claimPartnerSlot(token);
+            if (user?.uid) {
+                await Promise.all([
+                    invalidateTicketsQueries(queryClient, user.uid),
+                    invalidateGuestNotifications(queryClient, user.uid),
+                ]);
+            }
             setStatus("success");
             setTimeout(() => router.push("/tickets"), 3000);
         } catch (err) {

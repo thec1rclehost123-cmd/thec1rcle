@@ -28,7 +28,7 @@ export default function AccessGranted() {
                     Access <br /> <span className="text-orange">Granted</span>
                 </h1>
                 <p className="text-[10px] font-bold text-white/40 uppercase tracking-[0.4em]">
-                    Your rituals are verified.
+                    Your access is verified.
                 </p>
             </motion.div>
 

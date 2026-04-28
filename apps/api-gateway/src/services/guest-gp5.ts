@@ -1,82 +1,128 @@
 import type { Firestore } from 'firebase-admin/firestore';
+// @ts-ignore
+import { getAdminDb, getAdminAuth } from '@c1rcle/core/admin';
+// @ts-ignore
+import {
+    getUserNotifications,
+    getUnreadCount,
+    markNotificationRead,
+    markAllNotificationsRead
+} from '@c1rcle/core/guest-notification-engine';
 
-async function loadProfileStore() {
-    // @ts-expect-error legacy Guest Portal store has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/server/profileStore.js');
-}
+// @ts-ignore
+import {
+    getUserProfile,
+    findUserByEmail,
+    getUserEvents,
+    getUserTickets,
+} from '@c1rcle/core/guest-profile-engine';
+// @ts-ignore
+import { invalidateGuestWallet as invalidateGuestWalletCache } from '@c1rcle/core/guest-wallet-profile-notification-service';
+// @ts-ignore
+import {
+    getShareBundleByToken,
+    getUserClaimedTickets,
+    createShareBundle,
+    claimTicketSlot,
+    reclaimUnclaimedSlot,
+    cancelShareBundle,
+    getOrderShareBundles,
+    getOrderAssignments,
+    initiateTransfer,
+    acceptTransfer,
+    cancelTransfer,
+    getPendingTransfers,
+    createPartnerClaimLink,
+    claimPartnerSlot,
+    getCoupleTicketStatus,
+    cancelPartnerSlot,
+    assignPartner,
+    transferCoupleTicket,
+} from '@c1rcle/core/ticket-share-engine';
+// @ts-ignore
+import { getOrderById } from '@c1rcle/core/order-engine';
+// @ts-ignore
+import { generateTicketPDF } from '@c1rcle/core/ticket-pdf-engine';
 
-async function loadTicketShareStore() {
-    // @ts-expect-error legacy Guest Portal store has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/server/ticketShareStore.js');
-}
-
-async function loadEventStore() {
-    // @ts-expect-error legacy Guest Portal store has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/server/eventStore.js');
-}
-
-async function loadOrderStore() {
-    // @ts-expect-error legacy Guest Portal store has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/server/orderStore.js');
-}
-
-async function loadNotificationStore() {
-    // @ts-expect-error legacy Guest Portal store has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/server/notificationStore.js');
-}
-
-async function loadPdfGenerator() {
-    // @ts-expect-error legacy Guest Portal utility has no TypeScript declarations yet
-    return import('../../../guest-portal/lib/email/generateTicketPDF.js');
+async function getEventById(eventId: string) {
+    const db: Firestore = getAdminDb();
+    const doc = await db.collection('events').doc(eventId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
 export async function getGuestWallet(userId: string) {
-    const { getUserTickets } = await loadProfileStore();
-    return getUserTickets(userId);
+    const profile = await getUserProfile(userId);
+    const tickets = await getUserTickets(userId);
+    const unreadCount = await getUnreadCount(userId);
+
+    return {
+        profile,
+        notifications: { unreadCount },
+        ...tickets
+    };
 }
 
 export async function invalidateGuestWallet(users: Array<string | null | undefined>) {
-    const { invalidateTicketsCache } = await loadProfileStore();
-    await Promise.all(
-        [...new Set(users.filter(Boolean))]
-            .map((userId) => invalidateTicketsCache(userId).catch(() => undefined))
-    );
+    await invalidateGuestWalletCache(users);
 }
 
-export async function getGuestWalletTicket(userId: string, ticketId: string) {
-    const wallet = await getGuestWallet(userId);
-    const buckets = [
-        ...(wallet?.upcomingTickets || []),
-        ...(wallet?.pastTickets || []),
-        ...(wallet?.actionNeeded || []),
-        ...(wallet?.cancelledTickets || []),
-    ];
+export async function getGuestWalletTicket(db: any, auth: any, userId: string, ticketId: string) {
+    const tickets = await getUserTickets(userId);
+    const all = [...(tickets.upcomingTickets || []), ...(tickets.pastTickets || []), ...(tickets.actionNeeded || [])];
+    const ticket = all.find((t: any) => t.ticketId === ticketId);
 
-    return buckets.find((entry: any) => entry.ticketId === ticketId || entry.id === ticketId) || null;
+    if (!ticket) return null;
+
+    // Enforce On-Demand Signing
+    // We only sign the ID when the user specifically requests the detail
+    if (ticket.status === 'active' && !ticket.genderMismatch && !ticket.isTransferPending) {
+        if (ticket.entitlementId) {
+            ticket.qrPayload = ticket.entitlementId;
+        } else {
+            const { signTicketId } = await import('@c1rcle/core/ticket-engine');
+            ticket.qrPayload = signTicketId(ticket.ticketId);
+        }
+    }
+
+    return ticket;
 }
 
-export async function getGuestProfileSummary(profileUserId: string, viewerUserId: string | null) {
-    const { getUserProfile, getUserEvents } = await loadProfileStore();
-    const [profile, events] = await Promise.all([
-        getUserProfile(profileUserId),
-        getUserEvents(profileUserId, viewerUserId),
-    ]);
-    return { profile, events };
+export async function getGuestProfileSummary(profileUserId: string, viewerUserId: string | null, matchingService?: any) {
+    let isMatch = false;
+    if (viewerUserId && matchingService) {
+        isMatch = await matchingService.checkMutualMatch(viewerUserId, profileUserId);
+    }
+
+    const profile = await getUserProfile(profileUserId, viewerUserId, isMatch);
+    if (!profile) return null;
+
+    const eventsData = await getUserEvents(profileUserId, viewerUserId);
+
+    return {
+        profile: {
+            ...profile,
+            // Ensure core fields are explicitly mapped for the UI
+            displayName: profile.displayName || "C1RCLE User",
+            photoURL: profile.photoURL || profile.avatar || null,
+            bio: profile.bio || "A fellow adventurer in THE C1RCLE.",
+            socials: profile.socials || {},
+        },
+        events: eventsData,
+        followersCount: profile.followersCount || 0,
+        followingCount: profile.followingCount || 0,
+        matchStatus: isMatch ? 'matched' : (viewerUserId ? 'stranger' : 'none')
+    };
 }
 
 export async function findGuestUserByEmail(email: string) {
-    const { findUserByEmail } = await loadProfileStore();
     return findUserByEmail(email);
 }
 
 export async function previewGuestShareBundle(token: string, viewerUserId?: string | null) {
-    const { getShareBundleByToken, getUserClaimedTickets } = await loadTicketShareStore();
-    const { getEvent } = await loadEventStore();
-
     const bundle = await getShareBundleByToken(token);
     if (!bundle) return null;
 
-    const event = await getEvent(bundle.eventId);
+    const event = await getEventById(bundle.eventId);
     let existingAssignment = null;
 
     if (viewerUserId) {
@@ -94,7 +140,6 @@ export async function createGuestShareBundle(userId: string, payload: {
     tierId?: string | null;
     expiresAt?: string | null;
 }) {
-    const { createShareBundle } = await loadTicketShareStore();
     const bundle = await createShareBundle(
         payload.orderId,
         userId,
@@ -108,11 +153,9 @@ export async function createGuestShareBundle(userId: string, payload: {
 }
 
 export async function getGuestShareState(orderId: string) {
-    const { getOrderById } = await loadOrderStore();
     const order = await getOrderById(orderId);
     if (!order) return null;
 
-    const { getOrderShareBundles, getOrderAssignments } = await loadTicketShareStore();
     const [bundles, assignments] = await Promise.all([
         getOrderShareBundles(orderId),
         getOrderAssignments(orderId),
@@ -121,21 +164,18 @@ export async function getGuestShareState(orderId: string) {
 }
 
 export async function reclaimGuestShareSlot(userId: string, bundleId: string, slotIndex: number) {
-    const { reclaimUnclaimedSlot } = await loadTicketShareStore();
     const result = await reclaimUnclaimedSlot(bundleId, userId, slotIndex);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function cancelGuestShareBundle(userId: string, bundleId: string) {
-    const { cancelShareBundle } = await loadTicketShareStore();
     const result = await cancelShareBundle(bundleId, userId);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function claimGuestShareBundle(userId: string, token: string) {
-    const { claimTicketSlot } = await loadTicketShareStore();
     const result = await claimTicketSlot(token, userId);
     const ownerId = result?.assignment?.originalPurchaserId || null;
     await invalidateGuestWallet([userId, ownerId]);
@@ -143,52 +183,44 @@ export async function claimGuestShareBundle(userId: string, token: string) {
 }
 
 export async function initiateGuestTransfer(userId: string, ticketId: string, recipientEmail?: string | null) {
-    const { initiateTransfer } = await loadTicketShareStore();
     const result = await initiateTransfer(ticketId, userId, recipientEmail ?? null);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function acceptGuestTransfer(userId: string, transferCode: string) {
-    const { acceptTransfer } = await loadTicketShareStore();
     const result = await acceptTransfer(transferCode, userId);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function cancelGuestTransfer(userId: string, transferId: string) {
-    const { cancelTransfer } = await loadTicketShareStore();
     const result = await cancelTransfer(transferId, userId);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function getGuestPendingTransfers(userId: string, email?: string | null) {
-    const { getPendingTransfers } = await loadTicketShareStore();
     return getPendingTransfers(userId, email ?? null);
 }
 
 export async function createGuestPartnerClaimLink(userId: string, ticketId: string, eventId: string) {
-    const { createPartnerClaimLink } = await loadTicketShareStore();
     return createPartnerClaimLink(ticketId, userId, eventId);
 }
 
 export async function claimGuestPartnerSlot(userId: string, token: string) {
-    const { claimPartnerSlot } = await loadTicketShareStore();
     const result = await claimPartnerSlot(token, userId);
     await invalidateGuestWallet([userId]);
     return result;
 }
 
 export async function assignGuestPartner(userId: string, ticketId: string, partnerUserId: string, metadata: Record<string, any> = {}) {
-    const { assignPartner } = await loadTicketShareStore();
     const result = await assignPartner(ticketId, userId, partnerUserId, metadata);
     await invalidateGuestWallet([userId, partnerUserId]);
     return result;
 }
 
 export async function transferGuestCoupleTicket(userId: string, ticketId: string, newOwnerId: string) {
-    const { transferCoupleTicket } = await loadTicketShareStore();
     const result = await transferCoupleTicket(ticketId, userId, newOwnerId);
     await invalidateGuestWallet([userId, newOwnerId]);
     return result;
@@ -208,12 +240,10 @@ export async function getGuestCoupleStatus(db: Firestore, userId: string, bundle
         throw new Error('Unauthorized');
     }
 
-    const { getCoupleTicketStatus } = await loadTicketShareStore();
     return getCoupleTicketStatus(bundleId);
 }
 
 export async function cancelGuestPartnerSlot(userId: string, bundleId: string) {
-    const { cancelPartnerSlot } = await loadTicketShareStore();
     const result = await cancelPartnerSlot(bundleId, userId);
     await invalidateGuestWallet([userId, result?.releasedPartnerId || null]);
     return result;
@@ -230,13 +260,9 @@ export async function previewGuestPairClaim(db: Firestore, token: string) {
 
     const claimDoc = snapshot.docs[0];
     const claim = { id: claimDoc.id, ...claimDoc.data() } as any;
-    const { getEvent } = await loadEventStore();
-    const event = claim.eventId ? await getEvent(claim.eventId) : null;
+    const event = claim.eventId ? await getEventById(claim.eventId) : null;
 
-    return {
-        ...claim,
-        event,
-    };
+    return { ...claim, event };
 }
 
 export async function getGuestCoverWallet(db: Firestore, userId: string, orderId: string) {
@@ -273,11 +299,6 @@ export async function getGuestCoverWallet(db: Firestore, userId: string, orderId
 }
 
 export async function generateGuestTicketDownload(userId: string, orderId: string) {
-    const { getOrderById } = await loadOrderStore();
-    const { getEvent } = await loadEventStore();
-    const { getUserProfile } = await loadProfileStore();
-    const { generateTicketPDF } = await loadPdfGenerator();
-
     const order = await getOrderById(orderId);
     if (!order || order.userId !== userId) return null;
 
@@ -287,24 +308,19 @@ export async function generateGuestTicketDownload(userId: string, orderId: strin
     let location = '';
 
     if (order.eventId) {
-        const event = await getEvent(order.eventId);
+        const event = await getEventById(order.eventId);
         if (event) {
-            eventName = event.title || eventName;
-            location = event.location || event.venueLocation || '';
+            eventName = (event as any).title || eventName;
+            location = (event as any).location || (event as any).venueLocation || '';
 
-            if (event.startDate) {
-                const date = event.startDate?.toDate ? event.startDate.toDate() : new Date(event.startDate);
+            const startDate = (event as any).startDate;
+            if (startDate) {
+                const date = startDate?.toDate ? startDate.toDate() : new Date(startDate);
                 eventDate = date.toLocaleDateString('en-IN', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    timeZone: 'Asia/Kolkata',
+                    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Kolkata',
                 });
                 eventTime = date.toLocaleTimeString('en-IN', {
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    timeZone: 'Asia/Kolkata',
+                    hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Kolkata',
                 });
             }
         }
@@ -313,8 +329,10 @@ export async function generateGuestTicketDownload(userId: string, orderId: strin
     let userName = 'Guest';
     if (order.userId) {
         try {
-            const profile = await getUserProfile(order.userId);
-            userName = profile?.displayName || profile?.name || 'Guest';
+            const db: Firestore = getAdminDb();
+            const userDoc = await db.collection('users').doc(order.userId).get();
+            const userData = userDoc.exists ? userDoc.data() : null;
+            userName = userData?.displayName || userData?.name || 'Guest';
         } catch {
             userName = 'Guest';
         }
@@ -345,27 +363,42 @@ export async function generateGuestTicketDownload(userId: string, orderId: strin
 }
 
 export async function getGuestNotifications(userId: string, options: { limit?: number; unreadOnly?: boolean } = {}) {
-    const { getUserNotifications } = await loadNotificationStore();
     return getUserNotifications(userId, options);
 }
 
 export async function getGuestUnreadCount(userId: string) {
-    const { getUnreadCount } = await loadNotificationStore();
     return getUnreadCount(userId);
 }
 
 export async function markGuestNotificationRead(db: Firestore, userId: string, notificationId: string) {
-    const notificationDoc = await db.collection('notifications').doc(notificationId).get();
-    if (!notificationDoc.exists) return null;
-    if (notificationDoc.data()?.userId !== userId) {
-        throw new Error('Unauthorized');
-    }
-
-    const { markNotificationRead } = await loadNotificationStore();
     return markNotificationRead(notificationId);
 }
 
 export async function markAllGuestNotificationsRead(userId: string) {
-    const { markAllNotificationsRead } = await loadNotificationStore();
     return markAllNotificationsRead(userId);
+}
+
+// @ts-ignore
+import { getRecommendedEvents, getSimilarEvents } from '@c1rcle/core/recommendation-engine';
+// @ts-ignore
+import { getFeaturedEvents, getHomepageSelects, getHomepageInterviews } from '@c1rcle/core/homepage-curation-engine';
+
+export async function getGuestRecommendedEvents(userId: string, limit: number = 5) {
+    return getRecommendedEvents(userId, limit);
+}
+
+export async function getEventRecommendations(eventId: string, limit: number = 3) {
+    return getSimilarEvents(eventId, limit);
+}
+
+export async function getGuestHomepageFeatured(limit: number = 6) {
+    return getFeaturedEvents(limit);
+}
+
+export async function getGuestHomepageSelects() {
+    return getHomepageSelects();
+}
+
+export async function getGuestHomepageInterviews() {
+    return getHomepageInterviews();
 }

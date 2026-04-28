@@ -58,16 +58,7 @@ const faqs = [
   { question: "How do payouts work?", answer: "Instant. As soon as a ticket is sold, the funds are available in your dashboard. No holding periods." }
 ];
 
-// --- Components ---
-
-import { useAuth } from "../../components/providers/AuthProvider";
-import { useRouter } from "next/navigation";
-
 export default function AboutPage() {
-  const [showHostModal, setShowHostModal] = useState(false);
-  const { user, profile } = useAuth();
-  const router = useRouter();
-
   const handleHostAccess = () => {
     window.open("https://thec1rclehost.com/host", "_blank");
   };
@@ -87,18 +78,8 @@ export default function AboutPage() {
         <HostAccessSection onAccess={handleHostAccess} />
         <CTASection />
       </div>
-
-      <AnimatePresence>
-        {showHostModal && (
-          <HostModal onClose={() => setShowHostModal(false)} />
-        )}
-      </AnimatePresence>
     </div>
   );
-}
-
-function HostModal({ onClose }) {
-  return null; // Host modal removed, moved to dedicated site
 }
 
 function UniversitySection() {

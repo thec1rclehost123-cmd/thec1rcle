@@ -100,6 +100,16 @@ The platform handles event lifecycle management, seat/ticket inventory, surge pr
 
 ## Architecture Overview
 
+### Guest Portal Current Architecture
+
+The Guest Portal is in a gateway-owned migration state and must be treated differently from the older web-app pattern below:
+
+- **Next.js owns rendering, route composition, metadata, streaming, and lightweight UX route gating.**
+- **Fastify owns guest auth, business logic, mutations, uploads, payments, webhooks, notifications, and backend integrations.**
+- **The browser owns interactivity, local draft state, and authenticated UI flows through the typed Guest API client.**
+- Guest Portal runtime must not reintroduce `app/api`, `lib/server`, Firebase client/admin imports, server actions for guest business logic, or raw `/api/v1` fetches outside `apps/guest-portal/lib/api`.
+- Temporary adapters such as `lib/client/gateway.js` are compatibility-window shims only; new work must use `lib/api/client.js` or `lib/api/server.js`.
+
 ```
 ┌──────────────────────────────────────────────────────────────────┐
 │                   GUEST / PARTNER / ADMIN                        │
@@ -136,9 +146,9 @@ The platform handles event lifecycle management, seat/ticket inventory, surge pr
    └────────────┘  └────────────┘  └────────────┘
 ```
 
-**Key principle**: The Next.js apps call their own `/api/*` routes (which use Firebase Admin SDK directly), NOT the Fastify gateway. The Fastify gateway is used by the mobile app and for operations requiring complex business logic.
+**Key principle for Guest Portal**: browser and server-rendering code call same-origin `/api/v1/*`, which Next.js rewrites to the Fastify gateway. Guest Portal must not add local business API routes or direct Firebase access.
 
-**Do NOT** change store fetch URLs to point at `:4000` — they must use relative `/api/*` paths.
+**Legacy note for other apps**: partner/admin surfaces may still contain app-local routes during migration. Do not generalize their current local-route state back into Guest Portal.
 
 ---
 
@@ -149,10 +159,10 @@ thec1rcle/
 ├── apps/
 │   ├── guest-portal/          # Public-facing event discovery web app (Next.js 14, port 3000)
 │   │   ├── app/               # App Router pages and API routes
-│   │   │   └── api/           # Next.js API routes (direct Firestore access)
+│   │   │   └── api/           # Deleted for Guest Portal; Fastify owns guest business routes
 │   │   ├── components/        # React components (UI, feature, layout)
 │   │   ├── lib/
-│   │   │   └── server/        # Server-only: auth.js, apiClient.js, eventStore.js, venueStore.js, hostStore.js
+│   │   │   └── api/           # Guest API clients: browser client + server render client + generated contract
 │   │   └── store/             # Zustand client stores: exploreStore.js, hostsStore.js, ticketsStore.js
 │   │
 │   ├── partner-dashboard/     # Partner/host management web app (Next.js 14, port 3001)
@@ -193,7 +203,7 @@ thec1rcle/
 4. **Don't introduce new patterns** — use what already exists (existing hooks, stores, utilities, libs)
 5. **Server vs client boundary** — files in `lib/server/` are server-only (Firebase Admin, secrets); never import them in client components
 6. **Prefer composition over abstraction** — don't create a new utility for a one-time use
-7. **Zustand stores use relative URLs** — stores must call `/api/events`, `/api/venues`, etc. (not `localhost:4000`)
+7. **Guest Portal uses the typed API boundary** — new guest runtime code must call `lib/api/client.js` or `lib/api/server.js`, not raw `/api/v1` fetches or local `/api/*` routes
 
 ---
 

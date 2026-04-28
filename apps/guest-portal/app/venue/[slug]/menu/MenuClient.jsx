@@ -2,35 +2,90 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Search, Filter } from "lucide-react";
+import { ChevronLeft, Search } from "lucide-react";
 
-export default function VenueMenuPage({ venue, slug }) {
-    const [isVegOnly, setIsVegOnly] = useState(false);
-    const [activeCategory, setActiveCategory] = useState("regular");
+function toSectionId(value) {
+    return String(value || "menu").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "menu";
+}
 
-    const menuCategories = [
-        { id: "regular", label: "Regular" },
-        { id: "vintage", label: "Vintage Menu" },
-        { id: "drinks", label: "Drinks" },
-        { id: "beverage", label: "Beverage" },
-        { id: "desserts", label: "Desserts" },
-    ];
+function formatPrice(value) {
+    if (value === undefined || value === null || value === "") return "";
+    if (typeof value === "number") return `₹${value}`;
+    return String(value);
+}
 
-    const menuItems = {
-        "Neapolitan Pizza": [
-            { name: "Mutton Kheema, Nihari Onion", price: "₹650", isVeg: false },
-            { name: "Garlic Cheese Toast Pizza", price: "₹550", isVeg: true },
-            { name: "Pesto Bocconcini Pizza", price: "₹600", isVeg: true },
-            { name: "Rosso Basil Olive Oil Pizza", price: "₹529", isVeg: true },
-            { name: "Bbq Chicken Red Onion Pizza", price: "₹550", isVeg: false },
-            { name: "Chicken Pepperoni Pizza", price: "₹599", isVeg: false },
-        ],
-        "Small Plates": [
-            { name: "Caesar Salad Croutons", price: "₹319", isVeg: true },
-            { name: "Katsu Chicken Strips", price: "₹450", isVeg: false },
-            { name: "Peri Peri Fries", price: "₹250", isVeg: true },
-        ]
+function normalizeMenuItem(item = {}, categoryLabel = "Menu") {
+    const name = item.name || item.title || item.itemName || item.label;
+    if (!name) return null;
+
+    const sectionLabel = item.category || item.section || item.group || categoryLabel;
+    return {
+        id: item.id || `${sectionLabel}-${name}`,
+        name,
+        description: item.description || item.subtitle || item.notes || "",
+        price: formatPrice(item.price ?? item.amount ?? item.cost),
+        isVeg: Boolean(item.isVeg ?? item.veg ?? item.vegetarian),
+        sectionId: toSectionId(sectionLabel),
+        sectionLabel,
     };
+}
+
+function normalizeMenuSections(menu, venue) {
+    const rawMenu = menu?.menu || menu?.items || venue?.menu || venue?.menuDoc?.menu || venue?.menuDoc?.items || menu;
+
+    if (!rawMenu) return [];
+
+    if (Array.isArray(rawMenu)) {
+        const hasSectionShape = rawMenu.some((entry) => Array.isArray(entry?.items) || Array.isArray(entry?.menuItems));
+
+        if (hasSectionShape) {
+            return rawMenu.map((section, index) => {
+                const label = section.label || section.name || section.title || section.category || `Section ${index + 1}`;
+                const items = (section.items || section.menuItems || [])
+                    .map((item) => normalizeMenuItem(item, label))
+                    .filter(Boolean);
+                return { id: section.id || toSectionId(label), label, items };
+            }).filter((section) => section.items.length > 0);
+        }
+
+        const items = rawMenu.map((item) => normalizeMenuItem(item)).filter(Boolean);
+        return items.length ? [{ id: "menu", label: "Menu", items }] : [];
+    }
+
+    if (typeof rawMenu === "object") {
+        const nestedSections = rawMenu.sections || rawMenu.categories || rawMenu.groups;
+        if (Array.isArray(nestedSections)) return normalizeMenuSections(nestedSections, venue);
+
+        return Object.entries(rawMenu).map(([label, value]) => {
+            const items = Array.isArray(value)
+                ? value.map((item) => normalizeMenuItem(item, label)).filter(Boolean)
+                : [];
+            return { id: toSectionId(label), label, items };
+        }).filter((section) => section.items.length > 0);
+    }
+
+    return [];
+}
+
+export default function VenueMenuPage({ venue, menu, slug }) {
+    const [isVegOnly, setIsVegOnly] = useState(false);
+    const [activeCategory, setActiveCategory] = useState("all");
+    const [query, setQuery] = useState("");
+    const sections = normalizeMenuSections(menu, venue);
+    const menuCategories = [{ id: "all", label: "All" }, ...sections.map((section) => ({ id: section.id, label: section.label }))];
+    const normalizedQuery = query.trim().toLowerCase();
+
+    const visibleSections = sections.map((section) => {
+        const items = section.items.filter((item) => {
+            const matchesCategory = activeCategory === "all" || item.sectionId === activeCategory || section.id === activeCategory;
+            const matchesVeg = isVegOnly ? item.isVeg : true;
+            const matchesQuery = normalizedQuery
+                ? `${item.name} ${item.description} ${section.label}`.toLowerCase().includes(normalizedQuery)
+                : true;
+            return matchesCategory && matchesVeg && matchesQuery;
+        });
+        return { ...section, items };
+    }).filter((section) => section.items.length > 0);
 
     return (
         <main className="min-h-screen bg-white text-black font-sans">
@@ -62,7 +117,15 @@ export default function VenueMenuPage({ venue, slug }) {
                             Veg Only
                         </span>
                     </div>
-                    <Search className="h-5 w-5 text-gray-400 cursor-pointer hover:text-black" />
+                    <label className="hidden sm:flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50 px-4 py-2">
+                        <Search className="h-4 w-4 text-gray-400" />
+                        <input
+                            value={query}
+                            onChange={(event) => setQuery(event.target.value)}
+                            placeholder="Search menu"
+                            className="w-28 bg-transparent text-xs font-bold uppercase tracking-widest text-gray-700 outline-none placeholder:text-gray-300"
+                        />
+                    </label>
                 </div>
             </header>
 
@@ -70,13 +133,17 @@ export default function VenueMenuPage({ venue, slug }) {
                 {/* Sidebar Categories */}
                 <aside className="hidden md:flex w-24 border-r border-gray-100 min-h-[calc(100vh-73px)] sticky top-[73px] bg-gray-50/50 flex-col items-center py-8 gap-10">
                     <div className="text-[9px] font-black uppercase vertical-text tracking-[0.5em] text-gray-300">Sections</div>
-                    {["Pizza", "Salads", "Grill", "Sushi"].map((cat) => (
-                        <div key={cat} className="flex flex-col items-center gap-2 group cursor-pointer">
-                            <div className="w-10 h-10 rounded-xl bg-white border border-gray-100 shadow-sm group-hover:shadow-md transition-all flex items-center justify-center p-2">
-                                <span className="text-xs">🍕</span>
+                    {sections.slice(0, 6).map((section) => (
+                        <button
+                            key={section.id}
+                            onClick={() => setActiveCategory(section.id)}
+                            className="flex flex-col items-center gap-2 group"
+                        >
+                            <div className={`w-10 h-10 rounded-xl border shadow-sm transition-all flex items-center justify-center p-2 ${activeCategory === section.id ? "bg-black border-black text-white" : "bg-white border-gray-100 group-hover:shadow-md"}`}>
+                                <span className="text-xs font-black uppercase">{section.label.slice(0, 2)}</span>
                             </div>
-                            <span className="text-[8px] font-black uppercase text-gray-400 group-hover:text-black">{cat}</span>
-                        </div>
+                            <span className="max-w-[72px] truncate text-[8px] font-black uppercase text-gray-400 group-hover:text-black">{section.label}</span>
+                        </button>
                     ))}
                 </aside>
 
@@ -98,20 +165,25 @@ export default function VenueMenuPage({ venue, slug }) {
                         ))}
                     </div>
 
-                    {/* Filtered Menu List */}
-                    {Object.entries(menuItems).map(([category, items]) => {
-                        const filteredItems = items.filter(item => isVegOnly ? item.isVeg : true);
-                        if (filteredItems.length === 0) return null;
-
-                        return (
-                            <section key={category} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {sections.length === 0 ? (
+                        <section className="rounded-3xl border border-gray-100 bg-gray-50 p-8">
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">Menu unavailable</p>
+                            <h2 className="mt-3 text-2xl font-black uppercase tracking-tight">This venue has not published a menu yet.</h2>
+                        </section>
+                    ) : visibleSections.length === 0 ? (
+                        <section className="rounded-3xl border border-gray-100 bg-gray-50 p-8">
+                            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400">No matches</p>
+                            <h2 className="mt-3 text-2xl font-black uppercase tracking-tight">Try another section or clear the filters.</h2>
+                        </section>
+                    ) : visibleSections.map((section) => (
+                            <section key={section.id} className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
                                 <h2 className="text-2xl font-black tracking-tight flex items-center gap-4">
-                                    {category}
+                                    {section.label}
                                     <span className="h-px flex-1 bg-gray-100" />
                                 </h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8">
-                                    {filteredItems.map((item, idx) => (
-                                        <div key={idx} className="flex justify-between items-start group">
+                                    {section.items.map((item) => (
+                                        <div key={item.id} className="flex justify-between items-start group">
                                             <div className="space-y-1.5">
                                                 <div className="flex items-center gap-3">
                                                     {/* Veg/Non-Veg Marker */}
@@ -120,18 +192,18 @@ export default function VenueMenuPage({ venue, slug }) {
                                                     </div>
                                                     <h3 className="text-[15px] font-bold text-gray-900 group-hover:text-indigo-600 transition-colors uppercase tracking-tight">{item.name}</h3>
                                                 </div>
-                                                <p className="text-[11px] text-gray-400 font-medium max-w-xs uppercase tracking-wide">Signature style • Chef's Special</p>
+                                                {item.description && (
+                                                    <p className="text-[11px] text-gray-400 font-medium max-w-xs uppercase tracking-wide">{item.description}</p>
+                                                )}
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-[13px] font-black text-gray-900">{item.price}</p>
-                                                <button className="text-[9px] font-black uppercase text-indigo-600 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">Add +</button>
+                                                {item.price && <p className="text-[13px] font-black text-gray-900">{item.price}</p>}
                                             </div>
                                         </div>
                                     ))}
                                 </div>
                             </section>
-                        );
-                    })}
+                    ))}
                 </div>
             </div>
 

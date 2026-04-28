@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import validatePlugin from '../../plugins/validate';
 import authRoutes from './auth';
 
-function createMockDb() {
+function createMockDb({ onboardingComplete = true, failUserDoc = false } = {}) {
     return {
         collection(name: string) {
             if (name === 'users') {
@@ -11,6 +11,9 @@ function createMockDb() {
                     doc(id: string) {
                         return {
                             async get() {
+                                if (failUserDoc) {
+                                    throw new Error('user doc offline');
+                                }
                                 return {
                                     id,
                                     exists: true,
@@ -18,7 +21,7 @@ function createMockDb() {
                                         uid: id,
                                         email: 'guest@example.com',
                                         displayName: 'Guest',
-                                        onboardingComplete: true,
+                                        onboardingComplete,
                                     }),
                                 };
                             },
@@ -51,36 +54,19 @@ function createMockDb() {
     };
 }
 
-async function buildServer({ onboardingComplete = true } = {}) {
+async function buildServer({
+    onboardingComplete = true,
+    authenticated = true,
+    authVerificationStatus = null,
+    failUserDoc = false,
+}: {
+    onboardingComplete?: boolean;
+    authenticated?: boolean;
+    authVerificationStatus?: string | null;
+    failUserDoc?: boolean;
+} = {}) {
     const server = Fastify({ logger: false });
-    const db = createMockDb();
-    const originalCollection = db.collection.bind(db);
-    server.decorate('db', {
-        collection(name: string) {
-            const value = originalCollection(name);
-
-            if (name !== 'users') return value;
-
-            return {
-                doc(id: string) {
-                    return {
-                        async get() {
-                            return {
-                                id,
-                                exists: true,
-                                data: () => ({
-                                    uid: id,
-                                    email: 'guest@example.com',
-                                    displayName: 'Guest',
-                                    onboardingComplete,
-                                }),
-                            };
-                        },
-                    };
-                },
-            };
-        },
-    } as any);
+    server.decorate('db', createMockDb({ onboardingComplete, failUserDoc }) as any);
     server.decorate('auth', {
         async getUserByEmail(email: string) {
             if (email === 'missing@example.com') {
@@ -94,10 +80,14 @@ async function buildServer({ onboardingComplete = true } = {}) {
     server.decorate('profileService', { updateProfile: async () => undefined });
     server.decorateRequest('user', null);
     server.decorateRequest('authContext', null);
+    server.decorateRequest('authVerification', null);
     server.addHook('onRequest', async (request: any) => {
+        request.authVerification = authVerificationStatus ? { status: authVerificationStatus } : null;
+        if (!authenticated) return;
         request.user = {
             uid: 'user_1',
             email: 'guest@example.com',
+            displayName: 'Guest',
             firebase: { sign_in_provider: 'password' },
             email_verified: true,
         };
@@ -111,8 +101,13 @@ describe('auth routes GP-1 contracts', () => {
     it('GET /auth/me returns the canonical guest bootstrap DTO', async () => {
         const server = await buildServer();
         const response = await server.inject({ method: 'GET', url: '/auth/me' });
+        const setCookie = Array.isArray(response.headers['set-cookie'])
+            ? response.headers['set-cookie'].join('; ')
+            : String(response.headers['set-cookie'] || '');
 
         expect(response.statusCode).toBe(200);
+        expect(response.json().csrfToken).toEqual(expect.any(String));
+        expect(setCookie).toContain('guest_csrf=');
         expect(response.json()).toMatchObject({
             identity: {
                 uid: 'user_1',
@@ -157,6 +152,41 @@ describe('auth routes GP-1 contracts', () => {
             routeAccess: {
                 shouldRedirectFromAuthPages: false,
                 requiresOnboarding: true,
+            },
+        });
+
+        await server.close();
+    });
+
+    it('GET /auth/me returns 503 instead of anonymous logout when auth verification is temporarily unavailable', async () => {
+        const server = await buildServer({ authenticated: false, authVerificationStatus: 'error' });
+        const response = await server.inject({ method: 'GET', url: '/auth/me' });
+
+        expect(response.statusCode).toBe(503);
+        expect(response.json().error.code).toBe('AUTH_TEMPORARILY_UNAVAILABLE');
+
+        await server.close();
+    });
+
+    it('GET /auth/me degrades to identity-backed bootstrap when profile hydration fails', async () => {
+        const server = await buildServer({ failUserDoc: true });
+        const response = await server.inject({ method: 'GET', url: '/auth/me' });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            authenticated: true,
+            identity: {
+                uid: 'user_1',
+                email: 'guest@example.com',
+            },
+            profile: {
+                uid: 'user_1',
+                email: 'guest@example.com',
+                displayName: 'Guest',
+            },
+            routeAccess: {
+                isAuthenticated: true,
+                canAccessProfile: true,
             },
         });
 

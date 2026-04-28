@@ -59,8 +59,8 @@ export default function VenueQuickActions({
         if (navigator.share) {
             try {
                 await navigator.share(shareData);
-            } catch (err) {
-                console.log("Share cancelled");
+            } catch {
+                // AbortError: user dismissed share sheet — expected
             }
         } else {
             navigator.clipboard.writeText(window.location.href);

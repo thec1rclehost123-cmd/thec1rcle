@@ -3,6 +3,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useToast } from "@/components/providers/ToastProvider";
+import { setEventRsvp } from "@/features/events/api/eventEngagementApi";
 
 export function useSocialActions(eventId) {
     const { user, profile } = useAuth();
@@ -10,19 +11,7 @@ export function useSocialActions(eventId) {
     const queryClient = useQueryClient();
 
     const rsvpMutation = useMutation({
-        mutationFn: async ({ shouldInclude }) => {
-            const token = await user.getIdToken();
-            const res = await fetch(`/api/events/${eventId}/rsvp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                },
-                body: JSON.stringify({ shouldInclude })
-            });
-            if (!res.ok) throw new Error("Failed to update RSVP");
-            return res.json();
-        },
+        mutationFn: async ({ shouldInclude }) => setEventRsvp(eventId, shouldInclude),
         onMutate: async ({ shouldInclude }) => {
             // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
             await queryClient.cancelQueries({ queryKey: ['profile', user?.uid] });

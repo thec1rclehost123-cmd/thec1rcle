@@ -17,7 +17,9 @@ import {
 } from '../../lib/scannerLiveState';
 
 const ScanBody = z.object({
-    qrData: z.any(),
+    qrData: z.any().optional(),
+    ticketPayload: z.any().optional(), // Legacy web proxy compat
+    scannerId: z.string().optional(),  // Legacy web proxy compat
     eventId: z.string().optional(),
     eventCode: z.string().optional(),
     deviceId: z.string().optional(),
@@ -236,7 +238,10 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     fastify.post('/', {
         preHandler: [fastify.validate({ body: ScanBody })]
     }, async (request: any, reply) => {
-        const { qrData, eventId, eventCode, deviceId, venueId, scannedBy } = request.body;
+        const { eventId, eventCode, deviceId, venueId } = request.body;
+        const qrData = request.body.qrData || request.body.ticketPayload;
+        const scannedBy = request.body.scannedBy || (request.body.scannerId ? { uid: request.body.scannerId, role: 'door_staff' } : undefined);
+
         if (!qrData) return reply.status(400).send({ error: 'QR data is required' });
 
         const auth = await validateScannerAccess(fastify, request);

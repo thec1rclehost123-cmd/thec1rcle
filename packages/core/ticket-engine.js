@@ -4,8 +4,9 @@
  */
 
 import { randomBytes, createHmac } from "node:crypto";
+import { getTicketSecret } from "./secret-registry.js";
 
-const TICKET_SECRET = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+const TICKET_SECRET = getTicketSecret();
 
 /**
  * Signs a ticket ID for QR verification.

@@ -28,6 +28,18 @@ function getRazorpayWebhookSecret() {
     return process.env.RAZORPAY_WEBHOOK_SECRET;
 }
 
+function isProductionRuntime() {
+    return process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
+}
+
+function allowMockRazorpay() {
+    return !isProductionRuntime() && process.env.C1RCLE_ALLOW_MOCK_RAZORPAY === 'true';
+}
+
+function isMockRazorpayPayload(orderId: string, paymentId: string, signature: string) {
+    return orderId.startsWith('order_mock_') || paymentId.startsWith('pay_mock_') || signature.startsWith('sig_mock_');
+}
+
 function getPaymentConfig() {
     return {
         key: getRazorpayKeyId() || 'rzp_test_DEVELOPMENT',
@@ -65,20 +77,35 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
+        const idempotencyKey = (request as any).headers['x-idempotency-key'] as string;
+
         try {
-            const result = await fastify.checkoutService.preparePayment(orderId, userId, {
-                keyId: getRazorpayKeyId(),
-                keySecret: getRazorpayKeySecret()
-            });
+            const work = async () => {
+                const result = await (fastify as any).checkoutService.preparePayment(orderId, userId, {
+                    keyId: getRazorpayKeyId(),
+                    keySecret: getRazorpayKeySecret(),
+                    allowMockPayment: allowMockRazorpay(),
+                });
+                return {
+                    ...result,
+                    config: getPaymentConfig(),
+                };
+            };
+
+            let result;
+            if (idempotencyKey && (fastify as any).idempotencyService?.executeOnce) {
+                result = await (fastify as any).idempotencyService.executeOnce(idempotencyKey, userId, work);
+                if (result.cached) return result.body;
+            } else {
+                result = await work();
+            }
+
             logPaymentEvent(request as any, 'PAYMENT_ORDER_CREATED', {
                 orderId,
                 userId,
                 razorpayOrderId: result?.razorpayOrderId,
             });
-            return {
-                ...result,
-                config: getPaymentConfig(),
-            };
+            return result;
         } catch (error: any) {
             fastify.log.error(`Payment order failed: ${error.message}`);
             const status = error.message === 'Forbidden'
@@ -111,50 +138,69 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
+        const idempotencyKey = ((request as any).headers['x-idempotency-key'] as string) || `verify:${razorpay_payment_id}`;
+
         try {
-            // Verify Signature
-            const razorpayKeySecret = getRazorpayKeySecret();
-            if (razorpayKeySecret) {
-                const data = `${razorpay_order_id}|${razorpay_payment_id}`;
-                const expected = crypto.createHmac("sha256", razorpayKeySecret).update(data).digest("hex");
-                if (expected !== razorpay_signature) {
-                    logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
-                        orderId,
-                        razorpayOrderId: razorpay_order_id,
-                        razorpayPaymentId: razorpay_payment_id,
-                    });
-                    return reply.status(400).send({ error: 'Invalid signature' });
+            const work = async () => {
+                // Verify Signature
+                const razorpayKeySecret = getRazorpayKeySecret();
+                const isMockPayload = isMockRazorpayPayload(razorpay_order_id, razorpay_payment_id, razorpay_signature);
+                if (isMockPayload && !allowMockRazorpay()) {
+                    throw new Error('Mock payments are disabled');
                 }
+
+                if (!razorpayKeySecret && !isMockPayload) {
+                    throw new Error('Payment verification is not configured');
+                }
+
+                if (razorpayKeySecret && !isMockPayload) {
+                    const data = `${razorpay_order_id}|${razorpay_payment_id}`;
+                    const expected = crypto.createHmac("sha256", razorpayKeySecret).update(data).digest("hex");
+                    if (expected !== razorpay_signature) {
+                        throw new Error('Invalid signature');
+                    }
+                }
+
+                // Atomic Confirmation via Service
+                const result = await (fastify as any).checkoutService.verifyPayment({
+                    orderId,
+                    razorpayOrderId: razorpay_order_id,
+                    razorpayPaymentId: razorpay_payment_id,
+                    userId
+                });
+
+                return {
+                    success: true,
+                    alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+                    order: result?.order || null,
+                    message: result?.alreadyConfirmed ? 'Order already confirmed' : 'Order confirmed'
+                };
+            };
+
+            let finalResult;
+            if (idempotencyKey && (fastify as any).idempotencyService?.executeOnce) {
+                finalResult = await (fastify as any).idempotencyService.executeOnce(idempotencyKey, userId, work);
+                if (finalResult.cached) return finalResult.body;
+            } else {
+                finalResult = await work();
             }
 
-            // Atomic Confirmation via Service
-            const result = await fastify.checkoutService.verifyPayment({
-                orderId,
-                razorpayOrderId: razorpay_order_id,
-                razorpayPaymentId: razorpay_payment_id,
-                userId
-            });
-
-            logPaymentEvent(request as any, result?.alreadyConfirmed ? 'PAYMENT_VERIFY_DUPLICATE' : 'PAYMENT_VERIFIED', {
+            logPaymentEvent(request as any, finalResult?.alreadyConfirmed ? 'PAYMENT_VERIFY_DUPLICATE' : 'PAYMENT_VERIFIED', {
                 orderId,
                 userId,
                 razorpayOrderId: razorpay_order_id,
                 razorpayPaymentId: razorpay_payment_id,
             });
 
-            return {
-                success: true,
-                alreadyConfirmed: Boolean(result?.alreadyConfirmed),
-                order: result?.order || null,
-                message: result?.alreadyConfirmed ? 'Order already confirmed' : 'Order confirmed'
-            };
-
+            return finalResult;
         } catch (error: any) {
             fastify.log.error(`Payment verification failed: ${error.message}`);
             const status = error.message === 'Order not found'
                 ? 404
                 : error.message === 'Unauthorized'
                     ? 403
+                    : error.message === 'Mock payments are disabled'
+                        ? 400
                     : error.message === 'Payment already linked to another order'
                         ? 409
                         : 500;

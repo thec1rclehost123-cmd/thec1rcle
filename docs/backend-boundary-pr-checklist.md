@@ -10,4 +10,7 @@ Every PR that adds or changes an API route must answer:
 6. If it is a temporary bridge, which migration phase removes it?
 7. If it mutates protected data in Fastify, does it use the shared audit helper?
 8. If it introduces a new legacy exception, why is that unavoidable right now?
-
+9. Which current business rules or side effects are preserved exactly in this slice?
+10. Which collections are touched before and after the change?
+11. Which old files and new files now own the behavior?
+12. Which tests and manual QA steps prove parity for this slice?

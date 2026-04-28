@@ -43,13 +43,19 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
             const activeMembership = request.authContext?.activeMembership || user.activeMembership || null;
 
             if (workspaceId) {
-                // In a production system, we would fetch the user's role specifically for this workspace
-                // e.g. const membership = await fastify.db.collection('workspaces').doc(workspaceId).collection('members').doc(user.uid).get();
-                // effectiveRole = membership.data()?.role || 'guest';
-                
-                // For now, if activeMembership matches the workspace, we use that role
-                if (activeMembership?.partnerId === workspaceId) {
-                    effectiveRole = activeMembership.role;
+                try {
+                    const memberDoc = await (fastify as any).db
+                        .collection('partner_memberships')
+                        .doc(`${workspaceId}:${user.uid}`)
+                        .get();
+                    if (!memberDoc.exists || memberDoc.data()?.isActive === false) {
+                        fastify.log.warn(`RBAC: workspace access revoked for user ${user.uid} in workspace ${workspaceId}`);
+                        return reply.status(403).send({ error: "Forbidden: Workspace access has been revoked." });
+                    }
+                    effectiveRole = memberDoc.data()?.role || effectiveRole;
+                } catch (err) {
+                    fastify.log.error(`RBAC workspace role fetch failed for user ${user.uid}: ${err}`);
+                    return reply.status(403).send({ error: "Forbidden: Could not verify workspace permissions." });
                 }
             }
 

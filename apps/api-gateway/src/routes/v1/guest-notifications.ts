@@ -1,11 +1,12 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+// @ts-ignore
 import {
     getGuestNotifications,
     getGuestUnreadCount,
     markAllGuestNotificationsRead,
     markGuestNotificationRead,
-} from '../../services/guest-gp5';
+} from '@c1rcle/core/guest-wallet-profile-notification-service';
 
 const GuestNotificationsQuery = z.object({
     unreadOnly: z.string().optional(),
@@ -34,11 +35,11 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
             const limit = Number.parseInt(request.query.limit || '50', 10);
 
             if (countOnly) {
-                const unreadCount = await getGuestUnreadCount(userId);
+                const unreadCount = await getGuestUnreadCount(fastify.db, userId);
                 return { unreadCount };
             }
 
-            const notifications = await getGuestNotifications(userId, { unreadOnly, limit });
+            const notifications = await getGuestNotifications(fastify.db, userId, { unreadOnly, limit });
             return { notifications };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /guest-notifications failed');
@@ -57,7 +58,7 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
                 return reply.status(400).send({ error: 'markAll is required' });
             }
 
-            return await markAllGuestNotificationsRead(userId);
+            return await markAllGuestNotificationsRead(fastify.db, userId);
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'PATCH /guest-notifications failed');
             return reply.status(500).send({ error: 'Internal server error' });

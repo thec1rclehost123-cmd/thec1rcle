@@ -1,4 +1,5 @@
 import { Inngest } from "inngest";
+import { telemetry } from "./telemetry.js";
 
 /**
  * Inngest Client for C1RCLE
@@ -49,6 +50,7 @@ export const Events = {
     // Search & Discovery
     SEARCH_SYNC_EVENT: "search/sync-event",
     SEARCH_SYNC_VENUE: "search/sync-venue",
+    PUBLIC_DISCOVERY_SYNC: "discovery/sync-read-models",
 
     // Analytics & Maintenance
     HOST_STATS_SYNC: "analytics/host-stats-sync",
@@ -84,11 +86,11 @@ export async function sendEvent(eventName, data, options = {}) {
 
         return { success: true, ids: result.ids };
     } catch (error) {
-        console.warn(`[Inngest] Failed to send event ${eventName}:`, error.message);
+        telemetry.error(`[Inngest] Failed to send event ${eventName}`, error, { eventName, data });
 
         // Development Fallback: Execute ticket fulfillment manually if Inngest is missing
         if (eventName === Events.TICKET_PURCHASED && process.env.NODE_ENV !== "production") {
-            console.log(`[Fallback] Executing local ticket fulfillment for ${data.orderId}...`);
+            telemetry.track("INNGEST_FALLBACK_TRIGGERED", { orderId: data.orderId });
             try {
                 const { issueEntitlements, generateEntitlementQR } = await import("./entitlement-engine.js");
                 const { getAdminDb } = await import("./admin.js");
@@ -112,9 +114,9 @@ export async function sendEvent(eventName, data, options = {}) {
                     fulfillmentStatus: "completed_fallback"
                 });
 
-                console.log(`[Fallback] Successfully issued ${entitlementIds.length} tickets for order ${data.orderId}`);
+                telemetry.track("INNGEST_FALLBACK_SUCCESS", { orderId: data.orderId, count: entitlementIds.length });
             } catch (fallbackError) {
-                console.error(`[Fallback] Failed to issue tickets for ${data.orderId}:`, fallbackError);
+                telemetry.error(`[Fallback] Failed to issue tickets for ${data.orderId}`, fallbackError, { orderId: data.orderId });
             }
         }
 

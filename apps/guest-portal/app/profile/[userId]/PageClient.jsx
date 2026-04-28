@@ -4,11 +4,12 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "../../../components/providers/AuthProvider";
 import EditProfileModal from "../../../components/EditProfileModal";
 import ShimmerImage from "../../../components/ShimmerImage";
 import { useParams, useRouter } from "next/navigation";
+import { useGuestProfileQuery } from "../../../features/profiles/profileQueries";
+import { buildLoginUrl } from "../../../lib/auth/guestRouteAccess";
 
 // --- Visual Components ---
 
@@ -220,30 +221,16 @@ export default function PublicProfilePage() {
     const params = useParams();
     const router = useRouter();
     const { userId } = params;
-    const { user: currentUser, profile: currentProfile, logout } = useAuth();
+    const { user: currentUser, logout } = useAuth();
 
     const [activeTab, setActiveTab] = useState("upcoming");
     const [editModalOpen, setEditModalOpen] = useState(false);
 
     const isOwner = currentUser?.uid === userId;
 
-    const { data, isLoading: loading } = useQuery({
-        queryKey: ["profile", userId, currentUser?.uid],
-        queryFn: async () => {
-            // If viewing own profile and auth context already has it, skip the fetch
-            if (isOwner && currentProfile) {
-                return { profile: currentProfile, events: { upcoming: [], attended: [] } };
-            }
-            const viewerParam = currentUser?.uid ? `?viewerId=${currentUser.uid}` : "";
-            const res = await fetch(`/api/profile/${userId}${viewerParam}`);
-            if (!res.ok) throw new Error("Profile not found");
-            return res.json();
-        },
-        enabled: !!userId && userId !== "[userId]",
-        staleTime: 2 * 60 * 1000,   // 2 min — don't refetch on every focus
-        gcTime:   10 * 60 * 1000,   // 10 min in cache
-        refetchOnWindowFocus: false,
-        retry: 1,
+    const { data, isLoading: loading } = useGuestProfileQuery({
+        userId,
+        viewerId: currentUser?.uid,
     });
 
     const profile = data?.profile ?? null;
@@ -304,9 +291,9 @@ export default function PublicProfilePage() {
                         initials={initials}
                         isOwner={isOwner}
                         onEdit={() => setEditModalOpen(true)}
-                        onLogout={() => {
-                            logout();
-                            router.replace('/login');
+                        onLogout={async () => {
+                            await logout();
+                            router.replace(buildLoginUrl("/profile"));
                         }}
                         cultureStats={cultureStats}
                     />
@@ -324,16 +311,14 @@ export default function PublicProfilePage() {
                                     onClick={() => setActiveTab("upcoming")}
                                     className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "upcoming" ? "text-orange dark:text-gold" : "text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white"}`}
                                 >
-                                    Upcoming Engagement
+                                    Upcoming Events
                                 </button>
-                                {events.attended.length > 0 && (
-                                    <button
-                                        onClick={() => setActiveTab("attended")}
-                                        className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "attended" ? "text-orange dark:text-gold" : "text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white"}`}
-                                    >
-                                        Attended Events
-                                    </button>
-                                )}
+                                <button
+                                    onClick={() => setActiveTab("attended")}
+                                    className={`text-[10px] font-bold uppercase tracking-[0.3em] transition-colors ${activeTab === "attended" ? "text-orange dark:text-gold" : "text-black/30 dark:text-white/30 hover:text-black dark:hover:text-white"}`}
+                                >
+                                    Attended Events
+                                </button>
                             </div>
                         </div>
 
@@ -359,7 +344,7 @@ export default function PublicProfilePage() {
                             ) : (
                                 <div className="py-24 text-center rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.01] dark:bg-white/[0.02]">
                                     <p className="text-black/30 dark:text-white/40 text-sm font-bold uppercase tracking-widest">
-                                        No upcoming events yet.
+                                        {activeTab === "upcoming" ? "No upcoming events yet." : "No attended events yet."}
                                     </p>
                                     <Link href="/explore" className="mt-8 inline-block text-[10px] font-bold uppercase tracking-widest transition-opacity text-orange dark:text-white/60 hover:opacity-100">
                                         Explore the C1rcle

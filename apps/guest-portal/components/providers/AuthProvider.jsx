@@ -1,15 +1,42 @@
 "use client";
 
-// P2-C: firebase/auth is NOT statically imported here.
-// It is dynamically imported inside useEffect and auth callbacks so the ~100KB
-// SDK module is excluded from the initial bundle for anonymous users.
-// Trade-off: auth state resolution takes ~100-300ms longer on first load as
-// the chunk downloads. The loading:true state persists until the chunk resolves.
-// Do NOT deploy this without running the full auth regression suite:
-//   email/password login, Google popup, register, logout, session persistence.
-
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { getFirebaseAuth } from "../../lib/firebase/client";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  guestUnreadNotificationCountQueryKey,
+  invalidateGuestNotifications,
+  useGuestUnreadNotificationCountQuery,
+} from "../../features/notifications/notificationsQueries";
+import {
+  buildGoogleAuthStartUrl,
+  changeGuestPassword,
+  loadGuestBootstrap,
+  loginGuest,
+  logoutGuest,
+  registerGuest,
+  updateGuestProfile,
+} from "../../features/auth/api/authApi";
+import {
+  buildUpdatedEventList,
+  normalizeBootstrapPayload,
+  normalizeRegistrationDetails,
+} from "../../features/auth/utils/authSessionModel";
+import { clearSessionPersistence } from "../../features/auth/hooks/useOnboardingDraft";
+
+const AUTH_SYNC_STORAGE_KEY = "c1rcle:guest-auth-sync";
+const AUTH_SYNC_CHANNEL_NAME = "c1rcle-guest-auth";
+
+function broadcastAuthSync(reason, channelRef) {
+  const payload = { reason, timestamp: Date.now() };
+  try {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(AUTH_SYNC_STORAGE_KEY, JSON.stringify(payload));
+    }
+  } catch {}
+  try {
+    channelRef.current?.postMessage(payload);
+  } catch {}
+}
 
 const AuthContext = createContext({
   user: null,
@@ -17,399 +44,304 @@ const AuthContext = createContext({
   bootstrap: null,
   unreadNotificationCount: 0,
   loading: true,
-  login: async () => { },
-  register: async () => { },
-  logout: async () => { },
-  updateEventList: async () => { },
-  getToken: async () => null,
-});
-
-const buildProfilePayload = (firebaseUser, overrides = {}) => {
-  const now = new Date().toISOString();
-  return {
-    uid: firebaseUser.uid,
-    email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || "Member",
-    photoURL: firebaseUser.photoURL || "",
-    avatar: firebaseUser.photoURL || "",
-
-    attendedEvents: [],
-    city: "",
-    instagram: "",
-    createdAt: now,
-    updatedAt: now,
-    onboardingComplete: false,
-    ...overrides
-  };
-};
-
-const getApiErrorMessage = (data, fallback = "Request failed") => (
-  data?.error?.message || data?.message || data?.error || fallback
-);
-
-const normalizeRegistrationDetails = (detailsOrName, gender, age) => {
-  if (detailsOrName && typeof detailsOrName === "object") return detailsOrName;
-  return {
-    displayName: detailsOrName,
-    gender,
-    age: parseInt(age, 10) || age,
-  };
-};
-
-const normalizeBootstrapPayload = (data) => ({
-  bootstrap: data || null,
-  profile: data?.profile || data?.user || null,
-  unreadNotificationCount: data?.shell?.unreadNotificationCount || 0,
+  syncStatus: "loading",
+  error: "",
+  login: async () => {},
+  register: async () => {},
+  loginWithGoogle: async () => {},
+  logout: async () => {},
+  updateEventList: async () => {},
+  updateUserProfile: async () => {},
+  changePassword: async () => {},
 });
 
 export function AuthProvider({ children }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [bootstrap, setBootstrap] = useState(null);
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState("loading");
   const [error, setError] = useState("");
+  const authSyncChannelRef = useRef(null);
+  const syncInFlightRef = useRef(false);
+  const hadAuthenticatedSessionRef = useRef(false);
+  const lastSyncedAtRef = useRef(0);
+  const retryTimeoutRef = useRef(null);
+
   const userRef = useRef(user);
   const profileRef = useRef(profile);
-  useEffect(() => { userRef.current = user; }, [user]);
-  useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => {
+    userRef.current = user;
+    hadAuthenticatedSessionRef.current = Boolean(user?.uid);
+  }, [user]);
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
-  // ── Token cache: avoids a network round-trip to Google on every click ────────
-  // Firebase ID tokens are valid for 1 hour. We cache the token and its expiry,
-  // and proactively refresh 5 minutes before expiry so clicks are always instant.
-  const tokenCacheRef = useRef({ token: null, expiresAt: 0 });
-  const tokenRefreshTimerRef = useRef(null);
-
-  const getCachedToken = useCallback(async (forceUser) => {
-    const firebaseUser = forceUser || userRef.current;
-    if (!firebaseUser) return null;
-    const now = Date.now();
-    const { token, expiresAt } = tokenCacheRef.current;
-    // Return cached token if it has more than 5 minutes left
-    if (token && expiresAt - now > 5 * 60 * 1000) return token;
-    // Fetch a fresh token
-    const fresh = await firebaseUser.getIdToken(true);
-    // Firebase tokens expire in 1 hour — cache for 55 minutes
-    tokenCacheRef.current = { token: fresh, expiresAt: now + 55 * 60 * 1000 };
-    return fresh;
+  const clearRetryTimer = useCallback(() => {
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
+    }
   }, []);
 
-  // Schedule a proactive token refresh 55 minutes after login so the next
-  // click after an hour never blocks waiting for a network round-trip
-  const scheduleTokenRefresh = useCallback((firebaseUser) => {
-    if (tokenRefreshTimerRef.current) clearTimeout(tokenRefreshTimerRef.current);
-    tokenRefreshTimerRef.current = setTimeout(async () => {
-      try {
-        const fresh = await firebaseUser.getIdToken(true);
-        tokenCacheRef.current = { token: fresh, expiresAt: Date.now() + 55 * 60 * 1000 };
-        scheduleTokenRefresh(firebaseUser); // reschedule for next hour
-      } catch {
-        // non-fatal — next getCachedToken call will force-refresh
-      }
-    }, 55 * 60 * 1000);
+  const isTransientBootstrapError = useCallback((authError) => {
+    const status = Number(authError?.status || 0);
+    const code = String(authError?.code || "").toUpperCase();
+    return status >= 500 || code === "AUTH_TEMPORARILY_UNAVAILABLE";
   }, []);
 
-  const syncSession = useCallback(async (firebaseUser) => {
-    if (!firebaseUser) {
-      await fetch("/api/auth/session", { method: "DELETE" });
-      return null;
-    }
+  const clearAuthState = useCallback(() => {
+    clearRetryTimer();
+    setUser(null);
+    setProfile(null);
+    setBootstrap(null);
+    setUnreadNotificationCount(0);
+    queryClient.removeQueries({ queryKey: ["guest"] });
+  }, [clearRetryTimer, queryClient]);
 
-    const idToken = await getCachedToken(firebaseUser);
-    const response = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken })
-    });
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(getApiErrorMessage(data, "Unable to synchronize session."));
-    }
-    return idToken;
-  }, [getCachedToken]);
-
-  const loadBootstrap = useCallback(async (token) => {
-    const res = await fetch('/api/auth/me', {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!res.ok) return null;
-
-    const data = await res.json();
+  const applyBootstrap = useCallback((data) => {
     const next = normalizeBootstrapPayload(data);
     setBootstrap(next.bootstrap);
+    setUser(next.user);
+    setProfile(next.profile);
     setUnreadNotificationCount(next.unreadNotificationCount);
-    if (next.profile) {
-      setProfile(next.profile);
+    setSyncStatus(next.user?.uid ? "ready" : "signed_out");
+    if (next.user?.uid) {
+      queryClient.setQueryData(
+        guestUnreadNotificationCountQueryKey(next.user.uid),
+        { unreadCount: next.unreadNotificationCount }
+      );
     }
     return next;
-  }, []);
+  }, [queryClient]);
 
-  const ensureProfile = useCallback(async (firebaseUser, overrides = {}) => {
-    try {
-      const token = await getCachedToken(firebaseUser);
-      const payload = buildProfilePayload(firebaseUser, overrides);
-
-      const bootstrapData = await loadBootstrap(token);
-      const nextProfile = bootstrapData?.profile || null;
-
-      if (nextProfile) {
-        // Sync photo if missing in DB but present in Firebase
-        if ((!nextProfile.photoURL || !nextProfile.avatar) && firebaseUser.photoURL) {
-          const syncPayload = {
-            photoURL: firebaseUser.photoURL,
-            avatar: firebaseUser.photoURL
-          };
-          // Awaited so profile state is consistent before returning
-          try {
-            const syncRes = await fetch('/api/auth/profile', {
-              method: 'PATCH',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
-              },
-              body: JSON.stringify({ type: 'user', updates: syncPayload })
-            });
-            if (syncRes.ok) {
-              const refreshed = await loadBootstrap(token);
-              return refreshed?.profile || { ...nextProfile, ...syncPayload };
-            }
-          } catch (syncErr) {
-            console.warn("[Auth] Photo sync failed", syncErr);
-          }
-          const updatedProfile = { ...nextProfile, ...syncPayload };
-          setProfile(updatedProfile);
-          return updatedProfile;
-        }
-
-        return nextProfile;
-      }
-
-      const createRes = await fetch('/api/auth/profile', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(payload)
-      });
-      const createData = await createRes.json().catch(() => ({}));
-      if (!createRes.ok) {
-        throw new Error(getApiErrorMessage(createData, "Unable to create profile."));
-      }
-
-      const refreshed = await loadBootstrap(token);
-      const createdProfile = refreshed?.profile || createData?.profile || payload;
-      setProfile(createdProfile);
-      return createdProfile;
-    } catch (profileError) {
-      console.error("ensureProfile error", profileError);
-      setError("Unable to ensure profile via API.");
-      return null;
-    }
-  }, [getCachedToken, loadBootstrap]);
+  const unreadNotificationsQuery = useGuestUnreadNotificationCountQuery(user?.uid, {
+    enabled: Boolean(user?.uid) && !loading,
+  });
 
   useEffect(() => {
-    let unsubscribe;
+    const unreadCount = unreadNotificationsQuery.data?.unreadCount;
+    if (typeof unreadCount === "number") {
+      setUnreadNotificationCount(unreadCount);
+    }
+  }, [unreadNotificationsQuery.data?.unreadCount]);
+
+  const invalidateProfileState = useCallback(async () => {
+    const uid = userRef.current?.uid;
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["profile"] }),
+      invalidateGuestNotifications(queryClient, uid),
+    ]);
+  }, [queryClient]);
+
+  const loadBootstrap = useCallback(async () => {
+    const data = await loadGuestBootstrap();
+    if (!data) {
+      clearAuthState();
+      setSyncStatus("signed_out");
+      return null;
+    }
+    return applyBootstrap(data);
+  }, [applyBootstrap, clearAuthState]);
+
+  const syncBootstrap = useCallback(async ({ withLoading = false } = {}) => {
+    if (syncInFlightRef.current) return null;
+    syncInFlightRef.current = true;
+    if (withLoading) setLoading(true);
+    try {
+      const refreshed = await loadBootstrap();
+      clearRetryTimer();
+      setError("");
+      lastSyncedAtRef.current = Date.now();
+      return refreshed;
+    } catch (authError) {
+      console.error("Guest auth bootstrap failed", authError);
+      const transientFailure = isTransientBootstrapError(authError);
+      if (transientFailure) {
+        setSyncStatus("transient_error");
+        clearRetryTimer();
+        if (typeof window !== "undefined") {
+          retryTimeoutRef.current = window.setTimeout(() => {
+            retryTimeoutRef.current = null;
+            void syncBootstrap();
+          }, 1500);
+        }
+      } else if (!hadAuthenticatedSessionRef.current) {
+        clearAuthState();
+        setSyncStatus("signed_out");
+      }
+      setError(authError.message || "Unable to restore your session.");
+      return null;
+    } finally {
+      syncInFlightRef.current = false;
+      if (withLoading) setLoading(false);
+    }
+  }, [clearAuthState, clearRetryTimer, isTransientBootstrapError, loadBootstrap]);
+
+  useEffect(() => {
     let mounted = true;
 
-    import("firebase/auth").then(async ({ onAuthStateChanged }) => {
+    syncBootstrap({ withLoading: true }).finally(() => {
       if (!mounted) return;
-      try {
-        const auth = await getFirebaseAuth();
-        unsubscribe = onAuthStateChanged(auth, async (authUser) => {
-          if (!mounted) return;
-          
-          setUser(authUser);
-
-          // Sync session cookie for server-side auth
-          if (authUser) {
-            try {
-              // getCachedToken seeds the cache here — all subsequent clicks are instant
-              await syncSession(authUser);
-              scheduleTokenRefresh(authUser);
-            } catch (err) {
-              console.warn("[Auth] Session sync failed", err);
-            }
-          } else {
-            // Clear token cache and refresh timer on logout
-            tokenCacheRef.current = { token: null, expiresAt: 0 };
-            if (tokenRefreshTimerRef.current) {
-              clearTimeout(tokenRefreshTimerRef.current);
-              tokenRefreshTimerRef.current = null;
-            }
-            // Clear session cookie on logout
-            try {
-              await syncSession(null);
-            } catch {
-              // non-fatal — cookie will expire naturally
-            }
-          }
-
-          if (authUser) {
-            try {
-              await ensureProfile(authUser);
-            } catch (profileError) {
-              console.error("Failed to load user profile", profileError);
-            }
-          } else {
-            setProfile(null);
-            setBootstrap(null);
-            setUnreadNotificationCount(0);
-          }
-          setLoading(false);
-        });
-      } catch (authError) {
-        console.error("Firebase auth unavailable", authError);
-        setError("Firebase is not configured. Check NEXT_PUBLIC_FIREBASE_* env vars.");
-        setLoading(false);
-      }
-    }).catch((importError) => {
-      console.error("Failed to load Firebase Auth module", importError);
-      setLoading(false);
     });
 
     return () => {
       mounted = false;
-      unsubscribe?.();
     };
-  }, [ensureProfile, syncSession, scheduleTokenRefresh]);
+  }, [syncBootstrap]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    if (typeof BroadcastChannel !== "undefined") {
+      authSyncChannelRef.current = new BroadcastChannel(AUTH_SYNC_CHANNEL_NAME);
+      authSyncChannelRef.current.onmessage = (event) => {
+        const reason = event?.data?.reason;
+        if (reason === "logout") {
+          clearAuthState();
+          setSyncStatus("signed_out");
+          setError("");
+          return;
+        }
+        void syncBootstrap();
+      };
+    }
+
+    const handleStorage = (event) => {
+      if (event.key !== AUTH_SYNC_STORAGE_KEY || !event.newValue) return;
+      try {
+        const payload = JSON.parse(event.newValue);
+        if (payload?.reason === "logout") {
+          clearAuthState();
+          setSyncStatus("signed_out");
+          setError("");
+          return;
+        }
+      } catch {}
+      void syncBootstrap();
+    };
+
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState && document.visibilityState !== "visible") return;
+      if (Date.now() - lastSyncedAtRef.current < 60_000) return;
+      void syncBootstrap();
+    };
+
+    window.addEventListener("storage", handleStorage);
+    window.addEventListener("focus", handleVisibilityOrFocus);
+    document.addEventListener("visibilitychange", handleVisibilityOrFocus);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+      window.removeEventListener("focus", handleVisibilityOrFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityOrFocus);
+      authSyncChannelRef.current?.close?.();
+      authSyncChannelRef.current = null;
+      clearRetryTimer();
+    };
+  }, [clearAuthState, clearRetryTimer, syncBootstrap]);
 
   const login = useCallback(async (email, password, rememberMe = true) => {
-    const {
-      signInWithEmailAndPassword,
-      setPersistence,
-      browserLocalPersistence,
-      browserSessionPersistence
-    } = await import("firebase/auth");
-    const auth = await getFirebaseAuth();
-    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    await syncSession(credential.user);
-    const profile = await ensureProfile(credential.user);
-    return { user: credential.user, profile };
-  }, [ensureProfile, syncSession]);
+    const data = await loginGuest({ email, password, rememberMe });
+    setError("");
+    const next = applyBootstrap(data.bootstrap || data);
+    broadcastAuthSync("login", authSyncChannelRef);
+    return { user: next.user, profile: next.profile };
+  }, [applyBootstrap]);
 
   const register = useCallback(async (email, password, detailsOrName, gender, age) => {
-    const { createUserWithEmailAndPassword, updateProfile } = await import("firebase/auth");
-    const auth = await getFirebaseAuth();
     const details = normalizeRegistrationDetails(detailsOrName, gender, age);
-    const displayName = details.displayName || details.name;
-    const credential = await createUserWithEmailAndPassword(auth, email, password);
-    if (displayName) {
-      await updateProfile(credential.user, { displayName });
-    }
-    await syncSession(credential.user);
-    const profile = await ensureProfile(credential.user, {
-      displayName: displayName || credential.user.displayName,
-      gender: details.gender,
-      age: details.age !== undefined ? (parseInt(details.age, 10) || details.age) : undefined,
-      phone: details.phone,
-      city: details.city,
-      instagram: details.instagram,
-      onboardingComplete: details.onboardingComplete === true
-    });
-    return { user: credential.user, profile };
-  }, [ensureProfile, syncSession]);
+    const data = await registerGuest({ email, password, details });
+    setError("");
+    const next = applyBootstrap(data.bootstrap || data);
+    broadcastAuthSync("register", authSyncChannelRef);
+    return { user: next.user, profile: next.profile };
+  }, [applyBootstrap]);
 
   const logout = useCallback(async () => {
-    const { signOut } = await import("firebase/auth");
-    const auth = await getFirebaseAuth();
-    await signOut(auth);
-    setProfile(null);
-    setBootstrap(null);
-    setUnreadNotificationCount(0);
-    setUser(null);
+    await logoutGuest();
+    clearSessionPersistence();
+    clearAuthState();
+    setSyncStatus("signed_out");
+    broadcastAuthSync("logout", authSyncChannelRef);
+  }, [clearAuthState]);
+
+  const loginWithGoogle = useCallback(async (nextPath) => {
+    if (typeof window === "undefined") return { user: null, profile: null };
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    window.location.assign(buildGoogleAuthStartUrl(nextPath || currentUrl));
+    return { user: null, profile: null, redirecting: true };
   }, []);
 
-  const loginWithGoogle = useCallback(async () => {
-    const { GoogleAuthProvider, signInWithPopup } = await import("firebase/auth");
-    const auth = await getFirebaseAuth();
-    const provider = new GoogleAuthProvider();
-    const credential = await signInWithPopup(auth, provider);
-    await syncSession(credential.user);
-    const profile = await ensureProfile(credential.user);
-    return { user: credential.user, profile };
-  }, [ensureProfile, syncSession]);
+  const updateEventList = useCallback(async (field, eventId, shouldInclude) => {
+    if (!userRef.current?.uid) {
+      throw new Error("You must be logged in to manage events.");
+    }
 
-  const updateEventList = useCallback(
-    async (field, eventId, shouldInclude) => {
-      if (!user?.uid) {
-        throw new Error("You must be logged in to manage events.");
-      }
+    const updatedArray = buildUpdatedEventList(profileRef.current, field, eventId, shouldInclude);
 
-      const current = new Set(profileRef.current?.[field] || []);
-      if (shouldInclude) current.add(eventId);
-      else current.delete(eventId);
-      const updatedArray = Array.from(current);
+    setProfile((prev) => {
+      if (!prev) return prev;
+      return { ...prev, [field]: updatedArray };
+    });
 
-      setProfile((prev) => {
-        if (!prev) return prev;
-        return { ...prev, [field]: updatedArray };
-      });
+    await updateGuestProfile({ [field]: updatedArray });
 
-      const token = await getCachedToken();
-      const res = await fetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getApiErrorMessage(data, "Unable to update profile."));
-      }
-    },
-    [user?.uid, getCachedToken]
-  );
+    await invalidateProfileState();
+    broadcastAuthSync("profile", authSyncChannelRef);
+  }, [invalidateProfileState]);
 
-  const updateUserProfile = useCallback(
-    async (updates) => {
-      if (!user?.uid) throw new Error("Not logged in");
+  const updateUserProfile = useCallback(async (updates) => {
+    if (!userRef.current?.uid) throw new Error("Not logged in");
 
-      const token = await getCachedToken();
-      const res = await fetch('/api/auth/profile', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ type: 'user', updates })
-      });
+    await updateGuestProfile(updates);
 
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(getApiErrorMessage(data, "Unable to update profile."));
-      }
+    const refreshed = await loadBootstrap();
+    if (!refreshed?.profile) {
+      setProfile((prev) => ({ ...prev, ...updates }));
+    }
+    await invalidateProfileState();
+    broadcastAuthSync("profile", authSyncChannelRef);
+  }, [invalidateProfileState, loadBootstrap]);
 
-      const refreshed = await loadBootstrap(token);
-      if (!refreshed?.profile) {
-        setProfile((prev) => ({ ...prev, ...updates }));
-      }
-    },
-    [user?.uid, getCachedToken, loadBootstrap]
-  );
+  const changePassword = useCallback(async (currentPassword, newPassword) => {
+    return changeGuestPassword({ currentPassword, newPassword });
+  }, []);
 
-  const value = useMemo(
-    () => ({
-      user,
-      profile,
-      bootstrap,
-      unreadNotificationCount,
-      loading,
-      error,
-      login,
-      register,
-      loginWithGoogle,
-      logout,
-      updateEventList,
-      updateUserProfile,
-      getToken: getCachedToken,
-    }),
-    [user, profile, bootstrap, unreadNotificationCount, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, getCachedToken]
-  );
+  const value = useMemo(() => ({
+    user,
+    profile,
+    bootstrap,
+    unreadNotificationCount,
+    loading,
+    syncStatus,
+    error,
+    login,
+    register,
+    loginWithGoogle,
+    logout,
+    updateEventList,
+    updateUserProfile,
+    changePassword,
+  }), [
+    user,
+    profile,
+    bootstrap,
+    unreadNotificationCount,
+    loading,
+    syncStatus,
+    error,
+    login,
+    register,
+    loginWithGoogle,
+    logout,
+    updateEventList,
+    updateUserProfile,
+    changePassword,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

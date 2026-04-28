@@ -123,7 +123,7 @@ export default function DesktopNavLinks() {
                     link.href === "/"
                         ? pathname === "/"
                         : pathname?.startsWith(link.href) ||
-                        (link.label === "Hosts" && pathname?.startsWith("/venues"));
+                        (link.label === "Hosts" && pathname?.startsWith("/venue/"));
 
                 return (
                     <Link

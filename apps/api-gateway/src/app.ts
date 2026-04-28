@@ -18,6 +18,8 @@ import rbacPlugin from './plugins/rbac';
 import rateLimitPlugin from './plugins/rate-limit';
 import validatePlugin from './plugins/validate';
 import featureFlagsPlugin from './plugins/feature-flags';
+import cacheControlPlugin from './plugins/cache-control';
+import inngestPlugin from './plugins/inngest';
 import eventRoutes from './routes/v1/events';
 import checkoutRoutes from './routes/v1/checkout';
 import paymentRoutes from './routes/v1/payments';
@@ -34,6 +36,7 @@ import tableRoutes from './routes/v1/tables';
 import waitlistRoutes from './routes/v1/waitlist';
 import searchRoutes from './routes/v1/search';
 import publicRoutes from './routes/v1/public';
+import recommendationRoutes from './routes/v1/recommendations';
 import calendarRoutes from './routes/v1/calendar';
 import promoRoutes from './routes/v1/promos';
 import cmsRoutes from './routes/v1/cms';
@@ -53,6 +56,10 @@ import authRoutes from './routes/v1/auth';
 import adminRoutes from './routes/v1/admin';
 import socialRoutes from './routes/v1/social';
 import guestProfileRoutes from './routes/v1/guest-profiles';
+import guestPromoterRoutes from './routes/v1/guest-promoters';
+import guestPassRoutes from './routes/v1/guest-passes';
+import seoRoutes from './routes/seo';
+import openApiRoutes from './routes/openapi';
 import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -191,6 +198,10 @@ async function main() {
     await server.register(featureFlagsPlugin);
     await server.register(rateLimitPlugin);
     await server.register(validatePlugin);
+    await server.register(cacheControlPlugin);
+    await server.register(inngestPlugin);
+    await server.register(seoRoutes);
+    await server.register(openApiRoutes);
 
     // Register Static File Hosting
     await server.register(fastifyStatic, {
@@ -215,6 +226,7 @@ async function main() {
     await server.register(waitlistRoutes, { prefix: '/api/v1/waitlist' });
     await server.register(searchRoutes, { prefix: '/api/v1/search' });
     await server.register(publicRoutes, { prefix: '/api/v1/public' });
+    await server.register(recommendationRoutes, { prefix: '/api/v1' });
     await server.register(calendarRoutes, { prefix: '/api/v1/calendar' });
     await server.register(promoRoutes, { prefix: '/api/v1/promos' });
 
@@ -237,6 +249,8 @@ async function main() {
     await server.register(matchingRoutes, { prefix: '/api/v1/matching' });
     await server.register(socialRoutes, { prefix: '/api/v1' });
     await server.register(guestProfileRoutes, { prefix: '/api/v1' });
+    await server.register(guestPromoterRoutes, { prefix: '/api/v1/public' });
+    await server.register(guestPassRoutes, { prefix: '/api/v1' });
 
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {
@@ -251,12 +265,8 @@ async function main() {
         };
 
         try {
-            // 1. Check Firestore
-            const startStr = Date.now().toString();
-            await server.db.collection('health_checks').doc('ping').set({ 
-                timestamp: new Date().toISOString(),
-                id: startStr
-            });
+            // 1. Check Firestore with a lightweight read-only probe
+            await server.db.collection('system_meta').doc('public_discovery').get();
             health.services.firestore = 'healthy';
         } catch (e: any) {
             health.services.firestore = 'unhealthy';
@@ -290,6 +300,24 @@ async function main() {
 
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+    // Validate optional feature credentials before accepting traffic
+    const isProd = process.env.NODE_ENV === 'production';
+    const firebaseWebKey = process.env.FIREBASE_WEB_API_KEY || process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+    if (!firebaseWebKey) {
+        const msg = 'FIREBASE_WEB_API_KEY is not set — email/password login and registration will fail';
+        if (isProd) { server.log.error(msg); process.exit(1); }
+        else server.log.warn(msg);
+    }
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+        server.log.warn('GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET not set — Google OAuth is disabled');
+    }
+    if (!process.env.MSG91_AUTH_KEY || !process.env.MSG91_TEMPLATE_ID) {
+        server.log.warn('MSG91_AUTH_KEY / MSG91_TEMPLATE_ID not set — phone OTP uses mock codes in development');
+    }
+    if (!process.env.RESEND_API_KEY) {
+        server.log.warn('RESEND_API_KEY not set — email OTP uses mock codes in development');
+    }
 
     // Start Listening
     try {

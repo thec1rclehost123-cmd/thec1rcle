@@ -30,16 +30,17 @@ const HIGH_RISK_CACHE_TTL_MS = 5_000;
  * @param {string} key           - unique identifier (uid, IP, etc.)
  * @param {number} [limit=20]
  * @param {number} [windowSeconds=60]
+ * @param {boolean} [failClosed=false]
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number }>}
  */
-export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
+export async function checkRateLimit(key, limit = 20, windowSeconds = 60, failClosed = false) {
     const redis   = getRedisClient();
     const fullKey = `ratelimit:${key}`;
 
     try {
         if (!redis || (redis.status !== "ready" && redis.status !== "connecting")) {
-            console.warn("[Redis] Client not ready, failing open for rate limit");
-            return { success: true, limit, remaining: 1, reset: windowSeconds };
+            console.warn(`[Redis] Client not ready, ${failClosed ? "FAILING CLOSED" : "failing open"} for rate limit`);
+            return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
         }
 
         const pipeline = redis.pipeline();
@@ -49,8 +50,8 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
 
         if (!results || results.some(r => r[0])) {
             const err = results?.find(r => r[0])?.[0];
-            console.warn("[Redis] Rate limit pipeline failed:", err?.message);
-            return { success: true, limit, remaining: 1, reset: windowSeconds };
+            console.warn(`[Redis] Rate limit pipeline failed (${failClosed ? "FAIL CLOSED" : "FAIL OPEN"}):`, err?.message);
+            return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
         }
 
         const count = results[0][1];
@@ -67,8 +68,8 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
             reset:     ttl > 0 ? ttl : windowSeconds,
         };
     } catch (error) {
-        console.warn("[RateLimit] Error:", error.message);
-        return { success: true, limit, remaining: 1, reset: windowSeconds };
+        console.warn(`[RateLimit] Error (${failClosed ? "FAIL CLOSED" : "FAIL OPEN"}):`, error.message);
+        return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
     }
 }
 
@@ -83,9 +84,10 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
  * @param {number}                  windowSeconds
  * @param {"ip"|"user"|"admin"}     reputationType
  * @param {string}                  reputationId     - IP / uid / adminId to score-lookup
+ * @param {boolean}                 [failClosed=false]
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number, tier: string }>}
  */
-export async function checkAdaptiveRateLimit(key, baseLimit, windowSeconds, reputationType, reputationId) {
+export async function checkAdaptiveRateLimit(key, baseLimit, windowSeconds, reputationType, reputationId, failClosed = false) {
     // Lazy import to avoid circular dependency — reputation imports redis, not rate-limiter
     let adaptiveLimit = baseLimit;
     let tier = "normal";
@@ -116,7 +118,7 @@ export async function checkAdaptiveRateLimit(key, baseLimit, windowSeconds, repu
         adaptiveLimit = Math.max(1, Math.floor(adaptiveLimit / 2));
     }
 
-    const result = await checkRateLimit(key, adaptiveLimit, windowSeconds);
+    const result = await checkRateLimit(key, adaptiveLimit, windowSeconds, failClosed);
     return { ...result, tier, highRiskMode: _highRiskCache.active };
 }
 

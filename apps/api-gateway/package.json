@@ -12,9 +12,12 @@
     "test:watch": "node ../../node_modules/vitest/vitest.mjs",
     "build": "node ../../node_modules/typescript/bin/tsc",
     "lint": "node ../../node_modules/typescript/bin/tsc --noEmit",
-    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit"
+    "type-check": "node ../../node_modules/typescript/bin/tsc --noEmit",
+    "openapi:guest": "node ../../node_modules/tsx/dist/cli.mjs src/openapi/write-guest-v1-json.ts",
+    "backfill:public-discovery": "node ../../node_modules/tsx/dist/cli.mjs --env-file=.env.development src/scripts/backfill-public-discovery.ts"
   },
   "dependencies": {
+    "@c1rcle/core": "*",
     "@fastify/compress": "^8.3.1",
     "@fastify/cors": "^11.0.1",
     "@fastify/multipart": "^10.0.0",

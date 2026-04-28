@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import ShimmerImage from "../../../components/ShimmerImage";
 import { useAuth } from "../../../components/providers/AuthProvider";
+import { saveIntent } from "../../../lib/utils/intentStore";
+import { followVenue, getVenueFollowStatus, unfollowVenue } from "../../../features/social/api/socialApi";
 
 const FACILITY_ICONS = {
     parking: Car, wifi: Wifi, vip: Star, bar: Music, security: Shield,
@@ -17,16 +19,48 @@ const FACILITY_ICONS = {
 export default function VenueProfileClient({ venue }) {
     const { user } = useAuth();
     const [followed, setFollowed] = useState(false);
+    const [followersCount, setFollowersCount] = useState(venue.followers || 0);
+    const [isFollowLoading, setIsFollowLoading] = useState(false);
     const [galleryOpen, setGalleryOpen] = useState(null);
 
-    const handleFollow = () => {
+    useEffect(() => {
+        setFollowersCount(venue.followers || 0);
+    }, [venue.followers]);
+
+    useEffect(() => {
+        if (!user || !venue?.id) return;
+        getVenueFollowStatus(venue.id)
+            .then(setFollowed)
+            .catch(() => {});
+    }, [user, venue?.id]);
+
+    const handleFollow = async () => {
+        if (isFollowLoading) return;
         if (!user) {
-            window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+            saveIntent("FOLLOW_VENUE", null, { targetId: venue.id, targetType: "venue" });
+            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", {
                 detail: { intent: "FOLLOW_VENUE", targetId: venue.id }
             }));
             return;
         }
-        setFollowed(f => !f);
+
+        const nextStatus = !followed;
+        setFollowed(nextStatus);
+        setFollowersCount((prev) => nextStatus ? prev + 1 : Math.max(0, prev - 1));
+        setIsFollowLoading(true);
+
+        try {
+            if (nextStatus) {
+                await followVenue(venue.id);
+            } else {
+                await unfollowVenue(venue.id);
+            }
+        } catch {
+            setFollowed(!nextStatus);
+            setFollowersCount((prev) => !nextStatus ? prev + 1 : Math.max(0, prev - 1));
+        } finally {
+            setIsFollowLoading(false);
+        }
     };
 
     const handleShare = () => {
@@ -122,7 +156,7 @@ export default function VenueProfileClient({ venue }) {
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-6 flex flex-wrap items-center justify-between gap-5">
                     <div className="flex gap-8">
                         <div>
-                            <p className="text-2xl font-black text-black dark:text-white tabular-nums">{(venue.followers || 0).toLocaleString('en-IN')}</p>
+                            <p className="text-2xl font-black text-black dark:text-white tabular-nums">{followersCount.toLocaleString('en-IN')}</p>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40 mt-0.5">Followers</p>
                         </div>
                         {upcomingEvents.length > 0 && (
@@ -147,6 +181,7 @@ export default function VenueProfileClient({ venue }) {
                                     ? "bg-[#F44A22] text-white"
                                     : "bg-black dark:bg-white text-white dark:text-black"
                             }`}
+                            disabled={isFollowLoading}
                         >
                             <Heart size={13} fill={followed ? "currentColor" : "none"} />
                             {followed ? "Following" : "Follow"}

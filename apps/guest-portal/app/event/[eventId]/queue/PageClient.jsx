@@ -1,128 +1,16 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "../../../../components/providers/AuthProvider";
-import { useToast } from "../../../../components/providers/ToastProvider";
 import { Ticket, ShieldCheck, Clock, AlertTriangle, Fingerprint } from "lucide-react";
+import { useWaitingRoom } from "../../../../features/events/hooks/useWaitingRoom";
 
 /**
  * THE C1RCLE - Virtual Waiting Room (v2 Hardened)
  */
 const WaitingRoom = () => {
     const { eventId } = useParams();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const { user } = useAuth();
-    const { toast } = useToast();
-
-    const [status, setStatus] = useState("initializing"); // initializing, waiting, admitted, expired, error
-    const [queueData, setQueueData] = useState(null);
-    const [eventData, setEventData] = useState(null);
-    const [waitTime, setWaitTime] = useState(null);
-    const timerRef = useRef(null);
-
-    // Initial check and Metadata
-    useEffect(() => {
-        document.title = "Virtual Waiting Room | THE C1RCLE";
-        const fetchEventPreview = async () => {
-            try {
-                const res = await fetch(`/api/events/${eventId}`);
-                const data = await res.json();
-                setEventData(data.event);
-            } catch (err) {
-                console.error("Failed to fetch event preview", err);
-            }
-        };
-        fetchEventPreview();
-    }, [eventId]);
-
-    const fetchStatus = async (qid) => {
-        try {
-            const res = await fetch(`/api/events/${eventId}/queue?queueId=${qid}`);
-            const data = await res.json();
-
-            if (data.status === "admitted" || data.status === "payment_failed") {
-                // Adjust interval for admitted users (Heartbeat is critical here)
-                resetHeartbeat(qid, 10000);
-
-                setQueueData(data);
-                setStatus("admitted");
-
-                sessionStorage.setItem(`admission_token_${eventId}`, data.token);
-
-                if (data.status === "payment_failed") {
-                    toast("Payment Retry Window Active!", "success");
-                }
-
-                setTimeout(() => {
-                    const nextUrl = searchParams.get("returnTo") || `/event/${eventId}`;
-                    router.push(nextUrl);
-                }, 1500);
-            } else if (data.status === "waiting") {
-                setQueueData(data);
-                setStatus("waiting");
-                // Lane-aware wait estimation
-                const pos = data.lanePosition || data.position || 0;
-                setWaitTime(Math.ceil(pos * 0.3));
-            } else if (data.status === "expired" || data.status === "abandoned") {
-                setStatus("expired");
-                clearInterval(timerRef.current);
-            }
-        } catch (err) {
-            console.error("Failed to fetch queue status", err);
-        }
-    };
-
-    const resetHeartbeat = (qid, ms) => {
-        if (timerRef.current) clearInterval(timerRef.current);
-        timerRef.current = setInterval(() => fetchStatus(qid), ms);
-    };
-
-    const join = async () => {
-        try {
-            const res = await fetch(`/api/events/${eventId}/queue`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ userId: user?.uid })
-            });
-            const data = await res.json();
-
-            if (res.status === 429) {
-                toast("Too many attempts. Please slow down.", "error");
-                setStatus("error");
-                return;
-            }
-
-            if (data.id) {
-                setQueueData(data);
-                setStatus(data.status);
-
-                if (data.status === "waiting") {
-                    // Poll waiting status every 15s to save server resources
-                    resetHeartbeat(data.id, 15000);
-                } else if (data.status === "admitted") {
-                    sessionStorage.setItem(`admission_token_${eventId}`, data.token);
-                    const nextUrl = searchParams.get("returnTo") || `/event/${eventId}`;
-                    router.push(nextUrl);
-                }
-            } else {
-                setStatus("error");
-            }
-        } catch (err) {
-            setStatus("error");
-        }
-    };
-
-    useEffect(() => {
-        if (eventId && user !== undefined) {
-            join();
-        }
-        return () => clearInterval(timerRef.current);
-    }, [eventId, user]);
-
-    const lowestPrice = eventData?.tickets?.reduce((min, t) => Math.min(min, t.price), Infinity) || 0;
+    const { errorMessage, eventData, lowestPrice, queueData, refreshPage, status, waitTime } = useWaitingRoom(eventId);
 
     return (
         <div className="relative min-h-screen flex flex-col items-center justify-center p-6 bg-black overflow-hidden font-sans">
@@ -163,6 +51,12 @@ const WaitingRoom = () => {
                         </div>
 
                         <div className="bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[40px] p-6 sm:p-10 text-center shadow-2xl">
+                            {errorMessage && (
+                                <div className="mb-6 rounded-3xl border border-red-500/20 bg-red-500/10 p-4 text-left">
+                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-red-300">Connection issue</p>
+                                    <p className="mt-2 text-sm text-red-100">{errorMessage}</p>
+                                </div>
+                            )}
                             <div className="mb-10 flex flex-col items-center">
                                 <div className="px-6 py-2 rounded-full bg-white/5 border border-white/10 text-iris font-black text-[10px] uppercase tracking-widest mb-6 flex items-center gap-3">
                                     <Fingerprint className="w-3 h-3" />
@@ -236,10 +130,28 @@ const WaitingRoom = () => {
                                 : "Your queue session has timed out. Please re-join if you still wish to purchase."}
                         </p>
                         <button
-                            onClick={() => window.location.reload()}
+                            onClick={refreshPage}
                             className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-iris hover:text-white transition-all shadow-xl"
                         >
                             Re-join Queue
+                        </button>
+                    </motion.div>
+                )}
+
+                {status === "error" && (
+                    <motion.div key="error" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center z-10 max-w-sm">
+                        <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-8">
+                            <AlertTriangle className="w-10 h-10 text-red-500" />
+                        </div>
+                        <h1 className="text-white text-3xl font-black uppercase tracking-tight mb-4">Queue unavailable</h1>
+                        <p className="text-white/40 text-sm mb-12 leading-relaxed">
+                            {errorMessage || "We could not verify your queue session right now."}
+                        </p>
+                        <button
+                            onClick={refreshPage}
+                            className="w-full py-5 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-xs hover:bg-iris hover:text-white transition-all shadow-xl"
+                        >
+                            Retry
                         </button>
                     </motion.div>
                 )}

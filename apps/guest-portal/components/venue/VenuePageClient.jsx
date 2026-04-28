@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "../providers/AuthProvider";
+import { saveIntent } from "../../lib/utils/intentStore";
+import { followVenue, getVenueFollowStatus, unfollowVenue } from "../../features/social/api/socialApi";
 
 // New components
 import VenueHero from "./VenueHero";
@@ -30,6 +32,8 @@ export default function VenuePageClient({
     highlights = [],
     similarVenues = []
 }) {
+    const venueId = venue?.id || venue?.venueId || null;
+    const venueSlug = venue?.slug || venue?.handle || venueId || null;
     const [isFollowing, setIsFollowing] = useState(false);
     const [followersCount, setFollowersCount] = useState(stats?.followers || venue?.followers || 0);
     const [showReservation, setShowReservation] = useState(false);
@@ -41,25 +45,43 @@ export default function VenuePageClient({
     // Check if user is following on mount
     useEffect(() => {
         const checkFollowStatus = async () => {
-            if (!user || !venue?.id) return;
+            if (!user || !venueId) return;
 
             try {
-                const response = await fetch(`/api/venues/${venue.id}/follow-status`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setIsFollowing(data.isFollowing);
-                }
+                setIsFollowing(await getVenueFollowStatus(venueId));
             } catch (err) {
                 console.error("Failed to check follow status:", err);
             }
         };
 
         checkFollowStatus();
-    }, [venue?.id, user]);
+    }, [user, venueId]);
+
+    useEffect(() => {
+        if (typeof window === "undefined") return undefined;
+
+        const params = new URLSearchParams(window.location.search);
+        if (params.get("openReservation") === "1") {
+            setShowReservation(true);
+        }
+
+        const handleOpenReservation = () => {
+            setShowReservation(true);
+        };
+
+        window.addEventListener("OPEN_VENUE_RESERVATION", handleOpenReservation);
+        return () => window.removeEventListener("OPEN_VENUE_RESERVATION", handleOpenReservation);
+    }, []);
 
     // Handle follow/unfollow
     const handleFollow = async () => {
         if (isLoading) return;
+        if (!venueId) return;
+        if (!user) {
+            saveIntent("FOLLOW_VENUE", null, { targetId: venueId, targetType: "venue" });
+            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", { detail: { intent: "FOLLOW_VENUE" } }));
+            return;
+        }
 
         // Optimistic update
         const newStatus = !isFollowing;
@@ -68,17 +90,10 @@ export default function VenuePageClient({
 
         try {
             setIsLoading(true);
-
-            const response = await fetch(`/api/venues/${venue.id}/follow`, {
-                method: newStatus ? 'POST' : 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) {
-                // Revert on error
-                setIsFollowing(!newStatus);
-                setFollowersCount(prev => !newStatus ? prev + 1 : Math.max(0, prev - 1));
-                console.error("Failed to update follow status");
+            if (newStatus) {
+                await followVenue(venueId);
+            } else {
+                await unfollowVenue(venueId);
             }
         } catch (err) {
             // Revert on error
@@ -91,6 +106,12 @@ export default function VenuePageClient({
     };
 
     const handleReserve = () => {
+        if (!venueId) return;
+        if (!user) {
+            saveIntent("RESERVE_VENUE", null, { targetId: venueId, venueSlug });
+            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", { detail: { intent: "RESERVE_VENUE" } }));
+            return;
+        }
         setShowReservation(true);
     };
 
@@ -140,7 +161,7 @@ export default function VenuePageClient({
             {/* 4. ACTION CARDS - Events & Menu */}
             {(upcomingEvents.length > 0 || menuImages.length > 0) && (
                 <VenueActionCards
-                    venueId={venue.id}
+                    venueId={venueId}
                     upcomingEvents={upcomingEvents}
                     menuImages={menuImages}
                 />

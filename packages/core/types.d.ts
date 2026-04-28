@@ -81,6 +81,7 @@ declare module '@c1rcle/core/api-client' {
 }
 
 declare module '@c1rcle/core/event-engine' {
+    export function getEvent(eventId: string, options?: { client?: boolean }): Promise<any | null>;
     export function calculateHeatScore(event: any): number;
     export function resolveStartingPrice(event: any): number;
     export function determineStatus(start: string, end: string): string;
@@ -119,6 +120,7 @@ declare module '@c1rcle/core/promoter-engine' {
     export function generatePromoterLink(promoterId: string, eventId: string): Promise<any>;
     export function getPromoterStats(promoterId: string): Promise<any>;
     export function listConnections(entityId: string, entityType: string, status?: string): Promise<any[]>;
+    export function trackPromoterLinkClick(code: string, options?: { source?: string }): Promise<{ status: string, linkId?: string }>;
 }
 
 declare module '@c1rcle/core/analytics-engine' {
@@ -138,6 +140,98 @@ declare module '@c1rcle/core/waitlist-engine' {
     export function joinWaitlist(data: { eventId: string, tierId?: string, userId?: string, email: string, phone?: string }): Promise<any>;
     export function processWaitlist(eventId: string, tierId: string): Promise<any>;
     export function verifyWaitlistAccess(eventId: string, email: string): Promise<{ valid: boolean, entry?: any }>;
+}
+
+declare module '@c1rcle/core/guest-wallet-profile-notification-service' {
+    export function getGuestWallet(dbOrUserId: any, authOrOptions?: any, maybeUserId?: string): Promise<any>;
+    export function getGuestWalletTicket(dbOrUserId: any, authOrTicketId?: any, maybeUserId?: string, maybeTicketId?: string): Promise<any | null>;
+    export function findGuestWalletTicket(wallet?: any, ticketId?: string): any | null;
+    export function invalidateGuestWallet(users?: Array<string | null | undefined>): Promise<void>;
+    export function findGuestUserByEmail(dbOrEmail: any, maybeEmail?: string): Promise<any | null>;
+    export function getGuestProfileSummary(dbOrProfileUserId: any, authOrViewerUserId?: any, maybeProfileUserId?: string, maybeViewerUserId?: string | null): Promise<any>;
+    export function getGuestNotifications(dbOrUserId: any, maybeUserIdOrOptions?: any, maybeOptions?: any): Promise<any[]>;
+    export function getGuestUnreadCount(dbOrUserId: any, maybeUserId?: string): Promise<number>;
+    export function markGuestNotificationRead(dbOrUserId: any, maybeUserIdOrNotificationId?: any, maybeNotificationId?: string): Promise<any | null>;
+    export function markAllGuestNotificationsRead(dbOrUserId: any, maybeUserId?: string): Promise<any>;
+}
+
+declare module '@c1rcle/core/guest-pass-engine' {
+    export function buildAppleWalletPassPreview(order: any, event?: any, env?: any): any;
+    export function buildGoogleWalletPassPreview(order: any, event?: any, env?: any): any;
+    export function buildGuestPassPreview(options?: {
+        orderId?: string | null;
+        platform?: 'apple' | 'google' | string;
+        resolveEvent?: (eventId: string) => Promise<any>;
+        env?: any;
+    }): Promise<{ statusCode: number; body: any }>;
+}
+
+declare module '@c1rcle/core/guest-discovery-engine' {
+    export function toIso(value?: any): string | null;
+    export function slugify(value?: any): string;
+    export function normalizeFilterKey(value?: any): string;
+    export function normalizeCityKey(value?: any): string | null;
+    export function normalizeBoolean(value?: any): boolean;
+    export function normalizeGuestDiscoverySort(value?: any): string;
+    export const normalizeEventSort: typeof normalizeGuestDiscoverySort;
+    export function normalizeDiscoverySort(value?: any): string;
+    export function normalizeGuestDiscoveryLimit(value?: any, fallback?: number, max?: number): number;
+    export function isPublicProfileEnabled(entity?: any): boolean;
+    export const isGuestPublicProfileEnabled: typeof isPublicProfileEnabled;
+    export function toEventBoundaryTime(value?: any, boundary?: 'start' | 'end'): number;
+    export function isCurrentOrUpcomingEvent(event?: any): boolean;
+    export const isCurrentOrUpcomingGuestEvent: typeof isCurrentOrUpcomingEvent;
+    export function normalizeStatusKey(event?: any): string;
+    export function isEventPublic(event?: any): boolean;
+    export const isGuestEventPublic: typeof isEventPublic;
+    export function isGuestDiscoveryVisible(event?: any): boolean;
+    export function isEventDetailVisible(event?: any): boolean;
+    export const isGuestEventDetailVisible: typeof isEventDetailVisible;
+    export function computeHeatScore(event?: any): number;
+    export function buildSearchText(parts?: any[]): string;
+    export function derivePriceRange(rawEvent?: any, priceMin?: number, priceMax?: number): any;
+    export function deriveTickets(rawEvent?: any, priceMin?: number): any[];
+    export function extractStartTime(value?: string | null): string;
+    export function paginateItems(items?: any[], limit?: number, cursor?: string | null): any;
+    export function dedupeById(items?: any[]): any[];
+    export function pickAllowed(raw?: any, keys?: string[]): any;
+    export function projectGuestEventCard(event?: any): any;
+    export function buildEventCardReadModel(rawEvent?: any, options?: any): any;
+    export function buildHostSummaryReadModel(host?: any, eventCards?: any[], options?: any): any;
+    export function buildVenueSummaryReadModel(venue?: any, eventCards?: any[], options?: any): any;
+    export function projectHostDetail(rawHost?: any, summary?: any): any;
+    export function projectVenueDetail(rawVenue?: any, summary?: any, menuDoc?: any): any;
+    export function buildGuestDiscoveryEnvelope(items?: any[], options?: any): any;
+    export function filterGuestEventCards(rawItems?: any[], query?: any): any;
+    export function filterGuestHostSummaries(rawItems?: any[], query?: any): any;
+    export function filterGuestVenueSummaries(rawItems?: any[], query?: any): any;
+    export function rankGuestSearchGroups(groups?: any, query?: string, limit?: number): any;
+}
+
+declare module '@c1rcle/core/recommendation-engine' {
+    export function getRecommendedEvents(userId?: string | null, limit?: number): Promise<any[]>;
+    export function getSimilarEvents(eventId: string, limit?: number): Promise<any[]>;
+}
+
+declare module '@c1rcle/core/homepage-curation-engine' {
+    export const FEATURED_EVENT_LIMIT: number;
+    export function mergePinnedAndHeatEvents(pinnedEvents?: any[], heatEvents?: any[], limit?: number): any[];
+    export function getFeaturedEvents(limit?: number): Promise<any[]>;
+    export function getHomepageSelects(): Promise<any[]>;
+    export function getHomepageInterviews(): Promise<any[]>;
+    export function getHomepageStats(events?: any[], city?: string): any;
+}
+
+declare module '@c1rcle/core/guest-auth-engine' {
+    export function normalizeGuestEmail(email?: string): string;
+    export function filterGuestProfileUpdates(updates?: any): any;
+    export function isGuestOnboardingComplete(profile?: any): boolean;
+    export function buildGuestAuthProfile(profile?: any): any;
+}
+
+declare module '@c1rcle/core/guest-scanner-engine' {
+    export function parseGuestTicketPayload(ticketPayload?: string): any;
+    export function buildGuestScanDecision(options?: any): any;
 }
 
 declare module '@c1rcle/core/calendar-engine' {

@@ -3,15 +3,40 @@ import { IProfileRepository, Profile } from '../repositories/profile-repository.
 export class ProfileService {
     constructor(private profileRepo: IProfileRepository) { }
 
-    async getPublicProfile(id: string, type: 'user' | 'venue' | 'host'): Promise<Partial<Profile> | null> {
+    async getPublicProfile(id: string, type: 'user' | 'venue' | 'host', viewerId?: string, matchingService?: any): Promise<Partial<Profile> | null> {
         const profile = await this.profileRepo.getById(id, type);
         if (!profile) return null;
 
         const data = { ...profile };
+
+        // 🛡️ Phase 6: Ghost Profile Pattern
         if (type === 'user') {
+            const isSelf = viewerId === id;
+            let isMatch = false;
+
+            if (viewerId && !isSelf && matchingService) {
+                isMatch = await matchingService.checkMutualMatch(viewerId, id);
+            }
+
+            if (!isSelf && !isMatch) {
+                // Redact PII for strangers
+                return {
+                    id: profile.id,
+                    displayName: "Ghost Attendee",
+                    photoURL: undefined,
+                    avatar: undefined,
+                    bio: "Identity hidden until mutual match.",
+                    interests: profile.interests || [],
+                    reputation: profile.reputation || 0,
+                    isAnonymous: true
+                };
+            }
+
+            // For owner or matched user, we only hide sensitive contact info by default
             delete data.email;
             delete data.phone;
         }
+
         return data;
     }
 

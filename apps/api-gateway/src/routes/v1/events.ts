@@ -24,46 +24,35 @@ const EventParamId = z.object({
 }).strict();
 
 const EventCreateBody = z.object({
-    title: z.string(),
-    description: z.string().optional(),
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
     startDate: z.string().optional(),
     endDate: z.string().optional(),
     venue: z.string().optional(),
     venueId: z.string().optional(),
     image: z.string().optional(),
     poster: z.string().optional(),
-    status: z.string().optional(),
-    lifecycle: z.string().optional(),
+    status: z.enum(['draft', 'published', 'cancelled', 'completed']).optional(),
+    lifecycle: z.enum(['active', 'archived', 'deleted']).optional(),
     category: z.string().optional(),
-    tags: z.array(z.string()).optional(),
+    tags: z.array(z.string()).max(10).optional(),
     isPrivate: z.boolean().optional(),
-    capacity: z.number().optional()
-}).passthrough();
+    capacity: z.number().int().positive().optional(),
+    creatorId: z.string().optional(),
+}).strict();
 
-const EventUpdateBody = EventCreateBody.partial().passthrough();
+const EventUpdateBody = EventCreateBody.partial();
 const EventTrackBody = z.object({
-    type: z.string().optional(),
-    ref: z.string().optional(),
-}).passthrough();
+    type: z.enum(['view', 'click', 'share', 'rsvp_intent']),
+    ref: z.string().max(100).optional(),
+}).strict();
 const EventRsvpBody = z.object({
     shouldInclude: z.boolean(),
 }).strict();
 const EventQueueQuery = z.object({
     queueId: z.string().optional(),
 }).strict();
-const EventQueueBody = z.object({
-    userId: z.string().optional(),
-}).passthrough();
-const EventWaitlistQuery = z.object({
-    email: z.string().email(),
-}).strict();
-const EventWaitlistBody = z.object({
-    ticketId: z.string().optional(),
-    tierId: z.string().optional(),
-    email: z.string().email().optional(),
-    phone: z.string().optional(),
-}).passthrough();
-
+const EventQueueBody = z.object({}).strict();
 function getRequestViewerId(request: any) {
     const ip = request.headers['x-forwarded-for'] || request.ip || '127.0.0.1';
     const userAgent = request.headers['user-agent'] || 'unknown';
@@ -201,17 +190,36 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ params: EventParamId, querystring: EventQueueQuery })]
     }, async (request: any, reply) => {
         try {
+            const eventDoc = await fastify.db.collection('events').doc(request.params.id).get();
+            if (!eventDoc.exists) {
+                return reply.status(404).send(buildErrorResponse({
+                    code: 'NOT_FOUND',
+                    message: 'Event not found',
+                    requestId: request.id,
+                }));
+            }
+
             const { queueId } = request.query;
             if (!queueId) {
                 const status = await getEventSurgeStatus(fastify.db, request.params.id);
                 return { surgeActive: status?.status === 'surge' };
             }
 
-            return await getEventQueueStatus(fastify.db, queueId);
+            const queueStatus = await getEventQueueStatus(fastify.db, queueId);
+            if (queueStatus?.eventId !== request.params.id) {
+                return reply.status(404).send(buildErrorResponse({
+                    code: 'NOT_FOUND',
+                    message: 'Queue entry not found for this event',
+                    requestId: request.id,
+                }));
+            }
+
+            return queueStatus;
         } catch (error: any) {
             request.log.error({ error }, 'Failed to load event queue status');
-            return reply.status(500).send(buildErrorResponse({
-                code: 'INTERNAL_ERROR',
+            const statusCode = error.message === 'Queue entry not found' ? 404 : 500;
+            return reply.status(statusCode).send(buildErrorResponse({
+                code: statusCode === 404 ? 'NOT_FOUND' : 'INTERNAL_ERROR',
                 message: error.message || 'Unable to load queue status',
                 requestId: request.id,
             }));
@@ -221,8 +229,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     fastify.post('/events/:id/queue', {
         preHandler: [fastify.validate({ params: EventParamId, body: EventQueueBody })]
     }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send(buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+            requestId: request.id,
+        }));
+
         try {
-            const userId = request.user?.uid || request.body?.userId || 'anonymous';
             const deviceId = request.headers['user-agent'] || 'default';
             return await joinEventQueue(fastify.db, {
                 eventId: request.params.id,
@@ -239,60 +253,6 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
     });
 
-    fastify.get('/events/:id/waitlist', {
-        preHandler: [fastify.validate({ params: EventParamId, querystring: EventWaitlistQuery })]
-    }, async (request: any, reply) => {
-        try {
-            const accessDetails = await verifyEventWaitlistAccess(fastify.db, {
-                eventId: request.params.id,
-                email: request.query.email,
-            });
-            return { hasAccess: Boolean(accessDetails), accessDetails };
-        } catch (error: any) {
-            request.log.error({ error }, 'Failed to verify event waitlist access');
-            return reply.status(400).send(buildErrorResponse({
-                code: 'BAD_REQUEST',
-                message: error.message || 'Unable to verify waitlist access',
-                requestId: request.id,
-            }));
-        }
-    });
-
-    fastify.post('/events/:id/waitlist', {
-        preHandler: [fastify.validate({ params: EventParamId, body: EventWaitlistBody })]
-    }, async (request: any, reply) => {
-        const userId = request.user?.uid || null;
-        const email = request.user?.email || request.body?.email;
-        if (!email) return reply.status(400).send(buildErrorResponse({
-            code: 'BAD_REQUEST',
-            message: 'Email is required',
-            requestId: request.id,
-        }));
-
-        try {
-            const entry = await joinEventWaitlist(fastify.db, {
-                eventId: request.params.id,
-                ticketId: request.body?.ticketId,
-                tierId: request.body?.tierId,
-                userId,
-                email,
-                phone: request.body?.phone,
-            });
-            return { success: true, message: 'Added to waitlist', entry };
-        } catch (error: any) {
-            request.log.error({ error }, 'Failed to join event waitlist');
-            return reply.status(400).send(buildErrorResponse({
-                code: 'BAD_REQUEST',
-                message: error.message || 'Unable to join waitlist',
-                requestId: request.id,
-            }));
-        }
-    });
-
-    /**
-     * GET /api/v1/events/:id
-     * Fetch event by ID or Slug
-     */
     fastify.get('/events/:id', {
         preHandler: [fastify.validate({ params: EventParamId })]
     }, async (request: any, reply) => {
@@ -362,8 +322,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 type: 'EVENT_CREATED',
                 payload: { id: event.id, title: event.title, status: event.status, workspaceId }
             }, `workspace:${workspaceId}`);
-            await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+            await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'event', id: event.id });
+
             await fastify.invalidatePublicDiscovery('all');
+            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
             return { success: true, id: event.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /events: ${error.message}`);
@@ -411,8 +373,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 type: 'EVENT_UPDATED',
                 payload: { id: event.id, title: event.title, status: event.status, workspaceId }
             }, `workspace:${workspaceId}`);
-            await fastify.publicDiscoveryService.syncEventReadModels(event.id);
+            await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'event', id: event.id });
+
             await fastify.invalidatePublicDiscovery('all');
+            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
             return { success: true, id: event.id };
         } catch (error: any) {
             fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
@@ -444,8 +408,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             await fastify.cache.delete('events:detail', cacheKeyId);
             await fastify.cache.invalidateNamespace('events:list');
             await fastify.cache.invalidateNamespace('events:nearby');
-            await fastify.publicDiscoveryService.syncEventReadModels(id);
+            await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'event', id: id });
             await fastify.invalidatePublicDiscovery('all');
+            await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
             return { success: true, message: "Event deleted", workspaceId };
         } catch (error: any) {
             fastify.log.error(`Error in DELETE /events/:id: ${error.message}`);

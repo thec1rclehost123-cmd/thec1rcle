@@ -19,8 +19,8 @@ test("getGuestList normalizes mixed guest payloads and applies the limit", () =>
   assert.deepEqual(guests, ["Aarav", "Mira Kapoor", "neon.nights"]);
 });
 
-test("getGuestList falls back to default names when event guests are empty", () => {
-  assert.deepEqual(getGuestList({ guests: [] }), ["Anaya", "Rohit", "Mira", "Neel"]);
+test("getGuestList returns an empty list when event guests are empty", () => {
+  assert.deepEqual(getGuestList({ guests: [] }), []);
 });
 
 test("getGuestInitials handles missing, blank, and multi-word names", () => {

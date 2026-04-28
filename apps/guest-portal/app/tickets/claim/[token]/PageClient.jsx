@@ -8,9 +8,12 @@
  */
 
 import { useEffect, useState, use } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../../../../components/providers/AuthProvider";
 import { useRouter } from "next/navigation";
-import { getShareBundle, claimTicket } from "../../actions";
+import { getShareBundle, claimTicket } from "../../../../features/tickets/ticketApi";
+import { invalidateGuestNotifications } from "../../../../features/notifications/notificationsQueries";
+import { invalidateTicketsQueries } from "../../../../features/tickets/ticketsQueries";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
@@ -21,6 +24,7 @@ export default function ClaimTicketPage({ params: paramsPromise }) {
     const { token } = params;
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
+    const queryClient = useQueryClient();
 
     const [bundle, setBundle] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -59,6 +63,12 @@ export default function ClaimTicketPage({ params: paramsPromise }) {
         setError(null);
         try {
             const result = await claimTicket(token);
+            if (user?.uid) {
+                await Promise.all([
+                    invalidateTicketsQueries(queryClient, user.uid),
+                    invalidateGuestNotifications(queryClient, user.uid),
+                ]);
+            }
             setClaimResult(result);
         } catch (err) {
             setError(err.message);

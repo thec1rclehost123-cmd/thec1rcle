@@ -10,13 +10,10 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
     'instagram',
     'age',
     'gender',
-    'attendedEvents',
-    'likedEvents',
-    'savedEvents',
-    'onboardingComplete',
     'bio',
     'handle',
     'username',
+    'onboardingComplete',
 ]);
 
 function asNullableString(value: unknown): string | null {
@@ -103,13 +100,14 @@ export function buildGuestAuthBootstrap({
         emailVerified: user.email_verified === true || user.emailVerified === true,
     };
 
-    const profile = normalizeGuestProfile(rawProfile, {
+    const profileFallback = {
         uid: identity.uid,
         email: identity.email,
         displayName: identity.displayName,
         photoURL: identity.photoURL,
         phone: identity.phoneNumber,
-    });
+    };
+    const profile = normalizeGuestProfile(rawProfile || profileFallback, profileFallback);
     const onboarding = getGuestOnboardingState(profile);
     const hostStatus = profile?.hostStatus || null;
 

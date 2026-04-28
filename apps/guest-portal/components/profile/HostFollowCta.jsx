@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../providers/AuthProvider";
 import CtaLayer from "./CtaLayer";
+import { saveIntent } from "../../lib/utils/intentStore";
+import { followHost, getHostFollowStatus, unfollowHost } from "../../features/social/api/socialApi";
 
 /**
  * HostFollowCta — client component that owns follow state for a host profile.
@@ -18,16 +20,16 @@ export default function HostFollowCta({ hostProfile, initialFollowersCount = 0, 
     // Check current follow status on mount (client-side only — auth not available server-side)
     useEffect(() => {
         if (!user || !hostProfile?.id) return;
-        fetch(`/api/follow?userId=${user.uid}&targetId=${hostProfile.id}`)
-            .then(r => r.ok ? r.json() : null)
-            .then(data => { if (data) setIsFollowing(data.following); })
+        getHostFollowStatus(hostProfile.id)
+            .then(setIsFollowing)
             .catch(() => {});
     }, [user, hostProfile?.id]);
 
     const handleFollow = async () => {
         if (isLoading) return;
         if (!user) {
-            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", { detail: { intent: "FOLLOW" } }));
+            saveIntent("FOLLOW_HOST", null, { targetId: hostProfile.id, targetType: "host" });
+            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", { detail: { intent: "FOLLOW_HOST" } }));
             return;
         }
 
@@ -38,19 +40,10 @@ export default function HostFollowCta({ hostProfile, initialFollowersCount = 0, 
         setIsLoading(true);
 
         try {
-            const token = await user.getIdToken();
-            const res = await fetch(
-                newStatus ? "/api/follow" : `/api/follow?targetId=${hostProfile.id}&targetType=host`,
-                {
-                    method: newStatus ? "POST" : "DELETE",
-                    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                    ...(newStatus && { body: JSON.stringify({ targetId: hostProfile.id, targetType: "host" }) }),
-                }
-            );
-            if (!res.ok) {
-                // Revert on failure
-                setIsFollowing(!newStatus);
-                setFollowersCount(prev => !newStatus ? prev + 1 : Math.max(0, prev - 1));
+            if (newStatus) {
+                await followHost(hostProfile.id);
+            } else {
+                await unfollowHost(hostProfile.id);
             }
         } catch {
             setIsFollowing(!newStatus);

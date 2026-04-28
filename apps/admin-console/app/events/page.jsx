@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState, useMemo } from "react";
-import { Activity, Ticket, TrendingUp, ExternalLink, AlertCircle, Play, Pause, ChevronRight, MoreHorizontal, Search, Filter, ArrowUpRight } from "lucide-react";
+import { Activity, Ticket, TrendingUp, ExternalLink, AlertCircle, Play, Pause, ChevronRight, MoreHorizontal, Search, Filter, ArrowUpRight, Star } from "lucide-react";
 import { mapEventForClient } from "@c1rcle/core/events";
 import { DataTable } from "@/components/ui/DataTable";
 import { ActionDrawer } from "@/components/ui/ActionDrawer";
@@ -18,6 +18,20 @@ export default function AdminEvents() {
     const [modalConfig, setModalConfig] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [showOnlyLive, setShowOnlyLive] = useState(false);
+    const [featuredIds, setFeaturedIds] = useState([]);
+
+    const fetchSpotlights = async () => {
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/list?collection=platform_settings', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) return;
+            const json = await res.json();
+            const spotlights = (json.data || []).find(d => d.id === 'spotlights');
+            setFeaturedIds(Array.isArray(spotlights?.featured) ? spotlights.featured : []);
+        } catch (_) { /* non-critical */ }
+    };
 
     const fetchEvents = async () => {
         setLoading(true);
@@ -40,7 +54,10 @@ export default function AdminEvents() {
     };
 
     useEffect(() => {
-        if (user) fetchEvents();
+        if (user) {
+            fetchEvents();
+            fetchSpotlights();
+        }
     }, [user]);
 
     const handleAction = async (reason, targetId, inputValue, evidence) => {
@@ -71,7 +88,10 @@ export default function AdminEvents() {
             if (!res.ok) throw new Error(json.error || "Action failed");
 
             await fetchEvents();
-            
+            if (modalConfig.action === 'FEATURE_EVENT_PIN' || modalConfig.action === 'FEATURE_EVENT_UNPIN') {
+                await fetchSpotlights();
+            }
+
             // Re-select to update drawer data
             if (selectedEvent) {
                 const updated = events.find(e => e.id === selectedEvent.id);
@@ -137,6 +157,18 @@ export default function AdminEvents() {
             )
         },
         {
+            header: "Featured",
+            id: "featured",
+            cell: ({ row }) => (
+                <div className="flex items-center justify-center">
+                    <Star
+                        className={`h-4 w-4 ${featuredIds.includes(row.original.id) ? 'text-amber-400 fill-amber-400' : 'text-zinc-700'}`}
+                        strokeWidth={1.5}
+                    />
+                </div>
+            )
+        },
+        {
             header: "",
             id: "actions",
             cell: ({ row }) => (
@@ -154,7 +186,7 @@ export default function AdminEvents() {
                 </div>
             )
         }
-    ], []);
+    ], [featuredIds]);
 
     const filtered = useMemo(() => {
         return events.filter(e => {
@@ -333,6 +365,42 @@ export default function AdminEvents() {
                                     </div>
                                     <ChevronRight className="h-4 w-4 text-zinc-700 group-hover:translate-x-1 transition-transform" />
                                 </button>
+
+                                {featuredIds.includes(selectedEvent.id) ? (
+                                    <button
+                                        onClick={() => setModalConfig({
+                                            action: 'FEATURE_EVENT_UNPIN',
+                                            title: 'Remove from Featured',
+                                            message: 'Remove this event from the Featured Drops carousel. Heat-ranked events will fill the slot.',
+                                            label: 'Unpin from Featured',
+                                            type: 'warning'
+                                        })}
+                                        className="flex items-center justify-between p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/20 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Star className="h-4 w-4 text-amber-400 fill-amber-400" strokeWidth={1.5} />
+                                            <span className="text-[11px] font-bold uppercase tracking-widest text-amber-300 font-mono">Pinned to Featured — Remove</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-zinc-700 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => setModalConfig({
+                                            action: 'FEATURE_EVENT_PIN',
+                                            title: 'Pin to Featured Drops',
+                                            message: 'Add this event to the Featured Drops carousel on the landing and explore pages. Pinned events appear before heat-ranked ones.',
+                                            label: 'Pin to Featured',
+                                            type: 'info'
+                                        })}
+                                        className="flex items-center justify-between p-4 rounded-xl bg-black/20 border border-white/[0.02] hover:border-amber-500/20 hover:bg-amber-500/5 transition-all group"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <Star className="h-4 w-4 text-zinc-600 group-hover:text-amber-400 transition-colors" strokeWidth={1.5} />
+                                            <span className="text-[11px] font-bold uppercase tracking-widest text-zinc-300 font-mono">Pin to Featured Drops</span>
+                                        </div>
+                                        <ChevronRight className="h-4 w-4 text-zinc-700 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                )}
 
                                 <div className="pt-4">
                                     {selectedEvent.status === 'live' ? (

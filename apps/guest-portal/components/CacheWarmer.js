@@ -1,79 +1,38 @@
 "use client";
 
 import { useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./providers/AuthProvider";
-import { useExploreStore } from "../store/exploreStore";
-import { useHostsStore } from "../store/hostsStore";
-import { useTicketsStore } from "../store/ticketsStore";
+import { fetchTicketsWallet, ticketsWalletQueryKey } from "../features/tickets/ticketsQueries";
 
 /**
- * ⚡ CacheWarmer: Proactive Background Data Loading
+ * ⚡ CacheWarmer: Authenticated Wallet Warmup
  *
- * This component runs once at the root layout (under providers).
- * It "pre-warms" the global Zustand caches for high-traffic pages
- * so that when the user clicks 'Explore' or 'Hosts', the data is
- * already there — zero loading spinner.
+ * Public discovery data is now server-rendered or page-local.
+ * This warmer is intentionally limited to authenticated wallet data until
+ * tickets move fully to React Query in the next cleanup slice.
  */
 export default function CacheWarmer() {
     const { user, bootstrap, loading: authLoading } = useAuth();
-    const pathname = usePathname();
-
-    // Store Actions
-    const fetchEvents = useExploreStore((s) => s.fetchEvents);
-    const fetchHosts = useHostsStore((s) => s.fetchData);
-    const loadTickets = useTicketsStore((s) => s.loadTickets);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
-        // Skip pre-warming on pages that already self-fetch this data to avoid duplicate Firestore reads:
-        // - '/' (home): ISR-served HTML already includes event data
-        // - '/explore': ExploreStore.fetchEvents() fires on mount
-        // - '/hosts': HostsStore.fetchData() fires on mount
-        // Also skip entirely on /checkout/* — user is mid-funnel, don't compete with payment
-        if (pathname.startsWith("/checkout")) return;
-
-        const skipEvents = pathname === "/" || pathname === "/explore";
-        const skipHosts = pathname === "/hosts";
-
-        if (skipEvents && skipHosts) return;
-
-        // Defer until the browser is idle so we don't compete with the first render / LCP.
-        // timeout:3000 ensures it still runs even on busy devices within 3 s.
-        const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
-        const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
-
-        const id = ric(
-            () => {
-                // 1. Pre-warm Explore (Events)
-                if (!skipEvents) {
-                    fetchEvents().catch(err => console.error("CacheWarmer: Failed to pre-warm Explore", err));
-                }
-
-                // 2. Pre-warm Hosts (Venues default tab)
-                if (!skipHosts) {
-                    fetchHosts({ activeTab: "venues" }).catch(err => console.error("CacheWarmer: Failed to pre-warm Hosts", err));
-                }
-            },
-            { timeout: 3000 }
-        );
-
-        return () => cancel(id);
-    }, [fetchEvents, fetchHosts, pathname]);
-
-    useEffect(() => {
-        // 3. Pre-warm Tickets (only if user is logged in)
         if (user && !authLoading && bootstrap?.routeAccess?.isAuthenticated) {
             const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
             const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
 
             const id = ric(
-                () => loadTickets(user.uid).catch(err => console.error("CacheWarmer: Failed to pre-warm Tickets", err)),
+                () => queryClient.prefetchQuery({
+                    queryKey: ticketsWalletQueryKey(user.uid),
+                    queryFn: fetchTicketsWallet,
+                    staleTime: 2 * 60 * 1000,
+                }).catch(err => console.error("CacheWarmer: Failed to pre-warm Tickets", err)),
                 { timeout: 3000 }
             );
 
             return () => cancel(id);
         }
-    }, [user, bootstrap?.routeAccess?.isAuthenticated, authLoading, loadTickets]);
+    }, [user, bootstrap?.routeAccess?.isAuthenticated, authLoading, queryClient]);
 
     return null;
 }

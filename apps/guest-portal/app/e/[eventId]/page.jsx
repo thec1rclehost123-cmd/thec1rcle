@@ -1,26 +1,31 @@
-import { redirect } from "next/navigation";
+"use client";
 
-/**
- * Short URL handler for promoter links
- * Redirects /e/[eventId]?ref=CODE to /event/[eventId]?ref=CODE
- * This allows promoters to share shorter, cleaner URLs
- */
-export default function ShortEventRedirect({ params, searchParams }) {
-    const { eventId } = params;
-    const ref = searchParams?.ref;
+import { useEffect } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-    // Build the redirect URL preserving the ref parameter
-    const redirectUrl = ref
-        ? `/event/${eventId}?ref=${ref}`
-        : `/event/${eventId}`;
+export default function ShortEventRedirect() {
+    const params = useParams();
+    const router = useRouter();
+    const searchParams = useSearchParams();
+    const eventId = decodeURIComponent(String(params?.eventId || ""));
+    const ref = searchParams?.get("ref");
 
-    redirect(redirectUrl);
-}
+    useEffect(() => {
+        if (!eventId) {
+            router.replace("/explore");
+            return;
+        }
 
-// Generate metadata for SEO (will show briefly before redirect)
-export async function generateMetadata({ params }) {
-    return {
-        title: "Redirecting... | THE C1RCLE",
-        robots: "noindex, nofollow"
-    };
+        const redirectUrl = ref
+            ? `/event/${eventId}?ref=${encodeURIComponent(ref)}`
+            : `/event/${eventId}`;
+
+        router.replace(redirectUrl);
+    }, [eventId, ref, router]);
+
+    return (
+        <div className="flex min-h-screen items-center justify-center bg-black text-white">
+            <div className="h-10 w-10 animate-spin rounded-full border-4 border-white/15 border-t-orange" />
+        </div>
+    );
 }

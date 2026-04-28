@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const requireHostAccessMock = vi.fn();
 const writeAuditLogMock = vi.fn();
 const checkPartnershipMock = vi.fn();
+const resolveHostVenueSelectionMock = vi.fn();
 const createSlotRequestMock = vi.fn();
 const listSlotRequestsMock = vi.fn();
 const loggerErrorMock = vi.fn();
@@ -18,6 +19,7 @@ vi.mock("@/lib/server/hostAuthMiddleware", () => ({
 
 vi.mock("@/lib/server/partnershipStore", () => ({
     checkPartnership: checkPartnershipMock,
+    resolveHostVenueSelection: resolveHostVenueSelectionMock,
 }));
 
 vi.mock("@/lib/server/slotStore", () => ({
@@ -55,6 +57,7 @@ vi.mock("@/lib/firebase/admin", () => ({
                                     lifecycle: "draft",
                                     ticketTiers: [{ id: "ga" }],
                                     coverImage: "/poster.png",
+                                    coverPhoto: "/poster.png",
                                 }),
                             }),
                             update: eventUpdateMock,
@@ -67,7 +70,14 @@ vi.mock("@/lib/firebase/admin", () => ({
             }
 
             if (name === "notifications") {
-                return { add: notificationsAddMock };
+                return {
+                    doc(id = "notif_1") {
+                        return {
+                            id,
+                            set: notificationsAddMock,
+                        };
+                    },
+                };
             }
 
             throw new Error(`Unexpected collection ${name}`);
@@ -90,6 +100,11 @@ describe("POST /api/host/events/[id]/submit", () => {
         vi.clearAllMocks();
         requireHostAccessMock.mockResolvedValue({ uid: "user_1", hostId: "host_1" });
         checkPartnershipMock.mockResolvedValue(true);
+        resolveHostVenueSelectionMock.mockImplementation(async (_hostId: string, venueId: string, venueName = "") => ({
+            venueId,
+            venueName,
+            canonicalized: false,
+        }));
         listSlotRequestsMock.mockResolvedValue([]);
         createSlotRequestMock.mockResolvedValue({ id: "slot_1" });
     });

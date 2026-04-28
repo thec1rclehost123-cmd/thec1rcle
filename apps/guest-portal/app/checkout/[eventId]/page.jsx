@@ -1,48 +1,43 @@
-import { notFound } from "next/navigation";
-import { fetchCheckoutEvent } from "../../../lib/server/checkoutGatewayBridge.js";
-import CheckoutContainer from "../../../components/CheckoutContainer";
-import FunnelShell from "../../../components/FunnelShell";
+import PageClient from "./PageClient";
+import { guestServerJson } from "../../../lib/api/server";
 
-export async function generateMetadata({ params }) {
-    const { eventId } = await params;
-    const identifier = decodeURIComponent(eventId);
-    const event = await fetchCheckoutEvent(identifier);
-    if (!event) return { title: "Checkout" };
-    return { title: `Checkout | ${event.title}` };
+function normalizeCheckoutEvent(detail) {
+    const event = detail?.event || detail;
+    if (!event) return null;
+    return {
+        ...event,
+        tickets: event.ticketCatalog?.tiers ?? event.tickets ?? [],
+    };
 }
 
-export default async function CheckoutPage({ params, searchParams }) {
-    const { eventId } = await params;
-    const resolvedSearchParams = await searchParams;
-    const identifier = decodeURIComponent(eventId);
-    const event = await fetchCheckoutEvent(identifier, {
+async function resolveParams(params) {
+    return await params;
+}
+
+async function loadCheckoutEvent(eventId) {
+    if (!eventId) return { event: null, status: "missing" };
+    const { response, data } = await guestServerJson(`/public/events/${encodeURIComponent(eventId)}`, {
         cache: "no-store",
+        forwardCookies: false,
     });
 
-    if (!event) {
-        notFound();
+    if (!response.ok) {
+        return {
+            event: null,
+            status: response.status === 404 ? "missing" : "error",
+        };
     }
 
-    // Parse tickets from searchParams
-    const initialTickets = [];
-    if (event.tickets) {
-        event.tickets.forEach(ticket => {
-            const qty = Number(resolvedSearchParams?.[`t_${ticket.id}`] || 0);
-            if (qty > 0) {
-                initialTickets.push({
-                    ...ticket,
-                    quantity: qty
-                });
-            }
-        });
-    }
+    const event = normalizeCheckoutEvent(data);
+    return {
+        event,
+        status: event ? "ready" : "missing",
+    };
+}
 
-    return (
-        <FunnelShell title="Checkout" showLogo={true} backHref={`/event/${event.id}`}>
-            <CheckoutContainer
-                event={event}
-                initialTickets={initialTickets}
-            />
-        </FunnelShell>
-    );
+export default async function CheckoutPage({ params }) {
+    const resolved = await resolveParams(params);
+    const eventId = decodeURIComponent(String(resolved?.eventId || ""));
+    const { event, status } = await loadCheckoutEvent(eventId);
+    return <PageClient initialEvent={event} initialStatus={status} initialEventId={eventId} />;
 }

@@ -4,10 +4,9 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Loader2, AlertCircle, ArrowRight } from "lucide-react";
-import Image from "next/image";
 import Link from "next/link";
 import { useAuth } from "../../../components/providers/AuthProvider";
-import { buildLoginUrl, getReturnUrl, shouldRouteCallbackToOnboarding } from "../../../lib/auth/guestRouteAccess";
+import { buildLoginUrl, getReturnUrl, resolveReturnUrl, shouldRouteCallbackToOnboarding } from "../../../lib/auth/guestRouteAccess";
 
 export default function AuthCallbackPage() {
     return (
@@ -20,51 +19,58 @@ export default function AuthCallbackPage() {
 function AuthCallbackContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user, profile, bootstrap, loading: authLoading } = useAuth();
+    const { user, profile, bootstrap, loading: authLoading, syncStatus } = useAuth();
     const [status, setStatus] = useState("processing"); // processing, success, error
     const [errorMessage, setErrorMessage] = useState("");
 
-    const returnUrl = getReturnUrl(searchParams, "/explore");
+    function resolveErrorMessage(raw) {
+        if (raw === "account_exists_with_different_credential") {
+            return "An account with this email already exists. Please log in with your email and password, then link Google from your profile settings.";
+        }
+        return raw || "Authentication failed.";
+    }
+
+    const returnUrl = getReturnUrl(searchParams, "/profile");
     const onboardingRedirect = useMemo(
         () => buildLoginUrl(returnUrl, { onboarding: true }),
         [returnUrl]
     );
+    const loginRedirect = useMemo(
+        () => buildLoginUrl(returnUrl),
+        [returnUrl]
+    );
 
     useEffect(() => {
-        // If auth is no longer loading and we have a user, redirect
-        if (!authLoading) {
-            if (user) {
-                // Block access if onboarding was never completed
-                if (shouldRouteCallbackToOnboarding({ bootstrap, profile })) {
-                    router.replace(onboardingRedirect);
-                    return;
-                }
-                setStatus("success");
-                const timer = setTimeout(() => {
-                    router.replace(returnUrl);
-                }, 1500);
-                return () => clearTimeout(timer);
-            } else {
-                // If still no user after loading, might be an error or session expired
-                // But usually Firebase Auth handles the redirect back.
-                // Let's wait a bit more or check if there's an error in URL
-                const error = searchParams.get("error");
-                if (error) {
-                    setStatus("error");
-                    setErrorMessage(error);
-                } else {
-                    // Wait a few seconds then check user again or fail
-                    const timer = setTimeout(() => {
-                        if (!user) {
-                            setStatus("error");
-                            setErrorMessage("Authentication session could not be established.");
-                        }
-                    }, 5000);
-                    return () => clearTimeout(timer);
-                }
-            }
+        if (authLoading || syncStatus === "loading" || syncStatus === "transient_error") {
+            setStatus("processing");
+            return;
         }
-    }, [user, profile, bootstrap, authLoading, router, returnUrl, searchParams, onboardingRedirect]);
+
+        if (user) {
+            if (shouldRouteCallbackToOnboarding({ bootstrap, profile })) {
+                router.replace(onboardingRedirect);
+                return;
+            }
+            setStatus("success");
+            const finalUrl = resolveReturnUrl(returnUrl, bootstrap);
+            const timer = setTimeout(() => {
+                router.replace(finalUrl);
+            }, 1500);
+            return () => clearTimeout(timer);
+        }
+
+        const error = searchParams.get("error");
+        if (error) {
+            setStatus("error");
+            setErrorMessage(resolveErrorMessage(error));
+            return;
+        }
+
+        if (syncStatus === "signed_out") {
+            setStatus("error");
+            setErrorMessage("Your authentication session expired before access could be restored. Please sign in again.");
+        }
+    }, [user, profile, bootstrap, authLoading, syncStatus, router, returnUrl, searchParams, onboardingRedirect]);
 
     return (
         <div className="relative h-[100dvh] bg-black flex items-center justify-center overflow-hidden">
@@ -104,7 +110,9 @@ function AuthCallbackContent() {
 
                             <div className="space-y-2">
                                 <h1 className="text-2xl font-black uppercase tracking-tight text-white">Entering <span className="text-orange">THE C1RCLE.</span></h1>
-                                <p className="text-xs font-medium text-white/40 uppercase tracking-[0.3em]">Verifying your access...</p>
+                                <p className="text-xs font-medium text-white/40 uppercase tracking-[0.3em]">
+                                    {syncStatus === "transient_error" ? "Retrying your secure session..." : "Verifying your access..."}
+                                </p>
                             </div>
                         </motion.div>
                     )}
@@ -144,10 +152,10 @@ function AuthCallbackContent() {
                             </div>
                             <div className="space-y-2">
                                 <h1 className="text-xl font-black uppercase tracking-tight text-white">Access <span className="text-red-500">Denied.</span></h1>
-                                <p className="text-xs font-medium text-white/60 uppercase tracking-widest">{errorMessage || "Authentication failed."}</p>
+                                <p className="text-xs font-medium text-white/60 tracking-wide">{errorMessage || "Authentication failed."}</p>
                             </div>
                             <Link
-                                href="/login"
+                                href={loginRedirect}
                                 className="block w-full h-14 rounded-full bg-white text-black font-black uppercase tracking-widest flex items-center justify-center transition-transform hover:scale-[1.02]"
                             >
                                 Back to Login

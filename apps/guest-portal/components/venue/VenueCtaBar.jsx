@@ -45,8 +45,8 @@ export default function VenueCtaBar({
                     text: `Check out ${venue.name} on THE C1RCLE`,
                     url: window.location.href,
                 });
-            } catch (err) {
-                console.log("Share cancelled");
+            } catch {
+                // AbortError: user dismissed share sheet — expected
             }
         } else {
             navigator.clipboard.writeText(window.location.href);

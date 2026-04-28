@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { fetchPublicHosts, fetchPublicVenues } from "../features/discovery/publicDiscovery";
 
 /**
  * ⚡ Hosts/Venues Discovery Cache Store
@@ -87,27 +88,23 @@ export const useHostsStore = create(
                 set({ status: "loading", error: null });
 
                 try {
-                    const endpoint = activeTab === "venues" ? "/api/venues" : "/api/hosts";
-                    const queryParams = new URLSearchParams();
-
-                    if (search) queryParams.append("search", search);
-                    if (activeVibe) queryParams.append("vibe", activeVibe);
-                    if (activeSort) queryParams.append("sort", activeSort);
-                    if (!reset && nextCursor) queryParams.append("lastId", nextCursor);
-                    queryParams.append("limit", "12");
+                    const query = { limit: "12" };
+                    if (search) query.search = search;
+                    if (activeVibe) query.vibe = activeVibe;
+                    if (activeSort) query.sort = activeSort;
+                    if (!reset && nextCursor) query.lastId = nextCursor;
 
                     if (activeTab === "venues") {
-                        if (activeArea) queryParams.append("area", activeArea);
-                        if (tablesOnly) queryParams.append("tablesOnly", "true");
+                        if (activeArea) query.area = activeArea;
+                        if (tablesOnly) query.tablesOnly = "true";
                     } else {
-                        if (activeRole) queryParams.append("role", activeRole);
-                        if (activeStatus) queryParams.append("status", activeStatus);
+                        if (activeRole) query.role = activeRole;
+                        if (activeStatus) query.status = activeStatus;
                     }
 
-                    const res = await fetch(`${endpoint}?${queryParams.toString()}`);
-                    if (!res.ok) throw new Error(`Failed to load ${activeTab}`);
-
-                    const payload = await res.json();
+                    const payload = activeTab === "venues"
+                        ? await fetchPublicVenues(query)
+                        : await fetchPublicHosts(query);
                     // Normalizing response: { success, hosts: [], nextCursor, hasMore }
                     const newItems = Array.isArray(payload.hosts)
                         ? payload.hosts

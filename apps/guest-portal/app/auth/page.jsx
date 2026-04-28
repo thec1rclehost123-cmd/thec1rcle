@@ -1,14 +1,21 @@
-import PageClient from './PageClient';
-import { redirect } from 'next/navigation';
-import { getAuthPageRedirect, getReturnUrl } from '../../lib/auth/guestRouteAccess';
-import { getGuestBootstrapFromSession } from '../../lib/server/guestBootstrap';
+import { redirect } from "next/navigation";
 
-export default async function Page(props) {
-  const searchParams = await props.searchParams;
-  const returnUrl = getReturnUrl(searchParams);
-  const bootstrap = await getGuestBootstrapFromSession();
-  const redirectTarget = getAuthPageRedirect(bootstrap, returnUrl);
+function buildLoginRedirect(searchParams = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(searchParams || {})) {
+    if (Array.isArray(value)) {
+      value.forEach((entry) => {
+        if (entry !== undefined) params.append(key, String(entry));
+      });
+      continue;
+    }
+    if (value !== undefined) params.set(key, String(value));
+  }
 
-  if (redirectTarget) redirect(redirectTarget);
-  return <PageClient {...props} />;
+  const query = params.toString();
+  return query ? `/login?${query}` : "/login";
+}
+
+export default function Page({ searchParams }) {
+  redirect(buildLoginRedirect(searchParams));
 }

@@ -1,6 +1,7 @@
 import { inngest, Events } from "../inngest-client.js";
 import { getAdminDb } from "../admin.js";
 import { issueEntitlements } from "../entitlement-engine.js";
+import { FieldValue } from "firebase-admin/firestore";
 // NOTE: generateEntitlementQR is intentionally NOT imported here.
 // The rotating QR is generated live by the mobile app at display time.
 // Pre-generating it server-side produces a snapshot that expires in 30s.
@@ -54,7 +55,7 @@ export const handleTicketFulfillment = inngest.createFunction(
     },
     { event: Events.TICKET_PURCHASED },
     async ({ event, step }) => {
-        const { orderId, userId, userEmail, eventId, tickets, totalAmount, promoterCode } = event.data;
+        const { orderId, userId, userEmail, eventId, tickets, totalAmount, ticketsCount, promoterCode } = event.data;
         const db = getAdminDb();
 
         // Step 1: Issue entitlements (one per human unit / quantity)
@@ -105,7 +106,7 @@ export const handleTicketFulfillment = inngest.createFunction(
         const pdfResult = await step.run("generate-ticket-pdf", async () => {
             // In production, call your PDF generation service (e.g., Puppeteer, PDFKit, or external API)
             // For now, we return a placeholder URL
-            const pdfUrl = `https://c1rcle.com/api/tickets/${orderId}/download`;
+            const pdfUrl = `${process.env.APP_BASE_URL || "https://c1rcle.com"}/api/tickets/${orderId}/download`;
 
             // Store PDF reference
             await db.collection("orders").doc(orderId).update({
@@ -184,16 +185,29 @@ export const handleTicketFulfillment = inngest.createFunction(
 
                 // Increment promoter stats
                 await db.collection("promoters").doc(promoterId).update({
-                    totalSales: db.FieldValue.increment(totalAmount),
-                    totalOrders: db.FieldValue.increment(1),
-                    pendingCommission: db.FieldValue.increment(commission)
+                    totalSales: FieldValue.increment(totalAmount),
+                    totalOrders: FieldValue.increment(1),
+                    pendingCommission: FieldValue.increment(commission)
                 });
 
                 return { credited: true, promoterId, commission };
             });
         }
 
-        // Step 6: Update real-time analytics
+        // Step 6: Update event stats on the main event document.
+        // Runs here (background) rather than in the synchronous fulfillment path to avoid
+        // hitting Firestore's ~1 write/s/doc limit during high-volume drops.
+        // Inngest throttles this to ≤100 executions/min/event, preventing write bursts.
+        await step.run("update-event-stats", async () => {
+            const count = ticketsCount ?? entitlements.length;
+            await db.collection("events").doc(eventId).update({
+                "stats.ticketsSold": FieldValue.increment(count),
+                "stats.totalRevenue": FieldValue.increment(totalAmount || 0),
+            });
+            return { ticketsSold: count, revenue: totalAmount };
+        });
+
+        // Step 7: Update real-time analytics
         await step.run("update-analytics", async () => {
             const now = new Date();
             const dateKey = now.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -202,10 +216,10 @@ export const handleTicketFulfillment = inngest.createFunction(
             await db.collection("event_analytics").doc(`${eventId}_${dateKey}`).set({
                 eventId,
                 date: dateKey,
-                ticketsSold: db.FieldValue.increment(entitlements.length),
-                revenue: db.FieldValue.increment(totalAmount),
-                ordersCount: db.FieldValue.increment(1),
-                updatedAt: db.FieldValue.serverTimestamp()
+                ticketsSold: FieldValue.increment(entitlements.length),
+                revenue: FieldValue.increment(totalAmount),
+                ordersCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp()
             }, { merge: true });
 
             return { updated: true };

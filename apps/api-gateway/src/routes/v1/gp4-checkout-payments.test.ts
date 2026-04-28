@@ -10,10 +10,19 @@ vi.mock('@c1rcle/core/staff-engine', () => ({
     hasStaffPermission: vi.fn(async () => false),
 }));
 
+vi.mock('@c1rcle/core/promo-service', () => ({
+    validatePromoCode: vi.fn(async () => ({
+        valid: true,
+        discountAmount: 250,
+        message: '25% off applied!',
+    })),
+}));
+
 import validatePlugin from '../../plugins/validate';
 import checkoutRoutes from './checkout';
 import paymentRoutes from './payments';
 import orderRoutes from './orders';
+import { validatePromoCode } from '@c1rcle/core/promo-service';
 
 function buildDbMock() {
     return {
@@ -28,6 +37,32 @@ function buildDbMock() {
                                 title: 'After Dark',
                                 venueId: 'venue_1',
                                 startDate: '2099-01-01T20:00:00.000Z',
+                                tickets: [
+                                    {
+                                        id: 'tier_1',
+                                        name: 'General Admission',
+                                        price: 999,
+                                        quantity: 100,
+                                        remaining: 80,
+                                    },
+                                ],
+                            }),
+                        })),
+                    })),
+                };
+            }
+
+            if (name === 'cart_reservations') {
+                return {
+                    doc: vi.fn((id: string) => ({
+                        get: vi.fn(async () => ({
+                            exists: true,
+                            id,
+                            data: () => ({
+                                eventId: 'event_1',
+                                status: 'active',
+                                expiresAt: '2099-01-01T21:00:00.000Z',
+                                items: [{ tierId: 'tier_1', quantity: 2 }],
                             }),
                         })),
                     })),
@@ -57,6 +92,12 @@ function buildDbMock() {
 async function buildServer() {
     const server = Fastify({ logger: false });
     const checkoutService = {
+        validatePricing: vi.fn(async () => ({
+            success: true,
+            pricing: {
+                items: [{ tierId: 'tier_1', quantity: 2, unitPrice: 999, subtotal: 1998 }],
+            },
+        })),
         initiateCheckout: vi.fn(async () => ({
             success: true,
             requiresPayment: true,
@@ -73,6 +114,28 @@ async function buildServer() {
             success: true,
             alreadyConfirmed: false,
             order: { id: 'ord_1', status: 'confirmed' },
+        })),
+        getCancellationDecision: vi.fn(async () => ({
+            canCancel: true,
+            reason: null,
+            refundPercentage: 100,
+            refundAmount: 1499,
+            orderTotal: 1499,
+            eventTitle: 'After Dark',
+            freeCancellationWindow: '24h from purchase',
+        })),
+        cancelOrder: vi.fn(async () => ({
+            success: true,
+            orderId: 'ord_1',
+            status: 'cancelled',
+            refund: {
+                percentage: 100,
+                amount: 1499,
+                status: 'processing',
+                razorpayRefundId: 'refund_1',
+                estimatedDays: '5-7 business days',
+            },
+            message: 'Order cancelled. A full refund has been initiated.',
         })),
         cancelCheckout: vi.fn(async () => ({ success: true })),
     };
@@ -116,6 +179,12 @@ async function buildServer() {
 describe('GP-4 gateway checkout/payment routes', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        process.env.NODE_ENV = 'test';
+        process.env.VERCEL_ENV = '';
+        process.env.C1RCLE_ALLOW_MOCK_RAZORPAY = '';
+        process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
+        process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
+        process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret';
     });
 
     it('POST /api/v1/checkout/initiate returns the legacy payment-initiation contract without requiring x-workspace-id', async () => {
@@ -144,6 +213,153 @@ describe('GP-4 gateway checkout/payment routes', () => {
             null
         );
         expect(checkoutService.preparePayment).toHaveBeenCalledWith('ord_1', 'user_1', expect.any(Object));
+
+        await server.close();
+    });
+
+    it('POST /api/v1/checkout/calculate returns an authoritative quote with order and tier constraints', async () => {
+        const { server } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/checkout/calculate',
+            payload: {
+                eventId: 'event_1',
+                items: [{ tierId: 'tier_1', quantity: 2 }],
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            pricing: expect.objectContaining({
+                grandTotal: expect.any(Number),
+                fees: expect.objectContaining({ total: expect.any(Number) }),
+            }),
+            quote: expect.objectContaining({
+                constraints: expect.objectContaining({
+                    order: expect.objectContaining({
+                        minTickets: expect.any(Number),
+                        maxTickets: expect.any(Number),
+                        totalQuantity: 2,
+                    }),
+                    tiers: expect.any(Array),
+                }),
+                cta: expect.objectContaining({
+                    state: expect.any(String),
+                    requiresPayment: expect.any(Boolean),
+                }),
+            }),
+        });
+
+        await server.close();
+    });
+
+    it('POST /api/v1/checkout/calculate accepts an empty selection and still returns authoritative tier constraints', async () => {
+        const { server } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/checkout/calculate',
+            payload: {
+                eventId: 'event_1',
+                items: [],
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            pricing: expect.objectContaining({
+                subtotal: 0,
+                grandTotal: 0,
+            }),
+            quote: expect.objectContaining({
+                constraints: expect.objectContaining({
+                    order: expect.objectContaining({
+                        totalQuantity: 0,
+                    }),
+                    tiers: [
+                        expect.objectContaining({
+                            tierId: 'tier_1',
+                            available: expect.any(Number),
+                            unitPrice: 999,
+                        }),
+                    ],
+                }),
+                cta: expect.objectContaining({
+                    state: 'empty',
+                    requiresPayment: false,
+                }),
+            }),
+        });
+
+        await server.close();
+    });
+
+    it('POST /api/v1/checkout/calculate returns a reservation snapshot when resuming a saved checkout', async () => {
+        const { server } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/checkout/calculate',
+            payload: {
+                reservationId: 'res_saved_1',
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            reservation: {
+                reservationId: 'res_saved_1',
+                eventId: 'event_1',
+                status: 'active',
+                expiresAt: '2099-01-01T21:00:00.000Z',
+                items: [{ tierId: 'tier_1', quantity: 2 }],
+            },
+            quote: expect.objectContaining({
+                constraints: expect.objectContaining({
+                    order: expect.objectContaining({
+                        totalQuantity: 2,
+                    }),
+                }),
+            }),
+        });
+
+        await server.close();
+    });
+
+    it('POST /api/v1/checkout/promo derives authoritative pricing items server-side before validating the promo code', async () => {
+        const { server, checkoutService } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/checkout/promo',
+            headers: { authorization: 'Bearer test-token' },
+            payload: {
+                eventId: 'event_1',
+                code: 'NIGHT',
+                items: [{ tierId: 'tier_1', quantity: 2 }],
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            valid: true,
+            discountAmount: 250,
+        });
+        expect(checkoutService.validatePricing).toHaveBeenCalledWith({
+            eventId: 'event_1',
+            items: [{ tierId: 'tier_1', quantity: 2 }],
+        }, null);
+        expect(validatePromoCode).toHaveBeenCalledWith(
+            'event_1',
+            'NIGHT',
+            'user_1',
+            [{ tierId: 'tier_1', quantity: 2, unitPrice: 999, subtotal: 1998 }]
+        );
 
         await server.close();
     });
@@ -177,6 +393,51 @@ describe('GP-4 gateway checkout/payment routes', () => {
             alreadyConfirmed: true,
             message: 'Order already confirmed',
         });
+        await server.close();
+    });
+
+    it('PATCH /api/v1/payments/verify rejects mock payment payloads unless explicitly enabled', async () => {
+        const { server, checkoutService } = await buildServer();
+
+        const response = await server.inject({
+            method: 'PATCH',
+            url: '/api/v1/payments/verify',
+            headers: { authorization: 'Bearer test-token' },
+            payload: {
+                orderId: 'ord_1',
+                razorpay_order_id: 'order_mock_1',
+                razorpay_payment_id: 'pay_mock_1',
+                razorpay_signature: 'sig_mock_1',
+            },
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json()).toMatchObject({ error: 'Mock payments are disabled' });
+        expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+
+        await server.close();
+    });
+
+    it('PATCH /api/v1/payments/verify fails closed when Razorpay signing secret is missing', async () => {
+        const { server, checkoutService } = await buildServer();
+        delete process.env.RAZORPAY_KEY_SECRET;
+
+        const response = await server.inject({
+            method: 'PATCH',
+            url: '/api/v1/payments/verify',
+            headers: { authorization: 'Bearer test-token' },
+            payload: {
+                orderId: 'ord_1',
+                razorpay_order_id: 'order_rzp_1',
+                razorpay_payment_id: 'pay_1',
+                razorpay_signature: 'not_checked_without_secret',
+            },
+        });
+
+        expect(response.statusCode).toBe(500);
+        expect(response.json()).toMatchObject({ error: 'Payment verification is not configured' });
+        expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+
         await server.close();
     });
 
@@ -235,6 +496,65 @@ describe('GP-4 gateway checkout/payment routes', () => {
             order: { id: 'ord_1', status: 'payment_pending' },
             event: { id: 'event_1', title: 'After Dark' },
         });
+
+        await server.close();
+    });
+
+    it('GET /api/v1/orders/:id/cancel delegates cancellation policy to the shared checkout service', async () => {
+        const { server, checkoutService } = await buildServer();
+
+        const response = await server.inject({
+            method: 'GET',
+            url: '/api/v1/orders/ord_1/cancel',
+            headers: { authorization: 'Bearer test-token' },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            canCancel: true,
+            refundPercentage: 100,
+            refundAmount: 1499,
+        });
+        expect(checkoutService.getCancellationDecision).toHaveBeenCalledWith(
+            expect.objectContaining({ id: 'ord_1' }),
+            expect.objectContaining({ id: 'event_1', title: 'After Dark' })
+        );
+
+        await server.close();
+    });
+
+    it('POST /api/v1/orders/:id/cancel delegates cancellation execution to the shared checkout service', async () => {
+        const { server, checkoutService } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/orders/ord_1/cancel',
+            headers: { authorization: 'Bearer test-token' },
+            payload: { reason: 'Can no longer attend' },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            orderId: 'ord_1',
+            status: 'cancelled',
+            refund: {
+                percentage: 100,
+                amount: 1499,
+            },
+        });
+        expect(checkoutService.cancelOrder).toHaveBeenCalledWith(
+            expect.objectContaining({
+                order: expect.objectContaining({ id: 'ord_1' }),
+                event: expect.objectContaining({ id: 'event_1' }),
+                reason: 'Can no longer attend',
+                cancelledBy: 'user_1',
+                cancelledByType: 'guest',
+            }),
+            expect.objectContaining({
+                refundPayment: expect.any(Function),
+            })
+        );
 
         await server.close();
     });

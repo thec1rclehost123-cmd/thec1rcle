@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { fetchSearchSuggestions, searchPublicDiscovery } from "../../features/discovery/publicDiscovery";
 
 /**
  * useInstantSearch - React hook for instant search with debouncing
@@ -33,25 +34,24 @@ export function useInstantSearch(options = {}) {
     const debounceRef = useRef(null);
     const abortControllerRef = useRef(null);
 
-    // Build search URL
-    const buildSearchUrl = useCallback((q, opts = {}) => {
-        const params = new URLSearchParams();
-        params.set("q", q);
-        params.set("type", opts.type || type);
-        params.set("limit", opts.limit || limit);
-        params.set("offset", opts.offset || 0);
+    const buildSearchParams = useCallback((q, opts = {}) => {
+        const params = {
+            limit: String(opts.limit || limit),
+            offset: String(opts.offset || 0),
+            q,
+            type: opts.type || type,
+        };
 
-        // Add filters
         const f = opts.filters || filters;
-        if (f.city) params.set("city", f.city);
-        if (f.genres?.length) params.set("genres", f.genres.join(","));
-        if (f.dateFrom) params.set("dateFrom", f.dateFrom);
-        if (f.dateTo) params.set("dateTo", f.dateTo);
-        if (f.priceMax) params.set("priceMax", f.priceMax);
-        if (f.available) params.set("available", "true");
-        if (f.sort) params.set("sort", f.sort);
+        if (f.city) params.city = f.city;
+        if (f.genres?.length) params.genres = f.genres.join(",");
+        if (f.dateFrom) params.dateFrom = f.dateFrom;
+        if (f.dateTo) params.dateTo = f.dateTo;
+        if (f.priceMax) params.priceMax = f.priceMax;
+        if (f.available) params.available = "true";
+        if (f.sort) params.sort = f.sort;
 
-        return `/api/search?${params.toString()}`;
+        return params;
     }, [type, limit, filters]);
 
     // Execute search
@@ -75,14 +75,10 @@ export function useInstantSearch(options = {}) {
         abortControllerRef.current = new AbortController();
 
         try {
-            const url = buildSearchUrl(searchQuery, { offset: searchOffset });
-            const res = await fetch(url, {
-                signal: abortControllerRef.current.signal,
-            });
-
-            if (!res.ok) throw new Error("Search failed");
-
-            const data = await res.json();
+            const data = await searchPublicDiscovery(
+                buildSearchParams(searchQuery, { offset: searchOffset }),
+                { signal: abortControllerRef.current.signal }
+            );
 
             if (searchOffset === 0) {
                 setResults(data.hits || []);
@@ -103,7 +99,7 @@ export function useInstantSearch(options = {}) {
         } finally {
             setIsLoading(false);
         }
-    }, [buildSearchUrl, type]);
+    }, [buildSearchParams, type]);
 
     // Fetch suggestions (autocomplete)
     const fetchSuggestions = useCallback(async (q) => {
@@ -113,9 +109,8 @@ export function useInstantSearch(options = {}) {
         }
 
         try {
-            const res = await fetch(`/api/search?type=suggestions&q=${encodeURIComponent(q)}`);
-            const data = await res.json();
-            setSuggestions(data.suggestions || []);
+            const nextSuggestions = await fetchSearchSuggestions(q);
+            setSuggestions(nextSuggestions);
         } catch (err) {
             console.error("[Suggestions] Error:", err);
         }

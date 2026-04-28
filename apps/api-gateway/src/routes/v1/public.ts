@@ -3,6 +3,10 @@ import { z } from 'zod';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey, bumpPublicCacheVersion } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import { buildErrorResponse } from '../../lib/api-contracts';
+// @ts-ignore
+import { getHomepageInterviews, getHomepageSelects } from '@c1rcle/core/homepage-curation-engine';
+// @ts-ignore
+import { normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
 
 const publicListQuerySchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).optional(),
@@ -47,8 +51,41 @@ const eventParamSchema = z.object({
     idOrSlug: z.string().min(1),
 });
 
+const PUBLIC_EVENTS_CACHE_SCHEMA_VERSION = 3;
+
 function createApiError(requestId: string, code: string, message: string) {
     return buildErrorResponse({ code, message, requestId });
+}
+
+function sortObjectKeys(obj: any): any {
+    if (!obj || typeof obj !== 'object') return obj;
+    if (Array.isArray(obj)) return obj.map(sortObjectKeys);
+    const sorted: any = {};
+    Object.keys(obj).sort().forEach(key => {
+        sorted[key] = sortObjectKeys(obj[key]);
+    });
+    return sorted;
+}
+
+function normalizePublicDiscoveryQuery(rawQuery: Record<string, any> = {}) {
+    const query = { ...(rawQuery || {}) };
+    const normalizedCityKey = normalizeCityKey(query.cityKey || query.city || null);
+
+    if (normalizedCityKey) {
+        query.cityKey = normalizedCityKey;
+        delete query.city;
+    }
+
+    if (query.sort) {
+        const normalizedSort = String(query.sort).trim().toLowerCase();
+        query.sort = normalizedSort === 'trending' || normalizedSort === 'popular'
+            ? 'heat'
+            : normalizedSort === 'newest'
+                ? 'new'
+                : normalizedSort;
+    }
+
+    return sortObjectKeys(query);
 }
 
 async function cachedPublic<T>(
@@ -74,16 +111,53 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         }
     });
 
+    fastify.get('/homepage/selects', async (request: any, reply) => {
+        try {
+            await enforcePublicRateLimit(fastify, request, 'public:homepage-selects', 60, 60);
+            applyPublicCacheHeaders(reply, 300);
+            return await cachedPublic(
+                fastify,
+                'homepage',
+                'selects',
+                300,
+                () => getHomepageSelects()
+            );
+        } catch (error: any) {
+            if (error.message === 'RATE_LIMITED') return reply.status(429).send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
+            request.log.error({ error }, 'Failed to list homepage selects');
+            return reply.status(500).send(createApiError(request.id, 'INTERNAL_ERROR', 'Unable to load homepage selects'));
+        }
+    });
+
+    fastify.get('/homepage/interviews', async (request: any, reply) => {
+        try {
+            await enforcePublicRateLimit(fastify, request, 'public:homepage-interviews', 60, 60);
+            applyPublicCacheHeaders(reply, 300);
+            return await cachedPublic(
+                fastify,
+                'homepage',
+                'interviews',
+                300,
+                () => getHomepageInterviews()
+            );
+        } catch (error: any) {
+            if (error.message === 'RATE_LIMITED') return reply.status(429).send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
+            request.log.error({ error }, 'Failed to list homepage interviews');
+            return reply.status(500).send(createApiError(request.id, 'INTERNAL_ERROR', 'Unable to load homepage interviews'));
+        }
+    });
+
     fastify.get('/events', { preHandler: fastify.validate({ querystring: publicListQuerySchema }) }, async (request: any, reply) => {
         try {
             await enforcePublicRateLimit(fastify, request, 'public:events', 120, 60);
             applyPublicCacheHeaders(reply, 60);
+            const normalizedQuery = normalizePublicDiscoveryQuery(request.query || {});
             return await cachedPublic(
                 fastify,
                 'events',
-                JSON.stringify(request.query || {}),
+                `v${PUBLIC_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(normalizedQuery)}`,
                 60,
-                () => fastify.publicDiscoveryService.listEvents(request.query || {})
+                () => fastify.publicDiscoveryService.listEvents(normalizedQuery)
             );
         } catch (error: any) {
             if (error.message === 'RATE_LIMITED') return reply.status(429).send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
@@ -96,12 +170,13 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         try {
             await enforcePublicRateLimit(fastify, request, 'public:events-featured', 120, 60);
             applyPublicCacheHeaders(reply, 60);
+            const normalizedQuery = normalizePublicDiscoveryQuery(request.query || {});
             return await cachedPublic(
                 fastify,
                 'events',
-                `featured:${JSON.stringify(request.query || {})}`,
+                `featured:v${PUBLIC_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(normalizedQuery)}`,
                 60,
-                () => fastify.publicDiscoveryService.listFeaturedEvents(request.query || {})
+                () => fastify.publicDiscoveryService.listFeaturedEvents(normalizedQuery)
             );
         } catch (error: any) {
             if (error.message === 'RATE_LIMITED') return reply.status(429).send(createApiError(request.id, 'RATE_LIMITED', 'Too many requests'));
@@ -117,7 +192,7 @@ export default async function publicRoutes(fastify: FastifyInstance) {
             const result = await cachedPublic(
                 fastify,
                 'events',
-                `detail:${request.params.idOrSlug}`,
+                `detail:v${PUBLIC_EVENTS_CACHE_SCHEMA_VERSION}:${request.params.idOrSlug}`,
                 60,
                 () => fastify.publicDiscoveryService.getEventDetail(request.params.idOrSlug)
             );
@@ -134,10 +209,11 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         try {
             await enforcePublicRateLimit(fastify, request, 'public:hosts', 120, 60);
             applyPublicCacheHeaders(reply, 120);
+            const sortedQuery = sortObjectKeys(request.query || {});
             return await cachedPublic(
                 fastify,
                 'hosts',
-                JSON.stringify(request.query || {}),
+                JSON.stringify(sortedQuery),
                 120,
                 () => fastify.publicDiscoveryService.listHosts(request.query || {})
             );
@@ -172,10 +248,11 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         try {
             await enforcePublicRateLimit(fastify, request, 'public:venues', 120, 60);
             applyPublicCacheHeaders(reply, 120);
+            const sortedQuery = sortObjectKeys(request.query || {});
             return await cachedPublic(
                 fastify,
                 'venues',
-                JSON.stringify(request.query || {}),
+                JSON.stringify(sortedQuery),
                 120,
                 () => fastify.publicDiscoveryService.listVenues(request.query || {})
             );
@@ -210,11 +287,12 @@ export default async function publicRoutes(fastify: FastifyInstance) {
         try {
             await enforcePublicRateLimit(fastify, request, 'public:search', 60, 60);
             applyPublicCacheHeaders(reply, 30);
+            const sortedQuery = sortObjectKeys(request.query || {});
             const q = String(request.query?.q || '');
             return await cachedPublic(
                 fastify,
                 'search',
-                JSON.stringify(request.query || {}),
+                JSON.stringify(sortedQuery),
                 30,
                 () => fastify.publicDiscoveryService.search(q, Number(request.query?.limit) || 6)
             );

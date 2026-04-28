@@ -21,9 +21,9 @@ const envSchema = z.object({
     MEILISEARCH_HOST: z.string().url().default('http://localhost:7700'),
     MEILISEARCH_API_KEY: z.string().optional(),
     MEILISEARCH_MASTER_KEY: z.string().optional(),
-    TICKET_SECRET: z.string().default('c1rcle-secret-2025'),
+    TICKET_SECRET: z.string().min(1).default('c1rcle-dev-ticket-secret'),
     QR_SECRET_KEY: z.string().optional(),
-    QUEUE_SECRET_KEY: z.string().default('c1rcle-surge-protection-2024'),
+    QUEUE_SECRET_KEY: z.string().min(1).default('c1rcle-dev-surge-protection'),
     SCANNER_SESSION_SECRET: z.string().optional(),
     DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
     FRONTEND_URLS: z
@@ -41,6 +41,17 @@ if (!_env.success) {
 }
 
 if (_env.data.NODE_ENV === 'production') {
+    const DEV_DEFAULTS: Record<string, string> = {
+        TICKET_SECRET: 'c1rcle-dev-ticket-secret',
+        QUEUE_SECRET_KEY: 'c1rcle-dev-surge-protection',
+    };
+    const violations = Object.entries(DEV_DEFAULTS)
+        .filter(([key, devVal]) => (process.env[key] || devVal) === devVal)
+        .map(([key]) => key);
+    if (violations.length > 0) {
+        console.error(`❌ Production secret(s) are using dev defaults: ${violations.join(', ')}. Set real values in env.`);
+        process.exit(1);
+    }
     const missingSecrets = ['QR_SECRET_KEY', 'SCANNER_SESSION_SECRET']
         .filter((name) => !process.env[name]);
     if (missingSecrets.length > 0) {

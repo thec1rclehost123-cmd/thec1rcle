@@ -1,5 +1,5 @@
 import { Firestore, Transaction } from 'firebase-admin/firestore';
-import { IOrderRepository, Order, Reservation, PaymentRecord } from '../../../domain/repositories/order-repository.js';
+import { IOrderRepository, Order, Reservation, PaymentRecord, OrderIdentityLookup } from '../../../domain/repositories/order-repository.js';
 
 export class FirebaseOrderRepository implements IOrderRepository {
     constructor(private db: Firestore) { }
@@ -14,6 +14,30 @@ export class FirebaseOrderRepository implements IOrderRepository {
 
         const rsvpDoc = await this.db.collection('rsvp_orders').doc(id).get();
         if (rsvpDoc.exists) return { id: rsvpDoc.id, ...rsvpDoc.data() } as Order;
+
+        return null;
+    }
+
+    async getOrderByReservationId(reservationId: string): Promise<Order | null> {
+        const ordersSnapshot = await this.db.collection('orders')
+            .where('reservationId', '==', reservationId)
+            .limit(1)
+            .get();
+
+        if (!ordersSnapshot.empty) {
+            const doc = ordersSnapshot.docs[0];
+            return { id: doc.id, ...doc.data() } as Order;
+        }
+
+        const rsvpSnapshot = await this.db.collection('rsvp_orders')
+            .where('reservationId', '==', reservationId)
+            .limit(1)
+            .get();
+
+        if (!rsvpSnapshot.empty) {
+            const doc = rsvpSnapshot.docs[0];
+            return { id: doc.id, ...doc.data() } as Order;
+        }
 
         return null;
     }
@@ -46,6 +70,63 @@ export class FirebaseOrderRepository implements IOrderRepository {
         } else {
             await ref.update(updates as any);
         }
+    }
+
+    async checkExistingRSVP(eventId: string, lookup: OrderIdentityLookup, transaction?: any): Promise<boolean> {
+        if (!eventId || (!lookup.userId && !lookup.email)) return false;
+
+        const read = (query: any) => transaction ? transaction.get(query) : query.get();
+
+        if (lookup.userId) {
+            const userSnapshot = await read(
+                this.db.collection('rsvp_orders')
+                    .where('eventId', '==', eventId)
+                    .where('userId', '==', lookup.userId)
+                    .where('status', '==', 'confirmed')
+                    .limit(1)
+            );
+            if (!userSnapshot.empty) return true;
+        }
+
+        if (lookup.email) {
+            const emailSnapshot = await read(
+                this.db.collection('rsvp_orders')
+                    .where('eventId', '==', eventId)
+                    .where('userEmail', '==', lookup.email)
+                    .where('status', '==', 'confirmed')
+                    .limit(1)
+            );
+            if (!emailSnapshot.empty) return true;
+        }
+
+        return false;
+    }
+
+    async getUserTicketCountForEvent(eventId: string, lookup: OrderIdentityLookup): Promise<number> {
+        if (!eventId || (!lookup.userId && !lookup.email)) return 0;
+
+        const baseQuery = this.db.collection('orders')
+            .where('eventId', '==', eventId)
+            .where('status', '==', 'confirmed');
+
+        const userSnapshot = lookup.userId
+            ? await baseQuery.where('userId', '==', lookup.userId).get()
+            : { docs: [] as any[] };
+        const emailSnapshot = lookup.email
+            ? await baseQuery.where('userEmail', '==', lookup.email).get()
+            : { docs: [] as any[] };
+
+        const seenOrderIds = new Set<string>();
+        let totalTickets = 0;
+
+        for (const doc of [...userSnapshot.docs, ...emailSnapshot.docs]) {
+            if (seenOrderIds.has(doc.id)) continue;
+            seenOrderIds.add(doc.id);
+            const order = doc.data() as Order;
+            totalTickets += (order.tickets || []).reduce((sum, ticket) => sum + (Number(ticket.quantity) || 0), 0);
+        }
+
+        return totalTickets;
     }
 
     async getReservationById(id: string): Promise<Reservation | null> {

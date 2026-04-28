@@ -1,14 +1,21 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { getVenueAnalytics, getHostAnalytics, getPromoterFunnel } from '@c1rcle/core/analytics-engine';
+
+const AnalyticsRangeSchema = z.object({
+    range: z.enum(['7d', '30d', '90d', '1y']).optional(),
+});
 
 export default async function analyticsRoutes(fastify: FastifyInstance) {
     /**
      * GET /api/v1/analytics/venue/:id
      * Gets performance analytics for a venue
      */
-    fastify.get('/venue/:id', async (request, reply) => {
+    fastify.get('/venue/:id', {
+        preHandler: [fastify.validate({ querystring: AnalyticsRangeSchema })]
+    }, async (request, reply) => {
         const { id } = request.params as { id: string };
-        const { range } = request.query as { range?: string };
+        const { range } = request.query as z.infer<typeof AnalyticsRangeSchema>;
 
         try {
             const cacheKey = JSON.stringify({ id, range });

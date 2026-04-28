@@ -13,7 +13,7 @@ export default function PageWrapper({ children }) {
         pathname === "/auth/callback" ||
         pathname === "/explore" ||
         pathname?.startsWith("/hosts") ||
-        pathname?.startsWith("/venues") ||
+        pathname?.startsWith("/venue/") ||
         pathname?.startsWith("/profile") ||
         pathname?.startsWith("/tickets") ||
         isEventDetail;

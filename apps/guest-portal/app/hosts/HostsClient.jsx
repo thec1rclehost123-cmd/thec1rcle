@@ -14,7 +14,7 @@ const ROLES = ["Promoter", "DJ", "Collective"];
 const STATUSES = ["Verified", "Trending", "Popular"];
 const SORTS = ["Popular", "Soonest event", "Most followed"];
 
-export default function DiscoveryPage({ initialVenues = [], initialHosts = [] }) {
+export default function DiscoveryPage({ initialVenues = [], initialHosts = [], initialErrors = [] }) {
     const { user } = useAuth();
     const [activeTab, setActiveTab] = useState("venues");
     const [search, setSearch] = useState("");
@@ -28,11 +28,14 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
 
     const { results: storeResults, status: fetchStatus, error, fetchData, hasMore } = useHostsStore();
     const loading = fetchStatus === "loading";
+    const hasDefaultFilters = !debouncedSearch && !activeArea && !activeVibe && !activeRole && !activeStatus && activeSort === "Popular" && !tablesOnly;
+    const activeInitialResults = activeTab === "venues" ? initialVenues : initialHosts;
+    const usingInitialResults = fetchStatus === "idle" && storeResults.length === 0 && activeInitialResults.length > 0;
 
     // Use server-prefetched data on first render if store is still idle/empty,
     // otherwise use store results (which includes any filtered/loaded state)
-    const results = (fetchStatus === "idle" && storeResults.length === 0)
-        ? (activeTab === "venues" ? initialVenues : initialHosts)
+    const results = usingInitialResults
+        ? activeInitialResults
         : storeResults;
 
     useEffect(() => {
@@ -41,8 +44,11 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
     }, [search]);
 
     useEffect(() => {
+        if (hasDefaultFilters && activeInitialResults.length > 0) {
+            return;
+        }
         fetchData({ activeTab, search: debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, true);
-    }, [activeTab, debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData]);
+    }, [activeTab, debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly, fetchData, hasDefaultFilters, activeInitialResults.length]);
 
     const handleLoadMore = () => {
         fetchData({ activeTab, search: debouncedSearch, activeArea, activeVibe, activeRole, activeStatus, activeSort, tablesOnly }, false);
@@ -199,6 +205,12 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
             {/* ─── Section header + grid ───────────────────────────────── */}
             <section className="mx-auto w-full max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-12 pt-10">
                 <div className="space-y-10">
+                    {initialErrors.length > 0 && (
+                        <div className="rounded-[32px] border border-red-500/20 bg-red-500/10 p-6 text-red-100">
+                            <p className="text-[10px] font-black uppercase tracking-[0.35em] text-red-300">Partial outage</p>
+                            <p className="mt-3 text-sm">{initialErrors.join(" ")}</p>
+                        </div>
+                    )}
 
                     {/* Section meta row */}
                     {!loading && results.length > 0 && (
@@ -271,7 +283,7 @@ export default function DiscoveryPage({ initialVenues = [], initialHosts = [] })
                                     </AnimatePresence>
                                 </div>
 
-                                {hasMore && (
+                                {!usingInitialResults && hasMore && (
                                     <div className="flex justify-center mt-12">
                                         <button
                                             onClick={handleLoadMore}
