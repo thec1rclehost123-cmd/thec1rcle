@@ -1,10 +1,10 @@
 require('dotenv').config({ path: '.env.local' });
 
 async function testHomepage() {
-    const { getHomepageContent } = await import('../lib/homepageData.js');
+    const { loadHomepageContent } = await import('../features/discovery/homepageData.js');
     console.log('Fetching homepage content...');
     try {
-        const content = await getHomepageContent();
+        const content = await loadHomepageContent();
         console.log('Events in hero:', content.heroCards.length);
         console.log('Events in grid:', content.eventGrid.length);
         if (content.eventGrid.length > 0) {

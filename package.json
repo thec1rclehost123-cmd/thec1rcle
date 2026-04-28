@@ -22,6 +22,7 @@
     "doctor:stack": "node scripts/doctor-stack.mjs",
     "guardrails:check": "node scripts/check-backend-boundaries.mjs",
     "guardrails:inventory": "node scripts/generate-phase0-route-inventory.mjs",
+    "architecture:guest": "node scripts/audit-guest-portal-architecture.mjs --check",
     "backfill:event-partners": "node scripts/backfill-event-partner-snapshots.mjs",
     "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
     "install:all": "npx npm install",

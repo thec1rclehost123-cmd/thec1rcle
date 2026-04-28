@@ -1,6 +1,6 @@
 require('dotenv').config({ path: '.env.local' });
 const admin = require('firebase-admin');
-const { events } = require('../data/events');
+const { events } = require('./fixtures/events');
 
 // Initialize Firebase Admin with env variables
 const serviceAccount = {

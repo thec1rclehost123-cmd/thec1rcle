@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { memo } from "react";
+import { memo, Suspense } from "react";
 import DesktopNavLinks from "./DesktopNavLinks";
 import NavControls from "./NavControls";
 
@@ -24,7 +24,9 @@ function Navbar() {
           </span>
         </Link>
         <DesktopNavLinks />
-        <NavControls />
+        <Suspense fallback={<div className="hidden lg:block h-9 w-24 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10" aria-hidden="true" />}>
+          <NavControls />
+        </Suspense>
       </nav>
     </header>
   );

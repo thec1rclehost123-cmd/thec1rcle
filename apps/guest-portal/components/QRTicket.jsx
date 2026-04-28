@@ -76,8 +76,8 @@ export default function QRTicket({
                     text: `${ticketName} - ${eventDate} at ${eventLocation}`,
                     url: window.location.href
                 });
-            } catch (err) {
-                console.log("Share cancelled");
+            } catch {
+                // AbortError: user dismissed share sheet — expected
             }
         }
     };

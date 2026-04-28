@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import { fetchPublicEvents } from "../features/discovery/publicDiscovery";
 
 /**
  * ⚡ Zustand Cache for Explore Page Events
@@ -12,6 +13,14 @@ import { persist, createJSONStorage } from "zustand/middleware";
  */
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function buildQueryKey({ city = "", filtersKey = "all", sort = "soonest" } = {}) {
+    return JSON.stringify({
+        city: city || "all",
+        filtersKey: filtersKey || "all",
+        sort: sort || "soonest",
+    });
+}
 
 const dedupeEvents = (events = []) => {
     const seen = new Set();
@@ -35,14 +44,24 @@ export const useExploreStore = create(
             nextCursor: null,
             hasMore: true,
             lastFetchedAt: null,
+            lastQueryKey: buildQueryKey(),
 
-            fetchEvents: async (city = null, reset = false, sort = "soonest") => {
-                const { lastFetchedAt, status, nextCursor, events: existingEvents, revalidating } = get();
+            fetchEvents: async (city = null, reset = false, sort = "soonest", filtersKey = "all", backendFilters = {}) => {
+                const queryKey = buildQueryKey({ city, filtersKey, sort });
+                const {
+                    lastFetchedAt,
+                    status,
+                    nextCursor,
+                    events: existingEvents,
+                    revalidating,
+                    lastQueryKey,
+                } = get();
+                const queryChanged = lastQueryKey !== queryKey;
 
                 // ⚡ Guard: Already fetching
                 if (status === "loading" || revalidating) return;
 
-                const isFresh = lastFetchedAt !== null && Date.now() - lastFetchedAt < CACHE_TTL_MS;
+                const isFresh = !queryChanged && lastFetchedAt !== null && Date.now() - lastFetchedAt < CACHE_TTL_MS;
 
                 if (!reset && isFresh) {
                     // Cache is fresh. If status is still "idle" (just rehydrated from localStorage),
@@ -53,27 +72,36 @@ export const useExploreStore = create(
                     return;
                 }
 
-                const hasExistingData = existingEvents.length > 0;
+                const hasExistingData = !queryChanged && existingEvents.length > 0;
 
                 if (hasExistingData && !reset) {
                     // Stale-while-revalidate: show current data, fetch silently
                     set({ revalidating: true, error: "" });
                 } else {
                     // No cached data or explicit reset — skeleton is appropriate
-                    set({ status: "loading", revalidating: false, error: "" });
+                    set({
+                        status: "loading",
+                        revalidating: false,
+                        error: "",
+                        events: queryChanged ? [] : existingEvents,
+                        nextCursor: queryChanged ? null : nextCursor,
+                        hasMore: queryChanged ? true : get().hasMore,
+                        lastQueryKey: queryKey,
+                    });
                 }
 
                 try {
-                    const cursor = reset ? "" : (nextCursor || "");
+                    const cursor = reset || queryChanged ? "" : (nextCursor || "");
 
-                    let url = `/api/events?limit=24&sort=${encodeURIComponent(sort)}`;
-                    if (city) url += `&city=${encodeURIComponent(city)}`;
-                    if (cursor) url += `&lastId=${cursor}`;
+                    const query = {
+                        limit: "24",
+                        sort,
+                        ...backendFilters,
+                    };
+                    if (city) query.city = city;
+                    if (cursor) query.lastId = cursor;
 
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error("Unable to fetch events");
-
-                    const payload = await response.json();
+                    const payload = await fetchPublicEvents(query);
                     const newEvents = Array.isArray(payload.events)
                         ? payload.events
                         : Array.isArray(payload.items)
@@ -90,6 +118,7 @@ export const useExploreStore = create(
                         status: "ready",
                         revalidating: false,
                         lastFetchedAt: Date.now(),
+                        lastQueryKey: queryKey,
                         error: "",
                     });
 
@@ -100,6 +129,20 @@ export const useExploreStore = create(
                         error: err.message || "Unable to fetch events",
                     }));
                 }
+            },
+
+            seedEvents: ({ city = null, filtersKey = "all", sort = "soonest", events = [] }) => {
+                const queryKey = buildQueryKey({ city, filtersKey, sort });
+                set({
+                    error: "",
+                    events,
+                    hasMore: true,
+                    lastFetchedAt: Date.now(),
+                    lastQueryKey: queryKey,
+                    nextCursor: null,
+                    revalidating: false,
+                    status: events.length > 0 ? "ready" : "idle",
+                });
             },
 
             invalidate: () => set({ lastFetchedAt: null }),
@@ -131,6 +174,7 @@ export const useExploreStore = create(
             partialize: (state) => ({
                 events: state.events.slice(0, 24),
                 lastFetchedAt: state.lastFetchedAt,
+                lastQueryKey: state.lastQueryKey,
                 nextCursor: state.nextCursor,
                 hasMore: state.hasMore,
             }),

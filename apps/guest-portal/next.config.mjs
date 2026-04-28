@@ -1,5 +1,8 @@
 import { withSentryConfig } from "@sentry/nextjs";
 import "./lib/env.js";
+import { resolveGuestApiOrigin } from "./lib/api/base-url.js";
+
+const gatewayOrigin = resolveGuestApiOrigin(process.env);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -10,16 +13,12 @@ const nextConfig = {
       "date-fns",
       "lodash",
       "framer-motion",
-      "react-icons",
-      "firebase/app",
-      "firebase/auth",
-      "firebase/firestore",
-      "firebase/storage"
+      "react-icons"
     ],
   },
   productionBrowserSourceMaps: false,
   typescript: {
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: false,
   },
   // eslint linting during builds is disabled via `next build --no-lint`
   images: {
@@ -62,7 +61,7 @@ const nextConfig = {
     return [
       {
         source: '/api/v1/:path*',
-        destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
+        destination: `${gatewayOrigin}/api/v1/:path*`
       }
     ]
   },

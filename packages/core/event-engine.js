@@ -1,6 +1,16 @@
 import { normalizeCity, PUBLIC_LIFECYCLE_STATES, mapEventForClient, EVENT_LIFECYCLE, getCityLabel, resolvePoster } from "./events.js";
 import { randomUUID } from "node:crypto";
 
+export async function getEvent(eventId, { client = false } = {}) {
+    if (!eventId) return null;
+    const { getAdminDb } = await import("./admin.js");
+    const db = getAdminDb();
+    const doc = await db.collection("events").doc(eventId).get();
+    if (!doc.exists) return null;
+    const data = { id: doc.id, ...doc.data() };
+    return client ? mapEventForClient(data, doc.id) : data;
+}
+
 /**
  * Calculates a heat score for trending events.
  * High scores indicate trending/popular events.
@@ -170,6 +180,7 @@ export function filterAndSortEvents(events, { city, sort = "heat", search, host 
 }
 
 export default {
+    getEvent,
     calculateHeatScore,
     resolveStartingPrice,
     determineStatus,
@@ -177,4 +188,3 @@ export default {
     filterAndSortEvents,
     EVENT_SORTERS
 };
-

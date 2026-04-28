@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "./providers/AuthProvider";
 import ThemeToggle from "./ThemeToggle";
 import { navLinks } from "./DesktopNavLinks";
@@ -10,8 +10,9 @@ import { buildLoginUrl, buildSignupUrl, getReturnUrl } from "../lib/auth/guestRo
 
 export default function NavControls() {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const { user, logout } = useAuth();
+    const { user, loading, logout } = useAuth();
     const pathname = usePathname();
+    const router = useRouter();
     const searchParams = useSearchParams();
     const returnUrl = getReturnUrl(searchParams);
     const isLoginPage = pathname === "/login";
@@ -28,12 +29,12 @@ export default function NavControls() {
             <div className="flex items-center gap-3">
                 {user && !isAuthPage ? (
                     <Link
-                        href="/profile"
+                        href={`/profile/${user.uid}`}
                         className="hidden lg:inline-flex items-center justify-center px-5 py-2.5 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10 text-xs font-bold uppercase tracking-widest text-black dark:text-white hover:bg-black/[0.05] dark:hover:bg-white/10 transition-all font-heading"
                     >
                         Profile
                     </Link>
-                ) : !isAuthPage ? (
+                ) : !isAuthPage && !loading ? (
                     <Link
                         href="/login?next=/profile"
                         className="hidden lg:inline-flex items-center justify-center px-6 py-2.5 rounded-full bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest hover:scale-105 transition-all duration-300 shadow-md transform-gpu font-heading"
@@ -110,16 +111,17 @@ export default function NavControls() {
                         {user ? (
                             <>
                                 <Link
-                                    href="/profile"
+                                    href={`/profile/${user.uid}`}
                                     onClick={closeMenu}
                                     className="block w-full py-5 text-center rounded-3xl bg-white/5 border border-white/10 text-sm font-bold uppercase tracking-[0.2em] text-white hover:bg-white/10 transition-colors"
                                 >
                                     My Profile
                                 </Link>
                                 <button
-                                    onClick={() => {
-                                        logout();
+                                    onClick={async () => {
+                                        await logout();
                                         closeMenu();
+                                        router.replace(buildLoginUrl("/profile"));
                                     }}
                                     className="block w-full py-5 text-center rounded-3xl border border-white/10 text-sm font-bold uppercase tracking-[0.2em] text-white/40 hover:text-white transition-colors"
                                 >
@@ -127,7 +129,7 @@ export default function NavControls() {
                                 </button>
                             </>
                         ) : (
-                            !isAuthPage ? (
+                            !isAuthPage && !loading ? (
                                 <Link
                                     href="/login?next=/profile"
                                     onClick={closeMenu}

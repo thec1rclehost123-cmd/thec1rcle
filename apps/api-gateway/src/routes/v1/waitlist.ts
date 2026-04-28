@@ -2,7 +2,12 @@ import { FastifyInstance } from 'fastify';
 import { joinWaitlist, processWaitlist, verifyWaitlistAccess } from '@c1rcle/core/waitlist-engine';
 import { z } from 'zod';
 
-const JoinBody = z.record(z.string(), z.any());
+const JoinBody = z.object({
+    eventId: z.string(),
+    tierId: z.string().optional(),
+    email: z.string().email().optional(),
+    phone: z.string().optional(),
+}).strict();
 const ProcessBody = z.object({
     eventId: z.string(),
     tierId: z.string()
@@ -18,10 +23,21 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/join', {
         preHandler: [fastify.validate({ body: JoinBody })]
-    }, async (request, reply) => {
-        const data = request.body as any;
+    }, async (request: any, reply) => {
+        const body = request.body as any;
+        const resolvedEmail = request.user?.email || body.email || null;
+        if (!resolvedEmail) {
+            return reply.status(400).send({ error: 'email is required' });
+        }
+
         try {
-            return await joinWaitlist(data);
+            return await joinWaitlist({
+                eventId: body.eventId,
+                tierId: body.tierId,
+                email: resolvedEmail,
+                phone: body.phone || null,
+                userId: request.user?.uid || null,
+            });
         } catch (error: any) {
             reply.status(400).send({ error: "Request failed" });
         }

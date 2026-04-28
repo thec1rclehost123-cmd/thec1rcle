@@ -54,10 +54,19 @@ export class MatchingService {
 
                 const finalScore = (interestScore * 0.4) + (proximityScore * 0.4) + (activityScore * 0.2);
 
-                return {
-                    ...candidate,
-                    matchScore: Math.round(finalScore * 100) / 100
+                // 🛡️ Phase 6: Redact PII in discovery feed
+                const redactedCandidate = {
+                    id: candidate.id,
+                    type: type,
+                    matchScore: Math.round(finalScore * 100) / 100,
+                    // Generic placeholders for discovery phase
+                    displayName: type === 'user' ? 'Attendee' : candidate.title,
+                    photoURL: type === 'user' ? null : (candidate.image || candidate.poster),
+                    interests: candidate.genres || candidate.interests || [],
+                    stats: candidate.stats || {}
                 };
+
+                return redactedCandidate;
             })
             .sort((a, b) => b.matchScore - a.matchScore)
             .slice(0, limit);
@@ -118,6 +127,35 @@ export class MatchingService {
         }
 
         // Logic for "It's a Match!" can go here if two-way matching is needed
+    }
+
+    async checkMutualMatch(userId: string, targetId: string): Promise<boolean> {
+        if (userId === targetId) return true; // Self is always a match
+
+        try {
+            // Check if A swiped right on B
+            const interactionAB = await this.matchingRepo.getInteractedIds(userId, 'user');
+            if (!interactionAB.includes(targetId)) return false;
+
+            // Check if B swiped right on A
+            const interactionBA = await this.matchingRepo.getInteractedIds(targetId, 'user');
+            if (!interactionBA.includes(userId)) return false;
+
+            return true;
+        } catch (e) {
+            console.error('Match check failed:', e);
+            return false;
+        }
+    }
+
+    async getMatchStatus(userId: string, targetId: string): Promise<{ isMatch: boolean, status: string }> {
+        const isMatch = await this.checkMutualMatch(userId, targetId);
+        
+        // This could be expanded to check for "Pending", "Blocked", etc.
+        return {
+            isMatch,
+            status: isMatch ? 'matched' : 'stranger'
+        };
     }
 
     private async updateAdaptivePreferences(userId: string, targetId: string, targetType: 'user' | 'event', workspaceId: string): Promise<void> {

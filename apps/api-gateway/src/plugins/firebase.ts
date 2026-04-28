@@ -35,9 +35,13 @@ import { FirebaseWorkspaceRepository } from '@c1rcle/core/workspace-repo';
 import { WorkspaceService } from '@c1rcle/core/workspace-service';
 // @ts-ignore
 import { BillingService } from '@c1rcle/core/billing-service';
-import { PublicDiscoveryService } from '../services/public-discovery';
+// @ts-ignore
+import { PublicDiscoveryService } from '@c1rcle/core/public-discovery-service';
+// @ts-ignore
+import { IdempotencyService } from '@c1rcle/core/idempotency-service';
 import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-context';
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
+import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
 
 export default fp(async (fastify) => {
     if (!getApps().length) {
@@ -93,6 +97,7 @@ export default fp(async (fastify) => {
     const workspaceService = new WorkspaceService(workspaceRepo);
     const billingService = new BillingService(db);
     const publicDiscoveryService = new PublicDiscoveryService(db);
+    const idempotencyService = new IdempotencyService(db);
 
     fastify.decorate('db', db);
     fastify.decorate('auth', auth);
@@ -110,17 +115,31 @@ export default fp(async (fastify) => {
     fastify.decorate('workspaceService', workspaceService);
     fastify.decorate('billingService', billingService);
     fastify.decorate('publicDiscoveryService', publicDiscoveryService);
+    fastify.decorate('idempotencyService', idempotencyService);
     fastify.decorate('writeAuditLog', (entry: AuditLogInput) => persistAuditLog(fastify, entry));
+
+    fastify.decorate('invalidatePublicDiscovery', async (target: any = 'all') => {
+        // @ts-ignore
+        await fastify.sendInngestEvent('discovery/sync', { type: target === 'all' ? 'all' : target, id: 'system' });
+    });
 
     fastify.log.info('Firebase Admin, AuthService, Repositories, and Services initialized');
 
     // Simple Request-level User & Workspace Decoration
     fastify.decorateRequest('user', null);
     fastify.decorateRequest('authContext', null);
+    fastify.decorateRequest('authVerification', null);
     fastify.decorateRequest('workspaceId', null);
     fastify.decorateRequest('workspace', null); // 🏢 SaaS: Full workspace metadata
 
+    function logSlowRequestStep(request: any, label: string, startedAt: number, details: Record<string, any> = {}) {
+        const durationMs = Number((Date.now() - startedAt).toFixed(2));
+        if (durationMs < 150) return;
+        request.log.info({ durationMs, ...details }, label);
+    }
+
     async function loadMemberships(uid: string) {
+        const startedAt = Date.now();
         const activeQuery = db.collection('partner_memberships')
             .where('uid', '==', uid)
             .where('isActive', '==', true)
@@ -133,15 +152,57 @@ export default fp(async (fastify) => {
                 .get()
         );
 
-        return snapshot.docs.map((doc) => doc.data());
+        const memberships = snapshot.docs.map((doc) => doc.data());
+        const durationMs = Number((Date.now() - startedAt).toFixed(2));
+        if (durationMs >= 150) {
+            fastify.log.info({ uid, durationMs, count: memberships.length }, 'Partner memberships loaded');
+        }
+        return memberships;
+    }
+
+    function applyRequestAuth(request: any, user: Record<string, any>, memberships: Array<Record<string, any>> = []) {
+        const authContext = buildRequestAuthContext(user, memberships);
+        request.user = {
+            ...user,
+            activeMembership: authContext.activeMembership || user.activeMembership || null,
+        };
+        request.authContext = authContext;
+        return authContext;
+    }
+
+    async function ensureMembershipsForRequest(request: any) {
+        if (!request?.user || request.user.isSystem === true) {
+            return request?.authContext?.memberships || [];
+        }
+
+        if (Array.isArray(request.authContext?.memberships) && request.authContext.memberships.length > 0) {
+            return request.authContext.memberships;
+        }
+
+        const startedAt = Date.now();
+        const memberships = await loadMemberships(request.user.uid).catch((error) => {
+            request.log.warn({ uid: request.user?.uid, error: error?.message || String(error) }, 'Unable to enrich auth context memberships');
+            return [];
+        });
+        applyRequestAuth(request, request.user, memberships);
+        logSlowRequestStep(request, 'Auth membership enrichment completed', startedAt, {
+            uid: request.user.uid,
+            count: memberships.length,
+        });
+        return memberships;
     }
 
     // Global Auth Hook (Extract Token)
     fastify.addHook('onRequest', async (request, reply) => {
         const authHeader = request.headers.authorization;
-        if (!authHeader?.startsWith('Bearer ')) return;
+        const cookies = parseCookieHeader(request.headers.cookie);
+        const sessionCookie = cookies.__session;
+        const tokenSource = authHeader?.startsWith('Bearer ') ? 'bearer' : sessionCookie ? 'session_cookie' : null;
+        const token = authHeader?.startsWith('Bearer ')
+            ? authHeader.split(' ')[1]
+            : sessionCookie;
 
-        const token = authHeader.split(' ')[1];
+        if (!token) return;
 
         // Validate internal system-to-system key before attempting Firebase verification
         const internalKey = process.env.INTERNAL_API_KEY;
@@ -150,26 +211,73 @@ export default fp(async (fastify) => {
             request.user = { uid: 'system', role: 'system', isSystem: true };
             // @ts-ignore
             request.authContext = buildRequestAuthContext({ uid: 'system', role: 'system', isSystem: true }, []);
+            // @ts-ignore
+            request.authVerification = { status: 'valid', source: 'internal_key', tokenSource: 'internal_key' };
             return;
         }
 
+        const startedAt = Date.now();
         try {
-            const user = await authService.verifyToken(token);
-            if (user) {
-                const memberships = await loadMemberships(user.uid).catch(() => []);
-                const authContext = buildRequestAuthContext(user, memberships);
-                // @ts-ignore
-                request.user = {
-                    ...user,
-                    activeMembership: authContext.activeMembership || user.activeMembership || null,
+            const verification = typeof authService.verifyTokenDetailed === 'function'
+                ? await authService.verifyTokenDetailed(token, tokenSource === 'session_cookie' ? 'session_cookie' : 'id_token')
+                : {
+                    status: 'valid',
+                    user: await authService.verifyToken(token),
+                    source: tokenSource === 'session_cookie' ? 'session_cookie' : 'id_token',
+                    errorCode: null,
+                    errorMessage: null,
                 };
-                // @ts-ignore
-                request.authContext = authContext;
+
+            // @ts-ignore
+            request.authVerification = {
+                ...verification,
+                tokenSource,
+                providedToken: true,
+                durationMs: Number((Date.now() - startedAt).toFixed(2)),
+            };
+
+            if (verification.user) {
+                applyRequestAuth(request, verification.user, []);
+                logSlowRequestStep(request, 'Auth token verification completed', startedAt, {
+                    uid: verification.user.uid,
+                    source: verification.source,
+                    tokenSource,
+                });
+            } else if (verification.status === 'error') {
+                request.log.warn({
+                    status: verification.status,
+                    tokenSource,
+                    source: verification.source,
+                    errorCode: verification.errorCode,
+                    errorMessage: verification.errorMessage,
+                }, 'Auth verification temporarily unavailable');
             } else {
-                request.log.warn('Auth service could not verify token');
+                request.log.warn({
+                    status: verification.status,
+                    tokenSource,
+                    source: verification.source,
+                    errorCode: verification.errorCode,
+                }, 'Auth service could not verify token');
             }
-        } catch (error) {
-            request.log.warn('Error in auth service verification');
+        } catch (error: any) {
+            // @ts-ignore
+            request.authVerification = {
+                status: 'error',
+                source: null,
+                tokenSource,
+                providedToken: true,
+                durationMs: Number((Date.now() - startedAt).toFixed(2)),
+                errorCode: error?.code || null,
+                errorMessage: error?.message || null,
+            };
+            request.log.warn({ tokenSource, error: error?.message || String(error) }, 'Error in auth service verification');
+        }
+
+        if ((request as any).user) {
+            const csrf = verifyGuestCsrfRequest(request);
+            if (!csrf.ok) {
+                return reply.status(403).send(csrf.response);
+            }
         }
     });
 
@@ -179,6 +287,10 @@ export default fp(async (fastify) => {
         if (workspaceId) {
             // @ts-ignore
             request.workspaceId = workspaceId;
+
+            if ((request as any).user) {
+                await ensureMembershipsForRequest(request);
+            }
 
             // 🛡️ SaaS: Cache workspace metadata in request to avoid re-fetching
             try {
@@ -212,7 +324,17 @@ export default fp(async (fastify) => {
     fastify.decorate('verifyPartnerAccess', async (request: any, partnerId: string) => {
         if (!request.user) throw new Error('Unauthorized');
 
+        if (request.user?.isSystem === true || request.user?.role === 'admin') return true;
+
+        await ensureMembershipsForRequest(request);
+
         const { uid } = request.user;
+        const membershipMatch = request.authContext?.memberships?.find((membership: any) => {
+            if (membership.partnerId !== partnerId) return false;
+            if (!membership.isActive) return false;
+            return ['manager', 'ops', 'owner'].includes(String(membership.role || '').toLowerCase());
+        });
+        if (membershipMatch) return true;
 
         // 🛡️ Reliability: Execute with timeout to prevent cascading failures
         const timeout = <T>(promise: Promise<T>, ms: number) => {
@@ -281,6 +403,7 @@ declare module 'fastify' {
         workspaceService: any;
         billingService: any;
         publicDiscoveryService: any;
+        idempotencyService: any;
         invalidatePublicDiscovery: (target?: 'events' | 'hosts' | 'venues' | 'search' | 'all') => Promise<void>;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
         requireFeature: (feature: string) => (request: any, reply: any) => Promise<void>;
@@ -289,6 +412,7 @@ declare module 'fastify' {
     interface FastifyRequest {
         user: DecodedIdToken | null;
         authContext: RequestAuthContext | null;
+        authVerification: Record<string, any> | null;
         workspaceId: string | null;
         workspace: any | null;
     }

@@ -6,12 +6,12 @@
  * Renders Cover Wallet balance and recent transactions
  * inside the ticket detail view.
  *
- * Subscribes to Firestore in real time so balance stays current.
+ * Reads the initial wallet summary from the grouped guest wallet payload.
  * Only renders if rules.showBalanceToGuest is true.
  */
 
 import { useEffect, useState } from 'react';
-import { getFirebaseDb } from '../lib/firebase/client.js';
+import { fetchCoverChargeWallet } from '../features/tickets/api/coverWalletApi';
 
 function formatPaise(paise) {
     return `₹${(paise / 100).toFixed(2)}`;
@@ -53,33 +53,28 @@ function ProgressBar({ percent, expired }) {
     );
 }
 
-export function CoverTicketCard({ walletId }) {
-    const [wallet, setWallet] = useState(null);
-    const [loading, setLoading] = useState(true);
+export function CoverTicketCard({ walletId, initialWallet = null }) {
+    const [wallet, setWallet] = useState(initialWallet);
+    const [loading, setLoading] = useState(!initialWallet);
     const [showHistory, setShowHistory] = useState(false);
     const [countdown, setCountdown] = useState(null);
 
-    // Live wallet subscription
+    // Fallback fetch only when a summary was not included in the wallet payload.
     useEffect(() => {
-        if (!walletId) return;
-        let unsub = null;
-
-        (async () => {
+        if (!walletId || initialWallet) return;
+        
+        const fetchWallet = async () => {
             try {
-                const db = await getFirebaseDb();
-                const { doc, onSnapshot } = await import('firebase/firestore');
-                const walletRef = doc(db, 'cover_wallets', walletId);
-                unsub = onSnapshot(walletRef, (snap) => {
-                    if (snap.exists()) setWallet(snap.data());
-                    setLoading(false);
-                }, () => setLoading(false));
+                const data = await fetchCoverChargeWallet(walletId);
+                if (data?.wallet) setWallet(data.wallet);
+                setLoading(false);
             } catch {
                 setLoading(false);
             }
-        })();
+        };
 
-        return () => unsub?.();
-    }, [walletId]);
+        fetchWallet();
+    }, [initialWallet, walletId]);
 
     // Expiry countdown (every 60s, only after 2 AM IST)
     useEffect(() => {
@@ -174,26 +169,20 @@ function TxnHistory({ walletId }) {
     const [txns, setTxns] = useState([]);
 
     useEffect(() => {
-        let unsub = null;
+        if (!walletId) return;
 
-        (async () => {
+        const fetchTxns = async () => {
             try {
-                const db = await getFirebaseDb();
-                const { collection, query, orderBy, limit, onSnapshot } = await import('firebase/firestore');
-                const q = query(
-                    collection(db, 'cover_wallets', walletId, 'txns'),
-                    orderBy('createdAt', 'desc'),
-                    limit(20),
-                );
-                unsub = onSnapshot(q, (snap) => {
-                    setTxns(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-                });
+                const data = await fetchCoverChargeWallet(walletId);
+                if (data?.txns) setTxns(data.txns);
             } catch {
                 // silently fail
             }
-        })();
+        };
 
-        return () => unsub?.();
+        fetchTxns();
+        const id = setInterval(fetchTxns, 15000);
+        return () => clearInterval(id);
     }, [walletId]);
 
     if (txns.length === 0) {

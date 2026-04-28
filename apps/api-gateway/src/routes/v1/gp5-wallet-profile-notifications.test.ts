@@ -2,14 +2,6 @@ import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../services/guest-gp5', () => ({
-    getGuestWallet: vi.fn(async () => ({
-        upcomingTickets: [{ ticketId: 'ticket_1' }],
-        pastTickets: [],
-        actionNeeded: [],
-        cancelledTickets: [],
-        shareBundles: {},
-    })),
-    getGuestWalletTicket: vi.fn(async () => ({ ticketId: 'ticket_1', eventId: 'event_1' })),
     createGuestShareBundle: vi.fn(async () => ({ id: 'bundle_1', orderId: 'ord_1', token: 'share_tok' })),
     getGuestShareState: vi.fn(async () => ({
         order: { id: 'ord_1', userId: 'user_1' },
@@ -38,6 +30,20 @@ vi.mock('../../services/guest-gp5', () => ({
     previewGuestPairClaim: vi.fn(async () => ({ id: 'claim_1', eventId: 'event_1' })),
     getGuestCoverWallet: vi.fn(async () => [{ id: 'wallet_1' }]),
     generateGuestTicketDownload: vi.fn(async () => ({ buffer: Buffer.from('pdf'), filename: 'ticket-ord_1.pdf' })),
+}));
+
+vi.mock('@c1rcle/core/guest-wallet-profile-notification-service', () => ({
+    getGuestWallet: vi.fn(async () => ({
+        upcomingTickets: [{ ticketId: 'ticket_1' }],
+        pastTickets: [],
+        actionNeeded: [],
+        cancelledTickets: [],
+        coverWalletsByOrder: {
+            ord_1: [{ id: 'wallet_1', orderId: 'ord_1', currentBalancePaise: 3200 }],
+        },
+        shareBundles: {},
+    })),
+    getGuestWalletTicket: vi.fn(async () => ({ ticketId: 'ticket_1', eventId: 'event_1' })),
     getGuestProfileSummary: vi.fn(async () => ({
         profile: { uid: 'user_2', displayName: 'Member' },
         events: { upcoming: [], attended: [] },
@@ -101,6 +107,9 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
             pastTickets: [],
             actionNeeded: [],
             cancelledTickets: [],
+            coverWalletsByOrder: {
+                ord_1: [{ id: 'wallet_1', orderId: 'ord_1', currentBalancePaise: 3200 }],
+            },
         });
         await server.close();
     });

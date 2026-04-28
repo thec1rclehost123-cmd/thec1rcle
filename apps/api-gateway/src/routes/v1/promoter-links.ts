@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
+import { trackPromoterLinkClick } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 
 const CreateLinkBody = z.object({
@@ -136,17 +137,13 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: TrackClickBody })]
     }, async (request: any, reply) => {
         const { code } = request.body;
-        const snap = await fastify.db.collection(LINKS_COL)
-            .where('code', '==', code)
-            .where('isActive', '==', true)
-            .limit(1)
-            .get();
-        if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
-        const { FieldValue } = await import('firebase-admin/firestore');
-        await snap.docs[0].ref.update({
-            clicks: FieldValue.increment(1),
-            updatedAt: new Date().toISOString(),
-        });
+
+        const result = await trackPromoterLinkClick(code, { source: 'promoter-links' });
+
+        if (result.status !== 'ok') {
+            return reply.status(404).send({ error: 'Link not found' });
+        }
+
         return { success: true };
     });
 

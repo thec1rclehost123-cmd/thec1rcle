@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+// @ts-ignore
+import { getGuestWallet, getGuestWalletTicket } from '@c1rcle/core/guest-wallet-profile-notification-service';
 import {
     acceptGuestTransfer,
     assignGuestPartner,
@@ -15,8 +17,6 @@ import {
     getGuestCoupleStatus,
     getGuestPendingTransfers,
     getGuestShareState,
-    getGuestWallet,
-    getGuestWalletTicket,
     initiateGuestTransfer,
     previewGuestPairClaim,
     previewGuestShareBundle,
@@ -132,7 +132,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         if (!userId) return;
 
         try {
-            return await getGuestWallet(userId);
+            return await getGuestWallet(fastify.db, fastify.auth, userId);
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets failed');
             return reply.status(500).send({ error: 'Internal server error' });
@@ -466,7 +466,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         if (!userId) return;
 
         try {
-            const ticket = await getGuestWalletTicket(userId, request.params.ticketId);
+            const ticket = await getGuestWalletTicket(fastify.db, fastify.auth, userId, request.params.ticketId);
             if (!ticket) return reply.status(404).send({ error: 'Ticket not found' });
             return { success: true, ticket };
         } catch (error: any) {

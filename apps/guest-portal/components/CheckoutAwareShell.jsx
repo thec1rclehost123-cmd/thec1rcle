@@ -1,14 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import dynamic from "next/dynamic";
 import { useState, useEffect } from "react";
 import PageWrapper from "./PageWrapper";
-
-const SmoothScroll = dynamic(() => import("./SmoothScroll"), { ssr: false });
-const MobileBottomNav = dynamic(() => import("./MobileBottomNav"), { ssr: false });
-const PageLoadingAnimation = dynamic(() => import("./PageLoadingAnimation"), { ssr: false });
-const ScrollProgressBar = dynamic(() => import("./ScrollProgressBar"), { ssr: false });
+import SmoothScroll from "./SmoothScroll";
+import MobileBottomNav from "./MobileBottomNav";
+import PageLoadingAnimation from "./PageLoadingAnimation";
+import ScrollProgressBar from "./ScrollProgressBar";
 
 export default function CheckoutAwareShell({ children, navbar, footer }) {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -25,7 +23,7 @@ export default function CheckoutAwareShell({ children, navbar, footer }) {
           setIsLoaded(true);
         }
       }
-    }, 1500); // 1.5s delay is a safe bet for LCP completion on slow 3G/4G
+    }, 600);
     return () => clearTimeout(timer);
   }, []);
 

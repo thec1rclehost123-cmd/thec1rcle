@@ -242,17 +242,16 @@ export default function ExploreFilterBar({
     setSearchTerm,
 }) {
     const sortOptions = [
-        { label: "Trending", value: "heat" },
-        { label: "Newest", value: "new" },
-        { label: "Soonest", value: "soonest" },
-        { label: "Price: Low to High", value: "price" },
+        { label: "Trending", value: "Trending" },
+        { label: "This Week", value: "This Week" },
+        { label: "New", value: "New" },
+        { label: "Soonest", value: "Soonest" },
+        { label: "Price: Low to High", value: "Price Low to High" },
     ];
 
     const dateOptions = [
-        { label: "Any Date", value: "all" },
+        { label: "Any Date", value: "any" },
         { label: "Today", value: "today" },
-        { label: "Tomorrow", value: "tomorrow" },
-        { label: "This Week", value: "week" },
         { label: "This Weekend", value: "weekend" },
     ];
 
@@ -272,14 +271,14 @@ export default function ExploreFilterBar({
                 )}
                 <FilterPill
                     label="Sort"
-                    value={sortOptions.find(o => o.value === sort)?.label}
+                    value={sort !== "Trending" ? sortOptions.find(o => o.value === sort)?.label : "Sort"}
                     options={sortOptions}
                     onChange={setSort}
                 />
                 <div className="h-6 w-[1.5px] bg-white/10 mx-1.5" />
                 <FilterPill
                     label="Date"
-                    value={dateOptions.find(o => o.value === date)?.label}
+                    value={date !== "any" ? dateOptions.find(o => o.value === date)?.label : "Date"}
                     options={dateOptions}
                     onChange={setDate}
                 />

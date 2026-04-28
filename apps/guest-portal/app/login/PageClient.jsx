@@ -1,84 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState, useRef, Suspense } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Mail, Lock, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
-import { useAuth } from "../../components/providers/AuthProvider";
-import { useToast } from "../../components/providers/ToastProvider";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import Link from "next/link";
 import GenderSelector from "../../components/GenderSelector";
 import dynamic from "next/dynamic";
 const RitualBackground = dynamic(() => import("../../components/RitualBackground"), { ssr: false });
 import CountrySelect from "../../components/ui/CountrySelect";
 import PhoneInput from "../../components/ui/PhoneInput";
 import VerifyPanel from "../../components/VerifyPanel";
-import { authService } from "../../lib/authService";
-import { buildAuthCallbackUrl, buildLoginUrl, buildSignupUrl, getReturnUrl } from "../../lib/auth/guestRouteAccess";
-import { countries } from "../../lib/data/countries";
+import { useLoginFlow } from "../../features/auth/hooks/useLoginFlow";
 
 const CITIES = ["Mumbai", "Pune", "Bengaluru", "Goa"];
-
-const SESSION_KEYS = {
-    step: "c1_auth_step",
-    form: "c1_auth_form",
-    isNewUser: "c1_auth_isNewUser",
-    isOnboarding: "c1_auth_isOnboarding"
-};
-
-function readSession(key, fallback) {
-    if (typeof window === "undefined") return fallback;
-    try {
-        const val = sessionStorage.getItem(key);
-        return val !== null ? val : fallback;
-    } catch {
-        return fallback;
-    }
-}
-
-function clearSessionPersistence() {
-    Object.values(SESSION_KEYS).forEach(k => {
-        try { sessionStorage.removeItem(k); } catch { /* noop */ }
-    });
-}
-
-function getPersistedForm(form) {
-    return {
-        ...form,
-        password: "",
-    };
-}
-
-function getLoginErrorMessage(error) {
-    switch (error?.code) {
-        case "auth/operation-not-allowed":
-            return "Google sign-in is not enabled for this Firebase project.";
-        case "auth/unauthorized-domain":
-            return "This domain is not authorized for Google sign-in.";
-        case "auth/invalid-credential":
-        case "auth/wrong-password":
-            return "Incorrect email or password.";
-        case "auth/user-not-found":
-            return "No account found for this email.";
-        case "auth/too-many-requests":
-            return "Too many login attempts. Please try again later.";
-        case "auth/network-request-failed":
-            return "Network error. Check your connection and try again.";
-        default:
-            return error?.message || "Unable to sign in right now.";
-    }
-}
-
-const baseForm = {
-    email: "",
-    password: "",
-    name: "",
-    age: "",
-    gender: "",
-    phone: "",
-    country: "IN",
-    city: ""
-};
 
 export default function LoginPage() {
     return (
@@ -92,339 +26,32 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-    const { user, loading, login, register, loginWithGoogle, updateUserProfile, error: authError } = useAuth();
-    const { toast } = useToast();
-    const pathname = usePathname();
-    const router = useRouter();
-    const searchParams = useSearchParams();
-    const forceOnboarding = searchParams.get("onboarding") === "1";
-    const forceSignup = pathname === "/signup" || searchParams.get("mode") === "signup" || searchParams.get("mode") === "register";
-
-    const [isLoginMode, setIsLoginMode] = useState(() => !forceOnboarding && !forceSignup); // Toggle between traditional Login vs Signup
-
-    // ── Restore from sessionStorage on mount ──────────────────────────────
-    const [form, setForm] = useState(() => {
-        const saved = readSession(SESSION_KEYS.form, null);
-        if (saved) {
-            try { return { ...baseForm, ...JSON.parse(saved), password: "" }; } catch { /* noop */ }
-        }
-        return baseForm;
-    });
-    const [step, setStep] = useState(() => {
-        const s = parseInt(readSession(SESSION_KEYS.step, "1"), 10);
-        if (forceOnboarding) {
-            if (isNaN(s) || s < 3) return 3;
-            return s;
-        }
-        return isNaN(s) ? 1 : s;
-    });
-    const [isNewUser, setIsNewUser] = useState(
-        () => readSession(SESSION_KEYS.isNewUser, "false") === "true"
-    );
-    const [isOnboarding, setIsOnboarding] = useState(
-        () => forceOnboarding || readSession(SESSION_KEYS.isOnboarding, "false") === "true"
-    );
-
-    const [status, setStatus] = useState({ type: "", message: "" });
-    const [mounted, setMounted] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [phoneVerified, setPhoneVerified] = useState(false);
-    const formRef = useRef(null);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    const redirectUrl = useMemo(() => getReturnUrl(searchParams), [searchParams]);
-
-    useEffect(() => {
-        if (!forceOnboarding) return;
-        setIsLoginMode(false);
-        setIsNewUser(false);
-        setIsOnboarding(true);
-        setStep((current) => (current < 3 ? 3 : current));
-    }, [forceOnboarding]);
-
-    useEffect(() => {
-        if (forceOnboarding || !forceSignup) return;
-        setIsLoginMode(false);
-    }, [forceOnboarding, forceSignup]);
-
-    // ── Persist step/form/flags to sessionStorage ─────────────────────────
-    useEffect(() => {
-        if (step > 2 && (isNewUser || isOnboarding)) {
-            try {
-                sessionStorage.setItem(SESSION_KEYS.step, String(step));
-                sessionStorage.setItem(SESSION_KEYS.isNewUser, String(isNewUser));
-                sessionStorage.setItem(SESSION_KEYS.isOnboarding, String(isOnboarding));
-                sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify(getPersistedForm(form)));
-            } catch { /* noop */ }
-        }
-    }, [step, form, isNewUser, isOnboarding]);
-
-    // ── Redirect already-logged-in users (not mid-onboarding) ─────────────
-    useEffect(() => {
-        if (user && !loading && !isNewUser && !isOnboarding && step < 7) {
-            router.replace(buildAuthCallbackUrl(redirectUrl));
-        }
-    }, [user, loading, router, redirectUrl, step, isNewUser, isOnboarding]);
-
-    useEffect(() => {
-        if (authError && step < 3) {
-            setStatus({ type: "error", message: authError });
-        }
-    }, [authError, step]);
-
-    // ── Computed values ───────────────────────────────────────────────────
-    const cleanForm = useMemo(() => ({
-        ...form,
-        email: form.email.toLowerCase().trim(),
-        phone: `${countries.find(c => c.code === form.country)?.dialCode || ""}${form.phone.trim().replace(/^0+/, "")}`
-    }), [form]);
-
-    const handleChange = (field) => (event) => {
-        setForm((prev) => ({ ...prev, [field]: event.target.value }));
-    };
-
-    // ── Google Login ──────────────────────────────────────────────────────
-    const handleGoogleLogin = async () => {
-        setSubmitting(true);
-        setStatus({ type: "", message: "" });
-        try {
-            const { user: googleUser, profile: googleProfile } = await loginWithGoogle();
-
-            if (googleProfile?.onboardingComplete !== true) {
-                setIsLoginMode(false);
-                setIsOnboarding(true);
-                setStep(3);
-                if (googleUser?.displayName && !form.name) {
-                    setForm(prev => ({ ...prev, name: googleUser.displayName }));
-                }
-            } else {
-                toast.success("Welcome back");
-                router.push(redirectUrl);
-            }
-        } catch (err) {
-            console.error("Google Auth error:", err);
-            setStatus({ type: "error", message: getLoginErrorMessage(err) });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const toggleMode = () => {
-        setStatus({ type: "", message: "" });
-        clearSessionPersistence();
-        if (isLoginMode) {
-            router.push(buildSignupUrl(redirectUrl));
-            return;
-        }
-        router.push(buildLoginUrl(redirectUrl));
-    };
-    // ── Email / Password Auth ─────────────────────────────────────────────
-    const handleInitialAuth = async () => {
-        setSubmitting(true);
-        try {
-            const { profile: loadedProfile } = await login(cleanForm.email, form.password, true);
-            // Existing user who never finished onboarding → force them through
-            if (loadedProfile?.onboardingComplete !== true) {
-                setIsLoginMode(false);
-                setIsNewUser(false);
-                setIsOnboarding(true);
-                setStep(3);
-            }
-            // Otherwise the redirect useEffect handles navigation
-        } catch (err) {
-            if (err?.code === "auth/user-not-found") {
-                setIsLoginMode(false);
-                setIsNewUser(true);
-                setStep(3);
-                setStatus({ type: "info", message: "Creating your new account..." });
-            } else {
-                setStatus({ type: "error", message: getLoginErrorMessage(err) });
-            }
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // ── Step navigation ───────────────────────────────────────────────────
-    const nextStep = async () => {
-        setStatus({ type: "", message: "" });
-
-        if (step === 1 && form.email && form.password && !isLoginMode) {
-            setIsNewUser(true);
-            setStep(3);
-            return;
-        }
-
-        if (step === 1 && form.email && form.password && isLoginMode) {
-            setSubmitting(true);
-            try {
-                const res = await fetch("/api/auth/check", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: form.email })
-                });
-                const data = await res.json();
-                
-                if (data.exists) {
-                    setIsLoginMode(true);
-                    // Since they already typed the password, attempt immediate login
-                    return handleInitialAuth();
-                } else {
-                    setIsLoginMode(false);
-                    setIsNewUser(true);
-                    setStep(3); // Skip step 2 as requested, move to Phone
-                    return;
-                }
-            } catch (err) {
-                console.error("Check protocol failed:", err);
-                // Fallback to mode-specific behavior
-                if (isLoginMode) return handleInitialAuth();
-                setStep(3);
-            } finally {
-                setSubmitting(false);
-            }
-            return;
-        }
-
-        if (isLoginMode) {
-            // Should not be reachable on step 1 due to the logic above
-            return;
-        }
-
-        if (step === 3 && form.phone) {
-            setStep(4);
-        } else if (step === 4 && form.name) {
-            setStep(5);
-        } else if (step === 5 && form.age) {
-            setStep(6);
-        } else if (step === 6 && form.gender) {
-            setStep(7);
-        } else if (step === 7 && form.city) {
-            if (isNewUser) handleStartRegistration();
-            else handleCompleteOnboarding(form.city);
-        }
-    };
-
-    const prevStep = () => {
-        if (step === 1) {
-            router.back();
-            return;
-        }
-        const next = (step === 3) ? 1 : step - 1;
-        setStep(next);
-        try { sessionStorage.setItem(SESSION_KEYS.step, String(next)); } catch { /* noop */ }
-    };
-
-    // ── Registration flow ─────────────────────────────────────────────────
-    const handleStartRegistration = async () => {
-        console.log(`[AUTH-TRACE] handleStartRegistration triggered. Password length: ${form.password?.length || 0}`);
-        setSubmitting(true);
-        setStatus({ type: "", message: "" });
-        try {
-            if (!form.password || form.password.length < 6) {
-                throw new Error("Password lost in ritual. Please go back to step 1 and re-enter.");
-            }
-            await authService.sendOtp("phone", cleanForm.phone);
-            setStep(8); // push OTP to step 8
-        } catch (err) {
-            setStatus({ type: "error", message: err.message });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    const handleFinalizeRegistration = async () => {
-        console.log(`[AUTH-TRACE] handleFinalizeRegistration triggered. Password length: ${form.password?.length || 0}`);
-        setSubmitting(true);
-        if (!form.password || form.password.length < 8) {
-            setStatus({ type: "error", message: "Security ritual requires at least 8 characters for your password. Please go back to step 1." });
-            setSubmitting(false);
-            return;
-        }
-
-        try {
-            await register(cleanForm.email, form.password, {
-                displayName: form.name.trim(),
-                age: parseInt(form.age, 10),
-                gender: form.gender,
-                phone: cleanForm.phone,
-                city: form.city,
-                onboardingComplete: true
-            });
-            clearSessionPersistence();
-            router.push("/");
-        } catch (err) {
-            setStatus({ type: "error", message: err.message });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // ── Google onboarding completion ──────────────────────────────────────
-    const handleCompleteOnboarding = async (cityOverride) => {
-        setSubmitting(true);
-        try {
-            await updateUserProfile({
-                phone: cleanForm.phone,
-                gender: form.gender,
-                age: form.age,
-                displayName: form.name || user?.displayName || "Member",
-                city: cityOverride ?? form.city,
-                onboardingComplete: true
-            });
-            clearSessionPersistence();
-            setIsOnboarding(false);
-            router.push(redirectUrl);
-        } catch (err) {
-            setStatus({ type: "error", message: err.message });
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
-    // ── City auto-transition ──────────────────────────────────────────────────
-    const handleCitySelect = (city) => {
-        setForm(prev => ({ ...prev, city }));
-        if (isOnboarding) {
-            setTimeout(() => handleCompleteOnboarding(city), 150);
-            return;
-        }
-        if (isNewUser) {
-            setTimeout(() => handleStartRegistration(), 150);
-        }
-    };
-
-    // ── OTP verify / resend ───────────────────────────────────────────────
-    const handleVerify = async (type, code) => {
-        if (type === "final") return handleFinalizeRegistration();
-
-        const success = await authService.verifyOtp("phone", cleanForm.phone, code);
-        if (success) {
-            setPhoneVerified(true);
-            return true;
-        }
-        return false;
-    };
-
-    const handleResend = async (type) => {
-        try {
-            const recipient = type === "phone" ? cleanForm.phone : cleanForm.email;
-            await authService.sendOtp(type, recipient);
-            toast?.({ title: "Code sent", description: "Check your phone." });
-        } catch (err) {
-            toast?.({ title: "Send failed", description: err.message, variant: "destructive" });
-        }
-    };
-
-    // ── UI helpers ────────────────────────────────────────────────────────
-    const totalSteps = 7;
-    const currentProgressStep = isLoginMode ? 1 : Math.min(step - 1, totalSteps);
-    const headingEyebrow = step >= 3 ? "Identity" : (isLoginMode ? "Member Access" : "Create Account");
-    const primaryActionLabel = step === 1 ? "Continue" : "Continue";
-    const googleCtaLabel = step === 1 ? "Continue with Google" : "Use Google";
+    const {
+        cleanForm,
+        currentProgressStep,
+        form,
+        formRef,
+        handleChange,
+        handleCitySelect,
+        handleGoogleLogin,
+        handleResend,
+        handleVerify,
+        headingEyebrow,
+        isLoginMode,
+        isOnboarding,
+        mounted,
+        nextStep,
+        prevStep,
+        primaryActionLabel,
+        setForm,
+        setStep,
+        status,
+        step,
+        submitting,
+        toggleMode,
+        totalSteps,
+    } = useLoginFlow();
+    const googleCtaLabel = "Continue with Google";
 
     const stepHeading = () => {
         if (step === 1) return <>{isLoginMode ? "Welcome" : "Join the"} <br /><span className="text-orange">{isLoginMode ? "Back." : "Circle."}</span></>;
@@ -443,37 +70,41 @@ function LoginForm() {
 
     return (
         <div className="flex flex-col md:flex-row w-full h-full relative">
-            <header className="fixed top-8 left-8 right-8 flex justify-between items-center z-[100]">
+            <header className="fixed top-32 left-8 z-[100] pointer-events-none">
                 <button
                     onClick={prevStep}
-                    className="h-10 w-10 flex items-center justify-center rounded-full border border-white/20 bg-white/5 backdrop-blur-2xl hover:border-orange hover:bg-white/10 transition-all group"
+                    className="h-10 w-10 flex items-center justify-center rounded-full border border-white/20 bg-white/5 backdrop-blur-2xl hover:border-orange hover:bg-white/10 transition-all group pointer-events-auto"
                 >
                     <ArrowLeft size={18} className="text-white group-hover:text-orange transition-colors" />
                 </button>
             </header>
 
             {/* Cinematic Left Panel (Desktop only) */}
-            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-full relative overflow-hidden bg-[#FF4D22] items-center justify-center p-12 flex-col">
+            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-[100dvh] relative overflow-hidden bg-[#FF4D22] items-center justify-center p-12 flex-col">
                 <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                     className="relative z-10 w-full text-center"
                 >
-                    <h2 className="text-[10vw] font-black uppercase tracking-tight leading-[0.9] text-black text-center">
+                    <h2 className="text-[12vw] md:text-[10vw] font-black uppercase tracking-tighter leading-[0.85] text-black text-center whitespace-nowrap">
                         GET IN <br /> THE C1RCLE
                     </h2>
                 </motion.div>
-                <div className="absolute bottom-12 flex items-center gap-4 opacity-50">
-                    <div className="h-px w-10 bg-black" />
-                    <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-black">Discover Life Offline</span>
-                    <div className="h-px w-10 bg-black" />
-                </div>
+                <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 0.5 }}
+                    transition={{ delay: 0.8, duration: 1 }}
+                    className="absolute bottom-12 flex items-center gap-4"
+                >
+                    <div className="h-px w-12 bg-black" />
+                    <span className="text-[11px] font-black uppercase tracking-[0.5em] text-black">Discover Life Offline</span>
+                    <div className="h-px w-12 bg-black" />
+                </motion.div>
             </div>
 
-            {/* Right Panel / Form */}
             <div className="flex-1 flex flex-col justify-start md:justify-center items-center px-4 md:px-12 relative z-10 w-full min-h-screen bg-black/50 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none">
-                <div className="mx-auto flex w-full max-w-[380px] flex-col gap-8 pt-24 pb-10 md:py-12">
+                <div className="mx-auto flex w-full max-w-[380px] flex-col gap-8 pt-32 pb-10 md:py-12">
                     {/* Step heading — hidden during success screen */}
                     {step < 9 && (
                         <div className="text-center md:text-left">
@@ -496,14 +127,14 @@ function LoginForm() {
                     <div className="relative w-full">
                         <AnimatePresence mode="wait">
                             {step <= 7 ? (
-                                <motion.div
-                                    key={`form-${isLoginMode}`}
-                                    initial={{ opacity: 0, scale: 0.98 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.95 }}
-                                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                                    className="relative flex min-h-[430px] w-full flex-col overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] px-8 pt-8 pb-10 shadow-2xl backdrop-blur-2xl glass-panel"
-                                >
+                                    <motion.div
+                                        key={`form-${isLoginMode}`}
+                                        initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                                        exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                                        transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                                        className="relative flex min-h-[460px] w-full flex-col overflow-hidden rounded-[40px] border border-white/10 bg-black/40 dark:bg-black/60 px-8 pt-10 pb-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] backdrop-blur-3xl glass-panel"
+                                    >
                                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 
                                     <form
@@ -551,6 +182,14 @@ function LoginForm() {
                                                                 className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                             />
                                                             <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest pl-1">At least 8 characters</p>
+                                                            {isLoginMode && (
+                                                                <Link
+                                                                    href={form.email ? `/forgot-password?email=${encodeURIComponent(form.email)}` : "/forgot-password"}
+                                                                    className="text-[9px] font-bold text-orange/60 hover:text-orange uppercase tracking-widest transition-colors mt-2 block pl-1 w-fit"
+                                                                >
+                                                                    Forgot Password?
+                                                                </Link>
+                                                            )}
                                                         </div>
 
                                                         <div className="pt-2 border-t border-white/5 space-y-4">

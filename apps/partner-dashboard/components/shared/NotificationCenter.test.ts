@@ -62,12 +62,12 @@ describe("NotificationCenter helpers", () => {
 
         expect(buildMarkAllReadRequest("host", "host_123")).toEqual({
             url: "/api/host/notifications",
-            body: { markAll: true },
+            body: { markAllRead: true },
         });
 
         expect(buildMarkAllReadRequest("promoter", "promoter_123")).toEqual({
             url: "/api/promoter/notifications",
-            body: { markAll: true },
+            body: { markAllRead: true },
         });
     });
 

@@ -1,27 +1,31 @@
 import * as Sentry from "@sentry/nextjs";
-
-const REQUIRED_ENV_VARS = [
-    "FIREBASE_PROJECT_ID",
-    "FIREBASE_CLIENT_EMAIL",
-    "FIREBASE_PRIVATE_KEY",
-];
+import { getGuestApiBaseConfig } from "./lib/api/base-url.js";
 
 export function register() {
     if (process.env.NEXT_RUNTIME === "nodejs") {
-        const missing = REQUIRED_ENV_VARS.filter((k) => !process.env[k]);
-        if (missing.length > 0) {
+        const { apiBaseUrl, sourceKey } = getGuestApiBaseConfig(process.env);
+        if (!apiBaseUrl) {
             console.error(
                 JSON.stringify({
                     level: "error",
                     route: "instrumentation",
-                    message: "CRITICAL: Missing required environment variables",
-                    missing,
+                    message: "CRITICAL: Missing guest API base URL",
                     ts: new Date().toISOString(),
                 })
             );
             if (process.env.NODE_ENV === "production") {
                 process.exit(1);
             }
+        } else if (process.env.NODE_ENV !== "production" && sourceKey !== "GUEST_API_GATEWAY_URL") {
+            console.warn(
+                JSON.stringify({
+                    level: "warn",
+                    route: "instrumentation",
+                    message: "Using legacy guest API base URL env alias; prefer GUEST_API_GATEWAY_URL",
+                    sourceKey,
+                    ts: new Date().toISOString(),
+                })
+            );
         }
 
         if (process.env.NODE_ENV !== "development") {

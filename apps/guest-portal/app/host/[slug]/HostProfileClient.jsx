@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import ShimmerImage from "../../../components/ShimmerImage";
 import { useAuth } from "../../../components/providers/AuthProvider";
+import { saveIntent } from "../../../lib/utils/intentStore";
+import { followHost, getHostFollowStatus, unfollowHost } from "../../../features/social/api/socialApi";
 
 const SOCIAL_META = {
     instagram: { icon: Instagram, label: "Instagram" },
@@ -22,15 +24,47 @@ export default function HostProfileClient({ host }) {
     const { user } = useAuth();
     const [activeContentTab, setActiveContentTab] = useState("posts");
     const [followed, setFollowed] = useState(false);
+    const [followersCount, setFollowersCount] = useState(host.followers ?? 0);
+    const [isFollowLoading, setIsFollowLoading] = useState(false);
 
-    const handleFollow = () => {
+    useEffect(() => {
+        setFollowersCount(host.followers ?? 0);
+    }, [host.followers]);
+
+    useEffect(() => {
+        if (!user || !host?.id) return;
+        getHostFollowStatus(host.id)
+            .then(setFollowed)
+            .catch(() => {});
+    }, [user, host?.id]);
+
+    const handleFollow = async () => {
+        if (isFollowLoading) return;
         if (!user) {
-            window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+            saveIntent("FOLLOW_HOST", null, { targetId: host.id, targetType: "host" });
+            window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL", {
                 detail: { intent: "FOLLOW_HOST", targetId: host.id }
             }));
             return;
         }
-        setFollowed(f => !f);
+
+        const nextStatus = !followed;
+        setFollowed(nextStatus);
+        setFollowersCount((prev) => nextStatus ? prev + 1 : Math.max(0, prev - 1));
+        setIsFollowLoading(true);
+
+        try {
+            if (nextStatus) {
+                await followHost(host.id);
+            } else {
+                await unfollowHost(host.id);
+            }
+        } catch {
+            setFollowed(!nextStatus);
+            setFollowersCount((prev) => !nextStatus ? prev + 1 : Math.max(0, prev - 1));
+        } finally {
+            setIsFollowLoading(false);
+        }
     };
 
     const handleShare = () => {
@@ -136,7 +170,7 @@ export default function HostProfileClient({ host }) {
                 <div className="max-w-[1600px] mx-auto px-4 sm:px-8 lg:px-12 py-6 flex flex-wrap items-center justify-between gap-5">
                     <div className="flex gap-8">
                         <div>
-                            <p className="text-2xl font-black text-black dark:text-white tabular-nums">{(host.followers ?? 0).toLocaleString('en-IN')}</p>
+                            <p className="text-2xl font-black text-black dark:text-white tabular-nums">{followersCount.toLocaleString('en-IN')}</p>
                             <p className="text-[9px] font-bold uppercase tracking-widest text-black/40 dark:text-white/40 mt-0.5">Followers</p>
                         </div>
                         <div>
@@ -159,6 +193,7 @@ export default function HostProfileClient({ host }) {
                                     ? "bg-[#F44A22] text-white shadow-[#F44A22]/20"
                                     : "bg-black dark:bg-white text-white dark:text-black"
                             }`}
+                            disabled={isFollowLoading}
                         >
                             <Heart size={13} fill={followed ? "currentColor" : "none"} />
                             {followed ? "Following" : "Follow"}

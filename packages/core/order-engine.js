@@ -5,9 +5,15 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { getAdminDb } from "./admin.js";
 
 const ORDER_SEQUENCE_COLLECTION = "system_counters";
 const ORDER_SEQUENCE_DOC_ID = "orders";
+export const PAYMENT_PENDING_ORDER_STATUS = "payment_pending";
+
+export function isPaymentPendingOrderStatus(status) {
+    return status === PAYMENT_PENDING_ORDER_STATUS || status === "pending_payment";
+}
 
 function formatOrderNumber(orderIndex) {
     return `#${String(orderIndex).padStart(8, "0")}`;
@@ -116,6 +122,43 @@ export function generateOrderId(prefix = "ORD") {
 }
 
 /**
+ * Builds a standardized Order payload
+ */
+export function buildOrderPayload(params) {
+    const { reservation, event, pricing, user, promoterCode, workspaceId } = params;
+    const isRSVP = !!event.isRSVP;
+    const orderId = generateOrderId(isRSVP ? 'RSVP' : 'ORD');
+
+    return {
+        id: orderId,
+        eventId: event.id,
+        eventName: event.title,
+        workspaceId: workspaceId || event.workspaceId || null,
+        userId: user.id,
+        userName: user.name,
+        userEmail: user.email,
+        userPhone: user.phone,
+        tickets: pricing.items.map((item) => ({
+            ticketId: item.tierId,
+            name: item.tierName,
+            quantity: item.quantity,
+            price: item.unitPrice,
+            total: item.subtotal
+        })),
+        subtotal: pricing.subtotal,
+        discounts: pricing.discounts,
+        discountTotal: pricing.discountTotal,
+        fees: pricing.fees,
+        totalAmount: pricing.grandTotal,
+        status: (pricing.isFree || isRSVP) ? 'confirmed' : PAYMENT_PENDING_ORDER_STATUS,
+        reservationId: reservation.id,
+        promoterCode: promoterCode || null,
+        createdAt: new Date().toISOString(),
+        isRSVP
+    };
+}
+
+/**
  * Orchestrates atomic order creation (Firestore Transaction)
  */
 export async function executeOrderCreation(transaction, {
@@ -154,7 +197,7 @@ export async function executeOrderCreation(transaction, {
     }
 
     // 3. Status logic
-    const status = (orderData.totalAmount === 0 || orderData.isRSVP) ? "confirmed" : "pending_payment";
+    const status = (orderData.totalAmount === 0 || orderData.isRSVP) ? "confirmed" : PAYMENT_PENDING_ORDER_STATUS;
     if (orderSequence.sequenceRef) {
         transaction.set(
             orderSequence.sequenceRef,
@@ -210,9 +253,168 @@ export function prepareOrderConfirmation(order, paymentData) {
     };
 }
 
+export async function getOrderById(orderId) {
+    if (!orderId) return null;
+    const db = getAdminDb();
+    const [orderDoc, rsvpDoc] = await Promise.all([
+        db.collection('orders').doc(orderId).get(),
+        db.collection('rsvp_orders').doc(orderId).get(),
+    ]);
+    if (orderDoc.exists) {
+        const data = orderDoc.data();
+        return {
+            id: orderDoc.id, ...data,
+            createdAt: data.createdAt?.toDate?.() ? data.createdAt.toDate().toISOString() : data.createdAt,
+            updatedAt: data.updatedAt?.toDate?.() ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+        };
+    }
+    if (rsvpDoc.exists) {
+        const data = rsvpDoc.data();
+        return {
+            id: rsvpDoc.id, ...data,
+            createdAt: data.createdAt?.toDate?.() ? data.createdAt.toDate().toISOString() : data.createdAt,
+            updatedAt: data.updatedAt?.toDate?.() ? data.updatedAt.toDate().toISOString() : data.updatedAt,
+        };
+    }
+    return null;
+}
+
+export async function getUserOrders(userId, limit = 50) {
+    if (!userId) return [];
+    const db = getAdminDb();
+    const max = Math.max(1, Math.min(Number(limit) || 50, 100));
+
+    const [ordersSnapshot, rsvpSnapshot] = await Promise.all([
+        db.collection("orders").where("userId", "==", userId).limit(max).get(),
+        db.collection("rsvp_orders").where("userId", "==", userId).limit(max).get(),
+    ]);
+
+    return [
+        ...ordersSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), isRSVP: false })),
+        ...rsvpSnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data(), isRSVP: true })),
+    ].sort((a, b) => {
+        const left = new Date(a.createdAt || a.updatedAt || 0).getTime();
+        const right = new Date(b.createdAt || b.updatedAt || 0).getTime();
+        return right - left;
+    }).slice(0, max);
+}
+
+export async function cancelOrder(orderId) {
+    const order = await getOrderById(orderId);
+    if (!order) throw new Error("Order not found");
+    if (order.status === "cancelled") return order;
+
+    const db = getAdminDb();
+    const now = new Date().toISOString();
+
+    await db.runTransaction(async (transaction) => {
+        const eventRef = db.collection("events").doc(order.eventId);
+        const orderRef = db.collection("orders").doc(orderId);
+        
+        const [eventDoc, bundlesSnapshot, assignmentsSnapshot, entitlementsSnapshot] = await Promise.all([
+            transaction.get(eventRef),
+            transaction.get(db.collection("share_bundles").where("orderId", "==", orderId)),
+            transaction.get(db.collection("ticket_assignments").where("orderId", "==", orderId)),
+            transaction.get(db.collection("entitlements").where("orderId", "==", orderId))
+        ]);
+
+        if (eventDoc.exists) {
+            const currentEvent = eventDoc.data();
+            const usesTicketCatalog = !!currentEvent.ticketCatalog;
+            const sourceTiers = usesTicketCatalog
+                ? (currentEvent.ticketCatalog?.tiers || [])
+                : (currentEvent.tickets || []);
+            const updatedTiers = [...sourceTiers];
+
+            order.tickets.forEach(orderTicket => {
+                const tierIndex = updatedTiers.findIndex(t => t.id === orderTicket.ticketId);
+                if (tierIndex >= 0) {
+                    const tier = updatedTiers[tierIndex];
+                    const inv = tier.inventory || {};
+                    if (inv.soldQuantity !== undefined) {
+                        updatedTiers[tierIndex] = {
+                            ...tier,
+                            inventory: {
+                                ...inv,
+                                soldQuantity: Math.max(0, (inv.soldQuantity || 0) - orderTicket.quantity)
+                            }
+                        };
+                    } else {
+                        updatedTiers[tierIndex] = {
+                            ...tier,
+                            remaining: (Number(tier.remaining ?? tier.quantity) || 0) + orderTicket.quantity
+                        };
+                    }
+                }
+            });
+
+            if (usesTicketCatalog) {
+                transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTiers, updatedAt: now });
+            } else {
+                transaction.update(eventRef, { tickets: updatedTiers, updatedAt: now });
+            }
+        }
+
+        transaction.update(orderRef, { status: "cancelled", updatedAt: now });
+
+        bundlesSnapshot.forEach(bundleDoc => {
+            transaction.update(bundleDoc.ref, { status: "cancelled", updatedAt: now });
+        });
+
+        assignmentsSnapshot.forEach(assignmentDoc => {
+            transaction.update(assignmentDoc.ref, { status: "voided", updatedAt: now });
+        });
+
+        entitlementsSnapshot.forEach(entDoc => {
+            transaction.update(entDoc.ref, {
+                state: "REVOKED",
+                revokedAt: now,
+                revokedReason: "ORDER_CANCELLED",
+                revokedBy: "SYSTEM"
+            });
+        });
+    });
+
+    return { ...order, status: "cancelled", updatedAt: now };
+}
+
+export async function cleanupStaleOrders(userId = null) {
+    const db = getAdminDb();
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+
+    let query = db.collection("orders")
+        .where("status", "==", PAYMENT_PENDING_ORDER_STATUS)
+        .where("createdAt", "<", fifteenMinutesAgo);
+
+    if (userId) {
+        query = query.where("userId", "==", userId);
+    }
+
+    const snapshot = await query.get();
+    let cleaned = 0;
+
+    for (const doc of snapshot.docs) {
+        try {
+            await cancelOrder(doc.id);
+            cleaned++;
+        } catch (err) {
+            console.error(`[Order Engine] Failed to cleanup stale order ${doc.id}:`, err);
+        }
+    }
+
+    if (cleaned > 0) {
+        console.log(`[Order Engine] Cleaned up ${cleaned} stale pending orders`);
+    }
+
+    return { cleaned };
+}
+
 export default {
     validateOrder,
     generateOrderId,
     executeOrderCreation,
-    prepareOrderConfirmation
+    prepareOrderConfirmation,
+    getOrderById,
+    cancelOrder,
+    cleanupStaleOrders
 };

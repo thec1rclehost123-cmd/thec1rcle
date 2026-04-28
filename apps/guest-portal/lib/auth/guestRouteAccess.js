@@ -47,3 +47,10 @@ export function shouldRouteCallbackToOnboarding({ bootstrap, profile }) {
     if (bootstrap?.routeAccess?.requiresOnboarding) return true;
     return profile !== null && profile?.onboardingComplete === false;
 }
+
+export function resolveReturnUrl(returnUrl, bootstrap) {
+    if (returnUrl === "/profile" && bootstrap?.identity?.uid) {
+        return `/profile/${bootstrap.identity.uid}`;
+    }
+    return returnUrl;
+}

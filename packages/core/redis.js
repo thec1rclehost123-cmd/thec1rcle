@@ -40,4 +40,35 @@ export function getRedisClient() {
     return redis;
 }
 
+export async function cacheGet(key) {
+    const client = getRedisClient();
+    if (!client || !key) return null;
+    const value = await client.get(key);
+    if (!value) return null;
+    try {
+        return JSON.parse(value);
+    } catch {
+        return value;
+    }
+}
+
+export async function cacheSet(key, value, ttlSeconds = 300) {
+    const client = getRedisClient();
+    if (!client || !key) return false;
+    const payload = typeof value === "string" ? value : JSON.stringify(value);
+    if (ttlSeconds) {
+        await client.set(key, payload, "EX", ttlSeconds);
+    } else {
+        await client.set(key, payload);
+    }
+    return true;
+}
+
+export async function cacheDel(key) {
+    const client = getRedisClient();
+    if (!client || !key) return false;
+    await client.del(key);
+    return true;
+}
+
 export default getRedisClient;

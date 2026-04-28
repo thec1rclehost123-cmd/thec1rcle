@@ -1,6 +1,6 @@
 require('dotenv').config({ path: '.env.local' });
 const admin = require('firebase-admin');
-const { events } = require('../data/events');
+const { events } = require('./fixtures/events');
 
 const userId = 'TraOjbiHwiOauY5ymPhSi3b6ODv1'; // Actual User UID for Aayush Divase
 
@@ -68,9 +68,9 @@ async function seedOrders() {
     batch.set(db.collection('orders').doc('order-2'), order2);
 
     // Also seed a couple assignment for event2 (if it was a couple ticket)
-    // Actually event2 "Nirvana Night" doesn't have couple tickets in data/events.js
+    // Actually event2 "Nirvana Night" doesn't have couple tickets in scripts/fixtures/events.js
     // Let's find one that does.
-    // None in data/events.js have "Couple" in name but we can force it.
+    // None in scripts/fixtures/events.js have "Couple" in name but we can force it.
 
     const event3 = events[6]; // House of Synth
     const order3 = {

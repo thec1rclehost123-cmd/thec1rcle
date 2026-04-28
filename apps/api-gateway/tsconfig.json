@@ -25,9 +25,6 @@
       "@fastify/*": [
         "../../node_modules/@fastify/*"
       ],
-      "@c1rcle/core/*": [
-        "../../packages/core/*"
-      ],
       "firebase-admin": [
         "../../node_modules/firebase-admin"
       ],

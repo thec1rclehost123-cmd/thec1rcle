@@ -4,7 +4,7 @@
  */
 
 import { createHmac } from "node:crypto";
-import { getQrSecret } from "./scan-secret.js";
+import { getQrSecret } from "./secret-registry.js";
 
 let _QR_SECRET = null;
 function QR_SECRET() {

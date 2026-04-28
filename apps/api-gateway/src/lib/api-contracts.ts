@@ -1,12 +1,7 @@
-export interface ApiErrorPayload {
-    code: string;
-    message: string;
-    details?: Array<{ path: string; message: string }> | Record<string, unknown> | null;
-    requestId?: string;
-}
+import type { ApiErrorPayload, StandardErrorResponse } from '@c1rcle/types';
 
-export function buildErrorResponse(payload: ApiErrorPayload) {
-    const error: Record<string, unknown> = {
+export function buildErrorResponse(payload: ApiErrorPayload): StandardErrorResponse {
+    const error: ApiErrorPayload = {
         code: payload.code,
         message: payload.message,
     };
@@ -28,4 +23,3 @@ export function buildValidationDetails(issues: Array<{ path?: Array<string | num
         message: issue.message,
     }));
 }
-

@@ -5,53 +5,39 @@ import { join } from "node:path";
 
 const root = process.cwd();
 
-const migratedFiles = [
-    "app/explore/page.js",
-    "app/hosts/page.js",
-    "app/host/[slug]/page.jsx",
-    "app/venue/[slug]/page.jsx",
-    "app/api/events/route.js",
-    "app/api/hosts/route.js",
-    "app/api/hosts/[slug]/route.js",
-    "app/api/venues/route.js",
-    "app/api/venues/[venueId]/route.js",
-    "app/api/search/route.js",
-];
+test("Discovery client surfaces use the generated guest API client instead of direct legacy bridges", () => {
+  const storeSource = readFileSync(join(root, "store/exploreStore.js"), "utf8");
+  const hostsStoreSource = readFileSync(join(root, "store/hostsStore.js"), "utf8");
+  const instantSearchSource = readFileSync(join(root, "lib/hooks/useInstantSearch.js"), "utf8");
+  const exploreStateSource = readFileSync(join(root, "features/discovery/hooks/useExplorePageState.js"), "utf8");
+  const exploreClientSource = readFileSync(join(root, "components/ExploreClient.jsx"), "utf8");
 
-const forbiddenImports = [
-    "lib/server/eventStore",
-    "lib/server/hostStore",
-    "lib/server/venueStore",
-    "lib/server/partnerProfileStore",
-    "lib/firebase/client",
-    "firebase/firestore",
-    "@c1rcle/core/search",
-];
+  assert.equal(storeSource.includes("fetchPublicEvents"), true, "explore store should use the discovery feature seam");
+  assert.equal(
+    hostsStoreSource.includes("fetchPublicHosts") || hostsStoreSource.includes("fetchPublicVenues"),
+    true,
+    "hosts store should use the discovery feature seam"
+  );
+  assert.equal(instantSearchSource.includes("searchPublicDiscovery"), true, "instant search should use the discovery feature seam");
+  assert.equal(instantSearchSource.includes("fetchSearchSuggestions"), true, "instant search should use the discovery suggestion helper");
+  assert.equal(exploreStateSource.includes("getBackendSort"), true, "explore page state should normalize sort aliases before hitting the discovery store");
+  assert.equal(exploreStateSource.includes("fetchPublicEvents"), false, "explore page state should not trigger a second direct trending fetch on top of the shared discovery store");
+  assert.equal(exploreClientSource.includes("useExplorePageState"), true, "ExploreClient should delegate discovery orchestration to the feature hook");
 
-test("GP-2 migrated discovery surfaces no longer import app-local Firestore stores/search modules", () => {
-    for (const relativePath of migratedFiles) {
-        const source = readFileSync(join(root, relativePath), "utf8");
-        for (const forbidden of forbiddenImports) {
-            assert.equal(
-                source.includes(forbidden),
-                false,
-                `${relativePath} still imports ${forbidden}`
-            );
-        }
+  for (const [relativePath, source] of [
+    ["store/exploreStore.js", storeSource],
+    ["store/hostsStore.js", hostsStoreSource],
+    ["lib/hooks/useInstantSearch.js", instantSearchSource],
+    ["features/discovery/hooks/useExplorePageState.js", exploreStateSource],
+    ["components/ExploreClient.jsx", exploreClientSource],
+  ]) {
+    if (relativePath.startsWith("store/")) {
+      assert.equal(source.includes("guestApiFetch"), false, `${relativePath} should use typed helpers, not the low-level fetch helper`);
     }
-});
-
-test("ExploreClient does not use a direct Firebase Firestore discovery listener", () => {
-    const source = readFileSync(join(root, "components/ExploreClient.jsx"), "utf8");
-
-    assert.equal(source.includes("getFirebaseDb"), false);
-    assert.equal(source.includes("firebase/firestore"), false);
-    assert.equal(source.includes("onSnapshot"), false);
-});
-
-test("ExploreClient does not compare date-only event end values as raw strings", () => {
-    const source = readFileSync(join(root, "components/ExploreClient.jsx"), "utf8");
-
-    assert.equal(source.includes("eventEnd && eventEnd < now.toISOString()"), false);
-    assert.equal(source.includes("toEventEndDate"), true);
+    assert.equal(source.includes("/api/v1/public/"), false, `${relativePath} must not hard-code /api/v1/public/* routes`);
+    assert.equal(source.includes("/api/search"), false, `${relativePath} must not call /api/search`);
+    assert.equal(source.includes("/api/events"), false, `${relativePath} must not call /api/events`);
+    assert.equal(source.includes("/api/hosts"), false, `${relativePath} must not call /api/hosts`);
+    assert.equal(source.includes("/api/venues"), false, `${relativePath} must not call /api/venues`);
+  }
 });

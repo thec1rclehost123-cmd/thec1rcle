@@ -1,6 +1,5 @@
 import { IEventRepository, Event } from '../repositories/event-repository.js';
-// @ts-ignore
-import { buildEvent } from '../../../event-engine.js';
+import { buildEvent } from '@c1rcle/core/event-engine';
 
 export class EventService {
     constructor(private eventRepo: IEventRepository) { }
@@ -34,6 +33,7 @@ export class EventService {
             creatorId: actorId,
             workspaceId // 🏢 SaaS: Tag event with workspace
         });
+        event.workspaceId = workspaceId; // Ensure property is present for TS
         await this.eventRepo.create(event as Event);
         return event as Event;
     }
@@ -43,6 +43,7 @@ export class EventService {
         if (!existing) return null;
 
         const updatedEvent = buildEvent({ ...existing, ...updates, id, updatedAt: new Date().toISOString() });
+        updatedEvent.workspaceId = workspaceId;
 
         await this.eventRepo.update(id, updatedEvent as Partial<Event>, workspaceId);
         return updatedEvent as Event;

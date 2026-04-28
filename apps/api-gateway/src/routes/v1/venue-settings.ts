@@ -19,6 +19,25 @@ const ReservationStatusBody = z.object({
     status: z.string(),
     notes: z.string().optional()
 }).strict();
+const GuestReservationCreateBody = z.object({
+    venueId: z.string(),
+    venueName: z.string().optional(),
+    date: z.string(),
+    time: z.string().optional(),
+    guests: z.number().int().positive(),
+    bookingType: z.enum(['event', 'restaurant']),
+    guestName: z.string().optional(),
+    guestPhone: z.string().optional(),
+    specialRequests: z.string().optional(),
+    eventId: z.string().optional(),
+    eventTitle: z.string().optional(),
+    tableId: z.string().optional(),
+    tableName: z.string().optional(),
+    tablePrice: z.number().optional(),
+    tierId: z.string().optional(),
+    tierName: z.string().optional(),
+    tierPrice: z.number().optional(),
+}).strict();
 
 const HostQuery = z.object({ hostId: z.string() }).strict();
 const HostSettingsBody = z.object({
@@ -100,12 +119,74 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
             requestId: request.id,
             payload: { updatedFields: Object.keys(sanitized).filter((key) => key !== 'updatedAt') },
         });
-        await fastify.publicDiscoveryService.syncVenueReadModels(venueId);
+        await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'venue', id: venueId });
         await fastify.invalidatePublicDiscovery('all');
         return { success: true };
     });
 
     // ── Venue Reservations ────────────────────────────────────────────────────
+
+    /**
+     * POST /api/v1/venue-settings/venue/reservations
+     * Create a guest reservation request
+     */
+    fastify.post('/venue/reservations', {
+        preHandler: [fastify.validate({ body: GuestReservationCreateBody })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) {
+            return reply.status(401).send(buildErrorResponse({
+                code: 'UNAUTHORIZED',
+                message: 'Unauthorized',
+                requestId: request.id,
+            }));
+        }
+
+        const venueId = request.body.venueId;
+        const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
+        if (!venueDoc.exists) {
+            return reply.status(404).send(buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Venue not found',
+                requestId: request.id,
+            }));
+        }
+
+        const now = new Date().toISOString();
+        const reservation = {
+            venueId,
+            venueName: request.body.venueName || venueDoc.data()?.name || null,
+            userId,
+            guestEmail: request.user?.email || null,
+            guestName: request.body.guestName || request.user?.displayName || request.user?.name || 'Guest',
+            guestPhone: request.body.guestPhone || null,
+            date: request.body.date,
+            time: request.body.time || null,
+            guests: request.body.guests,
+            bookingType: request.body.bookingType,
+            specialRequests: request.body.specialRequests || null,
+            eventId: request.body.eventId || null,
+            eventTitle: request.body.eventTitle || null,
+            tableId: request.body.tableId || null,
+            tableName: request.body.tableName || null,
+            tablePrice: request.body.tablePrice ?? null,
+            tierId: request.body.tierId || null,
+            tierName: request.body.tierName || null,
+            tierPrice: request.body.tierPrice ?? null,
+            status: 'pending',
+            requestedAt: now,
+            updatedAt: now,
+        };
+
+        const created = await fastify.db.collection('table_reservations').add(reservation);
+        return {
+            success: true,
+            reservation: {
+                id: created.id,
+                ...reservation,
+            },
+        };
+    });
 
     /**
      * GET /api/v1/venue-settings/venue/reservations?venueId=XXX
@@ -203,7 +284,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
             requestId: request.id,
             payload: { updatedFields: Object.keys(updates).filter((key) => key !== 'updatedAt') },
         });
-        await fastify.publicDiscoveryService.syncHostReadModels(hostId);
+        await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'host', id: hostId });
         await fastify.invalidatePublicDiscovery('all');
         return { success: true };
     });

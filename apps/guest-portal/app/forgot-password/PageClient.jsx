@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { getFirebaseAuth } from "../../lib/firebase/client";
 import { sendOperationalPasswordResetEmail, getPasswordResetErrorMessage } from "../../lib/auth/passwordReset";
 import FunnelShell from "../../components/FunnelShell";
 import { CheckCircle, ArrowRight, Loader2 } from "lucide-react";
@@ -34,8 +33,7 @@ export default function ForgotPasswordPage() {
         setSuccess(false);
 
         try {
-            const auth = await getFirebaseAuth();
-            await sendOperationalPasswordResetEmail(auth, email);
+            await sendOperationalPasswordResetEmail(email);
             setSuccess(true);
         } catch (err) {
             console.error("Password reset error:", err);

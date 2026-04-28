@@ -1,6 +1,6 @@
 import { randomUUID, createHmac } from "node:crypto";
 import { getAdminDb } from "./admin.js";
-import { getQrSecret } from "./scan-secret.js";
+import { getQrSecret } from "./secret-registry.js";
 
 const ENTITLEMENT_COLLECTION = "entitlements";
 const SCAN_LEDGER_COLLECTION = "scan_ledger";
@@ -31,6 +31,20 @@ export const ENTITLEMENT_STATES = {
  */
 export async function issueEntitlements(order, items, transaction = null) {
     const db = getAdminDb();
+
+    // Idempotency: if entitlements were already issued for this order (e.g. Inngest retry),
+    // return the existing set rather than creating duplicates.
+    const existingSnap = await db.collection(ENTITLEMENT_COLLECTION)
+        .where("orderId", "==", order.id)
+        .limit(1)
+        .get();
+    if (!existingSnap.empty) {
+        const allSnap = await db.collection(ENTITLEMENT_COLLECTION)
+            .where("orderId", "==", order.id)
+            .get();
+        return allSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    }
+
     const entitlements = [];
 
     for (const item of items) {
@@ -44,7 +58,7 @@ export async function issueEntitlements(order, items, transaction = null) {
                 ownerUserId: order.userId,
                 ticketType: order.isRSVP ? 'rsvp' : (item.entryType === 'couple' ? 'couple' : 'paid'),
                 genderConstraint: item.genderRequirement || 'none',
-                scanCountAllowed: 1, // Deterministic: one human = one entry
+                scanCountAllowed: item.entryType === 'couple' ? 2 : 1, // Couple: two scans, one per partner
                 scanCountUsed: 0,
                 state: ENTITLEMENT_STATES.ISSUED,
                 issuedAt: new Date().toISOString(),
@@ -194,32 +208,52 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
         }
 
         // 3. Rule Enforcement
-        // Gender Constraint
+        // Gender Constraint — prefer boundGender (locked at claim time) over live profile to prevent
+        // post-claim profile changes from causing door rejections.
         if (entitlement.genderConstraint && entitlement.genderConstraint !== 'none') {
-            const userGender = context.userGender;
-            if (userGender && entitlement.genderConstraint !== userGender) {
+            const effectiveGender = entitlement.boundGender || context.userGender;
+            if (effectiveGender && entitlement.genderConstraint !== effectiveGender) {
                 await recordScanLedgerEntry({
                     entitlementId, eventId, scannerId,
                     result: 'DENIED', reasonCode: 'GENDER_MISMATCH',
-                    metadata: { ...context, required: entitlement.genderConstraint, actual: userGender }
+                    metadata: { ...context, required: entitlement.genderConstraint, actual: effectiveGender }
                 }, t);
                 return { success: false, reason: 'GENDER_MISMATCH' };
             }
         }
 
-        // Couple Logic
-        if (entitlement.ticketType === 'couple' && !context.isCoupleBypassed) {
-            if (!context.partnerPresent) {
-                await recordScanLedgerEntry({
-                    entitlementId, eventId, scannerId,
-                    result: 'DENIED', reasonCode: 'COUPLE_INCOMPLETE',
-                    metadata: context
-                }, t);
-                return { success: false, reason: 'COUPLE_INCOMPLETE' };
-            }
+        // Couple Logic — allow sequential entry; first partner enters immediately, second triggers CONSUMED.
+        // Do NOT block entry if the other partner hasn't arrived yet.
+        if (entitlement.ticketType === 'couple') {
+            const isFirstScan = entitlement.scanCountUsed === 0;
+            const newCountUsed = entitlement.scanCountUsed + 1;
+            const isFull = newCountUsed >= entitlement.scanCountAllowed;
+            const coupleSlot = isFirstScan ? 'primary' : 'partner';
+
+            t.update(entRef, {
+                scanCountUsed: newCountUsed,
+                state: isFull ? ENTITLEMENT_STATES.CONSUMED : entitlement.state,
+                lastScannerId: scannerId,
+                consumedMetadata: context,
+                ...(isFirstScan
+                    ? { primaryEnteredAt: timestamp, primaryScannerId: scannerId }
+                    : { partnerEnteredAt: timestamp, partnerScannerId: scannerId, consumedAt: timestamp })
+            });
+
+            await recordScanLedgerEntry({
+                entitlementId, eventId, scannerId,
+                result: 'GRANTED',
+                metadata: { ...context, coupleSlot }
+            }, t);
+
+            return {
+                success: true,
+                couplePartialEntry: !isFull,
+                entitlement: { ...entitlement, scanCountUsed: newCountUsed }
+            };
         }
 
-        // 4. Atomic State Transition
+        // 4. Atomic State Transition (non-couple tickets)
         const newCountUsed = entitlement.scanCountUsed + 1;
         const newState = ENTITLEMENT_STATES.CONSUMED;
 
@@ -268,7 +302,7 @@ async function recordScanLedgerEntry(data, transaction = null) {
 /**
  * Transfer Entitlement (Revoke old, Issue new)
  */
-export async function transferEntitlement(entitlementId, newOwnerUserId, actorId, transaction = null) {
+export async function transferEntitlement(entitlementId, newOwnerUserId, actorId, transaction = null, boundGender = null) {
     const db = getAdminDb();
     const now = new Date().toISOString();
 
@@ -301,6 +335,7 @@ export async function transferEntitlement(entitlementId, newOwnerUserId, actorId
             issuedAt: now,
             scanCountUsed: 0,
             consumedAt: null,
+            ...(boundGender ? { boundGender } : {}),
             metadata: {
                 ...oldEnt.metadata,
                 transferredFrom: oldEnt.id,

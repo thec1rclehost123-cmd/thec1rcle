@@ -24,9 +24,8 @@ export const PROFILE_SAFE_FIELDS = [
     // Venue-specific
     "tags", "amenities", "openingHours", "capacity", "venueType",
     // Host-specific  
-    "role", "achievements", "pressSnippets",
-    // Engagement metadata
-    "isVerified", "isFeatured", "visibility", "status"
+    "role", "achievements", "pressSnippets"
+    // Note: status, visibility, isVerified, and isFeatured are ADMIN-ONLY fields and must not be here.
 ];
 
 /**

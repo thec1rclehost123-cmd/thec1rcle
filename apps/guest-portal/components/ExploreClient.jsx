@@ -1,468 +1,82 @@
 "use client";
 
-import Link from "next/link";
-import clsx from "clsx";
-import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { motion, AnimatePresence } from "framer-motion";
-
-const ExploreCarouselHeader = dynamic(() => import("./ExploreCarouselHeader"), {
-  ssr: true,
-  loading: () => <div className="h-[40vh] sm:h-[50vh] bg-black/5 animate-pulse rounded-[32px] sm:rounded-[40px] mx-4 sm:mx-12 mt-4 sm:mt-12" />
-});
+import { GridSkeleton } from "@c1rcle/ui";
 import ExploreFilterBar from "./ExploreFilterBar";
 import ExploreEventGrid from "./ExploreEventGrid";
-import { GridSkeleton } from "@c1rcle/ui";
-import { useExploreStore } from "../store/exploreStore";
+import { useExplorePageState } from "../features/discovery/hooks/useExplorePageState";
 
-const SEED_TTL_MS = 5 * 60 * 1000;
+const ExploreCarouselHeader = dynamic(() => import("./ExploreCarouselHeader"), {
+  loading: () => <div className="h-[40vh] sm:h-[50vh] animate-pulse rounded-[32px] bg-black/5 sm:rounded-[40px] mx-4 mt-4 sm:mx-12 sm:mt-12" />,
+  ssr: true,
+});
 
-const sortTabs = ["Trending", "This Week", "New", "Soonest", "Price Low to High"];
-const dateFilters = [
-  { label: "Any date", value: "any" },
-  { label: "Today", value: "today" },
-  { label: "This weekend", value: "weekend" },
-  { label: "Custom", value: "custom" }
-];
-const priceFilters = [
-  { label: "All prices", value: "all" },
-  { label: "Free RSVP", value: "free" },
-  { label: "Paid", value: "paid" }
-];
-const curatedCategoryOptions = [
-  { label: "All vibes", value: "all", description: "Show everything" },
-  { label: "Campus", value: "campus", description: "College quads & fresher nights" },
-  { label: "Party", value: "party", description: "Venues, edits, blowouts" },
-  { label: "Afters", value: "afters", description: "Late nights & underground" },
-  { label: "Brunch", value: "brunch", description: "Day parties, sun-kissed" },
-  { label: "Art", value: "art", description: "Galleries & pop-up shows" },
-  { label: "Community", value: "community", description: "Markets & meet-ups" }
-];
-
-const curatedCategoryMatchers = {
-  campus: ["campus", "college", "university", "freshers"],
-  party: ["party", "venue", "night", "dj", "dance"],
-  afters: ["after", "afterhours", "late", "underground"],
-  brunch: ["brunch", "day party", "sunrise", "cookout"],
-  art: ["art", "gallery", "exhibit", "creative", "design"],
-  community: ["community", "market", "meetup", "collective", "venue"]
-};
-
-const pageSize = 12;
-
-const slugify = (value = "") => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-/, "").replace(/-$/, "");
-const formatTypeLabel = (value = "") =>
-  value
-    .split("-")
-    .map((chunk) => chunk.charAt(0).toUpperCase() + chunk.slice(1))
-    .join(" ");
-const toDate = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date;
-};
-const toEventEndDate = (value) => {
-  if (!value) return null;
-  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
-    ? `${value}T23:59:59.999Z`
-    : value;
-  return toDate(normalized);
-};
-const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-const isWeekend = (date) => {
-  const day = date.getDay();
-  return day === 0 || day === 6;
-};
-
-const getStartingPrice = (event) => {
-  if (typeof event.startingPrice === "number") return event.startingPrice;
-  if (typeof event.priceRange?.min === "number") return event.priceRange.min;
-  if (Array.isArray(event.tickets) && event.tickets.length) {
-    return event.tickets.reduce((min, ticket) => Math.min(min, Number(ticket.price) || 0), Infinity);
-  }
-  return 0;
-};
-
-const getEventTime = (event) => {
-  const date = toDate(event.startDateTime || event.startDate);
-  if (date) return date.getTime();
-  return Number.MAX_SAFE_INTEGER;
-};
-
-const sortComparators = {
-  Trending: (a, b) => (b.heatScore ?? b.stats?.heatScore ?? 0) - (a.heatScore ?? a.stats?.heatScore ?? 0),
-  "This Week": (a, b) => {
-    const now = Date.now();
-    const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
-    const timeA = getEventTime(a);
-    const timeB = getEventTime(b);
-    const aInWeek = timeA >= now && timeA <= weekAhead;
-    const bInWeek = timeB >= now && timeB <= weekAhead;
-    if (aInWeek && !bInWeek) return -1;
-    if (!aInWeek && bInWeek) return 1;
-    return timeA - timeB;
-  },
-  New: (a, b) => new Date(b.createdAt || b.stats?.createdAt || 0) - new Date(a.createdAt || a.stats?.createdAt || 0),
-  Soonest: (a, b) => getEventTime(a) - getEventTime(b),
-  "Price Low to High": (a, b) => getStartingPrice(a) - getStartingPrice(b)
-};
-
-export default function ExploreClient({ initialEvents = [], initialFeaturedEvents = [] }) {
-  // Seed Zustand store from server-rendered props on first client render only.
-  // The guard prevents this from running during SSR where localStorage is unavailable.
-  const seedRef = useRef(false);
-  useEffect(() => {
-    if (seedRef.current) return;
-    seedRef.current = true;
-    if (initialEvents.length > 0) {
-      const { lastFetchedAt, events: storeEvents } = useExploreStore.getState();
-      const isFresh = lastFetchedAt && Date.now() - lastFetchedAt < SEED_TTL_MS;
-      if (!isFresh || storeEvents.length === 0) {
-        useExploreStore.setState({
-          events: initialEvents,
-          status: "ready",
-          lastFetchedAt: Date.now(),
-          revalidating: false,
-          error: "",
-        });
-      }
-    }
-  }, [initialEvents]);
-
-  const [activeSort, setActiveSort] = useState(sortTabs[0]);
-
-  // Granular selectors — component only re-renders when these specific values change,
-  // not on every revalidating/lastFetchedAt/nextCursor update
-  const events = useExploreStore(s => s.events);
-  const status = useExploreStore(s => s.status);
-  const error = useExploreStore(s => s.error);
-  const fetchEvents = useExploreStore(s => s.fetchEvents);
-  const hasMore = useExploreStore(s => s.hasMore);
-
-  const [trendingEvents, setTrendingEvents] = useState(null);
-
-  const [selectedCity, setSelectedCity] = useState("");
-  const [filters, setFilters] = useState({
-    datePreset: "any",
-    startDate: "",
-    endDate: "",
-    price: "all",
-    eventType: "all",
-    curatedCategory: "all"
-  });
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  const [filtersOpen, setFiltersOpen] = useState(false);
-
-  useEffect(() => {
-    // Bails immediately if store was seeded from initialEvents (isFresh = true)
-    fetchEvents();
-  }, [fetchEvents]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("c1rcle:city");
-    if (stored) {
-      setSelectedCity(stored);
-    }
-  }, []);
-
-  const cityOptions = useMemo(() => {
-    if (!events.length) {
-      return [{ value: "pune-in", label: "Pune, IN", count: 0 }];
-    }
-    const map = new Map();
-    events.forEach((event) => {
-      const value = event.cityKey || "other-in";
-      const label = event.cityLabel || "Other City, IN";
-      if (!map.has(value)) {
-        map.set(value, { value, label, count: 0 });
-      }
-      map.get(value).count += 1;
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [events]);
-
-  useEffect(() => {
-    if (!cityOptions.length) return;
-    setSelectedCity((prev) => {
-      if (prev && cityOptions.some((option) => option.value === prev)) return prev;
-      const pune = cityOptions.find(o => o.value === "pune-in");
-      return pune ? pune.value : cityOptions[0].value;
-    });
-  }, [cityOptions]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !selectedCity) return;
-    window.localStorage.setItem("c1rcle:city", selectedCity);
-  }, [selectedCity]);
-
-  useEffect(() => {
-    if (activeSort !== "Trending" || !selectedCity) {
-      setTrendingEvents(null);
-      return;
-    }
-
-    const controller = new AbortController();
-
-    async function loadTrendingEvents() {
-      try {
-        const response = await fetch(`/api/events?limit=24&sort=heat&city=${encodeURIComponent(selectedCity)}`, {
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error("Unable to load trending events");
-        const payload = await response.json();
-        setTrendingEvents(Array.isArray(payload.events) ? payload.events : []);
-      } catch (err) {
-        if (err.name === "AbortError") return;
-        console.error("Failed to load trending events", err);
-        setTrendingEvents(null);
-      }
-    }
-
-    loadTrendingEvents();
-    return () => controller.abort();
-  }, [activeSort, selectedCity]);
-
-  const eventTypeOptions = useMemo(() => {
-    const map = new Map();
-    events.forEach((event) => {
-      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const key = slugify(primaryTag || event.eventType || event.category || "venue");
-      const label = primaryTag || formatTypeLabel(key);
-      if (!map.has(key)) {
-        map.set(key, { value: key, label, count: 0 });
-      }
-      map.get(key).count += 1;
-    });
-    return Array.from(map.values()).sort((a, b) => b.count - a.count);
-  }, [events]);
-
-  const featuredSlides = useMemo(() => {
-    if (initialFeaturedEvents.length > 0) return initialFeaturedEvents;
-    if (!events.length) return [];
-
-    return [...events]
-      .sort(sortComparators.Trending)
-      .slice(0, 6);
-  }, [initialFeaturedEvents, events]);
-
-  const cityDropdownOptions = useMemo(() => {
-    if (!cityOptions.length) {
-      return [{ value: "", label: "Loading city", description: "" }];
-    }
-    return cityOptions.map((option) => ({
-      value: option.value,
-      label: option.label,
-      description: `${option.count} events`
-    }));
-  }, [cityOptions]);
-
-  const eventsSource = useMemo(
-    () => (activeSort === "Trending" && trendingEvents ? trendingEvents : events),
-    [activeSort, trendingEvents, events]
-  );
-
-  const processedEvents = useMemo(() => {
-    return eventsSource.map((event) => {
-      const searchHaystack = [
-        event.title,
-        event.location,
-        event.city,
-        event.host,
-        event.description,
-        ...(event.tags || [])
-      ].join(" ").toLowerCase();
-
-      const parsedDate = toDate(event.startDateTime || event.startDate);
-      const parsedTime = parsedDate ? parsedDate.getTime() : Number.MAX_SAFE_INTEGER;
-      const startingPrice = getStartingPrice(event);
-
-      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const eventType = slugify(primaryTag || event.eventType || event.category || "");
-
-      return {
-        ...event,
-        _searchHaystack: searchHaystack,
-        _parsedDate: parsedDate,
-        _parsedTime: parsedTime,
-        _startingPrice: startingPrice,
-        _eventType: eventType,
-      };
-    });
-  }, [eventsSource]);
-
-  const filteredEvents = useMemo(() => {
-    if (!processedEvents.length) return [];
-    const typeFilter = filters.eventType || "all";
-    const priceFilter = filters.price;
-    const curatedFilter = filters.curatedCategory || "all";
-    const normalizedSearch = debouncedSearch.trim().toLowerCase();
-    const targetCity = selectedCity || cityOptions[0]?.value || "";
-    const customStart = filters.datePreset === "custom" && filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
-    const customEnd =
-      filters.datePreset === "custom" && filters.endDate ? new Date(`${filters.endDate}T23:59:59`) : null;
-    const now = new Date();
-
-    const matchesDatePreset = (event) => {
-      if (filters.datePreset === "any") return true;
-      const eventDate = event._parsedDate;
-      if (!eventDate) return true;
-      if (filters.datePreset === "today") {
-        return isSameDay(eventDate, now);
-      }
-      if (filters.datePreset === "weekend") {
-        return isWeekend(eventDate);
-      }
-      if (filters.datePreset === "custom") {
-        if (customStart && eventDate < customStart) return false;
-        if (customEnd && eventDate > customEnd) return false;
-        return true;
-      }
-      return true;
-    };
-
-    const matchesSearch = (event) => {
-      if (!normalizedSearch) return true;
-      return event._searchHaystack.includes(normalizedSearch);
-    };
-
-    const matchesCity = (event) => {
-      if (!targetCity) return true;
-      return event.cityKey === targetCity;
-    };
-    const matchesType = (event) => {
-      if (typeFilter === "all") return true;
-      return event._eventType === typeFilter;
-    };
-
-    const matchesCuratedCategory = (event) => {
-      if (curatedFilter === "all") return true;
-      const keywords = curatedCategoryMatchers[curatedFilter] || [];
-      return keywords.some((keyword) => event._searchHaystack.includes(keyword));
-    };
-
-    const matchesPrice = (event) => {
-      if (priceFilter === "all") return true;
-      if (priceFilter === "free") return event._startingPrice <= 0 || event.isFree;
-      if (priceFilter === "paid") return event._startingPrice > 0;
-      return true;
-    };
-
-    const comparator = sortComparators[activeSort] || sortComparators.Trending;
-
-    return processedEvents
-      .filter((event) => {
-        const eventEnd = toEventEndDate(event.endDate || event.startDate);
-        if (eventEnd && eventEnd < now) return false;
-
-        return (
-          matchesCity(event) &&
-          matchesType(event) &&
-          matchesCuratedCategory(event) &&
-          matchesPrice(event) &&
-          matchesSearch(event) &&
-          matchesDatePreset(event)
-        );
-      })
-      .sort(comparator);
-  }, [processedEvents, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
-
-  const activeCityLabel = cityOptions.find((option) => option.value === selectedCity)?.label || cityOptions[0]?.label || "your city";
-  const fallbackCities = cityOptions.filter((option) => option.value !== selectedCity).slice(0, 2);
-  const showCustomRange = filters.datePreset === "custom";
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (filters.datePreset !== "any") count += 1;
-    if (filters.price !== "all") count += 1;
-    if (filters.eventType !== "all") count += 1;
-    if (filters.curatedCategory && filters.curatedCategory !== "all") count += 1;
-    if (filters.startDate || filters.endDate) count += 1;
-    if (searchTerm.trim()) count += 1;
-    return count;
-  }, [filters.datePreset, filters.price, filters.eventType, filters.curatedCategory, filters.startDate, filters.endDate, searchTerm]);
-  const filterSummaryLabel = activeFilterCount
-    ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
-    : "No filters applied";
-
-  const handleLoadMore = () => {
-    fetchEvents(selectedCity, false, activeSort === "Trending" ? "heat" : "soonest");
-  };
-
-  const handleFilterChange = (field, value) => {
-    setFilters((prev) => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  const clearFilters = () => {
-    setFilters({
-      datePreset: "any",
-      startDate: "",
-      endDate: "",
-      price: "all",
-      eventType: "all",
-      curatedCategory: "all"
-    });
-    setSearchTerm("");
-  };
+export default function ExploreClient({ initialEvents = [], initialFeaturedEvents = [], initialErrors = [] }) {
+  const {
+    activeCityLabel,
+    activeSort,
+    cityDropdownOptions,
+    clearFilters,
+    error,
+    fallbackCities,
+    featuredSlides,
+    filteredEvents,
+    filters,
+    handleFilterChange,
+    hasMore,
+    heroStatus,
+    loadMore,
+    searchTerm,
+    selectedCity,
+    setActiveSort,
+    setSearchTerm,
+    setSelectedCity,
+    status,
+  } = useExplorePageState({ initialEvents, initialFeaturedEvents });
 
   const heroSection = featuredSlides.length ? (
     <ExploreCarouselHeader slides={featuredSlides} />
   ) : (
-    <HeroSkeleton status={status} error={error} />
+    <HeroSkeleton status={heroStatus} error={error} />
   );
 
   return (
-    <div className="relative bg-white dark:bg-[#0A0A0A] min-h-screen">
+    <div className="relative min-h-screen bg-white dark:bg-[#0A0A0A]">
       <div className="relative z-10">
-        {/* Soft Rectangle Hero Wrapper */}
         <section className="px-4 py-4 lg:px-8 lg:py-6">
-          <div className="relative overflow-hidden rounded-[32px] sm:rounded-[48px] border border-black/5 dark:border-white/10 shadow-2xl bg-black">
+          <div className="relative overflow-hidden rounded-[32px] border border-black/5 bg-black shadow-2xl sm:rounded-[48px] dark:border-white/10">
             {heroSection}
           </div>
         </section>
 
-        {/* Search/Filter Bar - Overlapping the Hero bottom */}
         <div className="relative z-[20] -mt-12 mb-16 flex justify-center">
           <div className="w-full overflow-x-auto scrollbar-hide">
             <ExploreFilterBar
-              sort={activeSort}
-              setSort={setActiveSort}
-              date={filters.datePreset}
-              setDate={(val) => handleFilterChange("datePreset", val)}
               city={selectedCity}
-              setCity={setSelectedCity}
               cityOptions={cityDropdownOptions}
+              date={filters.datePreset}
               searchTerm={searchTerm}
+              setCity={setSelectedCity}
+              setDate={(value) => handleFilterChange("datePreset", value)}
               setSearchTerm={setSearchTerm}
+              setSort={setActiveSort}
+              sort={activeSort}
             />
           </div>
         </div>
 
         <section className="mx-auto w-full max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-12">
           <div className="space-y-12">
+            {initialErrors.length > 0 && (
+              <ErrorBlock message={initialErrors.join(" ")} />
+            )}
             <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="h-1 w-12 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] rounded-full" />
-                  <p className="text-xs font-black uppercase tracking-[0.3em] text-[#F44A22]">
-                    Explore Events
-                  </p>
+                  <div className="h-1 w-12 rounded-full bg-gradient-to-r from-[#F44A22] to-[#FF6B4A]" />
+                  <p className="text-xs font-black uppercase tracking-[0.3em] text-[#F44A22]">Explore Events</p>
                 </div>
-                <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-black uppercase tracking-tight text-black dark:text-white leading-tight">
+                <h2 className="text-3xl font-heading font-black uppercase leading-tight tracking-tight text-black dark:text-white sm:text-4xl md:text-5xl lg:text-6xl">
                   What&apos;s on in{" "}
                   <span className="inline-block bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">
                     {activeCityLabel}
@@ -470,15 +84,19 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
                 </h2>
               </div>
               <div className="text-center md:text-right">
-                <div className="inline-flex flex-col gap-1 px-8 py-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-                  <p className="text-4xl font-black bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">{filteredEvents.length}</p>
+                <div className="inline-flex flex-col gap-1 rounded-2xl border border-black/10 bg-black/5 px-8 py-4 dark:border-white/10 dark:bg-white/5">
+                  <p className="bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-4xl font-black text-transparent">
+                    {filteredEvents.length}
+                  </p>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60">Events Found</p>
                 </div>
               </div>
             </div>
 
             <div className="min-h-[400px]">
-              {status === "loading" && <GridSkeleton count={8} columns="grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" />}
+              {status === "loading" && (
+                <GridSkeleton count={8} columns="grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5" />
+              )}
               {status === "error" && <ErrorBlock message={error || "Failed to load events."} />}
               {status === "ready" && filteredEvents.length === 0 && (
                 <EmptyState
@@ -493,16 +111,16 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
                   <ExploreEventGrid events={filteredEvents} />
 
                   {hasMore && (
-                    <div className="flex justify-center mt-12 pb-12">
+                    <div className="mt-12 flex justify-center pb-12">
                       <button
-                        onClick={handleLoadMore}
+                        onClick={loadMore}
                         disabled={status === "loading"}
-                        className="group flex items-center gap-4 px-10 py-5 rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 hover:bg-black dark:hover:bg-white hover:text-white dark:hover:text-black transition-all duration-500 disabled:opacity-50"
+                        className="group flex items-center gap-4 rounded-full border border-black/10 bg-black/5 px-10 py-5 transition-all duration-500 hover:bg-black hover:text-white disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:hover:bg-white dark:hover:text-black"
                       >
                         <span className="text-xs font-black uppercase tracking-[0.3em]">
                           {status === "loading" ? "Loading..." : "Load More Events"}
                         </span>
-                        {status !== "loading" && <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-2 transition-transform duration-500" />}
+                        {status !== "loading" && <ArrowRightIcon className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />}
                       </button>
                     </div>
                   )}
@@ -516,108 +134,32 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
   );
 }
 
-function FilterDropdown({ label, value, options = [], onChange }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef(null);
-  const selected = options.find((option) => option.value === value) || options[0] || { label: "Select", value: "" };
-
-  useEffect(() => {
-    const handleClick = (event) => {
-      if (!containerRef.current || containerRef.current.contains(event.target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  useEffect(() => {
-    const handleKey = (event) => {
-      if (event.key === "Escape") {
-        setOpen(false);
-      }
-    };
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, []);
-
-  return (
-    <div className="relative" ref={containerRef}>
-      <button
-        type="button"
-        className="flex min-w-[185px] items-center justify-between rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-6 py-3.5 backdrop-blur-md transition-all hover:bg-black/10 dark:hover:bg-white/10 hover:border-black/20 dark:hover:border-white/20"
-        onClick={() => setOpen((prev) => !prev)}
-        aria-expanded={open}
-      >
-        <div className="flex flex-col text-left leading-tight">
-          <span className="text-[9px] uppercase tracking-[0.5em] text-black/40 dark:text-white/40 mb-0.5">{label}</span>
-          <span className="text-sm font-bold text-black dark:text-white tracking-wide">{selected.label}</span>
-          {selected.description && <span className="text-[10px] text-black/40 dark:text-white/40">{selected.description}</span>}
-        </div>
-        <ChevronDownIcon className={clsx("h-4 w-4 text-black/60 dark:text-white/60 transition-transform duration-300", open && "rotate-180")} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute left-0 z-30 mt-2 w-72 overflow-hidden rounded-[24px] border border-black/10 dark:border-white/10 bg-white/95 dark:bg-[#0A0A0A]/95 p-2 shadow-floating backdrop-blur-xl"
-          >
-            <div className="max-h-[300px] overflow-y-auto scrollbar-hide">
-              {options.map((option) => (
-                <button
-                  key={option.value || option.label}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.value);
-                    setOpen(false);
-                  }}
-                  className={clsx(
-                    "flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-all",
-                    option.value === value ? "bg-black/10 dark:bg-white/10 text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white"
-                  )}
-                >
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-bold tracking-wide">{option.label}</span>
-                    {option.description && <span className="text-[10px] uppercase tracking-wider text-black/30 dark:text-white/30">{option.description}</span>}
-                  </span>
-                  {option.value === value && <CheckIcon className="text-black dark:text-white" />}
-                </button>
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
 function HeroSkeleton({ status, error }) {
   if (status === "error") {
     return (
       <section className="relative w-full py-12">
         <div className="mx-auto w-full max-w-[1400px] px-6">
-          <div className="rounded-[40px] border border-red-500/20 bg-red-500/5 backdrop-blur-xl p-16 text-center">
-            <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="rounded-[40px] border border-red-500/20 bg-red-500/5 p-16 text-center backdrop-blur-xl">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20">
+              <svg className="h-8 w-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <p className="text-2xl font-black text-red-500 dark:text-red-400 mb-2">Failed to load featured events</p>
+            <p className="mb-2 text-2xl font-black text-red-500 dark:text-red-400">Failed to load featured events</p>
             <p className="text-base text-red-500/70 dark:text-red-400/70">{error || "Please try refreshing the page."}</p>
           </div>
         </div>
       </section>
     );
   }
+
   return (
     <section className="relative w-full py-4 lg:py-6">
       <div className="mx-auto w-full px-4 sm:px-6">
-        <div className="relative overflow-hidden rounded-[32px] sm:rounded-[48px] border border-black/5 dark:border-white/5 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent min-h-[400px] lg:min-h-[600px] h-auto flex items-center justify-center">
-          <div className="absolute inset-0 bg-gradient-to-r from-black/5 dark:from-white/5 via-transparent to-transparent shimmer-block" />
-          <div className="relative z-10 text-center space-y-4">
-            <div className="w-16 h-16 border-4 border-black/10 dark:border-white/10 border-t-black dark:border-t-white rounded-full animate-spin mx-auto" />
+        <div className="relative flex min-h-[400px] h-auto items-center justify-center overflow-hidden rounded-[32px] border border-black/5 bg-gradient-to-br from-black/5 to-transparent sm:rounded-[48px] lg:min-h-[600px] dark:border-white/5 dark:from-white/5 dark:to-transparent">
+          <div className="shimmer-block absolute inset-0 bg-gradient-to-r from-black/5 via-transparent to-transparent dark:from-white/5" />
+          <div className="relative z-10 space-y-4 text-center">
+            <div className="mx-auto h-16 w-16 animate-spin rounded-full border-4 border-black/10 border-t-black dark:border-white/10 dark:border-t-white" />
             <p className="text-sm font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Loading Featured Events</p>
           </div>
         </div>
@@ -628,33 +170,33 @@ function HeroSkeleton({ status, error }) {
 
 function EmptyState({ city, fallbackCities, onCitySelect, onReset }) {
   return (
-    <div className="rounded-[32px] border border-black/10 dark:border-white/10 bg-gradient-to-br from-black/5 to-transparent dark:from-white/5 dark:to-transparent backdrop-blur-xl p-16 text-center">
-      <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#F44A22]/20 to-[#FF6B4A]/20 border border-[#F44A22]/30">
+    <div className="rounded-[32px] border border-black/10 bg-gradient-to-br from-black/5 to-transparent p-16 text-center backdrop-blur-xl dark:border-white/10 dark:from-white/5 dark:to-transparent">
+      <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full border border-[#F44A22]/30 bg-gradient-to-br from-[#F44A22]/20 to-[#FF6B4A]/20">
         <SearchIcon />
       </div>
-      <h3 className="text-3xl md:text-4xl font-heading font-black text-black dark:text-white mb-3 uppercase">No events found</h3>
-      <p className="text-lg text-black/60 dark:text-white/60 max-w-lg mx-auto mb-10">
+      <h3 className="mb-3 text-3xl font-heading font-black uppercase text-black dark:text-white md:text-4xl">No events found</h3>
+      <p className="mx-auto mb-10 max-w-lg text-lg text-black/60 dark:text-white/60">
         We couldn&apos;t find any events matching your filters in <span className="font-bold text-[#F44A22]">{city}</span>. Try adjusting your search or check out other cities.
       </p>
 
       <div className="flex flex-wrap justify-center gap-4">
         <button
           onClick={onReset}
-          className="rounded-full border border-black/20 dark:border-white/20 px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+          className="rounded-full border border-black/20 px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest text-black transition-colors hover:bg-black/10 dark:border-white/20 dark:text-white dark:hover:bg-white/10"
         >
           Clear Filters
         </button>
       </div>
 
       {fallbackCities.length > 0 && (
-        <div className="mt-8 pt-8 border-t border-white/10">
-          <p className="text-[10px] uppercase tracking-widest text-white/40 mb-4">Popular Cities</p>
+        <div className="mt-8 border-t border-white/10 pt-8">
+          <p className="mb-4 text-[10px] uppercase tracking-widest text-white/40">Popular Cities</p>
           <div className="flex flex-wrap justify-center gap-2">
             {fallbackCities.map((option) => (
               <button
                 key={option.value}
                 onClick={() => onCitySelect(option.value)}
-                className="rounded-full border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-black/70 dark:text-white/70 hover:bg-black/10 dark:hover:bg-white/10 hover:text-black dark:hover:text-white transition-colors"
+                className="rounded-full border border-black/10 bg-black/5 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-black/70 transition-colors hover:bg-black/10 hover:text-black dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:bg-white/10 dark:hover:text-white"
               >
                 {option.label}
               </button>
@@ -675,22 +217,6 @@ function ErrorBlock({ message }) {
   );
 }
 
-function ChevronDownIcon({ className = "" }) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
-      <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CheckIcon({ className }) {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={clsx("h-4 w-4", className)} aria-hidden="true">
-      <path d="m5 10 3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 function SearchIcon() {
   return (
     <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black/60 dark:text-white/60" aria-hidden="true">
@@ -707,7 +233,7 @@ function SearchIcon() {
 
 function ArrowRightIcon({ className = "" }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={clsx("h-4 w-4", className)} aria-hidden="true">
+    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
       <path d="M5 10h10m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );

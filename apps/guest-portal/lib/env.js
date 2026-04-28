@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { getGuestApiBaseConfig } from './api/base-url.js';
 
 const serverEnvSchema = z.object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     SENTRY_ORG: z.string().optional(),
     SENTRY_PROJECT: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    GUEST_API_GATEWAY_URL: z.string().url().optional(),
     PUBLIC_API_URL: z.string().url().optional(),
     INTERNAL_API_KEY: z.string().optional(),
     RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
@@ -26,21 +28,15 @@ const serverEnvSchema = z.object({
 
 const clientEnvSchema = z.object({
     NEXT_PUBLIC_SENTRY_DSN: z.string().optional().or(z.literal('')),
-    NEXT_PUBLIC_GATEWAY_URL: z.string().url().optional(),
     NEXT_PUBLIC_SITE_URL: z.string().url().optional(),
     NEXT_PUBLIC_DEFAULT_CITY: z.string().optional().default('Pune'),
-    NEXT_PUBLIC_ALGOLIA_APP_ID: z.string().optional(),
-    NEXT_PUBLIC_ALGOLIA_SEARCH_KEY: z.string().optional(),
 });
 
 const _serverEnv = serverEnvSchema.safeParse(process.env);
 const _clientEnv = clientEnvSchema.safeParse({
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
-    NEXT_PUBLIC_GATEWAY_URL: process.env.NEXT_PUBLIC_GATEWAY_URL,
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_DEFAULT_CITY: process.env.NEXT_PUBLIC_DEFAULT_CITY,
-    NEXT_PUBLIC_ALGOLIA_APP_ID: process.env.NEXT_PUBLIC_ALGOLIA_APP_ID,
-    NEXT_PUBLIC_ALGOLIA_SEARCH_KEY: process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY,
 });
 
 if (!_serverEnv.success || !_clientEnv.success) {
@@ -50,4 +46,14 @@ if (!_serverEnv.success || !_clientEnv.success) {
     process.exit(1);
 }
 
-export const env = { ..._serverEnv.data, ..._clientEnv.data };
+const guestApiConfig = getGuestApiBaseConfig(process.env);
+if (!guestApiConfig.apiBaseUrl) {
+    console.error('❌ Missing guest API base URL. Set GUEST_API_GATEWAY_URL.');
+    process.exit(1);
+}
+
+export const env = {
+    ..._serverEnv.data,
+    ..._clientEnv.data,
+    GUEST_API_BASE_URL: guestApiConfig.apiBaseUrl,
+};

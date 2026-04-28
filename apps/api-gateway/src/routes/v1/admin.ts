@@ -1,4 +1,9 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+
+const AdminLogsQuerySchema = z.object({
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+});
 
 export default async function adminRoutes(fastify: FastifyInstance) {
     /**
@@ -6,17 +11,20 @@ export default async function adminRoutes(fastify: FastifyInstance) {
      * Fetch admin audit logs
      */
     fastify.get('/logs', {
-        preHandler: [fastify.requireRoles(['admin'])]
+        preHandler: [
+            fastify.requireRoles(['admin']),
+            fastify.validate({ querystring: AdminLogsQuerySchema }),
+        ]
     }, async (request: any, reply) => {
         const actorId = request.user?.uid;
         if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
 
-        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
+        const { limit } = request.query as z.infer<typeof AdminLogsQuerySchema>;
 
         try {
             const snapshot = await fastify.db.collection('admin_audit_logs')
                 .orderBy('createdAt', 'desc')
-                .limit(50)
+                .limit(limit)
                 .get();
 
             const logs = snapshot.docs.map(doc => {

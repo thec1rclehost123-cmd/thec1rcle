@@ -23,7 +23,6 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
         setError("");
         try {
             await loginWithGoogle();
-            handleSuccess();
         } catch (err) {
             setError(err.message);
         } finally {

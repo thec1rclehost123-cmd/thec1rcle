@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+// @ts-ignore
+import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
 
 const ChatMessageBody = z.object({
     eventId: z.string(),
@@ -21,7 +23,166 @@ const BlockBody = z.object({
     targetUid: z.string()
 }).strict();
 
+const FollowQuery = z.object({
+    userId: z.string().optional(),
+    targetId: z.string(),
+}).strict();
+
+const FollowMutationBody = z.object({
+    targetId: z.string(),
+    targetType: z.enum(['venue', 'host']),
+}).strict();
+
+const UnfollowQuery = z.object({
+    targetId: z.string(),
+    targetType: z.enum(['venue', 'host']).optional(),
+}).strict();
+
+const VenueFollowParams = z.object({
+    venueId: z.string(),
+}).strict();
+
 export default async function socialRoutes(fastify: FastifyInstance) {
+    /**
+     * GET /api/v1/follow
+     * Check if a user follows an entity.
+     */
+    fastify.get('/follow', async (request: any, reply) => {
+        const parsed = FollowQuery.safeParse(request.query || {});
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'targetId is required' });
+        }
+
+        try {
+            const { userId: fallbackUserId, targetId } = parsed.data;
+            const resolvedUserId = request.user?.uid || fallbackUserId;
+            if (!resolvedUserId) {
+                return { following: false };
+            }
+            const following = await isFollowing(resolvedUserId, targetId);
+            return { following };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /follow: ${error.message}`);
+            return reply.status(500).send({ error: error.message || 'Failed to check follow status' });
+        }
+    });
+
+    /**
+     * POST /api/v1/follow
+     * Follow an entity.
+     */
+    fastify.post('/follow', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+
+        const parsed = FollowMutationBody.safeParse(request.body || {});
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'targetId and targetType are required' });
+        }
+
+        try {
+            const { targetId, targetType } = parsed.data;
+            const follow = await followEntity(userId, targetId, targetType);
+            return reply.status(201).send({ success: true, follow });
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /follow: ${error.message}`);
+            return reply.status(500).send({ error: error.message || 'Failed to follow' });
+        }
+    });
+
+    /**
+     * DELETE /api/v1/follow
+     * Unfollow an entity.
+     */
+    fastify.delete('/follow', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+
+        const parsed = UnfollowQuery.safeParse(request.query || {});
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'targetId is required' });
+        }
+
+        try {
+            const { targetId, targetType = 'venue' } = parsed.data;
+            return await unfollowEntity(userId, targetId, targetType);
+        } catch (error: any) {
+            fastify.log.error(`Error in DELETE /follow: ${error.message}`);
+            return reply.status(500).send({ error: error.message || 'Failed to unfollow' });
+        }
+    });
+
+    /**
+     * POST /api/v1/venues/:venueId/follow
+     * Follow a venue.
+     */
+    fastify.post('/venues/:venueId/follow', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+
+        const parsed = VenueFollowParams.safeParse(request.params || {});
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'venueId is required' });
+        }
+
+        try {
+            const { venueId } = parsed.data;
+            const follow = await followEntity(userId, venueId, 'venue');
+            return reply.status(201).send({ success: true, follow });
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /venues/:venueId/follow: ${error.message}`);
+            return reply.status(500).send({ error: error.message || 'Failed to follow venue' });
+        }
+    });
+
+    /**
+     * DELETE /api/v1/venues/:venueId/follow
+     * Unfollow a venue.
+     */
+    fastify.delete('/venues/:venueId/follow', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+
+        const parsed = VenueFollowParams.safeParse(request.params || {});
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'venueId is required' });
+        }
+
+        try {
+            const { venueId } = parsed.data;
+            const result = await unfollowEntity(userId, venueId, 'venue');
+            return { success: true, ...result };
+        } catch (error: any) {
+            fastify.log.error(`Error in DELETE /venues/:venueId/follow: ${error.message}`);
+            return reply.status(500).send({ error: error.message || 'Failed to unfollow venue' });
+        }
+    });
+
+    /**
+     * GET /api/v1/venues/:venueId/follow-status
+     * Check if the current user follows this venue.
+     */
+    fastify.get('/venues/:venueId/follow-status', async (request: any) => {
+        const parsed = VenueFollowParams.safeParse(request.params || {});
+        if (!parsed.success) {
+            return { isFollowing: false };
+        }
+
+        const userId = request.user?.uid;
+        if (!userId) {
+            return { isFollowing: false };
+        }
+
+        try {
+            const { venueId } = parsed.data;
+            const following = await isFollowing(userId, venueId);
+            return { isFollowing: following };
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /venues/:venueId/follow-status: ${error.message}`);
+            return { isFollowing: false };
+        }
+    });
+
     /**
      * POST /api/v1/social/chat
      * Send a message to an event group chat
@@ -38,14 +199,18 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             const message = {
                 eventId,
                 userId,
-                senderName: request.user.name || 'Anonymous',
-                senderPhoto: request.user.picture || '',
+                // Redacted to prevent bulk scraping of attendee names
+                senderName: 'Attendee', 
+                senderPhoto: null,
                 text: text || '',
                 imageUrl: imageUrl || null,
                 videoUrl: videoUrl || null,
                 replyToId: replyToId || null,
                 createdAt: new Date().toISOString(),
-                metadata: metadata || {}
+                metadata: {
+                    ...metadata || {},
+                    isAnonymous: true
+                }
             };
 
             const docRef = await fastify.db.collection("eventGroupMessages").add(message);

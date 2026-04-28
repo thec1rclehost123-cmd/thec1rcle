@@ -147,6 +147,12 @@ async function handler(req) {
             case 'EVENT_RESUME':
                 await adminStore.setEventStatus(targetId, 'resume', adminId, reason, evidence);
                 break;
+            case 'FEATURE_EVENT_PIN':
+                await adminStore.setEventFeatured(targetId, true, adminId, reason);
+                break;
+            case 'FEATURE_EVENT_UNPIN':
+                await adminStore.setEventFeatured(targetId, false, adminId, reason);
+                break;
             case 'ACTION_APPROVE':
                 await adminStore.resolveProposal(targetId, adminId, adminRole, 'approved', null, context);
                 break;

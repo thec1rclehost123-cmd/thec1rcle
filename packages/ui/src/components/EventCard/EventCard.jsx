@@ -96,6 +96,13 @@ const EventCard = ({
                                     {event.category || "Event"}
                                 </span>
 
+                                {(event.lifecycle === 'live' || event.statusKey === 'live') && (
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-red-400/50 bg-red-500/20 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-red-300 backdrop-blur-md">
+                                        <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />
+                                        Live
+                                    </span>
+                                )}
+
                                 {event.trending && (
                                     <span className="inline-flex items-center rounded-full border border-orange/40 bg-orange/20 px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-orange-light backdrop-blur-md">
                                         Trending

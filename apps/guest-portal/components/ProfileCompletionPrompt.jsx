@@ -66,7 +66,7 @@ export default function ProfileCompletionPrompt() {
                                         Personalize your <span className="text-orange">Access.</span>
                                     </h2>
                                     <p className="text-sm text-white/40 font-medium">
-                                        The C1rcle is a curated community. Help us verify your identity to grant full access to rituals and bookings.
+                                        The community is curated. Help us verify your identity to grant full access to events and bookings.
                                     </p>
                                 </div>
                             </div>

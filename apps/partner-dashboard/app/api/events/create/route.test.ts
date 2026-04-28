@@ -5,6 +5,7 @@ const createSlotRequestMock = vi.fn();
 const getDateAvailabilityMock = vi.fn();
 const isSlotAvailableMock = vi.fn();
 const checkPartnershipMock = vi.fn();
+const resolveHostVenueSelectionMock = vi.fn();
 
 vi.mock("@/lib/server/eventStore", () => ({
     createEvent: createEventMock,
@@ -21,6 +22,7 @@ vi.mock("@/lib/server/calendarStore", () => ({
 
 vi.mock("@/lib/server/partnershipStore", () => ({
     checkPartnership: checkPartnershipMock,
+    resolveHostVenueSelection: resolveHostVenueSelectionMock,
 }));
 
 vi.mock("@/lib/server/withAuth", () => ({
@@ -48,6 +50,11 @@ describe("POST /api/events/create", () => {
         getDateAvailabilityMock.mockResolvedValue({ status: "available", slots: [] });
         isSlotAvailableMock.mockResolvedValue(true);
         checkPartnershipMock.mockResolvedValue(true);
+        resolveHostVenueSelectionMock.mockImplementation(async (_hostId: string, venueId: string, venueName = "") => ({
+            venueId,
+            venueName,
+            canonicalized: false,
+        }));
         createEventMock.mockImplementation(async (payload: any) => ({ id: "evt_1", ...payload }));
         createSlotRequestMock.mockResolvedValue({ id: "slot_1" });
     });

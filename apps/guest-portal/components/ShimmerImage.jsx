@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 const defaultSizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw";
 
@@ -9,6 +9,13 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(!props.src);
+
+  // Reset states when src changes
+  useEffect(() => {
+    setLoaded(false);
+    setError(!props.src);
+  }, [props.src]);
+
   const isDiceBear = typeof props.src === "string" && props.src.includes("dicebear.com");
 
   function handleLoad(event) {

@@ -28,6 +28,13 @@ export interface Order {
     isRSVP: boolean;
     paymentId?: string;
     paymentOrderId?: string;
+    cancelledAt?: string;
+    cancellationReason?: string;
+    cancelledBy?: string;
+    cancelledByType?: string;
+    refundPercentage?: number;
+    refundStatus?: string;
+    razorpayRefundId?: string | null;
 }
 
 export interface Reservation {
@@ -58,10 +65,18 @@ export interface PaymentRecord {
     verifiedAt?: string;
 }
 
+export interface OrderIdentityLookup {
+    userId?: string | null;
+    email?: string | null;
+}
+
 export interface IOrderRepository {
     getOrderById(id: string): Promise<Order | null>;
+    getOrderByReservationId(reservationId: string): Promise<Order | null>;
     createOrder(order: Order, transaction?: any): Promise<void>;
     updateOrder(id: string, updates: Partial<Order>, isRSVP?: boolean, transaction?: any): Promise<void>;
+    checkExistingRSVP(eventId: string, lookup: OrderIdentityLookup, transaction?: any): Promise<boolean>;
+    getUserTicketCountForEvent(eventId: string, lookup: OrderIdentityLookup): Promise<number>;
 
     getReservationById(id: string): Promise<Reservation | null>;
     createReservation(reservation: Reservation): Promise<void>;

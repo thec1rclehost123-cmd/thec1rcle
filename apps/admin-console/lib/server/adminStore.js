@@ -11,7 +11,8 @@ const FROM_ADDR = process.env.NODE_ENV === "development"
 // Authority Tiering
 export const TIER1_ACTIONS = [
     'DISCOVERY_WEIGHT_ADJUST', 'VERIFICATION_ISSUE', 'VERIFICATION_REVOKE',
-    'WARNING_ISSUE', 'CONTENT_REMOVE', 'EVENT_PAUSE', 'EVENT_RESUME'
+    'WARNING_ISSUE', 'CONTENT_REMOVE', 'EVENT_PAUSE', 'EVENT_RESUME',
+    'FEATURE_EVENT_PIN', 'FEATURE_EVENT_UNPIN'
 ];
 
 export const ALLOWLIST_ACTIONS = [
@@ -445,6 +446,23 @@ export const adminStore = {
             targetType: type,
             reason,
             after: { discoveryWeight: numericWeight }
+        });
+    },
+
+    async setEventFeatured(eventId, pin, adminId, reason) {
+        const db = getAdminDb();
+        const spotlightsRef = db.collection('platform_settings').doc('spotlights');
+        await spotlightsRef.set(
+            { featured: pin ? FieldValue.arrayUnion(eventId) : FieldValue.arrayRemove(eventId) },
+            { merge: true }
+        );
+        await this.logAdminAction({
+            adminId,
+            action: pin ? 'FEATURE_EVENT_PIN' : 'FEATURE_EVENT_UNPIN',
+            targetId: eventId,
+            targetType: 'event',
+            reason,
+            after: { featured: pin }
         });
     },
 

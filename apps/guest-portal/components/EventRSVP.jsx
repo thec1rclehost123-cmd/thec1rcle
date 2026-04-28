@@ -9,6 +9,11 @@ import { saveIntent } from "../lib/utils/intentStore";
 import { useSocialActions } from "../hooks/useSocialActions";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import {
+  getEventQueueStatus,
+  recordEventView,
+  recordPromoterLinkClick,
+} from "../features/events/api/eventEngagementApi";
 
 const NotLiveModal = ({ isOpen, onClose }) => (
   <AnimatePresence>
@@ -73,15 +78,11 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get("ref");
-      if (ref) {
-        setPromoterCode(ref);
-        fetch("/api/promoter/links/click", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: ref })
-        }).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get("ref");
+        if (ref) {
+          setPromoterCode(ref);
+          recordPromoterLinkClick(ref).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
       }
     }
   }, []);
@@ -90,7 +91,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   // Fire-and-forget: never blocks render, never surfaces errors to the user.
   useEffect(() => {
     if (event?.id) {
-      fetch(`/api/events/${event.id}/view`, { method: "POST" })
+      recordEventView(event.id)
         .catch(() => { /* non-critical */ });
     }
   }, [event?.id]);
@@ -117,8 +118,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
         // Surge Protection Check
         try {
-          const surgeRes = await fetch(`/api/events/${event.id}/queue`);
-          const surgeData = await surgeRes.json();
+          const surgeData = await getEventQueueStatus(event.id);
 
           if (surgeData.surgeActive) {
             const admissionToken = sessionStorage.getItem(`admission_token_${event.id}`);
@@ -161,8 +161,13 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         break;
 
       case "LIKE":
-        if (!ensureAuthenticated("LIKE")) return;
-        // Logic for liking could be added here
+        if (!user) {
+          window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+            detail: { intent: "LIKE", eventId: event?.id }
+          }));
+          return;
+        }
+        toast("Favorites are coming soon.", "info");
         break;
 
       case "SHARE":
@@ -181,7 +186,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         break;
 
       default:
-        console.log("Unhandled action:", type, data);
+        console.warn("Unhandled RSVP action:", type);
     }
   };
 

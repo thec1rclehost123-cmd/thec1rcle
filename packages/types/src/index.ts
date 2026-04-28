@@ -8,6 +8,24 @@ export interface Address {
   lng?: number;
 }
 
+export interface StandardErrorDetail {
+  path: string;
+  message: string;
+}
+
+export interface StandardErrorPayload {
+  code: string;
+  message: string;
+  details?: StandardErrorDetail[] | Record<string, unknown> | null;
+  requestId?: string;
+}
+
+export interface StandardErrorResponse {
+  error: StandardErrorPayload;
+}
+
+export type ApiErrorPayload = StandardErrorPayload;
+
 export interface Venue {
   id: string;
   name: string;

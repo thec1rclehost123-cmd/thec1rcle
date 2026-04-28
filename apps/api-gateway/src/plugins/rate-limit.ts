@@ -1,6 +1,8 @@
 import fp from 'fastify-plugin';
 import rateLimit from '@fastify/rate-limit';
 import { FastifyInstance, FastifyRequest } from 'fastify';
+// @ts-ignore
+import { checkAdaptiveRateLimit } from '@c1rcle/core/rate-limiter';
 
 /**
  * 🛡️ Dynamic Rate Limiting Plugin
@@ -9,6 +11,48 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
  */
 
 export default fp(async (fastify: FastifyInstance) => {
+    // 🛡️ Layer 1: Fail-Closed Security for Sensitive Ghost Bridge Routes
+    // These endpoints MUST NOT operate if the security system (Redis) is down.
+    fastify.addHook('preHandler', async (request, reply) => {
+        const isHandshake = request.url.includes('/api/v1/tickets/') && request.url.includes('/handshake');
+        const isMatching  = request.url.startsWith('/api/v1/matching');
+        const isProfile   = request.url.startsWith('/api/v1/profiles/');
+
+        if (isHandshake || isMatching || isProfile) {
+            // @ts-ignore
+            const identifier = request.user?.uid || request.ip;
+            
+            try {
+                const { success, reset } = await checkAdaptiveRateLimit(
+                    `sensitive:${identifier}`,
+                    30, 
+                    60, 
+                    'ip', 
+                    request.ip,
+                    true // 🔒 failClosed: true
+                );
+
+                if (!success) {
+                    reply.code(429).send({
+                        error: 'Too Many Requests',
+                        message: 'Security threshold exceeded or security system unavailable. Critical routes are locked for protection.',
+                        retryAfter: reset
+                    });
+                    return;
+                }
+            } catch (error) {
+                fastify.log.error({ err: error, url: request.url }, 'Fail-closed security check triggered');
+                reply.code(503).send({
+                    error: 'Service Unavailable',
+                    message: 'Security system is currently offline. Critical operations are suspended.'
+                });
+                return;
+            }
+        }
+    });
+
+    // 🛡️ Layer 2: General API Availability (Fail-Open)
+    // For non-critical routes, we prioritize availability over strict enforcement.
     await fastify.register(rateLimit, {
         global: true,
         max: (req: FastifyRequest) => {
@@ -22,7 +66,14 @@ export default fp(async (fastify: FastifyInstance) => {
                 return 15;
             }
 
-            // 3. Admin & Search: Moderate protection
+            // 3. Handshake & Matching: Strict protection for identity reveal
+            if (req.url.includes('/api/v1/tickets/') || 
+                req.url.includes('/api/v1/profiles/') ||
+                req.url.startsWith('/api/v1/matching')) {
+                return 30;
+            }
+
+            // 4. Admin & Search: Moderate protection
             if (req.url.startsWith('/api/v1/admin') || req.url.startsWith('/api/v1/search')) {
                 return 50;
             }
