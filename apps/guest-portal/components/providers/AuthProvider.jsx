@@ -4,7 +4,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useQueryClient } from "@tanstack/react-query";
 import {
   guestUnreadNotificationCountQueryKey,
-  invalidateGuestNotifications,
   useGuestUnreadNotificationCountQuery,
 } from "../../features/notifications/notificationsQueries";
 import {
@@ -25,6 +24,7 @@ import { clearSessionPersistence } from "../../features/auth/hooks/useOnboarding
 
 const AUTH_SYNC_STORAGE_KEY = "c1rcle:guest-auth-sync";
 const AUTH_SYNC_CHANNEL_NAME = "c1rcle-guest-auth";
+const AUTH_PASSIVE_SYNC_MIN_INTERVAL_MS = 5 * 60 * 1000;
 
 function broadcastAuthSync(reason, channelRef) {
   const payload = { reason, timestamp: Date.now() };
@@ -109,6 +109,7 @@ export function AuthProvider({ children }) {
     setProfile(next.profile);
     setUnreadNotificationCount(next.unreadNotificationCount);
     setSyncStatus(next.user?.uid ? "ready" : "signed_out");
+    lastSyncedAtRef.current = Date.now();
     if (next.user?.uid) {
       queryClient.setQueryData(
         guestUnreadNotificationCountQueryKey(next.user.uid),
@@ -130,11 +131,7 @@ export function AuthProvider({ children }) {
   }, [unreadNotificationsQuery.data?.unreadCount]);
 
   const invalidateProfileState = useCallback(async () => {
-    const uid = userRef.current?.uid;
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["profile"] }),
-      invalidateGuestNotifications(queryClient, uid),
-    ]);
+    await queryClient.invalidateQueries({ queryKey: ["profile"] });
   }, [queryClient]);
 
   const loadBootstrap = useCallback(async () => {
@@ -226,7 +223,7 @@ export function AuthProvider({ children }) {
 
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState && document.visibilityState !== "visible") return;
-      if (Date.now() - lastSyncedAtRef.current < 60_000) return;
+      if (Date.now() - lastSyncedAtRef.current < AUTH_PASSIVE_SYNC_MIN_INTERVAL_MS) return;
       void syncBootstrap();
     };
 

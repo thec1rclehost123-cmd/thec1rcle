@@ -16,7 +16,7 @@ import {
     addNotificationResponseListener,
     refreshPushToken,
 } from "@/lib/notifications";
-import { apiFetch } from "@/lib/api";
+import { getOrder } from "@/lib/api";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { hasCompletedOnboarding } from "@/app/onboarding";
@@ -248,7 +248,7 @@ export default function RootLayout() {
         const pendingOrderId = useCartStore.getState().pendingPaymentOrderId;
         if (!pendingOrderId) return;
 
-        apiFetch(`/api/orders/${pendingOrderId}`)
+        getOrder(pendingOrderId, { includeEvent: false })
             .then((order: any) => {
                 if (order?.status === "confirmed" || order?.status === "checked_in") {
                     useCartStore.getState().clearPendingReservation();

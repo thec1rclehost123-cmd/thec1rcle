@@ -8,31 +8,41 @@ export class FirebaseOrderRepository implements IOrderRepository {
         return `${orderId}__${razorpayOrderId}`;
     }
 
-    async getOrderById(id: string): Promise<Order | null> {
-        const doc = await this.db.collection('orders').doc(id).get();
+    async getOrderById(id: string, transaction?: Transaction): Promise<Order | null> {
+        const orderRef = this.db.collection('orders').doc(id);
+        const doc = transaction
+            ? await transaction.get(orderRef)
+            : await orderRef.get();
         if (doc.exists) return { id: doc.id, ...doc.data() } as Order;
 
-        const rsvpDoc = await this.db.collection('rsvp_orders').doc(id).get();
+        const rsvpRef = this.db.collection('rsvp_orders').doc(id);
+        const rsvpDoc = transaction
+            ? await transaction.get(rsvpRef)
+            : await rsvpRef.get();
         if (rsvpDoc.exists) return { id: rsvpDoc.id, ...rsvpDoc.data() } as Order;
 
         return null;
     }
 
-    async getOrderByReservationId(reservationId: string): Promise<Order | null> {
-        const ordersSnapshot = await this.db.collection('orders')
+    async getOrderByReservationId(reservationId: string, transaction?: Transaction): Promise<Order | null> {
+        const ordersQuery = this.db.collection('orders')
             .where('reservationId', '==', reservationId)
-            .limit(1)
-            .get();
+            .limit(1);
+        const ordersSnapshot = transaction
+            ? await transaction.get(ordersQuery)
+            : await ordersQuery.get();
 
         if (!ordersSnapshot.empty) {
             const doc = ordersSnapshot.docs[0];
             return { id: doc.id, ...doc.data() } as Order;
         }
 
-        const rsvpSnapshot = await this.db.collection('rsvp_orders')
+        const rsvpQuery = this.db.collection('rsvp_orders')
             .where('reservationId', '==', reservationId)
-            .limit(1)
-            .get();
+            .limit(1);
+        const rsvpSnapshot = transaction
+            ? await transaction.get(rsvpQuery)
+            : await rsvpQuery.get();
 
         if (!rsvpSnapshot.empty) {
             const doc = rsvpSnapshot.docs[0];
@@ -129,8 +139,11 @@ export class FirebaseOrderRepository implements IOrderRepository {
         return totalTickets;
     }
 
-    async getReservationById(id: string): Promise<Reservation | null> {
-        const doc = await this.db.collection('cart_reservations').doc(id).get();
+    async getReservationById(id: string, transaction?: Transaction): Promise<Reservation | null> {
+        const ref = this.db.collection('cart_reservations').doc(id);
+        const doc = transaction
+            ? await transaction.get(ref)
+            : await ref.get();
         if (!doc.exists) return null;
         return { id: doc.id, ...doc.data() } as Reservation;
     }
@@ -155,14 +168,16 @@ export class FirebaseOrderRepository implements IOrderRepository {
     }
 
     async updatePaymentRecord(orderId: string, razorpayOrderId: string, updates: Partial<PaymentRecord>, transaction?: Transaction): Promise<void> {
-        const snapshot = await this.db.collection('payments')
-            .where('orderId', '==', orderId)
-            .where('razorpayOrderId', '==', razorpayOrderId)
-            .limit(1)
-            .get();
+        const docId = this.paymentRecordDocId(orderId, razorpayOrderId);
+        const directRef = this.db.collection('payments').doc(docId);
+        const directSnapshot = transaction
+            ? await transaction.get(directRef)
+            : await directRef.get();
+        const ref = directSnapshot.exists
+            ? directRef
+            : await this.resolveLegacyPaymentRecordRef(orderId, razorpayOrderId, transaction);
 
-        if (snapshot.empty) throw new Error('Payment record not found');
-        const ref = snapshot.docs[0].ref;
+        if (!ref) throw new Error('Payment record not found');
 
         if (transaction) {
             transaction.update(ref, updates as any);
@@ -171,22 +186,52 @@ export class FirebaseOrderRepository implements IOrderRepository {
         }
     }
 
-    async getPaymentRecord(orderId: string, razorpayOrderId: string): Promise<PaymentRecord | null> {
-        const snapshot = await this.db.collection('payments')
+    async getPaymentRecord(orderId: string, razorpayOrderId: string, transaction?: Transaction): Promise<PaymentRecord | null> {
+        const directRef = this.db.collection('payments')
+            .doc(this.paymentRecordDocId(orderId, razorpayOrderId));
+        const directSnapshot = transaction
+            ? await transaction.get(directRef)
+            : await directRef.get();
+
+        if (directSnapshot.exists) {
+            return directSnapshot.data() as PaymentRecord;
+        }
+
+        const query = this.db.collection('payments')
             .where('orderId', '==', orderId)
             .where('razorpayOrderId', '==', razorpayOrderId)
-            .limit(1)
-            .get();
+            .limit(1);
+        const snapshot = transaction
+            ? await transaction.get(query)
+            : await query.get();
 
         if (snapshot.empty) return null;
         return snapshot.docs[0].data() as PaymentRecord;
     }
 
-    async getPaymentRecordByPaymentId(paymentId: string): Promise<PaymentRecord | null> {
+    async getLatestPendingPaymentRecord(orderId: string): Promise<PaymentRecord | null> {
         const snapshot = await this.db.collection('payments')
-            .where('razorpayPaymentId', '==', paymentId)
-            .limit(1)
+            .where('orderId', '==', orderId)
+            .where('status', '==', 'initiated')
             .get();
+
+        if (snapshot.empty) return null;
+        return snapshot.docs
+            .map((doc) => doc.data() as PaymentRecord)
+            .sort((left, right) => {
+                const leftTs = Date.parse(String(left.createdAt || 0));
+                const rightTs = Date.parse(String(right.createdAt || 0));
+                return rightTs - leftTs;
+            })[0] || null;
+    }
+
+    async getPaymentRecordByPaymentId(paymentId: string, transaction?: Transaction): Promise<PaymentRecord | null> {
+        const query = this.db.collection('payments')
+            .where('razorpayPaymentId', '==', paymentId)
+            .limit(1);
+        const snapshot = transaction
+            ? await transaction.get(query)
+            : await query.get();
 
         if (snapshot.empty) return null;
         return snapshot.docs[0].data() as PaymentRecord;
@@ -194,5 +239,17 @@ export class FirebaseOrderRepository implements IOrderRepository {
 
     async runInTransaction<T>(action: (transaction: Transaction) => Promise<T>): Promise<T> {
         return this.db.runTransaction(action);
+    }
+
+    private async resolveLegacyPaymentRecordRef(orderId: string, razorpayOrderId: string, transaction?: Transaction) {
+        const query = this.db.collection('payments')
+            .where('orderId', '==', orderId)
+            .where('razorpayOrderId', '==', razorpayOrderId)
+            .limit(1);
+        const snapshot = transaction
+            ? await transaction.get(query)
+            : await query.get();
+
+        return snapshot.empty ? null : snapshot.docs[0].ref;
     }
 }

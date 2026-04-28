@@ -107,6 +107,12 @@ declare module '@c1rcle/core/events' {
     export function isEditableEvent(event: any, role: string): boolean;
 }
 
+declare module '@c1rcle/core/order-engine' {
+    export const PAYMENT_PENDING_ORDER_STATUS: string;
+    export function isPaymentPendingOrderStatus(status: string): boolean;
+    export function buildOrderPayload(params: any): any;
+    export function executeOrderCreation(transaction: any, params: any): Promise<any>;
+}
 
 
 declare module '@c1rcle/core/finance-engine' {

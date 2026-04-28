@@ -9,6 +9,8 @@ import {
     serializeGuestCsrfClearCookie,
 } from '../../lib/guest-csrf';
 import { buildGuestAuthBootstrap, buildGuestProfileCreatePayload } from '../../lib/guest-auth';
+// @ts-ignore
+import { getGuestUnreadCount } from '@c1rcle/core/guest-wallet-profile-notification-service';
 
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 5;
@@ -107,12 +109,7 @@ async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: strin
 
 async function getUnreadNotificationCount(fastify: FastifyInstance, userId: string) {
     try {
-        const snapshot = await fastify.db.collection('notifications')
-            .where('userId', '==', userId)
-            .where('isRead', '==', false)
-            .count()
-            .get();
-        return snapshot.data().count || 0;
+        return await getGuestUnreadCount(fastify.db, userId);
     } catch (error) {
         fastify.log.warn({ userId, error }, 'Unable to load guest unread notification count');
         return 0;
@@ -248,21 +245,58 @@ function mapAuthErrorMessage(error: any) {
     }
 }
 
+/**
+ * 🛡️ Self-Healing: Ensures a Firestore profile exists for an authenticated user.
+ * Prevents "Ghost Users" if registration or OAuth callback fails mid-flow.
+ */
+async function ensureProfile(fastify: FastifyInstance, user: any) {
+    const userId = user.uid;
+    const profileRef = fastify.db.collection('users').doc(userId);
+
+    return await fastify.db.runTransaction(async (transaction) => {
+        const doc = await transaction.get(profileRef);
+        if (doc.exists) {
+            return { ...doc.data(), uid: doc.id };
+        }
+
+        // Create a skeleton profile
+        const profileDoc = buildGuestProfileCreatePayload({
+            email: user.email || '',
+            displayName: user.displayName || 'Member',
+            photoURL: user.photoURL || '',
+            avatar: user.photoURL || '',
+            onboardingComplete: false,
+        }, {
+            uid: user.uid,
+            email: user.email,
+            displayName: user.displayName,
+            photoURL: user.photoURL,
+            phoneNumber: user.phoneNumber,
+        }, new Date().toISOString());
+
+        transaction.set(profileRef, profileDoc);
+        return { ...profileDoc, uid: userId };
+    });
+}
+
 async function buildBootstrapForUid(fastify: FastifyInstance, userLike: Record<string, any>) {
     const userId = userLike?.uid;
-    const [userDocResult, onboardingRequestResult, unreadCountResult] = await Promise.allSettled([
-        fastify.db.collection('users').doc(userId).get(),
+    
+    // We try to fetch the profile. If it's missing, we self-heal.
+    const [profile, onboardingRequestResult, unreadCountResult] = await Promise.allSettled([
+        ensureProfile(fastify, userLike),
         getGuestOnboardingRequest(fastify, userId),
         getUnreadNotificationCount(fastify, userId),
     ]);
 
-    if (userDocResult.status !== 'fulfilled') {
-        throw userDocResult.reason;
+    if (profile.status !== 'fulfilled') {
+        // If critical failure, throw
+        throw profile.reason;
     }
 
     return buildGuestAuthBootstrap({
         user: userLike,
-        rawProfile: userDocResult.value.exists ? { uid: userDocResult.value.id, ...userDocResult.value.data() } : null,
+        rawProfile: profile.value,
         onboardingRequest: onboardingRequestResult.status === 'fulfilled' ? onboardingRequestResult.value : null,
         unreadNotificationCount: unreadCountResult.status === 'fulfilled' ? unreadCountResult.value : 0,
     });
@@ -543,23 +577,30 @@ export default async function authRoutes(fastify: FastifyInstance) {
             await createSessionFromIdToken(fastify, reply, signIn.idToken, true);
 
             const userRecord = await fastify.auth.getUser(signIn.localId);
-            const existingProfile = await fastify.db.collection('users').doc(userRecord.uid).get();
-            if (!existingProfile.exists) {
-                const profileDoc = buildGuestProfileCreatePayload({
-                    email: userRecord.email,
-                    displayName: userRecord.displayName || 'Member',
-                    photoURL: userRecord.photoURL || '',
-                    avatar: userRecord.photoURL || '',
-                    onboardingComplete: false,
-                }, {
-                    uid: userRecord.uid,
-                    email: userRecord.email,
-                    displayName: userRecord.displayName,
-                    photoURL: userRecord.photoURL,
-                    phoneNumber: userRecord.phoneNumber,
-                }, new Date().toISOString());
-                await fastify.profileService.createProfile(profileDoc);
-            }
+            
+            // 🛡️ Reliability: Ensure atomic profile creation to prevent race conditions
+            await fastify.db.runTransaction(async (transaction) => {
+                const profileRef = fastify.db.collection('users').doc(userRecord.uid);
+                const existingProfile = await transaction.get(profileRef);
+                
+                if (!existingProfile.exists) {
+                    const profileDoc = buildGuestProfileCreatePayload({
+                        email: userRecord.email,
+                        displayName: userRecord.displayName || 'Member',
+                        photoURL: userRecord.photoURL || '',
+                        avatar: userRecord.photoURL || '',
+                        onboardingComplete: false,
+                    }, {
+                        uid: userRecord.uid,
+                        email: userRecord.email,
+                        displayName: userRecord.displayName,
+                        photoURL: userRecord.photoURL,
+                        phoneNumber: userRecord.phoneNumber,
+                    }, new Date().toISOString());
+                    
+                    transaction.set(profileRef, profileDoc);
+                }
+            });
 
             return reply.redirect(`${getPortalBaseUrl()}${nextPath}`);
         } catch (error: any) {
@@ -597,24 +638,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return { success: true, message: 'Session cleared' };
     });
 
-    fastify.post('/check', {
-        preHandler: [fastify.validate({ body: AuthCheckSchema })],
-    }, async (request: any, reply) => {
-        const { email } = request.body;
-
-        try {
-            await fastify.auth.getUserByEmail(email);
-            return { exists: true };
-        } catch (error: any) {
-            if (error?.code === 'auth/user-not-found') return { exists: false };
-            fastify.log.error(`Error in POST /auth/check: ${error.message}`);
-            return reply.status(500).send(buildErrorResponse({
-                code: 'AUTH_CHECK_FAILED',
-                message: 'Check protocol failed',
-                requestId: request.id,
-            }));
-        }
-    });
+    // 🛡️ Security: Removed /auth/check to prevent account enumeration. 
+    // Registration should handle "Email already exists" errors within the secure /auth/register flow.
 
     fastify.post('/otp/send', {
         config: { rateLimit: { max: 5, timeWindow: '1 minute' } },

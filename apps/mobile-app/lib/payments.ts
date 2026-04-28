@@ -68,6 +68,21 @@ function matchesReservationSelection(
     return JSON.stringify(reservation.items) === JSON.stringify(params.items);
 }
 
+function createCheckoutActionId(): string {
+    if (typeof globalThis.crypto?.randomUUID === "function") {
+        return globalThis.crypto.randomUUID();
+    }
+    return `mobile-checkout-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function buildPhaseIdempotencyKey(actionId: string, phase: string): string {
+    return `${actionId}:${phase}`;
+}
+
+function buildVerifyIdempotencyKey(paymentId: string): string {
+    return `verify:${paymentId}`;
+}
+
 // ─── Main Checkout Flow ──────────────────────────────────────────
 
 /**
@@ -83,6 +98,7 @@ export async function processFullCheckout(
     params: CheckoutParams
 ): Promise<CheckoutResult> {
     const { onStatusChange } = params;
+    const checkoutActionId = createCheckoutActionId();
 
     try {
         // ── Step 1: Reserve Inventory ──
@@ -109,6 +125,10 @@ export async function processFullCheckout(
             : await reserveTickets({
                 eventId: params.eventId,
                 items: params.items,
+            }, {
+                headers: {
+                    "x-idempotency-key": buildPhaseIdempotencyKey(checkoutActionId, "reserve"),
+                },
             });
 
         if (!reservation.success) {
@@ -138,6 +158,10 @@ export async function processFullCheckout(
             userPhone: params.userPhone,
             promoCode: params.promoCode,
             promoterCode: params.promoterCode,
+        }, {
+            headers: {
+                "x-idempotency-key": buildPhaseIdempotencyKey(checkoutActionId, "initiate"),
+            },
         });
 
         if (!checkout.success) {
@@ -168,6 +192,7 @@ export async function processFullCheckout(
         useCartStore.getState().setPendingPaymentOrderId(checkout.order.id);
 
         const paymentResult = await openNativeRazorpay({
+            key: checkout.razorpay!.key || RAZORPAY_KEY,
             razorpayOrderId: checkout.razorpay!.orderId,
             amount: checkout.razorpay!.amount,
             currency: checkout.razorpay!.currency || "INR",
@@ -197,6 +222,10 @@ export async function processFullCheckout(
             razorpay_order_id: paymentResult.razorpay_order_id!,
             razorpay_payment_id: paymentResult.razorpay_payment_id!,
             razorpay_signature: paymentResult.razorpay_signature!,
+        }, {
+            headers: {
+                "x-idempotency-key": buildVerifyIdempotencyKey(paymentResult.razorpay_payment_id!),
+            },
         });
 
         if (!verification.success) {
@@ -228,6 +257,7 @@ export async function processFullCheckout(
 // ─── Razorpay Native SDK Integration ─────────────────────────────
 
 interface RazorpayOptions {
+    key?: string;
     razorpayOrderId: string;
     amount: number; // in paise
     currency: string;
@@ -259,7 +289,7 @@ async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayRes
 
         if (RazorpayCheckout) {
             const rzpOptions = {
-                key: RAZORPAY_KEY,
+                key: options.key || RAZORPAY_KEY,
                 amount: options.amount,
                 currency: options.currency,
                 name: "THE C1RCLE",

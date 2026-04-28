@@ -14,8 +14,7 @@ const TICKET_SECRET = getTicketSecret();
 export function signTicketId(ticketId) {
     const signature = createHmac("sha256", TICKET_SECRET)
         .update(ticketId)
-        .digest("hex")
-        .slice(0, 16);
+        .digest("hex"); // full 64-char SHA-256 — was truncated to 16, giving only 64 bits of entropy
     return `${ticketId}:${signature}`;
 }
 

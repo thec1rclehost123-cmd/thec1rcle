@@ -4,33 +4,19 @@
  * Location: packages/core/order-engine.js
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID, randomBytes } from "node:crypto";
 import { getAdminDb } from "./admin.js";
 
-const ORDER_SEQUENCE_COLLECTION = "system_counters";
-const ORDER_SEQUENCE_DOC_ID = "orders";
 export const PAYMENT_PENDING_ORDER_STATUS = "payment_pending";
 
 export function isPaymentPendingOrderStatus(status) {
     return status === PAYMENT_PENDING_ORDER_STATUS || status === "pending_payment";
 }
 
-function formatOrderNumber(orderIndex) {
-    return `#${String(orderIndex).padStart(8, "0")}`;
-}
-
-async function assignOrderSequence(transaction, db) {
-    const sequenceRef = db.collection(ORDER_SEQUENCE_COLLECTION).doc(ORDER_SEQUENCE_DOC_ID);
-    const sequenceDoc = await transaction.get(sequenceRef);
-    const currentValue = Number(sequenceDoc.data()?.lastOrderIndex || 0);
-    const nextValue = currentValue + 1;
-
-    return {
-        sequenceRef,
-        nextValue,
-        orderIndex: nextValue,
-        orderNumber: formatOrderNumber(nextValue)
-    };
+function generateOrderSequence() {
+    const part1 = randomBytes(3).toString('hex').toUpperCase();
+    const part2 = randomBytes(3).toString('hex').toUpperCase();
+    return { sequenceRef: null, nextValue: null, orderIndex: null, orderNumber: `ORD-${part1}-${part2}` };
 }
 
 /**
@@ -72,6 +58,17 @@ export async function validateOrder(event, items, userContext, options = {}) {
         if (hasExistingRSVP) {
             return { success: false, error: "You have already RSVP'd for this event" };
         }
+    }
+
+    // 1b. Gender Profile Completeness
+    const eventHasGenderRestriction = eventTickets.some(t => normalizeGenderRequirement(t) !== "any");
+    const itemHasGenderRestriction = items.some(i => normalizeGenderRequirement(i) !== "any");
+
+    if ((eventHasGenderRestriction || itemHasGenderRestriction) && !userContext.userGender) {
+        return {
+            success: false,
+            error: "Please complete your profile with your gender to purchase tickets for this event."
+        };
     }
 
     // 2. Global Order Limits (Paid)
@@ -134,6 +131,7 @@ export function buildOrderPayload(params) {
         eventId: event.id,
         eventName: event.title,
         workspaceId: workspaceId || event.workspaceId || null,
+        queueId: reservation.queueId || null,
         userId: user.id,
         userName: user.name,
         userEmail: user.email,
@@ -182,7 +180,7 @@ export async function executeOrderCreation(transaction, {
                 orderIndex: orderData.orderIndex,
                 orderNumber: orderData.orderNumber
             }
-            : await assignOrderSequence(transaction, db);
+            : generateOrderSequence();
 
     // 2. Inventory Adjustment
     if (inventoryEngine && !orderData.isRSVP) {
@@ -378,22 +376,26 @@ export async function cancelOrder(orderId) {
     return { ...order, status: "cancelled", updatedAt: now };
 }
 
-export async function cleanupStaleOrders(userId = null) {
+export async function cleanupStaleOrders(userId = null, batchSize = 10) {
     const db = getAdminDb();
     const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
+    const effectiveBatchSize = Math.max(1, Math.min(Number(batchSize) || 10, 100));
     let query = db.collection("orders")
         .where("status", "==", PAYMENT_PENDING_ORDER_STATUS)
-        .where("createdAt", "<", fifteenMinutesAgo);
+        .where("createdAt", "<", fifteenMinutesAgo)
+        .limit(effectiveBatchSize + 1);
 
     if (userId) {
         query = query.where("userId", "==", userId);
     }
 
     const snapshot = await query.get();
+    const hasMore = snapshot.docs.length > effectiveBatchSize;
+    const docsToProcess = hasMore ? snapshot.docs.slice(0, effectiveBatchSize) : snapshot.docs;
     let cleaned = 0;
 
-    for (const doc of snapshot.docs) {
+    for (const doc of docsToProcess) {
         try {
             await cancelOrder(doc.id);
             cleaned++;
@@ -402,11 +404,15 @@ export async function cleanupStaleOrders(userId = null) {
         }
     }
 
+    if (hasMore) {
+        console.warn(`[Order Engine] cleanupStaleOrders: more than ${effectiveBatchSize} stale orders found. Run again to continue.`);
+    }
+
     if (cleaned > 0) {
         console.log(`[Order Engine] Cleaned up ${cleaned} stale pending orders`);
     }
 
-    return { cleaned };
+    return { cleaned, hasMore: hasMore || false };
 }
 
 export default {

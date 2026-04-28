@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import {
     getGuestNotifications,
@@ -27,7 +28,7 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
         preHandler: [fastify.validate({ querystring: GuestNotificationsQuery })],
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const unreadOnly = request.query.unreadOnly === 'true';
@@ -36,14 +37,17 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
 
             if (countOnly) {
                 const unreadCount = await getGuestUnreadCount(fastify.db, userId);
-                return { unreadCount };
+                return { notifications: [], unreadCount };
             }
 
-            const notifications = await getGuestNotifications(fastify.db, userId, { unreadOnly, limit });
-            return { notifications };
+            const [notifications, unreadCount] = await Promise.all([
+                getGuestNotifications(fastify.db, userId, { unreadOnly, limit }),
+                getGuestUnreadCount(fastify.db, userId),
+            ]);
+            return { notifications, unreadCount };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /guest-notifications failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -51,17 +55,18 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
         preHandler: [fastify.validate({ body: GuestNotificationsPatchBody })],
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             if (!request.body.markAll) {
-                return reply.status(400).send({ error: 'markAll is required' });
+                return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'markAll is required', requestId: request.id }));
             }
 
-            return await markAllGuestNotificationsRead(fastify.db, userId);
+            await markAllGuestNotificationsRead(fastify.db, userId);
+            return { success: true };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'PATCH /guest-notifications failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -69,15 +74,15 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
         preHandler: [fastify.validate({ params: GuestNotificationIdParam })],
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const result = await markGuestNotificationRead(fastify.db, userId, request.params.id);
-            if (!result) return reply.status(404).send({ error: 'Notification not found' });
-            return result;
+            if (!result) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Notification not found', requestId: request.id }));
+            return { success: true };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 500;
-            return reply.status(status).send({ error: error.message || 'Failed to update notification' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'INTERNAL_ERROR', message: error.message || 'Failed to update notification', requestId: request.id }));
         }
     });
 }

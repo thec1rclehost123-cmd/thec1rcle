@@ -264,9 +264,6 @@ export async function getUserTickets(userId) {
             const isRSVP = i % 2 !== 0;
             const isPast = i >= 2;
             const ticketId = isRSVP ? `RSVP-${event.id}-${i}` : `mock-${event.id}-${i}`;
-            const secret = getTicketSecret();
-            const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-
             return {
                 ticketId,
                 eventId: event.id,
@@ -276,7 +273,7 @@ export async function getUserTickets(userId) {
                 city: event.city || "Pune",
                 posterUrl: event.image,
                 ticketType: isRSVP ? "RSVP" : (i === 0 ? "VIP Access" : "General Admission"),
-                qrPayload: `${ticketId}:${signature}`,
+                qrPayload: `${ticketId}:${createHmac("sha256", getTicketSecret()).update(ticketId).digest("hex")}`,
                 status: isPast ? "used" : "active"
             };
         });
@@ -352,9 +349,30 @@ export async function getUserTickets(userId) {
         ...transfers.map(t => t.eventId)
     ].filter(Boolean)));
 
+    // Phase 2.2: pre-populate from denormalized eventSummary embedded in each entitlement at issuance.
+    // For every event that has at least one entitlement with a summary, the Firestore read is eliminated.
     const eventsData = {};
-    if (allEventIds.length > 0) {
-        const snapshots = await Promise.all(allEventIds.map(id => db.collection("events").doc(id).get()));
+    entitlements.forEach(ent => {
+        if (ent.eventSummary && ent.eventId && !eventsData[ent.eventId]) {
+            const es = ent.eventSummary;
+            eventsData[ent.eventId] = {
+                id: ent.eventId,
+                title: es.title,
+                startDate: es.startAt,
+                startAt: es.startAt,
+                venue: es.venue,
+                venueName: es.venue,
+                location: es.venue,
+                city: es.city,
+                image: es.posterUrl,
+            };
+        }
+    });
+
+    // Fetch only event IDs not already satisfied by denormalized summaries
+    const missingEventIds = allEventIds.filter(id => !eventsData[id]);
+    if (missingEventIds.length > 0) {
+        const snapshots = await Promise.all(missingEventIds.map(id => db.collection("events").doc(id).get()));
         snapshots.forEach(s => {
             if (s.exists) eventsData[s.id] = { id: s.id, ...s.data() };
         });
@@ -537,18 +555,24 @@ export async function getUserTickets(userId) {
                     if (!requiredGender || requiredGender === "any") {
                         if (isCouple) {
                             // Slot 1 is the buyer (Primary Buyer). Slot 2 is the partner.
-                            if (i === 1) {
+                            // We use modulo for bundles larger than 1 couple unit if they exist.
+                            if (i % 2 === 1) {
                                 requiredGender = bundleSlot?.requiredGender || (isPrimaryBuyer ? userGender : "male");
                             } else {
-                                // Partner slot is female by default in this ecosystem
-                                requiredGender = bundleSlot?.requiredGender || "female";
+                                // Partner slot is the opposite of the buyer's gender if known
+                                const buyerIsFemale = (isPrimaryBuyer && userGender === "female");
+                                requiredGender = bundleSlot?.requiredGender || (buyerIsFemale ? "male" : "female");
                             }
                         } else {
                             requiredGender = "any";
                         }
                     }
 
-                    const genderMismatch = (
+                    // A slot is "for me" if I'm the primary buyer at slot 1, or if I'm explicitly assigned to it.
+                    // This prevents the owner from seeing "Gender Mismatch" on their partner's slot.
+                    const isForMe = (i === 1 && isPrimaryBuyer) || (assignment && assignment.redeemerId === userId);
+
+                    const genderMismatch = isForMe && (
                         requiredGender &&
                         requiredGender !== "any" &&
                         userGender &&
@@ -697,9 +721,6 @@ export async function getUserTickets(userId) {
         const isScanned = !!scansMap[ticketId];
         const status = isScanned || isEventPast ? "used" : "active";
 
-        const secret = getTicketSecret();
-        const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
-
         const assignment = {
             ...assignmentDoc,
             userName: profilesMap[assignmentDoc.partnerId]?.displayName || "Partner",
@@ -742,8 +763,6 @@ export async function getUserTickets(userId) {
         const status = isEventPast ? "used" : "active";
 
         const ticketId = `RSVP-${userId}-${eventId}`;
-        const secret = getTicketSecret();
-        const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
 
         const ticket = {
             ticketId,
@@ -754,7 +773,9 @@ export async function getUserTickets(userId) {
             city: event.city,
             posterUrl: event.image,
             ticketType: "RSVP",
-            qrPayload: status === "active" ? `${ticketId}:${signature}` : null,
+            qrPayload: status === "active"
+                ? `${ticketId}:${createHmac("sha256", getTicketSecret()).update(ticketId).digest("hex")}`
+                : null,
             status,
             orderType: "RSVP"
         };

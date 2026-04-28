@@ -31,7 +31,13 @@ export async function verifyCheckoutPayment(body, options = {}) {
 }
 
 export async function fetchCheckoutOrderStatus(orderId, options = {}) {
-  const { response, data } = await guestApi.orders.get(orderId, options);
+  const { response, data } = await guestApi.orders.get(orderId, {
+    ...options,
+    query: {
+      includeEvent: "false",
+      ...(options.query || {}),
+    },
+  });
   if (response.status === 404) {
     return null;
   }

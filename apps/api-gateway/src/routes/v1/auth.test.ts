@@ -4,7 +4,18 @@ import validatePlugin from '../../plugins/validate';
 import authRoutes from './auth';
 
 function createMockDb({ onboardingComplete = true, failUserDoc = false } = {}) {
-    return {
+    const db = {
+        async runTransaction(handler: (transaction: any) => Promise<any>) {
+            const transaction = {
+                async get(ref: any) {
+                    return ref.get();
+                },
+                set() {
+                    return undefined;
+                },
+            };
+            return handler(transaction);
+        },
         collection(name: string) {
             if (name === 'users') {
                 return {
@@ -52,6 +63,7 @@ function createMockDb({ onboardingComplete = true, failUserDoc = false } = {}) {
             };
         },
     };
+    return db;
 }
 
 async function buildServer({
@@ -193,24 +205,15 @@ describe('auth routes GP-1 contracts', () => {
         await server.close();
     });
 
-    it('POST /auth/check returns only identity existence', async () => {
+    it('POST /auth/check is not exposed', async () => {
         const server = await buildServer();
-
-        const existing = await server.inject({
+        const response = await server.inject({
             method: 'POST',
             url: '/auth/check',
             payload: { email: 'guest@example.com' },
         });
-        const missing = await server.inject({
-            method: 'POST',
-            url: '/auth/check',
-            payload: { email: 'missing@example.com' },
-        });
 
-        expect(existing.statusCode).toBe(200);
-        expect(existing.json()).toEqual({ exists: true });
-        expect(missing.statusCode).toBe(200);
-        expect(missing.json()).toEqual({ exists: false });
+        expect(response.statusCode).toBe(404);
 
         await server.close();
     });

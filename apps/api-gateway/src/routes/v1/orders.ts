@@ -15,13 +15,29 @@ const OrderIdParam = z.object({
     id: z.string()
 }).strict();
 
+const OrderLookupQuery = z.object({
+    includeEvent: z.enum(['true', 'false']).optional()
+}).strict();
+
 const CancelOrderBody = z.object({
     reason: z.string().optional()
 });
 
-async function resolveOrderAccess(fastify: FastifyInstance, orderId: string, actorId?: string | null) {
+async function resolveOrderAccess(
+    fastify: FastifyInstance,
+    orderId: string,
+    actorId?: string | null,
+    options: { includeEvent?: boolean } = {}
+) {
+    const { includeEvent = true } = options;
     const order = await fastify.orderRepo.getOrderById(orderId);
     if (!order) return { order: null, event: null, allowed: false as const };
+
+    if (actorId && order.userId === actorId) {
+        if (!includeEvent) {
+            return { order, event: null, allowed: true as const };
+        }
+    }
 
     const eventDoc = await fastify.db.collection('events').doc(order.eventId).get();
     const event = eventDoc.exists ? ({ id: eventDoc.id, ...eventDoc.data() } as any) : null;
@@ -86,14 +102,15 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     });
 
     fastify.get('/:id', {
-        preHandler: [fastify.validate({ params: OrderIdParam })]
+        preHandler: [fastify.validate({ params: OrderIdParam, querystring: OrderLookupQuery })]
     }, async (request: any, reply) => {
         const { id: orderId } = request.params;
         const actorId = request.user?.uid;
         if (!actorId) return reply.status(401).send({ error: 'Unauthorized' });
 
         try {
-            const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId);
+            const includeEvent = request.query?.includeEvent !== 'false';
+            const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId, { includeEvent });
             if (!order) return reply.status(404).send({ error: 'Order not found' });
             if (!allowed) return reply.status(403).send({ error: 'Unauthorized' });
 
@@ -221,6 +238,35 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         }
     });
 
+
+    /**
+     * POST /api/v1/orders/:id/reissue
+     * Re-trigger fulfillment for a confirmed order with no issued entitlements
+     */
+    const REISSUE_MIN_AGE_MS = 5 * 60 * 1000;
+    fastify.post('/:id/reissue', {
+        preHandler: [fastify.validate({ params: OrderIdParam })]
+    }, async (request: any, reply) => {
+        const { id: orderId } = request.params;
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        try {
+            const { order, allowed } = await resolveOrderAccess(fastify, orderId, userId);
+            if (!order) return reply.status(404).send({ error: 'Order not found' });
+            if (!allowed || order.userId !== userId) return reply.status(403).send({ error: 'Forbidden' });
+            if (order.status !== 'confirmed') return reply.status(409).send({ error: 'Order is not confirmed' });
+            const confirmedAt = order.confirmedAt ? new Date(order.confirmedAt).getTime() : 0;
+            if (Date.now() - confirmedAt < REISSUE_MIN_AGE_MS) {
+                return reply.status(429).send({ error: 'Please wait at least 5 minutes after confirmation before re-sending.' });
+            }
+            await (fastify as any).checkoutService.reissueFulfillment(order);
+            await fastify.cache.delete('orders', userId);
+            return { success: true, message: 'Ticket re-send triggered.' };
+        } catch (error: any) {
+            fastify.log.error(`POST /orders/${orderId}/reissue failed: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
 
     /**
      * GET /api/v1/orders/event/:eventId

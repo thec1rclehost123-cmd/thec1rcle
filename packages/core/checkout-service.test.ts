@@ -84,6 +84,12 @@ class FakeOrderRepository {
         return this.payments.get(`${orderId}__${razorpayOrderId}`) || null;
     }
 
+    async getLatestPendingPaymentRecord(orderId: string) {
+        return [...this.payments.values()]
+            .filter((payment) => payment.orderId === orderId && payment.status === 'initiated')
+            .sort((left, right) => Date.parse(String(right.createdAt || 0)) - Date.parse(String(left.createdAt || 0)))[0] || null;
+    }
+
     async getPaymentRecordByPaymentId(paymentId: string) {
         for (const payment of this.payments.values()) {
             if (payment.razorpayPaymentId === paymentId) return payment;
@@ -157,6 +163,7 @@ function buildReservation({ id, eventId, status = 'active' }: { id: string; even
         eventId,
         workspaceId: 'ws_1',
         customerId: 'user_1',
+        queueId: 'queue_1',
         status,
         items: [
             {
@@ -207,6 +214,37 @@ describe('CheckoutService parity', () => {
         expect(secondResult.requiresPayment).toBe(true);
         expect(secondResult.order.id).toBe(firstResult.order.id);
         expect(orderRepo.orders.size).toBe(1);
+    });
+
+    it('reuses the latest pending payment intent for the same order instead of creating a new one', async () => {
+        const orderRepo = new FakeOrderRepository();
+        const eventRepo = new FakeEventRepository({
+            'evt-paid': buildEvent({ id: 'evt-paid', price: 500 })
+        });
+        orderRepo.reservations.set('res-paid', buildReservation({ id: 'res-paid', eventId: 'evt-paid' }));
+        const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+        const checkout = await service.initiateCheckout({
+            reservationId: 'res-paid',
+            userId: 'user_1',
+            userName: 'Test User',
+            userEmail: 'test@example.com',
+            userPhone: '+15555550123'
+        });
+
+        const firstPayment = await service.preparePayment(checkout.order.id, 'user_1', {
+            keyId: '',
+            keySecret: '',
+            allowMockPayment: true,
+        });
+        const secondPayment = await service.preparePayment(checkout.order.id, 'user_1', {
+            keyId: '',
+            keySecret: '',
+            allowMockPayment: true,
+        });
+
+        expect(firstPayment.razorpayOrderId).toBe(secondPayment.razorpayOrderId);
+        expect(orderRepo.payments.size).toBe(1);
     });
 
     it('returns the existing confirmed order after a free reservation is converted', async () => {

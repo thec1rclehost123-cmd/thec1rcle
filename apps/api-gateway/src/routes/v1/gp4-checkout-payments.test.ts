@@ -138,6 +138,7 @@ async function buildServer() {
             message: 'Order cancelled. A full refund has been initiated.',
         })),
         cancelCheckout: vi.fn(async () => ({ success: true })),
+        recordPaymentFailure: vi.fn(async () => undefined),
     };
     const orderRepo = {
         getOrderById: vi.fn(async (id: string) => ({
@@ -146,6 +147,7 @@ async function buildServer() {
             eventId: 'event_1',
             status: 'payment_pending',
             totalAmount: 1499,
+            queueId: null,
             isRSVP: false,
         })),
         getReservationById: vi.fn(async () => null),
@@ -393,6 +395,46 @@ describe('GP-4 gateway checkout/payment routes', () => {
             alreadyConfirmed: true,
             message: 'Order already confirmed',
         });
+        expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
+            orderId: 'ord_1',
+            razorpayOrderId: 'order_rzp_1',
+            razorpayPaymentId: 'pay_1',
+            userId: 'user_1',
+            paymentGatewayConfig: expect.any(Object),
+        });
+        await server.close();
+    });
+
+    it('PATCH /api/v1/payments/verify returns 409 when the shared checkout service rejects finalization', async () => {
+        const { server, checkoutService } = await buildServer();
+        checkoutService.verifyPayment.mockResolvedValueOnce({
+            success: false,
+            error: 'Payment is not successful',
+            order: { id: 'ord_1', status: 'payment_pending' },
+        } as any);
+        const signature = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET as string)
+            .update('order_rzp_1|pay_1')
+            .digest('hex');
+
+        const response = await server.inject({
+            method: 'PATCH',
+            url: '/api/v1/payments/verify',
+            headers: { authorization: 'Bearer test-token' },
+            payload: {
+                orderId: 'ord_1',
+                razorpay_order_id: 'order_rzp_1',
+                razorpay_payment_id: 'pay_1',
+                razorpay_signature: signature,
+            },
+        });
+
+        expect(response.statusCode).toBe(409);
+        expect(response.json()).toMatchObject({
+            success: false,
+            error: 'Payment is not successful',
+            order: { id: 'ord_1', status: 'payment_pending' },
+        });
+
         await server.close();
     });
 
@@ -470,13 +512,49 @@ describe('GP-4 gateway checkout/payment routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(orderRepo.getOrderById).toHaveBeenCalledWith('ord_1');
         expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
             orderId: 'ord_1',
             razorpayOrderId: 'order_rzp_1',
             razorpayPaymentId: 'pay_1',
-            userId: 'user_1',
+            userId: null,
+            paymentGatewayConfig: expect.any(Object),
         });
+        expect(orderRepo.getOrderById).not.toHaveBeenCalled();
+
+        await server.close();
+    });
+
+    it('POST /api/v1/payments/webhook records failed attempts without rewriting the order state', async () => {
+        const { server, checkoutService, orderRepo } = await buildServer();
+        const payload = JSON.stringify({
+            event: 'payment.failed',
+            payload: {
+                payment: {
+                    entity: {
+                        id: 'pay_2',
+                        order_id: 'order_rzp_1',
+                        notes: { orderId: 'ord_1' },
+                    }
+                }
+            }
+        });
+        const signature = crypto.createHmac('sha256', process.env.RAZORPAY_WEBHOOK_SECRET as string)
+            .update(payload)
+            .digest('hex');
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/payments/webhook',
+            headers: {
+                'content-type': 'text/plain',
+                'x-razorpay-signature': signature,
+            },
+            payload,
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(checkoutService.recordPaymentFailure).toHaveBeenCalledWith('ord_1', 'order_rzp_1', 'pay_2');
+        expect(orderRepo.updateOrder).not.toHaveBeenCalled();
 
         await server.close();
     });
@@ -495,6 +573,25 @@ describe('GP-4 gateway checkout/payment routes', () => {
             success: true,
             order: { id: 'ord_1', status: 'payment_pending' },
             event: { id: 'event_1', title: 'After Dark' },
+        });
+
+        await server.close();
+    });
+
+    it('GET /api/v1/orders/:id skips event enrichment when the caller only needs status polling', async () => {
+        const { server } = await buildServer();
+
+        const response = await server.inject({
+            method: 'GET',
+            url: '/api/v1/orders/ord_1?includeEvent=false',
+            headers: { authorization: 'Bearer test-token' },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            order: { id: 'ord_1', status: 'payment_pending' },
+            event: null,
         });
 
         await server.close();

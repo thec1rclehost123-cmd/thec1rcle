@@ -36,6 +36,7 @@ import { useRazorpayCheckout } from "./useRazorpayCheckout";
 
 const PENDING_ORDER_STORAGE_KEY = "c1rcle_checkout_pending_order";
 const PENDING_ORDER_TTL_MS = 30 * 60 * 1000;
+const QUOTE_REUSE_WINDOW_MS = 3_000;
 
 function readPendingOrderSnapshot() {
   if (typeof window === "undefined") return null;
@@ -95,6 +96,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
   const checkoutActionIdRef = useRef(null);
   const pendingOrderIdRef = useRef(null);
   const lockedUserIdRef = useRef(user?.uid || null);
+  const latestQuoteRef = useRef({ key: null, syncedAt: 0 });
 
   const {
     cartReservation,
@@ -192,6 +194,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
       clearPendingOrder();
       checkoutActionIdRef.current = null;
       paymentInFlightRef.current = false;
+      latestQuoteRef.current = { key: null, syncedAt: 0 };
       setCheckoutQuote(null);
       setPricingResult(null);
       setProcessingState("");
@@ -206,14 +209,27 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     [selectedTickets],
   );
   const hasExpiredReservation = Boolean(cartReservation?.reservationId) && !isReservationActive(cartReservation, event?.id);
+  const currentQuotePayload = useMemo(() => buildCheckoutQuotePayload({
+    appliedPromoCode,
+    cartReservation,
+    eventId: event.id,
+    promoterCode,
+    selectedTickets,
+  }), [appliedPromoCode, cartReservation, event.id, promoterCode, selectedTickets]);
+  const quoteRequestKey = useMemo(
+    () => JSON.stringify(currentQuotePayload),
+    [currentQuotePayload],
+  );
   const quoteRequestHeaders = useMemo(() => ({
     "x-idempotency-key": buildCheckoutRequestIdempotencyKey({
-      eventId: event?.id,
+      code: appliedPromoCode,
+      eventId: currentQuotePayload.eventId || event?.id,
       prefix: "quote",
       promoterCode,
-      selectedTickets,
+      reservationId: currentQuotePayload.reservationId || null,
+      selectedTickets: currentQuotePayload.items || selectedTickets,
     }),
-  }), [event?.id, promoterCode, selectedTickets]);
+  }), [appliedPromoCode, currentQuotePayload.eventId, currentQuotePayload.items, currentQuotePayload.reservationId, event?.id, promoterCode, selectedTickets]);
   const promoRequestHeaders = useMemo(() => ({
     "x-idempotency-key": buildCheckoutRequestIdempotencyKey({
       code: appliedPromoCode,
@@ -256,13 +272,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
         });
 
         const { response, data } = await calculateCheckout(
-          buildCheckoutQuotePayload({
-            appliedPromoCode,
-            cartReservation,
-            eventId: event.id,
-            promoterCode,
-            selectedTickets,
-          }),
+          currentQuotePayload,
           {
             headers: quoteRequestHeaders,
           },
@@ -284,6 +294,10 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
 
         setPricingResult(data.pricing || null);
         setCheckoutQuote(data.quote || null);
+        latestQuoteRef.current = {
+          key: quoteRequestKey,
+          syncedAt: Date.now(),
+        };
         setError("");
 
         if (useReservationQuote && data.reservation) {
@@ -298,6 +312,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
         }
       } catch {
         if (cancelled) return;
+        latestQuoteRef.current = { key: null, syncedAt: 0 };
         setError("We could not refresh live pricing. Please try again.");
         setPricingResult(null);
         setCheckoutQuote(null);
@@ -312,7 +327,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     return () => {
       cancelled = true;
     };
-  }, [appliedPromoCode, cartReservation, clearPersistedReservation, event?.id, event?.tickets, persistReservation, promoterCode, selectedTicketSignature, selectedTickets, user?.uid]);
+  }, [cartReservation, clearPersistedReservation, currentQuotePayload, event?.id, event?.tickets, persistReservation, quoteRequestHeaders, quoteRequestKey, selectedTicketSignature, selectedTickets, user?.uid]);
 
   useEffect(() => {
     if (isSuccess) {
@@ -513,33 +528,51 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
       const checkoutActionId = checkoutActionIdRef.current || createCheckoutActionId();
       checkoutActionIdRef.current = checkoutActionId;
 
-      const { response: quoteResponse, data: quoteData } = await calculateCheckout(
-        buildCheckoutQuotePayload({
-          appliedPromoCode,
-          cartReservation,
-          eventId: event.id,
-          promoterCode,
-          selectedTickets,
-        }),
-        {
-          headers: quoteRequestHeaders,
-        },
-      );
+      const canReuseFreshQuote =
+        quoteReady &&
+        !isQuoteSyncing &&
+        latestQuoteRef.current.key === quoteRequestKey &&
+        (Date.now() - latestQuoteRef.current.syncedAt) < QUOTE_REUSE_WINDOW_MS;
 
-      if (!quoteResponse.ok || !quoteData?.success) {
-        if (shouldUseSavedReservationQuote({ cartReservation, eventId: event.id, selectedTickets })) {
-          handleCartExpired();
-          return;
+      let quoteData;
+      if (canReuseFreshQuote) {
+        quoteData = {
+          success: true,
+          pricing: pricingResult,
+          quote: checkoutQuote,
+          reservation: shouldUseSavedReservationQuote({ cartReservation, eventId: event.id, selectedTickets })
+            ? cartReservation
+            : null,
+        };
+      } else {
+        const { response: quoteResponse, data } = await calculateCheckout(
+          currentQuotePayload,
+          {
+            headers: quoteRequestHeaders,
+          },
+        );
+
+        if (!quoteResponse.ok || !data?.success) {
+          if (shouldUseSavedReservationQuote({ cartReservation, eventId: event.id, selectedTickets })) {
+            handleCartExpired();
+            return;
+          }
+          throw new Error(data?.error || "We could not refresh live pricing. Please try again.");
         }
-        throw new Error(quoteData?.error || "We could not refresh live pricing. Please try again.");
+
+        quoteData = data;
+        latestQuoteRef.current = {
+          key: quoteRequestKey,
+          syncedAt: Date.now(),
+        };
       }
 
-      setPricingResult(quoteData.pricing || null);
-      setCheckoutQuote(quoteData.quote || null);
+      setPricingResult(quoteData?.pricing || null);
+      setCheckoutQuote(quoteData?.quote || null);
       setError("");
 
       let quoteReservation = cartReservation;
-      if (quoteData.reservation) {
+      if (quoteData?.reservation) {
         const reservationItems = normalizeReservationItems(quoteData.reservation.items || selectedTickets);
         quoteReservation = {
           ...(quoteData.reservation || cartReservation),
@@ -623,7 +656,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     } finally {
       paymentInFlightRef.current = false;
     }
-  }, [appliedPromoCode, attendeeDetails.email, attendeeDetails.name, attendeeDetails.phone, canSubmitCheckout, cartReservation, event.id, finishSuccessfulCheckout, handleCartExpired, hasExpiredReservation, launchRazorpayCheckout, persistPendingOrder, persistReservation, promoterCode, quoteRequestHeaders, resolveFinalOrderState, router, selectedTickets, user]);
+  }, [appliedPromoCode, attendeeDetails.email, attendeeDetails.name, attendeeDetails.phone, canSubmitCheckout, cartReservation, checkoutQuote, currentQuotePayload, event.id, finishSuccessfulCheckout, handleCartExpired, hasExpiredReservation, isQuoteSyncing, launchRazorpayCheckout, persistPendingOrder, persistReservation, pricingResult, promoterCode, quoteReady, quoteRequestHeaders, quoteRequestKey, resolveFinalOrderState, router, selectedTickets, user]);
 
   useEffect(() => {
     return () => {

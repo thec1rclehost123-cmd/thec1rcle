@@ -80,15 +80,15 @@ function LoginForm() {
             </header>
 
             {/* Cinematic Left Panel (Desktop only) */}
-            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-[100dvh] relative overflow-hidden bg-[#FF4D22] items-center justify-center p-12 flex-col">
+            <div className="hidden md:flex md:w-1/2 lg:w-3/5 h-[100dvh] relative overflow-hidden bg-[#FF4400] items-center justify-center p-12 flex-col">
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9, y: 20 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
                     transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
                     className="relative z-10 w-full text-center"
                 >
-                    <h2 className="text-[12vw] md:text-[10vw] font-black uppercase tracking-tighter leading-[0.85] text-black text-center whitespace-nowrap">
-                        GET IN <br /> THE C1RCLE
+                    <h2 className="text-[12vw] md:text-[11vw] font-black uppercase tracking-tighter leading-[0.78] text-black text-center">
+                        GET IN <br /> THE <br /> C1RCLE
                     </h2>
                 </motion.div>
                 <motion.div 
@@ -98,13 +98,36 @@ function LoginForm() {
                     className="absolute bottom-12 flex items-center gap-4"
                 >
                     <div className="h-px w-12 bg-black" />
-                    <span className="text-[11px] font-black uppercase tracking-[0.5em] text-black">Discover Life Offline</span>
+                    <span className="text-[11px] font-black uppercase tracking-[0.5em] text-black whitespace-nowrap">Discover Life Offline</span>
                     <div className="h-px w-12 bg-black" />
                 </motion.div>
             </div>
 
             <div className="flex-1 flex flex-col justify-start md:justify-center items-center px-4 md:px-12 relative z-10 w-full min-h-screen bg-black/50 md:bg-transparent backdrop-blur-xl md:backdrop-blur-none">
                 <div className="mx-auto flex w-full max-w-[380px] flex-col gap-8 pt-32 pb-10 md:py-12">
+                    {/* Mobile Branding Header */}
+                    <div className="md:hidden w-full flex flex-col items-center mb-4">
+                        <div className="bg-[#FF4400] w-screen py-12 px-6 flex flex-col items-center justify-center -mx-4 mb-8">
+                            <motion.h2 
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="text-6xl font-black uppercase tracking-tighter leading-[0.8] text-black text-center"
+                            >
+                                GET IN <br /> THE <br /> C1RCLE
+                            </motion.h2>
+                            <motion.div 
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 0.5 }}
+                                transition={{ delay: 0.5 }}
+                                className="flex items-center gap-3 mt-6"
+                            >
+                                <div className="h-px w-8 bg-black/40" />
+                                <span className="text-[9px] font-black uppercase tracking-[0.3em] text-black/80 whitespace-nowrap">Discover Life Offline</span>
+                                <div className="h-px w-8 bg-black/40" />
+                            </motion.div>
+                        </div>
+                    </div>
+
                     {/* Step heading — hidden during success screen */}
                     {step < 9 && (
                         <div className="text-center md:text-left">
@@ -181,15 +204,17 @@ function LoginForm() {
                                                                 placeholder="••••••••"
                                                                 className="w-full bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white placeholder:text-white/40 focus:outline-none focus:border-orange/50 transition-all"
                                                             />
-                                                            <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest pl-1">At least 8 characters</p>
-                                                            {isLoginMode && (
-                                                                <Link
-                                                                    href={form.email ? `/forgot-password?email=${encodeURIComponent(form.email)}` : "/forgot-password"}
-                                                                    className="text-[9px] font-bold text-orange/60 hover:text-orange uppercase tracking-widest transition-colors mt-2 block pl-1 w-fit"
-                                                                >
-                                                                    Forgot Password?
-                                                                </Link>
-                                                            )}
+                                                            <div className="flex items-center justify-between pl-1">
+                                                                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">At least 8 characters</p>
+                                                                {isLoginMode && (
+                                                                    <Link
+                                                                        href={form.email ? `/forgot-password?email=${encodeURIComponent(form.email)}` : "/forgot-password"}
+                                                                        className="text-[9px] font-bold text-orange/60 hover:text-orange uppercase tracking-widest transition-colors"
+                                                                    >
+                                                                        Forgot Password?
+                                                                    </Link>
+                                                                )}
+                                                            </div>
                                                         </div>
 
                                                         <div className="pt-2 border-t border-white/5 space-y-4">

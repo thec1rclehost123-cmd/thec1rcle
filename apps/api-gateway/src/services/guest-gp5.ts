@@ -66,6 +66,48 @@ export async function invalidateGuestWallet(users: Array<string | null | undefin
     await invalidateGuestWalletCache(users);
 }
 
+/**
+ * O(1) ownership guard — single document lookup against the relevant collection.
+ * Replaces the previous O(N) wallet-scan approach that fetched all tickets to verify one.
+ *
+ * Supports three ticket ID formats:
+ *   ENT-*         → entitlements collection, ownerUserId field
+ *   CLAIM-* / TRANS-* → ticket_assignments collection, redeemerId field
+ *   {orderId}-{tierId}-{idx} → orders collection, userId field
+ */
+async function verifyTicketOwnershipDirect(userId: string, ticketId: string): Promise<true> {
+    const db: Firestore = getAdminDb();
+
+    if (ticketId.startsWith('ENT-')) {
+        const doc = await db.collection('entitlements').doc(ticketId).get();
+        if (!doc.exists || doc.data()?.ownerUserId !== userId) {
+            throw new Error('Unauthorized: You do not own this ticket.');
+        }
+        return true;
+    }
+
+    if (ticketId.startsWith('CLAIM-') || ticketId.startsWith('TRANS-')) {
+        const doc = await db.collection('ticket_assignments').doc(ticketId).get();
+        if (!doc.exists || doc.data()?.redeemerId !== userId) {
+            throw new Error('Unauthorized: You do not own this ticket.');
+        }
+        return true;
+    }
+
+    // Direct order ticket: {orderId}-{tierId}-{slotIndex}
+    const parts = ticketId.split('-');
+    if (parts.length >= 3) {
+        const orderId = parts.slice(0, parts.length - 2).join('-');
+        const doc = await db.collection('orders').doc(orderId).get();
+        if (!doc.exists || doc.data()?.userId !== userId) {
+            throw new Error('Unauthorized: You do not own this ticket.');
+        }
+        return true;
+    }
+
+    throw new Error('Unauthorized: Invalid ticket reference.');
+}
+
 export async function getGuestWalletTicket(db: any, auth: any, userId: string, ticketId: string) {
     const tickets = await getUserTickets(userId);
     const all = [...(tickets.upcomingTickets || []), ...(tickets.pastTickets || []), ...(tickets.actionNeeded || [])];
@@ -140,6 +182,12 @@ export async function createGuestShareBundle(userId: string, payload: {
     tierId?: string | null;
     expiresAt?: string | null;
 }) {
+    // 🛡️ Security: Verify order ownership
+    const order = await getOrderById(payload.orderId);
+    if (!order || order.userId !== userId) {
+        throw new Error('Unauthorized: Order not found or ownership mismatch.');
+    }
+
     const bundle = await createShareBundle(
         payload.orderId,
         userId,
@@ -183,6 +231,7 @@ export async function claimGuestShareBundle(userId: string, token: string) {
 }
 
 export async function initiateGuestTransfer(userId: string, ticketId: string, recipientEmail?: string | null) {
+    await verifyTicketOwnershipDirect(userId, ticketId);
     const result = await initiateTransfer(ticketId, userId, recipientEmail ?? null);
     await invalidateGuestWallet([userId]);
     return result;
@@ -205,6 +254,7 @@ export async function getGuestPendingTransfers(userId: string, email?: string | 
 }
 
 export async function createGuestPartnerClaimLink(userId: string, ticketId: string, eventId: string) {
+    await verifyTicketOwnershipDirect(userId, ticketId);
     return createPartnerClaimLink(ticketId, userId, eventId);
 }
 
@@ -215,12 +265,20 @@ export async function claimGuestPartnerSlot(userId: string, token: string) {
 }
 
 export async function assignGuestPartner(userId: string, ticketId: string, partnerUserId: string, metadata: Record<string, any> = {}) {
+    await verifyTicketOwnershipDirect(userId, ticketId);
     const result = await assignPartner(ticketId, userId, partnerUserId, metadata);
     await invalidateGuestWallet([userId, partnerUserId]);
     return result;
 }
 
 export async function transferGuestCoupleTicket(userId: string, ticketId: string, newOwnerId: string) {
+    // Guard must run before calling the engine: transferCoupleTicket falls through to
+    // using currentOwnerId as the check value when the doc does not yet exist, bypassing authz.
+    const db: Firestore = getAdminDb();
+    const doc = await db.collection('couple_assignments').doc(ticketId).get();
+    if (!doc.exists || doc.data()?.ownerId !== userId) {
+        throw new Error('Unauthorized: You do not own this couple ticket.');
+    }
     const result = await transferCoupleTicket(ticketId, userId, newOwnerId);
     await invalidateGuestWallet([userId, newOwnerId]);
     return result;

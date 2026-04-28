@@ -20,6 +20,8 @@ import {
     projectVenueDetail as projectGuestVenueDetail,
     rankGuestSearchGroups,
 } from '@c1rcle/core/guest-discovery-engine';
+// @ts-ignore
+import { bumpCacheVersion } from '@c1rcle/core/redis';
 
 type ListParams = Record<string, any>;
 
@@ -257,16 +259,10 @@ class EventCardIndexRepository {
             if (venueId) query = query.where('venueId', '==', venueId);
             const snapshot = await query.orderBy(orderByField, direction).limit(limit).get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(EVENT_CARD_INDEX).get();
-            const items = snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => !cityKey || item.cityKey === cityKey)
-                .filter((item) => !areaKey || item.areaKey === areaKey)
-                .filter((item) => !hostId || item.hostId === hostId)
-                .filter((item) => !venueId || item.venueId === venueId);
-            return sortReadModels(items, orderByField, direction).slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] queryList failed for ${EVENT_CARD_INDEX}`, error);
+            // 🛡️ Reliability: Do NOT fallback to listAll(). Return empty to protect scale.
+            return [];
         }
     }
 
@@ -282,13 +278,9 @@ class EventCardIndexRepository {
                 .limit(limit)
                 .get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(EVENT_CARD_INDEX).get();
-            return snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => String(item.searchText || '').toLowerCase().startsWith(normalized))
-                .slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] querySearchPrefix failed for ${EVENT_CARD_INDEX}`, error);
+            return [];
         }
     }
 }
@@ -338,14 +330,9 @@ class HostSummaryRepository {
             }
             const snapshot = await query.limit(limit).get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(HOST_SUMMARY).get();
-            const items = snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => !cityKey || item.cityKey === cityKey)
-                .filter((item) => !role || item.role === role);
-            return applyReadModelCursor(sortReadModels(items, orderByField, direction), cursor).slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] queryList failed for ${HOST_SUMMARY}`, error);
+            return [];
         }
     }
 
@@ -361,13 +348,9 @@ class HostSummaryRepository {
                 .limit(limit)
                 .get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(HOST_SUMMARY).get();
-            return snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => String(item.searchText || '').toLowerCase().startsWith(normalized))
-                .slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] querySearchPrefix failed for ${HOST_SUMMARY}`, error);
+            return [];
         }
     }
 }
@@ -420,15 +403,9 @@ class VenueSummaryRepository {
             }
             const snapshot = await query.limit(limit).get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(VENUE_SUMMARY).get();
-            const items = snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => !cityKey || item.cityKey === cityKey)
-                .filter((item) => !areaKey || item.areaKey === areaKey)
-                .filter((item) => tablesAvailable !== true || item.tablesAvailable === true);
-            return applyReadModelCursor(sortReadModels(items, orderByField, direction), cursor).slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] queryList failed for ${VENUE_SUMMARY}`, error);
+            return [];
         }
     }
 
@@ -444,13 +421,9 @@ class VenueSummaryRepository {
                 .limit(limit)
                 .get();
             return snapshot.docs.map(serializeDoc);
-        } catch (error) {
-            const snapshot = await this.db.collection(VENUE_SUMMARY).get();
-            return snapshot.docs
-                .map(serializeDoc)
-                .filter((item) => item.visibility === 'public')
-                .filter((item) => String(item.searchText || '').toLowerCase().startsWith(normalized))
-                .slice(0, limit);
+        } catch (error: any) {
+            console.error(`[PublicDiscoveryService] querySearchPrefix failed for ${VENUE_SUMMARY}`, error);
+            return [];
         }
     }
 }
@@ -684,6 +657,9 @@ export class PublicDiscoveryService {
         }
         const card = buildEventCardReadModel(event, { readModelVersion: EVENT_CARD_INDEX_VERSION });
         await this.events.upsert(event.id, card);
+        // ⚡ Performance: Invalidate the public discovery cache for events
+        await bumpCacheVersion('events').catch(() => null);
+        await bumpCacheVersion('search').catch(() => null);
     }
 
     async syncHostReadModels(hostId: string) {
@@ -697,6 +673,9 @@ export class PublicDiscoveryService {
         const eventCards = (eventCardsOverride || await this.events.listAll()).filter((event) => event.hostId === host.id && event.visibility === 'public');
         const summary = buildHostSummaryReadModel(host, eventCards, { readModelVersion: HOST_SUMMARY_VERSION });
         await this.hosts.upsert(host.id, summary);
+        // ⚡ Performance: Invalidate the public discovery cache for hosts
+        await bumpCacheVersion('hosts').catch(() => null);
+        await bumpCacheVersion('search').catch(() => null);
     }
 
     async syncVenueReadModels(venueId: string) {
@@ -716,6 +695,9 @@ export class PublicDiscoveryService {
             highlightsCount: highlightsSnapshot?.size || 0,
         });
         await this.venues.upsert(venue.id, summary);
+        // ⚡ Performance: Invalidate the public discovery cache for venues
+        await bumpCacheVersion('venues').catch(() => null);
+        await bumpCacheVersion('search').catch(() => null);
     }
 
     async listEvents(query: ListParams) {
@@ -744,56 +726,69 @@ export class PublicDiscoveryService {
             }));
             return filterGuestEventCards(normalizedItems, normalizedQuery);
         } catch (error: any) {
-            console.error('[PublicDiscoveryService] listEvents failed', error);
-            throw error;
+            if (String(error?.message || '').toLowerCase().includes('index')) {
+                console.error('[PublicDiscoveryService] listEvents: missing Firestore index — run index deployment', { query, error: error.message });
+            } else {
+                console.error('[PublicDiscoveryService] listEvents failed', error);
+            }
+            return { items: [], nextCursor: null, hasMore: false, appliedFilters: {} };
         }
     }
 
     async listFeaturedEvents(query: ListParams = {}) {
-        const limit = Math.min(Math.max(Number(query.limit) || 6, 1), 12);
-        const hostId = await this.resolveHostId(query);
-        const venueId = await this.resolveVenueId(query);
-        const normalizedQuery = {
-            ...query,
-            cityKey: normalizeCityKey(query.cityKey || query.city || null),
-            hostId: hostId || query.hostId || null,
-            venueId: venueId || query.venueId || null,
-        };
-        const settings = await this.db.collection('platform_settings').doc('spotlights').get().catch(() => null);
-        const pinnedIds = Array.isArray(settings?.data?.()?.featured)
-            ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
-            : [];
-        const pinned = (await Promise.all(pinnedIds.map((id: string) => this.events.getByIdOrSlug(id))))
-            .filter(Boolean)
-            .map((event: any) => buildEventCardReadModel(event, {
-                readModelVersion: event?.readModelVersion || EVENT_CARD_INDEX_VERSION,
-            }))
-            .filter((event: any) => event.visibility === 'public' && isCurrentOrUpcomingGuestEvent(event));
-        const heatItems = await this.events.queryList({
-            ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
-            hostId,
-            venueId,
-            limit: Math.min(Math.max(limit * 2, 12), 24),
-            orderByField: 'heatScore',
-            direction: 'desc',
-        });
-        const heat = heatItems
-            .map((event: any) => buildEventCardReadModel(event, {
-                readModelVersion: event?.readModelVersion || EVENT_CARD_INDEX_VERSION,
-            }))
-            .filter((event: any) => isCurrentOrUpcomingGuestEvent(event));
-        const seen = new Set();
-        const items = filterGuestEventCards([...pinned, ...heat], normalizedQuery).items.filter((event: any) => {
-            if (!event?.id || seen.has(event.id)) return false;
-            seen.add(event.id);
-            return true;
-        }).slice(0, limit);
-        return {
-            items,
-            nextCursor: null,
-            hasMore: false,
-            appliedFilters: { sort: 'heatScore' },
-        };
+        try {
+            const limit = Math.min(Math.max(Number(query.limit) || 6, 1), 12);
+            const hostId = await this.resolveHostId(query);
+            const venueId = await this.resolveVenueId(query);
+            const normalizedQuery = {
+                ...query,
+                cityKey: normalizeCityKey(query.cityKey || query.city || null),
+                hostId: hostId || query.hostId || null,
+                venueId: venueId || query.venueId || null,
+            };
+            const settings = await this.db.collection('platform_settings').doc('spotlights').get().catch(() => null);
+            const pinnedIds = Array.isArray(settings?.data?.()?.featured)
+                ? settings.data()!.featured.filter((id: any) => typeof id === 'string' && id.trim())
+                : [];
+            const pinned = (await Promise.all(pinnedIds.map((id: string) => this.events.getByIdOrSlug(id))))
+                .filter(Boolean)
+                .map((event: any) => buildEventCardReadModel(event, {
+                    readModelVersion: event?.readModelVersion || EVENT_CARD_INDEX_VERSION,
+                }))
+                .filter((event: any) => event.visibility === 'public' && isCurrentOrUpcomingGuestEvent(event));
+            const heatItems = await this.events.queryList({
+                ...this.resolveEventQueryShape({ ...query, hostId, venueId, sort: 'heat' }),
+                hostId,
+                venueId,
+                limit: Math.min(Math.max(limit * 2, 12), 24),
+                orderByField: 'heatScore',
+                direction: 'desc',
+            });
+            const heat = heatItems
+                .map((event: any) => buildEventCardReadModel(event, {
+                    readModelVersion: event?.readModelVersion || EVENT_CARD_INDEX_VERSION,
+                }))
+                .filter((event: any) => isCurrentOrUpcomingGuestEvent(event));
+            const seen = new Set();
+            const items = filterGuestEventCards([...pinned, ...heat], normalizedQuery).items.filter((event: any) => {
+                if (!event?.id || seen.has(event.id)) return false;
+                seen.add(event.id);
+                return true;
+            }).slice(0, limit);
+            return {
+                items,
+                nextCursor: null,
+                hasMore: false,
+                appliedFilters: { sort: 'heatScore' },
+            };
+        } catch (error: any) {
+            if (String(error?.message || '').toLowerCase().includes('index')) {
+                console.error('[PublicDiscoveryService] listFeaturedEvents: missing Firestore index — run index deployment', { query, error: error.message });
+            } else {
+                console.error('[PublicDiscoveryService] listFeaturedEvents failed', error);
+            }
+            return { items: [], nextCursor: null, hasMore: false, appliedFilters: { sort: 'heatScore' } };
+        }
     }
 
     async getEventDetail(idOrSlug: string) {

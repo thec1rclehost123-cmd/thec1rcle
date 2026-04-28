@@ -16,6 +16,7 @@ import { cacheDel, cacheGet, cacheSet } from "@c1rcle/core/redis";
 const NOTIFICATIONS_COLLECTION = "notifications";
 const GUEST_WALLET_CACHE_TTL_SECONDS = 120;
 const GUEST_PROFILE_EVENTS_CACHE_TTL_SECONDS = 120;
+const GUEST_UNREAD_COUNT_CACHE_TTL_SECONDS = 30;
 
 function hasDb(db) {
     return Boolean(db && typeof db.collection === "function");
@@ -72,6 +73,10 @@ function getGuestWalletCacheKey(userId, hasCoverWalletContext = false) {
 function getGuestProfileEventsCacheKey(profileUserId, viewerUserId) {
     const scope = viewerUserId && viewerUserId === profileUserId ? "self" : "public";
     return `guest:profile-events:${profileUserId}:${scope}`;
+}
+
+function getGuestUnreadCountCacheKey(userId) {
+    return `guest:notif-unread-count:${userId}`;
 }
 
 async function getCoverWalletsByOrder(db, wallet = {}) {
@@ -239,17 +244,26 @@ export async function getGuestNotifications(dbOrUserId, maybeUserIdOrOptions, ma
 export async function getGuestUnreadCount(dbOrUserId, maybeUserId) {
     const db = typeof dbOrUserId === "string" ? null : dbOrUserId;
     const userId = typeof dbOrUserId === "string" ? dbOrUserId : maybeUserId;
+    const cacheKey = getGuestUnreadCountCacheKey(userId);
+    const cached = await cacheGet(cacheKey);
+    if (typeof cached === "number") {
+        return cached;
+    }
 
+    let unreadCount = 0;
     if (hasDb(db)) {
         const snapshot = await db.collection(NOTIFICATIONS_COLLECTION)
             .where("userId", "==", userId)
             .where("isRead", "==", false)
             .count()
             .get();
-        return snapshot.data().count;
+        unreadCount = snapshot.data().count;
+    } else {
+        unreadCount = await getUnreadCount(userId);
     }
 
-    return getUnreadCount(userId);
+    await cacheSet(cacheKey, unreadCount, GUEST_UNREAD_COUNT_CACHE_TTL_SECONDS);
+    return unreadCount;
 }
 
 export async function markGuestNotificationRead(dbOrUserId, maybeUserIdOrNotificationId, maybeNotificationId) {
@@ -266,6 +280,7 @@ export async function markGuestNotificationRead(dbOrUserId, maybeUserIdOrNotific
         }
         const readAt = new Date().toISOString();
         await ref.update({ isRead: true, readAt });
+        await cacheDel(getGuestUnreadCountCacheKey(userId));
         return { id: notificationId, isRead: true, readAt };
     }
 
@@ -287,6 +302,7 @@ export async function markAllGuestNotificationsRead(dbOrUserId, maybeUserId) {
             batch.update(doc.ref, { isRead: true, readAt });
         }
         await batch.commit();
+        await cacheDel(getGuestUnreadCountCacheKey(userId));
         return { updated: snapshot.size };
     }
 

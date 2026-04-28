@@ -3,6 +3,7 @@ export interface Order {
     eventId: string;
     eventName: string;
     workspaceId?: string | null;
+    queueId?: string | null;
     userId: string;
     userName: string;
     userEmail: string;
@@ -63,6 +64,7 @@ export interface PaymentRecord {
     createdAt: string;
     razorpayPaymentId?: string;
     verifiedAt?: string;
+    failedAt?: string;
 }
 
 export interface OrderIdentityLookup {
@@ -71,21 +73,22 @@ export interface OrderIdentityLookup {
 }
 
 export interface IOrderRepository {
-    getOrderById(id: string): Promise<Order | null>;
-    getOrderByReservationId(reservationId: string): Promise<Order | null>;
+    getOrderById(id: string, transaction?: any): Promise<Order | null>;
+    getOrderByReservationId(reservationId: string, transaction?: any): Promise<Order | null>;
     createOrder(order: Order, transaction?: any): Promise<void>;
     updateOrder(id: string, updates: Partial<Order>, isRSVP?: boolean, transaction?: any): Promise<void>;
     checkExistingRSVP(eventId: string, lookup: OrderIdentityLookup, transaction?: any): Promise<boolean>;
     getUserTicketCountForEvent(eventId: string, lookup: OrderIdentityLookup): Promise<number>;
 
-    getReservationById(id: string): Promise<Reservation | null>;
+    getReservationById(id: string, transaction?: any): Promise<Reservation | null>;
     createReservation(reservation: Reservation): Promise<void>;
     updateReservation(id: string, updates: Partial<Reservation>, transaction?: any): Promise<void>;
 
     createPaymentRecord(payment: PaymentRecord): Promise<void>;
     updatePaymentRecord(orderId: string, razorpayOrderId: string, updates: Partial<PaymentRecord>, transaction?: any): Promise<void>;
-    getPaymentRecord(orderId: string, razorpayOrderId: string): Promise<PaymentRecord | null>;
-    getPaymentRecordByPaymentId(paymentId: string): Promise<PaymentRecord | null>;
+    getPaymentRecord(orderId: string, razorpayOrderId: string, transaction?: any): Promise<PaymentRecord | null>;
+    getLatestPendingPaymentRecord(orderId: string): Promise<PaymentRecord | null>;
+    getPaymentRecordByPaymentId(paymentId: string, transaction?: any): Promise<PaymentRecord | null>;
 
     runInTransaction<T>(action: (transaction: any) => Promise<T>): Promise<T>;
 }

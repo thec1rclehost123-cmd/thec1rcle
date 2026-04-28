@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { getGuestWallet, getGuestWalletTicket } from '@c1rcle/core/guest-wallet-profile-notification-service';
 import {
@@ -106,7 +107,7 @@ const DownloadQuery = z.object({
 function requireUser(reply: any, request: any) {
     const userId = request.user?.uid;
     if (!userId) {
-        reply.status(401).send({ error: 'Unauthorized' });
+        reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         return null;
     }
     return userId;
@@ -135,7 +136,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return await getGuestWallet(fastify.db, fastify.auth, userId);
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -152,7 +153,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
             fastify.log.warn({ requestId: request.id, userId, error: error.message }, 'POST /tickets/transfer rejected');
-            return reply.status(status).send({ error: error.message || 'Transfer failed' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Transfer failed', requestId: request.id }));
         }
     });
 
@@ -169,7 +170,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         } catch (error: any) {
             const status = error.message?.includes('already') ? 409 : 400;
             fastify.log.warn({ requestId: request.id, userId, error: error.message }, 'PATCH /tickets/transfer rejected');
-            return reply.status(status).send({ error: error.message || 'Transfer failed' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 409 ? 'CONFLICT' : 'BAD_REQUEST', message: error.message || 'Transfer failed', requestId: request.id }));
         }
     });
 
@@ -177,8 +178,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         const userId = requireUser(reply, request);
         if (!userId) return;
 
-        const transferId = request.body?.transferId || request.query?.transferId;
-        if (!transferId) return reply.status(400).send({ error: 'transferId is required' });
+        const transferId = request.query?.transferId;
+        if (!transferId) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'transferId query param is required', requestId: request.id }));
 
         try {
             const result = await cancelGuestTransfer(userId, transferId);
@@ -186,7 +187,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Transfer failed' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Transfer failed', requestId: request.id }));
         }
     });
 
@@ -199,7 +200,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, transfers };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/transfer/pending failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -215,7 +216,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, bundle };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to create share bundle' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to create share bundle', requestId: request.id }));
         }
     });
 
@@ -227,12 +228,12 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
         try {
             const state = await getGuestShareState(request.query.orderId);
-            if (!state) return reply.status(404).send({ error: 'Order not found' });
-            if (state.order.userId !== userId) return reply.status(403).send({ error: 'Unauthorized' });
+            if (!state) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            if (state.order.userId !== userId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Unauthorized', requestId: request.id }));
             return { success: true, bundles: state.bundles, assignments: state.assignments };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/share failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -252,7 +253,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to update share bundle' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to update share bundle', requestId: request.id }));
         }
     });
 
@@ -261,11 +262,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         try {
             const preview = await previewGuestShareBundle(request.query.token, request.user?.uid || null);
-            if (!preview) return reply.status(404).send({ error: 'Invalid or expired share link' });
+            if (!preview) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Invalid or expired share link', requestId: request.id }));
             return { success: true, bundle: buildSharePreview(preview) };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, error: error.message }, 'GET /tickets/claim failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -281,7 +282,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             const status = error.message?.includes('already') ? 409 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to claim ticket' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 409 ? 'CONFLICT' : 'BAD_REQUEST', message: error.message || 'Failed to claim ticket', requestId: request.id }));
         }
     });
 
@@ -293,20 +294,20 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         try {
             if (token) {
                 const preview = await previewGuestPairClaim(fastify.db, token);
-                if (!preview) return reply.status(404).send({ error: 'Invalid or expired claim link' });
+                if (!preview) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Invalid or expired claim link', requestId: request.id }));
                 return { success: true, claim: preview };
             }
 
             const userId = requireUser(reply, request);
             if (!userId) return;
-            if (!bundleId) return reply.status(400).send({ error: 'token or bundleId is required' });
+            if (!bundleId) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'token or bundleId is required', requestId: request.id }));
 
             const status = await getGuestCoupleStatus(fastify.db, userId, bundleId);
-            if (!status) return reply.status(404).send({ error: 'Couple ticket not found' });
+            if (!status) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Couple ticket not found', requestId: request.id }));
             return { success: true, ...status };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to load pair state' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to load pair state', requestId: request.id }));
         }
     });
 
@@ -322,7 +323,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             const status = error.message?.includes('already') ? 409 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to claim pair slot' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 409 ? 'CONFLICT' : 'BAD_REQUEST', message: error.message || 'Failed to claim pair slot', requestId: request.id }));
         }
     });
 
@@ -338,7 +339,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to cancel pair slot' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to cancel pair slot', requestId: request.id }));
         }
     });
 
@@ -349,9 +350,10 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         if (!userId) return;
 
         try {
-            return await createGuestPartnerClaimLink(userId, request.body.ticketId, request.body.eventId);
+            const result = await createGuestPartnerClaimLink(userId, request.body.ticketId, request.body.eventId);
+            return { success: true, ...result };
         } catch (error: any) {
-            return reply.status(400).send({ error: error.message || 'Failed to create pair link' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: error.message || 'Failed to create pair link', requestId: request.id }));
         }
     });
 
@@ -366,7 +368,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, assignment: result };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to assign partner' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to assign partner', requestId: request.id }));
         }
     });
 
@@ -381,7 +383,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             const status = error.message?.includes('Unauthorized') ? 403 : 400;
-            return reply.status(status).send({ error: error.message || 'Failed to transfer couple ticket' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : 'BAD_REQUEST', message: error.message || 'Failed to transfer couple ticket', requestId: request.id }));
         }
     });
 
@@ -393,11 +395,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
         try {
             const wallets = await getGuestCoverWallet(fastify.db, userId, request.query.orderId);
-            if (wallets === null) return reply.status(404).send({ error: 'Order not found' });
-            return { wallets };
+            if (wallets === null) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            return { success: true, wallets };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/cover-wallet failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -409,7 +411,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
         try {
             const result = await generateGuestTicketDownload(userId, request.query.orderId);
-            if (!result) return reply.status(404).send({ error: 'Order not found' });
+            if (!result) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
 
             reply
                 .header('Content-Type', 'application/pdf')
@@ -419,7 +421,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return reply.send(result.buffer);
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/download failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -433,14 +435,15 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
                 .get();
 
             if (snapshot.empty) {
-                return reply.status(404).send({ error: 'Transfer not found or expired' });
+                return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Transfer not found or expired', requestId: request.id }));
             }
 
-            const transfer = { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as any;
+            const doc = snapshot.docs[0];
+            const transferData = doc.data() as any;
 
             let event: any = null;
-            if (transfer.eventId) {
-                const eventDoc = await fastify.db.collection('events').doc(transfer.eventId).get();
+            if (transferData.eventId) {
+                const eventDoc = await fastify.db.collection('events').doc(transferData.eventId).get();
                 if (eventDoc.exists) {
                     const eventData = eventDoc.data() as any;
                     event = {
@@ -452,10 +455,21 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
                 }
             }
 
-            return { success: true, transfer: { ...transfer, event } };
+            // 🛡️ Privacy: Redact sensitive UID and Email from public preview
+            return {
+                success: true,
+                transfer: {
+                    id: doc.id,
+                    status: transferData.status,
+                    createdAt: transferData.createdAt,
+                    expiresAt: transferData.expiresAt,
+                    ticketType: transferData.ticketType || 'Pass',
+                    event
+                }
+            };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, error: error.message }, 'GET /transfer failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -467,11 +481,11 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
         try {
             const ticket = await getGuestWalletTicket(fastify.db, fastify.auth, userId, request.params.ticketId);
-            if (!ticket) return reply.status(404).send({ error: 'Ticket not found' });
+            if (!ticket) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Ticket not found', requestId: request.id }));
             return { success: true, ticket };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/:ticketId failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 }

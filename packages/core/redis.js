@@ -43,32 +43,60 @@ export function getRedisClient() {
 export async function cacheGet(key) {
     const client = getRedisClient();
     if (!client || !key) return null;
-    const value = await client.get(key);
-    if (!value) return null;
     try {
-        return JSON.parse(value);
-    } catch {
-        return value;
+        const value = await client.get(key);
+        if (!value) return null;
+        try {
+            return JSON.parse(value);
+        } catch {
+            return value;
+        }
+    } catch (error) {
+        console.warn(`[Redis] cacheGet failed for ${key}:`, error.message);
+        return null;
     }
 }
 
 export async function cacheSet(key, value, ttlSeconds = 300) {
     const client = getRedisClient();
     if (!client || !key) return false;
-    const payload = typeof value === "string" ? value : JSON.stringify(value);
-    if (ttlSeconds) {
-        await client.set(key, payload, "EX", ttlSeconds);
-    } else {
-        await client.set(key, payload);
+    try {
+        const payload = typeof value === "string" ? value : JSON.stringify(value);
+        if (ttlSeconds) {
+            await client.set(key, payload, "EX", ttlSeconds);
+        } else {
+            await client.set(key, payload);
+        }
+        return true;
+    } catch (error) {
+        console.warn(`[Redis] cacheSet failed for ${key}:`, error.message);
+        return false;
     }
-    return true;
 }
 
 export async function cacheDel(key) {
     const client = getRedisClient();
     if (!client || !key) return false;
-    await client.del(key);
-    return true;
+    try {
+        await client.del(key);
+        return true;
+    } catch (error) {
+        console.warn(`[Redis] cacheDel failed for ${key}:`, error.message);
+        return false;
+    }
+}
+
+export async function bumpCacheVersion(namespace) {
+    const client = getRedisClient();
+    if (!client || !namespace) return null;
+    const redisKey = `public-cache-version:${namespace}`;
+    try {
+        const next = await client.incr(redisKey);
+        return next;
+    } catch (error) {
+        console.warn(`[Redis] Failed to bump version for namespace ${namespace}:`, error.message);
+        return null;
+    }
 }
 
 export default getRedisClient;

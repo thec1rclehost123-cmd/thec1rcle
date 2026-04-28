@@ -12,7 +12,7 @@ const SESSION_KEYS = {
 function readSession(key, fallback) {
   if (typeof window === "undefined") return fallback;
   try {
-    const value = window.sessionStorage.getItem(key);
+    const value = window.localStorage.getItem(key);
     return value !== null ? value : fallback;
   } catch {
     return fallback;
@@ -22,7 +22,7 @@ function readSession(key, fallback) {
 export function clearSessionPersistence() {
   Object.values(SESSION_KEYS).forEach((key) => {
     try {
-      window.sessionStorage.removeItem(key);
+      window.localStorage.removeItem(key);
     } catch {}
   });
 }
@@ -68,10 +68,10 @@ export function useOnboardingDraft({
   useEffect(() => {
     if (step <= 2 || (!isNewUser && !isOnboarding)) return;
     try {
-      window.sessionStorage.setItem(SESSION_KEYS.step, String(step));
-      window.sessionStorage.setItem(SESSION_KEYS.isNewUser, String(isNewUser));
-      window.sessionStorage.setItem(SESSION_KEYS.isOnboarding, String(isOnboarding));
-      window.sessionStorage.setItem(SESSION_KEYS.form, JSON.stringify(getPersistedForm(form)));
+      window.localStorage.setItem(SESSION_KEYS.step, String(step));
+      window.localStorage.setItem(SESSION_KEYS.isNewUser, String(isNewUser));
+      window.localStorage.setItem(SESSION_KEYS.isOnboarding, String(isOnboarding));
+      window.localStorage.setItem(SESSION_KEYS.form, JSON.stringify(getPersistedForm(form)));
     } catch {}
   }, [form, isNewUser, isOnboarding, step]);
 

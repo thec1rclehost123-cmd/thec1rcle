@@ -26,42 +26,50 @@ export const ENTITLEMENT_STATES = {
 };
 
 /**
- * Issue entitlements for an order
- * This is the "Truth" creation step.
+ * Issue entitlements for an order.
+ * IDs are deterministic (ENT-{orderId}-{tierId}-{index}) so concurrent retries
+ * are safe: the idempotency check runs inside the transaction against known doc refs,
+ * eliminating the TOCTOU race that existed when the check was outside the transaction.
  */
 export async function issueEntitlements(order, items, transaction = null) {
     const db = getAdminDb();
 
-    // Idempotency: if entitlements were already issued for this order (e.g. Inngest retry),
-    // return the existing set rather than creating duplicates.
-    const existingSnap = await db.collection(ENTITLEMENT_COLLECTION)
-        .where("orderId", "==", order.id)
-        .limit(1)
-        .get();
-    if (!existingSnap.empty) {
-        const allSnap = await db.collection(ENTITLEMENT_COLLECTION)
-            .where("orderId", "==", order.id)
-            .get();
-        return allSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    if (!items || items.length === 0) return [];
+
+    // Fetch event summary for denormalization — read outside transaction (no write contention).
+    let eventSummary = null;
+    if (order.eventId) {
+        const eventDoc = await db.collection("events").doc(order.eventId).get();
+        if (eventDoc.exists) {
+            const ev = eventDoc.data();
+            eventSummary = {
+                title: ev.title || order.eventTitle || null,
+                startAt: ev.startDate || ev.startAt || null,
+                venue: ev.venue || ev.venueName || ev.location || null,
+                city: ev.city || null,
+                posterUrl: ev.image || null,
+            };
+        }
     }
 
     const entitlements = [];
 
     for (const item of items) {
-        // One entitlement per human unit
-        // NOTE: item.quantity can be > 1 if it's a multi-ticket tier
         for (let i = 0; i < (item.quantity || 1); i++) {
+            // Deterministic ID: stable across retries, no UUID randomness.
+            const tierId = (item.ticketId || item.tierId || 'GEN').replace(/\//g, '-');
             const entitlement = {
-                id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
+                id: `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase(),
                 eventId: order.eventId,
                 orderId: order.id,
                 ownerUserId: order.userId,
                 ticketType: order.isRSVP ? 'rsvp' : (item.entryType === 'couple' ? 'couple' : 'paid'),
                 genderConstraint: item.genderRequirement || 'none',
-                scanCountAllowed: item.entryType === 'couple' ? 2 : 1, // Couple: two scans, one per partner
+                scanCountAllowed: item.entryType === 'couple' ? 2 : 1,
                 scanCountUsed: 0,
                 state: ENTITLEMENT_STATES.ISSUED,
                 issuedAt: new Date().toISOString(),
+                ...(eventSummary ? { eventSummary } : {}),
                 metadata: {
                     tierId: item.ticketId,
                     tierName: item.name,
@@ -74,18 +82,27 @@ export async function issueEntitlements(order, items, transaction = null) {
     }
 
     const saveOp = async (t) => {
+        // Idempotency check inside the transaction: reads and writes are atomic,
+        // so two concurrent fulfillment tasks cannot both pass and double-write.
+        const firstRef = db.collection(ENTITLEMENT_COLLECTION).doc(entitlements[0].id);
+        const firstDoc = await t.get(firstRef);
+        if (firstDoc.exists) {
+            const allDocs = await Promise.all(
+                entitlements.map(ent => t.get(db.collection(ENTITLEMENT_COLLECTION).doc(ent.id)))
+            );
+            return allDocs.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
+        }
         for (const ent of entitlements) {
             t.set(db.collection(ENTITLEMENT_COLLECTION).doc(ent.id), ent);
         }
+        return entitlements;
     };
 
     if (transaction) {
-        await saveOp(transaction);
+        return await saveOp(transaction);
     } else {
-        await db.runTransaction(saveOp);
+        return await db.runTransaction(saveOp);
     }
-
-    return entitlements;
 }
 
 /**

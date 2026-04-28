@@ -4,6 +4,7 @@ import { z } from 'zod';
 // @ts-ignore
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 import { logPaymentEvent } from '../../lib/securityLogger';
+import { buildErrorResponse } from '../../lib/api-contracts';
 
 const PaymentOrderBody = z.object({
     orderId: z.string()
@@ -51,12 +52,23 @@ function getPaymentConfig() {
 }
 
 function buildWebhookRawBody(request: any): string {
+    if (request.rawBody) return request.rawBody;
     if (typeof request.body === 'string') return request.body;
     if (Buffer.isBuffer(request.body)) return request.body.toString('utf8');
     return JSON.stringify(request.body || {});
 }
 
 export default async function paymentRoutes(fastify: FastifyInstance) {
+    fastify.addContentTypeParser(
+        'application/json',
+        { parseAs: 'buffer' },
+        (_req: any, body, done) => {
+            _req.rawBody = (body as Buffer).toString('utf8');
+            try { done(null, JSON.parse(_req.rawBody)); }
+            catch (err: any) { done(err, undefined); }
+        }
+    );
+
     /**
      * GET /api/v1/payments/config
      * Get Razorpay client configuration
@@ -75,7 +87,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         const { orderId } = request.body;
         const userId = request.user?.uid;
 
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: (request as any).id }));
 
         const idempotencyKey = (request as any).headers['x-idempotency-key'] as string;
 
@@ -87,6 +99,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
                     allowMockPayment: allowMockRazorpay(),
                 });
                 return {
+                    success: true,
                     ...result,
                     config: getPaymentConfig(),
                 };
@@ -117,7 +130,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
                         : error.message?.startsWith('Order is ')
                             ? 409
                             : 500;
-            return reply.status(status).send({ error: error.message || 'Payment processing failed' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 403 ? 'FORBIDDEN' : status === 404 ? 'NOT_FOUND' : status === 409 ? 'CONFLICT' : 'INTERNAL_ERROR', message: error.message || 'Payment processing failed', requestId: (request as any).id }));
         }
     });
 
@@ -136,7 +149,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         } = request.body;
         const userId = request.user?.uid;
 
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: (request as any).id }));
 
         const idempotencyKey = ((request as any).headers['x-idempotency-key'] as string) || `verify:${razorpay_payment_id}`;
 
@@ -166,8 +179,20 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
                     orderId,
                     razorpayOrderId: razorpay_order_id,
                     razorpayPaymentId: razorpay_payment_id,
-                    userId
+                    userId,
+                    paymentGatewayConfig: {
+                        keyId: getRazorpayKeyId(),
+                        keySecret: getRazorpayKeySecret(),
+                        allowMockPayment: allowMockRazorpay(),
+                    }
                 });
+
+                if (result?.success === false) {
+                    const verificationError = new Error(result.error || 'Payment verification failed');
+                    (verificationError as any).code = 'PAYMENT_VERIFICATION_REJECTED';
+                    (verificationError as any).payload = result;
+                    throw verificationError;
+                }
 
                 return {
                     success: true,
@@ -195,16 +220,29 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             return finalResult;
         } catch (error: any) {
             fastify.log.error(`Payment verification failed: ${error.message}`);
+            if ((error as any).code === 'PAYMENT_VERIFICATION_REJECTED') {
+                return reply.status(409).send((error as any).payload);
+            }
             const status = error.message === 'Order not found'
                 ? 404
                 : error.message === 'Unauthorized'
                     ? 403
-                    : error.message === 'Mock payments are disabled'
+                    : error.message === 'Invalid signature'
                         ? 400
+                    : error.message === 'Payment order not found'
+                        ? 404
+                    : error.message === 'Payment amount mismatch'
+                        ? 409
+                    : error.message === 'Payment does not belong to this Razorpay order'
+                        ? 409
                     : error.message === 'Payment already linked to another order'
                         ? 409
+                    : error.message === 'Payment is not successful'
+                        ? 409
+                    : error.message === 'Mock payments are disabled'
+                        ? 400
                         : 500;
-            return reply.status(status).send({ error: error.message || 'Internal server error' });
+            return reply.status(status).send(buildErrorResponse({ code: status === 404 ? 'NOT_FOUND' : status === 403 ? 'FORBIDDEN' : status === 400 ? 'BAD_REQUEST' : status === 409 ? 'CONFLICT' : 'INTERNAL_ERROR', message: error.message || 'Internal server error', requestId: (request as any).id }));
         }
     });
 
@@ -215,20 +253,20 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         const webhookSecret = getRazorpayWebhookSecret();
         if (!webhookSecret) {
             fastify.log.error('RAZORPAY_WEBHOOK_SECRET is not configured');
-            return reply.status(500).send({ error: 'Webhook not configured' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Webhook not configured' }));
         }
 
         const expected = crypto.createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
         if (!signature || expected !== signature) {
             logPaymentEvent(request, 'SIGNATURE_MISMATCH', {});
-            return reply.status(401).send({ error: 'Invalid signature' });
+            return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Invalid signature' }));
         }
 
         let payload: any;
         try {
             payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
         } catch {
-            return reply.status(400).send({ error: 'Invalid payload' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'Invalid payload' }));
         }
 
         const eventType = payload?.event || payload?.type;
@@ -239,15 +277,34 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         try {
             if ((eventType === 'payment.captured' || eventType === 'payment_success') && orderId && razorpayOrderId && paymentId) {
-                const order = await fastify.orderRepo.getOrderById(orderId);
-                if (!order) return reply.status(404).send({ error: 'Order not found' });
-
                 const result = await fastify.checkoutService.verifyPayment({
                     orderId,
                     razorpayOrderId,
                     razorpayPaymentId: paymentId,
-                    userId: order.userId,
+                    userId: null,
+                    paymentGatewayConfig: {
+                        keyId: getRazorpayKeyId(),
+                        keySecret: getRazorpayKeySecret(),
+                        allowMockPayment: allowMockRazorpay(),
+                    }
                 });
+
+                if (result?.success === false) {
+                    logPaymentEvent(request, 'WEBHOOK_REJECTED', {
+                        orderId,
+                        razorpayOrderId,
+                        razorpayPaymentId: paymentId,
+                        eventType,
+                        reason: result.error || 'verification_rejected',
+                    });
+
+                    return {
+                        success: false,
+                        handled: true,
+                        orderId,
+                        reason: result.error || 'verification_rejected',
+                    };
+                }
 
                 logPaymentEvent(request, result?.alreadyConfirmed ? 'WEBHOOK_DUPLICATE' : 'WEBHOOK_CONFIRMED', {
                     orderId,
@@ -266,16 +323,10 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             if (eventType === 'payment.failed' && orderId) {
                 const order = await fastify.orderRepo.getOrderById(orderId);
                 if (order) {
-                    await fastify.orderRepo.updateOrder(orderId, {
-                        status: 'payment_pending',
-                        updatedAt: new Date().toISOString(),
-                    }, order.isRSVP);
+                    await fastify.checkoutService.recordPaymentFailure(orderId, razorpayOrderId, paymentId);
 
-                    if (order.reservationId) {
-                        const reservation = await fastify.orderRepo.getReservationById(order.reservationId);
-                        if (reservation?.queueId) {
-                            await flagPaymentFailure(fastify.db, reservation.queueId);
-                        }
+                    if ((order.status === 'payment_pending' || order.status === 'pending_payment') && order.queueId) {
+                        await flagPaymentFailure(fastify.db, order.queueId);
                     }
                 }
 
@@ -292,7 +343,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             return { success: true, ignored: true, eventType };
         } catch (error: any) {
             fastify.log.error(`Payment webhook failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error' }));
         }
     });
 }

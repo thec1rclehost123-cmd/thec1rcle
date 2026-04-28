@@ -176,21 +176,78 @@ export class CheckoutService {
         orderId: string,
         razorpayOrderId: string,
         razorpayPaymentId: string,
-        userId: string
+        userId?: string | null,
+        paymentGatewayConfig?: {
+            keyId?: string;
+            keySecret?: string;
+            allowMockPayment?: boolean;
+        }
     }): Promise<any> {
-        const { orderId, razorpayOrderId, razorpayPaymentId, userId } = params;
+        const { orderId, razorpayOrderId, razorpayPaymentId, userId = null, paymentGatewayConfig } = params;
         console.log(`[Checkout] Verifying payment ${razorpayPaymentId} for order ${orderId}`);
+
+        const paymentRecord = await this.orderRepo.getPaymentRecord(orderId, razorpayOrderId);
+        if (!paymentRecord) {
+            throw new Error('Payment order not found');
+        }
+        if (userId && paymentRecord.userId !== userId) {
+            throw new Error('Unauthorized');
+        }
+
+        const existingPaymentLink = await this.orderRepo.getPaymentRecordByPaymentId(razorpayPaymentId);
+        if (existingPaymentLink && existingPaymentLink.orderId !== orderId) {
+            throw new Error('Payment already linked to another order');
+        }
+
+        if (paymentGatewayConfig) {
+            await this.payment.validateGatewayPayment({
+                paymentRecord,
+                razorpayOrderId,
+                razorpayPaymentId,
+                config: paymentGatewayConfig,
+            });
+        }
 
         let finalOrder: any = null;
         await this.orderRepo.runInTransaction(async (transaction) => {
-            const order = await this.orderRepo.getOrderById(orderId);
+            const order = await this.orderRepo.getOrderById(orderId, transaction);
             if (!order) {
                 finalOrder = order;
                 return;
             }
+            if (userId && order.userId !== userId) {
+                throw new Error('Unauthorized');
+            }
+
+            const currentPaymentRecord = await this.orderRepo.getPaymentRecord(orderId, razorpayOrderId, transaction);
+            if (!currentPaymentRecord) {
+                throw new Error('Payment order not found');
+            }
+            if (currentPaymentRecord.userId !== order.userId) {
+                throw new Error('Unauthorized');
+            }
+            if (Number(currentPaymentRecord.amount) !== Number(order.totalAmount)) {
+                throw new Error('Payment amount mismatch');
+            }
+
+            const linkedPayment = await this.orderRepo.getPaymentRecordByPaymentId(razorpayPaymentId, transaction);
+            if (linkedPayment && linkedPayment.orderId !== orderId) {
+                throw new Error('Payment already linked to another order');
+            }
             if (order.status === 'confirmed') {
                 finalOrder = { ...order, alreadyConfirmed: true };
                 return;
+            }
+
+            if (order.reservationId) {
+                const res = await this.orderRepo.getReservationById(order.reservationId, transaction);
+                if (res && res.status === 'expired') {
+                    const event = await this.eventRepo.getById(order.eventId, order.workspaceId || undefined as any);
+                    if (event && this.isInventoryExhausted(event, order.tickets)) {
+                        finalOrder = { ...order, verifyError: 'RESERVATION_EXPIRED_OVERSOLD' };
+                        return;
+                    }
+                }
             }
 
             const updates: Partial<Order> = {
@@ -209,9 +266,16 @@ export class CheckoutService {
             finalOrder = { ...order, ...updates };
         });
 
+        if (finalOrder?.verifyError === 'RESERVATION_EXPIRED_OVERSOLD') {
+            return {
+                success: false,
+                error: 'Your reservation expired and the event sold out. Please contact support.',
+                order: finalOrder,
+            };
+        }
+
         if (finalOrder && finalOrder.status === 'confirmed' && !finalOrder.alreadyConfirmed) {
-            const reservation = finalOrder.reservationId ? await this.orderRepo.getReservationById(finalOrder.reservationId) : null;
-            await this.fulfillment.processFulfillment(finalOrder, reservation?.queueId);
+            await this.fulfillment.processFulfillment(finalOrder, finalOrder.queueId || null);
         }
 
         return {
@@ -219,6 +283,32 @@ export class CheckoutService {
             alreadyConfirmed: Boolean(finalOrder?.alreadyConfirmed),
             order: finalOrder,
         };
+    }
+
+    private isInventoryExhausted(event: any, tickets: any[]): boolean {
+        const tiers: any[] = event.ticketCatalog?.tiers || event.tickets || [];
+        for (const orderTicket of tickets) {
+            const tier = tiers.find((t: any) => t.id === orderTicket.ticketId);
+            if (!tier) continue;
+            const inv = tier.inventory;
+            if (inv) {
+                const capacity = Number(inv.totalQuantity ?? inv.capacity ?? 0);
+                const sold = Number(inv.soldQuantity ?? 0);
+                const held = Number(inv.heldQuantity ?? 0);
+                if (capacity > 0 && (sold + held) >= capacity) return true;
+            } else {
+                if (Number(tier.remaining ?? tier.quantity ?? 999) <= 0) return true;
+            }
+        }
+        return false;
+    }
+
+    async reissueFulfillment(order: Order): Promise<void> {
+        await this.fulfillment.processFulfillment(order, null);
+    }
+
+    async recordPaymentFailure(orderId: string, razorpayOrderId: string, razorpayPaymentId?: string | null): Promise<void> {
+        await this.payment.recordPaymentFailure(orderId, razorpayOrderId, razorpayPaymentId);
     }
 
     /**

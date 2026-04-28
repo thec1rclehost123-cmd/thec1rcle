@@ -36,6 +36,7 @@ function isUnsafeMethod(method) {
 
 const DUPLICATE_FETCH_WINDOW_MS = 750;
 const recentGuestFetches = new Map();
+const pendingGuestJsonRequests = new Map();
 
 export function getGuestFetchDiagnostics() {
   if (typeof window === "undefined") return { duplicates: [] };
@@ -117,9 +118,48 @@ export async function guestApiFetch(path, options = {}) {
 }
 
 export async function guestApiJson(path, options = {}) {
-  const response = await guestApiFetch(path, options);
-  const data = await response.json().catch(() => ({}));
-  return { response, data };
+  const method = String(options.method || "GET").toUpperCase();
+  const normalizedPath = normalizeApiPath(path);
+  const canCoalesce = method === "GET" && options.body === undefined;
+  const requestKey = canCoalesce
+    ? JSON.stringify({
+      method,
+      normalizedPath,
+      credentials: options.credentials || "include",
+      cache: options.cache || "no-store",
+    })
+    : null;
+
+  if (requestKey && pendingGuestJsonRequests.has(requestKey)) {
+    const result = await pendingGuestJsonRequests.get(requestKey);
+    return {
+      response: result.response.clone(),
+      data: result.data,
+    };
+  }
+
+  const requestPromise = (async () => {
+    const response = await guestApiFetch(normalizedPath, options);
+    const responseClone = response.clone();
+    const data = await response.json().catch(() => ({}));
+    return { response: responseClone, data };
+  })();
+
+  if (requestKey) {
+    pendingGuestJsonRequests.set(requestKey, requestPromise);
+  }
+
+  try {
+    const result = await requestPromise;
+    return {
+      response: result.response.clone(),
+      data: result.data,
+    };
+  } finally {
+    if (requestKey) {
+      pendingGuestJsonRequests.delete(requestKey);
+    }
+  }
 }
 
 export function buildGuestOperationPath(operationId, params = {}, query = "") {
@@ -217,6 +257,7 @@ export const guestApi = Object.freeze({
     get: (orderId, options) => guestApiOperationJson("getGuestOrder", { params: { orderId }, ...options }),
     cancelEligibility: (orderId, options) => guestApiOperationJson("getOrderCancelEligibility", { params: { orderId }, ...options }),
     cancel: (orderId, body, options) => guestApiOperationJson("requestOrderCancel", { params: { orderId }, body, ...options }),
+    reissue: (orderId, options) => guestApiOperationJson("reissueOrderFulfillment", { params: { orderId }, ...options }),
   },
   tickets: {
     wallet: (options) => guestApiOperationJson("getGuestTickets", options),

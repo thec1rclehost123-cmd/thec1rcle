@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
 
@@ -50,7 +51,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     fastify.get('/follow', async (request: any, reply) => {
         const parsed = FollowQuery.safeParse(request.query || {});
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'targetId is required' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'targetId is required', requestId: request.id }));
         }
 
         try {
@@ -60,10 +61,10 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 return { following: false };
             }
             const following = await isFollowing(resolvedUserId, targetId);
-            return { following };
+            return { following, isFollowing: following };
         } catch (error: any) {
             fastify.log.error(`Error in GET /follow: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Failed to check follow status' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to check follow status', requestId: request.id }));
         }
     });
 
@@ -73,11 +74,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/follow', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }));
 
         const parsed = FollowMutationBody.safeParse(request.body || {});
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'targetId and targetType are required' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'targetId and targetType are required', requestId: request.id }));
         }
 
         try {
@@ -86,7 +87,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return reply.status(201).send({ success: true, follow });
         } catch (error: any) {
             fastify.log.error(`Error in POST /follow: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Failed to follow' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to follow', requestId: request.id }));
         }
     });
 
@@ -96,19 +97,20 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.delete('/follow', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }));
 
         const parsed = UnfollowQuery.safeParse(request.query || {});
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'targetId is required' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'targetId is required', requestId: request.id }));
         }
 
         try {
             const { targetId, targetType = 'venue' } = parsed.data;
-            return await unfollowEntity(userId, targetId, targetType);
+            const result = await unfollowEntity(userId, targetId, targetType);
+            return { success: true, ...result };
         } catch (error: any) {
             fastify.log.error(`Error in DELETE /follow: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Failed to unfollow' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to unfollow', requestId: request.id }));
         }
     });
 
@@ -118,11 +120,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.post('/venues/:venueId/follow', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }));
 
         const parsed = VenueFollowParams.safeParse(request.params || {});
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'venueId is required' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'venueId is required', requestId: request.id }));
         }
 
         try {
@@ -131,7 +133,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return reply.status(201).send({ success: true, follow });
         } catch (error: any) {
             fastify.log.error(`Error in POST /venues/:venueId/follow: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Failed to follow venue' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to follow venue', requestId: request.id }));
         }
     });
 
@@ -141,11 +143,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.delete('/venues/:venueId/follow', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Authentication required' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }));
 
         const parsed = VenueFollowParams.safeParse(request.params || {});
         if (!parsed.success) {
-            return reply.status(400).send({ error: 'venueId is required' });
+            return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'venueId is required', requestId: request.id }));
         }
 
         try {
@@ -154,7 +156,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, ...result };
         } catch (error: any) {
             fastify.log.error(`Error in DELETE /venues/:venueId/follow: ${error.message}`);
-            return reply.status(500).send({ error: error.message || 'Failed to unfollow venue' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to unfollow venue', requestId: request.id }));
         }
     });
 
@@ -191,7 +193,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: ChatMessageBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { eventId, text, imageUrl, videoUrl, replyToId, metadata } = request.body;
 
@@ -217,7 +219,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, id: docRef.id, message };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/chat: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -227,7 +229,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/entitlement/:eventId', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId } = request.params;
 
         try {
@@ -274,7 +276,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { entitlement: null };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/entitlement/:eventId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -286,7 +288,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: z.object({ recipientId: z.string(), eventId: z.string() }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { recipientId, eventId } = request.body;
 
         try {
@@ -314,7 +316,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { allowed: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/can-dm: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -330,7 +332,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId, targetUid, durationMinutes = 60 } = request.body;
 
         try {
@@ -349,7 +351,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/mute: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -358,7 +360,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/is-muted/:eventId', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId } = request.params;
 
         try {
@@ -376,7 +378,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { isMuted };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/is-muted/:eventId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -391,7 +393,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId, targetUid, reason } = request.body;
 
         try {
@@ -408,7 +410,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/remove-from-chat: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -432,7 +434,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { media };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/media/:eventId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -450,7 +452,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { eventId, mediaUrl, thumbnailUrl, type, caption } = request.body;
 
@@ -475,7 +477,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, id: docRef.id, media: mediaData };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/media: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -486,7 +488,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: z.object({ targetUid: z.string() }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { targetUid } = request.body;
 
         try {
@@ -502,7 +504,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/unblock: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -511,7 +513,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/is-removed/:eventId', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId } = request.params;
 
         try {
@@ -524,7 +526,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { isRemoved: !snapshot.empty };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/is-removed/:eventId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -540,7 +542,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId, latitude, longitude, durationHours = 4 } = request.body;
 
         try {
@@ -562,7 +564,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, sessionId };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/location/start: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -576,7 +578,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { id } = request.params;
         const { latitude, longitude } = request.body;
 
@@ -585,7 +587,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             const doc = await docRef.get();
             
             if (!doc.exists || doc.data()?.userId !== userId) {
-                return reply.status(403).send({ error: "Forbidden" });
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             }
 
             await docRef.update({
@@ -596,7 +598,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in PATCH /social/location/:id: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -611,7 +613,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId, latitude, longitude } = request.body;
 
         try {
@@ -627,7 +629,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, sosId: sosRef.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/sos: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -636,7 +638,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/dm/requests', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const snapshot = await fastify.db.collection("privateConversations")
@@ -651,7 +653,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { requests };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/requests: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -665,7 +667,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { recipientId, eventId } = request.body;
 
         try {
@@ -685,7 +687,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, conversationId: convoRef.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/dm/request: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -695,12 +697,12 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     fastify.post('/social/dm/:id/accept', async (request: any, reply) => {
         const userId = request.user?.uid;
         const { id } = request.params;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const docRef = fastify.db.collection("privateConversations").doc(id);
             const doc = await docRef.get();
-            if (!doc.exists) return reply.status(404).send({ error: "Not found" });
+            if (!doc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }));
             
             await docRef.update({
                 status: "accepted",
@@ -709,7 +711,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/dm/:id/accept: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -725,12 +727,12 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         const userId = request.user?.uid;
         const { id } = request.params;
         const { text, imageUrl } = request.body;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const convoRef = fastify.db.collection("privateConversations").doc(id);
             const convoDoc = await convoRef.get();
-            if (!convoDoc.exists) return reply.status(404).send({ error: "Not found" });
+            if (!convoDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }));
 
             const msgRef = await fastify.db.collection("directMessages").add({
                 conversationId: id,
@@ -751,7 +753,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, messageId: msgRef.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/dm/:id/send: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -773,7 +775,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { messages };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/:id/messages: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -783,21 +785,21 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     fastify.get('/social/dm/:id', async (request: any, reply) => {
         const userId = request.user?.uid;
         const { id } = request.params;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const doc = await fastify.db.collection("privateConversations").doc(id).get();
-            if (!doc.exists) return reply.status(404).send({ error: "Not found" });
+            if (!doc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }));
             
             const data = doc.data();
             if (!data?.participants.includes(userId)) {
-                return reply.status(403).send({ error: "Forbidden" });
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             }
 
             return { conversation: { id: doc.id, ...data } };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/:id: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -813,7 +815,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { chatId, chatType, isTyping, userName } = request.body;
 
         try {
@@ -835,7 +837,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/typing: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -854,7 +856,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { typers };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/typing/:chatId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -882,7 +884,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { messages: messages.reverse() };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/chat/:eventId: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -894,7 +896,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: ReportBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { targetId, targetType, reason, details } = request.body;
 
@@ -910,7 +912,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true, reportId };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/report: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -922,7 +924,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: BlockBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { targetUid } = request.body;
 
@@ -936,7 +938,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/block: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -946,7 +948,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/blocks', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const snapshot = await fastify.db.collection("userBlocks")
@@ -957,7 +959,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return { blockedUserIds: blocks };
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/blocks: ${error.message}`);
-            return reply.status(500).send({ error: "Internal Server Error" });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -971,7 +973,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             return result;
         } catch (error: any) {
             fastify.log.error(`Upload failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Upload failed' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Upload failed', requestId: request.id }));
         }
     });
 }

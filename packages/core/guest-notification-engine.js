@@ -1,10 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import { getAdminDb, isFirebaseConfigured } from './admin.js';
 import { getFollowers } from './follow-graph-engine.js';
+import { cacheDel } from './redis.js';
 
 const NOTIFICATIONS_COLLECTION = 'notifications';
+const NOTIFICATION_UNREAD_COUNT_CACHE_TTL_KEY_PREFIX = 'guest:notif-unread-count:';
 
 const fallbackNotifications = [];
+
+function getUnreadCountCacheKey(userId) {
+    return `${NOTIFICATION_UNREAD_COUNT_CACHE_TTL_KEY_PREFIX}${userId}`;
+}
+
+async function invalidateUnreadCountCache(userIds = []) {
+    const uniqueUserIds = [...new Set((userIds || []).filter(Boolean))];
+    if (uniqueUserIds.length === 0) return;
+    await Promise.all(uniqueUserIds.map((userId) => cacheDel(getUnreadCountCacheKey(userId))));
+}
 
 export async function createNotification({ userId, type, title, body, data = {}, imageUrl = null }) {
     const id = randomUUID();
@@ -19,6 +31,7 @@ export async function createNotification({ userId, type, title, body, data = {},
 
     const db = getAdminDb();
     await db.collection(NOTIFICATIONS_COLLECTION).doc(id).set(notification);
+    await invalidateUnreadCountCache([userId]);
     return notification;
 }
 
@@ -47,6 +60,7 @@ export async function createBulkNotifications(userIds, { type, title, body, data
         batch.set(db.collection(NOTIFICATIONS_COLLECTION).doc(notification.id), notification);
     }
     await batch.commit();
+    await invalidateUnreadCountCache(userIds);
     return notifications;
 }
 
@@ -73,10 +87,13 @@ export async function markNotificationRead(notificationId) {
     }
 
     const db = getAdminDb();
+    const notificationDoc = await db.collection(NOTIFICATIONS_COLLECTION).doc(notificationId).get();
+    if (!notificationDoc.exists) return null;
     await db.collection(NOTIFICATIONS_COLLECTION).doc(notificationId).update({
         isRead: true,
         readAt: new Date().toISOString(),
     });
+    await invalidateUnreadCountCache([notificationDoc.data()?.userId]);
     return { id: notificationId, isRead: true };
 }
 
@@ -98,6 +115,7 @@ export async function markAllNotificationsRead(userId) {
         batch.update(doc.ref, { isRead: true, readAt: now });
     }
     await batch.commit();
+    await invalidateUnreadCountCache([userId]);
     return { updated: snapshot.size };
 }
 

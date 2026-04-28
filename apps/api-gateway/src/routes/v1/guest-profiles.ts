@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { buildErrorResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { findGuestUserByEmail, getGuestProfileSummary } from '@c1rcle/core/guest-wallet-profile-notification-service';
 
@@ -14,11 +15,11 @@ const GuestProfileLookupQuery = z.object({
 export default async function guestProfileRoutes(fastify: FastifyInstance) {
     fastify.post('/guest-profiles/avatar', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const data = await request.file();
-            if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+            if (!data) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'No file uploaded', requestId: request.id }));
 
             const bucket = (fastify as any).firebase.storage().bucket();
             const extension = (data.filename?.split('.').pop() || 'jpg').replace(/[^a-zA-Z0-9]/g, '');
@@ -41,7 +42,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
             return { url };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'POST /guest-profiles/avatar failed');
-            return reply.status(500).send({ error: 'Upload failed' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Upload failed', requestId: request.id }));
         }
     });
 
@@ -49,11 +50,11 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ querystring: GuestProfileLookupQuery })],
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const user = await findGuestUserByEmail(fastify.db, request.query.email);
-            if (!user) return reply.status(404).send({ error: 'Profile not found' });
+            if (!user) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Profile not found', requestId: request.id }));
 
             return {
                 user: {
@@ -66,7 +67,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
             };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /guest-profiles/lookup failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -76,11 +77,11 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
         try {
             const viewerId = request.user?.uid || null;
             const result = await getGuestProfileSummary(fastify.db, fastify.auth, request.params.id, viewerId);
-            if (!result.profile) return reply.status(404).send({ error: 'Profile not found' });
+            if (!result.profile) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Profile not found', requestId: request.id }));
             return result;
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, error: error.message }, 'GET /guest-profiles/:id failed');
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 }

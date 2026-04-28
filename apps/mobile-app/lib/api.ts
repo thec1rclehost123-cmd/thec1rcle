@@ -143,6 +143,10 @@ export interface ReserveRequest {
     deviceId?: string;
 }
 
+interface ApiRequestOptions {
+    headers?: Record<string, string>;
+}
+
 export interface ReserveResponse {
     success: boolean;
     reservationId: string;
@@ -156,10 +160,12 @@ export interface ReserveResponse {
  * Uses: POST /api/checkout/reserve
  */
 export async function reserveTickets(
-    payload: ReserveRequest
+    payload: ReserveRequest,
+    options: ApiRequestOptions = {}
 ): Promise<ReserveResponse> {
     return apiFetch<ReserveResponse>(`${API_PREFIX}/checkout/reserve`, {
         method: "POST",
+        headers: options.headers,
         body: JSON.stringify({
             eventId: payload.eventId,
             items: payload.items,
@@ -249,10 +255,12 @@ export interface InitiateCheckoutResponse {
  * Uses: POST /api/checkout/initiate
  */
 export async function initiateCheckout(
-    payload: InitiateCheckoutRequest
+    payload: InitiateCheckoutRequest,
+    options: ApiRequestOptions = {}
 ): Promise<InitiateCheckoutResponse> {
     return apiFetch<InitiateCheckoutResponse>(`${API_PREFIX}/checkout/initiate`, {
         method: "POST",
+        headers: options.headers,
         body: JSON.stringify(payload),
     });
 }
@@ -275,10 +283,12 @@ export interface VerifyPaymentResponse {
  * Uses: PATCH /api/payments
  */
 export async function verifyPayment(
-    payload: VerifyPaymentRequest
+    payload: VerifyPaymentRequest,
+    options: ApiRequestOptions = {}
 ): Promise<VerifyPaymentResponse> {
     return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/payments/verify`, {
         method: "PATCH",
+        headers: options.headers,
         body: JSON.stringify(payload),
     });
 }
@@ -333,6 +343,13 @@ export async function getOrders(): Promise<{ orders: any[] }> {
     return apiFetch(`${API_PREFIX}/orders`);
 }
 
+export async function getOrder(orderId: string, options: { includeEvent?: boolean } = {}): Promise<any | null> {
+    const includeEvent = options.includeEvent === true;
+    const query = includeEvent ? "" : "?includeEvent=false";
+    const data = await apiFetch<{ success: boolean; order?: any }>(`${API_PREFIX}/orders/${orderId}${query}`);
+    return data?.order || null;
+}
+
 /**
  * Cancel a specific order
  * Uses: POST /api/orders/[orderId]/cancel
@@ -379,10 +396,10 @@ export async function searchEvents(query: string): Promise<{ results: any[] }> {
 
 /**
  * Get user notifications
- * Uses: GET /api/notifications
+ * Uses: GET /api/v1/guest-notifications
  */
 export async function getNotifications(): Promise<{ notifications: any[] }> {
-    return apiFetch(`${API_PREFIX}/notifications`);
+    return apiFetch(`${API_PREFIX}/guest-notifications`);
 }
 
 // ─── Ticket Sharing + Formal Transfers (guest-portal parity) ───────────────
