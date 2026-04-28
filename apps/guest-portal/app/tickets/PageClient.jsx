@@ -60,7 +60,7 @@ const CoverTicketCard = dynamic(
 
 const useDominantColor = (imageUrl) => {
     const [color, setColor] = useState('rgba(255, 255, 255, 0.05)');
-    const [rgb, setRgb] = useState('255, 255, 255');
+    const [rgb, setRgb] = useState('244, 74, 34'); // Default brand orange
 
     useEffect(() => {
         if (!imageUrl) return;
@@ -88,16 +88,36 @@ const useDominantColor = (imageUrl) => {
 
 // --- Components ---
 
-const AuroraBackground = () => (
+const AuroraBackground = ({ rgb = "244, 74, 34" }) => (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
         {/* Top sweep */}
-        <div className="absolute -top-[20%] left-0 h-[90vh] w-full bg-gradient-to-b from-orange/40 dark:from-iris/40 via-transparent to-transparent blur-[100px] opacity-[1.0] transition-colors duration-500" />
-        {/* Right orb — static opacity, no animate-pulse (was causing full-page GPU repaint 60x/sec) */}
-        <div className="absolute top-[10%] right-[-10%] h-[1400px] w-[1400px] rounded-full bg-orange/20 dark:bg-gold/20 blur-[120px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
+        <div 
+            className="absolute -top-[20%] left-0 h-[90vh] w-full blur-[100px] opacity-[1.0] transition-all duration-1000" 
+            style={{ 
+                background: `linear-gradient(to bottom, rgba(${rgb}, 0.4), transparent)` 
+            }}
+        />
+        {/* Right orb */}
+        <div 
+            className="absolute top-[10%] right-[-10%] h-[1400px] w-[1400px] rounded-full blur-[120px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen transition-all duration-1000" 
+            style={{ 
+                backgroundColor: `rgba(${rgb}, 0.2)` 
+            }}
+        />
         {/* Bottom-left accent orb */}
-        <div className="absolute bottom-[5%] left-[-15%] h-[1000px] w-[1000px] rounded-full bg-iris/20 dark:bg-iris/30 blur-[100px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
+        <div 
+            className="absolute bottom-[5%] left-[-15%] h-[1000px] w-[1000px] rounded-full blur-[100px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen transition-all duration-1000" 
+            style={{ 
+                backgroundColor: `rgba(${rgb}, 0.2)` 
+            }}
+        />
         {/* Centre mid-page warm bloom */}
-        <div className="absolute top-[45%] left-[30%] h-[800px] w-[1200px] rounded-full bg-orange/16 dark:bg-orange/20 blur-[140px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen" />
+        <div 
+            className="absolute top-[45%] left-[30%] h-[800px] w-[1200px] rounded-full blur-[140px] opacity-[1.0] mix-blend-multiply dark:mix-blend-screen transition-all duration-1000" 
+            style={{ 
+                backgroundColor: `rgba(${rgb}, 0.16)` 
+            }}
+        />
     </div>
 );
 
@@ -1419,6 +1439,10 @@ function TicketsContent() {
     const { tickets, status: ticketStatus, error: ticketError, loadTickets, invalidate } = useTicketsStore();
     const loading = ticketStatus === "loading" || ticketStatus === "idle";
 
+    // Dynamic Atmosphere: Extract color from the most prominent ticket
+    const activePoster = tickets.upcomingTickets?.[0]?.posterUrl || tickets.actionNeeded?.[0]?.posterUrl;
+    const { rgb: atmosphereRgb } = useDominantColor(activePoster);
+
     // Payment Recovery: detect an active cart reservation left by a previous session
     const [pendingReservation, setPendingReservation] = useState(null);
     useEffect(() => {
@@ -1764,7 +1788,7 @@ function TicketsContent() {
 
     return (
         <div className="bg-[var(--bg-color)] text-[var(--text-primary)] transition-colors duration-500 selection:bg-orange/30 flex-1 flex flex-col">
-            <AuroraBackground />
+            <AuroraBackground rgb={atmosphereRgb} />
 
             {!user ? (
                 <div className="relative z-10 mx-auto max-w-5xl px-4 pt-32 pb-20 sm:px-6 lg:px-8 flex-1 flex flex-col">
@@ -1779,10 +1803,18 @@ function TicketsContent() {
                     <div className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                         <div>
                             <div className="flex items-center gap-3 mb-4">
-                                <div className="h-0.5 w-6 bg-orange" />
+                                <div 
+                                    className="h-0.5 w-6 transition-colors duration-1000" 
+                                    style={{ backgroundColor: `rgb(${atmosphereRgb})` }}
+                                />
                                 <span className="text-[10px] font-black uppercase tracking-[0.4em] text-black/30 dark:text-white/30">Your Collection</span>
                             </div>
-                            <h1 className="text-6xl md:text-9xl font-heading font-black uppercase tracking-tighter text-black dark:text-white leading-[0.8]">
+                            <h1 
+                                className="text-6xl md:text-9xl font-heading font-black uppercase tracking-tighter text-black dark:text-white leading-[0.8] transition-all duration-1000"
+                                style={{
+                                    textShadow: `0 0 80px rgba(${atmosphereRgb}, 0.3)`
+                                }}
+                            >
                                 Tickets
                             </h1>
                             <div className="mt-12 flex gap-4 p-1 rounded-3xl bg-black/5 dark:bg-white/5 w-fit border border-black/5 dark:border-white/5 backdrop-blur-md overflow-x-auto no-scrollbar max-w-full">
