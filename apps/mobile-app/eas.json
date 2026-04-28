@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 18.7.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBvVJH0kcXgNmmnKUPAENvWhAg1XzHXqDU",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "c1rcle-staging.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "c1rcle-staging",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "c1rcle-staging.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "281421756463",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:281421756463:web:d4101d3707e0a7cd5ceeda",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-HZYJ6NWH2Q",
+        "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyCuYYpdH1ZH2FM8UxCYVDrUNmmsbx06amQ",
+        "EXPO_PUBLIC_DEV_TOY_MODE": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.0.101:3001"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyBvVJH0kcXgNmmnKUPAENvWhAg1XzHXqDU",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "c1rcle-staging.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "c1rcle-staging",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "c1rcle-staging.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "281421756463",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:281421756463:web:d4101d3707e0a7cd5ceeda",
+        "EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID": "G-HZYJ6NWH2Q",
+        "EXPO_PUBLIC_GEMINI_API_KEY": "AIzaSyCuYYpdH1ZH2FM8UxCYVDrUNmmsbx06amQ",
+        "EXPO_PUBLIC_DEV_TOY_MODE": "false",
+        "EXPO_PUBLIC_API_BASE_URL": "http://192.168.0.101:3001"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

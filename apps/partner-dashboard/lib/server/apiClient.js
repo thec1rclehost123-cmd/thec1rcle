@@ -11,17 +11,12 @@ function normalizeGatewayBaseUrl(value) {
  * @param {string} token - The user's Firebase ID token
  */
 export function getApiClient(token) {
-    let baseUrl = normalizeGatewayBaseUrl(
-        process.env.NEXT_PUBLIC_GATEWAY_URL || process.env.PUBLIC_API_URL
+    const baseUrl = normalizeGatewayBaseUrl(
+        process.env.GATEWAY_URL || process.env.PUBLIC_API_URL
     );
 
-    if (!baseUrl && process.env.NODE_ENV === "development") {
-        console.warn("[API Client] NEXT_PUBLIC_GATEWAY_URL is missing. Falling back to localhost:4000.");
-        baseUrl = "http://localhost:4000/api/v1";
-    }
-
     if (!baseUrl) {
-        throw new Error('API gateway URL is not configured. Set NEXT_PUBLIC_GATEWAY_URL or PUBLIC_API_URL.');
+        throw new Error('API gateway URL is not configured. Set GATEWAY_URL.');
     }
 
     return new C1rcleApiClient({
@@ -36,9 +31,9 @@ export function getApiClient(token) {
  */
 export function getSystemApiClient() {
     const baseUrl = normalizeGatewayBaseUrl(
-        process.env.NEXT_PUBLIC_GATEWAY_URL || process.env.PUBLIC_API_URL
+        process.env.GATEWAY_URL || process.env.PUBLIC_API_URL
     );
-    if (!baseUrl) throw new Error('PUBLIC_API_URL is not configured.');
+    if (!baseUrl) throw new Error('GATEWAY_URL is not configured.');
     return new C1rcleApiClient({
         baseUrl,
         getAuthToken: async () => process.env.INTERNAL_API_KEY

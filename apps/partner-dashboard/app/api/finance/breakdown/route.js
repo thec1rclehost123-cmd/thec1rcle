@@ -1,21 +1,9 @@
-import { NextResponse } from "next/server";
-import { getEventFinanceBreakdown } from "../../../../lib/server/financeStore";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { withAuth } from "@/lib/server/withAuth";
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(request) {
-    try {
-        const { searchParams } = new URL(request.url);
-        const eventId = searchParams.get("eventId");
-
-        if (!eventId) {
-            return NextResponse.json({ error: "Missing eventId" }, { status: 400 });
-        }
-
-        const finance = await getEventFinanceBreakdown(eventId);
-        return NextResponse.json({ data: finance });
-    } catch (err) {
-        console.error("[FinanceAPI] Error:", err);
-        return NextResponse.json({ error: err.message }, { status: 500 });
-    }
-}
+export const GET = withAuth(async (request) => {
+    const { search } = new URL(request.url);
+    return proxyToGateway(request, `${GATEWAY_URL}/api/v1/finance/breakdown${search}`, {});
+});

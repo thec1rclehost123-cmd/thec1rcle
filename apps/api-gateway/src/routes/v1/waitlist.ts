@@ -45,9 +45,19 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
 
     /**
      * POST /api/v1/waitlist/process
+     * Internal endpoint — requires INTERNAL_API_KEY, not a user token.
      */
     fastify.post('/process', {
-        preHandler: [fastify.validate({ body: ProcessBody })]
+        preHandler: [
+            async (request: any, reply: any) => {
+                const internalKey = process.env.INTERNAL_API_KEY;
+                const token = request.headers.authorization?.split(' ')[1];
+                if (!internalKey || token !== internalKey) {
+                    return reply.status(401).send({ error: 'Unauthorized: Internal endpoint' });
+                }
+            },
+            fastify.validate({ body: ProcessBody })
+        ]
     }, async (request, reply) => {
         const { eventId, tierId } = request.body as { eventId: string, tierId: string };
         try {

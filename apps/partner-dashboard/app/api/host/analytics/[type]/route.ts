@@ -1,60 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-    getHostAnalytics,
-    getHostPerformanceAnalytics,
-    getHostAudienceAnalytics,
-    getHostReliabilityAnalytics,
-    getHostPartnerAnalytics,
-    getHostStrategyAnalytics
-} from "@/lib/server/analyticsStore";
 import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
-import { fail } from "@/lib/server/apiResponse";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/host/analytics/[type]
- * Fetches specific analytics for a host
- */
-export async function GET(req: NextRequest, context: { params: Promise<{ type: string }> }) {
-    const ctx = await requireHostAccess(req, "VIEW_ANALYTICS");
+export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
+    const { type } = await params;
+    const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-
-    try {
-        const { type } = await context.params;
-        const { searchParams } = new URL(req.url);
-        const range = searchParams.get("range") || "30d";
-        const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-
-        let analytics;
-        switch (type) {
-            case "overview":
-                analytics = await getHostAnalytics(ctx.hostId, range);
-                break;
-            case "performance":
-                analytics = await getHostPerformanceAnalytics(ctx.hostId, token);
-                break;
-            case "audience":
-                analytics = await getHostAudienceAnalytics(ctx.hostId, token);
-                break;
-            case "reliability":
-                analytics = await getHostReliabilityAnalytics(ctx.hostId);
-                break;
-            case "partners":
-                analytics = await getHostPartnerAnalytics(ctx.hostId, range);
-                break;
-            case "strategy":
-                analytics = await getHostStrategyAnalytics(ctx.hostId);
-                break;
-            default:
-                return fail("Invalid analytics type", 400);
-        }
-
-        const cacheSeconds = type === "overview" ? 60 : 300;
-        return NextResponse.json(
-            { success: true, ...analytics, message: "" },
-            { headers: { "Cache-Control": `private, max-age=${cacheSeconds}, stale-while-revalidate=${cacheSeconds * 4}` } }
-        );
-    } catch (error: any) {
-        console.error("[Host Analytics API] Error:", error);
-        return fail("Failed to fetch analytics");
-    }
+    const { searchParams } = new URL(req.url);
+    searchParams.set("hostId", ctx.hostId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/analytics/${type}?${searchParams}`, {});
 }

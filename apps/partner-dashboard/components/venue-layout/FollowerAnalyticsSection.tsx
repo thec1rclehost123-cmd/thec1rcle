@@ -27,35 +27,10 @@ interface FollowerAnalyticsSectionProps {
 export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnalyticsSectionProps) {
     const [timeRange, setTimeRange] = useState<"7d" | "30d" | "90d">("30d");
 
-    // Mock data for demonstration - in production, this would come from real analytics
-    const followerGrowth = stats?.followerGrowth || {
-        total: stats?.followersCount || 0,
-        thisMonth: Math.floor((stats?.followersCount || 0) * 0.18),
-        lastMonth: Math.floor((stats?.followersCount || 0) * 0.15),
-        growthRate: 18.5
-    };
-
-    const cityBreakdown = stats?.cityBreakdown || [
-        { city: "Pune", count: Math.floor((stats?.followersCount || 100) * 0.45), percentage: 45 },
-        { city: "Mumbai", count: Math.floor((stats?.followersCount || 100) * 0.25), percentage: 25 },
-        { city: "Bangalore", count: Math.floor((stats?.followersCount || 100) * 0.15), percentage: 15 },
-        { city: "Delhi", count: Math.floor((stats?.followersCount || 100) * 0.10), percentage: 10 },
-        { city: "Others", count: Math.floor((stats?.followersCount || 100) * 0.05), percentage: 5 },
-    ];
-
-    const conversionMetrics = {
-        eventAttendance: Math.floor((stats?.followersCount || 0) * 0.12),
-        tableReservations: Math.floor((stats?.followersCount || 0) * 0.08),
-        ticketPurchases: Math.floor((stats?.followersCount || 0) * 0.22),
-    };
-
-    const topFollowers = stats?.topFollowers || [
-        { name: "Priya S.", events: 12, avatar: null },
-        { name: "Rahul M.", events: 10, avatar: null },
-        { name: "Sneha K.", events: 8, avatar: null },
-        { name: "Arjun P.", events: 7, avatar: null },
-        { name: "Meera R.", events: 6, avatar: null },
-    ];
+    const followerGrowth = stats?.followerGrowth ?? null;
+    const cityBreakdown: any[] = stats?.cityBreakdown ?? [];
+    const conversionMetrics = stats?.conversionMetrics ?? null;
+    const topFollowers: any[] = stats?.topFollowers ?? [];
 
     return (
         <div className="space-y-12">
@@ -93,8 +68,8 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <StatCard
                         label="Total Followers"
-                        value={followerGrowth.total.toLocaleString()}
-                        change={`+${followerGrowth.growthRate}%`}
+                        value={(stats?.followersCount || 0).toLocaleString()}
+                        change={followerGrowth?.growthRate != null ? `+${followerGrowth.growthRate}%` : ""}
                         positive
                         icon={Users}
                         iconColor="text-violet-500"
@@ -102,8 +77,8 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                     />
                     <StatCard
                         label="New This Month"
-                        value={followerGrowth.thisMonth.toLocaleString()}
-                        change="+24%"
+                        value={followerGrowth?.thisMonth != null ? followerGrowth.thisMonth.toLocaleString() : "—"}
+                        change=""
                         positive
                         icon={UserPlus}
                         iconColor="text-emerald-500"
@@ -112,7 +87,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                     <StatCard
                         label="Page Views"
                         value={(stats?.totalViews || 0).toLocaleString()}
-                        change="+32%"
+                        change=""
                         positive
                         icon={Eye}
                         iconColor="text-blue-500"
@@ -120,8 +95,8 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                     />
                     <StatCard
                         label="Engagement Rate"
-                        value={`${((stats?.totalLikes || 0) / Math.max(stats?.followersCount || 1, 1) * 100).toFixed(1)}%`}
-                        change="+5.2%"
+                        value={stats?.engagementRate != null ? `${stats.engagementRate}%` : "—"}
+                        change=""
                         positive
                         icon={Heart}
                         iconColor="text-rose-500"
@@ -133,40 +108,8 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             {/* Follower Growth Chart */}
             <section className="space-y-4 pt-8 border-t border-border-subtle">
                 <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Growth Trend</h4>
-                <div className="p-8 bg-gradient-to-br from-violet-900/20 to-slate-900/40 rounded-3xl border border-violet-500/10">
-                    {/* Mock Chart Area */}
-                    <div className="h-48 flex items-end justify-between gap-2">
-                        {Array.from({ length: 12 }).map((_, i) => {
-                            const height = Math.random() * 60 + 40;
-                            return (
-                                <motion.div
-                                    key={i}
-                                    initial={{ height: 0 }}
-                                    animate={{ height: `${height}%` }}
-                                    transition={{ delay: i * 0.05, duration: 0.5 }}
-                                    className="flex-1 bg-gradient-to-t from-violet-500/40 to-violet-500/80 rounded-t-lg relative group cursor-pointer"
-                                >
-                                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 bg-black rounded-md text-[10px] text-text-primary opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                                        +{Math.floor(Math.random() * 50 + 10)} followers
-                                    </div>
-                                </motion.div>
-                            );
-                        })}
-                    </div>
-                    <div className="flex justify-between mt-4 text-[10px] text-text-primary/40 font-bold">
-                        <span>Jan</span>
-                        <span>Feb</span>
-                        <span>Mar</span>
-                        <span>Apr</span>
-                        <span>May</span>
-                        <span>Jun</span>
-                        <span>Jul</span>
-                        <span>Aug</span>
-                        <span>Sep</span>
-                        <span>Oct</span>
-                        <span>Nov</span>
-                        <span>Dec</span>
-                    </div>
+                <div className="p-8 bg-gradient-to-br from-violet-900/20 to-slate-900/40 rounded-3xl border border-violet-500/10 flex items-center justify-center h-48">
+                    <p className="text-[13px] text-text-tertiary">Growth data not yet available</p>
                 </div>
             </section>
 
@@ -179,6 +122,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Audience by City</h4>
                     </div>
                     <div className="space-y-3">
+                        {cityBreakdown.length === 0 && <p className="text-[13px] text-text-tertiary">City breakdown not yet available</p>}
                         {cityBreakdown.map((city: any, idx: number) => (
                             <div key={city.city} className="space-y-2">
                                 <div className="flex items-center justify-between">
@@ -207,6 +151,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Top Attending Followers</h4>
                     </div>
                     <div className="space-y-3">
+                        {topFollowers.length === 0 && <p className="text-[13px] text-text-tertiary">Top followers not yet available</p>}
                         {topFollowers.map((follower: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-4 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-text-primary font-bold text-sm">
@@ -231,26 +176,30 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                     <Target className="w-4 h-4 text-text-tertiary" />
                     <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Follower Conversion</h4>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <ConversionCard
-                        label="Ticket Purchases"
-                        value={conversionMetrics.ticketPurchases}
-                        total={followerGrowth.total}
-                        color="emerald"
-                    />
-                    <ConversionCard
-                        label="Event Attendance"
-                        value={conversionMetrics.eventAttendance}
-                        total={followerGrowth.total}
-                        color="violet"
-                    />
-                    <ConversionCard
-                        label="Table Reservations"
-                        value={conversionMetrics.tableReservations}
-                        total={followerGrowth.total}
-                        color="amber"
-                    />
-                </div>
+                {conversionMetrics ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <ConversionCard
+                            label="Ticket Purchases"
+                            value={conversionMetrics.ticketPurchases ?? 0}
+                            total={stats?.followersCount || 1}
+                            color="emerald"
+                        />
+                        <ConversionCard
+                            label="Event Attendance"
+                            value={conversionMetrics.eventAttendance ?? 0}
+                            total={stats?.followersCount || 1}
+                            color="violet"
+                        />
+                        <ConversionCard
+                            label="Table Reservations"
+                            value={conversionMetrics.tableReservations ?? 0}
+                            total={stats?.followersCount || 1}
+                            color="amber"
+                        />
+                    </div>
+                ) : (
+                    <p className="text-[13px] text-text-tertiary">Conversion data not yet available</p>
+                )}
             </section>
 
             {/* Broadcast CTA */}
@@ -265,7 +214,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                             </div>
                             <h3 className="text-2xl font-bold text-text-primary mb-2">Send a Broadcast</h3>
                             <p className="text-text-primary/60 text-sm max-w-md">
-                                Push notifications, announcements, and event drops directly to your {followerGrowth.total.toLocaleString()} followers
+                                Push notifications, announcements, and event drops directly to your {(stats?.followersCount || 0).toLocaleString()} followers
                             </p>
                         </div>
                         <a

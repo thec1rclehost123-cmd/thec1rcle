@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireGuestOpsAccess } from "@/lib/server/guestOpsMiddleware";
-import { getScannerSummary } from "@/lib/server/scanLogStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export async function GET(req: NextRequest, context: { params: Promise<{ eventId: string }> }) {
-    const { eventId } = await context.params;
-    try {
-        const { searchParams } = new URL(req.url);
-        const venueId = searchParams.get("venueId");
-
-        const auth = await requireGuestOpsAccess(req, venueId!, eventId, ["VIEW_GUESTLIST", "VIEW_REAL_TIME_SCANS"]);
-        if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-        const summary = await getScannerSummary(eventId);
-        return NextResponse.json(summary);
-    } catch (err: any) {
-        console.error("GET scanner/summary error", err);
-        return NextResponse.json({ error: "Failed to load scanner summary" }, { status: 500 });
-    }
+export async function GET(req: NextRequest, { params }: { params: Promise<{ eventId: string }> }) {
+    const { eventId } = await params;
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/guest-ops/${eventId}/scanner/summary?${searchParams}`, {});
 }

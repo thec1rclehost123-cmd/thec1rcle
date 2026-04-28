@@ -1,201 +1,196 @@
 /**
  * inbox.tsx — Chats screen
- * Two tabs: Event Chats | Private Chats
- * Empty state UI — static for now, backend wiring comes later.
+ * Segment control: Event Chats | Private Chats
+ * Matches the Venues/Hosts tab style.
  */
-import { useState } from "react";
+import React, { useState } from "react";
 import {
     View,
     Text,
     ScrollView,
+    FlatList,
     Pressable,
     StyleSheet,
-    Dimensions,
+    Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import Animated, {
-    FadeIn,
-    FadeInDown,
-    FadeInUp,
-} from "react-native-reanimated";
-import {
-    Search,
-    Plus,
-    MessageCircle,
-    CalendarDays,
-    Users,
-    Sparkles,
-    ArrowRight,
-    Lock,
-} from "lucide-react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { Search, Plus, MessageCircle, Heart } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { colors } from "@/lib/design/theme";
+import {
+    DEMO_MODE,
+    DEMO_EVENT_CHATS,
+    DEMO_PRIVATE_CHATS,
+    DEMO_NEW_MATCHES,
+    type DemoEventChat,
+    type DemoPrivateChat,
+    type DemoNewMatch,
+} from "@/lib/demo";
 
-const { width: SCREEN_W } = Dimensions.get("window");
+type Tab = "events" | "private";
 
-// ── Empty state — Event Chats ─────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-function EventChatsEmpty() {
+function formatChatTime(iso: string): string {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return "now";
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffH = Math.floor(diffMin / 60);
+    if (diffH < 24) return `${diffH}h ago`;
+    return `${Math.floor(diffH / 24)}d ago`;
+}
+
+function getEventTimeBadge(eventDate: string): string {
+    const diffH = Math.floor((new Date(eventDate).getTime() - Date.now()) / 3600000);
+    if (diffH < 0) return "LIVE NOW";
+    if (diffH < 1) return "STARTS SOON";
+    if (diffH < 24) return `STARTS IN ${diffH}H`;
+    if (diffH < 48) return "TOMORROW";
+    return new Date(eventDate)
+        .toLocaleDateString("en-US", { weekday: "long" })
+        .toUpperCase();
+}
+
+// ── Event chat card ───────────────────────────────────────────────────────────
+
+function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) {
+    const isFirst = index === 0;
+    const badge = getEventTimeBadge(chat.eventDate);
+    const isLive = badge === "LIVE NOW" || badge === "STARTS SOON" || badge.startsWith("STARTS IN");
+
     return (
-        <Animated.View entering={FadeInUp.delay(80).springify().damping(18)} style={es.container}>
+        <Pressable
+            style={[cardStyles.card, isFirst && cardStyles.cardActive]}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                    pathname: "/chat/[id]",
+                    params: { id: chat.eventId, title: chat.eventTitle },
+                });
+            }}
+        >
+            <Image
+                source={{ uri: chat.eventCover }}
+                style={StyleSheet.absoluteFillObject}
+                resizeMode="cover"
+            />
+            <LinearGradient
+                colors={["rgba(0,0,0,0.12)", "rgba(0,0,0,0.75)"]}
+                locations={[0.2, 1]}
+                style={StyleSheet.absoluteFillObject}
+            />
 
-            {/* Decorative background glow */}
-            <View style={es.glowBg} />
-
-            {/* Icon cluster */}
-            <View style={es.iconCluster}>
-                {/* Back cards */}
-                <Animated.View entering={FadeInDown.delay(160).springify()} style={[es.floatCard, es.floatCardLeft]}>
-                    <CalendarDays size={18} color="rgba(244,74,34,0.6)" strokeWidth={1.5} />
-                </Animated.View>
-                <Animated.View entering={FadeInDown.delay(200).springify()} style={[es.floatCard, es.floatCardRight]}>
-                    <Users size={18} color="rgba(244,74,34,0.6)" strokeWidth={1.5} />
-                </Animated.View>
-
-                {/* Main icon */}
-                <Animated.View entering={FadeInDown.delay(120).springify().damping(14)} style={es.mainIcon}>
-                    <LinearGradient
-                        colors={["rgba(244,74,34,0.18)", "rgba(244,74,34,0.06)"]}
-                        style={es.mainIconGradient}
-                    >
-                        <MessageCircle size={40} color={colors.iris} strokeWidth={1.4} />
-                    </LinearGradient>
-                </Animated.View>
+            {/* Top: badge + unread */}
+            <View style={cardStyles.topRow}>
+                <View style={[cardStyles.timeBadge, isLive && cardStyles.timeBadgeLive]}>
+                    <Text style={[cardStyles.timeBadgeText, isLive && cardStyles.timeBadgeTextLive]}>
+                        {badge}
+                    </Text>
+                </View>
+                {chat.unreadCount > 0 && (
+                    <View style={cardStyles.unreadBadge}>
+                        <Text style={cardStyles.unreadText}>{chat.unreadCount}</Text>
+                    </View>
+                )}
             </View>
 
-            {/* Text */}
-            <Animated.Text entering={FadeInDown.delay(220).springify()} style={es.title}>
-                No event chats yet
-            </Animated.Text>
-            <Animated.Text entering={FadeInDown.delay(260).springify()} style={es.body}>
-                When you get a ticket to an event, a group chat with all attendees unlocks automatically.
-            </Animated.Text>
-
-            {/* Feature pills */}
-            <Animated.View entering={FadeInDown.delay(300).springify()} style={es.pillRow}>
-                {["Group chat", "Photo gallery", "Meet attendees"].map((f) => (
-                    <View key={f} style={es.pill}>
-                        <Text style={es.pillText}>{f}</Text>
-                    </View>
-                ))}
-            </Animated.View>
-
-            {/* CTA */}
-            <Animated.View entering={FadeInDown.delay(360).springify().damping(16)} style={{ width: "100%" }}>
-                <Pressable
-                    style={es.ctaBtn}
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        router.push("/(tabs)/explore");
-                    }}
-                >
-                    <Sparkles size={16} color="#fff" strokeWidth={2} />
-                    <Text style={es.ctaBtnText}>Explore Events</Text>
-                    <ArrowRight size={16} color="#fff" strokeWidth={2} />
-                </Pressable>
-            </Animated.View>
-
-            {/* Bottom info card */}
-            <Animated.View entering={FadeInDown.delay(420).springify()} style={es.infoCard}>
-                <Lock size={13} color="rgba(255,255,255,0.3)" strokeWidth={1.8} />
-                <Text style={es.infoText}>
-                    Chats open 24h before the event and close 48h after.
-                </Text>
-            </Animated.View>
-        </Animated.View>
+            {/* Bottom: title + members + avatar stack */}
+            <View style={cardStyles.bottomRow}>
+                <View style={{ flex: 1 }}>
+                    <Text style={cardStyles.eventTitle} numberOfLines={1}>{chat.eventTitle}</Text>
+                    <Text style={cardStyles.memberCount}>{chat.participantCount} people active</Text>
+                </View>
+                <View style={cardStyles.avatarStack}>
+                    {chat.activeAvatars.slice(0, 3).map((uri, i) => (
+                        <Image
+                            key={i}
+                            source={{ uri }}
+                            style={[cardStyles.stackAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: 3 - i }]}
+                        />
+                    ))}
+                </View>
+            </View>
+        </Pressable>
     );
 }
 
-// ── Empty state — Private Chats ───────────────────────────────────────────────
+// ── New match bubble ──────────────────────────────────────────────────────────
 
-function PrivateChatsEmpty() {
-    // Decorative fake avatar blobs
-    const BLOBS = [
-        { delay: 140, left: 32,  top: 0,   size: 52, img: "👩🏻" },
-        { delay: 180, left: 108, top: -16, size: 60, img: "🧑🏽" },
-        { delay: 220, left: 188, top: 0,   size: 52, img: "👩🏾" },
-        { delay: 160, left: 70,  top: 52,  size: 48, img: "🧔🏻" },
-        { delay: 200, left: 152, top: 52,  size: 48, img: "👩🏼" },
-    ];
-
+function NewMatchBubble({ match }: { match: DemoNewMatch }) {
     return (
-        <Animated.View entering={FadeInUp.delay(80).springify().damping(18)} style={es.container}>
-
-            <View style={[es.glowBg, { backgroundColor: "rgba(129,140,248,0.08)" }]} />
-
-            {/* Floating avatar cluster */}
-            <Animated.View entering={FadeInDown.delay(100).springify()} style={pc.avatarCluster}>
-                {BLOBS.map((b, i) => (
-                    <Animated.View
-                        key={i}
-                        entering={FadeInDown.delay(b.delay).springify().damping(15)}
-                        style={[
-                            pc.blob,
-                            {
-                                left: b.left,
-                                top: b.top,
-                                width: b.size,
-                                height: b.size,
-                                borderRadius: b.size / 2,
-                            },
-                        ]}
-                    >
-                        <Text style={{ fontSize: b.size * 0.55 }}>{b.img}</Text>
-                    </Animated.View>
-                ))}
-
-                {/* Center glow ring */}
-                <View style={pc.centerRing} />
-            </Animated.View>
-
-            {/* Text */}
-            <Animated.Text entering={FadeInDown.delay(260).springify()} style={es.title}>
-                No messages yet
-            </Animated.Text>
-            <Animated.Text entering={FadeInDown.delay(300).springify()} style={es.body}>
-                Match with people attending the same events and start a private conversation.
-            </Animated.Text>
-
-            {/* How it works */}
-            <Animated.View entering={FadeInDown.delay(340).springify()} style={pc.stepsCard}>
-                <Text style={pc.stepsTitle}>How it works</Text>
-                {[
-                    { n: "1", text: "Get a ticket to any event" },
-                    { n: "2", text: "Like someone on the Meet tab" },
-                    { n: "3", text: "If they like you back — it's a match!" },
-                ].map((step) => (
-                    <View key={step.n} style={pc.stepRow}>
-                        <View style={pc.stepNum}>
-                            <Text style={pc.stepNumText}>{step.n}</Text>
-                        </View>
-                        <Text style={pc.stepText}>{step.text}</Text>
+        <Pressable
+            style={matchStyles.bubble}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                    pathname: "/social/dm/[id]",
+                    params: { id: match.id, recipientName: match.name },
+                });
+            }}
+        >
+            <View style={matchStyles.avatarWrap}>
+                <Image source={{ uri: match.photoURL }} style={matchStyles.avatar} resizeMode="cover" />
+                {match.isNew && <View style={matchStyles.newDot} />}
+                {match.isVerified && (
+                    <View style={matchStyles.verifiedBadge}>
+                        <Text style={matchStyles.verifiedCheck}>✓</Text>
                     </View>
-                ))}
-            </Animated.View>
+                )}
+            </View>
+            <Text style={matchStyles.name} numberOfLines={1}>{match.name}</Text>
+            <Text style={matchStyles.event} numberOfLines={1}>{match.sharedEventTitle}</Text>
+        </Pressable>
+    );
+}
 
-            {/* CTA */}
-            <Animated.View entering={FadeInDown.delay(420).springify().damping(16)} style={{ width: "100%" }}>
-                <Pressable
-                    style={[es.ctaBtn, { backgroundColor: "#818CF8" }]}
-                    onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        router.push("/(tabs)/social");
-                    }}
-                >
-                    <Users size={16} color="#fff" strokeWidth={2} />
-                    <Text style={es.ctaBtnText}>Discover People</Text>
-                    <ArrowRight size={16} color="#fff" strokeWidth={2} />
-                </Pressable>
-            </Animated.View>
-        </Animated.View>
+// ── Private chat row ──────────────────────────────────────────────────────────
+
+function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
+    return (
+        <Pressable
+            style={rowStyles.row}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({
+                    pathname: "/social/dm/[id]",
+                    params: { id: chat.id, recipientName: chat.otherUserName },
+                });
+            }}
+        >
+            <View style={rowStyles.avatarWrap}>
+                <Image source={{ uri: chat.otherUserAvatar }} style={rowStyles.avatar} resizeMode="cover" />
+                {chat.isOnline && <View style={rowStyles.onlineDot} />}
+            </View>
+            <View style={rowStyles.content}>
+                <View style={rowStyles.nameRow}>
+                    <Text style={rowStyles.name} numberOfLines={1}>{chat.otherUserName}</Text>
+                    <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime)}</Text>
+                </View>
+                <View style={rowStyles.msgRow}>
+                    <Text
+                        style={[rowStyles.lastMsg, chat.unreadCount > 0 && rowStyles.lastMsgUnread]}
+                        numberOfLines={1}
+                    >
+                        {chat.lastMessage}
+                    </Text>
+                    {chat.unreadCount > 0 && (
+                        <View style={rowStyles.badge}>
+                            <Text style={rowStyles.badgeText}>{chat.unreadCount}</Text>
+                        </View>
+                    )}
+                </View>
+            </View>
+        </Pressable>
     );
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
-
-type Tab = "events" | "private";
 
 export default function InboxScreen() {
     const insets = useSafeAreaInsets();
@@ -205,6 +200,9 @@ export default function InboxScreen() {
         Haptics.selectionAsync();
         setActiveTab(tab);
     };
+
+    const newMatchCount = DEMO_NEW_MATCHES.filter((m) => m.isNew).length;
+    const totalUnread = (DEMO_PRIVATE_CHATS as any).totalUnread ?? 0;
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -219,36 +217,45 @@ export default function InboxScreen() {
 
             {/* ── Segment control ── */}
             <Animated.View
-                entering={FadeInDown.delay(60).springify().damping(20)}
+                entering={FadeInDown.delay(50).springify().damping(20)}
                 style={styles.segmentWrap}
             >
                 <View style={styles.segmentTrack}>
-                    {(["events", "private"] as Tab[]).map((tab) => {
-                        const isActive = activeTab === tab;
-                        const label = tab === "events" ? "Event Chats" : "Private Chats";
-                        const activeColor = tab === "events" ? "#F44A22" : "#818CF8";
-                        const Icon = tab === "events" ? MessageCircle : Lock;
-                        return (
-                            <Pressable
-                                key={tab}
-                                style={[
-                                    styles.segmentPill,
-                                    isActive && { backgroundColor: activeColor, shadowColor: activeColor },
-                                    isActive && styles.segmentPillActiveShadow,
-                                ]}
-                                onPress={() => switchTab(tab)}
-                            >
-                                <Icon
-                                    size={14}
-                                    color={isActive ? "#fff" : "rgba(255,255,255,0.36)"}
-                                    strokeWidth={isActive ? 2.2 : 1.8}
-                                />
-                                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-                                    {label}
-                                </Text>
-                            </Pressable>
-                        );
-                    })}
+                    {/* Event Chats tab */}
+                    <Pressable
+                        style={[styles.segmentPill, activeTab === "events" && styles.segmentPillActive]}
+                        onPress={() => switchTab("events")}
+                    >
+                        <MessageCircle
+                            size={14}
+                            color={activeTab === "events" ? "#fff" : "rgba(255,255,255,0.4)"}
+                            strokeWidth={activeTab === "events" ? 2.2 : 1.8}
+                        />
+                        <Text style={[styles.segmentText, activeTab === "events" && styles.segmentTextActive]}>
+                            Event Chats
+                        </Text>
+                    </Pressable>
+
+                    {/* Private Chats tab */}
+                    <Pressable
+                        style={[styles.segmentPill, activeTab === "private" && styles.segmentPillPrivate]}
+                        onPress={() => switchTab("private")}
+                    >
+                        <Heart
+                            size={14}
+                            color={activeTab === "private" ? "#fff" : "rgba(255,255,255,0.4)"}
+                            strokeWidth={activeTab === "private" ? 2.2 : 1.8}
+                        />
+                        <Text style={[styles.segmentText, activeTab === "private" && styles.segmentTextActive]}>
+                            Private Chats
+                        </Text>
+                        {/* Badge showing unread + new matches */}
+                        {activeTab !== "private" && (newMatchCount + totalUnread) > 0 && (
+                            <View style={styles.tabBadge}>
+                                <Text style={styles.tabBadgeText}>{newMatchCount + totalUnread}</Text>
+                            </View>
+                        )}
+                    </Pressable>
                 </View>
             </Animated.View>
 
@@ -257,11 +264,81 @@ export default function InboxScreen() {
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
+                nestedScrollEnabled
             >
-                {activeTab === "events" ? <EventChatsEmpty /> : <PrivateChatsEmpty />}
+                {activeTab === "events" ? (
+                    /* ── Event Chats ── */
+                    <Animated.View entering={FadeInDown.delay(60).springify()}>
+                        {DEMO_MODE && DEMO_EVENT_CHATS.length > 0
+                            ? DEMO_EVENT_CHATS.map((chat, i) => (
+                                <EventChatCard key={chat.id} chat={chat} index={i} />
+                            ))
+                            : (
+                                <View style={styles.emptyCard}>
+                                    <Text style={styles.emptyTitle}>No event chats yet</Text>
+                                    <Text style={styles.emptyBody}>
+                                        Get a ticket to an event — its group chat unlocks automatically.
+                                    </Text>
+                                </View>
+                            )
+                        }
+                    </Animated.View>
+                ) : (
+                    /* ── Private Chats ── */
+                    <Animated.View entering={FadeInDown.delay(60).springify()}>
+
+                        {/* New Matches row */}
+                        {DEMO_MODE && DEMO_NEW_MATCHES.length > 0 && (
+                            <View style={styles.newMatchesBlock}>
+                                <View style={styles.newMatchesHeader}>
+                                    <Text style={styles.newMatchesLabel}>New Matches</Text>
+                                    {newMatchCount > 0 && (
+                                        <View style={styles.newMatchesBadge}>
+                                            <Text style={styles.newMatchesBadgeText}>{newMatchCount} new</Text>
+                                        </View>
+                                    )}
+                                </View>
+                                <FlatList
+                                    data={DEMO_NEW_MATCHES}
+                                    keyExtractor={(m) => m.id}
+                                    horizontal
+                                    showsHorizontalScrollIndicator={false}
+                                    contentContainerStyle={styles.matchScroll}
+                                    renderItem={({ item }) => <NewMatchBubble match={item} />}
+                                    // Allows horizontal scroll inside vertical ScrollView
+                                    nestedScrollEnabled
+                                />
+                            </View>
+                        )}
+
+                        {/* Divider */}
+                        {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0 && (
+                            <View style={styles.divider}>
+                                <View style={styles.dividerLine} />
+                                <Text style={styles.dividerLabel}>Messages</Text>
+                                <View style={styles.dividerLine} />
+                            </View>
+                        )}
+
+                        {/* Active conversations */}
+                        {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0
+                            ? DEMO_PRIVATE_CHATS.map((chat) => (
+                                <PrivateChatRow key={chat.id} chat={chat} />
+                            ))
+                            : (
+                                <View style={styles.emptyCard}>
+                                    <Text style={styles.emptyTitle}>No messages yet</Text>
+                                    <Text style={styles.emptyBody}>
+                                        Match with someone at an event to start a private conversation.
+                                    </Text>
+                                </View>
+                            )
+                        }
+                    </Animated.View>
+                )}
             </ScrollView>
 
-            {/* ── Floating compose button ── */}
+            {/* ── FAB ── */}
             <Pressable
                 style={[styles.fab, { bottom: insets.bottom + 90 }]}
                 onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)}
@@ -272,215 +349,187 @@ export default function InboxScreen() {
     );
 }
 
-// ── Shared empty-state styles ─────────────────────────────────────────────────
+// ── Event card styles ─────────────────────────────────────────────────────────
 
-const es = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: "center",
-        paddingTop: 20,
-        paddingHorizontal: 8,
-        paddingBottom: 20,
-    },
-    glowBg: {
-        position: "absolute",
-        top: 0,
-        width: SCREEN_W * 0.8,
-        height: 220,
-        borderRadius: SCREEN_W * 0.4,
-        backgroundColor: "rgba(244,74,34,0.07)",
-        alignSelf: "center",
-    },
-    iconCluster: {
-        width: 120,
-        height: 120,
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 28,
-        position: "relative",
-    },
-    mainIcon: {
-        width: 88,
-        height: 88,
-        borderRadius: 44,
+const cardStyles = StyleSheet.create({
+    card: {
+        width: "100%",
+        height: 180,
+        borderRadius: 18,
         overflow: "hidden",
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.2)",
+        marginBottom: 12,
+        backgroundColor: "#1C1C1E",
     },
-    mainIconGradient: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    floatCard: {
-        position: "absolute",
-        width: 36,
-        height: 36,
-        borderRadius: 10,
-        backgroundColor: "rgba(244,74,34,0.1)",
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.18)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    floatCardLeft: { left: -4, top: 8 },
-    floatCardRight: { right: -4, top: 8 },
-    title: {
-        color: "#fff",
-        fontSize: 22,
-        fontWeight: "800",
-        letterSpacing: -0.4,
-        textAlign: "center",
-        marginBottom: 10,
-    },
-    body: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 14,
-        textAlign: "center",
-        lineHeight: 21,
-        marginBottom: 20,
-        paddingHorizontal: 16,
-    },
-    pillRow: {
-        flexDirection: "row",
-        gap: 8,
-        flexWrap: "wrap",
-        justifyContent: "center",
-        marginBottom: 28,
-    },
-    pill: {
-        backgroundColor: "rgba(244,74,34,0.1)",
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.2)",
-        borderRadius: 50,
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    pillText: {
-        color: colors.iris,
-        fontSize: 12,
-        fontWeight: "600",
-    },
-    ctaBtn: {
-        backgroundColor: colors.iris,
-        borderRadius: 16,
-        paddingVertical: 16,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        marginBottom: 16,
-        shadowColor: colors.iris,
-        shadowOffset: { width: 0, height: 6 },
-        shadowOpacity: 0.35,
-        shadowRadius: 14,
+    cardActive: {
+        borderWidth: 1.5,
+        borderColor: "#F44A22",
+        shadowColor: "#F44A22",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
         elevation: 8,
     },
-    ctaBtnText: {
-        color: "#fff",
-        fontSize: 15,
-        fontWeight: "700",
-    },
-    infoCard: {
+    topRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        paddingHorizontal: 8,
+        justifyContent: "space-between",
+        padding: 14,
     },
-    infoText: {
-        color: "rgba(255,255,255,0.22)",
-        fontSize: 12,
-        flex: 1,
-        lineHeight: 17,
-    },
-});
-
-// ── Private chats empty-state styles ─────────────────────────────────────────
-
-const pc = StyleSheet.create({
-    avatarCluster: {
-        width: 240,
-        height: 120,
-        position: "relative",
-        marginBottom: 32,
-    },
-    blob: {
-        position: "absolute",
-        backgroundColor: "#1C1C1E",
-        borderWidth: 2,
-        borderColor: "rgba(255,255,255,0.08)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    centerRing: {
-        position: "absolute",
-        left: 84,
-        top: 10,
-        width: 70,
-        height: 70,
-        borderRadius: 35,
-        borderWidth: 2,
-        borderColor: "rgba(129,140,248,0.3)",
-        backgroundColor: "rgba(129,140,248,0.05)",
-    },
-    stepsCard: {
-        width: "100%",
-        backgroundColor: "rgba(255,255,255,0.04)",
-        borderRadius: 16,
+    timeBadge: {
+        backgroundColor: "rgba(0,0,0,0.5)",
+        borderRadius: 6,
+        paddingHorizontal: 9,
+        paddingVertical: 4,
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.07)",
-        padding: 16,
-        gap: 12,
-        marginBottom: 24,
+        borderColor: "rgba(255,255,255,0.15)",
     },
-    stepsTitle: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 11,
-        fontWeight: "700",
-        textTransform: "uppercase",
-        letterSpacing: 0.8,
-        marginBottom: 4,
+    timeBadgeLive: {
+        backgroundColor: "rgba(244,74,34,0.85)",
+        borderColor: "rgba(244,74,34,0.5)",
     },
-    stepRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-    },
-    stepNum: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: "rgba(129,140,248,0.15)",
-        borderWidth: 1,
-        borderColor: "rgba(129,140,248,0.3)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    stepNumText: {
-        color: "#818CF8",
-        fontSize: 12,
+    timeBadgeText: {
+        color: "rgba(255,255,255,0.85)",
+        fontSize: 10,
         fontWeight: "800",
+        letterSpacing: 0.6,
     },
-    stepText: {
-        color: "rgba(255,255,255,0.65)",
-        fontSize: 13,
-        fontWeight: "500",
-        flex: 1,
+    timeBadgeTextLive: { color: "#fff" },
+    unreadBadge: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: "#F44A22",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    unreadText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+    bottomRow: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        flexDirection: "row",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+        padding: 14,
+        paddingBottom: 16,
+    },
+    eventTitle: {
+        color: "#fff",
+        fontSize: 20,
+        fontWeight: "800",
+        letterSpacing: -0.4,
+        marginBottom: 4,
+        textShadowColor: "rgba(0,0,0,0.6)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+    memberCount: { color: "rgba(255,255,255,0.7)", fontSize: 12, fontWeight: "500" },
+    avatarStack: { flexDirection: "row", alignItems: "center", marginBottom: 2 },
+    stackAvatar: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        borderWidth: 2,
+        borderColor: "#111113",
     },
 });
 
-// ── Main screen styles ────────────────────────────────────────────────────────
+// ── New match styles ──────────────────────────────────────────────────────────
+
+const matchStyles = StyleSheet.create({
+    bubble: { alignItems: "center", width: 72, marginRight: 16 },
+    avatarWrap: { position: "relative", marginBottom: 7 },
+    avatar: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        borderWidth: 2,
+        borderColor: "#F44A22",
+    },
+    newDot: {
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: "#F44A22",
+        borderWidth: 2,
+        borderColor: "#111113",
+    },
+    verifiedBadge: {
+        position: "absolute",
+        bottom: 0,
+        right: -2,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: "#3B82F6",
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 2,
+        borderColor: "#111113",
+    },
+    verifiedCheck: { color: "#fff", fontSize: 9, fontWeight: "800" },
+    name: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: -0.1 },
+    event: { color: "rgba(255,255,255,0.3)", fontSize: 10, textAlign: "center", marginTop: 1 },
+});
+
+// ── Private chat row styles ───────────────────────────────────────────────────
+
+const rowStyles = StyleSheet.create({
+    row: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#1A1A1C",
+        borderRadius: 16,
+        padding: 14,
+        marginBottom: 10,
+        gap: 12,
+    },
+    avatarWrap: { position: "relative", flexShrink: 0 },
+    avatar: { width: 52, height: 52, borderRadius: 26 },
+    onlineDot: {
+        position: "absolute",
+        bottom: 1,
+        right: 1,
+        width: 12,
+        height: 12,
+        borderRadius: 6,
+        backgroundColor: "#22C55E",
+        borderWidth: 2,
+        borderColor: "#1A1A1C",
+    },
+    content: { flex: 1, gap: 4 },
+    nameRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    msgRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+    name: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: -0.1 },
+    time: { color: "rgba(255,255,255,0.35)", fontSize: 12 },
+    lastMsg: { color: "rgba(255,255,255,0.45)", fontSize: 13, flex: 1 },
+    lastMsgUnread: { color: "rgba(255,255,255,0.85)", fontWeight: "600" },
+    badge: {
+        minWidth: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: "#F44A22",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 5,
+        flexShrink: 0,
+    },
+    badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
+});
+
+// ── Main layout styles ────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: "#111113",
-    },
+    container: { flex: 1, backgroundColor: "#111113" },
     header: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         paddingTop: 10,
         paddingBottom: 14,
     },
@@ -498,10 +547,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    segmentWrap: {
-        paddingHorizontal: 20,
-        marginBottom: 4,
-    },
+
+    // ── Segment ──
+    segmentWrap: { paddingHorizontal: 16, marginBottom: 16 },
     segmentTrack: {
         flexDirection: "row",
         backgroundColor: "#161618",
@@ -516,11 +564,21 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "center",
-        gap: 6,
-        paddingVertical: 12,
+        gap: 7,
+        paddingVertical: 13,
         borderRadius: 11,
     },
-    segmentPillActiveShadow: {
+    segmentPillActive: {
+        backgroundColor: "#F44A22",
+        shadowColor: "#F44A22",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 5,
+    },
+    segmentPillPrivate: {
+        backgroundColor: "#818CF8",
+        shadowColor: "#818CF8",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.4,
         shadowRadius: 10,
@@ -530,19 +588,85 @@ const styles = StyleSheet.create({
         color: "rgba(255,255,255,0.38)",
         fontSize: 13,
         fontWeight: "600",
-        letterSpacing: 0.1,
     },
     segmentTextActive: {
         color: "#fff",
         fontWeight: "700",
-        fontSize: 13,
     },
+    tabBadge: {
+        backgroundColor: "#F44A22",
+        borderRadius: 8,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        marginLeft: 2,
+    },
+    tabBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800" },
+
+    // ── Scroll ──
     scroll: { flex: 1 },
-    scrollContent: {
-        paddingHorizontal: 16,
-        paddingBottom: 140,
-        paddingTop: 12,
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 150, paddingTop: 4 },
+
+    // ── New Matches ──
+    newMatchesBlock: { marginBottom: 20 },
+    newMatchesHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 14,
     },
+    newMatchesLabel: {
+        color: "rgba(255,255,255,0.5)",
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 0.8,
+        textTransform: "uppercase",
+    },
+    newMatchesBadge: {
+        backgroundColor: "rgba(244,74,34,0.2)",
+        borderWidth: 1,
+        borderColor: "rgba(244,74,34,0.35)",
+        borderRadius: 10,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+    },
+    newMatchesBadgeText: { color: "#F44A22", fontSize: 10, fontWeight: "700" },
+    matchScroll: { paddingRight: 8 },
+
+    // ── Divider ──
+    divider: { flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 14 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.07)" },
+    dividerLabel: {
+        color: "rgba(255,255,255,0.28)",
+        fontSize: 10,
+        fontWeight: "700",
+        letterSpacing: 0.8,
+        textTransform: "uppercase",
+    },
+
+    // ── Empty ──
+    emptyCard: {
+        backgroundColor: "rgba(255,255,255,0.04)",
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.07)",
+        padding: 32,
+        alignItems: "center",
+        marginTop: 12,
+    },
+    emptyTitle: {
+        color: "rgba(255,255,255,0.6)",
+        fontSize: 16,
+        fontWeight: "700",
+        marginBottom: 8,
+    },
+    emptyBody: {
+        color: "rgba(255,255,255,0.3)",
+        fontSize: 13,
+        textAlign: "center",
+        lineHeight: 20,
+    },
+
+    // ── FAB ──
     fab: {
         position: "absolute",
         right: 20,

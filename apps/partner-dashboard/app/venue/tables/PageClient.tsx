@@ -154,7 +154,7 @@ export default function TablesPage() {
         t.location?.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
-    const totalCapacity = tables.reduce((sum, t) => sum + (Number(t.capacity) || 0), 0);
+    const totalCapacity = (tables as any).totalCapacity ?? 0;
     const vvipCount = tables.filter(t => t.type === 'vvip').length;
 
     if (isLoading) {

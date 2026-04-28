@@ -8,7 +8,6 @@ import { AppleTopBar } from "@/components/shared/AppleTopBar";
 import { motion, AnimatePresence } from "framer-motion";
 import { RoleGuard } from "@/components/auth/RoleGuard";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getDefaultTabVisibility } from "@/lib/rbac/types";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -55,18 +54,11 @@ interface PromoterClientWrapperProps {
 export function PromoterClientWrapper({ children, menuSections }: PromoterClientWrapperProps) {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [isCollapsed, setIsCollapsed] = useState(false);
-    const { tabVisibility: ctxTabVisibility, profile, loading } = useDashboardAuth();
+    const { tabVisibility, loading } = useDashboardAuth();
     const pathname = usePathname();
     const router = useRouter();
 
     const promoterPrimaryAction = { label: "+ New Link", href: "/promoter/events", icon: Link2 };
-
-    const membership = profile?.activeMembership;
-    const tabVisibility = ctxTabVisibility ?? (
-        membership?.role
-            ? getDefaultTabVisibility(membership.partnerType, membership.role)
-            : null
-    );
 
     const filteredSections = useMemo(
         () => applyTabVisibility(menuSections, tabVisibility),

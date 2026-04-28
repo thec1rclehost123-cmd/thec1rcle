@@ -71,6 +71,10 @@ interface AuthContextValue {
     actionPermissions: Partial<Record<string, boolean>> | null;
     /** Resolved PII policy for non-OWNER staff; null means full visibility */
     piiPolicy: Partial<Record<string, boolean>> | null;
+    /** Coarse-grained permissions returned by the server for this role (e.g. VIEW_FINANCIALS) */
+    grantedPermissions: string[];
+    /** Returns true if the server has granted the given coarse permission for this membership */
+    hasPermission: (permission: string) => boolean;
     /** Returns true if owner (null) or the specific action is permitted */
     canDo: (action: string) => boolean;
     /** Returns the current Firebase ID token, or empty string if not signed in */
@@ -95,6 +99,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const [subscriptionPlan, setSubscriptionPlan] = useState<string | null>(null);
     // Atomic permissions — always updated together to prevent mid-render inconsistency
     const [permissions, setPermissions] = useState<PermissionsState>(EMPTY_PERMISSIONS);
+    const [grantedPermissions, setGrantedPermissions] = useState<string[]>([]);
+    const [serverDefaultTabVisibility, setServerDefaultTabVisibility] = useState<Partial<Record<string, boolean>> | null>(null);
     // membershipId for onSnapshot real-time listener (staff only)
     const [membershipId, setMembershipId] = useState<string | null>(null);
     const lastProfileFetchRef = useRef<number>(0);
@@ -111,6 +117,8 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 setEntityType(null);
                 setSubscriptionPlan(null);
                 setPermissions(EMPTY_PERMISSIONS);
+                setGrantedPermissions([]);
+                setServerDefaultTabVisibility(null);
                 setMembershipId(null);
                 setLoading(false);
             } else {
@@ -222,6 +230,18 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 if (approvedState && activeMembership) {
                     plan = userData.subscriptionPlan || userData.tier || 'basic';
                     setSubscriptionPlan(plan);
+
+                    // Fetch server-computed coarse permissions and default tab visibility.
+                    // Must happen server-side — frontend never derives permissions from role.
+                    fetch('/api/auth/partner-context', {
+                        headers: { Authorization: `Bearer ${token}` },
+                        signal: controller.signal,
+                    }).then(r => r.ok ? r.json() : null).then(ctx => {
+                        if (ctx && !controller.signal.aborted) {
+                            setGrantedPermissions(ctx.permissions ?? []);
+                            setServerDefaultTabVisibility(ctx.tabVisibility ?? null);
+                        }
+                    }).catch(() => {});
                 }
 
                 // Set permissions atomically — all three fields in a single state update
@@ -427,9 +447,11 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
             kycStatus,
             entityType,
             subscriptionPlan,
-            tabVisibility: permissions.tabVisibility,
+            tabVisibility: permissions.tabVisibility ?? serverDefaultTabVisibility,
             actionPermissions: permissions.actionPermissions,
             piiPolicy: permissions.piiPolicy,
+            grantedPermissions,
+            hasPermission: (permission: string) => grantedPermissions.includes(permission),
             canDo,
             getIdToken,
             signIn,

@@ -1,36 +1,12 @@
-import { NextRequest } from "next/server";
-import { withAuth } from "@/lib/server/withAuth";
-import { fail, ok } from "@/lib/server/apiResponse";
-import { getConnectionForViewer, getPartnerProfileSummary } from "@/lib/server/partnerProfiles";
+import { NextRequest, NextResponse } from "next/server";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export const GET = withAuth(async (req: NextRequest, auth, ctx) => {
-    const { id } = await ctx.params;
-
-    if (!id) return fail("Partner id is required", 400);
-
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+    const { id } = await params;
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const viewerRole = searchParams.get("viewerRole") || auth.partnerType || "";
-    const viewerId = searchParams.get("viewerId") || auth.partnerId || "";
-
-    const profile = await getPartnerProfileSummary(id);
-    if (!profile) return fail("Partner not found", 404);
-
-    const connection = await getConnectionForViewer({
-        viewerRole,
-        viewerId,
-        partnerId: profile.id,
-        partnerType: profile.type,
-    });
-
-    return ok({
-        profile,
-        connection: connection
-            ? {
-                id: connection.id,
-                status: connection.status || null,
-                type: connection.type || null,
-                initiatedBy: connection.initiatedBy || null,
-            }
-            : null,
-    });
-});
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/partners/${id}?${searchParams}`, {});
+}

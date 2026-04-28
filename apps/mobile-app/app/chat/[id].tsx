@@ -18,6 +18,7 @@ import {
 } from "@/lib/social/groupChat";
 import { GroupMessage } from "@/lib/social/types";
 import * as Haptics from "expo-haptics";
+import { DEMO_MODE, DEMO_CHAT_MESSAGES } from "@/lib/demo";
 
 function MessageBubble({ message, isOwnMessage }: {
     message: GroupMessage;
@@ -55,7 +56,18 @@ export default function ChatRoomScreen() {
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!eventId || !user?.uid) return;
+        if (!eventId) return;
+
+        // Demo mode: load pre-seeded messages without hitting the API
+        if (DEMO_MODE) {
+            const demoMsgs = DEMO_CHAT_MESSAGES[eventId] ?? [];
+            setMessages(demoMsgs as GroupMessage[]);
+            setLoading(false);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 100);
+            return;
+        }
+
+        if (!user?.uid) return;
 
         const unsubscribe = subscribeToGroupChat(eventId, (newMessages) => {
             setMessages(newMessages);

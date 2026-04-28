@@ -28,6 +28,7 @@ export default function EventDetail({
 }) {
   const { user } = useAuth();
 
+
   const posterArtwork = useMemo(() => resolveBackdropPoster(event) || resolveEventImage(event), [event]);
   const eventImage = posterArtwork;
   const dominantColor = useDominantColor(eventImage);

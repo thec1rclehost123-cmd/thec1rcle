@@ -8,7 +8,6 @@ import { GuestDetailDrawer } from "@/components/guest-ops/GuestDetailDrawer";
 import { AddGuestModal } from "@/components/guest-ops/modals/AddGuestModal";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
-import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     Plus, Search, Loader2, AlertTriangle, ChevronDown, ChevronUp, Download,
@@ -40,8 +39,7 @@ const TABLE_COLS = [
 ];
 
 export default function GuestListPageClient() {
-    const { profile } = useDashboardAuth();
-    const role = profile?.activeMembership?.role ?? "";
+    const { hasPermission } = useDashboardAuth();
 
     const {
         eventId, venueId, events, summary, openExceptions, authHeaders,
@@ -61,9 +59,8 @@ export default function GuestListPageClient() {
     const [showAddModal, setShowAddModal] = useState(false);
     const searchDebounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
-    const canManage = permissions.includes("MANAGE_GUEST_OPS");
-    const canExport = permissions.includes("EXPORT_GUESTS");
+    const canManage = hasPermission("MANAGE_GUEST_OPS");
+    const canExport = hasPermission("EXPORT_GUESTS");
 
     const fetchGuests = useCallback(async (cursor?: string) => {
         if (!eventId || !venueId) return;

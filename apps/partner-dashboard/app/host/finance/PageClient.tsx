@@ -97,17 +97,19 @@ function InitiatePayoutModal({
     available,
     currency,
     onClose,
+    instantFeeRate = 0,
 }: {
     available: number;
     currency: string;
     onClose: () => void;
+    instantFeeRate?: number;
 }) {
     const [amount, setAmount] = useState("");
     const [method, setMethod] = useState<"standard" | "instant">("standard");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState(false);
 
-    const fee = method === "instant" ? Number(amount || 0) * 0.03 : 0;
+    const fee = method === "instant" ? Number(amount || 0) * instantFeeRate : 0;
 
     const handleSubmit = async () => {
         if (!amount || Number(amount) <= 0) return;
@@ -356,6 +358,7 @@ export default function HostFinancePageClient() {
     const [showPayoutModal, setShowPayoutModal] = useState(false);
     const [showAddBankModal, setShowAddBankModal] = useState(false);
     const [refreshedAt, setRefreshedAt] = useState<Date | null>(null);
+    const [instantFeeRate, setInstantFeeRate] = useState(0);
 
     const getAuthHeaders = useCallback(async (includeJson = false) => {
         const token = user ? await user.getIdToken() : "";
@@ -416,6 +419,13 @@ export default function HostFinancePageClient() {
         fetchAccounts();
         setRefreshedAt(new Date());
     }, [fetchAccounts, fetchBalance, fetchPayouts]);
+
+    useEffect(() => {
+        fetch("/api/finance/payout-config")
+            .then((r) => r.ok ? r.json() : null)
+            .then((data) => { if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate); })
+            .catch(() => {});
+    }, []);
 
     const handleRefreshAll = () => {
         fetchBalance();
@@ -570,6 +580,7 @@ export default function HostFinancePageClient() {
                         available={balance.available}
                         currency={settings.currency}
                         onClose={() => setShowPayoutModal(false)}
+                        instantFeeRate={instantFeeRate}
                     />
                 ) : null}
             </AnimatePresence>

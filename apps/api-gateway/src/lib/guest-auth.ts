@@ -14,6 +14,10 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
     'handle',
     'username',
     'onboardingComplete',
+    'role',
+    'venueId',
+    'partnerId',
+    'onboardingStatus',
 ]);
 
 function asNullableString(value: unknown): string | null {
@@ -76,6 +80,10 @@ export function normalizeGuestProfile(raw: Record<string, any> | null | undefine
         attendedEvents: asStringArray(merged.attendedEvents),
         createdAt: asIsoString(merged.createdAt),
         updatedAt: asIsoString(merged.updatedAt),
+        role: asNullableString(merged.role),
+        venueId: asNullableString(merged.venueId),
+        partnerId: asNullableString(merged.partnerId),
+        onboardingStatus: asNullableString(merged.onboardingStatus),
     };
 }
 
@@ -113,6 +121,7 @@ export function buildGuestAuthBootstrap({
 
     return {
         identity,
+        user: { ...identity, ...(profile || {}) },
         profile,
         onboarding: {
             onboardingComplete: onboarding.onboardingComplete,

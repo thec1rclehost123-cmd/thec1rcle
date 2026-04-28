@@ -88,8 +88,7 @@ const CATEGORIES = [
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function getLowestPrice(event: Event): number {
-    if (!event.tickets?.length) return 0;
-    return event.tickets.reduce((min, t) => (t.price < min ? t.price : min), event.tickets[0].price);
+    return event.minPrice ?? 0;
 }
 
 function getGreeting(): string {

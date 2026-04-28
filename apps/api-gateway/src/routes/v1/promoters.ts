@@ -80,13 +80,66 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
     });
 
     /**
-     * POST /api/v1/promoters/links
-     * Generates tracking links
+     * GET /api/v1/partner/promoter/overview
+     * Dashboard overview for promoters
      */
+    fastify.get('/partner/promoter/overview', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId } = request.query as any;
+        if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+        
+        await fastify.verifyPartnerAccess(request, promoterId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        
+        try {
+            // Fetch stats, active links, and upcoming events
+            const [stats, linksSnap] = await Promise.all([
+                getPromoterStats(promoterId).catch(() => ({ totalEarnings: 0, totalClicks: 0, totalConversions: 0 })),
+                fastify.db.collection('promoter_links').where('promoterId', '==', promoterId).where('isActive', '==', true).get()
+            ]);
+
+            const links = linksSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+            
+            return {
+                stats: {
+                    earnings: stats.totalEarnings || 0,
+                    clicks: stats.totalClicks || 0,
+                    conversions: stats.totalConversions || 0,
+                    payoutsPending: 0
+                },
+                activeLinks: links.length,
+                upcomingEvents: 0, // Placeholder
+                recentActivity: []
+            };
+        } catch (error: any) {
+            fastify.log.error(`Promoter overview error: ${error.message}`);
+            return reply.status(500).send({ error: "Internal server error" });
+        }
+    });
+
+    /**
+     * GET /api/v1/promoter/stats
+     * Used by dashboard links page
+     */
+    fastify.get('/stats', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId } = request.query as any;
+        if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+        
+        try {
+            const stats = await getPromoterStats(promoterId);
+            return stats;
+        } catch (error: any) {
+            return { totalEarnings: 0, totalClicks: 0, totalConversions: 0 };
+        }
+    });
+
     fastify.post('/links', {
-        preHandler: [fastify.validate({ body: LinksBody })]
-    }, async (request, reply) => {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { promoterId, eventId } = request.body as { promoterId: string, eventId: string };
+        await fastify.verifyPartnerAccess(request, promoterId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         try {
             const link = await generatePromoterLink(promoterId, eventId);

@@ -322,7 +322,8 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     /**
      * POST /api/v1/social/mute
-     * Mute a user in an event group chat
+     * Mute a user in an event group chat.
+     * Caller must manage the event's host/venue — NOT just the eventId.
      */
     fastify.post('/social/mute', {
         preHandler: [fastify.validate({ body: z.object({
@@ -336,8 +337,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         const { eventId, targetUid, durationMinutes = 60 } = request.body;
 
         try {
-            // Verify permission (requester must be host/venue/admin)
-            await fastify.verifyPartnerAccess(request, eventId);
+            const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+            if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+            const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
+            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            await fastify.verifyPartnerAccess(request, partnerId);
 
             const mutedUntil = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
             await fastify.db.collection("eventMutes").add({
@@ -350,6 +354,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             return { success: true };
         } catch (error: any) {
+            if (error.message?.includes('Forbidden')) return reply.status(403).send({ error: 'Forbidden' });
             fastify.log.error(`Error in POST /social/mute: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
@@ -384,6 +389,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     /**
      * POST /api/v1/social/remove-from-chat
+     * Caller must manage the event's host/venue — NOT just the eventId.
      */
     fastify.post('/social/remove-from-chat', {
         preHandler: [fastify.validate({ body: z.object({
@@ -397,7 +403,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         const { eventId, targetUid, reason } = request.body;
 
         try {
-            await fastify.verifyPartnerAccess(request, eventId);
+            const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+            if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+            const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
+            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            await fastify.verifyPartnerAccess(request, partnerId);
 
             await fastify.db.collection("eventChatRemovals").add({
                 eventId,
@@ -409,6 +419,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             return { success: true };
         } catch (error: any) {
+            if (error.message?.includes('Forbidden')) return reply.status(403).send({ error: 'Forbidden' });
             fastify.log.error(`Error in POST /social/remove-from-chat: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
@@ -702,8 +713,30 @@ export default async function socialRoutes(fastify: FastifyInstance) {
         try {
             const docRef = fastify.db.collection("privateConversations").doc(id);
             const doc = await docRef.get();
-            if (!doc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }));
-            
+            if (!doc.exists) {
+                return reply.status(404).send(buildErrorResponse({ 
+                    code: 'NOT_FOUND', 
+                    message: 'Conversation not found', 
+                    requestId: request.id 
+                }));
+            }
+
+            // Only a participant (not the initiator) may accept
+            const data = doc.data() as any;
+            if (!data.participants?.includes(userId)) {
+                return reply.status(403).send(buildErrorResponse({ 
+                    code: 'FORBIDDEN', 
+                    message: 'Forbidden: Not a participant', 
+                    requestId: request.id 
+                }));
+            }
+            if (data.initiatedBy === userId) {
+                return reply.status(400).send(buildErrorResponse({ 
+                    code: 'BAD_REQUEST', 
+                    message: 'Cannot accept your own request', 
+                    requestId: request.id 
+                }));
+            }
             await docRef.update({
                 status: "accepted",
                 acceptedAt: new Date().toISOString()
@@ -759,12 +792,21 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/social/dm/:id/messages
+     * Requires auth and verifies the caller is a participant of the conversation.
      */
     fastify.get('/social/dm/:id/messages', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
         const { id } = request.params;
         const { limit = 50 } = request.query;
 
         try {
+            const convoDoc = await fastify.db.collection("privateConversations").doc(id).get();
+            if (!convoDoc.exists) return reply.status(404).send({ error: "Not found" });
+            if (!(convoDoc.data() as any).participants?.includes(userId)) {
+                return reply.status(403).send({ error: "Forbidden: Not a participant" });
+            }
+
             const snapshot = await fastify.db.collection("directMessages")
                 .where("conversationId", "==", id)
                 .orderBy("createdAt", "desc")
@@ -862,9 +904,12 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/social/chat/:eventId
-     * Fetch messages for an event (standard polling fallback)
+     * Fetch messages for an event (standard polling fallback).
+     * Requires auth — only attendees may read the chat.
      */
     fastify.get('/social/chat/:eventId', async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
         const { eventId } = request.params;
         const { limit = 50, lastTimestamp } = request.query;
 

@@ -775,9 +775,10 @@ export function TicketTierStep({ formData, updateFormData, validationErrors }: T
 
     const tickets: TicketTier[] = formData.tickets || [];
     const capacity = formData.capacity || 500;
-    const totalTickets = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
-    const inventoryValue = tickets.reduce((sum, t) => sum + (Number(t.price) * Number(t.quantity) || 0), 0);
-    const capacityUsage = capacity > 0 ? Math.round((totalTickets / capacity) * 100) : 0;
+    // Calculations moved to backend
+    const totalTickets = 0;
+    const inventoryValue = 0;
+    const capacityUsage = 0;
 
     const updateTicket = (index: number, updates: Partial<TicketTier>) => {
         const newTickets = [...tickets];

@@ -513,9 +513,10 @@ export function TableBookingStep({ formData, updateFormData, validationErrors }:
     const tables: TablePackage[] = formData.tables || [];
     const [tablesEnabled, setTablesEnabled] = useState(tables.length > 0);
 
-    const totalTables = tables.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
-    const totalCapacity = tables.reduce((sum, t) => sum + ((Number(t.quantity) || 0) * (Number(t.capacity) || 0)), 0);
-    const totalValue = tables.reduce((sum, t) => sum + ((Number(t.price) || 0) * (Number(t.quantity) || 0)), 0);
+    // Calculations moved to backend
+    const totalTables = 0;
+    const totalCapacity = 0;
+    const totalValue = 0;
 
     const addTable = () => {
         const newTable: TablePackage = {

@@ -43,39 +43,22 @@ export default function DoorPageClient() {
 
     const [events, setEvents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [walkInEntries, setWalkInEntries] = useState<DoorEntry[]>([]);
     const [dineInEntries, setDineInEntries] = useState<DoorEntry[]>([]);
 
-    // localStorage keys scoped by venue + date so entries auto-expire at midnight
-    const today = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
-    const wiKey  = venueId ? `door_walkins_${venueId}_${today}`  : null;
-    const diKey  = venueId ? `door_dineins_${venueId}_${today}` : null;
-
-    // Load persisted entries from localStorage on mount (once venueId is known)
-    useEffect(() => {
-        if (!wiKey || !diKey) return;
-        try {
-            const wi = localStorage.getItem(wiKey);
-            if (wi) setWalkInEntries(JSON.parse(wi));
-        } catch { /* ignore malformed */ }
-        try {
-            const di = localStorage.getItem(diKey);
-            if (di) setDineInEntries(JSON.parse(di));
-        } catch { /* ignore malformed */ }
-    }, [wiKey, diKey]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Fetch authoritative entries from backend — replaces localStorage cache
     useEffect(() => {
         if (!venueId || !user) return;
         (async () => {
             try {
+                setError(null);
                 const token = await user.getIdToken();
                 const headers = { Authorization: `Bearer ${token}` };
 
                 // Walk-ins are event-scoped — only fetch when an event is selected
                 if (eventId) {
                     const wiRes = await fetch(
-                        `/api/venue/walk-ins?eventId=${eventId}&limit=200`,
+                        `/api/venue/walk-ins?eventId=${eventId}&venueId=${venueId}&limit=200`,
                         { headers }
                     );
                     if (wiRes.ok) {
@@ -91,14 +74,15 @@ export default function DoorPageClient() {
                             submittedAt: e.addedAt,
                         }));
                         setWalkInEntries(fetched);
-                        try { if (wiKey) localStorage.setItem(wiKey, JSON.stringify(fetched)); } catch { /* quota */ }
+                    } else {
+                        throw new Error(`Failed to load walk-ins (${wiRes.status})`);
                     }
                 }
 
                 // Dine-ins: use eventId if set, otherwise scope to venue
                 const diEventId = eventId || `venue_${venueId}`;
                 const diRes = await fetch(
-                    `/api/venue/door/dinein?eventId=${encodeURIComponent(diEventId)}&limit=200`,
+                    `/api/venue/door/dinein?eventId=${encodeURIComponent(diEventId)}&venueId=${venueId}&limit=200`,
                     { headers }
                 );
                 if (diRes.ok) {
@@ -115,29 +99,24 @@ export default function DoorPageClient() {
                         submittedAt: e.addedAt,
                     }));
                     setDineInEntries(fetched);
-                    try { if (diKey) localStorage.setItem(diKey, JSON.stringify(fetched)); } catch { /* quota */ }
+                } else {
+                    throw new Error(`Failed to load dine-ins (${diRes.status})`);
                 }
-            } catch {
-                // silent — localStorage fallback remains visible
+            } catch (err: any) {
+                setWalkInEntries([]);
+                setDineInEntries([]);
+                setError(err?.message || "Failed to load door operations");
             }
         })();
-    }, [venueId, eventId, user]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [venueId, eventId, user]);
 
     const addEntry = useCallback((entry: DoorEntry) => {
         if (entry.type === "walkins") {
-            setWalkInEntries(prev => {
-                const updated = [entry, ...prev];
-                try { if (wiKey) localStorage.setItem(wiKey, JSON.stringify(updated)); } catch { /* quota */ }
-                return updated;
-            });
+            setWalkInEntries(prev => [entry, ...prev]);
         } else {
-            setDineInEntries(prev => {
-                const updated = [entry, ...prev];
-                try { if (diKey) localStorage.setItem(diKey, JSON.stringify(updated)); } catch { /* quota */ }
-                return updated;
-            });
+            setDineInEntries(prev => [entry, ...prev]);
         }
-    }, [wiKey, diKey]);
+    }, []);
 
     const handleEventChange = useCallback((id: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -157,12 +136,33 @@ export default function DoorPageClient() {
                 if (res.ok) {
                     const d = await res.json();
                     setEvents(d.events ?? []);
+                } else {
+                    throw new Error(`Failed to load events (${res.status})`);
                 }
-            } catch {
-                // silent — events list is non-critical for page render
+            } catch (err: any) {
+                setEvents([]);
+                setError(err?.message || "Failed to load door events");
             }
         })();
     }, [venueId, user]);
+
+    if (error) {
+        return (
+            <div className="space-y-4">
+                <div>
+                    <h1 className="v-text-title font-semibold" style={{ color: "var(--v-text-primary)" }}>
+                        Door
+                    </h1>
+                    <p className="mt-1 text-[14px]" style={{ color: "var(--v-text-secondary)" }}>
+                        On-ground operations — guests, walk-ins, scanning, and registers.
+                    </p>
+                </div>
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/5 p-4 text-sm text-red-400">
+                    {error}
+                </div>
+            </div>
+        );
+    }
 
     return (
         <DoorHubContext.Provider value={{
@@ -199,4 +199,3 @@ export default function DoorPageClient() {
         </DoorHubContext.Provider>
     );
 }
-

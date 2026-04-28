@@ -31,9 +31,14 @@ export default fp(async (fastify: FastifyInstance, opts: RBACPluginOptions) => {
                 return reply.status(401).send({ error: "Unauthorized: No valid session found." });
             }
 
-            // 1. Check if user is a verified Admin (Admins bypass all)
+            // 1. Check if user is a verified Admin (Admins bypass role check — always audit-logged)
             if (user.role === 'admin') {
-                return; // Access granted
+                fastify.log.warn({
+                    uid: user.uid,
+                    route: `${request.method} ${request.url}`,
+                    ip: request.ip,
+                }, 'AUDIT: Admin role bypass used');
+                return;
             }
 
             // 🛡️ SaaS: Workspace-level Role Check

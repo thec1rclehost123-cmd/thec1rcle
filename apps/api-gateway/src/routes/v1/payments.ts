@@ -246,6 +246,106 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         }
     });
 
+    /**
+     * POST /api/v1/payments/initiate
+     * Validates a pending reservation, creates a Razorpay order, and transitions
+     * the reservation from "pending" → "payment_pending".
+     *
+     * Idempotency: same receipt (reservationId) → same Razorpay order on retry.
+     */
+    fastify.post('/payments/initiate', {
+        preHandler: [fastify.validate({ body: z.object({ reservationId: z.string().min(1).max(128) }).strict() })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const { reservationId } = request.body;
+
+        const reservationRef = fastify.db.collection('reservations').doc(reservationId);
+        const reservationSnap = await reservationRef.get();
+
+        if (!reservationSnap.exists) {
+            return reply.status(404).send({ error: 'Reservation not found' });
+        }
+
+        const reservation = reservationSnap.data() as any;
+
+        if (reservation.userId !== userId) {
+            return reply.status(403).send({ error: 'You do not own this reservation' });
+        }
+
+        // Idempotency: already in payment_pending, return existing order
+        if (reservation.status === 'payment_pending' && reservation.razorpayOrderId) {
+            return {
+                razorpayOrderId: reservation.razorpayOrderId,
+                razorpayKeyId: getRazorpayKeyId(),
+                reservationId,
+                amount: reservation.totalAmount,
+                currency: 'INR',
+                expiresAt: reservation.expiresAt,
+            };
+        }
+
+        if (reservation.status !== 'pending') {
+            return reply.status(409).send({ error: `Reservation is ${reservation.status} — cannot initiate payment` });
+        }
+
+        if (new Date(reservation.expiresAt) <= new Date()) {
+            return reply.status(410).send({ error: 'This reservation has expired. Please start a new booking.' });
+        }
+
+        const razorpayKeyId = getRazorpayKeyId();
+        const razorpayKeySecret = getRazorpayKeySecret();
+        if (!razorpayKeyId || !razorpayKeySecret) {
+            fastify.log.error('Razorpay credentials are not configured');
+            return reply.status(503).send({ error: 'Payment service is not configured' });
+        }
+
+        // Create Razorpay order — receipt = reservationId ensures idempotency
+        const credentials = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+        const rzpRes = await fetch('https://api.razorpay.com/v1/orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Basic ${credentials}` },
+            body: JSON.stringify({
+                amount: reservation.totalAmount,
+                currency: 'INR',
+                receipt: reservationId,
+                notes: { eventId: reservation.eventId, userId: reservation.userId },
+            }),
+        });
+
+        if (!rzpRes.ok) {
+            const err = await rzpRes.json().catch(() => ({})) as any;
+            const description = err?.error?.description || `Razorpay error ${rzpRes.status}`;
+            fastify.log.error(`Razorpay order creation failed: ${description}`);
+            return reply.status(502).send({ error: 'Failed to create payment order. Please try again.' });
+        }
+
+        const order = await rzpRes.json() as any;
+
+        await reservationRef.update({
+            razorpayOrderId: order.id,
+            status: 'payment_pending',
+            updatedAt: new Date().toISOString(),
+        });
+
+        logPaymentEvent(request, 'PAYMENT_ORDER_CREATED', {
+            reservationId,
+            razorpayOrderId: order.id,
+            userId,
+            amount: reservation.totalAmount,
+        });
+
+        return {
+            razorpayOrderId: order.id,
+            razorpayKeyId,
+            reservationId,
+            amount: reservation.totalAmount,
+            currency: 'INR',
+            expiresAt: reservation.expiresAt,
+        };
+    });
+
     fastify.post('/payments/webhook', async (request: any, reply) => {
         const rawBody = buildWebhookRawBody(request);
         const signature = request.headers['x-razorpay-signature'] as string | undefined;

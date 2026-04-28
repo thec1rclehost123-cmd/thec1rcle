@@ -51,6 +51,7 @@ export default function VenuePageManagement() {
         }
 
         try {
+            setError(null);
             // Fetch all venue data - updated API to return both upcoming and past events
             const res = await authedFetch(`/api/venue/page?venueId=${venueId}&dashboard=true&events=true`);
             const json = await res.json();
@@ -58,26 +59,12 @@ export default function VenuePageManagement() {
             if (res.ok && json.venue) {
                 setData(json);
             } else {
-                // Fallback to existing profile API
-                const fallbackRes = await fetch(`/api/profile?profileId=${venueId}&type=venue&stats=true`);
-                const fallbackData = await fallbackRes.json();
-
-                if (fallbackRes.ok && fallbackData.profile) {
-                    setData({
-                        venue: fallbackData.profile,
-                        highlights: fallbackData.highlights || [],
-                        gallery: (fallbackData.profile?.photos || []).map((url: string, i: number) => ({ id: `photo-${i}`, imageUrl: url, order: i })),
-                        menu: [],
-                        facilities: [],
-                        events: [],
-                        pastEvents: []
-                    });
-                } else {
-                    setError(json.error || fallbackData.error || "Failed to load venue data");
-                }
+                setData(null);
+                setError(json.error || "Failed to load venue data");
             }
         } catch (err: any) {
             console.error("[VenuePageManagement] Fetch error:", err);
+            setData(null);
             setError(err.message || "Network error");
         } finally {
             setIsLoading(false);

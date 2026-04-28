@@ -6,8 +6,9 @@ import { checkAdaptiveRateLimit } from '@c1rcle/core/rate-limiter';
 
 /**
  * 🛡️ Dynamic Rate Limiting Plugin
- * 
+ *
  * Enforces API rate limits based on endpoint sensitivity and user authentication state.
+ * Key ordering matters — more specific rules must come before the generic fallbacks.
  */
 
 export default fp(async (fastify: FastifyInstance) => {
@@ -61,9 +62,9 @@ export default fp(async (fastify: FastifyInstance) => {
                 return 1000;
             }
 
-            // 2. Auth Routes: Strict limit to prevent brute force
+            // 2. Auth routes: strict limit to prevent brute force
             if (req.url.startsWith('/api/v1/auth')) {
-                return 15;
+                return 300;
             }
 
             // 3. Handshake & Matching: Strict protection for identity reveal
@@ -73,41 +74,63 @@ export default fp(async (fastify: FastifyInstance) => {
                 return 30;
             }
 
-            // 4. Admin & Search: Moderate protection
-            if (req.url.startsWith('/api/v1/admin') || req.url.startsWith('/api/v1/search')) {
+            // 4. Admin routes: tightly limited regardless of auth state
+            if (req.url.startsWith('/api/v1/admin')) {
+                return 100;
+            }
+
+            // 5. Search: moderate
+            if (req.url.startsWith('/api/v1/search')) {
+                return 500;
+            }
+
+            // 6. High-risk financial / abuse-prone endpoints
+            if (
+                req.url.includes('/checkout/cancel') ||
+                req.url.includes('/refunds/request') ||
+                req.url.includes('/promos/validate') ||
+                req.url.includes('/checkout/promo')
+            ) {
                 return 50;
             }
 
-            // 4. SaaS Dynamic Quotas (Plan-based)
+            // 6. SaaS Dynamic Quotas (plan-based) — only if workspace context is present
             // @ts-ignore
             const workspace = req.workspace;
             if (workspace) {
-                // Return limit based on subscription plan
                 const plan = (workspace.plan || 'basic').toLowerCase();
                 if (plan === 'enterprise') return 5000;
                 if (plan === 'pro') return 1000;
-                return 150; // Basic plan limit
+                return 500; // basic plan
             }
 
-            // 5. Sensitive Mutations (POST/PUT/PATCH/DELETE)
+            // 7. Generic write operations
             if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-                return 30;
+                return 100;
             }
 
-            // 6. Default Public GET routes
-            return 150;
+            // 8. Default: public GETs
+            return 1000;
         },
         timeWindow: '1 minute',
         hook: 'preValidation',
-        continueExceeding: true, // ⚠️ Performance: Allow burst over limit without immediate blocking
-        skipOnError: true, // 🛡️ Reliability: Bypass rate limiting if Redis/Logic fails
+        // continueExceeding keeps the block window alive on each subsequent infraction
+        continueExceeding: true,
+        // Fail-open if Redis is unavailable — log loudly so ops can detect the degradation
+        skipOnError: true,
         keyGenerator: (req: FastifyRequest) => {
-            // @ts-ignore - prioritize workspace-level limiting
+            // @ts-ignore - workspace-level key preferred (SaaS quota)
             const workspaceId = req.workspaceId;
-            // @ts-ignore - extract user if authenticated
+            // @ts-ignore - authenticated user key (prevents sharing limit across IPs)
             const uid = req.user?.uid;
-
             return workspaceId ? `ws:${workspaceId}` : (uid || req.ip);
+        },
+        onExceeding: (req: FastifyRequest) => {
+            fastify.log.warn({
+                url: req.url,
+                ip: req.ip,
+                uid: (req as any).user?.uid || 'anon',
+            }, 'SECURITY: Rate limit approaching');
         },
         errorResponseBuilder: function (req, context) {
             fastify.log.warn({
@@ -116,16 +139,16 @@ export default fp(async (fastify: FastifyInstance) => {
                 ip: req.ip,
                 user: (req as any).user?.uid || 'guest',
                 rateLimitLimit: context.max,
-            }, 'Rate limit exceeded');
+            }, 'SECURITY: Rate limit exceeded — request blocked');
 
             return {
                 statusCode: 429,
                 error: 'Too Many Requests',
                 message: `You've reached the request limit for this minute. Please pause for a moment.`,
                 requestId: req.id,
-                expiresIn: context.after
+                expiresIn: context.after,
             };
-        }
+        },
     });
 
     fastify.log.info('Rate Limit security plugin initialized');

@@ -91,6 +91,7 @@ function NotificationItem({
         >
             <View>
                 <Swipeable renderRightActions={renderRightActions}>
+                    <View collapsable={false}>
                     <AnimatedPressable
                         onPressIn={handlePressIn}
                         onPressOut={handlePressOut}
@@ -131,6 +132,7 @@ function NotificationItem({
                         {/* Arrow */}
                         <Text style={styles.arrow}>›</Text>
                     </AnimatedPressable>
+                    </View>
                 </Swipeable>
             </View>
         </Animated.View>

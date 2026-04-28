@@ -88,8 +88,8 @@ function CapacityBar({ cap }: { cap: EventCapacity | null }) {
         );
     }
 
-    const pct = Math.min(100, ((cap.soldCount + cap.doorWalkInCount) / cap.total) * 100);
-    const isNear = cap.available <= Math.ceil(cap.total * 0.1) && !cap.isSoldOut;
+    const pct = cap.capacityPercentage ?? 0;
+    const isNear = cap.isNearCapacity ?? false;
     const barColor = cap.isSoldOut ? "#F87171" : isNear ? "#FBBF24" : "#34D399";
 
     return (
@@ -106,7 +106,7 @@ function CapacityBar({ cap }: { cap: EventCapacity | null }) {
                 </div>
                 <div className="flex items-center gap-3 tabular-nums">
                     <span className="text-[13px] font-semibold" style={{ color: "var(--v-text-primary)" }}>
-                        {cap.soldCount + cap.doorWalkInCount}
+                        {cap.currentCount ?? (cap.soldCount + cap.doorWalkInCount)}
                         <span className="text-[var(--v-text-muted)] font-normal"> / {cap.total}</span>
                     </span>
                     {cap.isSoldOut ? (
@@ -138,7 +138,7 @@ function CapacityBar({ cap }: { cap: EventCapacity | null }) {
             {isNear && (
                 <p className="text-[12px] font-medium text-amber-400 flex items-center gap-1.5">
                     <AlertTriangle size={12} />
-                    Near capacity — {cap.available} spot{cap.available !== 1 ? "s" : ""} remaining
+                    {cap.availabilityMessage || `Near capacity — ${cap.available} spots remaining`}
                 </p>
             )}
         </div>
@@ -267,7 +267,6 @@ export function DoorSellClient() {
         age !== "" &&
         entryType !== null &&
         (entryType === "dinein" || selectedEventId !== "") &&
-        (entryType !== "dinein" || totalGuests !== "") &&
         !submitting &&
         !soldOut;
 

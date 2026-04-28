@@ -80,6 +80,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
         user,
     });
 
+
     const containerVariants = {
         hidden: { opacity: 0, scale: 0.98, y: 10 },
         visible: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } },
@@ -174,6 +175,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     {isAboveMax && (
                                         <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest text-center">Maximum {maxTickets} tickets allowed per account</p>
                                     )}
+                                    )}
                                 <button 
                                         onClick={() => {
                                             setError("");
@@ -227,7 +229,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                     <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Payment & <br />Checkout</h1>
                                 </div>
-                                {!isFreeOrder && (
+                                {!pricingResult?.isFree && (
                                     <div className="space-y-8 flex-1 flex flex-col justify-center">
                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                             {[
@@ -251,7 +253,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     </div>
                                 )}
 
-                                {isFreeOrder && (
+                                {pricingResult?.isFree && (
                                     <div className="flex-1 flex flex-col items-center justify-center space-y-6">
                                         <div className="h-20 w-20 rounded-full bg-orange/10 flex items-center justify-center border border-orange/20">
                                             <CheckCircle2 className="h-10 w-10 text-orange" />
@@ -273,7 +275,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                         </div>
                                     ) : (
                                         <>
-                                            {event.isRSVP ? "Confirm Registration" : isFreeOrder ? "Finalize Free Pass" : "Confirm Order"}
+                                            {event.isRSVP ? "Confirm Registration" : pricingResult?.isFree ? "Finalize Free Pass" : "Confirm Order"}
                                             <Lock className="ml-3 h-4 w-4" />
                                         </>
                                     )}
@@ -283,7 +285,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                     </AnimatePresence>
 
                     <div className="mt-6 md:hidden">
-                        <NeedToKnowCard items={needToKnowItems} />
+                        <NeedToKnowCard items={pricingResult?.needToKnow || []} />
                     </div>
                 </div>
 
@@ -313,7 +315,7 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                                 <p className="truncate text-[13px] font-black uppercase tracking-[0.08em] text-white">{t.name}</p>
                                                 <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-white/28">{t.quantity} ticket{t.quantity > 1 ? "s" : ""}</p>
                                             </div>
-                                            <p className="shrink-0 text-[18px] font-black tracking-tight text-white">₹{(t.price * t.quantity).toLocaleString('en-IN')}</p>
+                                            <p className="shrink-0 text-[18px] font-black tracking-tight text-white">{t.displayLineTotal || `₹${(t.price).toLocaleString('en-IN')}`}</p>
                                         </div>
                                 ))
                             ) : (
@@ -397,7 +399,10 @@ export default function CheckoutContainer({ event, initialTickets = [] }) {
                                     <p className="mt-1 text-[11px] text-white/32">Inclusive of all confirmed charges.</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white">₹{displayTotal.toLocaleString('en-IN')}</p>
+                                    {displayTotal !== null
+                                        ? <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white">₹{displayTotal.toLocaleString('en-IN')}</p>
+                                        : <p className="text-[44px] font-black leading-none tracking-[-0.05em] text-white/30">—</p>
+                                    }
                                     <p className="mt-1 text-[8px] font-black uppercase tracking-[0.36em] text-white/22">Grand Total</p>
                                 </div>
                             </div>

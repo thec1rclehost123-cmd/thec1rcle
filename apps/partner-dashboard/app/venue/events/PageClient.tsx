@@ -122,8 +122,8 @@ export default function EventsManagementPage() {
                             venueName: m.venueName || r.venueName || r.venue || profile?.activeMembership?.partnerName || "Your Venue",
                             status: m.lifecycle as any,
                             ticketsSold: m.stats?.ticketsSold || 0,
-                            ticketsTotal: m.capacity || m.tickets?.reduce((s: number, t: any) => s + (t.quantity || 0), 0) || 0,
-                            expectedCrowd: m.capacity || 0,
+                            ticketsTotal: m.capacity || r.ticketsTotal || 0,
+                            expectedCrowd: m.expectedCrowd || m.capacity || 0,
                             promotersCount: m.promoterSettings?.allowedPromoterIds?.length || 0,
                             revenue: m.stats?.revenue || 0,
                         };

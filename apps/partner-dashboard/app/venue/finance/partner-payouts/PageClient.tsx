@@ -80,13 +80,16 @@ function SettlementTable({ title, rows, isLoading, partnerLabel }: {
 }
 
 function HostSection() {
-    const { profile } = useDashboardAuth();
+    const { profile, getIdToken } = useDashboardAuth() as any;
     const venueId = profile?.activeMembership?.partnerId;
 
     const { data, isLoading } = useQuery<PartnerPayoutsPageData>({
         queryKey: ["finance-host-payouts", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/finance/host-payouts?venueId=${venueId}`);
+            const token = await getIdToken();
+            const res = await fetch(`/api/venue/finance/host-payouts?venueId=${venueId}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },
@@ -117,13 +120,16 @@ function HostSection() {
 }
 
 function PromoterSection() {
-    const { profile } = useDashboardAuth();
+    const { profile, getIdToken } = useDashboardAuth() as any;
     const venueId = profile?.activeMembership?.partnerId;
 
     const { data, isLoading } = useQuery<PartnerPayoutsPageData>({
         queryKey: ["finance-promoter-payouts", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/finance/promoter-payouts?venueId=${venueId}`);
+            const token = await getIdToken();
+            const res = await fetch(`/api/venue/finance/promoter-payouts?venueId=${venueId}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+            });
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },

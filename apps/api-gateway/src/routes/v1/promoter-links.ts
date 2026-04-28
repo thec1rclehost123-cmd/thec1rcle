@@ -34,7 +34,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
      * POST /api/v1/promoter-links/create
      */
     fastify.post('/create', {
-        preHandler: [fastify.validate({ body: CreateLinkBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CreateLinkBody })]
     }, async (request: any, reply) => {
         const body = request.body as any;
         const { promoterId, promoterName, eventId, eventTitle, commissionRate, commissionType = 'percentage', ticketTierIds = [], expiresAt = null } = body;
@@ -61,7 +61,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
      * GET /api/v1/promoter-links
      */
     fastify.get('/', {
-        preHandler: [fastify.validate({ querystring: LinksQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })]
     }, async (request: any, reply) => {
         const { promoterId, eventId, isActive, limit = 50 } = request.query;
         let q: any = fastify.db.collection(LINKS_COL);
@@ -86,11 +86,15 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/promoter-links/stats/:promoterId
+     * Caller must be the promoter or have an admin role.
      */
     fastify.get('/stats/:promoterId', {
-        preHandler: [fastify.validate({ params: PromoterIdParam })]
+        preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })]
     }, async (request: any, reply) => {
         const { promoterId } = request.params;
+        if (request.user.uid !== promoterId && request.user.role !== 'admin') {
+            return reply.status(403).send({ error: 'Forbidden' });
+        }
         const linksSnap = await fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get();
         const links = linksSnap.docs.map((d: any) => d.data());
         const pendingSnap = await fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'pending').get();
@@ -111,10 +115,18 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/promoter-links/event-summary/:eventId
+     * Caller must manage the event's host/venue.
      */
     fastify.get('/event-summary/:eventId', {
-        preHandler: [fastify.validate({ params: EventIdParam })]
+        preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })]
     }, async (request: any, reply) => {
+        const eventDoc = await fastify.db.collection('events').doc(request.params.eventId).get();
+        if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+        const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
+        if (partnerId) {
+            try { await fastify.verifyPartnerAccess(request, partnerId); }
+            catch { return reply.status(403).send({ error: 'Forbidden' }); }
+        }
         const { eventId } = request.params;
         const snap = await fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get();
         const links = snap.docs.map((d: any) => d.data());
@@ -149,11 +161,26 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
     /**
      * PATCH /api/v1/promoter-links/:id/deactivate
+     * Caller must be the promoter who owns the link, or manage the linked event.
      */
     fastify.patch('/:id/deactivate', {
-        preHandler: [fastify.validate({ params: LinkIdParam })]
+        preHandler: [fastify.requireAuth, fastify.validate({ params: LinkIdParam })]
     }, async (request: any, reply) => {
         const { id } = request.params;
+        const linkDoc = await fastify.db.collection(LINKS_COL).doc(id).get();
+        if (!linkDoc.exists) return reply.status(404).send({ error: 'Link not found' });
+        const link = linkDoc.data() as any;
+
+        const isOwner = link.promoterId === request.user.uid;
+        if (!isOwner && request.user.role !== 'admin') {
+            // Check if caller manages the event this link belongs to
+            const eventDoc = await fastify.db.collection('events').doc(link.eventId).get();
+            const partnerId = eventDoc.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
+            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            try { await fastify.verifyPartnerAccess(request, partnerId); }
+            catch { return reply.status(403).send({ error: 'Forbidden' }); }
+        }
+
         const now = new Date().toISOString();
         await fastify.db.collection(LINKS_COL).doc(id).update({ isActive: false, deactivatedAt: now, updatedAt: now });
         return { success: true };

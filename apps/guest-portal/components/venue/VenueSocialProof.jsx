@@ -17,7 +17,8 @@ export default function VenueSocialProof({
 
     const handleFollow = async () => {
         setIsFollowing(!isFollowing);
-        setFollowerCount(prev => isFollowing ? prev - 1 : prev + 1);
+        // Follower count should be updated via authoritative backend data/revalidation
+        //setFollowerCount(prev => isFollowing ? prev - 1 : prev + 1);
         if (onFollow) onFollow(!isFollowing);
     };
 

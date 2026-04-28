@@ -1,38 +1,21 @@
-import { NextRequest } from "next/server";
-import { withAuth } from "@/lib/server/withAuth";
-import { ok, fail } from "@/lib/server/apiResponse";
+import { NextRequest, NextResponse } from "next/server";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export const GET = withAuth(async (req: NextRequest) => {
-    try {
-        const mockProfile = {
-            id: "promoter_abc",
-            displayName: "DJ Neon",
-            handle: "djneon",
-            bio: "Based in NYC. Spreading good vibes and deep house.",
-            isPublic: true,
-            avatarUrl: "",
-            socialLinks: {
-                instagram: "https://instagram.com/djneon",
-                twitter: "",
-                website: "https://djneon.com"
-            }
-        };
+export async function GET(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("promoterId", ctx.promoterId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partner/promoter/profile?${searchParams}`, {});
+}
 
-        return ok({ profile: mockProfile });
-    } catch (error: any) {
-        console.error("[Promoter Profile API] GET Error:", error);
-        return fail("Failed to load promoter profile");
-    }
-});
-
-export const PUT = withAuth(async (req: NextRequest) => {
-    try {
-        const body = await req.json();
-
-        // In a real app we'd save to Firestore here
-        return ok({ profile: body });
-    } catch (error: any) {
-        console.error("[Promoter Profile API] PUT Error:", error);
-        return fail("Failed to update promoter profile");
-    }
-});
+export async function PUT(req: NextRequest) {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partner/promoter/profile`, {
+        method: "PUT",
+        body: JSON.stringify({ promoterId: ctx.promoterId, ...body }),
+    });
+}

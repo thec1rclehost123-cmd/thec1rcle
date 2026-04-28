@@ -1,117 +1,74 @@
-import { Ticket, Wine, Info, Sparkles } from "lucide-react";
+"use client";
+
+import { useEffect, useState } from "react";
+import { Ticket, Wine, Sparkles, Loader2 } from "lucide-react";
+
+interface TierMetric {
+    name: string;
+    price: number;
+    quantity: number;
+    value: number;
+    commRate: number;
+    commType: string;
+    commTotal: number;
+    discRate: number;
+    discType: string;
+    discTotal: number;
+    net: number;
+}
+
+interface Subtotal {
+    quantity: number;
+    value: number;
+    discTotal: number;
+    commTotal: number;
+    net: number;
+}
+
+interface WizardBreakdown {
+    ticketMetrics: TierMetric[];
+    tableMetrics: TierMetric[];
+    ticketSubtotal: Subtotal;
+    tableSubtotal: Subtotal;
+    grandTotal: Subtotal;
+    venueSharePct: number;
+    promoterSharePct: number;
+}
 
 interface DetailedBreakdownProps {
     formData: any;
 }
 
+const formatCurrency = (val: number) => "₹" + Math.round(val).toLocaleString("en-IN");
+
 export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
-    const tickets = formData.tickets || [];
-    const tables = formData.tables || [];
+    const [breakdown, setBreakdown] = useState<WizardBreakdown | null>(null);
+    const [loading, setLoading] = useState(false);
 
-    const calculateTierMetrics = (tier: any, type: 'ticket' | 'table') => {
-        const price = Number(tier.price) || 0;
-        const quantity = Number(tier.quantity) || 0;
-        const value = price * quantity;
+    useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        fetch("/api/events/wizard", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(formData),
+        })
+            .then((r) => r.ok ? r.json() : null)
+            .then((data) => { if (!cancelled && data) setBreakdown(data); })
+            .catch(() => {})
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [formData]);
 
-        // For RSVP/free events or if promoters are disabled, no commission/discount
-        const isRSVP = formData.isRSVP === true;
-        const promotersEnabled = formData.promotersEnabled === true;
-        const isFree = price === 0;
+    if (loading || !breakdown) {
+        return (
+            <div className="flex items-center justify-center py-16">
+                <Loader2 className="w-6 h-6 animate-spin" style={{ color: "var(--v-text-muted)" }} />
+            </div>
+        );
+    }
 
-        // Commission calculation - only if promoters enabled AND price > 0
-        let commTotal = 0;
-        let commRate = 0;
-        let commType: string = "percent";
-
-        if (promotersEnabled && !isFree) {
-            commRate = tier.overrideCommission
-                ? (Number(tier.promoterCommission) || 0)
-                : (Number(formData.commission) || 15);
-            commType = tier.overrideCommission
-                ? (tier.promoterCommissionType || "percent")
-                : (formData.commissionType || "percent");
-
-            commTotal = commType === "percent"
-                ? (value * commRate / 100)
-                : (commRate * quantity);
-        }
-
-        // Discount calculation - only if buyer discounts enabled AND price > 0 AND not RSVP
-        let discRate = 0;
-        let discType = "percent";
-        let discTotal = 0;
-
-        if (promotersEnabled && formData.buyerDiscountsEnabled && !isFree && !isRSVP) {
-            if (type === 'ticket') {
-                discRate = tier.overrideDiscount
-                    ? (Number(tier.promoterDiscount) || 0)
-                    : (Number(formData.discount) || 10);
-                discType = tier.overrideDiscount
-                    ? (tier.promoterDiscountType || "percent")
-                    : (formData.discountType || "percent");
-            } else {
-                // Tables have buyerDiscountEnabled flag
-                if (tier.buyerDiscountEnabled) {
-                    discRate = Number(tier.promoterDiscount) || 0;
-                    discType = tier.promoterDiscountType || "percent";
-                }
-            }
-
-            discTotal = discType === "percent"
-                ? (value * discRate / 100)
-                : (discRate * quantity);
-        }
-
-        const net = value - discTotal - commTotal;
-
-        return {
-            price,
-            quantity,
-            value,
-            commRate,
-            commType,
-            commTotal,
-            discRate,
-            discType,
-            discTotal,
-            net
-        };
-    };
-
-    const ticketMetrics = tickets.map((t: any) => ({ ...calculateTierMetrics(t, 'ticket'), name: t.name }));
-    const tableMetrics = tables.map((t: any) => ({ ...calculateTierMetrics(t, 'table'), name: t.name }));
-
-    const ticketSubtotal = ticketMetrics.reduce((acc: any, m: any) => ({
-        quantity: acc.quantity + m.quantity,
-        value: acc.value + m.value,
-        discTotal: acc.discTotal + m.discTotal,
-        commTotal: acc.commTotal + m.commTotal,
-        net: acc.net + m.net
-    }), { quantity: 0, value: 0, discTotal: 0, commTotal: 0, net: 0 });
-
-    const tableSubtotal = tableMetrics.reduce((acc: any, m: any) => ({
-        quantity: acc.quantity + m.quantity,
-        value: acc.value + m.value,
-        discTotal: acc.discTotal + m.discTotal,
-        commTotal: acc.commTotal + m.commTotal,
-        net: acc.net + m.net
-    }), { quantity: 0, value: 0, discTotal: 0, commTotal: 0, net: 0 });
-
-    const grandTotal = {
-        quantity: ticketSubtotal.quantity + tableSubtotal.quantity,
-        value: ticketSubtotal.value + tableSubtotal.value,
-        discTotal: ticketSubtotal.discTotal + tableSubtotal.discTotal,
-        commTotal: ticketSubtotal.commTotal + tableSubtotal.commTotal,
-        net: ticketSubtotal.net + tableSubtotal.net
-    };
-
-    const formatCurrency = (val: number) => {
-        return "₹" + Math.round(val).toLocaleString('en-IN');
-    };
-
-    const revenueShareBase = grandTotal.net + grandTotal.commTotal;
-    const venueShare = revenueShareBase > 0 ? (grandTotal.net / revenueShareBase) * 100 : 100;
-    const promoterShare = revenueShareBase > 0 ? (grandTotal.commTotal / revenueShareBase) * 100 : 0;
+    const { ticketMetrics, tableMetrics, ticketSubtotal, tableSubtotal, grandTotal, venueSharePct, promoterSharePct } = breakdown;
 
     return (
         <div className="w-full max-w-[1000px] mx-auto space-y-6 pb-8">
@@ -190,38 +147,35 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                     <h4 className="text-[12px] font-black text-[var(--v-text-primary)]">Revenue Distribution</h4>
                 </div>
 
-                {/* Bar */}
                 <div className="h-7 w-full rounded-lg overflow-hidden flex mb-3">
                     <div
                         className="h-full bg-[#34c759] flex items-center justify-center relative"
-                        style={{ width: `${venueShare}%` }}
+                        style={{ width: `${venueSharePct}%` }}
                     >
                         <span className="text-[9px] font-black text-text-primary uppercase tracking-widest">Your Revenue</span>
                     </div>
                     <div
                         className="h-full bg-[#f44a22] flex items-center justify-center relative"
-                        style={{ width: `${promoterShare}%` }}
+                        style={{ width: `${promoterSharePct}%` }}
                     >
                         <span className="text-[9px] font-black text-text-primary uppercase tracking-widest">Promoters</span>
                     </div>
                 </div>
 
-                {/* Legend */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#34c759]" />
-                        <p className="text-[11px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(grandTotal.net)} ({Math.round(venueShare)}%)</p>
+                        <p className="text-[11px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(grandTotal.net)} ({Math.round(venueSharePct)}%)</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="w-1.5 h-1.5 rounded-full bg-[#f44a22]" />
-                        <p className="text-[11px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(grandTotal.commTotal)} ({Math.round(promoterShare)}%)</p>
+                        <p className="text-[11px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(grandTotal.commTotal)} ({Math.round(promoterSharePct)}%)</p>
                     </div>
                 </div>
             </div>
 
             {/* Detailed Table */}
             <div className="overflow-hidden rounded-[20px] border border-border-default bg-[var(--v-card)]">
-                {/* Table Header Row */}
                 <div className="grid grid-cols-12 gap-2 border-b border-white/8 bg-white/[0.02] px-6 py-3">
                     <div className="col-span-2 truncate text-[9px] font-black uppercase tracking-widest text-[var(--v-text-muted)]">Item</div>
                     <div className="col-span-1 truncate text-right text-[9px] font-black uppercase tracking-widest text-[var(--v-text-muted)]">Price</div>
@@ -232,29 +186,27 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                     <div className="col-span-2 truncate text-right text-[9px] font-black uppercase tracking-widest text-[var(--v-text-muted)]">Net</div>
                 </div>
 
-                {/* Content */}
                 <div className="text-[11px]">
-                    {/* Tickets Section */}
                     {ticketMetrics.length > 0 && (
                         <>
                             <div className="flex items-center gap-2 bg-[rgba(56,122,255,0.12)] px-6 py-2">
                                 <Ticket className="w-3 h-3 text-[#7aa2ff]" />
                                 <span className="text-[10px] font-black uppercase tracking-widest text-[#7aa2ff]">Tickets</span>
                             </div>
-                            {ticketMetrics.map((m: any, i: number) => (
+                            {ticketMetrics.map((m, i) => (
                                 <div key={i} className="grid grid-cols-12 items-center gap-2 border-b border-white/6 px-6 py-3 hover:bg-white/[0.02]">
                                     <div className="col-span-2">
                                         <p className="break-words font-bold leading-tight text-[var(--v-text-primary)]">{m.name}</p>
                                         <div className="flex flex-wrap gap-1 mt-0.5">
                                             <span className="whitespace-nowrap text-[9px] text-[var(--v-text-muted)]">{m.commRate}% comm.</span>
-                                            {(m.discRate > 0) && <span className="whitespace-nowrap text-[9px] text-emerald-300">• {m.discRate}% disc.</span>}
+                                            {m.discRate > 0 && <span className="whitespace-nowrap text-[9px] text-emerald-300">• {m.discRate}% disc.</span>}
                                         </div>
                                     </div>
                                     <div className="col-span-1 truncate text-right font-medium text-[var(--v-text-primary)]">{formatCurrency(m.price)}</div>
                                     <div className="col-span-1 text-center font-medium text-[var(--v-text-muted)]">{m.quantity}</div>
                                     <div className="col-span-2 truncate text-right font-medium text-[var(--v-text-secondary)]">{formatCurrency(m.value)}</div>
-                                    <div className="col-span-2 truncate text-right font-medium text-emerald-300">{m.discTotal > 0 ? `-${formatCurrency(m.discTotal)}` : '-'}</div>
-                                    <div className="col-span-2 truncate text-right font-medium text-[var(--v-orange)]">{m.commTotal > 0 ? `-${formatCurrency(m.commTotal)}` : '-'}</div>
+                                    <div className="col-span-2 truncate text-right font-medium text-emerald-300">{m.discTotal > 0 ? `-${formatCurrency(m.discTotal)}` : "-"}</div>
+                                    <div className="col-span-2 truncate text-right font-medium text-[var(--v-orange)]">{m.commTotal > 0 ? `-${formatCurrency(m.commTotal)}` : "-"}</div>
                                     <div className="col-span-2 truncate text-right font-bold text-[var(--v-text-primary)]">{formatCurrency(m.net)}</div>
                                 </div>
                             ))}
@@ -263,21 +215,20 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                                 <div className="col-span-1"></div>
                                 <div className="col-span-1 text-center text-[10px] font-bold text-[var(--v-text-primary)]">{ticketSubtotal.quantity}</div>
                                 <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(ticketSubtotal.value)}</div>
-                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-emerald-300">{ticketSubtotal.discTotal > 0 ? `-${formatCurrency(ticketSubtotal.discTotal)}` : '-'}</div>
-                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-orange)]">{ticketSubtotal.commTotal > 0 ? `-${formatCurrency(ticketSubtotal.commTotal)}` : '-'}</div>
+                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-emerald-300">{ticketSubtotal.discTotal > 0 ? `-${formatCurrency(ticketSubtotal.discTotal)}` : "-"}</div>
+                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-orange)]">{ticketSubtotal.commTotal > 0 ? `-${formatCurrency(ticketSubtotal.commTotal)}` : "-"}</div>
                                 <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-text-primary)]">{formatCurrency(ticketSubtotal.net)}</div>
                             </div>
                         </>
                     )}
 
-                    {/* Tables Section */}
                     {tableMetrics.length > 0 && (
                         <>
                             <div className="flex items-center gap-2 border-t border-white/6 bg-[rgba(168,85,247,0.12)] px-6 py-2">
                                 <Wine className="w-3 h-3 text-violet-300" />
                                 <span className="text-[10px] font-black uppercase tracking-widest text-violet-300">Tables</span>
                             </div>
-                            {tableMetrics.map((m: any, i: number) => (
+                            {tableMetrics.map((m, i) => (
                                 <div key={i} className="grid grid-cols-12 items-center gap-2 border-b border-white/6 px-6 py-3 hover:bg-white/[0.02]">
                                     <div className="col-span-2">
                                         <p className="break-words font-bold leading-tight text-[var(--v-text-primary)]">{m.name}</p>
@@ -288,8 +239,8 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                                     <div className="col-span-1 truncate text-right font-medium text-[var(--v-text-primary)]">{formatCurrency(m.price)}</div>
                                     <div className="col-span-1 text-center font-medium text-[var(--v-text-muted)]">{m.quantity}</div>
                                     <div className="col-span-2 truncate text-right font-medium text-[var(--v-text-secondary)]">{formatCurrency(m.value)}</div>
-                                    <div className="col-span-2 truncate text-right font-medium text-emerald-300">{m.discTotal > 0 ? `-${formatCurrency(m.discTotal)}` : '-'}</div>
-                                    <div className="col-span-2 truncate text-right font-medium text-[var(--v-orange)]">{m.commTotal > 0 ? `-${formatCurrency(m.commTotal)}` : '-'}</div>
+                                    <div className="col-span-2 truncate text-right font-medium text-emerald-300">{m.discTotal > 0 ? `-${formatCurrency(m.discTotal)}` : "-"}</div>
+                                    <div className="col-span-2 truncate text-right font-medium text-[var(--v-orange)]">{m.commTotal > 0 ? `-${formatCurrency(m.commTotal)}` : "-"}</div>
                                     <div className="col-span-2 truncate text-right font-bold text-[var(--v-text-primary)]">{formatCurrency(m.net)}</div>
                                 </div>
                             ))}
@@ -298,29 +249,28 @@ export function DetailedBreakdown({ formData }: DetailedBreakdownProps) {
                                 <div className="col-span-1"></div>
                                 <div className="col-span-1 text-center text-[10px] font-bold text-[var(--v-text-primary)]">{tableSubtotal.quantity}</div>
                                 <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-text-secondary)]">{formatCurrency(tableSubtotal.value)}</div>
-                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-emerald-300">{tableSubtotal.discTotal > 0 ? `-${formatCurrency(tableSubtotal.discTotal)}` : '-'}</div>
-                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-orange)]">{tableSubtotal.commTotal > 0 ? `-${formatCurrency(tableSubtotal.commTotal)}` : '-'}</div>
+                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-emerald-300">{tableSubtotal.discTotal > 0 ? `-${formatCurrency(tableSubtotal.discTotal)}` : "-"}</div>
+                                <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-orange)]">{tableSubtotal.commTotal > 0 ? `-${formatCurrency(tableSubtotal.commTotal)}` : "-"}</div>
                                 <div className="col-span-2 truncate text-right text-[10px] font-bold text-[var(--v-text-primary)]">{formatCurrency(tableSubtotal.net)}</div>
                             </div>
                         </>
                     )}
                 </div>
 
-                {/* Grand Total Bar - Black */}
                 <div className="bg-black px-6 py-4">
                     <div className="grid grid-cols-12 gap-2 items-center">
                         <div className="col-span-2 text-[10px] font-black text-text-primary uppercase tracking-widest truncate">Grand Total</div>
                         <div className="col-span-1"></div>
                         <div className="col-span-1 text-center font-black text-text-primary text-xs">{grandTotal.quantity}</div>
                         <div className="col-span-2 text-right font-bold text-text-primary text-xs opacity-60 truncate">{formatCurrency(grandTotal.value)}</div>
-                        <div className="col-span-2 text-right font-bold text-c1rcle-orange text-xs truncate">{grandTotal.discTotal > 0 ? `-${formatCurrency(grandTotal.discTotal)}` : '-'}</div>
-                        <div className="col-span-2 text-right font-bold text-orange-400 text-xs truncate">{grandTotal.commTotal > 0 ? `-${formatCurrency(grandTotal.commTotal)}` : '-'}</div>
+                        <div className="col-span-2 text-right font-bold text-c1rcle-orange text-xs truncate">{grandTotal.discTotal > 0 ? `-${formatCurrency(grandTotal.discTotal)}` : "-"}</div>
+                        <div className="col-span-2 text-right font-bold text-orange-400 text-xs truncate">{grandTotal.commTotal > 0 ? `-${formatCurrency(grandTotal.commTotal)}` : "-"}</div>
                         <div className="col-span-2 text-right font-black text-c1rcle-orange text-xs underline decoration-emerald-400/30 underline-offset-4 truncate">{formatCurrency(grandTotal.net)}</div>
                     </div>
                 </div>
             </div>
 
-            {/* Simplified Notes */}
+            {/* Notes */}
             <div className="rounded-[18px] border border-white/8 bg-white/[0.03] p-4">
                 <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-[var(--v-text-muted)]">Notes:</p>
                 <div className="space-y-1.5">

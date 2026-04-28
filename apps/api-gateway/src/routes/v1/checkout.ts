@@ -225,9 +225,10 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     /**
      * Validate Promo Code
      * POST /checkout/promo
+     * Requires auth to prevent anonymous brute-forcing of promo codes.
      */
     fastify.post('/checkout/promo', {
-        preHandler: [fastify.validate({ body: CheckoutPromoBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutPromoBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const { eventId, code, items } = request.body;
         const userId = request.user?.uid || null;
@@ -419,7 +420,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     });
 
     fastify.post('/checkout/failure', {
-        preHandler: [fastify.validate({ body: CheckoutFailureBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutFailureBody })]
     }, async (request: any, reply) => {
         const queueId = extractQueueId(request.body?.admissionToken);
         if (!queueId) {
@@ -439,13 +440,43 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
     /**
      * Cancel Reservation
      * POST /checkout/cancel
+     * Requires auth and verifies the reservation/order belongs to the authenticated user.
      */
     fastify.post('/checkout/cancel', {
-        preHandler: [fastify.validate({ body: CheckoutCancelBody })]
-    }, async (request: { body: any }, reply) => {
+        config: { rateLimit: { max: 5, timeWindow: '1 minute' } },
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutCancelBody })]
+    }, async (request: any, reply) => {
         const { reservationId, orderId } = request.body;
+        const userId = request.user.uid;
+
+        // Verify ownership before cancelling
+        if (reservationId) {
+            const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
+            if (!resDoc.exists) return reply.status(404).send({ success: false, error: 'Reservation not found' });
+            if ((resDoc.data() as any).userId !== userId) {
+                fastify.log.warn({ uid: userId, reservationId, ip: request.ip }, 'SECURITY: Unauthorized cancel attempt on reservation');
+                return reply.status(403).send({ success: false, error: 'Forbidden: Not your reservation' });
+            }
+        } else if (orderId) {
+            const orderDoc = await fastify.db.collection('orders').doc(orderId).get();
+            if (!orderDoc.exists) return reply.status(404).send({ success: false, error: 'Order not found' });
+            const order = orderDoc.data() as any;
+            if (order.userId !== userId && order.customerId !== userId) {
+                fastify.log.warn({ uid: userId, orderId, ip: request.ip }, 'SECURITY: Unauthorized cancel attempt on order');
+                return reply.status(403).send({ success: false, error: 'Forbidden: Not your order' });
+            }
+        }
+
         try {
             const result = await fastify.checkoutService.cancelCheckout(reservationId, orderId);
+            await fastify.writeAuditLog({
+                action: 'checkout.cancel',
+                actorUid: userId,
+                entityType: reservationId ? 'reservation' : 'order',
+                entityId: (reservationId || orderId) as string,
+                requestId: request.id,
+                payload: { reservationId, orderId, ip: request.ip },
+            });
             return result;
         } catch (error: any) {
             fastify.log.error(`Release reservation failed: ${error.message}`);

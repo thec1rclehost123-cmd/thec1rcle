@@ -76,6 +76,75 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
     // ── Venue Settings ────────────────────────────────────────────────────────
 
     /**
+     * GET /api/v1/venue/settings?venueId=XXX
+     * Used by the Partner Dashboard
+     */
+    fastify.get('/venue/settings', {
+        preHandler: [fastify.validate({ querystring: VenueQuery })]
+    }, async (request: any, reply) => {
+        const { venueId } = request.query as any;
+        if (!venueId) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'venueId required', requestId: request.id }));
+        if (!(await requirePartnerScope(request, reply, venueId, 'venue'))) return;
+
+        const doc = await fastify.db.collection('venues').doc(venueId).get();
+        if (!doc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Venue not found', requestId: request.id }));
+        
+        const data = doc.data() as any;
+        // Return in the specific shape the dashboard expects
+        return { 
+            settings: {
+                id: doc.id,
+                adminEmail: data.adminEmail || data.contactEmail || '',
+                supportHotline: data.supportHotline || data.contactPhone || '',
+                operationalTimezone: data.operationalTimezone || 'Asia/Dubai',
+                primaryLanguage: data.primaryLanguage || 'English (US)',
+                bankAccountName: data.bankAccountName || '',
+                bankAccountMasked: data.bankAccountMasked || '',
+                settlementCadence: data.settlementCadence || 'weekly',
+                notifications: data.notifications || {
+                    revenueUpdates: true,
+                    partnerRequests: true,
+                    securityAudit: true,
+                    productAnnouncements: false
+                },
+                security: data.security || {
+                    masterPasswordUpdatedAt: null,
+                    twoFactorEnabled: false
+                },
+                ...data
+            }
+        };
+    });
+
+    /**
+     * PATCH /api/v1/venue/settings
+     * Used by the Partner Dashboard
+     */
+    fastify.patch('/venue/settings', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { venueId, patch } = request.body as any;
+        if (!venueId || !patch) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'venueId and patch required', requestId: request.id }));
+        if (!(await requirePartnerScope(request, reply, venueId, 'venue'))) return;
+
+        await fastify.db.collection('venues').doc(venueId).set(patch, { merge: true });
+        
+        await fastify.writeAuditLog({
+            action: 'venue.settings.patch',
+            actorUid: request.user?.uid,
+            actorRole: request.authContext?.activeMembership?.role || request.user?.role || null,
+            partnerId: venueId,
+            partnerType: 'venue',
+            entityId: venueId,
+            entityType: 'venue',
+            requestId: request.id,
+            payload: { patchedFields: Object.keys(patch) },
+        });
+
+        return { success: true };
+    });
+
+    /**
      * GET /api/v1/venue-settings?venueId=XXX
      */
     fastify.get('/venue', {
@@ -200,11 +269,15 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
 
         let q: any = fastify.db.collection('table_reservations').where('venueId', '==', venueId);
         if (status && status !== 'all') q = q.where('status', '==', status);
-        q = q.orderBy('requestedAt', 'desc').limit(Number(limit));
-
+        
         const snap = await q.get();
         const reservations = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-        return { reservations };
+        reservations.sort((a: any, b: any) => {
+            const dateA = new Date(a.requestedAt || 0).getTime();
+            const dateB = new Date(b.requestedAt || 0).getTime();
+            return dateB - dateA;
+        });
+        return { reservations: reservations.slice(0, Number(limit)) };
     });
 
     /**
@@ -302,16 +375,23 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
         if (!(await requirePartnerScope(request, reply, hostId, 'host'))) return;
 
         const [eventsSnap, partnershipsSnap] = await Promise.all([
-            fastify.db.collection('events').where('hostId', '==', hostId).orderBy('createdAt', 'desc').limit(10).get(),
+            fastify.db.collection('events').where('hostId', '==', hostId).get(),
             fastify.db.collection('partnerships').where('hostId', '==', hostId).get()
         ]);
 
-        const events = eventsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const allEvents = eventsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        allEvents.sort((a: any, b: any) => {
+            const dateA = new Date(a.createdAt || 0).getTime();
+            const dateB = new Date(b.createdAt || 0).getTime();
+            return dateB - dateA;
+        });
+
+        const events = allEvents.slice(0, 10);
         const liveEvents = events.filter((e: any) => e.status === 'live' || e.status === 'approved');
         const draftEvents = events.filter((e: any) => e.status === 'draft');
 
         // Aggregate revenue from orders for these events
-        const eventIds = events.map((e: any) => e.id).slice(0, 10);
+        const eventIds = events.map((e: any) => e.id);
         let totalRevenue = 0;
         if (eventIds.length > 0) {
             const ordersSnap = await fastify.db.collection('orders')
@@ -323,7 +403,7 @@ export default async function venueSettingsRoutes(fastify: FastifyInstance) {
 
         return {
             hostId,
-            stats: { totalEvents: events.length, liveEvents: liveEvents.length, draftEvents: draftEvents.length, totalRevenue, partnerships: partnershipsSnap.docs.length },
+            stats: { totalEvents: allEvents.length, liveEvents: liveEvents.length, draftEvents: draftEvents.length, totalRevenue, partnerships: partnershipsSnap.docs.length },
             recentEvents: events.slice(0, 5)
         };
     });

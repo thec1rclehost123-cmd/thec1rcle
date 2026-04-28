@@ -78,7 +78,7 @@ function CartItemCard({ item, onRemove, onUpdateQuantity }: {
                     </Pressable>
                 </View>
                 <Text className="text-gold font-satoshi-bold text-lg">
-                    ₹{item.tier.price * item.quantity}
+                    ₹{item.priceTotal || item.tier.price * item.quantity}
                 </Text>
             </View>
         </View>
@@ -138,7 +138,7 @@ export default function CheckoutScreen() {
     const cartEventVenue = items[0]?.eventVenue || "Venue TBA";
     const cartEventImage = items[0]?.eventCoverImage;
     const mixedEventCart = new Set(items.map((item) => item.eventId)).size > 1;
-    const subtotal = pricing?.subtotal ?? getSubtotal();
+    const subtotal = pricing?.subtotal ?? 0;
     const discount =
         pricing?.discountTotal ??
         pricing?.discount ??
@@ -148,7 +148,7 @@ export default function CheckoutScreen() {
         pricing?.fees?.total ??
         pricing?.platformFee ??
         0;
-    const total = pricing?.grandTotal ?? getTotal();
+    const total = pricing?.grandTotal ?? 0;
     const isFreeOrder = pricing?.isFree ?? total === 0;
     const reservationLabel = getReservationLabel(pendingReservation?.expiresAt);
     const sameSelectionAsPending =
@@ -370,7 +370,7 @@ export default function CheckoutScreen() {
             >
                 {/* Cart Items */}
                 <Text className="text-gold font-semibold text-lg mt-4 mb-3">
-                    Your Booking ({items.reduce((sum, item) => sum + item.quantity, 0)})
+                    Your Booking ({pricing?.totalQuantity || items.length})
                 </Text>
 
                 <View className="bg-midnight-100 rounded-bubble border border-white/10 overflow-hidden mb-4">

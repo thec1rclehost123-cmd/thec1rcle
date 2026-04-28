@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
-import { VENUE_PERMISSIONS } from "@/lib/rbac/types";
 import { cn } from "@/lib/utils";
 import {
     AlertTriangle, CheckCircle2, XCircle, Flag, Clock, Loader2,
@@ -56,8 +55,7 @@ const RESOLVE_ACTIONS: { value: ResolveExceptionBody["action"]; label: string; c
 ];
 
 export default function ExceptionsPageClient() {
-    const { profile } = useDashboardAuth();
-    const role = profile?.activeMembership?.role ?? "";
+    const { hasPermission } = useDashboardAuth();
 
     const {
         eventId, venueId, events, summary, openExceptions,
@@ -75,8 +73,7 @@ export default function ExceptionsPageClient() {
     });
     const [resolveError, setResolveError] = useState<string | null>(null);
 
-    const permissions = VENUE_PERMISSIONS[role as keyof typeof VENUE_PERMISSIONS] ?? [];
-    const canManage = permissions.includes("MANAGE_GUEST_OPS");
+    const canManage = hasPermission("MANAGE_GUEST_OPS");
 
     const fetchExceptions = useCallback(async () => {
         if (!eventId || !venueId) return;

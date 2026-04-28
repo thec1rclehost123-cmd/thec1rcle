@@ -12,13 +12,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/logs', {
         preHandler: [
-            fastify.requireRoles(['admin']),
+            fastify.requireAdmin,
             fastify.validate({ querystring: AdminLogsQuerySchema }),
         ]
     }, async (request: any, reply) => {
         const actorId = request.user?.uid;
-        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
-
         const { limit } = request.query as z.infer<typeof AdminLogsQuerySchema>;
 
         try {

@@ -264,6 +264,7 @@ export const TicketEmail = ({
     orderDate = '',
     tickets = [],
     totalAmount = 0,
+    totalQuantity = 0,
     isRSVP = false,
     qrCodeData = '',
 }) => {
@@ -281,7 +282,7 @@ export const TicketEmail = ({
         ? `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeData)}&bgcolor=FFFFFF&color=000000&margin=10`
         : `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(orderId)}&bgcolor=FFFFFF&color=000000&margin=10`;
 
-    const ticketCountLabel = tickets.reduce((sum, t) => sum + (t.quantity || 1), 0);
+    const ticketCountLabel = totalQuantity || "—";
 
     // JSON-LD structured data for Gmail calendar card
     const jsonLd = {
@@ -467,7 +468,7 @@ export const TicketEmail = ({
                                                             textAlign: 'right',
                                                         }}
                                                     >
-                                                        {isRSVP ? 'RSVP' : formatCurrency((ticket.price || 0) * (ticket.quantity || 1))}
+                                                        {isRSVP ? 'RSVP' : formatCurrency(ticket.lineTotal || 0)}
                                                     </td>
                                                 </tr>
                                             ))}

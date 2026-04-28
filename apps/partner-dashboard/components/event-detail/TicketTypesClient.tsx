@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Link2, Settings, GripVertical, Trash2, X, AlertTriangle, Loader2, FlaskConical } from "lucide-react";
+import { Plus, Link2, Settings, GripVertical, Trash2, X, AlertTriangle, Loader2 } from "lucide-react";
 import { VenueTable, type Column } from "@/components/ui/VenueTable";
 import { Button, IconButton } from "@/components/ui/Button";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -244,8 +244,7 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
         tiers: tickets,
         isLoading,
         isError,
-        isLocalFallback,
-        isStale,
+        errorMessage,
         addTier,
         deleteTier,
         addMutationPending,
@@ -440,38 +439,13 @@ export default function TicketTypesClient({ eventId }: { eventId: string }) {
                 </Button>
             </div>
 
-            {/* Local fallback banner — API unreachable but localStorage data is shown */}
-            {isLocalFallback && (
-                <div
-                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
-                    style={{ background: "rgba(251,191,36,0.08)", border: "1px solid rgba(251,191,36,0.2)", color: "#FBBF24" }}
-                >
-                    <FlaskConical size={14} />
-                    {process.env.NODE_ENV === "development"
-                        ? "Dev mode — showing locally cached ticket data. Check console for API details."
-                        : "Showing cached tickets — live data temporarily unavailable."}
-                </div>
-            )}
-
-            {/* Stale indicator — local data visible while API fetch is in-flight */}
-            {isStale && (
-                <div
-                    className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
-                    style={{ background: "rgba(129,140,248,0.08)", border: "1px solid rgba(129,140,248,0.2)", color: "#818CF8" }}
-                >
-                    <Loader2 size={13} className="animate-spin" />
-                    Syncing tickets with server…
-                </div>
-            )}
-
-            {/* Hard error — no data from API and nothing in localStorage */}
             {isError && (
                 <div
                     className="mb-4 p-3 rounded-xl text-[13px] font-medium flex items-center gap-2"
                     style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", color: "#F87171" }}
                 >
                     <AlertTriangle size={14} />
-                    Failed to load ticket tiers. Please refresh and try again.
+                    {errorMessage || "Failed to load ticket tiers. Please refresh and try again."}
                 </div>
             )}
 

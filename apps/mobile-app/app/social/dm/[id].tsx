@@ -32,6 +32,7 @@ import {
 } from "@/lib/social";
 import { apiFetch } from "@/lib/api";
 import { trackScreen } from "@/lib/analytics";
+import { DEMO_MODE, DEMO_DM_MESSAGES, DEMO_PRIVATE_CHATS, DEMO_NEW_MATCHES } from "@/lib/demo";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn } from "react-native-reanimated";
 
@@ -116,7 +117,33 @@ export default function DirectMessageScreen() {
     }, [conversationId, user?.uid, user?.displayName]);
 
     useEffect(() => {
-        if (!conversationId || !user?.uid) return;
+        if (!conversationId) return;
+
+        // ── Demo mode: load pre-seeded messages, skip API ──────────────────
+        if (DEMO_MODE) {
+            const demoMsgs = (DEMO_DM_MESSAGES[conversationId] ?? []).map((m) => ({
+                ...m,
+                conversationId: conversationId as string,
+                readAt: null,
+                isDeleted: false,
+            })) as DirectMessage[];
+
+            // Resolve display name from demo data
+            const privateChat = DEMO_PRIVATE_CHATS.find((c) => c.id === conversationId);
+            const newMatch = DEMO_NEW_MATCHES.find((m) => m.id === conversationId);
+            const resolvedName = privateChat?.otherUserName ?? newMatch?.name ?? (recipientName as string) ?? "Guest";
+
+            setOtherUserName(resolvedName);
+            setMessages(demoMsgs);
+            // Fake an accepted conversation so the input shows
+            setConversation({ status: "accepted" } as any);
+            setLoading(false);
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 100);
+            return;
+        }
+
+        // ── Live mode ───────────────────────────────────────────────────────
+        if (!user?.uid) return;
 
         let active = true;
 
@@ -137,7 +164,7 @@ export default function DirectMessageScreen() {
         }
 
         fetchConversation();
-        
+
         const unsubMessages = subscribeToDirectMessages(conversationId, (newMessages) => {
             if (active) {
                 setMessages(newMessages);

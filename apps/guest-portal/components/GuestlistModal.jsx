@@ -10,6 +10,7 @@ const normalizeHandle = (name = "", index) => {
     return `@${safe || `guest${index + 1}`}`;
 };
 
+
 const initials = (value = "") =>
     value
         .split(" ")

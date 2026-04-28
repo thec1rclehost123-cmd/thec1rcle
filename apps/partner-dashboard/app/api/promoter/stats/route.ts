@@ -1,7 +1,6 @@
-import { NextRequest } from "next/server";
-import { getPromoterStats } from "@/lib/server/promoterLinkStore";
+import { NextRequest, NextResponse } from "next/server";
 import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
-import { ok, fail } from "@/lib/server/apiResponse";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * GET /api/promoter/stats
@@ -9,13 +8,8 @@ import { ok, fail } from "@/lib/server/apiResponse";
  */
 export async function GET(req: NextRequest) {
     const ctx = await requirePromoterAccess(req);
-    if ("error" in ctx) return fail(ctx.error, ctx.status);
-
-    try {
-        const stats = await getPromoterStats(ctx.promoterId);
-        return ok(stats);
-    } catch (error: any) {
-        console.error("[Promoter Stats API] GET Error:", error);
-        return fail("Failed to fetch stats");
-    }
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("promoterId", ctx.promoterId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/stats?${searchParams.toString()}`, {});
 }

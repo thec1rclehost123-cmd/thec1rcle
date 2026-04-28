@@ -34,6 +34,7 @@ export default function ExploreClient({ initialEvents = [], initialFeaturedEvent
     status,
   } = useExplorePageState({ initialEvents, initialFeaturedEvents });
 
+
   const heroSection = featuredSlides.length ? (
     <ExploreCarouselHeader slides={featuredSlides} />
   ) : (

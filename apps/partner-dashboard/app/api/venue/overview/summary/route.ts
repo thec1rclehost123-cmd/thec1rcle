@@ -1,107 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { requireAuth } from '@/lib/server/withAuth'
-import { fail } from '@/lib/server/apiResponse'
-import { getApiClient } from '@/lib/server/apiClient'
-import type { DateRange } from '@/lib/types/venueOverview'
+import { NextRequest, NextResponse } from "next/server";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export const dynamic = 'force-dynamic'
-
-/**
- * GET /api/venue/overview/summary
- *
- * Returns KPI summary + finance snapshot in one request.
- * Both gateway calls run in parallel; partial failure is safe.
- *
- * Response shape is backward-compatible: all flat KPI fields are preserved
- * at the root level so existing KPIGridModule keeps working unchanged.
- * New keys: `finance` and `_meta`.
- *
- * Cache: 2 min private + 5 min stale-while-revalidate
- */
 export async function GET(req: NextRequest) {
-    try {
-        const auth = await requireAuth(req)
-        if (auth instanceof NextResponse) return auth
-
-        const { searchParams } = new URL(req.url)
-        const venueId = searchParams.get('venueId')
-        const range = (searchParams.get('range') ?? '7d') as DateRange
-
-        if (!venueId) return fail('venueId is required', 400)
-
-        const token = req.headers.get('authorization')?.split('Bearer ')[1] ?? ''
-        const client = getApiClient(token)
-
-        // ── Parallel gateway calls — one failure must not block the other ─────────
-        const [kpisResult, financeResult] = await Promise.allSettled([
-            client.getAnalytics('venue', venueId, 'overview'),
-            client.request(`/finance/summary?entityId=${venueId}&type=venue&period=${range}`),
-        ])
-
-        const kpis       = kpisResult.status === 'fulfilled'    ? kpisResult.value    : null
-        const financeRaw = financeResult.status === 'fulfilled' ? financeResult.value : null
-
-        const failures: string[] = [
-            kpisResult.status    === 'rejected' ? 'kpis'    : null,
-            financeResult.status === 'rejected' ? 'finance' : null,
-        ].filter(Boolean) as string[]
-
-        const finance = financeRaw ? normalizeFinance(financeRaw, range) : null
-
-        return NextResponse.json(
-            {
-                // ── Flat KPI fields (backward compat with KPIGridModule) ──────────
-                weekendRevenue:        kpis?.weekendRevenue        ?? 0,
-                activeEventsCount:     kpis?.activeEventsCount     ?? 0,
-                avgEntryVelocity:      kpis?.avgEntryVelocity      ?? null,
-                totalGuestProfiles:    kpis?.totalGuestProfiles    ?? 0,
-                newGuestsThisWeek:     kpis?.newGuestsThisWeek     ?? 0,
-                revenueTrend:          kpis?.revenueTrend          ?? null,
-                revenueTrendDirection: kpis?.revenueTrendDirection ?? 'neutral',
-                dataReady:             !!kpis?.dataReady,
-                // ── New keys ─────────────────────────────────────────────────────
-                finance,
-                _meta: {
-                    fetchedAt: new Date().toISOString(),
-                    range,
-                    partial:  failures.length > 0,
-                    failures,
-                },
-            },
-            {
-                headers: {
-                    'Cache-Control': 'private, max-age=120, stale-while-revalidate=300',
-                },
-            },
-        )
-    } catch (error: any) {
-        console.error("[Summary API Error]", error)
-        return fail("Failed to fetch summary data: " + (error.message || "Unknown error"))
-    }
-}
-
-// ── Normalizers ───────────────────────────────────────────────────────────────
-
-function toNum(v: unknown): number {
-    const n = Number(v)
-    return isFinite(n) ? n : 0
-}
-
-function normalizeFinance(raw: Record<string, unknown>, range: DateRange) {
-    return {
-        grossRevenue:     toNum(raw.gross         ?? raw.grossRevenue),
-        netRevenue:       toNum(raw.net           ?? raw.netRevenue),
-        pendingPayouts:   toNum(raw.pendingPayouts ?? raw.pending),
-        settledPayouts:   toNum(raw.settledPayouts ?? raw.settled),
-        processingFees:   toNum(raw.processorFees  ?? raw.processingFees),
-        platformFees:     toNum(raw.platformFees),
-        refunds:          toNum(raw.refunds),
-        chargebacks:      toNum(raw.chargebacks),
-        availableBalance: toNum(raw.availableBalance ?? raw.balance),
-        reserveBalance:   toNum(raw.reserveBalance),
-        nextPayoutDate:   typeof raw.nextPayoutDate === 'string' ? raw.nextPayoutDate : undefined,
-        payoutFailures:   toNum(raw.payoutFailures),
-        partnerObligations: toNum(raw.partnerObligations ?? raw.commissions),
-        period: range,
-    }
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/overview/summary?${searchParams}`, {});
 }
