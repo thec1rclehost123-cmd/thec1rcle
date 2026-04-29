@@ -166,26 +166,93 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         try {
-            const series = [];
             const now = new Date();
-            const points = range === '1d' ? 24 : range === '1w' ? 7 : 30;
 
-            for (let i = 0; i < points; i++) {
-                const date = new Date(now);
-                if (range === '1d') date.setHours(now.getHours() - i);
-                else date.setDate(now.getDate() - i);
+            // Determine cutoff date and bucket count
+            let cutoff: Date;
+            let points: number;
+            if (range === '1d') { cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000); points = 24; }
+            else if (range === '1w') { cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); points = 7; }
+            else if (range === '1m') { cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); points = 30; }
+            else { cutoff = new Date(0); points = 12; } // 'all' → 12 months
 
-                series.unshift({
-                    date: date.toISOString(),
-                    label: range === '1d' ? `${date.getHours()}:00` : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                    value: Math.floor(Math.random() * 10) + 1,
-                    revenue: (Math.floor(Math.random() * 50) + 10) * 100,
-                    ticketsSold: Math.floor(Math.random() * 5) + 1
+            // Fetch all confirmed orders for this venue (single equality — no composite index needed)
+            const snap = await fastify.db.collection('orders').where('venueId', '==', venueId).get();
+            const orders = snap.docs
+                .map((d: any) => d.data())
+                .filter((o: any) => {
+                    if (o.status !== 'confirmed' && o.status !== 'paid') return false;
+                    const ts = new Date(o.confirmedAt || o.createdAt || 0);
+                    return range === 'all' ? true : ts >= cutoff;
                 });
+
+            // Build bucket map keyed by bucket identifier
+            const buckets = new Map<string, { date: Date; tickets: number; revenue: number }>();
+
+            if (range === '1d') {
+                for (let i = 0; i < 24; i++) {
+                    const d = new Date(now);
+                    d.setMinutes(0, 0, 0);
+                    d.setHours(now.getHours() - (23 - i));
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
+            } else if (range === 'all') {
+                for (let i = 0; i < 12; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
+            } else {
+                for (let i = 0; i < points; i++) {
+                    const d = new Date(now);
+                    d.setHours(0, 0, 0, 0);
+                    d.setDate(now.getDate() - (points - 1 - i));
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
             }
 
-            return { series, total: series.reduce((a, b) => a + (metric === 'revenue' ? b.revenue : b.ticketsSold), 0) };
+            // Accumulate order values into buckets
+            for (const order of orders) {
+                const ts = new Date(order.confirmedAt || order.createdAt || 0);
+                let key: string;
+                if (range === '1d') key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
+                else if (range === 'all') key = `${ts.getFullYear()}-${ts.getMonth()}`;
+                else key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
+
+                const bucket = buckets.get(key);
+                if (!bucket) continue;
+
+                const ticketCount = order.ticketCount
+                    || (Array.isArray(order.tickets) ? order.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0) : 0)
+                    || 1;
+                const revenue = order.totalAmount || (order.totalPaise ? order.totalPaise / 100 : 0);
+
+                bucket.tickets += ticketCount;
+                bucket.revenue += revenue;
+            }
+
+            // Serialise into series array
+            const series = Array.from(buckets.values()).map(({ date, tickets, revenue }) => {
+                let label: string;
+                if (range === '1d') label = `${date.getHours()}:00`;
+                else if (range === 'all') label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                else label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                return {
+                    date: date.toISOString(),
+                    label,
+                    value: metric === 'revenue' ? revenue : tickets,
+                    revenue,
+                    ticketsSold: tickets,
+                };
+            });
+
+            const total = series.reduce((a, b) => a + b.value, 0);
+            return { series, total };
         } catch (error: any) {
+            fastify.log.error(`time-series failed: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to fetch analytics' });
         }
     });
@@ -958,12 +1025,17 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             .where('isActive', '==', true)
             .get();
         
+        const ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
         return {
-            presence: snap.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                isOnline: Math.random() > 0.5
-            }))
+            presence: snap.docs.map(d => {
+                const data = d.data() as any;
+                const lastSeen = data.lastSeenAt ? new Date(data.lastSeenAt).getTime() : 0;
+                return {
+                    id: d.id,
+                    ...data,
+                    isOnline: lastSeen > 0 && Date.now() - lastSeen < ONLINE_THRESHOLD_MS,
+                };
+            })
         };
     });
 }
