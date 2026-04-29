@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+// @ts-ignore
+import { getAdminStorage } from '@c1rcle/core/admin';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
-const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.any()) });
+const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.string(), z.any()) });
 const VenueOrdersQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional(), status: z.string().optional() });
 const VenueFinanceQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional() });
 const NotificationsReadBody = z.object({ venueId: z.string(), notificationId: z.string().optional(), markAllRead: z.boolean().optional() });
@@ -61,7 +63,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Profile (Partner) ──────────────────────────────────────────────
 
     fastify.get('/venue/profile', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -71,7 +73,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     });
 
     fastify.patch('/venue/profile', {
-        preHandler: [fastify.validate({ body: VenueProfilePatch })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: VenueProfilePatch })]
     }, async (request: any, reply) => {
         const { venueId, patch } = request.body;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -88,7 +90,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Partnerships (Partner) ─────────────────────────────────────────
 
     fastify.get('/venue/partnerships', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -98,7 +100,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { partnerships: partners };
     });
 
-    fastify.patch('/venue/partnerships/:partnershipId', async (request: any, reply) => {
+    fastify.patch('/venue/partnerships/:partnershipId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { partnershipId } = request.params as any;
         const { action } = request.body as any;
         if (!['approve', 'reject'].includes(action)) return reply.status(400).send({ error: 'action must be approve or reject' });
@@ -114,7 +118,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Notifications (Partner) ────────────────────────────────────────
 
     fastify.get('/venue/notifications', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -140,7 +144,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     });
 
     fastify.patch('/venue/notifications/read', {
-        preHandler: [fastify.validate({ body: NotificationsReadBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: NotificationsReadBody })]
     }, async (request: any, reply) => {
         const { venueId, notificationId, markAllRead } = request.body as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -161,7 +165,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Orders (Partner) ───────────────────────────────────────────────
 
     fastify.get('/venue/orders', {
-        preHandler: [fastify.validate({ querystring: VenueOrdersQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueOrdersQuery })]
     }, async (request: any, reply) => {
         const { venueId, limit = '20', cursor, status } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -292,27 +296,46 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         const now = new Date();
-        const weekAgo = new Date();
-        weekAgo.setDate(now.getDate() - 7);
-        
-        // Fetch all recent events and memberships to filter in-memory (bypass composite index requirement)
-        const [eventsSnap, membershipsSnap] = await Promise.all([
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        const [eventsSnap, allOrders] = await Promise.all([
             fastify.db.collection('events').where('venueId', '==', venueId).get(),
-            fastify.db.collection('partner_memberships').where('partnerId', '==', venueId).where('isActive', '==', true).get()
+            fetchVenueOrders(fastify.db, venueId)
         ]);
 
         const recentEvents = eventsSnap.docs
-            .map(d => d.data() as any)
-            .filter(e => e.startDate && e.startDate >= weekAgo.toISOString());
+            .map((d: any) => d.data())
+            .filter((e: any) => e.startDate && e.startDate >= weekAgo.toISOString());
+
+        const confirmedOrders = allOrders.filter((o: any) => o.status === 'confirmed');
+
+        const thisWeekOrders = confirmedOrders.filter((o: any) => {
+            const ts = new Date(o.confirmedAt || o.createdAt || 0).getTime();
+            return ts >= weekAgo.getTime();
+        });
+        const prevWeekOrders = confirmedOrders.filter((o: any) => {
+            const ts = new Date(o.confirmedAt || o.createdAt || 0).getTime();
+            return ts >= twoWeeksAgo.getTime() && ts < weekAgo.getTime();
+        });
+
+        const weekendRevenue = thisWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+        const prevRevenue = prevWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+        const revenueTrendPct = prevRevenue === 0
+            ? (weekendRevenue > 0 ? 100 : 0)
+            : Math.round(((weekendRevenue - prevRevenue) / prevRevenue) * 100);
+
+        const allGuestIds = new Set(confirmedOrders.map((o: any) => o.userId).filter(Boolean));
+        const newGuestIds = new Set(thisWeekOrders.map((o: any) => o.userId).filter(Boolean));
 
         return {
-            weekendRevenue: 0,
-            revenueTrend: "0%",
-            revenueTrendDirection: "up",
+            weekendRevenue,
+            revenueTrend: `${revenueTrendPct > 0 ? '+' : ''}${revenueTrendPct}%`,
+            revenueTrendDirection: revenueTrendPct >= 0 ? 'up' : 'down',
             activeEventsCount: recentEvents.length,
             avgEntryVelocity: 0,
-            totalGuestProfiles: 0,
-            newGuestsThisWeek: 0
+            totalGuestProfiles: allGuestIds.size,
+            newGuestsThisWeek: newGuestIds.size
         };
     });
 
@@ -340,16 +363,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, eventData.venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         const [ordersSnap, checkinsSnap] = await Promise.all([
-            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get(),
+            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'confirmed').get(),
             fastify.db.collection('check_ins').where('eventId', '==', eventId).get()
         ]);
 
-        const revenue = ordersSnap.docs.reduce((sum, d) => sum + (d.data().totalPaise || 0), 0);
-        const ticketsSold = ordersSnap.docs.reduce((sum, d) => sum + (d.data().ticketCount || 0), 0);
+        const revenue = ordersSnap.docs.reduce((sum: number, d: any) => sum + (d.data().totalAmount || 0), 0);
+        const ticketsSold = ordersSnap.docs.reduce((sum: number, d: any) => {
+            const o = d.data();
+            return sum + (o.ticketCount || (Array.isArray(o.tickets) ? o.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0) : 0) || 1);
+        }, 0);
 
         return {
             id: eventId,
-            revenue: revenue / 100, // INR
+            revenue,
             checkedIn: checkinsSnap.size,
             expected: ticketsSold, // Simple heuristic
             ticketsSold: ticketsSold,
@@ -528,7 +554,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // Bridged to /venue/staff to match Dashboard calls
 
     fastify.get('/venue/staff', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId, isActive } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -541,21 +567,27 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { staff: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.get('/venue/staff-profiles', async (request: any, reply) => {
+    fastify.get('/venue/staff-profiles', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const snap = await fastify.db.collection('staff_profiles').where('venueId', '==', venueId).get();
         return { profiles: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.get('/venue/staff-profiles/assignments', async (request: any, reply) => {
+    fastify.get('/venue/staff-profiles/assignments', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const snap = await fastify.db.collection('staff_assignments').where('venueId', '==', venueId).get();
         return { assignments: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.post('/venue/staff-profiles/assign', async (request: any, reply) => {
+    fastify.post('/venue/staff-profiles/assign', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, profileId, memberId } = request.body as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const now = new Date().toISOString();
@@ -585,7 +617,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true, id: res.id };
     });
 
-    fastify.patch('/venue/staff', async (request: any, reply) => {
+    fastify.patch('/venue/staff', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, staffId, memberId, action, ...patch } = request.body as any;
         const targetId = staffId || memberId;
         if (!targetId) return reply.status(400).send({ error: 'staffId required' });
@@ -610,7 +644,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.delete('/venue/staff', async (request: any, reply) => {
+    fastify.delete('/venue/staff', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { staffId, memberId } = request.query as any;
         const targetId = staffId || memberId;
         if (!targetId) return reply.status(400).send({ error: 'staffId required' });
@@ -628,7 +664,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.patch('/venue/staff/:memberId', async (request: any, reply) => {
+    fastify.patch('/venue/staff/:memberId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { memberId } = request.params as any;
         const patch = request.body as any;
         const doc = await fastify.db.collection('partner_memberships').doc(memberId).get();
@@ -643,7 +681,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.delete('/venue/staff/:memberId', async (request: any, reply) => {
+    fastify.delete('/venue/staff/:memberId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { memberId } = request.params as any;
         const doc = await fastify.db.collection('partner_memberships').doc(memberId).get();
         if (!doc.exists) return reply.status(404).send({ error: 'Member not found' });
@@ -655,7 +695,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
     // ── Venue Event Sub-routes ───────────────────────────────────────────────
 
-    fastify.get('/venue/events/:id/tickets', async (request: any, reply) => {
+    fastify.get('/venue/events/:id/tickets', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id: eventId } = request.params as any;
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
@@ -667,21 +709,27 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
     // ── Slots (Venue Calendar Booking) ───────────────────────────────────────
 
-    fastify.get('/slots', async (request: any, reply) => {
+    fastify.get('/slots', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, hostId, status, limit = '50' } = request.query as any;
         if (!venueId && !hostId) return reply.status(400).send({ error: 'venueId or hostId required' });
         const partnerId = venueId || hostId;
         await fastify.verifyPartnerAccess(request, partnerId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
-        let q: any = fastify.db.collection('slot_requests').orderBy('createdAt', 'desc');
+        let q: any = fastify.db.collection('slot_requests');
         if (venueId) q = q.where('venueId', '==', venueId);
         if (hostId) q = q.where('hostId', '==', hostId);
         if (status) q = q.where('status', '==', status);
         q = q.limit(Math.min(parseInt(limit), 100));
         const snap = await q.get();
-        return { slotRequests: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
+        const slotRequests = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        slotRequests.sort((a: any, b: any) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        return { slotRequests };
     });
 
-    fastify.get('/slots/:id', async (request: any, reply) => {
+    fastify.get('/slots/:id', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const doc = await fastify.db.collection('slot_requests').doc(id).get();
         if (!doc.exists) return reply.status(404).send({ error: 'Slot request not found' });
@@ -691,7 +739,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { slotRequest: { id: doc.id, ...s } };
     });
 
-    fastify.patch('/slots/:id', async (request: any, reply) => {
+    fastify.patch('/slots/:id', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const { action, counterDate, counterStartTime, counterEndTime, message } = request.body as any;
         const validActions = ['approve', 'reject', 'counter', 'suggest_changes'];
@@ -902,7 +952,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
                 .where('status', '==', 'confirmed')
                 .get();
             const ticketRevenuePaise = ordersSnap.docs.reduce((sum: number, d: any) => {
-                return sum + Math.round((Number(d.data().amount) || 0) * 100);
+                return sum + Math.round((Number(d.data().totalAmount) || 0) * 100);
             }, 0);
 
             // Payout computed here — never on the frontend
@@ -939,6 +989,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.requireAuth]
     }, async (request: any, reply) => {
         const { venueId, startDate, endDate } = request.query as any;
+        if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+        if (!startDate || !endDate) return reply.status(400).send({ error: 'startDate and endDate required' });
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         // Fetch events and slots for the range
@@ -1028,15 +1080,23 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const data = await request.file();
         if (!data) return reply.status(400).send({ error: 'No file uploaded' });
-        
+
         const fields = data.fields as any;
-        const venueId = fields.venueId?.value || 'unknown';
-        
-        const mockUrl = `https://storage.googleapis.com/c1rcle-assets/venues/${venueId}/${data.filename}`;
-        
-        return { 
-            success: true, 
-            url: mockUrl,
+        const venueId = fields.venueId?.value;
+        if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+        await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        const buffer = await data.toBuffer();
+        const ext = (data.filename || 'file').split('.').pop() || 'bin';
+        const storagePath = `venues/${venueId}/${Date.now()}.${ext}`;
+        const bucket = getAdminStorage().bucket();
+        const file = bucket.file(storagePath);
+        await file.save(buffer, { metadata: { contentType: data.mimetype || 'application/octet-stream' } });
+        await file.makePublic();
+
+        return {
+            success: true,
+            url: `https://storage.googleapis.com/${bucket.name}/${storagePath}`,
             filename: data.filename
         };
     });
