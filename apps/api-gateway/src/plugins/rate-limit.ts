@@ -66,8 +66,8 @@ export default fp(async (fastify: FastifyInstance) => {
         hook: 'preValidation',
         // continueExceeding keeps the block window alive on each subsequent infraction
         continueExceeding: true,
-        // Fail-open if Redis is unavailable — log loudly so ops can detect the degradation
-        skipOnError: true,
+        // Fail-closed if Redis is unavailable — in-memory fallback enforces limits
+        skipOnError: false,
         keyGenerator: (req: FastifyRequest) => {
             // @ts-ignore - workspace-level key preferred (SaaS quota)
             const workspaceId = req.workspaceId;

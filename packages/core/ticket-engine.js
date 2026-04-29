@@ -5,7 +5,11 @@
 
 import { randomBytes, createHmac } from "node:crypto";
 
-const TICKET_SECRET = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+const TICKET_SECRET = (() => {
+    const s = process.env.TICKET_SECRET;
+    if (!s) throw new Error('TICKET_SECRET environment variable is not set');
+    return s;
+})();
 
 /**
  * Signs a ticket ID for QR verification.

@@ -57,10 +57,9 @@ export default async function profileRoutes(fastify: FastifyInstance) {
      * Update current user's profile
      */
     fastify.patch('/profiles', {
-        preHandler: [fastify.validate({ body: ProfileUpdateBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: ProfileUpdateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { type = 'user', updates, id: targetId } = request.body;
 
@@ -72,6 +71,18 @@ export default async function profileRoutes(fastify: FastifyInstance) {
                     message: 'ID required for this update type',
                     requestId: request.id,
                 }));
+            }
+
+            if (type !== 'user') {
+                try {
+                    await fastify.verifyPartnerAccess(request, actualId);
+                } catch {
+                    return reply.status(403).send(buildErrorResponse({
+                        code: 'FORBIDDEN',
+                        message: 'Forbidden: Insufficient access to this resource',
+                        requestId: request.id,
+                    }));
+                }
             }
 
             let safeUpdates: Record<string, any>;

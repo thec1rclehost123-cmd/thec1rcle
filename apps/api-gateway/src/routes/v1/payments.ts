@@ -58,7 +58,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * Create a Razorpay order from a pending system order
      */
     fastify.post('/payments/order', {
-        preHandler: [fastify.validate({ body: PaymentOrderBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentOrderBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const { orderId } = request.body;
         const userId = request.user?.uid;
@@ -99,7 +99,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * Verify payment and confirm order
      */
     fastify.patch('/payments/verify', {
-        preHandler: [fastify.validate({ body: PaymentVerifyBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const {
             orderId,
@@ -112,19 +112,30 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
 
         try {
-            // Verify Signature
+            // Reject mock payment IDs in production
+            if (process.env.NODE_ENV === 'production' && (
+                razorpay_order_id.startsWith('order_mock_') ||
+                razorpay_payment_id.startsWith('pay_mock_') ||
+                razorpay_signature.startsWith('sig_mock_')
+            )) {
+                return reply.status(400).send({ error: 'Invalid payment credentials' });
+            }
+
+            // Verify Signature — required; 503 if key unavailable
             const razorpayKeySecret = getRazorpayKeySecret();
-            if (razorpayKeySecret) {
-                const data = `${razorpay_order_id}|${razorpay_payment_id}`;
-                const expected = crypto.createHmac("sha256", razorpayKeySecret).update(data).digest("hex");
-                if (expected !== razorpay_signature) {
-                    logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
-                        orderId,
-                        razorpayOrderId: razorpay_order_id,
-                        razorpayPaymentId: razorpay_payment_id,
-                    });
-                    return reply.status(400).send({ error: 'Invalid signature' });
-                }
+            if (!razorpayKeySecret) {
+                fastify.log.error('RAZORPAY_KEY_SECRET is not configured — payment verification unavailable');
+                return reply.status(503).send({ error: 'Payment verification unavailable' });
+            }
+            const data = `${razorpay_order_id}|${razorpay_payment_id}`;
+            const expected = crypto.createHmac("sha256", razorpayKeySecret).update(data).digest("hex");
+            if (expected !== razorpay_signature) {
+                logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
+                    orderId,
+                    razorpayOrderId: razorpay_order_id,
+                    razorpayPaymentId: razorpay_payment_id,
+                });
+                return reply.status(400).send({ error: 'Invalid signature' });
             }
 
             // Atomic Confirmation via Service

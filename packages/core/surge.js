@@ -15,7 +15,11 @@ const ADMISSION_GRACE_PERIOD_SECONDS = 90;
 const RETRY_WINDOW_SECONDS = 180;
 const INACTIVITY_TIMEOUT_SECONDS = 60; // Increased for better server performance
 const JOIN_COOLDOWN_SECONDS = 30; // Prevent loop spamming
-const SECRET_KEY = process.env.QUEUE_SECRET_KEY || "c1rcle-surge-protection-2024";
+const SECRET_KEY = (() => {
+    const s = process.env.QUEUE_SECRET_KEY;
+    if (!s) throw new Error('QUEUE_SECRET_KEY environment variable is not set');
+    return s;
+})();
 
 // Surge Protection Thresholds
 const RPS_THRESHOLD = 50; // Baseline for requests (views)

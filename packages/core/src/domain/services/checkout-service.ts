@@ -193,7 +193,10 @@ export class CheckoutService {
 
         const { keyId, keySecret } = razorpayConfig;
         if (!keyId || !keySecret) {
-            // Mock for Dev
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('Payment gateway is not configured');
+            }
+            // Mock for Dev/Test only
             const razorpayOrderId = `order_mock_${Date.now()}`;
             await this.orderRepo.createPaymentRecord({
                 orderId,

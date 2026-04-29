@@ -171,15 +171,24 @@ export default fp(async (fastify) => {
                 request.authContext = authContext;
             } else {
                 request.log.warn('Auth service could not verify token');
+                return reply.status(401).send({ error: 'Unauthorized: Invalid token' });
             }
         } catch (error) {
             request.log.warn('Error in auth service verification');
+            return reply.status(401).send({ error: 'Unauthorized: Token verification failed' });
         }
     });
 
-    // Workspace Context Hook (Extract Header + Metadata)
-    fastify.addHook('preHandler', async (request, reply) => {
-        const workspaceId = request.headers['x-workspace-id'] as string;
+    // Workspace Context Hook (Derive from authenticated user — never trust client header)
+    fastify.addHook('preHandler', async (request, _reply) => {
+        // @ts-ignore
+        const workspaceId: string | null =
+            // @ts-ignore
+            (request.user as any)?.activeMembership?.partnerId ||
+            // @ts-ignore
+            (request.authContext as any)?.activeMembership?.partnerId ||
+            null;
+
         if (workspaceId) {
             // @ts-ignore
             request.workspaceId = workspaceId;
@@ -190,7 +199,7 @@ export default fp(async (fastify) => {
                 if (ws) {
                     // @ts-ignore
                     request.workspace = ws;
-                    
+
                     // 📊 Usage Tracking: Increment API usage metric
                     await billingService.incrementUsage(workspaceId, 'apiCalls');
                 }

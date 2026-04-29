@@ -21,9 +21,9 @@ const envSchema = z.object({
     MEILISEARCH_HOST: z.string().url().default('http://localhost:7700'),
     MEILISEARCH_API_KEY: z.string().optional(),
     MEILISEARCH_MASTER_KEY: z.string().optional(),
-    TICKET_SECRET: z.string().min(1).default('c1rcle-secret-2025'),
+    TICKET_SECRET: z.string().min(1).optional(),
     QR_SECRET_KEY: z.string().optional(),
-    QUEUE_SECRET_KEY: z.string().min(1).default('c1rcle-surge-protection-2024'),
+    QUEUE_SECRET_KEY: z.string().min(1).optional(),
     INTERNAL_API_KEY: z.string().optional(),
     SCANNER_SESSION_SECRET: z.string().optional(),
     DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
@@ -42,8 +42,14 @@ if (!_env.success) {
 }
 
 if (_env.data.NODE_ENV === 'production') {
-    const missingSecrets = ['QR_SECRET_KEY', 'SCANNER_SESSION_SECRET', 'INTERNAL_API_KEY']
-        .filter((name) => !process.env[name]);
+    const missingSecrets = [
+        'QR_SECRET_KEY',
+        'SCANNER_SESSION_SECRET',
+        'INTERNAL_API_KEY',
+        'TICKET_SECRET',
+        'QUEUE_SECRET_KEY',
+        'RAZORPAY_KEY_SECRET',
+    ].filter((name) => !process.env[name]);
     if (missingSecrets.length > 0) {
         console.error(`❌ Missing required production secrets: ${missingSecrets.join(', ')}`);
         process.exit(1);

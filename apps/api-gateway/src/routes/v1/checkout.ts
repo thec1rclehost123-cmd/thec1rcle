@@ -156,7 +156,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * POST /checkout/reserve
      */
     fastify.post('/checkout/reserve', {
-        preHandler: [fastify.validate({ body: CheckoutReserveBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutReserveBody })]
     }, async (request: any, reply) => {
         const { eventId, items, deviceId, admissionToken } = request.body;
         const userId = request.user?.uid;
@@ -192,7 +192,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
      * POST /checkout/initiate
      */
     fastify.post('/checkout/initiate', {
-        preHandler: [fastify.validate({ body: CheckoutInitiateBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutInitiateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) {
