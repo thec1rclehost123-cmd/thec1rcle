@@ -116,6 +116,7 @@ export class CheckoutService {
             id: orderId,
             eventId: event.id,
             eventName: (event as any).title,
+            venueId: (event as any).venueId || null,
             workspaceId: resolvedWorkspaceId || (event as any).workspaceId || null,
             userId,
             userName,

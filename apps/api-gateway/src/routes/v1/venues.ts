@@ -21,6 +21,39 @@ const VenueEventsSchema = z.object({
 
 
 /**
+ * Fetch all confirmed/paid orders for a venue.
+ * Orders may or may not carry a venueId field (field added later; older orders lack it).
+ * Strategy: query by venueId directly, then union with orders found via the venue's eventIds.
+ */
+async function fetchVenueOrders(db: any, venueId: string): Promise<any[]> {
+    const [byVenue, eventsSnap] = await Promise.all([
+        db.collection('orders').where('venueId', '==', venueId).get(),
+        db.collection('events').where('venueId', '==', venueId).select('id').limit(100).get(),
+    ]);
+
+    const directIds = new Set<string>(byVenue.docs.map((d: any) => d.id));
+    const directOrders: any[] = byVenue.docs.map((d: any) => d.data());
+
+    const eventIds: string[] = eventsSnap.docs.map((d: any) => d.id);
+    if (eventIds.length === 0) return directOrders;
+
+    // Batch in groups of 30 (Firestore 'in' limit)
+    const extraOrders: any[] = [];
+    for (let i = 0; i < eventIds.length; i += 30) {
+        const batch = eventIds.slice(i, i + 30);
+        const snap = await db.collection('orders').where('eventId', 'in', batch).get();
+        for (const d of snap.docs) {
+            if (!directIds.has(d.id)) {
+                directIds.add(d.id);
+                extraOrders.push(d.data());
+            }
+        }
+    }
+
+    return [...directOrders, ...extraOrders];
+}
+
+/**
  * Venue Routes (discovery + partner management)
  */
 export default async function venueRoutes(fastify: FastifyInstance) {
@@ -135,15 +168,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         
         try {
             const pageSize = Math.min(parseInt(limit), 100);
-            let q: any = fastify.db.collection('orders').where('venueId', '==', venueId);
-            if (status) q = q.where('status', '==', status);
-            
-            // Note: cursor-based pagination with where+orderBy requires index.
-            // Using a simpler fetch for now.
-            const snap = await q.limit(200).get();
-            let orders = snap.docs.map((d: any) => ({ id: d.id, ...d.data(), buyerEmail: undefined, buyerPhone: undefined }));
-            
-            // Sort in memory
+
+            let orders = await fetchVenueOrders(fastify.db, venueId);
+            if (status) orders = orders.filter((o: any) => o.status === status);
+
+            // Strip PII and sort newest-first in memory
+            orders = orders.map((o: any) => ({ ...o, buyerEmail: undefined, buyerPhone: undefined }));
             orders.sort((a: any, b: any) => {
                 const dateA = new Date(a.createdAt || 0).getTime();
                 const dateB = new Date(b.createdAt || 0).getTime();
@@ -152,7 +182,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
             const sliced = orders.slice(0, pageSize);
             const hasMore = orders.length > pageSize;
-            
+
             return { orders: sliced, hasMore, nextCursor: hasMore ? sliced[sliced.length - 1].id : null };
         } catch (err) {
             return { orders: [], hasMore: false };
@@ -176,15 +206,13 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             else if (range === '1m') { cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); points = 30; }
             else { cutoff = new Date(0); points = 12; } // 'all' → 12 months
 
-            // Fetch all confirmed orders for this venue (single equality — no composite index needed)
-            const snap = await fastify.db.collection('orders').where('venueId', '==', venueId).get();
-            const orders = snap.docs
-                .map((d: any) => d.data())
-                .filter((o: any) => {
-                    if (o.status !== 'confirmed' && o.status !== 'paid') return false;
-                    const ts = new Date(o.confirmedAt || o.createdAt || 0);
-                    return range === 'all' ? true : ts >= cutoff;
-                });
+            // Fetch all orders for this venue (handles old orders without venueId field)
+            const allOrders = await fetchVenueOrders(fastify.db, venueId);
+            const orders = allOrders.filter((o: any) => {
+                if (o.status !== 'confirmed' && o.status !== 'paid') return false;
+                const ts = new Date(o.confirmedAt || o.createdAt || 0);
+                return range === 'all' ? true : ts >= cutoff;
+            });
 
             // Build bucket map keyed by bucket identifier
             const buckets = new Map<string, { date: Date; tickets: number; revenue: number }>();
