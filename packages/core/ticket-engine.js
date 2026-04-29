@@ -5,17 +5,17 @@
 
 import { randomBytes, createHmac } from "node:crypto";
 
-const TICKET_SECRET = (() => {
+function getTicketSecret() {
     const s = process.env.TICKET_SECRET;
     if (!s) throw new Error('TICKET_SECRET environment variable is not set');
     return s;
-})();
+}
 
 /**
  * Signs a ticket ID for QR verification.
  */
 export function signTicketId(ticketId) {
-    const signature = createHmac("sha256", TICKET_SECRET)
+    const signature = createHmac("sha256", getTicketSecret())
         .update(ticketId)
         .digest("hex")
         .slice(0, 16);

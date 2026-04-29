@@ -15,11 +15,11 @@ const ADMISSION_GRACE_PERIOD_SECONDS = 90;
 const RETRY_WINDOW_SECONDS = 180;
 const INACTIVITY_TIMEOUT_SECONDS = 60; // Increased for better server performance
 const JOIN_COOLDOWN_SECONDS = 30; // Prevent loop spamming
-const SECRET_KEY = (() => {
+function getQueueSecret() {
     const s = process.env.QUEUE_SECRET_KEY;
     if (!s) throw new Error('QUEUE_SECRET_KEY environment variable is not set');
     return s;
-})();
+}
 
 // Surge Protection Thresholds
 const RPS_THRESHOLD = 50; // Baseline for requests (views)
@@ -253,7 +253,7 @@ export async function getSurgeAnalytics(db, eventId) {
 
 export function generateAdmissionToken(eventId, userId, queueId) {
     const payload = `${eventId}:${userId}:${queueId}`;
-    const signature = createHmac("sha256", SECRET_KEY).update(payload).digest("hex");
+    const signature = createHmac("sha256", getQueueSecret()).update(payload).digest("hex");
     return `${payload}:${signature}`;
 }
 
@@ -264,7 +264,7 @@ export async function validateAdmission(db, eventId, userId, token) {
 
     const [tEventId, tUserId, tQueueId, tSignature] = parts;
     const payload = `${tEventId}:${tUserId}:${tQueueId}`;
-    const expectedSignature = createHmac("sha256", SECRET_KEY).update(payload).digest("hex");
+    const expectedSignature = createHmac("sha256", getQueueSecret()).update(payload).digest("hex");
 
     if (tSignature !== expectedSignature) return false;
     if (tEventId !== eventId || (userId && tUserId !== userId)) return false;
