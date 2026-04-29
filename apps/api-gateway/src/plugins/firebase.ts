@@ -179,15 +179,27 @@ export default fp(async (fastify) => {
         }
     });
 
-    // Workspace Context Hook (Derive from authenticated user — never trust client header)
+    // Workspace Context Hook — validate x-workspace-id against auth context; never trust blindly
     fastify.addHook('preHandler', async (request, _reply) => {
+        const requestedId = request.headers['x-workspace-id'] as string | undefined;
         // @ts-ignore
-        const workspaceId: string | null =
-            // @ts-ignore
-            (request.user as any)?.activeMembership?.partnerId ||
-            // @ts-ignore
-            (request.authContext as any)?.activeMembership?.partnerId ||
-            null;
+        const authCtx = request.authContext as any;
+        // @ts-ignore
+        const isSystem = (request.user as any)?.isSystem === true;
+
+        let workspaceId: string | null = null;
+
+        if (requestedId) {
+            // Only honour the header if the authenticated user actually belongs to that workspace
+            const allowedPartnerIds: string[] = authCtx?.scopes?.partnerIds || [];
+            if (isSystem || allowedPartnerIds.includes(requestedId)) {
+                workspaceId = requestedId;
+            }
+            // If user lacks membership in requestedId — silently ignore (routes will 400 if required)
+        } else if (authCtx?.activeMembership?.partnerId) {
+            // No header supplied — fall back to the user's active membership
+            workspaceId = authCtx.activeMembership.partnerId;
+        }
 
         if (workspaceId) {
             // @ts-ignore
