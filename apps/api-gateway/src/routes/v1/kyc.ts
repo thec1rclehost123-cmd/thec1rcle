@@ -40,7 +40,7 @@ export default async function kycRoutes(fastify: FastifyInstance) {
             await new Promise((resolve, reject) => {
                 data.file.pipe(stream)
                     .on('finish', resolve)
-                    .on('error', (err) => {
+                    .on('error', (err: any) => {
                         fastify.log.error(`Stream error during KYC upload: ${err.message}`);
                         reject(err);
                     });

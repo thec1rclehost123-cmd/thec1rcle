@@ -2,6 +2,7 @@ export interface Order {
     id: string;
     eventId: string;
     eventName: string;
+    venueId?: string | null;
     workspaceId?: string | null;
     queueId?: string | null;
     userId: string;

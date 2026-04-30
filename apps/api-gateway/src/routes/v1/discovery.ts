@@ -33,7 +33,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
      * GET /api/v1/discovery
      */
     fastify.get('/', {
-        preHandler: [fastify.requireAuth, fastify.validate({ query: DiscoveryQuerySchema })],
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: DiscoveryQuerySchema })],
     }, async (request: any, reply) => {
         const { action, partnerId, role, type, city, query } = request.query;
 
@@ -96,7 +96,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 let results = partners;
                 if (searchVal) {
                     const s = searchVal.toLowerCase();
-                    results = partners.filter(p => 
+                    results = partners.filter((p: any) => 
                         p.name.toLowerCase().includes(s) || 
                         p.city.toLowerCase().includes(s)
                     );

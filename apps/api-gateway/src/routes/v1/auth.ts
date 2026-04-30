@@ -360,9 +360,11 @@ export default async function authRoutes(fastify: FastifyInstance) {
             }
 
             try {
+                const bootstrap = await buildBootstrapForUid(fastify, request.user) as any;
                 return {
                     authenticated: true,
-                    ...(await buildBootstrapForUid(fastify, request.user)),
+                    ...bootstrap,
+                    activeMembership: (request.user as any)?.activeMembership || bootstrap.user.activeMembership || null,
                     csrfToken,
                 };
             } catch (bootstrapError: any) {
@@ -380,6 +382,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                         onboardingRequest: null,
                         unreadNotificationCount: 0,
                     }),
+                    activeMembership: (request.user as any)?.activeMembership || null,
                     csrfToken,
                 };
             }

@@ -36,7 +36,7 @@ export default async function tableRoutes(fastify: FastifyInstance) {
         if (eventId) {
             const vid = await getEventVenueId(fastify.db, eventId);
             if (!vid) return reply.status(404).send({ error: 'Event not found' });
-            await fastify.verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            await (fastify as any).verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
             
             // Return event assignments
             try {
@@ -61,9 +61,10 @@ export default async function tableRoutes(fastify: FastifyInstance) {
             const tables = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
             
             // Add some legacy metadata the dashboard expects
-            (tables as any).totalCapacity = tables.reduce((acc, t) => acc + (parseInt(t.capacity) || 0), 0);
+            const results = tables as any;
+            results.totalCapacity = tables.reduce((acc: any, t: any) => acc + (parseInt(t.capacity) || 0), 0);
             
-            return tables;
+            return results;
         }
 
         return reply.status(400).send({ error: 'Missing venueId or eventId' });
@@ -82,7 +83,8 @@ export default async function tableRoutes(fastify: FastifyInstance) {
 
         if (action === 'updateStatus') {
             const vid = await getEventVenueId(fastify.db, eventId);
-            await fastify.verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+            if (!vid) return reply.status(404).send({ error: 'Event not found' });
+            await (fastify as any).verifyPartnerAccess(request, vid).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
             
             const assignmentId = `${eventId}_${tableId}`;
             if (status === 'available') {

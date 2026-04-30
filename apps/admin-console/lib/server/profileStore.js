@@ -303,7 +303,7 @@ export async function getUserTickets(userId) {
                 ticket.status = order.status === "cancelled" ? "cancelled" : (isScanned || isEventPast ? "used" : "active");
 
                 // Generate QR only if valid
-                const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+                const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
                 const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
                 ticket.qrPayload = `${ticketId}:${signature}`;
 
@@ -362,7 +362,7 @@ export async function getUserTickets(userId) {
         const isScanned = !!scansMap[ticketId]; // Partners check the same scan record
         const status = isScanned || isEventPast ? "used" : "active";
 
-        const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+        const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
         const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
         const qrPayload = `${ticketId}:${signature}`;
 
@@ -402,7 +402,7 @@ export async function getUserTickets(userId) {
         const status = isEventPast ? "used" : "active";
 
         const ticketId = `RSVP-${userId}-${eventId}`;
-        const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+        const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
         const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
         const qrPayload = `${ticketId}:${signature}`;
 

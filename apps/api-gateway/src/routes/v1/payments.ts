@@ -82,7 +82,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * Create a Razorpay order from a pending system order
      */
     fastify.post('/payments/order', {
-        preHandler: [fastify.validate({ body: PaymentOrderBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentOrderBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const { orderId } = request.body;
         const userId = request.user?.uid;
@@ -139,7 +139,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * Verify payment and confirm order
      */
     fastify.patch('/payments/verify', {
-        preHandler: [fastify.validate({ body: PaymentVerifyBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PaymentVerifyBody })]
     }, async (request: { body: any, user: any }, reply) => {
         const {
             orderId,
@@ -155,13 +155,14 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
 
         try {
             const work = async () => {
-                // Verify Signature
-                const razorpayKeySecret = getRazorpayKeySecret();
+                // Reject mock payment IDs in production
                 const isMockPayload = isMockRazorpayPayload(razorpay_order_id, razorpay_payment_id, razorpay_signature);
-                if (isMockPayload && !allowMockRazorpay()) {
+                if (process.env.NODE_ENV === 'production' && isMockPayload) {
                     throw new Error('Mock payments are disabled');
                 }
 
+                // Verify Signature — required; 503 if key unavailable
+                const razorpayKeySecret = getRazorpayKeySecret();
                 if (!razorpayKeySecret && !isMockPayload) {
                     throw new Error('Payment verification is not configured');
                 }
@@ -170,6 +171,11 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
                     const data = `${razorpay_order_id}|${razorpay_payment_id}`;
                     const expected = crypto.createHmac("sha256", razorpayKeySecret).update(data).digest("hex");
                     if (expected !== razorpay_signature) {
+                        logPaymentEvent(request as any, 'SIGNATURE_MISMATCH', {
+                            orderId,
+                            razorpayOrderId: razorpay_order_id,
+                            razorpayPaymentId: razorpay_payment_id,
+                        });
                         throw new Error('Invalid signature');
                     }
                 }

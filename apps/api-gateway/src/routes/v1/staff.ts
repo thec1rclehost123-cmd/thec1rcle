@@ -36,12 +36,12 @@ export default async function staffRoutes(fastify: FastifyInstance) {
         const { venueId } = request.query;
         const actorId = request.user?.uid;
 
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
         if (!venueId) return reply.status(400).send({ error: "venueId is required" });
 
         const snapshot = await fastify.db.collection('venue_staff')
             .where("venueId", "==", venueId)
-            .where("userId", "==", userId)
+            .where("userId", "==", actorId)
             .where("isActive", "==", true)
             .limit(1)
             .get();

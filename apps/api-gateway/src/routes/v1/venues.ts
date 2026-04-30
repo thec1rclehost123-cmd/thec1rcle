@@ -1,5 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+// @ts-ignore
+import { getAdminStorage } from '@c1rcle/core/admin';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
 const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.string(), z.any()) });
@@ -49,6 +51,39 @@ function slotRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
 
 
 /**
+ * Fetch all confirmed/paid orders for a venue.
+ * Orders may or may not carry a venueId field (field added later; older orders lack it).
+ * Strategy: query by venueId directly, then union with orders found via the venue's eventIds.
+ */
+async function fetchVenueOrders(db: any, venueId: string): Promise<any[]> {
+    const [byVenue, eventsSnap] = await Promise.all([
+        db.collection('orders').where('venueId', '==', venueId).get(),
+        db.collection('events').where('venueId', '==', venueId).select('id').limit(100).get(),
+    ]);
+
+    const directIds = new Set<string>(byVenue.docs.map((d: any) => d.id));
+    const directOrders: any[] = byVenue.docs.map((d: any) => d.data());
+
+    const eventIds: string[] = eventsSnap.docs.map((d: any) => d.id);
+    if (eventIds.length === 0) return directOrders;
+
+    // Batch in groups of 30 (Firestore 'in' limit)
+    const extraOrders: any[] = [];
+    for (let i = 0; i < eventIds.length; i += 30) {
+        const batch = eventIds.slice(i, i + 30);
+        const snap = await db.collection('orders').where('eventId', 'in', batch).get();
+        for (const d of snap.docs) {
+            if (!directIds.has(d.id)) {
+                directIds.add(d.id);
+                extraOrders.push(d.data());
+            }
+        }
+    }
+
+    return [...directOrders, ...extraOrders];
+}
+
+/**
  * Venue Routes (discovery + partner management)
  */
 export default async function venueRoutes(fastify: FastifyInstance) {
@@ -56,7 +91,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Profile (Partner) ──────────────────────────────────────────────
 
     fastify.get('/venue/profile', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -66,7 +101,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     });
 
     fastify.patch('/venue/profile', {
-        preHandler: [fastify.validate({ body: VenueProfilePatch })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: VenueProfilePatch })]
     }, async (request: any, reply) => {
         const { venueId, patch } = request.body;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -83,7 +118,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Partnerships (Partner) ─────────────────────────────────────────
 
     fastify.get('/venue/partnerships', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -93,7 +128,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { partnerships: partners };
     });
 
-    fastify.patch('/venue/partnerships/:partnershipId', async (request: any, reply) => {
+    fastify.patch('/venue/partnerships/:partnershipId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { partnershipId } = request.params as any;
         const { action } = request.body as any;
         if (!['approve', 'reject'].includes(action)) return reply.status(400).send({ error: 'action must be approve or reject' });
@@ -109,7 +146,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Notifications (Partner) ────────────────────────────────────────
 
     fastify.get('/venue/notifications', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -135,7 +172,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     });
 
     fastify.patch('/venue/notifications/read', {
-        preHandler: [fastify.validate({ body: NotificationsReadBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: NotificationsReadBody })]
     }, async (request: any, reply) => {
         const { venueId, notificationId, markAllRead } = request.body as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -156,22 +193,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // ── Venue Orders (Partner) ───────────────────────────────────────────────
 
     fastify.get('/venue/orders', {
-        preHandler: [fastify.validate({ querystring: VenueOrdersQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueOrdersQuery })]
     }, async (request: any, reply) => {
         const { venueId, limit = '20', cursor, status } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         
         try {
             const pageSize = Math.min(parseInt(limit), 100);
-            let q: any = fastify.db.collection('orders').where('venueId', '==', venueId);
-            if (status) q = q.where('status', '==', status);
-            
-            // Note: cursor-based pagination with where+orderBy requires index.
-            // Using a simpler fetch for now.
-            const snap = await q.limit(200).get();
-            let orders = snap.docs.map((d: any) => ({ id: d.id, ...d.data(), buyerEmail: undefined, buyerPhone: undefined }));
-            
-            // Sort in memory
+
+            let orders = await fetchVenueOrders(fastify.db, venueId);
+            if (status) orders = orders.filter((o: any) => o.status === status);
+
+            // Strip PII and sort newest-first in memory
+            orders = orders.map((o: any) => ({ ...o, buyerEmail: undefined, buyerPhone: undefined }));
             orders.sort((a: any, b: any) => {
                 const dateA = new Date(a.createdAt || 0).getTime();
                 const dateB = new Date(b.createdAt || 0).getTime();
@@ -180,7 +214,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
             const sliced = orders.slice(0, pageSize);
             const hasMore = orders.length > pageSize;
-            
+
             return { orders: sliced, hasMore, nextCursor: hasMore ? sliced[sliced.length - 1].id : null };
         } catch (err) {
             return { orders: [], hasMore: false };
@@ -194,26 +228,91 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         try {
-            const series = [];
             const now = new Date();
-            const points = range === '1d' ? 24 : range === '1w' ? 7 : 30;
 
-            for (let i = 0; i < points; i++) {
-                const date = new Date(now);
-                if (range === '1d') date.setHours(now.getHours() - i);
-                else date.setDate(now.getDate() - i);
+            // Determine cutoff date and bucket count
+            let cutoff: Date;
+            let points: number;
+            if (range === '1d') { cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000); points = 24; }
+            else if (range === '1w') { cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); points = 7; }
+            else if (range === '1m') { cutoff = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); points = 30; }
+            else { cutoff = new Date(0); points = 12; } // 'all' → 12 months
 
-                series.unshift({
-                    date: date.toISOString(),
-                    label: range === '1d' ? `${date.getHours()}:00` : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-                    value: Math.floor(Math.random() * 10) + 1,
-                    revenue: (Math.floor(Math.random() * 50) + 10) * 100,
-                    ticketsSold: Math.floor(Math.random() * 5) + 1
-                });
+            // Fetch all orders for this venue (handles old orders without venueId field)
+            const allOrders = await fetchVenueOrders(fastify.db, venueId);
+            const orders = allOrders.filter((o: any) => {
+                if (o.status !== 'confirmed' && o.status !== 'paid') return false;
+                const ts = new Date(o.confirmedAt || o.createdAt || 0);
+                return range === 'all' ? true : ts >= cutoff;
+            });
+
+            // Build bucket map keyed by bucket identifier
+            const buckets = new Map<string, { date: Date; tickets: number; revenue: number }>();
+
+            if (range === '1d') {
+                for (let i = 0; i < 24; i++) {
+                    const d = new Date(now);
+                    d.setMinutes(0, 0, 0);
+                    d.setHours(now.getHours() - (23 - i));
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}-${d.getHours()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
+            } else if (range === 'all') {
+                for (let i = 0; i < 12; i++) {
+                    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
+                    const key = `${d.getFullYear()}-${d.getMonth()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
+            } else {
+                for (let i = 0; i < points; i++) {
+                    const d = new Date(now);
+                    d.setHours(0, 0, 0, 0);
+                    d.setDate(now.getDate() - (points - 1 - i));
+                    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                    buckets.set(key, { date: d, tickets: 0, revenue: 0 });
+                }
             }
 
-            return { series, total: series.reduce((a, b) => a + (metric === 'revenue' ? b.revenue : b.ticketsSold), 0) };
+            // Accumulate order values into buckets
+            for (const order of orders) {
+                const ts = new Date(order.confirmedAt || order.createdAt || 0);
+                let key: string;
+                if (range === '1d') key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}-${ts.getHours()}`;
+                else if (range === 'all') key = `${ts.getFullYear()}-${ts.getMonth()}`;
+                else key = `${ts.getFullYear()}-${ts.getMonth()}-${ts.getDate()}`;
+
+                const bucket = buckets.get(key);
+                if (!bucket) continue;
+
+                const ticketCount = order.ticketCount
+                    || (Array.isArray(order.tickets) ? order.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0) : 0)
+                    || 1;
+                const revenue = order.totalAmount || (order.totalPaise ? order.totalPaise / 100 : 0);
+
+                bucket.tickets += ticketCount;
+                bucket.revenue += revenue;
+            }
+
+            // Serialise into series array
+            const series = Array.from(buckets.values()).map(({ date, tickets, revenue }) => {
+                let label: string;
+                if (range === '1d') label = `${date.getHours()}:00`;
+                else if (range === 'all') label = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                else label = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                return {
+                    date: date.toISOString(),
+                    label,
+                    value: metric === 'revenue' ? revenue : tickets,
+                    revenue,
+                    ticketsSold: tickets,
+                };
+            });
+
+            const total = series.reduce((a, b) => a + b.value, 0);
+            return { series, total };
         } catch (error: any) {
+            fastify.log.error(`time-series failed: ${error.message}`);
             return reply.status(500).send({ error: 'Failed to fetch analytics' });
         }
     });
@@ -231,27 +330,46 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         }
 
         const now = new Date();
-        const weekAgo = new Date();
-        weekAgo.setDate(now.getDate() - 7);
-        
-        // Fetch all recent events and memberships to filter in-memory (bypass composite index requirement)
-        const [eventsSnap, membershipsSnap] = await Promise.all([
+        const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+        const [eventsSnap, allOrders] = await Promise.all([
             fastify.db.collection('events').where('venueId', '==', venueId).get(),
-            fastify.db.collection('partner_memberships').where('partnerId', '==', venueId).where('isActive', '==', true).get()
+            fetchVenueOrders(fastify.db, venueId)
         ]);
 
         const recentEvents = eventsSnap.docs
-            .map(d => d.data() as any)
-            .filter(e => e.startDate && e.startDate >= weekAgo.toISOString());
+            .map((d: any) => d.data())
+            .filter((e: any) => e.startDate && e.startDate >= weekAgo.toISOString());
+
+        const confirmedOrders = allOrders.filter((o: any) => o.status === 'confirmed');
+
+        const thisWeekOrders = confirmedOrders.filter((o: any) => {
+            const ts = new Date(o.confirmedAt || o.createdAt || 0).getTime();
+            return ts >= weekAgo.getTime();
+        });
+        const prevWeekOrders = confirmedOrders.filter((o: any) => {
+            const ts = new Date(o.confirmedAt || o.createdAt || 0).getTime();
+            return ts >= twoWeeksAgo.getTime() && ts < weekAgo.getTime();
+        });
+
+        const weekendRevenue = thisWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+        const prevRevenue = prevWeekOrders.reduce((s: number, o: any) => s + (o.totalAmount || 0), 0);
+        const revenueTrendPct = prevRevenue === 0
+            ? (weekendRevenue > 0 ? 100 : 0)
+            : Math.round(((weekendRevenue - prevRevenue) / prevRevenue) * 100);
+
+        const allGuestIds = new Set(confirmedOrders.map((o: any) => o.userId).filter(Boolean));
+        const newGuestIds = new Set(thisWeekOrders.map((o: any) => o.userId).filter(Boolean));
 
         const summary = {
-            weekendRevenue: 0,
-            revenueTrend: "0%",
-            revenueTrendDirection: "up",
+            weekendRevenue,
+            revenueTrend: `${revenueTrendPct > 0 ? '+' : ''}${revenueTrendPct}%`,
+            revenueTrendDirection: revenueTrendPct >= 0 ? 'up' : 'down',
             activeEventsCount: recentEvents.length,
             avgEntryVelocity: 0,
-            totalGuestProfiles: 0,
-            newGuestsThisWeek: 0
+            totalGuestProfiles: allGuestIds.size,
+            newGuestsThisWeek: newGuestIds.size
         };
 
         await fastify.cache.set('venue:overview', cacheKey, summary, 120);
@@ -282,16 +400,19 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, eventData.venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         const [ordersSnap, checkinsSnap] = await Promise.all([
-            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get(),
+            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'confirmed').get(),
             fastify.db.collection('check_ins').where('eventId', '==', eventId).get()
         ]);
 
-        const revenue = ordersSnap.docs.reduce((sum, d) => sum + (d.data().totalPaise || 0), 0);
-        const ticketsSold = ordersSnap.docs.reduce((sum, d) => sum + (d.data().ticketCount || 0), 0);
+        const revenue = ordersSnap.docs.reduce((sum: number, d: any) => sum + (d.data().totalAmount || 0), 0);
+        const ticketsSold = ordersSnap.docs.reduce((sum: number, d: any) => {
+            const o = d.data();
+            return sum + (o.ticketCount || (Array.isArray(o.tickets) ? o.tickets.reduce((s: number, t: any) => s + (t.quantity || 1), 0) : 0) || 1);
+        }, 0);
 
         return {
             id: eventId,
-            revenue: revenue / 100, // INR
+            revenue,
             checkedIn: checkinsSnap.size,
             expected: ticketsSold, // Simple heuristic
             ticketsSold: ticketsSold,
@@ -472,7 +593,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     // Bridged to /venue/staff to match Dashboard calls
 
     fastify.get('/venue/staff', {
-        preHandler: [fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {
         const { venueId, isActive } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -485,21 +606,27 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { staff: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.get('/venue/staff-profiles', async (request: any, reply) => {
+    fastify.get('/venue/staff-profiles', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const snap = await fastify.db.collection('staff_profiles').where('venueId', '==', venueId).get();
         return { profiles: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.get('/venue/staff-profiles/assignments', async (request: any, reply) => {
+    fastify.get('/venue/staff-profiles/assignments', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const snap = await fastify.db.collection('staff_assignments').where('venueId', '==', venueId).get();
         return { assignments: snap.docs.map(d => ({ id: d.id, ...d.data() })) };
     });
 
-    fastify.post('/venue/staff-profiles/assign', async (request: any, reply) => {
+    fastify.post('/venue/staff-profiles/assign', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, profileId, memberId } = request.body as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const now = new Date().toISOString();
@@ -529,7 +656,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true, id: res.id };
     });
 
-    fastify.patch('/venue/staff', async (request: any, reply) => {
+    fastify.patch('/venue/staff', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, staffId, memberId, action, ...patch } = request.body as any;
         const targetId = staffId || memberId;
         if (!targetId) return reply.status(400).send({ error: 'staffId required' });
@@ -554,7 +683,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.delete('/venue/staff', async (request: any, reply) => {
+    fastify.delete('/venue/staff', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { staffId, memberId } = request.query as any;
         const targetId = staffId || memberId;
         if (!targetId) return reply.status(400).send({ error: 'staffId required' });
@@ -572,7 +703,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.patch('/venue/staff/:memberId', async (request: any, reply) => {
+    fastify.patch('/venue/staff/:memberId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { memberId } = request.params as any;
         const patch = request.body as any;
         const doc = await fastify.db.collection('partner_memberships').doc(memberId).get();
@@ -587,7 +720,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { success: true };
     });
 
-    fastify.delete('/venue/staff/:memberId', async (request: any, reply) => {
+    fastify.delete('/venue/staff/:memberId', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { memberId } = request.params as any;
         const doc = await fastify.db.collection('partner_memberships').doc(memberId).get();
         if (!doc.exists) return reply.status(404).send({ error: 'Member not found' });
@@ -599,7 +734,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
     // ── Venue Event Sub-routes ───────────────────────────────────────────────
 
-    fastify.get('/venue/events/:id/tickets', async (request: any, reply) => {
+    fastify.get('/venue/events/:id/tickets', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id: eventId } = request.params as any;
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
@@ -611,7 +748,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
     // ── Slots (Venue Calendar Booking) ───────────────────────────────────────
 
-    fastify.get('/slots', async (request: any, reply) => {
+    fastify.get('/slots', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { venueId, hostId, status, limit = '50' } = request.query as any;
         if (!venueId && !hostId) return reply.status(400).send({ error: 'venueId or hostId required' });
         const partnerId = venueId || hostId;
@@ -632,7 +771,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { slotRequests, requests: slotRequests };
     });
 
-    fastify.get('/slots/:id', async (request: any, reply) => {
+    fastify.get('/slots/:id', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const doc = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).doc(id).get();
         if (!doc.exists) return reply.status(404).send({ error: 'Slot request not found' });
@@ -642,7 +783,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         return { slotRequest: s };
     });
 
-    fastify.patch('/slots/:id', async (request: any, reply) => {
+    fastify.patch('/slots/:id', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
         const { id } = request.params as any;
         const { action, counterDate, counterStartTime, counterEndTime, message, notes } = request.body as any;
         const validActions = ['approve', 'reject', 'counter', 'suggest', 'suggest_changes'];
@@ -962,7 +1105,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
                 .where('status', '==', 'confirmed')
                 .get();
             const ticketRevenuePaise = ordersSnap.docs.reduce((sum: number, d: any) => {
-                return sum + Math.round((Number(d.data().amount) || 0) * 100);
+                return sum + Math.round((Number(d.data().totalAmount) || 0) * 100);
             }, 0);
 
             // Payout computed here — never on the frontend
@@ -999,6 +1142,8 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.requireAuth]
     }, async (request: any, reply) => {
         const { venueId, startDate, endDate } = request.query as any;
+        if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+        if (!startDate || !endDate) return reply.status(400).send({ error: 'startDate and endDate required' });
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         // Fetch events and availability slots for the range.
@@ -1159,15 +1304,23 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const data = await request.file();
         if (!data) return reply.status(400).send({ error: 'No file uploaded' });
-        
+
         const fields = data.fields as any;
-        const venueId = fields.venueId?.value || 'unknown';
-        
-        const mockUrl = `https://storage.googleapis.com/c1rcle-assets/venues/${venueId}/${data.filename}`;
-        
-        return { 
-            success: true, 
-            url: mockUrl,
+        const venueId = fields.venueId?.value;
+        if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+        await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        const buffer = await data.toBuffer();
+        const ext = (data.filename || 'file').split('.').pop() || 'bin';
+        const storagePath = `venues/${venueId}/${Date.now()}.${ext}`;
+        const bucket = getAdminStorage().bucket();
+        const file = bucket.file(storagePath);
+        await file.save(buffer, { metadata: { contentType: data.mimetype || 'application/octet-stream' } });
+        await file.makePublic();
+
+        return {
+            success: true,
+            url: `https://storage.googleapis.com/${bucket.name}/${storagePath}`,
             filename: data.filename
         };
     });
@@ -1184,12 +1337,17 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             .where('isActive', '==', true)
             .get();
         
+        const ONLINE_THRESHOLD_MS = 5 * 60 * 1000; // 5 minutes
         return {
-            presence: snap.docs.map(d => ({
-                id: d.id,
-                ...d.data(),
-                isOnline: Math.random() > 0.5
-            }))
+            presence: snap.docs.map(d => {
+                const data = d.data() as any;
+                const lastSeen = data.lastSeenAt ? new Date(data.lastSeenAt).getTime() : 0;
+                return {
+                    id: d.id,
+                    ...data,
+                    isOnline: lastSeen > 0 && Date.now() - lastSeen < ONLINE_THRESHOLD_MS,
+                };
+            })
         };
     });
 }

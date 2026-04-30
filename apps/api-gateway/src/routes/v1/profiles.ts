@@ -95,26 +95,62 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     fastify.patch('/profiles/avatar', async (request, reply) => handleUpdate(request, reply, AvatarUpdateSchema, request.body));
 
     fastify.patch('/profiles', {
-        preHandler: [fastify.validate({ body: UnifiedProfileUpdateSchema })]
+        preHandler: [
+            async (request) => { if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request); },
+            fastify.validate({ body: UnifiedProfileUpdateSchema })
+        ]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
+        const { type = 'user', updates, id: targetId } = request.body || {};
+        const actualId = type === 'user' ? userId : targetId;
 
-        const existingDoc = await fastify.db.collection('users').doc(userId).get();
-        const rawUpdates = request.body?.updates && typeof request.body.updates === 'object'
-            ? request.body.updates
-            : (request.body || {});
-        const result = buildGuestProfileUpdates(rawUpdates, existingDoc.exists ? existingDoc.data() || {} : {});
-        if (result.error) {
-            const code = result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'UPDATE_FAILED';
-            return reply.status(result.statusCode || 400).send(buildErrorResponse({ code, message: result.error, requestId: request.id }));
+        if (!actualId) {
+            return reply.status(400).send(buildErrorResponse({
+                code: 'BAD_REQUEST',
+                message: 'ID required for this update type',
+                requestId: request.id,
+            }));
         }
 
-        await fastify.profileService.updateProfile(userId, 'user', result.safeUpdates);
-        const updatedDoc = await fastify.db.collection('users').doc(userId).get();
-        return buildSuccessResponse({
-            profile: normalizeGuestProfile(updatedDoc.exists ? updatedDoc.data() || {} : {}, request.user || {}),
-        });
+        try {
+            if (type !== 'user') {
+                await (fastify as any).verifyPartnerAccess(request, actualId);
+            }
+
+            let safeUpdates: Record<string, any>;
+            if (type === 'user') {
+                const existingDoc = await fastify.db.collection('users').doc(actualId).get();
+                const rawUpdates = updates || request.body || {};
+                const result = buildGuestProfileUpdates(rawUpdates, existingDoc.exists ? existingDoc.data() || {} : {});
+
+                if (result.error) {
+                    const code = result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'UPDATE_FAILED';
+                    return reply.status(result.statusCode || 400).send(buildErrorResponse({ code, message: result.error, requestId: request.id }));
+                }
+                safeUpdates = result.safeUpdates;
+            } else {
+                // Partner/Venue updates bypass guest-specific logic but should still be filtered
+                safeUpdates = updates || {};
+            }
+
+            await fastify.profileService.updateProfile(actualId, type as any, safeUpdates);
+            
+            if (type === 'user') {
+                const updatedDoc = await fastify.db.collection('users').doc(actualId).get();
+                return buildSuccessResponse({
+                    profile: normalizeGuestProfile(updatedDoc.exists ? updatedDoc.data() || {} : {}, request.user || {}),
+                });
+            }
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Error in PATCH /profiles: ${error.message}`);
+            return reply.status(error.statusCode || 500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: error.message || 'Internal Server Error',
+                requestId: request.id,
+            }));
+        }
     });
 
 

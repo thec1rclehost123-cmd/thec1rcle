@@ -265,6 +265,7 @@ export default fp(async (fastify) => {
                     source: verification.source,
                     errorCode: verification.errorCode,
                 }, 'Auth service could not verify token');
+                return reply.status(401).send({ error: 'Unauthorized: Invalid token' });
             }
         } catch (error: any) {
             // @ts-ignore
@@ -278,6 +279,7 @@ export default fp(async (fastify) => {
                 errorMessage: error?.message || null,
             };
             request.log.warn({ tokenSource, error: error?.message || String(error) }, 'Error in auth service verification');
+            return reply.status(401).send({ error: 'Unauthorized: Token verification failed' });
         }
 
         if ((request as any).user) {
@@ -288,9 +290,28 @@ export default fp(async (fastify) => {
         }
     });
 
-    // Workspace Context Hook (Extract Header + Metadata)
-    fastify.addHook('preHandler', async (request, reply) => {
-        const workspaceId = request.headers['x-workspace-id'] as string;
+    // Workspace Context Hook — validate x-workspace-id against auth context; never trust blindly
+    fastify.addHook('preHandler', async (request, _reply) => {
+        const requestedId = request.headers['x-workspace-id'] as string | undefined;
+        // @ts-ignore
+        const authCtx = request.authContext as any;
+        // @ts-ignore
+        const isSystem = (request.user as any)?.isSystem === true;
+
+        let workspaceId: string | null = null;
+
+        if (requestedId) {
+            // Only honour the header if the authenticated user actually belongs to that workspace
+            const allowedPartnerIds: string[] = authCtx?.scopes?.partnerIds || [];
+            if (isSystem || allowedPartnerIds.includes(requestedId)) {
+                workspaceId = requestedId;
+            }
+            // If user lacks membership in requestedId — silently ignore (routes will 400 if required)
+        } else if (authCtx?.activeMembership?.partnerId) {
+            // No header supplied — fall back to the user's active membership
+            workspaceId = authCtx.activeMembership.partnerId;
+        }
+
         if (workspaceId) {
             // @ts-ignore
             request.workspaceId = workspaceId;
@@ -305,7 +326,7 @@ export default fp(async (fastify) => {
                 if (ws) {
                     // @ts-ignore
                     request.workspace = ws;
-                    
+
                     // 📊 Usage Tracking: Increment API usage metric
                     await billingService.incrementUsage(workspaceId, 'apiCalls');
                 }

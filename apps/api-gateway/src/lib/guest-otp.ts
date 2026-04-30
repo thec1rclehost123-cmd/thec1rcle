@@ -147,7 +147,7 @@ export async function verifyGuestOtp(db: Firestore, type: 'email' | 'phone', rec
     const inputHash = hashOtp(code);
     
     if (inputHash !== storedHash) {
-        fastify.log.warn({ recipient, inputHash, storedHash }, 'OTP Hash Mismatch');
+        console.warn({ recipient, inputHash, storedHash }, 'OTP Hash Mismatch');
         await docRef.update({ attempts: (data.attempts || 0) + 1 });
         throw new Error('Invalid authorization code.');
     }

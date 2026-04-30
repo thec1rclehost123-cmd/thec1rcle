@@ -7,7 +7,7 @@ const serverEnvSchema = z.object({
     RESEND_API_KEY: z.string().optional(),
     PUBLIC_API_URL: z.string().url().optional(),
     INTERNAL_API_KEY: z.string().optional(),
-    TICKET_SECRET: z.string().optional().default('c1rcle-secret-2025'),
+    TICKET_SECRET: z.string().optional(),
     MSG91_AUTH_KEY: z.string().optional(),
     MSG91_TEMPLATE_ID: z.string().optional(),
     FIREBASE_PRIVATE_KEY: z.string().optional(),
