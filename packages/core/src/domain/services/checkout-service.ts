@@ -104,6 +104,7 @@ export class CheckoutService {
             if (!pricingResult.success) throw new Error(pricingResult.error);
             const pricing = pricingResult.pricing;
 
+
             if (existingOrder) {
                 return this.buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode || null);
             }
@@ -170,6 +171,7 @@ export class CheckoutService {
         if (!isPaymentPendingOrderStatus(order.status)) throw new Error(`Order is ${order.status}`);
 
         return this.payment.prepareRazorpayOrder({ order, userId, config: razorpayConfig });
+
     }
 
     async verifyPayment(params: {

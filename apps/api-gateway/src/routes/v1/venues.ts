@@ -83,6 +83,8 @@ async function fetchVenueOrders(db: any, venueId: string): Promise<any[]> {
     return [...directOrders, ...extraOrders];
 }
 
+
+
 /**
  * Venue Routes (discovery + partner management)
  */
@@ -363,6 +365,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const newGuestIds = new Set(thisWeekOrders.map((o: any) => o.userId).filter(Boolean));
 
         const summary = {
+
             weekendRevenue,
             revenueTrend: `${revenueTrendPct > 0 ? '+' : ''}${revenueTrendPct}%`,
             revenueTrendDirection: revenueTrendPct >= 0 ? 'up' : 'down',
@@ -756,6 +759,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const partnerId = venueId || hostId;
         await fastify.verifyPartnerAccess(request, partnerId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         let q: any = fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION);
+
         if (venueId) q = q.where('venueId', '==', venueId);
         if (hostId) q = q.where('hostId', '==', hostId);
         if (status) q = q.where('status', '==', status);
@@ -769,6 +773,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
                 return rightTime - leftTime;
             });
         return { slotRequests, requests: slotRequests };
+
     });
 
     fastify.get('/slots/:id', {

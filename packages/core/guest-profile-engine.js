@@ -646,13 +646,8 @@ export async function getUserTickets(userId) {
                                 // Must be fetched via GET /tickets/:id
                                 ticket.hasQR = true;
                             } else {
-<<<<<<< HEAD:packages/core/guest-profile-engine.js
                                 ticket.hasQR = true;
-=======
-                                const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
-                                const signature = createHmac("sha256", secret).update(slotTicketId).digest("hex").slice(0, 16);
-                                ticket.qrPayload = `${slotTicketId}:${signature}`;
->>>>>>> 9dc54a5c7c279b2fa9cccb79917979b87281003a:apps/guest-portal/lib/server/profileStore.js
+
                             }
                         } else {
                             ticket.hasQR = false;
@@ -730,12 +725,7 @@ export async function getUserTickets(userId) {
         const isScanned = !!scansMap[ticketId];
         const status = isScanned || isEventPast ? "used" : "active";
 
-<<<<<<< HEAD:packages/core/guest-profile-engine.js
-=======
-        const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
-        const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
 
->>>>>>> 9dc54a5c7c279b2fa9cccb79917979b87281003a:apps/guest-portal/lib/server/profileStore.js
         const assignment = {
             ...assignmentDoc,
             userName: profilesMap[assignmentDoc.partnerId]?.displayName || "Partner",
@@ -778,11 +768,7 @@ export async function getUserTickets(userId) {
         const status = isEventPast ? "used" : "active";
 
         const ticketId = `RSVP-${userId}-${eventId}`;
-<<<<<<< HEAD:packages/core/guest-profile-engine.js
-=======
-        const secret = (() => { const s = process.env.TICKET_SECRET; if (!s) throw new Error('TICKET_SECRET environment variable is not set'); return s; })();
-        const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
->>>>>>> 9dc54a5c7c279b2fa9cccb79917979b87281003a:apps/guest-portal/lib/server/profileStore.js
+
 
         const ticket = {
             ticketId,

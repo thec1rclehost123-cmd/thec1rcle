@@ -386,6 +386,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                     csrfToken,
                 };
             }
+
         } catch (error: any) {
             fastify.log.error(`Error in GET /auth/me: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({

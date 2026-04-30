@@ -53,6 +53,7 @@ if (_env.data.NODE_ENV === 'production') {
         console.error(`❌ Production secret(s) are using dev defaults: ${violations.join(', ')}. Set real values in env.`);
         process.exit(1);
     }
+
     const missingSecrets = [
         'QR_SECRET_KEY',
         'SCANNER_SESSION_SECRET',

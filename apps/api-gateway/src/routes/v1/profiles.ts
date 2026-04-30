@@ -75,7 +75,6 @@ export default async function profileRoutes(fastify: FastifyInstance) {
      */
     const handleUpdate = async (request: any, reply: any, schema: z.ZodObject<any>, updates: any) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const parsed = schema.safeParse(updates);
         if (!parsed.success) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'Invalid fields', details: parsed.error.format(), requestId: request.id }));
@@ -114,7 +113,15 @@ export default async function profileRoutes(fastify: FastifyInstance) {
 
         try {
             if (type !== 'user') {
-                await (fastify as any).verifyPartnerAccess(request, actualId);
+                try {
+                    await fastify.verifyPartnerAccess(request, actualId);
+                } catch {
+                    return reply.status(403).send(buildErrorResponse({
+                        code: 'FORBIDDEN',
+                        message: 'Forbidden: Insufficient access to this resource',
+                        requestId: request.id,
+                    }));
+                }
             }
 
             let safeUpdates: Record<string, any>;

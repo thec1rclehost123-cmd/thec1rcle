@@ -8,6 +8,7 @@ import { getTicketSecret } from "./secret-registry.js";
 
 const TICKET_SECRET = getTicketSecret();
 
+
 /**
  * Signs a ticket ID for QR verification.
  */

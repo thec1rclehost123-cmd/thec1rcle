@@ -270,7 +270,7 @@ export class PromoterServiceV2 {
         }
 
         const snapshot = await safeOrderedQuery(query, limit);
-        let docs = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+        let docs = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
 
         if (filters.status) {
             const status = String(filters.status).toLowerCase();
@@ -603,7 +603,7 @@ export class PromoterServiceV2 {
         }
 
         const snapshot = await safeOrderedQuery(query, limit);
-        const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+        const rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
         const orderMap = await this.loadOrdersByIds(rows.map((row) => String(row.orderId || '')));
         const eventMap = await this.loadEventsByIds(rows.map((row) => String(row.eventId || '')));
 
@@ -640,7 +640,7 @@ export class PromoterServiceV2 {
     private async loadLegacyLedgerRows(promoterId: string, eventId?: string, limit = 200) {
         let query: Query = this.db.collection('promoter_ledger').where('promoterId', '==', promoterId);
         const snapshot = await safeOrderedQuery(query, limit);
-        let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+        let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
         if (eventId) {
             rows = rows.filter((row) => String(row.eventId || '') === String(eventId));
         }
@@ -690,7 +690,7 @@ export class PromoterServiceV2 {
     private async loadAssignmentRows(promoterId: string, eventId?: string, limit = 200) {
         let query: Query = this.db.collection('promoter_assignments').where('promoterId', '==', promoterId);
         const snapshot = await safeOrderedQuery(query, limit);
-        let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) }));
+        let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
         if (eventId) {
             rows = rows.filter((row) => String(row.eventId || '') === String(eventId));
         }

@@ -25,7 +25,7 @@ function isPromoterMembership(
 
 export async function resolvePromoterRequestContext(
     fastify: { db: Firestore },
-    request: FastifyRequest & { user?: Record<string, any> | null; authContext?: Record<string, any> | null }
+    request: FastifyRequest & { user?: any | null; authContext?: any | null }
 ): Promise<PromoterRequestContext | null> {
     const user = request.user;
     if (!user?.uid) return null;
@@ -39,13 +39,9 @@ export async function resolvePromoterRequestContext(
             promoterId: String(claimedMembership.partnerId),
             role: String(claimedMembership.role || user.partnerRole || 'PROMOTER'),
             displayName: pickDisplayName(user),
-<<<<<<< HEAD
             membershipId: String(claimedMembership.id || claimedMembership.membershipId || '') || null,
         };
-=======
-            membershipId: ((claimedMembership as any).id || (claimedMembership as any).membershipId) ? String((claimedMembership as any).id || (claimedMembership as any).membershipId) : null,
-        } as PromoterRequestContext;
->>>>>>> 355ce04 (chore: sync business logic updates and prepare for gateway fix integration)
+
     }
 
     if (
@@ -70,13 +66,9 @@ export async function resolvePromoterRequestContext(
             promoterId: String(activeMembership.partnerId),
             role: String(activeMembership.role || 'promoter').toUpperCase(),
             displayName: pickDisplayName(user),
-<<<<<<< HEAD
             membershipId: String(activeMembership.id || activeMembership.membershipId || '') || null,
         };
-=======
-            membershipId: ((activeMembership as any).id || (activeMembership as any).membershipId) ? String((activeMembership as any).id || (activeMembership as any).membershipId) : null,
-        } as PromoterRequestContext;
->>>>>>> 355ce04 (chore: sync business logic updates and prepare for gateway fix integration)
+
     }
 
     const membershipSnap = await fastify.db
@@ -104,11 +96,8 @@ export async function resolvePromoterRequestContext(
             role: String(membership.role || 'PROMOTER').toUpperCase(),
             displayName: pickDisplayName(user),
             membershipId: membershipDoc.id,
-<<<<<<< HEAD
         };
-=======
-        } as PromoterRequestContext;
->>>>>>> 355ce04 (chore: sync business logic updates and prepare for gateway fix integration)
+
     }
 
     const promoterDoc = await fastify.db.collection('promoters').doc(String(user.uid)).get();
@@ -120,11 +109,8 @@ export async function resolvePromoterRequestContext(
             role: 'PROMOTER',
             displayName: pickDisplayName({ ...promoter, ...user }),
             membershipId: null,
-<<<<<<< HEAD
         };
-=======
-        } as PromoterRequestContext;
->>>>>>> 355ce04 (chore: sync business logic updates and prepare for gateway fix integration)
+
     }
 
     return null;
