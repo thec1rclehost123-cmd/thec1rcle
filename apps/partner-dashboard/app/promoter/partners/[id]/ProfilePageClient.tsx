@@ -126,7 +126,7 @@ export default function ProfilePageClient({ id }: { id: string }) {
                     viewerId,
                     viewerRole,
                 });
-                const response = await fetch(`/api/promoter/partners/${id}?${params.toString()}`, {
+                const response = await fetch(`/api/partners/promoters/partners/${id}?${params.toString()}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const payload = await response.json();
@@ -163,17 +163,13 @@ export default function ProfilePageClient({ id }: { id: string }) {
         setRequestLoading(true);
         try {
             const token = await user.getIdToken();
-            const response = await fetch("/api/discovery", {
+            const response = await fetch("/api/partners/promoters/connections/request", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${token}`,
                 },
                 body: JSON.stringify({
-                    requesterId: viewerId,
-                    requesterType: viewerRole,
-                    requesterName: viewerProfile?.activeMembership?.partnerName || viewerProfile?.displayName || "",
-                    requesterEmail: viewerProfile?.email || "",
                     targetId: profile.id,
                     targetType: profile.type,
                     targetName: profile.name,
@@ -186,7 +182,7 @@ export default function ProfilePageClient({ id }: { id: string }) {
             setData((current) => current ? {
                 ...current,
                 connection: {
-                    id: payload.id || "",
+                    id: payload.connection?.id || payload.connection?.connectionId || "",
                     status: "pending",
                     type: profile.type === "host" ? "partnership" : "promoter_connection",
                     initiatedBy: viewerRole,

@@ -72,7 +72,7 @@ function isPendingOrderSnapshotCurrent(snapshot, eventId, userId) {
   return Date.now() - Number(snapshot?.savedAt || 0) < PENDING_ORDER_TTL_MS;
 }
 
-export function useCheckoutSession({ event, initialTickets = [], profile, router, user }) {
+export function useCheckoutSession({ event, initialSummary = null, initialTickets = [], profile, router, user }) {
   const [step, setStep] = useState(1);
   const [selectedTickets, setSelectedTickets] = useState(initialTickets);
   const [attendeeDetails, setAttendeeDetails] = useState({
@@ -87,8 +87,8 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
   const [error, setError] = useState("");
   const [promoterCode, setPromoterCode] = useState(null);
   const [appliedPromoCode, setAppliedPromoCode] = useState(null);
-  const [pricingResult, setPricingResult] = useState(null);
-  const [checkoutQuote, setCheckoutQuote] = useState(null);
+  const [pricingResult, setPricingResult] = useState(initialSummary?.pricing || null);
+  const [checkoutQuote, setCheckoutQuote] = useState(initialSummary?.quote || null);
   const [isQuoteSyncing, setIsQuoteSyncing] = useState(false);
   const [feesBreakdownOpen, setFeesBreakdownOpen] = useState(false);
   const redirectTimeoutRef = useRef(null);
@@ -96,7 +96,11 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
   const checkoutActionIdRef = useRef(null);
   const pendingOrderIdRef = useRef(null);
   const lockedUserIdRef = useRef(user?.uid || null);
-  const latestQuoteRef = useRef({ key: null, syncedAt: 0 });
+  const latestQuoteRef = useRef({
+    key: initialSummary?.meta?.quoteRequestKey || null,
+    syncedAt: initialSummary?.meta?.quoteRequestKey ? Date.now() : 0,
+  });
+  const initialSummaryConsumedRef = useRef(Boolean(initialSummary?.meta?.quoteRequestKey));
 
   const {
     cartReservation,
@@ -122,6 +126,17 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     if (!user && !profile) return;
     setAttendeeDetails((current) => mergeAttendeeDetails(current, user, profile));
   }, [profile, user]);
+
+  useEffect(() => {
+    setPricingResult(initialSummary?.pricing || null);
+    setCheckoutQuote(initialSummary?.quote || null);
+    setError(initialSummary?.error || "");
+    latestQuoteRef.current = {
+      key: initialSummary?.meta?.quoteRequestKey || null,
+      syncedAt: initialSummary?.meta?.quoteRequestKey ? Date.now() : 0,
+    };
+    initialSummaryConsumedRef.current = Boolean(initialSummary?.meta?.quoteRequestKey);
+  }, [event?.id, initialSummary]);
 
   const persistPendingOrder = useCallback((orderId) => {
     if (!orderId) return;
@@ -195,6 +210,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
       checkoutActionIdRef.current = null;
       paymentInFlightRef.current = false;
       latestQuoteRef.current = { key: null, syncedAt: 0 };
+      initialSummaryConsumedRef.current = false;
       setCheckoutQuote(null);
       setPricingResult(null);
       setProcessingState("");
@@ -263,6 +279,23 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     let cancelled = false;
 
     const syncCheckoutQuote = async () => {
+      const canReuseInitialSummary =
+        initialSummaryConsumedRef.current &&
+        initialSummary?.meta?.quoteRequestKey &&
+        initialSummary.meta.quoteRequestKey === quoteRequestKey;
+
+      if (canReuseInitialSummary) {
+        initialSummaryConsumedRef.current = false;
+        latestQuoteRef.current = {
+          key: quoteRequestKey,
+          syncedAt: Date.now(),
+        };
+        setPricingResult(initialSummary?.pricing || null);
+        setCheckoutQuote(initialSummary?.quote || null);
+        setError(initialSummary?.error || "");
+        return;
+      }
+
       setIsQuoteSyncing(true);
       try {
         const useReservationQuote = shouldUseSavedReservationQuote({
@@ -274,6 +307,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
         const { response, data } = await calculateCheckout(
           currentQuotePayload,
           {
+            eventId: event.id,
             headers: quoteRequestHeaders,
           },
         );
@@ -327,7 +361,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
     return () => {
       cancelled = true;
     };
-  }, [cartReservation, clearPersistedReservation, currentQuotePayload, event?.id, event?.tickets, persistReservation, quoteRequestHeaders, quoteRequestKey, selectedTicketSignature, selectedTickets, user?.uid]);
+  }, [cartReservation, clearPersistedReservation, currentQuotePayload, event?.id, event?.tickets, initialSummary, persistReservation, quoteRequestHeaders, quoteRequestKey, selectedTicketSignature, selectedTickets, user?.uid]);
 
   useEffect(() => {
     if (isSuccess) {
@@ -548,6 +582,7 @@ export function useCheckoutSession({ event, initialTickets = [], profile, router
         const { response: quoteResponse, data } = await calculateCheckout(
           currentQuotePayload,
           {
+            eventId: event.id,
             headers: quoteRequestHeaders,
           },
         );

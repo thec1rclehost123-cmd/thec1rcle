@@ -57,7 +57,7 @@ export default function VenueOrdersPageClient() {
         queryFn: async () => {
             const token = await user!.getIdToken();
             const params = new URLSearchParams({ venueId: venueId!, limit: "100" });
-            const response = await fetch(`/api/venue/events?${params.toString()}`, {
+            const response = await fetch(`/api/partners/venues/events?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch events");
@@ -80,7 +80,7 @@ export default function VenueOrdersPageClient() {
                 ...(dateRange.startDate ? { startDate: dateRange.startDate } : {}),
                 ...(dateRange.endDate ? { endDate: dateRange.endDate } : {}),
             });
-            const response = await fetch(`/api/venue/orders?${params.toString()}`, {
+            const response = await fetch(`/api/partners/venues/orders?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch orders");

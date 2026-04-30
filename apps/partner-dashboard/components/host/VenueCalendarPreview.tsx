@@ -97,7 +97,7 @@ export function VenueCalendarPreview({
                 const token = user ? await user.getIdToken() : "";
 
                 const res = await fetch(
-                    `/api/host/venue-calendar?venueId=${venueId}&hostId=${hostId}&startDate=${startDate}&endDate=${endDate}`,
+                    `/api/partners/hosts/venue-calendar?venueId=${venueId}&hostId=${hostId}&startDate=${startDate}&endDate=${endDate}`,
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 );
                 const data = await res.json();
@@ -131,7 +131,7 @@ export function VenueCalendarPreview({
             try {
                 const token = user ? await user.getIdToken() : "";
                 const res = await fetch(
-                    `/api/host/venue-calendar?venueId=${venueId}&date=${selectedDate}`,
+                    `/api/partners/hosts/venue-calendar?venueId=${venueId}&date=${selectedDate}`,
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 );
                 const data = await res.json();

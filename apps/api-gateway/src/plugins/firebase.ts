@@ -43,6 +43,7 @@ import { IdempotencyService } from '@c1rcle/core/idempotency-service';
 import { buildRequestAuthContext, type RequestAuthContext } from '../lib/auth-context';
 import { writeAuditLog as persistAuditLog, type AuditLogInput } from '../lib/audit-log';
 import { parseCookieHeader, verifyGuestCsrfRequest } from '../lib/guest-csrf';
+import { PromoterServiceV2 } from '../services/promoter-v2';
 
 export default fp(async (fastify) => {
     if (!getApps().length) {
@@ -101,6 +102,7 @@ export default fp(async (fastify) => {
     const billingService = new BillingService(db);
     const publicDiscoveryService = new PublicDiscoveryService(db);
     const idempotencyService = new IdempotencyService(db);
+    const promoterServiceV2 = new PromoterServiceV2(db);
 
     fastify.decorate('db', db);
     fastify.decorate('auth', auth);
@@ -120,6 +122,7 @@ export default fp(async (fastify) => {
     fastify.decorate('billingService', billingService);
     fastify.decorate('publicDiscoveryService', publicDiscoveryService);
     fastify.decorate('idempotencyService', idempotencyService);
+    fastify.decorate('promoterServiceV2', promoterServiceV2);
     fastify.decorate('writeAuditLog', (entry: AuditLogInput) => persistAuditLog(fastify, entry));
 
     fastify.decorate('invalidatePublicDiscovery', async (target: any = 'all') => {
@@ -472,6 +475,7 @@ declare module 'fastify' {
         billingService: any;
         publicDiscoveryService: any;
         idempotencyService: any;
+        promoterServiceV2: any;
         storage: ReturnType<typeof getStorage>;
         invalidatePublicDiscovery: (target?: 'events' | 'hosts' | 'venues' | 'search' | 'all') => Promise<void>;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;

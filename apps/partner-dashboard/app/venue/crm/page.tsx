@@ -664,7 +664,7 @@ export default function MarketingPage() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user?.getIdToken();
-            const response = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`, {
+            const response = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=200`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!response.ok) throw new Error("Failed to fetch events");
@@ -680,7 +680,7 @@ export default function MarketingPage() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const response = await fetch(`/api/venue/crm/online?venueId=${venueId}`, {
+            const response = await fetch(`/api/partners/venues/crm/online?venueId=${venueId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch attendees");
@@ -696,7 +696,7 @@ export default function MarketingPage() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const response = await fetch(`/api/venue/orders?venueId=${venueId}&page=1&limit=100`, {
+            const response = await fetch(`/api/partners/venues/orders?venueId=${venueId}&page=1&limit=100`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch order history");
@@ -729,7 +729,7 @@ export default function MarketingPage() {
 
                 // ── Step 1: Fetch ALL events for this venue ───────────────────
                 const eventsRes = await fetch(
-                    `/api/venue/events?venueId=${venueId}&status=all&limit=50`,
+                    `/api/partners/venues/events?venueId=${venueId}&status=all&limit=50`,
                     { headers }
                 );
                 if (cancelled) return;
@@ -754,7 +754,7 @@ export default function MarketingPage() {
                 const [walkInResults, dineinResults, venueDineinsPayload] = await Promise.all([
                     Promise.all(
                         targetEvents.map((ev: any) =>
-                            fetch(`/api/venue/walk-ins?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
+                            fetch(`/api/partners/venues/walk-ins?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
                                 .then(async r => {
                                     const d = await r.json();
                                     if (!r.ok) {
@@ -766,7 +766,7 @@ export default function MarketingPage() {
                     ),
                     Promise.all(
                         targetEvents.map((ev: any) =>
-                            fetch(`/api/venue/door/dinein?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
+                            fetch(`/api/partners/venues/door/dinein?eventId=${ev.id}&venueId=${venueId}&limit=50`, { headers })
                                 .then(async r => {
                                     const d = await r.json();
                                     if (!r.ok) {
@@ -778,7 +778,7 @@ export default function MarketingPage() {
                     ),
                     selectedEventId
                         ? Promise.resolve({ entries: [] as any[] })
-                        : fetch(`/api/venue/door/dinein?eventId=venue_${venueId}&venueId=${venueId}&limit=50`, { headers })
+                        : fetch(`/api/partners/venues/door/dinein?eventId=venue_${venueId}&venueId=${venueId}&limit=50`, { headers })
                             .then(async r => {
                                 const d = await r.json();
                                 if (!r.ok) {

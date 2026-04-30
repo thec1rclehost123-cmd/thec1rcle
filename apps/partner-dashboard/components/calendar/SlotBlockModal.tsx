@@ -27,7 +27,7 @@ export function SlotBlockModal({ venueId, date, onClose, onSuccess }: SlotBlockM
     const blockMut = useMutation({
         mutationFn: async () => {
             const token = await user?.getIdToken(true);
-            const res = await fetch(`/api/venue/slots?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/slots?venueId=${venueId}`, {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

@@ -54,7 +54,7 @@ export default function VenueDashboardHome() {
         queryFn: async () => {
             const token = await getIdToken();
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`, { headers });
+            const res = await fetch(`/api/partners/venues/notifications?venueId=${venueId}&limit=3`, { headers });
             return res.json();
         },
         enabled: !!venueId,
@@ -68,7 +68,7 @@ export default function VenueDashboardHome() {
         queryFn: async () => {
             const token = await getIdToken();
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`/api/venue/overview/summary?venueId=${venueId}`, { headers });
+            const res = await fetch(`/api/partners/venues/overview/summary?venueId=${venueId}`, { headers });
             return res.json();
         },
         enabled: !!venueId,
@@ -82,7 +82,7 @@ export default function VenueDashboardHome() {
         queryFn: async () => {
             const token = await getIdToken();
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`/api/venue/events?venueId=${venueId}`, { headers });
+            const res = await fetch(`/api/partners/venues/events?venueId=${venueId}`, { headers });
             const data = await res.json();
             return (data.events || []).map((e: any) => ({
                 ...e,
@@ -106,7 +106,7 @@ export default function VenueDashboardHome() {
         queryFn: async () => {
             const token = await getIdToken();
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const res = await fetch(`/api/venue/overview/tonight?eventId=${tonightEvent?.id}`, { headers });
+            const res = await fetch(`/api/partners/venues/overview/tonight?eventId=${tonightEvent?.id}`, { headers });
             return res.json();
         },
         enabled: !!tonightEvent?.id,

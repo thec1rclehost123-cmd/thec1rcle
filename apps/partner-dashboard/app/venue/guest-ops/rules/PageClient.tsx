@@ -46,8 +46,8 @@ export default function GuestRulesPageClient() {
     const fetchRulesAndAllocations = useCallback(async () => {
         if (!eventId || !venueId) return;
         const [rulesRes, allocRes] = await Promise.all([
-            fetch(`/api/venue/guest-ops/${eventId}/guest-rules?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/host-allocations/all?venueId=${venueId}`, { headers: authHeaders() }),
+            fetch(`/api/partners/venues/guest-ops/${eventId}/guest-rules?venueId=${venueId}`, { headers: authHeaders() }),
+            fetch(`/api/partners/venues/guest-ops/${eventId}/host-allocations/all?venueId=${venueId}`, { headers: authHeaders() }),
         ]);
         if (rulesRes.ok) {
             const d = await rulesRes.json();
@@ -75,7 +75,7 @@ export default function GuestRulesPageClient() {
         setIsSaving(true);
         setSaveStatus("idle");
         try {
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/guest-rules?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guest-rules?venueId=${venueId}`, {
                 method: "PATCH",
                 headers: authHeaders(),
                 body: JSON.stringify(draftRules),

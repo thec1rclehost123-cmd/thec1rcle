@@ -107,7 +107,7 @@ export default function VenuePresencePageClient() {
         setIsError(false);
         try {
             const partnerId = profile.activeMembership.partnerId;
-            const res = await authedFetch(`/api/venue/page?venueId=${partnerId}&dashboard=true`);
+            const res = await authedFetch(`/api/partners/venues/page?venueId=${partnerId}&dashboard=true`);
             if (res.ok) {
                 const json = await res.json();
                 setData({
@@ -140,7 +140,7 @@ export default function VenuePresencePageClient() {
         setIsSaving(true);
         setSaveStatus("saving");
         try {
-            const res = await authedFetch("/api/venue/page", {
+            const res = await authedFetch("/api/partners/venues/page", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId: profile.activeMembership.partnerId,
@@ -1140,7 +1140,7 @@ export default function VenuePresencePageClient() {
                                                     setBroadcastStatus("idle");
                                                     setBroadcastError("");
                                                     try {
-                                                        const res = await fetch("/api/venue/broadcast", {
+                                                        const res = await fetch("/api/partners/venues/broadcast", {
                                                             method: "POST",
                                                             headers: { "Content-Type": "application/json" },
                                                             body: JSON.stringify({

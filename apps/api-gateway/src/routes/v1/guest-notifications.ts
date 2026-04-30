@@ -37,14 +37,16 @@ export default async function guestNotificationRoutes(fastify: FastifyInstance) 
 
             if (countOnly) {
                 const unreadCount = await getGuestUnreadCount(fastify.db, userId);
-                return { notifications: [], unreadCount };
+                // Legacy fields at top level for backward compat
+                return { success: true, data: { notifications: [], unreadCount }, notifications: [], unreadCount };
             }
 
             const [notifications, unreadCount] = await Promise.all([
                 getGuestNotifications(fastify.db, userId, { unreadOnly, limit }),
                 getGuestUnreadCount(fastify.db, userId),
             ]);
-            return { notifications, unreadCount };
+            // Legacy fields at top level for backward compat
+            return { success: true, data: { notifications, unreadCount }, notifications, unreadCount };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /guest-notifications failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));

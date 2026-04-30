@@ -12,7 +12,7 @@ export function PromoterAssignmentsPageClient() {
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["promoter", "events", statusFilter],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/events?status=${statusFilter}`);
+            const res = await fetch(`/api/partners/promoters/events?status=${statusFilter}`);
             if (!res.ok) throw new Error("Failed to fetch assignments");
             return res.json();
         },

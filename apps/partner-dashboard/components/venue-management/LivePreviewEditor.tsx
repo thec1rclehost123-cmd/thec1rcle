@@ -81,7 +81,7 @@ export default function LivePreviewEditor({
             console.log(`[LivePreviewEditor] Got auth token, length:`, token?.length);
 
             // Call our new backend upload API
-            const response = await fetch("/api/venue/upload", {
+            const response = await fetch("/api/partners/venues/upload", {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`

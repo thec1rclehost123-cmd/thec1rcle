@@ -150,7 +150,7 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
         queryKey: ["staff-profile", venueId, profileId],
         queryFn: async () => {
             const res = await fetch(
-                `/api/venue/staff-profiles/${profileId}?venueId=${venueId}`,
+                `/api/partners/venues/staff-profiles/${profileId}?venueId=${venueId}`,
                 { headers: await authHeaders() }
             );
             if (!res.ok) throw new Error("Not found");
@@ -184,8 +184,8 @@ export function StaffProfileEditorClient({ profileId }: { profileId: string }) {
     const saveMut = useMutation({
         mutationFn: async () => {
             const url = isNew
-                ? `/api/venue/staff-profiles?venueId=${venueId}`
-                : `/api/venue/staff-profiles/${profileId}?venueId=${venueId}`;
+                ? `/api/partners/venues/staff-profiles?venueId=${venueId}`
+                : `/api/partners/venues/staff-profiles/${profileId}?venueId=${venueId}`;
             const method = isNew ? "POST" : "PATCH";
             const res = await fetch(url, {
                 method,

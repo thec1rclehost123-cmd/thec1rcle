@@ -29,8 +29,8 @@ export default function GuestOpsOverviewPageClient() {
         if (!eid || !venueId) return;
         try {
             const [sumRes, devRes] = await Promise.all([
-                fetch(`/api/venue/guest-ops/${eid}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-                fetch(`/api/venue/guest-ops/${eid}/scanner/devices?venueId=${venueId}`, { headers: authHeaders() }),
+                fetch(`/api/partners/venues/guest-ops/${eid}/summary?venueId=${venueId}`, { headers: authHeaders() }),
+                fetch(`/api/partners/venues/guest-ops/${eid}/scanner/devices?venueId=${venueId}`, { headers: authHeaders() }),
             ]);
             if (sumRes.ok) setSummary(await sumRes.json());
             if (devRes.ok) { const d = await devRes.json(); setDevices(d.devices ?? []); }

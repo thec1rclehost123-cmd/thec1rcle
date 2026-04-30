@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { hasStaffPermission } from '@c1rcle/core/staff-engine';
 import { z } from 'zod';
 import { logPaymentEvent } from '../../lib/securityLogger';
+import { buildErrorResponse } from '../../lib/api-contracts';
 
 const OrderEventParam = z.object({
     eventId: z.string()
@@ -61,7 +62,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             // Cache-aside: user-scoped order list, TTL 120s
@@ -97,7 +98,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             return { success: true, orders: enriched };
         } catch (error: any) {
             fastify.log.error(`GET /orders failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -106,13 +107,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const { id: orderId } = request.params;
         const actorId = request.user?.uid;
-        if (!actorId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!actorId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const includeEvent = request.query?.includeEvent !== 'false';
             const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId, { includeEvent });
-            if (!order) return reply.status(404).send({ error: 'Order not found' });
-            if (!allowed) return reply.status(403).send({ error: 'Unauthorized' });
+            if (!order) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            if (!allowed) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Unauthorized', requestId: request.id }));
 
             return {
                 success: true,
@@ -124,7 +125,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             };
         } catch (error: any) {
             fastify.log.error(`GET /orders/${orderId} failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -133,17 +134,18 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const { id: orderId } = request.params;
         const actorId = request.user?.uid;
-        if (!actorId) return reply.status(401).send({ error: 'Authentication required' });
+        if (!actorId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Authentication required', requestId: request.id }));
 
         try {
             const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, actorId);
-            if (!order) return reply.status(404).send({ error: 'Order not found' });
-            if (!allowed || order.userId !== actorId) return reply.status(403).send({ error: 'Unauthorized' });
+            if (!order) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            if (!allowed || order.userId !== actorId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Unauthorized', requestId: request.id }));
 
-            return fastify.checkoutService.getCancellationDecision(order, event);
+            const decision = await fastify.checkoutService.getCancellationDecision(order, event);
+            return { success: true, ...decision };
         } catch (error: any) {
             fastify.log.error(`GET /orders/${orderId}/cancel failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -156,12 +158,12 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const { id: orderId } = request.params;
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         try {
             const { order, event, allowed } = await resolveOrderAccess(fastify, orderId, userId);
-            if (!order) return reply.status(404).send({ error: 'Order not found' });
-            if (!allowed || order.userId !== userId) return reply.status(403).send({ error: 'You can only cancel your own orders' });
+            if (!order) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            if (!allowed || order.userId !== userId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You can only cancel your own orders', requestId: request.id }));
 
             const result = await fastify.checkoutService.cancelOrder({
                 order,
@@ -219,7 +221,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             });
 
             if (!result.success) {
-                return reply.status(400).send({ error: result.error, cancellationAllowed: false });
+                return reply.status(400).send(buildErrorResponse({ code: 'CANCELLATION_DENIED', message: result.error || 'Cancellation not allowed', requestId: request.id }));
             }
 
             // Bust cached order list for this user
@@ -234,7 +236,7 @@ export default async function orderRoutes(fastify: FastifyInstance) {
             return result;
         } catch (error: any) {
             fastify.log.error(`POST /orders/${orderId}/cancel failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -249,22 +251,22 @@ export default async function orderRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const { id: orderId } = request.params;
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         try {
             const { order, allowed } = await resolveOrderAccess(fastify, orderId, userId);
-            if (!order) return reply.status(404).send({ error: 'Order not found' });
-            if (!allowed || order.userId !== userId) return reply.status(403).send({ error: 'Forbidden' });
-            if (order.status !== 'confirmed') return reply.status(409).send({ error: 'Order is not confirmed' });
+            if (!order) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
+            if (!allowed || order.userId !== userId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
+            if (order.status !== 'confirmed') return reply.status(409).send(buildErrorResponse({ code: 'CONFLICT', message: 'Order is not confirmed', requestId: request.id }));
             const confirmedAt = order.confirmedAt ? new Date(order.confirmedAt).getTime() : 0;
             if (Date.now() - confirmedAt < REISSUE_MIN_AGE_MS) {
-                return reply.status(429).send({ error: 'Please wait at least 5 minutes after confirmation before re-sending.' });
+                return reply.status(429).send(buildErrorResponse({ code: 'TOO_SOON', message: 'Please wait at least 5 minutes after confirmation before re-sending.', requestId: request.id }));
             }
             await (fastify as any).checkoutService.reissueFulfillment(order);
             await fastify.cache.delete('orders', userId);
             return { success: true, message: 'Ticket re-send triggered.' };
         } catch (error: any) {
             fastify.log.error(`POST /orders/${orderId}/reissue failed: ${error.message}`);
-            return reply.status(500).send({ error: 'Internal server error' });
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });
 
@@ -280,13 +282,13 @@ export default async function orderRoutes(fastify: FastifyInstance) {
 
         // 1. Fetch Event to get venueId
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-        if (!eventDoc.exists) return reply.status(404).send({ error: "Event not found" });
+        if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
         const eventData = eventDoc.data();
-        if (!eventData) return reply.status(404).send({ error: "Event data missing" });
+        if (!eventData) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event data missing', requestId: request.id }));
 
         // 2. RBAC Check
         const hasAccess = await hasStaffPermission(fastify.db, eventData.venueId, actorId, 'viewEvents');
-        if (!hasAccess) return reply.status(403).send({ error: "Unauthorized" });
+        if (!hasAccess) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Unauthorized', requestId: request.id }));
 
         // 3. Fetch Orders and RSVPs
         const [ordersSnapshot, rsvpsSnapshot] = await Promise.all([
@@ -317,12 +319,12 @@ export default async function orderRoutes(fastify: FastifyInstance) {
         const actorId = request.user?.uid;
 
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-        if (!eventDoc.exists) return reply.status(404).send({ error: "Event not found" });
+        if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
         const eventData = eventDoc.data();
-        if (!eventData) return reply.status(404).send({ error: "Event data missing" });
+        if (!eventData) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event data missing', requestId: request.id }));
 
         const hasAccess = await hasStaffPermission(fastify.db, eventData.venueId, actorId, 'viewFinance');
-        if (!hasAccess) return reply.status(403).send({ error: "Unauthorized" });
+        if (!hasAccess) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Unauthorized', requestId: request.id }));
 
         const ordersSnapshot = await fastify.db.collection('orders')
             .where("eventId", "==", eventId)

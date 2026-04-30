@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { fetchPublicEvents } from "../features/discovery/publicDiscovery";
+import { fetchGuestBffExploreFeed } from "../lib/bff/fetchers.js";
+import { isGuestBffEnabled } from "../lib/bff/flags.js";
 
 /**
  * ⚡ Zustand Cache for Explore Page Events
@@ -101,7 +103,12 @@ export const useExploreStore = create(
                     if (city) query.city = city;
                     if (cursor) query.lastId = cursor;
 
-                    const payload = await fetchPublicEvents(query);
+                    const payload = isGuestBffEnabled("explore")
+                        ? await fetchGuestBffExploreFeed({
+                            ...query,
+                            includeFeatured: false,
+                        })
+                        : await fetchPublicEvents(query);
                     const newEvents = Array.isArray(payload.events)
                         ? payload.events
                         : Array.isArray(payload.items)

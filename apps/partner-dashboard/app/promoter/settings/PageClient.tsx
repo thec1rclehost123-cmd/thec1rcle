@@ -65,7 +65,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
         (async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/promoter/settings?promoterId=${promoterId}`, {
+                const res = await fetch(`/api/partners/promoters/settings?promoterId=${promoterId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok || cancelled) return;
@@ -97,7 +97,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
         setIsSaving(true); setSaveError(null);
         try {
             const token = await user.getIdToken();
-            const res = await fetch("/api/promoter/settings/identity", {
+            const res = await fetch("/api/partners/promoters/settings/identity", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
@@ -125,7 +125,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
             notifDebounce.current = setTimeout(async () => {
                 try {
                     const token = await user.getIdToken();
-                    await fetch("/api/promoter/settings/notifications", {
+                    await fetch("/api/partners/promoters/settings/notifications", {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                         body: JSON.stringify({ promoterId, notifications: next }),
@@ -156,7 +156,7 @@ export default function SettingsPage({ setActions, activeTab }: { setActions?: (
         setLogoutBusy(true);
         try {
             const token = await user.getIdToken();
-            await fetch("/api/promoter/settings/security/logout-all", {
+            await fetch("/api/partners/promoters/settings/security/logout-all", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
             });

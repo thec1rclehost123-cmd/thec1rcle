@@ -38,7 +38,7 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
             fd.append("file", file);
             fd.append("promoterId", promoterId);
             fd.append("type", "logo");
-            const res = await fetch("/api/promoter/upload", {
+            const res = await fetch("/api/partners/promoters/upload", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: fd,
@@ -56,7 +56,7 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
         setError("");
         setSaving(true);
         try {
-            const res = await fetch("/api/promoter/settings/identity", {
+            const res = await fetch("/api/partners/promoters/settings/identity", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

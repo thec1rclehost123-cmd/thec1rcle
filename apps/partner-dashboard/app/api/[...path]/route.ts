@@ -15,9 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { proxyToGateway } from "@/lib/server/apiGateway";
-
-const GATEWAY_URL = process.env.GATEWAY_URL;
+import { GATEWAY_URL, proxyToGateway } from "@/lib/server/apiGateway";
 
 const FORWARDED_HEADERS = [
     "authorization",
@@ -30,13 +28,21 @@ const FORWARDED_HEADERS = [
     "x-forwarded-for",
 ];
 
+function errorResponse(req: NextRequest, status: number, message: string, code?: string) {
+    return NextResponse.json({
+        success: false,
+        error: {
+            code: code || (status === 503 ? "SERVICE_UNAVAILABLE" : status === 502 ? "BAD_GATEWAY" : "REQUEST_ERROR"),
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+    }, { status });
+}
+
 async function gatewayProxy(req: NextRequest, pathSegments: string[]): Promise<NextResponse> {
     if (!GATEWAY_URL) {
         console.error("[catch-all proxy] GATEWAY_URL is not set");
-        return NextResponse.json(
-            { error: "Service unavailable: API gateway not configured" },
-            { status: 503 }
-        );
+        return errorResponse(req, 503, "Service unavailable: API gateway not configured");
     }
 
     const { search } = new URL(req.url);
@@ -60,10 +66,7 @@ async function gatewayProxy(req: NextRequest, pathSegments: string[]): Promise<N
         return proxyToGateway(req, targetUrl, init);
     } catch (err) {
         console.error("[catch-all proxy] Gateway request failed", { targetUrl, err });
-        return NextResponse.json(
-            { error: "Failed to communicate with API gateway" },
-            { status: 502 }
-        );
+        return errorResponse(req, 502, "Failed to communicate with API gateway");
     }
 }
 

@@ -33,8 +33,29 @@ export interface PromoterAuthContext {
 // ── Error shape ──────────────────────────────────────────────────────────────
 
 export interface PromoterAuthError {
-    error: string;
+    error: {
+        code: string;
+        message: string;
+        requestId: string;
+    };
     status: number;
+}
+
+function buildAuthError(req: NextRequest, status: number, message: string): PromoterAuthError {
+    const code =
+        status === 401 ? "UNAUTHORIZED"
+        : status === 403 ? "FORBIDDEN"
+        : status >= 500 ? "INTERNAL_ERROR"
+        : "BAD_REQUEST";
+
+    return {
+        error: {
+            code,
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+        status,
+    };
 }
 
 // ── Main guard ───────────────────────────────────────────────────────────────
@@ -45,7 +66,7 @@ export async function requirePromoterAccess(
     // 1. Verify Firebase token
     const decodedToken = await verifyAuth(req);
     if (!decodedToken) {
-        return { error: "Unauthorized", status: 401 };
+        return buildAuthError(req, 401, "Unauthorized");
     }
 
     const uid = decodedToken.uid;
@@ -86,7 +107,7 @@ export async function requirePromoterAccess(
                 displayName: pd.displayName || pd.name || "Promoter",
             };
         }
-        return { error: "Forbidden: no active promoter membership", status: 403 };
+        return buildAuthError(req, 403, "Forbidden: no active promoter membership");
     }
 
     const membership = membershipSnap.docs[0].data();

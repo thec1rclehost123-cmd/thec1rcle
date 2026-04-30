@@ -3,30 +3,59 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import CheckoutContainer from "../../../features/checkout/CheckoutContainer";
+import { normalizeCheckoutEventDetail } from "../../../features/checkout/checkoutEventModel.js";
 import FunnelShell from "../../../components/FunnelShell";
 import { fetchPublicEvent } from "../../../features/discovery/publicDiscovery";
+import { fetchGuestBffCheckoutSummary } from "../../../lib/bff/fetchers.js";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
 
-function normalizeCheckoutEvent(detail) {
-  const event = detail?.event || detail;
-  if (!event) return null;
-  return {
-    ...event,
-    tickets: event.ticketCatalog?.tiers ?? event.tickets ?? [],
-  };
+function readSelectedTicketsFromQuery(searchParams) {
+  const items = [];
+  if (!searchParams) return items;
+
+  for (const [key, value] of searchParams.entries()) {
+    if (!key.startsWith("t_")) continue;
+    const quantity = Number.parseInt(String(value || "0"), 10);
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    items.push({
+      id: key.slice(2),
+      quantity,
+    });
+  }
+
+  return items;
 }
 
-export default function CheckoutPageClient({ initialEvent = null, initialStatus = "loading", initialEventId = "" }) {
+function buildInitialTickets(event, searchParams) {
+  if (!event?.tickets?.length) return [];
+
+  return event.tickets.flatMap((ticket) => {
+    const quantity = Number(searchParams?.get(`t_${ticket.id}`) || 0);
+    if (quantity <= 0) return [];
+    return [{ ...ticket, quantity }];
+  });
+}
+
+export default function CheckoutPageClient({
+  initialEvent = null,
+  initialSummary = null,
+  initialStatus = "loading",
+  initialEventId = "",
+}) {
   const params = useParams();
   const searchParams = useSearchParams();
   const eventId = decodeURIComponent(String(params?.eventId || initialEventId || ""));
   const [event, setEvent] = useState(initialEvent);
+  const [summary, setSummary] = useState(initialSummary);
   const [status, setStatus] = useState(initialEvent ? "ready" : initialStatus);
+  const searchKey = searchParams?.toString() || "";
 
   useEffect(() => {
     let cancelled = false;
 
     if (initialEvent && eventId === initialEventId) {
       setEvent(initialEvent);
+      setSummary(initialSummary);
       setStatus(initialStatus === "error" ? "error" : "ready");
       return () => {
         cancelled = true;
@@ -36,10 +65,25 @@ export default function CheckoutPageClient({ initialEvent = null, initialStatus 
     async function loadEvent() {
       setStatus("loading");
       try {
+        if (isGuestBffEnabled("checkout")) {
+          const payload = await fetchGuestBffCheckoutSummary({
+            eventId,
+            promoterCode: searchParams?.get("ref") || null,
+            selectedTickets: readSelectedTicketsFromQuery(searchParams),
+          });
+          if (cancelled) return;
+          const nextEvent = normalizeCheckoutEventDetail(payload?.event);
+          setEvent(nextEvent);
+          setSummary(payload);
+          setStatus(nextEvent ? "ready" : "missing");
+          return;
+        }
+
         const detail = await fetchPublicEvent(eventId);
         if (cancelled) return;
-        const nextEvent = normalizeCheckoutEvent(detail);
+        const nextEvent = normalizeCheckoutEventDetail(detail);
         setEvent(nextEvent);
+        setSummary(null);
         setStatus(nextEvent ? "ready" : "missing");
       } catch (error) {
         if (!cancelled) {
@@ -58,17 +102,11 @@ export default function CheckoutPageClient({ initialEvent = null, initialStatus 
     return () => {
       cancelled = true;
     };
-  }, [eventId, initialEvent, initialEventId, initialStatus]);
+  }, [eventId, initialEvent, initialEventId, initialStatus, initialSummary, searchKey, searchParams]);
 
   const initialTickets = useMemo(() => {
-    if (!event?.tickets?.length) return [];
-
-    return event.tickets.flatMap((ticket) => {
-      const quantity = Number(searchParams?.get(`t_${ticket.id}`) || 0);
-      if (quantity <= 0) return [];
-      return [{ ...ticket, quantity }];
-    });
-  }, [event, searchParams]);
+    return buildInitialTickets(event, searchParams);
+  }, [event, searchKey, searchParams]);
 
   if (status === "loading") {
     return (
@@ -106,7 +144,7 @@ export default function CheckoutPageClient({ initialEvent = null, initialStatus 
 
   return (
     <FunnelShell title="Checkout" showLogo backHref={`/event/${event.id}`}>
-      <CheckoutContainer event={event} initialTickets={initialTickets} />
+      <CheckoutContainer event={event} initialSummary={summary} initialTickets={initialTickets} />
     </FunnelShell>
   );
 }

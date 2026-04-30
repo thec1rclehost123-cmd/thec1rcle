@@ -171,7 +171,7 @@ export default function DoorSearchPageClient() {
         setLastActionResult(null);
         try {
             const res = await fetch(
-                `/api/venue/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q.trim())}&field=${field}`,
+                `/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q.trim())}&field=${field}`,
                 { headers: authHeaders() }
             );
             if (!res.ok) throw new Error("Search failed");
@@ -206,7 +206,7 @@ export default function DoorSearchPageClient() {
         setLastActionResult(null);
         try {
             const res = await fetch(
-                `/api/venue/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`,
+                `/api/partners/venues/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`,
                 { method: "POST", headers: authHeaders(), body: JSON.stringify(body) }
             );
             const data = await res.json().catch(() => ({}));

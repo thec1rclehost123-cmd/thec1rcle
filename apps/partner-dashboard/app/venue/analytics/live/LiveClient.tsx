@@ -389,7 +389,7 @@ export default function LiveClient() {
         try {
             const token = await user.getIdToken();
             const res   = await fetch(
-                `/api/venue/analytics/overview?venueId=${venueId}&range=1d`,
+                `/api/partners/venues/analytics/overview?venueId=${venueId}&range=1d`,
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             if (res.ok) {

@@ -105,7 +105,7 @@ export default function VenueMarketingPageClient() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const response = await fetch(`/api/venue/crm/online?venueId=${venueId}`, {
+            const response = await fetch(`/api/partners/venues/crm/online?venueId=${venueId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch attendees");
@@ -121,7 +121,7 @@ export default function VenueMarketingPageClient() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const response = await fetch(`/api/venue/orders?venueId=${venueId}&page=1&limit=100`, {
+            const response = await fetch(`/api/partners/venues/orders?venueId=${venueId}&page=1&limit=100`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch order history");
@@ -193,7 +193,7 @@ export default function VenueMarketingPageClient() {
         try {
             setIsSending(true);
             const token = await user.getIdToken();
-            const response = await fetch(`/api/venue/marketing/campaigns?venueId=${venueId}`, {
+            const response = await fetch(`/api/partners/venues/marketing/campaigns?venueId=${venueId}`, {
                 method: "POST",
                 headers: {
                     Authorization: `Bearer ${token}`,

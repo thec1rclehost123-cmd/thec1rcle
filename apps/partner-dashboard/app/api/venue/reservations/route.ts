@@ -12,7 +12,7 @@ import { fail } from "@/lib/server/apiResponse";
  */
 export async function GET(req: NextRequest) {
     const ctx = await requireVenueAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("venueId", ctx.venueId);
     return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/venue/reservations?${searchParams.toString()}`, {});
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     const ctx = await requireVenueAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json();
     const { reservationId, ...updates } = body;
     if (!reservationId) return fail("reservationId required", 400);

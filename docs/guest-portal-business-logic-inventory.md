@@ -1,15 +1,18 @@
 # Guest Portal Business Logic Inventory
 
-Refreshed for the stabilize-first Ghost Bridge state on 2026-04-23.
+Refreshed for the incremental Guest Portal BFF rollout on 2026-04-29.
 
 ## Current Architecture Truth
 
-The Guest Portal is now a UI-first Next.js app that talks to the Fastify API Gateway through `/api/v1/*`.
+The Guest Portal is now a UI-first Next.js app with an approved page-DTO BFF layer in front of the Fastify API Gateway.
 
-- `apps/guest-portal/app/api` has no local `route.js`, `route.jsx`, `route.ts`, or `route.tsx` handlers.
+- `apps/guest-portal/app/api/app/*` is now the approved BFF namespace for page-level aggregation.
+- BFF handlers may compose multiple `/api/v1/*` gateway reads, normalize payloads, and return prepared DTOs for Guest Portal pages.
+- Existing gateway endpoints remain unchanged and continue to own business behavior.
 - `apps/guest-portal/lib/server` is no longer a guest business-logic runtime bucket. The only remaining file is `publicDiscoveryAdapters.js`, which is a display adapter.
 - Deleted local server modules and deleted local API routes must not be listed as current ownership.
 - Frontend runtime still owns UI orchestration, auth/session hydration, client-side state, validation prompts, payment-provider handoff, QR display, and optimistic UX.
+- Guest Portal BFF owns page DTO assembly, parity logging, route-level request and response validation, and fan-in orchestration for migrated surfaces.
 - Fastify owns guest business decisions, data reads/writes, pricing, payment verification, ticket ownership, profile mutation, public discovery, promoter attribution, relationship actions, reservations, waitlist, notifications, and entitlement operations.
 - `packages/core` owns shared domain engines and reusable business helpers used by the gateway.
 
@@ -24,6 +27,27 @@ These are the current guest-facing business surfaces and their backend ownership
 5. Tickets and wallet: frontend renders wallet, QR, share, claim, pair, transfer, pass, download, and cover-wallet UI; ticket ownership and mutations are gateway-owned.
 6. Social and promoter attribution: frontend triggers follow and vanity-link flows; relationship writes, promoter link resolution, click tracking, and referral attribution are gateway-owned.
 7. Notifications and guest profiles: frontend renders notification/profile views; notification state and public guest profile reads are gateway-owned.
+
+## Approved Guest BFF Reads
+
+These handlers are the current migration seam and are intentionally additive.
+
+- `GET /api/app/tickets/overview`
+- `GET /api/app/events/:eventId/detail`
+- `GET /api/app/home/overview`
+- `GET /api/app/checkout/summary`
+- `POST /api/app/checkout/summary`
+- `POST /api/app/checkout/quote`
+- `POST /api/app/checkout/reserve`
+- `POST /api/app/checkout/initiate`
+- `POST /api/app/checkout/verify`
+- `GET /api/app/checkout/recover`
+- `GET /api/app/profile/overview`
+- `POST /api/app/profile/update`
+- `GET /api/app/profiles/:userId/detail`
+- `GET /api/app/notifications/summary`
+- `GET /api/app/explore/feed`
+- `GET /api/app/orders/:orderId/confirmation`
 
 ## Canonical Contracts
 
@@ -64,12 +88,12 @@ All guest runtime callers should use logical gateway paths that resolve to `/api
 
 The stabilize-first pass protects the current architecture with tests instead of large UI refactors.
 
-- `apps/guest-portal/tests/ghost-bridge-boundaries.test.js` keeps guest `app/api` free of local route handlers and fails on source-level duplicate/backup runtime artifacts such as `* 2.*`, `.bak`, and `.old`.
+- `apps/guest-portal/tests/ghost-bridge-boundaries.test.js` now allows only approved `app/api/app/*` BFF route handlers and still blocks ad hoc guest business routes elsewhere in `app/api`.
 - `apps/guest-portal/tests/gp4-checkout-boundaries.test.js` fences checkout/payment endpoint contracts.
 - `apps/guest-portal/tests/gateway-path-boundaries.test.js` documents intentional gateway path compatibility mappings.
 - `apps/guest-portal/tests/removed-runtime-modules.test.js` prevents deleted local backend modules from being restored.
-- `docs/phase-0-api-route-inventory.json` is repo-wide and generated from live `app/api` route files. Guest Portal should remain absent from that route list unless an approved web-specific helper is intentionally introduced.
-- `governance/backend-boundary-exceptions.json` should not contain Guest Portal `app/api` exceptions while Guest Portal has zero local route handlers.
+- `docs/phase-0-api-route-inventory.json` is repo-wide and should treat Guest Portal `app/api/app/*` routes as approved BFF read-model handlers, not general-purpose local business endpoints.
+- `governance/backend-boundary-exceptions.json` should stay empty for Guest Portal unless a non-BFF local route is intentionally introduced.
 
 ## Known Stabilize-First Debt
 

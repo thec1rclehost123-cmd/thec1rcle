@@ -2,6 +2,8 @@
 
 import { getApiErrorMessage, guestApi } from "../../../lib/api/client";
 import { authService } from "../../../lib/authService";
+import { guestBffJson, getGuestBffErrorMessage, unwrapGuestBffPayload } from "../../../lib/bff/client.js";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
 
 const PROFILE_MUTATION_GROUPS = [
   {
@@ -87,7 +89,28 @@ function pickProfileUpdates(source, fields) {
   return next;
 }
 
+async function requestGuestBffProfileUpdate(body) {
+  const { response, data } = await guestBffJson("/profile/update", {
+    method: "POST",
+    body,
+  });
+  if (!response.ok) {
+    const nextError = new Error(getGuestBffErrorMessage(data, "Unable to update profile."));
+    nextError.code = data?.error?.code;
+    throw nextError;
+  }
+  return unwrapGuestBffPayload(data) || { success: true };
+}
+
 export async function updateGuestProfile(updates) {
+  if (!updates || Object.values(updates).every((value) => value === undefined)) {
+    return { success: true };
+  }
+
+  if (isGuestBffEnabled("profile")) {
+    return requestGuestBffProfileUpdate(updates);
+  }
+
   const remaining = new Set(Object.keys(updates || {}).filter((key) => updates[key] !== undefined));
   const requests = [];
 
@@ -100,6 +123,11 @@ export async function updateGuestProfile(updates) {
   }
 
   if (remaining.size > 0) {
+    const bffEligibleFields = ["attendedEvents", "savedEvents"];
+    const bffPayload = pickProfileUpdates(updates, bffEligibleFields);
+    if (Object.keys(bffPayload).length === remaining.size) {
+      return requestGuestBffProfileUpdate(bffPayload);
+    }
     throw new Error(`Unsupported profile fields: ${Array.from(remaining).join(", ")}`);
   }
 

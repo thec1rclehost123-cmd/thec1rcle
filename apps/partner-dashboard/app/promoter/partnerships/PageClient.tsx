@@ -78,10 +78,10 @@ export default function PromoterPartnershipsPage() {
         setProcessingId(connectionId);
         try {
             const token = user ? await user.getIdToken() : "";
-            await fetch("/api/discovery", {
+            await fetch(`/api/partners/promoters/connections/${connectionId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ connectionId, action, type: "promoter_connection" }),
+                body: JSON.stringify({ action }),
             });
             queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
         } catch { /* */ } finally { setProcessingId(null); }
@@ -91,10 +91,10 @@ export default function PromoterPartnershipsPage() {
         setProcessingId(conn.id);
         try {
             const token = user ? await user.getIdToken() : "";
-            await fetch("/api/discovery", {
+            await fetch("/api/partners/promoters/connections/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ requesterId: promoterId, requesterType: "promoter", requesterName: profile?.name || "", targetId: conn.otherId, targetType: conn.otherType, targetName: conn.otherName }),
+                body: JSON.stringify({ targetId: conn.otherId, targetType: conn.otherType, targetName: conn.otherName }),
             });
             queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
         } catch { /* */ } finally { setProcessingId(null); }
@@ -104,10 +104,10 @@ export default function PromoterPartnershipsPage() {
         setProcessingId(connectionId);
         try {
             const token = user ? await user.getIdToken() : "";
-            await fetch("/api/discovery", {
+            await fetch(`/api/partners/promoters/connections/${connectionId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ connectionId, action: "remove", role: "promoter", partnerId: promoterId }),
+                body: JSON.stringify({ action: "remove" }),
             });
             queryClient.invalidateQueries({ queryKey: ["promoter-partnerships", promoterId || ""] });
         } catch { /* */ } finally { setProcessingId(null); }

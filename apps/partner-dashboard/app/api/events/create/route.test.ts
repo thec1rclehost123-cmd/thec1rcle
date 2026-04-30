@@ -1,32 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const createEventMock = vi.fn();
-const createSlotRequestMock = vi.fn();
-const getDateAvailabilityMock = vi.fn();
-const isSlotAvailableMock = vi.fn();
-const checkPartnershipMock = vi.fn();
-const resolveHostVenueSelectionMock = vi.fn();
-
-vi.mock("@/lib/server/eventStore", () => ({
-    createEvent: createEventMock,
-}));
-
-vi.mock("@/lib/server/slotStore", () => ({
-    createSlotRequest: createSlotRequestMock,
-}));
-
-vi.mock("@/lib/server/calendarStore", () => ({
-    getDateAvailability: getDateAvailabilityMock,
-    isSlotAvailable: isSlotAvailableMock,
-}));
-
-vi.mock("@/lib/server/partnershipStore", () => ({
-    checkPartnership: checkPartnershipMock,
-    resolveHostVenueSelection: resolveHostVenueSelectionMock,
-}));
+const proxyToGatewayMock = vi.fn();
 
 vi.mock("@/lib/server/withAuth", () => ({
     withAuth: (handler: any) => handler,
+}));
+
+vi.mock("@/lib/server/apiGateway", () => ({
+    GATEWAY_URL: "http://gateway.test",
+    proxyToGateway: proxyToGatewayMock,
 }));
 
 vi.mock("@/lib/server/apiResponse", () => ({
@@ -47,87 +29,38 @@ describe("POST /api/events/create", () => {
     beforeEach(() => {
         vi.resetModules();
         vi.clearAllMocks();
-        getDateAvailabilityMock.mockResolvedValue({ status: "available", slots: [] });
-        isSlotAvailableMock.mockResolvedValue(true);
-        checkPartnershipMock.mockResolvedValue(true);
-        resolveHostVenueSelectionMock.mockImplementation(async (_hostId: string, venueId: string, venueName = "") => ({
-            venueId,
-            venueName,
-            canonicalized: false,
-        }));
-        createEventMock.mockImplementation(async (payload: any) => ({ id: "evt_1", ...payload }));
-        createSlotRequestMock.mockResolvedValue({ id: "slot_1" });
+        proxyToGatewayMock.mockResolvedValue({ success: true, status: 201 });
     });
 
-    it("allows venue direct create without slot request side effects", async () => {
+    it("requires a title before proxying", async () => {
         const { POST } = await import("./route");
         const req = makeRequest({
-            title: "Venue Night",
             creatorRole: "venue",
-            lifecycle: "scheduled",
-            venueId: "venue_1",
-            startDate: "2026-04-11",
-            startTime: "21:00",
-            endTime: "01:00",
         });
 
         const result = await POST(req, { uid: "venue-user", partnerId: "venue_1", role: "venue" });
 
-        expect(result.success).toBe(true);
-        expect(result.status).toBe(201);
-        expect(createEventMock).toHaveBeenCalledOnce();
-        expect(createSlotRequestMock).not.toHaveBeenCalled();
-        expect(checkPartnershipMock).not.toHaveBeenCalled();
+        expect(result.success).toBe(false);
+        expect(result.status).toBe(400);
+        expect(proxyToGatewayMock).not.toHaveBeenCalled();
     });
 
-    it("keeps host drafts side-effect free", async () => {
+    it("requires a creatorRole before proxying", async () => {
         const { POST } = await import("./route");
         const req = makeRequest({
-            title: "Host Draft",
-            creatorRole: "host",
-            creatorId: "host_1",
-            lifecycle: "draft",
-            venueId: "venue_1",
-            startDate: "2026-04-11",
-            startTime: "21:00",
-            endTime: "01:00",
+            title: "Missing role",
         });
 
         const result = await POST(req, { uid: "host-user", partnerId: "host_1", role: "host" });
 
-        expect(result.success).toBe(true);
-        expect(createEventMock).toHaveBeenCalledOnce();
-        expect(createSlotRequestMock).not.toHaveBeenCalled();
-        expect(checkPartnershipMock).not.toHaveBeenCalled();
+        expect(result.success).toBe(false);
+        expect(result.status).toBe(400);
+        expect(proxyToGatewayMock).not.toHaveBeenCalled();
     });
 
-    it("does not block draft creation on unavailable venue slots", async () => {
-        getDateAvailabilityMock.mockResolvedValue({ status: "available", slots: [] });
-        isSlotAvailableMock.mockResolvedValue(false);
-
+    it("forwards valid create requests to the unified gateway route", async () => {
         const { POST } = await import("./route");
-        const req = makeRequest({
-            title: "Host Draft With Conflict",
-            creatorRole: "host",
-            creatorId: "host_1",
-            lifecycle: "draft",
-            venueId: "venue_1",
-            startDate: "2026-04-11",
-            startTime: "21:00",
-            endTime: "01:00",
-        });
-
-        const result = await POST(req, { uid: "host-user", partnerId: "host_1", role: "host" });
-
-        expect(result.success).toBe(true);
-        expect(createEventMock).toHaveBeenCalledOnce();
-        expect(isSlotAvailableMock).not.toHaveBeenCalled();
-        expect(createSlotRequestMock).not.toHaveBeenCalled();
-    });
-
-    it("requires partnership and creates a slot request for host submit", async () => {
-        const { POST } = await import("./route");
-        const req = makeRequest({
+        const body = {
             title: "Host Submit",
             creatorRole: "host",
             creatorId: "host_1",
@@ -138,12 +71,20 @@ describe("POST /api/events/create", () => {
             startTime: "21:00",
             endTime: "01:00",
             host: "Host One",
-        });
+        };
+        const req = makeRequest(body);
 
         const result = await POST(req, { uid: "host-user", partnerId: "host_1", role: "host" });
 
         expect(result.success).toBe(true);
-        expect(checkPartnershipMock).toHaveBeenCalledWith("host_1", "venue_1");
-        expect(createSlotRequestMock).toHaveBeenCalledOnce();
+        expect(proxyToGatewayMock).toHaveBeenCalledOnce();
+        expect(proxyToGatewayMock).toHaveBeenCalledWith(
+            req,
+            "http://gateway.test/api/v1/partner/events/create",
+            {
+                method: "POST",
+                body: JSON.stringify(body),
+            }
+        );
     });
 });

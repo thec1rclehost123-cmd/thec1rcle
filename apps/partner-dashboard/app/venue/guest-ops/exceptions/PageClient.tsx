@@ -81,7 +81,7 @@ export default function ExceptionsPageClient() {
         try {
             const params = new URLSearchParams({ venueId });
             if (statusFilter !== "all") params.set("status", statusFilter);
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/exceptions?${params}`, { headers: authHeaders() });
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/exceptions?${params}`, { headers: authHeaders() });
             if (res.ok) {
                 const d = await res.json();
                 setExceptions(d.exceptions ?? []);
@@ -106,7 +106,7 @@ export default function ExceptionsPageClient() {
                 notes: resolveForm.notes.trim() || undefined,
             };
             const res = await fetch(
-                `/api/venue/guest-ops/${eventId}/exceptions/${exceptionId}/resolve?venueId=${venueId}`,
+                `/api/partners/venues/guest-ops/${eventId}/exceptions/${exceptionId}/resolve?venueId=${venueId}`,
                 { method: "POST", headers: authHeaders(), body: JSON.stringify(body) }
             );
             if (!res.ok) {

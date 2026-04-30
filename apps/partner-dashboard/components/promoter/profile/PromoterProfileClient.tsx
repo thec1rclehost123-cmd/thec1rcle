@@ -8,7 +8,7 @@ export function PromoterProfileClient() {
     const { data, isLoading, error, refetch } = useQuery({
         queryKey: ["promoter", "profile"],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/profile`);
+            const res = await fetch(`/api/partners/promoters/profile`);
             if (!res.ok) throw new Error("Failed to fetch profile");
             return res.json();
         },
@@ -25,7 +25,7 @@ export function PromoterProfileClient() {
 
     const updateProfile = useMutation({
         mutationFn: async (updatedData: any) => {
-             const res = await fetch(`/api/partner/promoter/profile`, {
+             const res = await fetch(`/api/partners/promoters/profile`, {
                  method: 'PUT',
                  headers: { 'Content-Type': 'application/json' },
                  body: JSON.stringify(updatedData)

@@ -31,7 +31,7 @@ export default function HostOpsPage() {
             try {
                 const hostId = profile.activeMembership.partnerId;
                 const token = user ? await user.getIdToken() : "";
-                const res = await fetch(`/api/host/ops/tonight?hostId=${hostId}`, {
+                const res = await fetch(`/api/partners/hosts/ops/tonight?hostId=${hostId}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (res.ok) {

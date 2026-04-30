@@ -62,7 +62,7 @@ export default function FacilitiesManager({ venueId, facilities, onRefresh }: Fa
     const apiCall = async (action: string, data: any, successMsg?: string) => {
         if (!user) return;
         try {
-            await authedFetch("/api/venue/facilities", {
+            await authedFetch("/api/partners/venues/facilities", {
                 method: "POST",
                 body: JSON.stringify({ venueId, action, data })
             });

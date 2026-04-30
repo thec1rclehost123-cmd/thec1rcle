@@ -51,7 +51,7 @@ export function SecurityHub({
         }
         setTwoFaLoading(true);
         try {
-            const res = await fetch("/api/promoter/settings/notifications", {
+            const res = await fetch("/api/partners/promoters/settings/notifications", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ promoterId, security: { twoFaEnabled: false, twoFaFlaggedAt: null } }),
@@ -69,7 +69,7 @@ export function SecurityHub({
         setTwoFaLoading(true);
         try {
             const now = new Date().toISOString();
-            const res = await fetch("/api/promoter/settings/notifications", {
+            const res = await fetch("/api/partners/promoters/settings/notifications", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({
@@ -92,7 +92,7 @@ export function SecurityHub({
         setLogoutLoading(true);
         setError("");
         try {
-            await fetch("/api/promoter/settings/security/logout-all", {
+            await fetch("/api/partners/promoters/settings/security/logout-all", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
             });

@@ -67,7 +67,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
         setIsLoading(true);
         try {
             const venueId = profile.activeMembership.partnerId;
-            const res = await fetch(`/api/venue/security/sync?venueId=${venueId}`);
+            const res = await fetch(`/api/partners/venues/security/sync?venueId=${venueId}`);
             if (res.ok) {
                 const data = await res.json();
                 setEvents(data.events);
@@ -132,7 +132,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
         setIsSyncing(true);
         try {
             const venueId = profile.activeMembership.partnerId;
-            const res = await fetch(`/api/venue/security/sync`, {
+            const res = await fetch(`/api/partners/venues/security/sync`, {
                 method: "POST",
                 body: JSON.stringify({ eventId, venueId, userId: profile.uid })
             });
@@ -151,7 +151,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
         setIsSyncing(true);
         try {
             const venueId = profile.activeMembership.partnerId;
-            const res = await fetch(`/api/venue/security/sync`, {
+            const res = await fetch(`/api/partners/venues/security/sync`, {
                 method: "POST",
                 body: JSON.stringify({ eventId, venueId, action: "deactivate" })
             });

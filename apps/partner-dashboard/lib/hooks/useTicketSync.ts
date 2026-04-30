@@ -67,7 +67,7 @@ export function useTicketSync(eventId: string, venueId: string): UseTicketSyncRe
         });
     }, [user]);
 
-    const baseUrl = `/api/venue/events/${eventId}/tickets?venueId=${venueId}`;
+    const baseUrl = `/api/partners/venues/events/${eventId}/tickets?venueId=${venueId}`;
 
     const query = useQuery<{ tiers: TicketTier[] }>({
         queryKey: ["venue-tickets", eventId, venueId],

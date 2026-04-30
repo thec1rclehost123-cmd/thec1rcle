@@ -47,7 +47,7 @@ export default function TablesPage() {
         if (!profile?.activeMembership?.partnerId) return;
         setIsLoading(true);
         try {
-            const res = await fetch(`/api/venue/tables?venueId=${profile.activeMembership.partnerId}`);
+            const res = await fetch(`/api/partners/venues/tables?venueId=${profile.activeMembership.partnerId}`);
             if (res.ok) {
                 const data = await res.json();
                 setTables(data);
@@ -62,7 +62,7 @@ export default function TablesPage() {
     const fetchTonightEvent = async () => {
         if (!profile?.activeMembership?.partnerId) return;
         try {
-            const res = await fetch(`/api/venue/events?venueId=${profile.activeMembership.partnerId}&limit=1`);
+            const res = await fetch(`/api/partners/venues/events?venueId=${profile.activeMembership.partnerId}&limit=1`);
             if (res.ok) {
                 const data = await res.json();
                 if (data.events?.[0]) {
@@ -77,7 +77,7 @@ export default function TablesPage() {
 
     const fetchEventStatus = async (eventId: string) => {
         try {
-            const res = await fetch(`/api/venue/tables?eventId=${eventId}`);
+            const res = await fetch(`/api/partners/venues/tables?eventId=${eventId}`);
             if (res.ok) {
                 const data = await res.json();
                 setEventTableStatus(data);
@@ -96,7 +96,7 @@ export default function TablesPage() {
         if (!profile?.activeMembership?.partnerId) return;
         setIsSaving(true);
         try {
-            const res = await fetch("/api/venue/tables", {
+            const res = await fetch("/api/partners/venues/tables", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -120,7 +120,7 @@ export default function TablesPage() {
         if (!tonightEvent?.id) return;
         setIsSaving(true);
         try {
-            await fetch("/api/venue/tables", {
+            await fetch("/api/partners/venues/tables", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -142,7 +142,7 @@ export default function TablesPage() {
     const handleDeleteTable = async (tableId: string) => {
         if (!window.confirm("Delete this table definition?")) return;
         try {
-            const res = await fetch(`/api/venue/tables?tableId=${tableId}`, { method: "DELETE" });
+            const res = await fetch(`/api/partners/venues/tables?tableId=${tableId}`, { method: "DELETE" });
             if (res.ok) fetchTables();
         } catch (err) {
             console.error(err);

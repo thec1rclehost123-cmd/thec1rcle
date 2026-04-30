@@ -117,7 +117,7 @@ export default function HostCalendarPage() {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : null;
             if (!token) return;
-            const res = await fetch(`/api/host/partnerships?hostId=${hostId}&status=active`, {
+            const res = await fetch(`/api/partners/hosts/partnerships?hostId=${hostId}&status=active`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) return;
@@ -147,7 +147,7 @@ export default function HostCalendarPage() {
             const end = `${year}-${String(month + 1).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
 
             if (selectedVenueId === HOST_SCOPE_ID) {
-                const res = await fetch(`/api/host/events?limit=200`, {
+                const res = await fetch(`/api/partners/hosts/events?limit=200`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) throw new Error("Failed");

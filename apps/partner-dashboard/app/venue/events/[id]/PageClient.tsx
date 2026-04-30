@@ -706,7 +706,7 @@ export default function VenueEventWorkspacePage() {
     const eventQuery = useQuery({
         queryKey: ["venue-event", eventId],
         queryFn: async () => {
-            const payload = await authedJson(`/api/venue/events/${eventId}`);
+            const payload = await authedJson(`/api/partners/venues/events/${eventId}`);
             return payload.event as EventDetail;
         },
         enabled: Boolean(eventId && user && partnerId),
@@ -718,7 +718,7 @@ export default function VenueEventWorkspacePage() {
     const overviewQuery = useQuery({
         queryKey: ["venue-event-overview", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/venue/events/${eventId}/overview`)) as OverviewData;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/overview`)) as OverviewData;
         },
         enabled: Boolean(eventId && user && partnerId && !isHostManagedEvent),
         refetchInterval: activeSection === "analytics" ? 15000 : false,
@@ -727,7 +727,7 @@ export default function VenueEventWorkspacePage() {
     const ticketsQuery = useQuery({
         queryKey: ["venue-event-tickets", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/venue/events/${eventId}/tickets`)) as TicketsResponse;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/tickets`)) as TicketsResponse;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "tickets"),
         staleTime: Infinity,
@@ -738,7 +738,7 @@ export default function VenueEventWorkspacePage() {
     const financeQuery = useQuery({
         queryKey: ["venue-event-finance", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/venue/events/${eventId}/finance`)) as FinanceData;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/finance`)) as FinanceData;
         },
         enabled: Boolean(eventId && user && partnerId && !isHostManagedEvent && activeSection === "revenue"),
         staleTime: Infinity,
@@ -769,7 +769,7 @@ export default function VenueEventWorkspacePage() {
             if (attendeeStatus) searchParams.set("status", attendeeStatus);
             if (attendeeTierId) searchParams.set("tierId", attendeeTierId);
 
-            return (await authedJson(`/api/venue/events/${eventId}/attendees?${searchParams.toString()}`)) as AttendeesResponse;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/attendees?${searchParams.toString()}`)) as AttendeesResponse;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "attendees"),
         staleTime: Infinity,
@@ -780,7 +780,7 @@ export default function VenueEventWorkspacePage() {
     const promotersQuery = useQuery({
         queryKey: ["venue-event-promoters", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/venue/events/${eventId}/promoters`)) as EventPromotersResponse;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/promoters`)) as EventPromotersResponse;
         },
         enabled: Boolean(eventId && user && partnerId && !isHostManagedEvent && activeSection === "settings" && activeSettingsBlock === "promoters"),
         staleTime: 30_000,
@@ -789,7 +789,7 @@ export default function VenueEventWorkspacePage() {
     const attendeeDetailQuery = useQuery({
         queryKey: ["venue-event-attendee-detail", eventId, selectedAttendeeId],
         queryFn: async () => {
-            return (await authedJson(`/api/venue/events/${eventId}/attendees/${selectedAttendeeId}`)) as AttendeeTrackingResponse;
+            return (await authedJson(`/api/partners/venues/events/${eventId}/attendees/${selectedAttendeeId}`)) as AttendeeTrackingResponse;
         },
         enabled: Boolean(eventId && user && partnerId && selectedAttendeeId && activeSection === "attendees"),
         staleTime: 30_000,
@@ -797,7 +797,7 @@ export default function VenueEventWorkspacePage() {
 
     const saveEventMutation = useMutation({
         mutationFn: async (payload: Record<string, unknown>) => {
-            return authedJson(`/api/venue/events/${eventId}`, {
+            return authedJson(`/api/partners/venues/events/${eventId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -813,7 +813,7 @@ export default function VenueEventWorkspacePage() {
 
     const saveTierMutation = useMutation({
         mutationFn: async (payload: { tierId: string } & TicketTierDraft) => {
-            return authedJson(`/api/venue/events/${eventId}/tickets`, {
+            return authedJson(`/api/partners/venues/events/${eventId}/tickets`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -829,7 +829,7 @@ export default function VenueEventWorkspacePage() {
 
     const resendReceiptMutation = useMutation({
         mutationFn: async (orderId: string) => {
-            return authedJson(`/api/venue/orders/${orderId}/resend-receipt`, {
+            return authedJson(`/api/partners/venues/orders/${orderId}/resend-receipt`, {
                 method: "POST",
             });
         },
@@ -843,7 +843,7 @@ export default function VenueEventWorkspacePage() {
 
     const cancelOrderMutation = useMutation({
         mutationFn: async ({ orderId, mode }: { orderId: string; mode: "cancel" | "cancel_and_relist" }) => {
-            return authedJson(`/api/venue/orders/${orderId}/cancel`, {
+            return authedJson(`/api/partners/venues/orders/${orderId}/cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mode }),
@@ -863,7 +863,7 @@ export default function VenueEventWorkspacePage() {
 
     const savePromotersMutation = useMutation({
         mutationFn: async (payload: { enabled: boolean; allowedPromoterIds: string[] }) => {
-            return authedJson(`/api/venue/events/${eventId}/promoters`, {
+            return authedJson(`/api/partners/venues/events/${eventId}/promoters`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),

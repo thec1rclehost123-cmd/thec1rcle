@@ -102,7 +102,7 @@ export default function VenueFinanceReportsClient() {
                     to: toDate,
                     limit: "200",
                 });
-                const res = await fetch(`/api/venue/finance/ledger?${qs}`, {
+                const res = await fetch(`/api/partners/venues/finance/ledger?${qs}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) throw new Error("Export failed");

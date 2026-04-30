@@ -61,7 +61,7 @@ export default function PromoterPayoutsPage() {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const payoutRes = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, { headers });
+            const payoutRes = await fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers });
             if (!payoutRes.ok) throw new Error("Failed to load payouts");
             const payoutData = await payoutRes.json();
             setBalance(payoutData.balance || null);
@@ -85,7 +85,7 @@ export default function PromoterPayoutsPage() {
         setRequesting(true);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const res = await fetch("/api/promoter/payouts", {
+            const res = await fetch("/api/partners/promoters/payouts", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -118,7 +118,7 @@ export default function PromoterPayoutsPage() {
         if (!confirm("Cancel this payout request?")) return;
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch(`/api/promoter/payouts?payoutId=${payoutId}`, {
+            await fetch(`/api/partners/promoters/payouts?payoutId=${payoutId}`, {
                 method: "DELETE",
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });

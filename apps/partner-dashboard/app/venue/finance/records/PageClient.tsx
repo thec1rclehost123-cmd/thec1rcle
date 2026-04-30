@@ -70,7 +70,7 @@ function LedgerSection() {
                 venueId, page: String(p), limit: String(PAGE_SIZE),
                 ...(q && { search: q }), ...(cat && { category: cat }), ...(st && { status: st }),
             });
-            const res = await fetch(`/api/venue/finance/ledger?${qs}`, {
+            const res = await fetch(`/api/partners/venues/finance/ledger?${qs}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) throw new Error("API error");
@@ -171,7 +171,7 @@ function ReportsSection() {
             if (report.extension === "csv") {
                 const token = typeof getIdToken === "function" ? await getIdToken() : "";
                 const qs = new URLSearchParams({ venueId, from: fromDate, to: toDate, limit: "200" });
-                const res = await fetch(`/api/venue/finance/ledger?${qs}`, {
+                const res = await fetch(`/api/partners/venues/finance/ledger?${qs}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 if (!res.ok) throw new Error("Export failed");

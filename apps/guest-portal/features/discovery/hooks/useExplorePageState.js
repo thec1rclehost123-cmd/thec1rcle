@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useExploreStore } from "../../../store/exploreStore";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
 import {
   curatedCategoryMatchers,
   formatTypeLabel,
@@ -27,6 +28,7 @@ function getBackendSort(sortLabel) {
 
 export function useExplorePageState({ initialEvents = [], initialFeaturedEvents = [] }) {
   const seedRef = useRef(false);
+  const bffEnabled = isGuestBffEnabled("explore");
 
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
   const [selectedCity, setSelectedCity] = useState("");
@@ -114,11 +116,12 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
   }, []);
 
   const cityOptions = useMemo(() => {
-    if (!events.length) {
+    const citySource = bffEnabled && initialEvents.length > 0 ? initialEvents : events;
+    if (!citySource.length) {
       return [{ count: 0, label: "Pune, IN", value: "pune-in" }];
     }
     const map = new Map();
-    events.forEach((event) => {
+    citySource.forEach((event) => {
       const value = event.cityKey || "other-in";
       const label = event.cityLabel || "Other City, IN";
       if (!map.has(value)) {
@@ -127,7 +130,7 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
       map.get(value).count += 1;
     });
     return Array.from(map.values()).sort((left, right) => right.count - left.count);
-  }, [events]);
+  }, [bffEnabled, events, initialEvents]);
 
   useEffect(() => {
     if (!cityOptions.length) return;
@@ -204,6 +207,10 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
   }, [eventsSource]);
 
   const filteredEvents = useMemo(() => {
+    if (bffEnabled) {
+      return processedEvents;
+    }
+
     const now = new Date();
     const normalizedSearch = debouncedSearch.trim().toLowerCase();
     const targetCity = selectedCity;
@@ -241,7 +248,7 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
         return matchesDatePreset(event);
       })
       .sort(comparator);
-  }, [activeSort, debouncedSearch, filters, processedEvents, selectedCity]);
+  }, [activeSort, bffEnabled, debouncedSearch, filters, processedEvents, selectedCity]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;

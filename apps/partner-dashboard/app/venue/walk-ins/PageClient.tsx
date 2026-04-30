@@ -99,7 +99,7 @@ function QuickEntryRow({
 
     const mut = useMutation({
         mutationFn: async () => {
-            const res = await fetch(`/api/venue/walk-ins?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/walk-ins?venueId=${venueId}`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -305,7 +305,7 @@ export function WalkInsClient() {
     const { data: eventsData } = useQuery({
         queryKey: ["venue-events-list", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/events?venueId=${venueId}&status=PUBLISHED,ACTIVE&limit=30`);
+            const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&status=PUBLISHED,ACTIVE&limit=30`);
             if (!res.ok) return { events: [] };
             return res.json();
         },
@@ -325,8 +325,8 @@ export function WalkInsClient() {
         queryKey: ["walk-ins", venueId, selectedEventId, q, categoryFilter, paymentFilter],
         queryFn: async () => {
             const endpoint = selectedEventId
-                ? `/api/venue/walk-ins/${selectedEventId}?${params}`
-                : `/api/venue/walk-ins?${params}`;
+                ? `/api/partners/venues/walk-ins/${selectedEventId}?${params}`
+                : `/api/partners/venues/walk-ins?${params}`;
             const res = await fetch(endpoint);
             if (!res.ok) throw new Error("Failed");
             return res.json();
@@ -339,7 +339,7 @@ export function WalkInsClient() {
     const voidMut = useMutation({
         mutationFn: async (entry: WalkInEntry) => {
             const res = await fetch(
-                `/api/venue/walk-ins/${entry.eventId}?venueId=${venueId}&logId=${entry.id}`,
+                `/api/partners/venues/walk-ins/${entry.eventId}?venueId=${venueId}&logId=${entry.id}`,
                 { method: "DELETE" }
             );
             if (!res.ok) throw new Error("Failed");

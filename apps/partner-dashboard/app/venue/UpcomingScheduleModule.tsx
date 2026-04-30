@@ -14,7 +14,7 @@ export default function UpcomingScheduleModule() {
     useEffect(() => {
         if (!venueId || !user) return;
         user.getIdToken().then(token =>
-            fetch(`/api/venue/events?venueId=${venueId}`, {
+            fetch(`/api/partners/venues/events?venueId=${venueId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
         )

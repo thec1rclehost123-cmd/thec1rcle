@@ -211,7 +211,7 @@ export function DoorSellClient() {
         setCapLoading(true);
         try {
             const res = await fetch(
-                `/api/venue/door/capacity?eventId=${selectedEventId}&venueId=${venueId}`,
+                `/api/partners/venues/door/capacity?eventId=${selectedEventId}&venueId=${venueId}`,
                 { headers: await authHeaders() }
             );
             if (res.ok) {
@@ -279,7 +279,7 @@ export function DoorSellClient() {
         setSubmitting(true);
         const purpose: DoorPurpose = entryType === "dinein" ? "dinein" : "party";
         try {
-            const res = await fetch(`/api/venue/door/sell?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/door/sell?venueId=${venueId}`, {
                 method: "POST",
                 headers: await authHeaders(),
                 body: JSON.stringify({

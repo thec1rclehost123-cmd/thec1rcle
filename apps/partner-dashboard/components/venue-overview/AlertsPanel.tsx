@@ -126,7 +126,7 @@ export const AlertsPanel = memo(function AlertsPanel({
         setDismissed((prev) => new Set([...prev, id])); // optimistic
         try {
             const token = await user?.getIdToken();
-            await fetch(`/api/venue/alerts/${id}/dismiss`, {
+            await fetch(`/api/partners/venues/alerts/${id}/dismiss`, {
                 method: 'PATCH',
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
@@ -140,7 +140,7 @@ export const AlertsPanel = memo(function AlertsPanel({
         setDismissed(new Set(ids));
         ids.forEach((id) => {
             user?.getIdToken().then((token) =>
-                fetch(`/api/venue/alerts/${id}/dismiss`, {
+                fetch(`/api/partners/venues/alerts/${id}/dismiss`, {
                     method: 'PATCH',
                     headers: { Authorization: `Bearer ${token}` },
                 }).catch(() => {}),

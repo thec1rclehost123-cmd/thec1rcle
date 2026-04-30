@@ -49,7 +49,7 @@ export default function EditLinkModal({ link, token, onClose, onSaved }: EditLin
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers.Authorization = `Bearer ${token}`;
-            const res = await fetch(`/api/promoter/links/${link.id}`, {
+            const res = await fetch(`/api/partners/promoters/links/${link.id}`, {
                 method: "PATCH",
                 headers,
                 body: JSON.stringify({

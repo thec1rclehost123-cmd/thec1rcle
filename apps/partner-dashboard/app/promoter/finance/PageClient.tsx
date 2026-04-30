@@ -85,8 +85,8 @@ export default function PromoterFinancePageClient() {
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
 
             const [financeRes, accountsRes] = await Promise.all([
-                fetch(`/api/partner/promoter/finance`, { headers }),
-                fetch("/api/promoter/finance/bank-accounts", { headers }),
+                fetch(`/api/partners/promoters/finance`, { headers }),
+                fetch("/api/partners/promoters/finance/bank-accounts", { headers }),
             ]);
 
             if (financeRes.ok) {
@@ -227,7 +227,7 @@ export default function PromoterFinancePageClient() {
             {showAddBankModal ? (
                 <ConnectPayoutMethodModal
                     title="Connect Payout Method"
-                    endpoint="/api/promoter/finance/bank-accounts"
+                    endpoint="/api/partners/promoters/finance/bank-accounts"
                     getHeaders={async () => {
                         const token = typeof getIdToken === "function" ? await getIdToken() : "";
                         return {

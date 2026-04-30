@@ -56,7 +56,7 @@ export default function VenueFinanceLedgerClient() {
                 ...(st  && { status: st }),
             });
 
-            const res = await fetch(`/api/venue/finance/ledger?${qs}`, {
+            const res = await fetch(`/api/partners/venues/finance/ledger?${qs}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) throw new Error("API error");

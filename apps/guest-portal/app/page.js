@@ -1,6 +1,8 @@
 import PageClient from "./PageClient";
 import { guestServerJson } from "../lib/api/server";
 import { buildHomepageContent } from "../features/discovery/homepageContent";
+import { buildHomeOverviewView } from "../lib/bff/home.js";
+import { isGuestBffEnabled } from "../lib/bff/flags.js";
 import { getSiteUrl } from "../features/seo/seoUtils";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,15 @@ export const metadata = {
 
 async function loadHomeData() {
   const city = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
+
+  if (isGuestBffEnabled("home")) {
+    const result = await buildHomeOverviewView({ city });
+    return {
+      content: result.data?.content || buildHomepageContent({ city }),
+      errors: result.data?.errors || [],
+    };
+  }
+
   const errors = [];
   const [featuredResult, eventsResult, selectsResult, interviewsResult] = await Promise.all([
     guestServerJson(`/public/events/featured?limit=6&city=${encodeURIComponent(city)}`, { forwardCookies: false, next: { revalidate: 60 } }),

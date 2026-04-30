@@ -278,7 +278,7 @@ export default function StudioShell({
         const pid = profile?.activeMembership?.partnerId;
         if (!pid || !user) return;
         user.getIdToken()
-            .then(t => fetch(`/api/venue/events?venueId=${pid}&limit=50`, { headers: { Authorization: `Bearer ${t}` } }))
+            .then(t => fetch(`/api/partners/venues/events?venueId=${pid}&limit=50`, { headers: { Authorization: `Bearer ${t}` } }))
             .then(r => r.ok ? r.json() : { events: [] })
             .then(({ events }: { events: any[] }) =>
                 setVenueEvents(events

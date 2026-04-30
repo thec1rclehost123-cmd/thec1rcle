@@ -47,7 +47,7 @@ export function HostPayoutsClient() {
         queryKey: ["finance-host-payouts", venueId],
         queryFn: async () => {
             const token = await getIdToken();
-            const res = await fetch(`/api/venue/finance/host-payouts?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/finance/host-payouts?venueId=${venueId}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) throw new Error("Failed");

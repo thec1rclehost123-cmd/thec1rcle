@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const ctx = await requireVenueAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => ({}));
     return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/alerts/${id}/dismiss`, {
         method: "PATCH",

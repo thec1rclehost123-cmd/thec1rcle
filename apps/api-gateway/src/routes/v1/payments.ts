@@ -4,7 +4,7 @@ import { z } from 'zod';
 // @ts-ignore
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 import { logPaymentEvent } from '../../lib/securityLogger';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 
 const PaymentOrderBody = z.object({
     orderId: z.string()
@@ -73,8 +73,8 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
      * GET /api/v1/payments/config
      * Get Razorpay client configuration
      */
-    fastify.get('/payments/config', async (request, reply) => {
-        return { config: getPaymentConfig() };
+    fastify.get('/payments/config', async (_request, _reply) => {
+        return buildSuccessResponse({ config: getPaymentConfig() });
     });
 
     /**
@@ -257,7 +257,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ body: z.object({ reservationId: z.string().min(1).max(128) }).strict() })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: 'Unauthorized' });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
 
         const { reservationId } = request.body;
 
@@ -265,40 +265,40 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         const reservationSnap = await reservationRef.get();
 
         if (!reservationSnap.exists) {
-            return reply.status(404).send({ error: 'Reservation not found' });
+            return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Reservation not found', requestId: request.id }));
         }
 
         const reservation = reservationSnap.data() as any;
 
         if (reservation.userId !== userId) {
-            return reply.status(403).send({ error: 'You do not own this reservation' });
+            return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You do not own this reservation', requestId: request.id }));
         }
 
         // Idempotency: already in payment_pending, return existing order
         if (reservation.status === 'payment_pending' && reservation.razorpayOrderId) {
-            return {
+            return buildSuccessResponse({
                 razorpayOrderId: reservation.razorpayOrderId,
                 razorpayKeyId: getRazorpayKeyId(),
                 reservationId,
                 amount: reservation.totalAmount,
                 currency: 'INR',
                 expiresAt: reservation.expiresAt,
-            };
+            });
         }
 
         if (reservation.status !== 'pending') {
-            return reply.status(409).send({ error: `Reservation is ${reservation.status} — cannot initiate payment` });
+            return reply.status(409).send(buildErrorResponse({ code: 'CONFLICT', message: `Reservation is ${reservation.status} — cannot initiate payment`, requestId: request.id }));
         }
 
         if (new Date(reservation.expiresAt) <= new Date()) {
-            return reply.status(410).send({ error: 'This reservation has expired. Please start a new booking.' });
+            return reply.status(410).send(buildErrorResponse({ code: 'EXPIRED', message: 'This reservation has expired. Please start a new booking.', requestId: request.id }));
         }
 
         const razorpayKeyId = getRazorpayKeyId();
         const razorpayKeySecret = getRazorpayKeySecret();
         if (!razorpayKeyId || !razorpayKeySecret) {
             fastify.log.error('Razorpay credentials are not configured');
-            return reply.status(503).send({ error: 'Payment service is not configured' });
+            return reply.status(503).send(buildErrorResponse({ code: 'SERVICE_UNAVAILABLE', message: 'Payment service is not configured', requestId: request.id }));
         }
 
         // Create Razorpay order — receipt = reservationId ensures idempotency
@@ -318,7 +318,7 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             const err = await rzpRes.json().catch(() => ({})) as any;
             const description = err?.error?.description || `Razorpay error ${rzpRes.status}`;
             fastify.log.error(`Razorpay order creation failed: ${description}`);
-            return reply.status(502).send({ error: 'Failed to create payment order. Please try again.' });
+            return reply.status(502).send(buildErrorResponse({ code: 'PAYMENT_GATEWAY_ERROR', message: 'Failed to create payment order. Please try again.', requestId: request.id }));
         }
 
         const order = await rzpRes.json() as any;
@@ -336,14 +336,14 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
             amount: reservation.totalAmount,
         });
 
-        return {
+        return buildSuccessResponse({
             razorpayOrderId: order.id,
             razorpayKeyId,
             reservationId,
             amount: reservation.totalAmount,
             currency: 'INR',
             expiresAt: reservation.expiresAt,
-        };
+        });
     });
 
     fastify.post('/payments/webhook', async (request: any, reply) => {

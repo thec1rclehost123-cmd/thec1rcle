@@ -395,7 +395,7 @@ export default function HostTeamPageClient() {
 
         try {
             const headers = await getHeaders();
-            const response = await fetch(`/api/host/team?hostId=${hostId}`, { headers });
+            const response = await fetch(`/api/partners/hosts/team?hostId=${hostId}`, { headers });
             const data = await response.json().catch(() => null);
             if (!response.ok) throw new Error(data?.error ?? "Failed to load team members");
             setMembers(data?.members ?? []);
@@ -428,7 +428,7 @@ export default function HostTeamPageClient() {
         granularPermissions: null;
     }) => {
         try {
-            const response = await fetch("/api/host/team", {
+            const response = await fetch("/api/partners/hosts/team", {
                 method: "POST",
                 headers: await getHeaders(),
                 body: JSON.stringify({
@@ -459,7 +459,7 @@ export default function HostTeamPageClient() {
 
     const handleRemove = async (membershipId: string) => {
         try {
-            const response = await fetch(`/api/host/team?membershipId=${membershipId}`, {
+            const response = await fetch(`/api/partners/hosts/team?membershipId=${membershipId}`, {
                 method: "DELETE",
                 headers: await getHeaders(),
             });
@@ -479,7 +479,7 @@ export default function HostTeamPageClient() {
     const handleSavePermissions = async (role: EditableHostRole) => {
         if (!editTarget) return;
         try {
-            const response = await fetch(`/api/host/team?membershipId=${editTarget.membershipId}`, {
+            const response = await fetch(`/api/partners/hosts/team?membershipId=${editTarget.membershipId}`, {
                 method: "PATCH",
                 headers: await getHeaders(),
                 body: JSON.stringify({ role, granularPermissions: null }),

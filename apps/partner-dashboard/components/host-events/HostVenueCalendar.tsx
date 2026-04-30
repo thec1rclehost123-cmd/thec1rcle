@@ -132,7 +132,7 @@ export function HostVenueCalendar() {
                 const startDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
                 const endDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
                 const res = await authedFetch(
-                    `/api/host/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
+                    `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
                 );
                 const data = await res.json();
                 const rawDays = Array.isArray(data) ? data : (data.calendar || data.days || []);
@@ -200,7 +200,7 @@ export function HostVenueCalendar() {
         setConfirmError("");
         try {
             const res = await authedFetch(
-                `/api/host/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`
+                `/api/partners/hosts/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`
             );
             const data = await res.json();
             const day = Array.isArray(data) ? data[0] : (data.calendar || data.days || [])[0];

@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { getAdminDb } from "@/lib/firebase/admin";
 
+function errorResponse(req: NextRequest, status: number, message: string, code?: string) {
+    return NextResponse.json({
+        success: false,
+        error: {
+            code: code || (status === 401 ? "UNAUTHORIZED" : status === 404 ? "NOT_FOUND" : status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST"),
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+    }, { status });
+}
+
 /**
  * GET /api/auth/session
  * Returns a sanitized SessionDTO for the authenticated user.
@@ -10,7 +21,7 @@ import { getAdminDb } from "@/lib/firebase/admin";
 export async function GET(req: NextRequest) {
     const decoded = await verifyAuth(req);
     if (!decoded) {
-        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+        return errorResponse(req, 401, "Unauthorized");
     }
 
     try {
@@ -18,7 +29,7 @@ export async function GET(req: NextRequest) {
         const userDoc = await db.collection("users").doc(decoded.uid).get();
 
         if (!userDoc.exists) {
-            return NextResponse.json({ error: "User not found" }, { status: 404 });
+            return errorResponse(req, 404, "User not found");
         }
 
         const userData = userDoc.data()!;
@@ -57,6 +68,6 @@ export async function GET(req: NextRequest) {
         });
     } catch (err) {
         console.error("[/api/auth/session] Error:", err);
-        return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+        return errorResponse(req, 500, "Internal server error");
     }
 }

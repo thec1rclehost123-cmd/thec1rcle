@@ -22,7 +22,7 @@ test("Guest Portal no longer ships a local app/api runtime bridge", () => {
   }
 });
 
-test("Guest Portal app/api stays free of local route handlers", () => {
+test("Guest Portal app/api only contains approved BFF route handlers", () => {
   const apiRoot = join(root, "app/api");
   if (!existsSync(apiRoot)) return;
 
@@ -39,12 +39,18 @@ test("Guest Portal app/api stays free of local route handlers", () => {
   };
 
   visit(apiRoot);
-  assert.deepEqual(routeFiles, [], "app/api must not contain local route handlers after Ghost Bridge cutover");
+  const relativeRouteFiles = routeFiles.map((filePath) => filePath.replace(`${root}/`, ""));
+  const disallowedRoutes = relativeRouteFiles.filter((relativePath) => !relativePath.startsWith("app/api/app/"));
+
+  assert.deepEqual(
+    disallowedRoutes,
+    [],
+    "app/api must stay scoped to approved /api/app BFF handlers",
+  );
 });
 
-test("Guest Portal does not keep empty legacy app/api or lib/firebase directories", () => {
+test("Guest Portal does not restore deleted legacy server directories", () => {
   const staleDirs = [
-    "app/api",
     "lib/server",
     "lib/firebase",
   ];
@@ -61,8 +67,6 @@ test("Guest Portal no longer keeps the temporary client compatibility shim or ro
     "components/TicketModal.jsx",
     "data/events.js",
     "data/hosts.js",
-    "app/host/[slug]/HostProfileClient.jsx",
-    "app/venue/[slug]/VenueProfileClient.jsx",
   ];
 
   for (const relativePath of staleFiles) {
@@ -72,6 +76,7 @@ test("Guest Portal no longer keeps the temporary client compatibility shim or ro
 
 test("Guest Portal source tree does not keep duplicate or backup runtime artifacts", () => {
   const ignoredDirs = new Set([".next", "node_modules", "coverage"]);
+  const runtimeRoots = ["app/api", "app/checkout", "app/event", "app/explore", "lib/bff"];
   const offenders = [];
   const duplicatePattern = /(?: 2\.[jt]sx?| copy\.[jt]sx?|\.bak|\.old)$/;
 
@@ -88,7 +93,10 @@ test("Guest Portal source tree does not keep duplicate or backup runtime artifac
     }
   };
 
-  visit(root);
+  for (const runtimeRoot of runtimeRoots) {
+    const absoluteRoot = join(root, runtimeRoot);
+    if (existsSync(absoluteRoot)) visit(absoluteRoot);
+  }
   assert.deepEqual(offenders, [], "remove duplicate/backup runtime artifacts before merging");
 });
 

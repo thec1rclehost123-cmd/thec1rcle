@@ -41,7 +41,7 @@ export function CoverReconClient() {
         queryFn: async () => {
             const params = new URLSearchParams({ venueId: venueId! });
             if (selectedEventId) params.set("eventId", selectedEventId);
-            const res = await fetch(`/api/venue/finance/cover-recon?${params}`);
+            const res = await fetch(`/api/partners/venues/finance/cover-recon?${params}`);
             if (!res.ok) throw new Error("Failed to load cover reconciliation");
             return res.json();
         },

@@ -8,7 +8,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const ctx = await requirePromoterAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { id: linkId } = await params;
     const body = await req.json().catch(() => ({}));
     return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/links/${linkId}`, {

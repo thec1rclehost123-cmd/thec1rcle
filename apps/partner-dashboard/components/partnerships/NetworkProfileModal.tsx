@@ -102,7 +102,7 @@ export function NetworkProfileModal({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 if (isHost) {
-                    const res = await fetch(`/api/host/profile?hostId=${profile.id}`, { headers });
+                    const res = await fetch(`/api/partners/hosts/profile?hostId=${profile.id}`, { headers });
                     if (res.ok && !cancelled) {
                         const json = await res.json();
                         const p = json.profile;
@@ -116,7 +116,7 @@ export function NetworkProfileModal({
                         });
                     }
                 } else if (isVenue) {
-                    const res = await fetch(`/api/venue/profile?venueId=${profile.id}`, { headers });
+                    const res = await fetch(`/api/partners/venues/profile?venueId=${profile.id}`, { headers });
                     if (res.ok && !cancelled) {
                         const json = await res.json();
                         const p = json.profile;
@@ -154,9 +154,9 @@ export function NetworkProfileModal({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [eventsRes, connectionsRes, summaryRes] = await Promise.allSettled([
-                    fetch(`/api/venue/events?venueId=${profile.id}&limit=200&status=all`, { headers }),
+                    fetch(`/api/partners/venues/events?venueId=${profile.id}&limit=200&status=all`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${profile.id}&role=venue`, { headers }),
-                    fetch(`/api/venue/overview/summary?venueId=${profile.id}`, { headers }),
+                    fetch(`/api/partners/venues/overview/summary?venueId=${profile.id}`, { headers }),
                 ]);
 
                 const eventsData      = eventsRes.status === "fulfilled"      && eventsRes.value.ok      ? await eventsRes.value.json()      : null;
@@ -196,7 +196,7 @@ export function NetworkProfileModal({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [summaryRes, connectionsRes] = await Promise.allSettled([
-                    fetch(`/api/host/overview/summary?hostId=${profile.id}`, { headers }),
+                    fetch(`/api/partners/hosts/overview/summary?hostId=${profile.id}`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${profile.id}&role=host`, { headers }),
                 ]);
 

@@ -103,7 +103,7 @@ export default function EventsManagementPage() {
 
         try {
             const token = await user.getIdToken();
-            const res = await fetch(`/api/host/events?hostId=${hostId}`, {
+            const res = await fetch(`/api/partners/hosts/events?hostId=${hostId}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("API Route failed");

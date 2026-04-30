@@ -37,7 +37,7 @@ export function useVenueOverview(
         queryFn: async () => {
             const token = await user!.getIdToken();
             const res = await fetch(
-                `/api/venue/overview/summary?venueId=${venueId}&range=${range}`,
+                `/api/partners/venues/overview/summary?venueId=${venueId}&range=${range}`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             if (!res.ok) throw new Error(`Summary fetch failed: ${res.status}`);
@@ -55,7 +55,7 @@ export function useVenueOverview(
         queryFn: async () => {
             const token = await user!.getIdToken();
             const res = await fetch(
-                `/api/venue/events?venueId=${venueId}&limit=6`,
+                `/api/partners/venues/events?venueId=${venueId}&limit=6`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             if (!res.ok) throw new Error(`Events fetch failed: ${res.status}`);

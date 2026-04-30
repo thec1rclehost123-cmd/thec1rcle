@@ -6,27 +6,74 @@ import {
     getEventQueueStatus,
     getEventSurgeStatus,
     joinEventQueue,
-    joinEventWaitlist,
     toggleEventRsvp,
     trackGuestEventInteraction,
     trackGuestEventView,
-    verifyEventWaitlistAccess,
 } from '@c1rcle/core/guest-event-conversion';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
-    getEventQueueStatus: vi.fn(async () => ({ id: 'queue_1', status: 'waiting', lanePosition: 2 })),
+    getEventQueueStatus: vi.fn(async () => ({ id: 'queue_1', eventId: 'event_1', status: 'waiting', lanePosition: 2 })),
     getEventSurgeStatus: vi.fn(async () => ({ status: 'surge' })),
     joinEventQueue: vi.fn(async () => ({ id: 'queue_1', eventId: 'event_1', userId: 'user_1', status: 'waiting' })),
-    joinEventWaitlist: vi.fn(async () => ({ id: 'wl_1', eventId: 'event_1', tierId: 'tier_1', ticketId: 'tier_1', email: 'guest@example.com', status: 'waiting', createdAt: 'now' })),
     toggleEventRsvp: vi.fn(async () => ({ success: true })),
     trackGuestEventInteraction: vi.fn(async () => ({ ok: true })),
     trackGuestEventView: vi.fn(async () => ({ ok: true })),
-    verifyEventWaitlistAccess: vi.fn(async () => ({ id: 'wl_1', eventId: 'event_1', email: 'guest@example.com', status: 'notified' })),
 }));
 
 async function buildServer({ authenticated = false } = {}) {
     const server = Fastify({ logger: false });
-    server.decorate('db', {} as any);
+    server.decorate('db', {
+        collection(name: string) {
+            if (name === 'events') {
+                return {
+                    doc() {
+                        return {
+                            async get() {
+                                return { exists: true, data: () => ({ id: 'event_1' }) };
+                            },
+                        };
+                    },
+                };
+            }
+
+            if (name === 'users') {
+                return {
+                    doc() {
+                        return {
+                            async get() {
+                                return {
+                                    exists: true,
+                                    data: () => ({ attendedEvents: ['event_1'] }),
+                                };
+                            },
+                        };
+                    },
+                };
+            }
+
+            if (name === 'event_queues') {
+                return {
+                    where() {
+                        return this;
+                    },
+                    limit() {
+                        return this;
+                    },
+                    async get() {
+                        return {
+                            empty: false,
+                            docs: [{
+                                id: 'queue_1',
+                                data: () => ({ eventId: 'event_1', userId: 'user_1', status: 'waiting' }),
+                            }],
+                        };
+                    },
+                };
+            }
+
+            return {};
+        },
+    } as any);
     server.decorate('cache', {
         get: vi.fn(async () => null),
         set: vi.fn(async () => undefined),
@@ -40,6 +87,11 @@ async function buildServer({ authenticated = false } = {}) {
     } as any);
     server.decorate('publicDiscoveryService', { syncEventReadModels: vi.fn(async () => undefined) } as any);
     server.decorate('invalidatePublicDiscovery', vi.fn(async () => undefined) as any);
+    server.decorate('requireAuth', async (request: any, reply: any) => {
+        if (!request.user?.uid) {
+            return reply.status(401).send({ success: false, error: { code: 'UNAUTHORIZED', message: 'Unauthorized' } });
+        }
+    });
     server.decorateRequest('user', null);
     server.addHook('onRequest', async (request: any) => {
         request.user = authenticated ? { uid: 'user_1', email: 'guest@example.com' } : null;
@@ -58,14 +110,14 @@ describe('event routes GP-3 conversion contracts', () => {
         const server = await buildServer();
 
         const view = await server.inject({ method: 'POST', url: '/api/v1/events/event_1/view', headers: { 'user-agent': 'test-agent' } });
-        const track = await server.inject({ method: 'POST', url: '/api/v1/events/event_1/track', payload: { type: 'impression', ref: 'PROMO1' } });
+        const track = await server.inject({ method: 'POST', url: '/api/v1/events/event_1/track', payload: { type: 'click', ref: 'PROMO1' } });
 
         expect(view.statusCode).toBe(200);
         expect(view.json()).toEqual({ ok: true });
         expect(track.statusCode).toBe(200);
         expect(track.json()).toEqual({ ok: true });
         expect(trackGuestEventView).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ eventId: 'event_1' }));
-        expect(trackGuestEventInteraction).toHaveBeenCalledWith(expect.anything(), { eventId: 'event_1', type: 'impression', ref: 'PROMO1' });
+        expect(trackGuestEventInteraction).toHaveBeenCalledWith(expect.anything(), { eventId: 'event_1', type: 'click', ref: 'PROMO1' });
 
         await server.close();
     });
@@ -109,27 +161,24 @@ describe('event routes GP-3 conversion contracts', () => {
         await server.close();
     });
 
-    it('GET/POST /events/:id/waitlist preserve legacy guest waitlist responses', async () => {
+    it('GET /events/:id/viewer-state returns canonical RSVP and queue state for the viewer', async () => {
         const server = await buildServer({ authenticated: true });
+        const response = await server.inject({ method: 'GET', url: '/api/v1/events/event_1/viewer-state' });
 
-        const joined = await server.inject({
-            method: 'POST',
-            url: '/api/v1/events/event_1/waitlist',
-            payload: { ticketId: 'tier_1', email: 'body@example.com' },
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            data: {
+                hasRsvped: true,
+                queue: { id: 'queue_1', eventId: 'event_1', status: 'waiting', lanePosition: 2 },
+                surgeActive: true,
+            },
+            hasRsvped: true,
+            queue: { id: 'queue_1', eventId: 'event_1', status: 'waiting', lanePosition: 2 },
+            surgeActive: true,
         });
-        const checked = await server.inject({ method: 'GET', url: '/api/v1/events/event_1/waitlist?email=guest%40example.com' });
-
-        expect(joined.statusCode).toBe(200);
-        expect(joined.json()).toMatchObject({ success: true, message: 'Added to waitlist', entry: { id: 'wl_1' } });
-        expect(checked.statusCode).toBe(200);
-        expect(checked.json()).toMatchObject({ hasAccess: true, accessDetails: { id: 'wl_1' } });
-        expect(joinEventWaitlist).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
-            eventId: 'event_1',
-            ticketId: 'tier_1',
-            userId: 'user_1',
-            email: 'guest@example.com',
-        }));
-        expect(verifyEventWaitlistAccess).toHaveBeenCalledWith(expect.anything(), { eventId: 'event_1', email: 'guest@example.com' });
+        expect(getEventSurgeStatus).toHaveBeenCalledWith(expect.anything(), 'event_1');
+        expect(getEventQueueStatus).toHaveBeenCalledWith(expect.anything(), 'queue_1');
 
         await server.close();
     });

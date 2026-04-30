@@ -935,7 +935,7 @@ export default function HostPageManagement() {
                                                     setBroadcastStatus("idle");
                                                     setBroadcastError("");
                                                     try {
-                                                        const res = await fetch("/api/host/broadcast", {
+                                                        const res = await fetch("/api/partners/hosts/broadcast", {
                                                             method: "POST",
                                                             headers: {
                                                                 "Content-Type": "application/json",

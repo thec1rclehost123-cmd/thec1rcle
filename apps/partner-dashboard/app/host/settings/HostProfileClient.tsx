@@ -146,7 +146,7 @@ export default function HostProfileClient({
         const load = async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/host/profile?hostId=${hostId}`, {
+                const res = await fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) return;
@@ -192,7 +192,7 @@ export default function HostProfileClient({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [summaryRes, connectionsRes] = await Promise.allSettled([
-                    fetch(`/api/host/overview/summary?hostId=${hostId}`, { headers }),
+                    fetch(`/api/partners/hosts/overview/summary?hostId=${hostId}`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, { headers }),
                 ]);
 
@@ -213,7 +213,7 @@ export default function HostProfileClient({
 
                 // Write computed stats back to host doc
                 user.getIdToken().then((tk) =>
-                    fetch(`/api/host/profile?hostId=${hostId}`, {
+                    fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
                         method: "PATCH",
                         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -282,7 +282,7 @@ export default function HostProfileClient({
             formData.append("hostId", hostId);
             formData.append("type", type);
 
-            const res = await fetch(`/api/host/upload?hostId=${hostId}`, {
+            const res = await fetch(`/api/partners/hosts/upload?hostId=${hostId}`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
@@ -332,7 +332,7 @@ export default function HostProfileClient({
                 updates.coverURL    = backdropUrl;
             }
 
-            const res = await fetch(`/api/host/profile?hostId=${hostId}`, {
+            const res = await fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
                 method: "PATCH",
                 headers: {
                     Authorization: `Bearer ${token}`,

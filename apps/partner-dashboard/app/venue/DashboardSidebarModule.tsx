@@ -13,7 +13,7 @@ export default function DashboardSidebarModule() {
     useEffect(() => {
         if (!venueId || !user) return;
         user.getIdToken().then(token =>
-            fetch(`/api/venue/notifications?venueId=${venueId}&limit=3`, {
+            fetch(`/api/partners/venues/notifications?venueId=${venueId}&limit=3`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
         )

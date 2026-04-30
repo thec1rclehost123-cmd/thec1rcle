@@ -14,6 +14,8 @@ const GUEST_PROFILE_UPDATE_FIELDS = new Set([
     'handle',
     'username',
     'onboardingComplete',
+    'attendedEvents',
+    'savedEvents',
     'role',
     'venueId',
     'partnerId',

@@ -10,7 +10,7 @@ export function PromoterGuestsPageClient() {
     const { data, isLoading, error } = useQuery({
         queryKey: ["promoter", "guests"],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/guests`);
+            const res = await fetch(`/api/partners/promoters/guests`);
             if (!res.ok) throw new Error("Failed to fetch globals guests");
             return res.json();
         },

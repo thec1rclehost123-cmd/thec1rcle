@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 
 const HostOverviewQuery = z.object({
     hostId: z.string()
@@ -12,13 +13,15 @@ const HostEventsQuery = z.object({
 }).strict();
 
 const HostIdQuery = z.object({ hostId: z.string() });
-const HostProfilePatch = z.object({ hostId: z.string(), patch: z.record(z.any()) });
+const HostProfilePatch = z.object({ hostId: z.string(), patch: z.record(z.string(), z.any()) });
 const PartnershipActionBody = z.object({ action: z.enum(['approve', 'reject']) });
 const NotificationsReadBody = z.object({ hostId: z.string(), notificationId: z.string().optional(), markAllRead: z.boolean().optional() });
 const TeamInviteBody = z.object({ hostId: z.string(), email: z.string().email(), role: z.string(), name: z.string().optional() });
 const TeamMemberPatch = z.object({ role: z.string().optional(), isActive: z.boolean().optional() });
 const HostOrdersQuery = z.object({ hostId: z.string(), limit: z.string().optional(), cursor: z.string().optional(), status: z.string().optional() });
 const HostFinanceQuery = z.object({ hostId: z.string(), limit: z.string().optional(), cursor: z.string().optional() });
+const HostTimeSeriesQuery = z.object({ hostId: z.string(), range: z.enum(['1d', '1w', '1m', 'all']).optional(), metric: z.enum(['tickets', 'revenue']).optional() });
+const HostVenueCalendarQuery = z.object({ hostId: z.string(), venueId: z.string(), startDate: z.string().optional(), endDate: z.string().optional() });
 const ALLOWED_PROFILE_FIELDS = ['displayName','bio','tagline','profileImage','coverImage','socialLinks','contactEmail','contactPhone','genre','city','instagramHandle','youtubeHandle','spotifyHandle'];
 
 
@@ -219,7 +222,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
     // ── Host Finance ─────────────────────────────────────────────────────────
 
     fastify.get('/host/finance/disputes', {
-        preHandler: [fastify.validate({ querystring: HostIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })]
     }, async (request: any, reply) => {
         const { hostId } = request.query as any;
         await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -228,7 +231,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
     });
 
     fastify.get('/host/finance/payouts', {
-        preHandler: [fastify.validate({ querystring: HostFinanceQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostFinanceQuery })]
     }, async (request: any, reply) => {
         const { hostId, limit = '20', cursor } = request.query as any;
         await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
@@ -239,6 +242,89 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const hasMore = snap.docs.length > pageSize;
         const payouts = snap.docs.slice(0, pageSize).map((d: any) => ({ id: d.id, ...d.data() }));
         return { payouts, hasMore, nextCursor: hasMore ? payouts[payouts.length - 1].id : null };
+    });
+
+    fastify.get('/host/finance/bank-accounts', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })]
+    }, async (request: any, reply) => {
+        const { hostId } = request.query as any;
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const snap = await fastify.db.collection('bank_accounts')
+            .where('partnerId', '==', hostId)
+            .get();
+
+        return {
+            accounts: snap.docs.map((doc: any) => {
+                const data = doc.data() || {};
+                return {
+                    id: doc.id,
+                    bankName: data.bankName || 'Bank Account',
+                    last4: data.last4 || data.accountLast4 || '0000',
+                    isDefault: data.isDefault ?? false,
+                    paymentType: data.paymentType || 'bank_account',
+                };
+            })
+        };
+    });
+
+    fastify.post('/host/finance/bank-accounts', async (request: any, reply) => {
+        const body = request.body as Record<string, any>;
+        const hostId = String(body.hostId || '');
+        if (!hostId) return reply.status(400).send({ error: 'hostId required' });
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
+        const rawNumber = paymentType === 'debit_card'
+            ? String(body.cardNumber || '').trim()
+            : String(body.accountNumber || '').trim();
+        if (!rawNumber) return reply.status(400).send({ error: 'Account number or card number required' });
+
+        const last4 = rawNumber.slice(-4);
+        const now = new Date().toISOString();
+        const ref = await fastify.db.collection('bank_accounts').add({
+            partnerId: hostId,
+            paymentType,
+            accountHolderName: body.accountHolderName || body.cardHolderName || '',
+            bankName: body.bankName || body.cardBrand || 'Bank Account',
+            ifscCode: body.ifscCode || null,
+            accountNumber: paymentType === 'bank_account' ? rawNumber : null,
+            cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
+            cardLast4: paymentType === 'debit_card' ? last4 : null,
+            last4,
+            isDefault: body.isDefault !== false,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        return reply.status(201).send({
+            account: {
+                id: ref.id,
+                bankName: body.bankName || body.cardBrand || 'Bank Account',
+                last4,
+                isDefault: body.isDefault !== false,
+                paymentType,
+            }
+        });
+    });
+
+    fastify.delete('/host/finance/bank-accounts', async (request: any, reply) => {
+        const query = request.query as { hostId?: string; accountId?: string };
+        const body = (request.body || {}) as Record<string, any>;
+        const hostId = query.hostId || String(body.hostId || '');
+        const accountId = query.accountId || String(body.accountId || '');
+
+        if (!hostId || !accountId) return reply.status(400).send({ error: 'hostId and accountId required' });
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        const ref = fastify.db.collection('bank_accounts').doc(accountId);
+        const doc = await ref.get();
+        if (!doc.exists) return reply.status(404).send({ error: 'Account not found' });
+
+        const account = doc.data() as Record<string, any>;
+        if (String(account.partnerId || '') !== hostId) return reply.status(403).send({ error: 'Forbidden' });
+
+        await ref.delete();
+        return { success: true };
     });
 
     // ── Host Overview Summary ────────────────────────────────────────────────
@@ -323,7 +409,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
         const ev = eventDoc.data() as any;
         if (ev.hostId !== userId && ev.creatorId !== userId) {
-            try { await fastify.verifyPartnerAccess(request, ev.hostId || ev.creatorId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
+            try { await fastify.verifyPartnerAccess(request, ev.creatorId || ev.hostId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
         }
         const tiers = (ev.ticketTiers || ev.tiers || ev.tickets || []).map((t: any) => ({
             id: t.id || t.tierId, name: t.name, price: t.price, quantity: t.quantity || t.maxQuantity || 0,
@@ -339,7 +425,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
         const ev = eventDoc.data() as any;
-        try { await fastify.verifyPartnerAccess(request, ev.hostId || ev.creatorId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
+        try { await fastify.verifyPartnerAccess(request, ev.creatorId || ev.hostId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
         await fastify.db.collection('events').doc(eventId).update({ ticketTiers: tiers, updatedAt: new Date().toISOString() });
         await fastify.cache.delete('events:detail', eventId).catch(() => {});
         return { success: true };
@@ -352,7 +438,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
         const ev = eventDoc.data() as any;
-        const hostId = ev.hostId || ev.creatorId;
+        const hostId = ev.creatorId || ev.hostId;
         try { await fastify.verifyPartnerAccess(request, hostId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
         if (!['draft', 'changes_requested'].includes(ev.lifecycle || ev.status || '')) {
             return reply.status(409).send({ error: `Cannot submit event in ${ev.lifecycle || ev.status} state` });
@@ -375,7 +461,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
         const ev = eventDoc.data() as any;
-        const hostId = ev.hostId || ev.creatorId;
+        const hostId = ev.creatorId || ev.hostId;
         try { await fastify.verifyPartnerAccess(request, hostId); } catch { return reply.status(403).send({ error: 'Forbidden' }); }
         if (!['changes_requested', 'rejected'].includes(ev.lifecycle || ev.status || '')) {
             return reply.status(409).send({ error: `Cannot resubmit event in ${ev.lifecycle || ev.status} state` });
@@ -468,5 +554,78 @@ export default async function hostRoutes(fastify: FastifyInstance) {
             fastify.log.error(`Host events list failed: ${error.message}`);
             return reply.status(error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500).send({ error: error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? "Access denied" : "Internal server error" });
         }
+    });
+
+    // ── Host Analytics Time-Series ────────────────────────────────────────────
+
+    fastify.get('/host/analytics/time-series', {
+        preHandler: [fastify.validate({ querystring: HostTimeSeriesQuery })]
+    }, async (request: any, reply) => {
+        const { hostId, range = '1w', metric = 'revenue' } = request.query as any;
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const cacheKey = `${hostId}:${range}:${metric}`;
+        const cached = await fastify.cache.get('analytics:host:ts', cacheKey);
+        if (cached) return reply.header('Cache-Control', 'private, max-age=120').send({ ...cached, fromCache: true });
+        try {
+            const stats = await getHostAnalytics(hostId, range as any);
+            await fastify.cache.set('analytics:host:ts', cacheKey, stats, 120);
+            return reply.header('Cache-Control', 'private, max-age=120').send(stats);
+        } catch (error: any) {
+            fastify.log.error(`Host analytics time-series error: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    // ── Host Venue Calendar ───────────────────────────────────────────────────
+
+    fastify.get('/host/venue-calendar', {
+        preHandler: [fastify.validate({ querystring: HostVenueCalendarQuery })]
+    }, async (request: any, reply) => {
+        const { hostId, venueId, startDate, endDate } = request.query as any;
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const partnerSnap = await fastify.db.collection('partnerships')
+            .where('hostId', '==', hostId)
+            .where('venueId', '==', venueId)
+            .where('status', '==', 'active')
+            .limit(1)
+            .get();
+        if (partnerSnap.empty) return reply.status(403).send({ error: 'No active partnership with this venue' });
+        let q: any = fastify.db.collection('availability_slots').where('venueId', '==', venueId);
+        if (startDate) q = q.where('date', '>=', startDate);
+        if (endDate) q = q.where('date', '<=', endDate);
+        const snap = await q.get();
+        const calendar = snap.docs.map((d: any) => {
+            const data = d.data();
+            return { id: d.id, date: data.date, startTime: data.startTime, endTime: data.endTime, status: data.status };
+        });
+        return reply.header('Cache-Control', 'private, max-age=30').send({ calendar });
+    });
+
+    // ── Host Finance Overview ─────────────────────────────────────────────────
+
+    fastify.get('/host/finance/overview', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: HostIdQuery })]
+    }, async (request: any, reply) => {
+        const { hostId } = request.query as any;
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const cacheKey = `host:finance:overview:${hostId}`;
+        const cached = await fastify.cache.get('host', cacheKey);
+        if (cached) return reply.header('Cache-Control', 'private, max-age=120').send({ ...cached, fromCache: true });
+        const [settlementsSnap, disputesSnap] = await Promise.all([
+            fastify.db.collection('partner_settlements').where('partnerId', '==', hostId).orderBy('createdAt', 'desc').limit(10).get(),
+            fastify.db.collection('disputes').where('hostId', '==', hostId).limit(50).get(),
+        ]);
+        const settlements = settlementsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+        const disputes = disputesSnap.docs.map((d: any) => d.data());
+        const totalPending = settlements.filter((s: any) => s.status === 'pending').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const totalPaid = settlements.filter((s: any) => s.status === 'paid').reduce((sum: number, s: any) => sum + (s.amount || 0), 0);
+        const result = {
+            totalPending,
+            totalPaid,
+            openDisputes: disputes.filter((d: any) => d.status === 'open').length,
+            recentPayouts: settlements,
+        };
+        await fastify.cache.set('host', cacheKey, result, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(result);
     });
 }

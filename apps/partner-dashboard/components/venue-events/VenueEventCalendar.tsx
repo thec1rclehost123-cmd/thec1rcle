@@ -136,7 +136,7 @@ export function VenueEventCalendar() {
                 const startDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
                 const endDate = formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
                 const res = await authedFetch(
-                    `/api/venue/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
+                    `/api/partners/venues/calendar?venueId=${venueId}&view=operating&startDate=${startDate}&endDate=${endDate}`
                 );
                 const data = await res.json();
                 // Operating view returns a raw array or wrapped in calendar/days
@@ -206,7 +206,7 @@ export function VenueEventCalendar() {
         try {
             // Verify availability one last time before navigating
             const res = await authedFetch(
-                `/api/venue/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`
+                `/api/partners/venues/calendar?venueId=${venueId}&view=operating&startDate=${selectedDate}&endDate=${selectedDate}`
             );
             const data = await res.json();
             const day = Array.isArray(data) ? data[0] : (data.calendar || data.days || [])[0];

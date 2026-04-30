@@ -75,6 +75,10 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
     const isDisabled = event?.settings?.activity === false;
     return isCompleted || isPastFromStatus || isPastFromDate || isDisabled;
   });
+  const hasRSVPd = Boolean(
+    event?.viewerState?.hasRsvped ??
+    (event?.id && profile?.attendedEvents?.includes(event.id))
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -152,7 +156,6 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
       case "RSVP":
         if (!ensureAuthenticated("RSVP")) return;
-        const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
         toggleRSVP(!hasRSVPd);
         setLiveInterestedData(prev => ({
           ...prev,

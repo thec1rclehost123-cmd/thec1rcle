@@ -81,7 +81,7 @@ export function VenuePayoutsClient() {
     const { data, isLoading } = useQuery({
         queryKey: ["finance-venue-payouts", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/finance/venue-payouts?venueId=${venueId}`);
+            const res = await fetch(`/api/partners/venues/finance/venue-payouts?venueId=${venueId}`);
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },

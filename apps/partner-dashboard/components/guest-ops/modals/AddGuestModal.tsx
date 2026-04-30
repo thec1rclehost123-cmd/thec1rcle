@@ -68,7 +68,7 @@ export function AddGuestModal({ eventId, venueId, onClose, onSuccess }: AddGuest
         if (phone.trim()) body.phone = phone.trim();
 
         try {
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/guests?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests?venueId=${venueId}`, {
                 method: "POST",
                 headers: authHeaders(),
                 body: JSON.stringify(body),

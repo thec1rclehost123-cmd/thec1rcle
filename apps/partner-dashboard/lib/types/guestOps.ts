@@ -303,6 +303,7 @@ export interface GuestOpsOverview {
     kpis: Omit<GuestSummary, 'eventId' | 'venueId' | 'lastUpdatedAt'> & { scanRatePer5min: number; onlineDevices: number; };
     isLocked: boolean;
     entryWindowOpen: boolean;
+    isLive?: boolean;
 }
 
 export interface GuestFilter {

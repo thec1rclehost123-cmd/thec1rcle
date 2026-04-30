@@ -69,7 +69,7 @@ export default function HostSlotRequestsPage() {
             const params = new URLSearchParams();
             if (activeTab !== "all") params.set("status", activeTab);
             const token = user ? await user.getIdToken() : "";
-            const res = await fetch(`/api/host/slot-requests${params.toString() ? `?${params.toString()}` : ""}`, {
+            const res = await fetch(`/api/partners/hosts/slot-requests${params.toString() ? `?${params.toString()}` : ""}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             const data = await res.json();

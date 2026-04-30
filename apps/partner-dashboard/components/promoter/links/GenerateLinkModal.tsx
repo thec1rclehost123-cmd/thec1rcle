@@ -63,7 +63,7 @@ export default function GenerateLinkModal({
             try {
                 const headers: Record<string, string> = {};
                 if (token) headers["Authorization"] = `Bearer ${token}`;
-                const res = await fetch("/api/promoter/events?limit=50", { headers });
+                const res = await fetch("/api/partners/promoters/events?limit=50", { headers });
                 if (res.ok) {
                     const data = await res.json();
                     const mapped = (data.events || []).map((e: any) => mapEventForClient(e, e.id));
@@ -95,7 +95,7 @@ export default function GenerateLinkModal({
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
 
-            const res = await fetch("/api/promoter/links", {
+            const res = await fetch("/api/partners/promoters/links", {
                 method: "POST",
                 headers,
                 body: JSON.stringify({

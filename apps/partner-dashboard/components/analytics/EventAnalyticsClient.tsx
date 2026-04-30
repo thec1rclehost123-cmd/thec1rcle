@@ -81,7 +81,7 @@ export default function EventAnalyticsClient({
             };
 
             if (useEmbeddedEventAnalytics && eventId) {
-                const res = await fetch(`/api/venue/events/${eventId}/computed-analytics`, { headers });
+                const res = await fetch(`/api/partners/venues/events/${eventId}/computed-analytics`, { headers });
                 if (!res.ok) throw new Error("Failed to load event analytics");
                 return res.json();
             }

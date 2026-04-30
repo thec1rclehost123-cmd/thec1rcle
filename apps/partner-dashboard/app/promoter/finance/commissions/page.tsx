@@ -48,7 +48,7 @@ export default function PromoterCommissionsPage() {
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
             const params = new URLSearchParams({ promoterId, limit: "100" });
             if (statusFilter !== "all") params.set("status", statusFilter);
-            const res = await fetch(`/api/promoter/commissions?${params}`, { headers });
+            const res = await fetch(`/api/partners/promoters/commissions?${params}`, { headers });
             if (!res.ok) throw new Error("Failed to load commissions");
             const d = await res.json();
             setCommissions(d.commissions || []);

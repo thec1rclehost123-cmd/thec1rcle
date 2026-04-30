@@ -2,8 +2,8 @@
  * useEventAttendees
  *
  * Aggregates attendees from two live sources:
- *   1. Guest list  — /api/venue/guest-ops/[id]/guests        (online purchases + manual adds)
- *   2. Scanner stream — /api/venue/guest-ops/[id]/scanner/stream  (door / offline scans)
+ *   1. Guest list  — /api/partners/venues/guest-ops/[id]/guests        (online purchases + manual adds)
+ *   2. Scanner stream — /api/partners/venues/guest-ops/[id]/scanner/stream  (door / offline scans)
  *
  * Both are polled every 30 s. When the backend fails, the hook exposes an
  * explicit error state and clears rendered attendee data.
@@ -71,7 +71,7 @@ export function useEventAttendees(
         return res;
     }, [user]);
 
-    // ── Normalise a record from /api/venue/events/[id]/attendees → Attendee ───
+    // ── Normalise a record from /api/partners/venues/events/[id]/attendees → Attendee ───
     function normaliseRow(raw: any): Attendee {
         const contact: ContactChannel[] = [];
         if (raw.instagram) contact.push("instagram");
@@ -105,7 +105,7 @@ export function useEventAttendees(
 
         try {
             const res = await authedFetch(
-                `/api/venue/events/${eventId}/attendees?limit=100`
+                `/api/partners/venues/events/${eventId}/attendees?limit=100`
             );
 
             if (!mountedRef.current) return;

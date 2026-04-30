@@ -14,8 +14,6 @@ import {
     Loader2
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { getFirebaseDb } from "@/lib/firebase/client";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 export default function ProfilePage() {
     const { profile, user: authUser } = useDashboardAuth();
@@ -36,22 +34,26 @@ export default function ProfilePage() {
 
     useEffect(() => {
         async function fetchProfile() {
-            if (!promoterId) return;
+            if (!promoterId || !authUser) {
+                setLoading(false);
+                return;
+            }
             try {
-                const db = getFirebaseDb();
-                const docRef = doc(db, "promoters", promoterId);
-                const snap = await getDoc(docRef);
-                if (snap.exists()) {
-                    const data = snap.data();
-                    setFormData({
-                        displayName: data.displayName || data.name || "",
-                        email: data.email || "",
-                        phone: data.phone || data.contactPhone || "",
-                        instagram: data.instagram || "",
-                        bio: data.bio || data.summary || "",
-                        city: data.city || "Pune"
-                    });
-                }
+                const token = await authUser.getIdToken();
+                const res = await fetch("/api/partners/promoters/profile", {
+                    headers: { Authorization: `Bearer ${token}` },
+                });
+                if (!res.ok) throw new Error(`Profile fetch failed: ${res.status}`);
+                const payload = await res.json();
+                const data = payload?.profile || {};
+                setFormData({
+                    displayName: data.displayName || data.name || "",
+                    email: data.email || "",
+                    phone: data.phone || data.contactPhone || "",
+                    instagram: data.instagram || "",
+                    bio: data.bio || data.summary || "",
+                    city: data.city || "Pune"
+                });
             } catch (err) {
                 console.error("Failed to fetch promoter:", err);
             } finally {
@@ -59,21 +61,28 @@ export default function ProfilePage() {
             }
         }
         fetchProfile();
-    }, [promoterId]);
+    }, [authUser, promoterId]);
 
     const handleSave = async () => {
-        if (!promoterId) return;
+        if (!promoterId || !authUser) return;
         setSaving(true);
         try {
-            const db = getFirebaseDb();
-            await updateDoc(doc(db, "promoters", promoterId), {
-                displayName: formData.displayName,
-                phone: formData.phone,
-                instagram: formData.instagram,
-                bio: formData.bio,
-                city: formData.city,
-                updatedAt: new Date().toISOString()
+            const token = await authUser.getIdToken();
+            const res = await fetch("/api/partners/promoters/profile", {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    displayName: formData.displayName,
+                    phone: formData.phone,
+                    instagram: formData.instagram,
+                    bio: formData.bio,
+                    city: formData.city,
+                }),
             });
+            if (!res.ok) throw new Error(`Profile save failed: ${res.status}`);
             setEditMode(false);
         } catch (err) {
             alert("Failed to save changes");

@@ -702,7 +702,7 @@ export default function HostEventWorkspacePage() {
     const eventQuery = useQuery({
         queryKey: ["host-event", eventId],
         queryFn: async () => {
-            const payload = await authedJson(`/api/host/events/${eventId}`);
+            const payload = await authedJson(`/api/partners/hosts/events/${eventId}`);
             return payload.event as EventDetail;
         },
         enabled: Boolean(eventId && user && partnerId),
@@ -711,7 +711,7 @@ export default function HostEventWorkspacePage() {
     const overviewQuery = useQuery({
         queryKey: ["host-event-overview", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/host/events/${eventId}/overview`)) as OverviewData;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/overview`)) as OverviewData;
         },
         enabled: Boolean(eventId && user && partnerId),
         refetchInterval: activeSection === "analytics" ? 15000 : false,
@@ -720,7 +720,7 @@ export default function HostEventWorkspacePage() {
     const ticketsQuery = useQuery({
         queryKey: ["host-event-tickets", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/host/events/${eventId}/tickets`)) as TicketsResponse;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/tickets`)) as TicketsResponse;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "tickets"),
         staleTime: Infinity,
@@ -731,7 +731,7 @@ export default function HostEventWorkspacePage() {
     const financeQuery = useQuery({
         queryKey: ["host-event-finance", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/host/events/${eventId}/finance`)) as FinanceData;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/finance`)) as FinanceData;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "revenue"),
         staleTime: Infinity,
@@ -762,7 +762,7 @@ export default function HostEventWorkspacePage() {
             if (attendeeStatus) searchParams.set("status", attendeeStatus);
             if (attendeeTierId) searchParams.set("tierId", attendeeTierId);
 
-            return (await authedJson(`/api/host/events/${eventId}/attendees?${searchParams.toString()}`)) as AttendeesResponse;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/attendees?${searchParams.toString()}`)) as AttendeesResponse;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "attendees"),
         staleTime: Infinity,
@@ -773,7 +773,7 @@ export default function HostEventWorkspacePage() {
     const promotersQuery = useQuery({
         queryKey: ["host-event-promoters", eventId],
         queryFn: async () => {
-            return (await authedJson(`/api/host/events/${eventId}/promoters`)) as EventPromotersResponse;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/promoters`)) as EventPromotersResponse;
         },
         enabled: Boolean(eventId && user && partnerId && activeSection === "settings" && activeSettingsBlock === "promoters"),
         staleTime: 30_000,
@@ -782,7 +782,7 @@ export default function HostEventWorkspacePage() {
     const attendeeDetailQuery = useQuery({
         queryKey: ["host-event-attendee-detail", eventId, selectedAttendeeId],
         queryFn: async () => {
-            return (await authedJson(`/api/host/events/${eventId}/attendees/${selectedAttendeeId}`)) as AttendeeTrackingResponse;
+            return (await authedJson(`/api/partners/hosts/events/${eventId}/attendees/${selectedAttendeeId}`)) as AttendeeTrackingResponse;
         },
         enabled: Boolean(eventId && user && partnerId && selectedAttendeeId && activeSection === "attendees"),
         staleTime: 30_000,
@@ -790,7 +790,7 @@ export default function HostEventWorkspacePage() {
 
     const saveEventMutation = useMutation({
         mutationFn: async (payload: Record<string, unknown>) => {
-            return authedJson(`/api/host/events/${eventId}`, {
+            return authedJson(`/api/partners/hosts/events/${eventId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -806,7 +806,7 @@ export default function HostEventWorkspacePage() {
 
     const saveTierMutation = useMutation({
         mutationFn: async (payload: { tierId: string } & TicketTierDraft) => {
-            return authedJson(`/api/host/events/${eventId}/tickets`, {
+            return authedJson(`/api/partners/hosts/events/${eventId}/tickets`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
@@ -822,7 +822,7 @@ export default function HostEventWorkspacePage() {
 
     const resendReceiptMutation = useMutation({
         mutationFn: async (orderId: string) => {
-            return authedJson(`/api/host/orders/${orderId}/resend-receipt`, {
+            return authedJson(`/api/partners/hosts/orders/${orderId}/resend-receipt`, {
                 method: "POST",
             });
         },
@@ -836,7 +836,7 @@ export default function HostEventWorkspacePage() {
 
     const cancelOrderMutation = useMutation({
         mutationFn: async ({ orderId, mode }: { orderId: string; mode: "cancel" | "cancel_and_relist" }) => {
-            return authedJson(`/api/host/orders/${orderId}/cancel`, {
+            return authedJson(`/api/partners/hosts/orders/${orderId}/cancel`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ mode }),
@@ -856,7 +856,7 @@ export default function HostEventWorkspacePage() {
 
     const savePromotersMutation = useMutation({
         mutationFn: async (payload: { enabled: boolean; allowedPromoterIds: string[] }) => {
-            return authedJson(`/api/host/events/${eventId}/promoters`, {
+            return authedJson(`/api/partners/hosts/events/${eventId}/promoters`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),

@@ -83,7 +83,7 @@ export function PromoterAnalyticsClient() {
         queryKey: ["promoter", "analytics-events", promoterId],
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const res = await fetch("/api/promoter/links?limit=200", {
+            const res = await fetch("/api/partners/promoters/links?limit=200", {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to fetch links");
@@ -99,7 +99,7 @@ export function PromoterAnalyticsClient() {
             const token = await user!.getIdToken();
             const params = new URLSearchParams({ range });
             if (selectedEventId) params.set("eventId", selectedEventId);
-            const res = await fetch(`/api/partner/promoter/analytics?${params.toString()}`, {
+            const res = await fetch(`/api/partners/promoters/analytics?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to fetch analytics");

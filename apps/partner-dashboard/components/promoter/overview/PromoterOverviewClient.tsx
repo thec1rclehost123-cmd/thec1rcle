@@ -11,7 +11,7 @@ export function PromoterOverviewClient({ initialData }: any) {
     const { data, isLoading, isError, refetch } = useQuery({
         queryKey: ["promoter", "overview"],
         queryFn: async () => {
-            const res = await fetch("/api/partner/promoter/overview");
+            const res = await fetch("/api/partners/promoters/overview");
             if (!res.ok) throw new Error("Failed to fetch overview");
             return res.json();
         },

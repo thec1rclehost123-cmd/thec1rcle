@@ -37,7 +37,14 @@ const Badge = ({ label, type = "default" }) => {
     );
 };
 
-const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onLogout, cultureStats }) => (
+function resolveBadgeType(label) {
+    if (label === "Pro Pass") return "pro";
+    if (label === "Host") return "host";
+    if (label === "Admin") return "admin";
+    return "default";
+}
+
+const MemberCard = ({ user, profile, badges = [], displayName, initials, isOwner, onEdit, onLogout, cultureStats }) => (
     <div className="relative w-full overflow-hidden rounded-[32px] border border-black/5 dark:border-white/10 bg-white dark:bg-white/5 p-8 transition-all duration-500 shadow-sm dark:shadow-none md:p-10">
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-orange/20 dark:via-white/20 to-transparent" />
 
@@ -85,14 +92,15 @@ const MemberCard = ({ user, profile, displayName, initials, isOwner, onEdit, onL
 
                 <div>
                     <div className="flex flex-wrap items-center gap-2 mb-3">
-                        <Badge label="Member" />
-                        <Badge label="Pro Pass" type="pro" />
-                        {profile?.hostStatus === "approved" && <Badge label="Host" type="host" />}
-                        {profile?.hostStatus === "pending" && isOwner && (
-                            <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/20 bg-orange-500/5 dark:bg-orange-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 backdrop-blur-md">
-                                Host Pending
-                            </span>
-                        )}
+                        {(badges.length ? badges : ["Member"]).map((badge) => (
+                            badge === "Host Pending" ? (
+                                <span key={badge} className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/20 bg-orange-500/5 dark:bg-orange-500/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 backdrop-blur-md">
+                                    {badge}
+                                </span>
+                            ) : (
+                                <Badge key={badge} label={badge} type={resolveBadgeType(badge)} />
+                            )
+                        ))}
                     </div>
                     <h1
                         className="text-4xl font-black uppercase tracking-tight text-black dark:text-white md:text-6xl"
@@ -226,13 +234,13 @@ export default function PublicProfilePage() {
     const [activeTab, setActiveTab] = useState("upcoming");
     const [editModalOpen, setEditModalOpen] = useState(false);
 
-    const isOwner = currentUser?.uid === userId;
-
     const { data, isLoading: loading } = useGuestProfileQuery({
         userId,
         viewerId: currentUser?.uid,
     });
 
+    const isOwner = Boolean(data?.isOwner ?? (currentUser?.uid === userId));
+    const badges = data?.badges ?? [];
     const profile = data?.profile ?? null;
     const events  = data?.events  ?? { upcoming: [], attended: [] };
 
@@ -286,6 +294,7 @@ export default function PublicProfilePage() {
                 >
                     <MemberCard
                         user={currentUser}
+                        badges={badges}
                         profile={profile}
                         displayName={displayName}
                         initials={initials}

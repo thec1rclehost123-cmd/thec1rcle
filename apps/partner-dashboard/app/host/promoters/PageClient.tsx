@@ -98,7 +98,7 @@ export default function PromotersPage() {
         e.preventDefault();
         setLoading(true);
         try {
-            const response = await fetch("/api/host/invite", {
+            const response = await fetch("/api/partners/hosts/invite", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

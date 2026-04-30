@@ -63,7 +63,7 @@ export function PayoutRequestModal({
 
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
 
-            const res = await fetch("/api/promoter/payouts", {
+            const res = await fetch("/api/partners/promoters/payouts", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

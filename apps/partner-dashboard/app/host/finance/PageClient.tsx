@@ -239,7 +239,7 @@ function AddBankModal({
     return (
         <ConnectPayoutMethodModal
             title="Connect Payout Method"
-            endpoint="/api/host/finance/bank-accounts"
+            endpoint="/api/partners/hosts/finance/bank-accounts"
             bodyBase={{ hostId }}
             getHeaders={async () => await getAuthHeaders(true)}
             onClose={onClose}
@@ -262,7 +262,7 @@ function DisputesView({
 
     useEffect(() => {
         getAuthHeaders()
-            .then((headers) => fetch(`/api/host/finance/disputes?hostId=${hostId}`, { headers }))
+            .then((headers) => fetch(`/api/partners/hosts/finance/disputes?hostId=${hostId}`, { headers }))
             .then((response) => response.json())
             .then((data) => setDisputes(data.disputes || []))
             .catch(() => {})
@@ -372,7 +372,7 @@ export default function HostFinancePageClient() {
         if (!hostId) return;
         setBalanceLoading(true);
         try {
-            const res = await fetch(`/api/host/finance/overview?hostId=${hostId}&period=30d`, {
+            const res = await fetch(`/api/partners/hosts/finance/overview?hostId=${hostId}&period=30d`, {
                 headers: await getAuthHeaders(),
             });
             const data = await res.json();
@@ -390,7 +390,7 @@ export default function HostFinancePageClient() {
         if (!hostId) return;
         setPayoutsLoading(true);
         try {
-            const res = await fetch(`/api/host/finance/payouts?hostId=${hostId}&page=${nextPage}&limit=10`, {
+            const res = await fetch(`/api/partners/hosts/finance/payouts?hostId=${hostId}&page=${nextPage}&limit=10`, {
                 headers: await getAuthHeaders(),
             });
             const data = await res.json();
@@ -404,7 +404,7 @@ export default function HostFinancePageClient() {
         if (!hostId) return;
         setAccountsLoading(true);
         try {
-            const res = await fetch(`/api/host/finance/bank-accounts?hostId=${hostId}`, {
+            const res = await fetch(`/api/partners/hosts/finance/bank-accounts?hostId=${hostId}`, {
                 headers: await getAuthHeaders(),
             });
             const data = await res.json();
@@ -441,7 +441,7 @@ export default function HostFinancePageClient() {
 
     const removeAccount = async (accountId: string) => {
         if (!hostId) return;
-        await fetch(`/api/host/finance/bank-accounts?hostId=${hostId}&accountId=${accountId}`, {
+        await fetch(`/api/partners/hosts/finance/bank-accounts?hostId=${hostId}&accountId=${accountId}`, {
             method: "DELETE",
             headers: await getAuthHeaders(),
         });

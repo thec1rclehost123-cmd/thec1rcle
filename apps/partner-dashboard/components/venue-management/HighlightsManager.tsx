@@ -50,7 +50,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
         setIsCreating(true);
 
         try {
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -71,7 +71,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
         if (!window.confirm("Delete this highlight? This cannot be undone.")) return;
 
         try {
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -87,7 +87,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
 
     const handleUpdateTitle = async (highlightId: string, title: string) => {
         try {
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -111,7 +111,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
             const snapshot = await uploadBytes(storageRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -129,7 +129,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
 
     const handleRemoveImage = async (highlightId: string, imageUrl: string) => {
         try {
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -145,7 +145,7 @@ export default function HighlightsManager({ venueId, highlights, onRefresh }: Hi
 
     const handleReorderHighlights = async (newOrder: Highlight[]) => {
         try {
-            await authedFetch("/api/venue/highlights", {
+            await authedFetch("/api/partners/venues/highlights", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,

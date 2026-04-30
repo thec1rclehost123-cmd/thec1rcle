@@ -375,6 +375,14 @@
         ]
       }
     },
+    "/orders/{orderId}/reissue": {
+      "post": {
+        "operationId": "reissueOrderFulfillment",
+        "tags": [
+          "orders"
+        ]
+      }
+    },
     "/tickets": {
       "get": {
         "operationId": "getGuestTickets",

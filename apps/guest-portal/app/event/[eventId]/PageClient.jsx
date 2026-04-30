@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import EventRSVP from "../../../components/EventRSVP";
 import { fetchPublicEvent } from "../../../features/discovery/publicDiscovery";
+import { fetchGuestBffEventDetail } from "../../../lib/bff/fetchers.js";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
 import { PUBLIC_LIFECYCLE_STATES } from "@c1rcle/core/events";
 import { useParams } from "next/navigation";
 
@@ -43,11 +45,18 @@ function resolveHostProfile(event) {
   return hostProfile;
 }
 
+function normalizeDetailPayload(payload) {
+  if (!payload) return null;
+  if (payload?.event) return payload;
+  if (payload?.id) return { event: payload };
+  return null;
+}
+
 export default function EventDetailPageClient({ initialDetail = null, initialEventId = "" }) {
   const params = useParams();
   const eventId = decodeURIComponent(String(params?.eventId || initialEventId || ""));
   const normalizedInitialDetail = useMemo(
-    () => (initialDetail?.event || !initialDetail?.id ? initialDetail : { event: initialDetail }),
+    () => normalizeDetailPayload(initialDetail),
     [initialDetail]
   );
   const [detail, setDetail] = useState(normalizedInitialDetail);
@@ -67,7 +76,10 @@ export default function EventDetailPageClient({ initialDetail = null, initialEve
     async function loadDetail() {
       setStatus("loading");
       try {
-        const nextDetail = await fetchPublicEvent(eventId);
+        const nextPayload = isGuestBffEnabled("eventDetail")
+          ? await fetchGuestBffEventDetail(eventId)
+          : await fetchPublicEvent(eventId);
+        const nextDetail = normalizeDetailPayload(nextPayload);
         if (cancelled) return;
         setDetail(nextDetail);
         setStatus(nextDetail?.event ? "ready" : "missing");

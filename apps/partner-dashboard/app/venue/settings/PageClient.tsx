@@ -139,7 +139,7 @@ export default function VenueSettingsClient({ setActions }: { setActions: (actio
         setLoading(true);
         try {
             const token = user ? await user.getIdToken() : "";
-            const response = await fetch(`/api/venue/settings?venueId=${venueId}`, {
+            const response = await fetch(`/api/partners/venues/settings?venueId=${venueId}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!response.ok) throw new Error("Failed to load settings");
@@ -179,7 +179,7 @@ export default function VenueSettingsClient({ setActions }: { setActions: (actio
             }
 
             const token = user ? await user.getIdToken() : "";
-            const response = await fetch("/api/venue/settings", {
+            const response = await fetch("/api/partners/venues/settings", {
                 method: "PATCH",
                 headers: {
                     "Content-Type": "application/json",

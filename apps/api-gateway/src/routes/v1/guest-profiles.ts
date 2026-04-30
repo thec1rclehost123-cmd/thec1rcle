@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { findGuestUserByEmail, getGuestProfileSummary } from '@c1rcle/core/guest-wallet-profile-notification-service';
 
@@ -39,7 +39,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
             });
 
             const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-            return { url };
+            return buildSuccessResponse({ url });
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'POST /guest-profiles/avatar failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Upload failed', requestId: request.id }));
@@ -56,15 +56,14 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
             const user = await findGuestUserByEmail(fastify.db, request.query.email);
             if (!user) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Profile not found', requestId: request.id }));
 
-            return {
-                user: {
-                    uid: user.uid,
-                    displayName: user.displayName || user.name || 'Member',
-                    email: user.email || null,
-                    photoURL: user.photoURL || user.avatar || null,
-                    avatar: user.photoURL || user.avatar || null,
-                },
+            const userRecord = {
+                uid: user.uid,
+                displayName: user.displayName || user.name || 'Member',
+                email: user.email || null,
+                photoURL: user.photoURL || user.avatar || null,
+                avatar: user.photoURL || user.avatar || null,
             };
+            return buildSuccessResponse({ user: userRecord });
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /guest-profiles/lookup failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -78,7 +77,7 @@ export default async function guestProfileRoutes(fastify: FastifyInstance) {
             const viewerId = request.user?.uid || null;
             const result = await getGuestProfileSummary(fastify.db, fastify.auth, request.params.id, viewerId);
             if (!result.profile) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Profile not found', requestId: request.id }));
-            return result;
+            return buildSuccessResponse(result as Record<string, unknown>);
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, error: error.message }, 'GET /guest-profiles/:id failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));

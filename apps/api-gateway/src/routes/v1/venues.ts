@@ -2,7 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
-const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.any()) });
+const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.string(), z.any()) });
 const VenueOrdersQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional(), status: z.string().optional() });
 const VenueFinanceQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional() });
 const NotificationsReadBody = z.object({ venueId: z.string(), notificationId: z.string().optional(), markAllRead: z.boolean().optional() });
@@ -18,6 +18,34 @@ const VenueEventsSchema = z.object({
     limit: z.string().optional().default('20'),
     status: z.string().optional().default('all'),
 });
+
+const AVAILABILITY_SLOTS_COLLECTION = 'availability_slots';
+
+function normalizeSlotRecord(doc: any): any {
+    const data = (doc.data() || {}) as Record<string, any>;
+    const requestedDate = data.requestedDate || data.date || null;
+    const requestedStartTime = data.requestedStartTime || data.startTime || null;
+    const requestedEndTime = data.requestedEndTime || data.endTime || null;
+    const isActive = data.isActive !== false;
+
+    return {
+        id: doc.id,
+        ...data,
+        requestedDate,
+        requestedStartTime,
+        requestedEndTime,
+        status: data.status || 'pending',
+        isActive,
+    };
+}
+
+function isVenueBlock(slot: Record<string, any>) {
+    return String(slot.source || '').toLowerCase() === 'venue_block' || String(slot.status || '').toLowerCase() === 'blocked';
+}
+
+function slotRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+    return aStart < bEnd && bStart < aEnd;
+}
 
 
 /**
@@ -196,6 +224,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const { venueId } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
+        const cacheKey = `overview:${venueId}`;
+        const cached = await fastify.cache.get('venue:overview', cacheKey);
+        if (cached) {
+            return reply.header('Cache-Control', 'private, max-age=120').send(cached);
+        }
+
         const now = new Date();
         const weekAgo = new Date();
         weekAgo.setDate(now.getDate() - 7);
@@ -210,7 +244,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             .map(d => d.data() as any)
             .filter(e => e.startDate && e.startDate >= weekAgo.toISOString());
 
-        return {
+        const summary = {
             weekendRevenue: 0,
             revenueTrend: "0%",
             revenueTrendDirection: "up",
@@ -219,6 +253,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
             totalGuestProfiles: 0,
             newGuestsThisWeek: 0
         };
+
+        await fastify.cache.set('venue:overview', cacheKey, summary, 120);
+        return reply.header('Cache-Control', 'private, max-age=120').send(summary);
     });
 
     fastify.get('/venue/overview', {
@@ -394,20 +431,22 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const { venueId } = request.query;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
-        const snap = await fastify.db.collection('slot_requests')
+        const snap = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION)
             .where('venueId', '==', venueId)
             .where('status', '==', 'pending')
             .limit(100)
             .get();
 
-        const requests = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const requests = snap.docs
+            .map((doc: any) => normalizeSlotRecord(doc))
+            .filter((slot) => !isVenueBlock(slot));
         requests.sort((a: any, b: any) => {
             const dateA = new Date(a.createdAt || 0).getTime();
             const dateB = new Date(b.createdAt || 0).getTime();
             return dateB - dateA;
         });
 
-        return { slotRequests: requests };
+        return { slotRequests: requests, requests };
     });
 
     fastify.get('/venue/orders/latest', {
@@ -577,49 +616,165 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         if (!venueId && !hostId) return reply.status(400).send({ error: 'venueId or hostId required' });
         const partnerId = venueId || hostId;
         await fastify.verifyPartnerAccess(request, partnerId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
-        let q: any = fastify.db.collection('slot_requests').orderBy('createdAt', 'desc');
+        let q: any = fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION);
         if (venueId) q = q.where('venueId', '==', venueId);
         if (hostId) q = q.where('hostId', '==', hostId);
         if (status) q = q.where('status', '==', status);
         q = q.limit(Math.min(parseInt(limit), 100));
         const snap = await q.get();
-        return { slotRequests: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })) };
+        const slotRequests = snap.docs
+            .map((doc: any) => normalizeSlotRecord(doc))
+            .sort((left: any, right: any) => {
+                const leftTime = new Date(left.createdAt || 0).getTime();
+                const rightTime = new Date(right.createdAt || 0).getTime();
+                return rightTime - leftTime;
+            });
+        return { slotRequests, requests: slotRequests };
     });
 
     fastify.get('/slots/:id', async (request: any, reply) => {
         const { id } = request.params as any;
-        const doc = await fastify.db.collection('slot_requests').doc(id).get();
+        const doc = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).doc(id).get();
         if (!doc.exists) return reply.status(404).send({ error: 'Slot request not found' });
-        const s = doc.data() as any;
+        const s: any = normalizeSlotRecord(doc);
         const partnerId = s.venueId || s.hostId;
         await fastify.verifyPartnerAccess(request, partnerId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
-        return { slotRequest: { id: doc.id, ...s } };
+        return { slotRequest: s };
     });
 
     fastify.patch('/slots/:id', async (request: any, reply) => {
         const { id } = request.params as any;
-        const { action, counterDate, counterStartTime, counterEndTime, message } = request.body as any;
-        const validActions = ['approve', 'reject', 'counter', 'suggest_changes'];
+        const { action, counterDate, counterStartTime, counterEndTime, message, notes } = request.body as any;
+        const validActions = ['approve', 'reject', 'counter', 'suggest', 'suggest_changes'];
         if (!validActions.includes(action)) return reply.status(400).send({ error: `action must be one of: ${validActions.join(', ')}` });
-        const ref = fastify.db.collection('slot_requests').doc(id);
+        const ref = fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).doc(id);
         const doc = await ref.get();
         if (!doc.exists) return reply.status(404).send({ error: 'Slot request not found' });
-        const s = doc.data() as any;
+        const s: any = normalizeSlotRecord(doc);
         await fastify.verifyPartnerAccess(request, s.venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         const now = new Date().toISOString();
-        const statusMap: Record<string, string> = { approve: 'approved', reject: 'rejected', counter: 'countered', suggest_changes: 'changes_requested' };
-        const updates: Record<string, any> = { status: statusMap[action], updatedAt: now, respondedAt: now };
-        if (action === 'counter') { updates.counterDate = counterDate; updates.counterStartTime = counterStartTime; updates.counterEndTime = counterEndTime; }
-        if (message) updates.responseMessage = message;
-        await ref.update(updates);
-        if (s.eventId) {
-            const eventRef = fastify.db.collection('events').doc(s.eventId);
-            await eventRef.update({ slotStatus: statusMap[action], slotRespondedAt: now }).catch(() => {});
-            if (action === 'approve') {
-                await fastify.db.collection('notifications').add({ recipientId: s.hostId, recipientType: 'host', type: 'slot_approved', slotRequestId: id, eventId: s.eventId, venueId: s.venueId, title: 'Slot Approved', message: `Your slot request for ${s.venueName || 'the venue'} has been approved.`, read: false, createdAt: now });
+        const statusMap: Record<string, string> = {
+            approve: 'approved',
+            reject: 'rejected',
+            counter: 'countered',
+            suggest: 'changes_requested',
+            suggest_changes: 'changes_requested',
+        };
+        const nextStatus = statusMap[action];
+
+        const result = await fastify.db.runTransaction(async (transaction: any) => {
+            const liveDoc = await transaction.get(ref);
+            if (!liveDoc.exists) {
+                const notFound: any = new Error('Slot request not found');
+                notFound.statusCode = 404;
+                notFound.code = 'NOT_FOUND';
+                throw notFound;
             }
+
+            const liveSlot: any = normalizeSlotRecord(liveDoc);
+            const currentStatus = String(liveSlot.status || '').toLowerCase();
+            if (currentStatus === nextStatus) {
+                return { status: nextStatus, eventId: liveSlot.eventId, hostId: liveSlot.hostId, venueId: liveSlot.venueId, venueName: liveSlot.venueName, shouldNotify: false };
+            }
+
+            const mutableStatuses = new Set(['pending', 'requested', 'countered', 'changes_requested']);
+            if (!mutableStatuses.has(currentStatus)) {
+                const conflict: any = new Error(`Slot request is already ${currentStatus}`);
+                conflict.statusCode = 409;
+                conflict.code = 'CONFLICT';
+                throw conflict;
+            }
+
+            if (action === 'approve') {
+                const approvalDate = liveSlot.requestedDate || liveSlot.date || null;
+                const approvalStart = liveSlot.requestedStartTime || liveSlot.startTime || null;
+                const approvalEnd = liveSlot.requestedEndTime || liveSlot.endTime || null;
+                const sameDaySnap = await transaction.get(
+                    fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION)
+                        .where('venueId', '==', liveSlot.venueId)
+                        .where('date', '==', approvalDate)
+                        .limit(100)
+                );
+
+                const conflictingApproval = sameDaySnap.docs.some((slotDoc: any) => {
+                    if (slotDoc.id === id) return false;
+                    const candidate = normalizeSlotRecord(slotDoc);
+                    const candidateStatus = String(candidate.status || '').toLowerCase();
+                    if (!['approved', 'booked', 'blocked'].includes(candidateStatus)) return false;
+
+                    const candidateStart = candidate.startTime || candidate.requestedStartTime || null;
+                    const candidateEnd = candidate.endTime || candidate.requestedEndTime || null;
+                    if (!candidateStart || !candidateEnd || !approvalStart || !approvalEnd) return true;
+                    return slotRangesOverlap(candidateStart, candidateEnd, approvalStart, approvalEnd);
+                });
+
+                if (conflictingApproval) {
+                    const conflict: any = new Error('The selected venue time slot is unavailable');
+                    conflict.statusCode = 409;
+                    conflict.code = 'CONFLICT';
+                    throw conflict;
+                }
+            }
+
+            const updates: Record<string, any> = { status: nextStatus, updatedAt: now, respondedAt: now };
+            if (action === 'counter') {
+                updates.counterDate = counterDate;
+                updates.counterStartTime = counterStartTime;
+                updates.counterEndTime = counterEndTime;
+            }
+            if (action === 'approve') {
+                updates.date = liveSlot.requestedDate || liveSlot.date || null;
+                updates.startTime = liveSlot.requestedStartTime || liveSlot.startTime || null;
+                updates.endTime = liveSlot.requestedEndTime || liveSlot.endTime || null;
+            }
+            if (message || notes) updates.responseMessage = message || notes;
+            transaction.update(ref, updates);
+
+            if (liveSlot.eventId) {
+                const eventRef = fastify.db.collection('events').doc(liveSlot.eventId);
+                const eventDoc = await transaction.get(eventRef);
+                if (eventDoc.exists) {
+                    const eventUpdates: Record<string, any> = {
+                        slotStatus: nextStatus,
+                        slotRespondedAt: now,
+                        updatedAt: now,
+                    };
+                    if (action === 'approve') {
+                        eventUpdates.lifecycle = 'scheduled';
+                        eventUpdates.approvedAt = now;
+                    } else if (action === 'reject') {
+                        eventUpdates.lifecycle = 'denied';
+                    }
+                    transaction.update(eventRef, eventUpdates);
+                }
+            }
+
+            return {
+                status: nextStatus,
+                eventId: liveSlot.eventId,
+                hostId: liveSlot.hostId,
+                venueId: liveSlot.venueId,
+                venueName: liveSlot.venueName,
+                shouldNotify: action === 'approve' && !!liveSlot.eventId,
+            };
+        });
+
+        if (result.shouldNotify) {
+            await fastify.db.collection('notifications').add({
+                recipientId: result.hostId,
+                recipientType: 'host',
+                type: 'slot_approved',
+                slotRequestId: id,
+                eventId: result.eventId,
+                venueId: result.venueId,
+                title: 'Slot Approved',
+                message: `Your slot request for ${result.venueName || 'the venue'} has been approved.`,
+                read: false,
+                createdAt: now
+            });
         }
-        return { success: true, status: statusMap[action] };
+
+        return { success: true, status: result.status };
     });
 
 
@@ -846,26 +1001,26 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const { venueId, startDate, endDate } = request.query as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
-        // Fetch events and slots for the range
-        // We filter in-memory to avoid composite indexing issues
-        const [eventsSnap, slotsSnap, blocksSnap] = await Promise.all([
+        // Fetch events and availability slots for the range.
+        // All scheduling reads come from availability_slots now.
+        const [eventsSnap, slotsSnap] = await Promise.all([
             fastify.db.collection('events')
                 .where('venueId', '==', venueId)
                 .get(),
-            fastify.db.collection('slot_requests')
+            fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION)
                 .where('venueId', '==', venueId)
                 .get(),
-            fastify.db.collection('venue_calendar_blocks')
-                .where('venueId', '==', venueId)
-                .get()
         ]);
 
         const events = eventsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
             .filter(e => (!startDate || e.startDate >= startDate) && (!endDate || e.startDate <= endDate));
-        const slots = slotsSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
-            .filter(s => (!startDate || s.requestedDate >= startDate) && (!endDate || s.requestedDate <= endDate));
-        const blocks = blocksSnap.docs.map(d => ({ id: d.id, ...d.data() as any }))
-            .filter(b => (!startDate || b.date >= startDate) && (!endDate || b.date <= endDate));
+        const slots = slotsSnap.docs
+            .map((doc: any) => normalizeSlotRecord(doc))
+            .filter((slot) => {
+                const slotDate = slot.requestedDate || slot.date;
+                return (!startDate || slotDate >= startDate) && (!endDate || slotDate <= endDate);
+            });
+        const blocks = slots.filter((slot: any) => isVenueBlock(slot));
 
         const dates: any[] = [];
         let cur = new Date(startDate);
@@ -874,12 +1029,13 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         while (cur <= end) {
             const ds = cur.toISOString().split('T')[0];
             const dayEvents = events.filter((e: any) => e.startDate.startsWith(ds));
-            const daySlots = slots.filter((s: any) => s.requestedDate === ds);
+            const daySlots = slots.filter((s: any) => (s.requestedDate || s.date) === ds && !isVenueBlock(s));
             const block = blocks.find((b: any) => b.date === ds);
+            const confirmedSlots = daySlots.filter((slot: any) => ['approved', 'booked'].includes(String(slot.status || '').toLowerCase()));
             
             dates.push({
                 date: ds,
-                state: block ? 'BLOCKED' : (dayEvents.length > 0 ? 'CONFIRMED' : 'OPEN'),
+                state: block ? 'BLOCKED' : (dayEvents.length > 0 || confirmedSlots.length > 0 ? 'CONFIRMED' : 'OPEN'),
                 events: dayEvents,
                 slots: daySlots,
                 block: block || null,
@@ -897,16 +1053,86 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     fastify.post('/venue/calendar', {
         preHandler: [fastify.requireAuth]
     }, async (request: any, reply) => {
-        const { venueId, type, date, startTime, endTime, reason } = request.body as any;
+        const { venueId, type, action, date, startTime, endTime, reason, slotId } = request.body as any;
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
         
         const now = new Date().toISOString();
-        if (type === 'BLOCK') {
-            await fastify.db.collection('venue_calendar_blocks').add({
-                venueId, date, startTime, endTime, reason, createdAt: now
+        const normalizedAction = String(action || type || '').toLowerCase();
+        if (normalizedAction === 'block') {
+            const blockRef = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).add({
+                venueId,
+                date,
+                requestedDate: date,
+                startTime: startTime || null,
+                endTime: endTime || null,
+                requestedStartTime: startTime || null,
+                requestedEndTime: endTime || null,
+                reason,
+                source: 'venue_block',
+                status: 'blocked',
+                createdAt: now,
+                updatedAt: now,
+            });
+            return { success: true, slotId: blockRef.id };
+        }
+        if (normalizedAction === 'unblock') {
+            const batch = fastify.db.batch();
+            let docs: any[] = [];
+
+            if (slotId) {
+                const blockDoc = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).doc(slotId).get();
+                if (blockDoc.exists) docs = [blockDoc];
+            } else {
+                const snapshot = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION)
+                    .where('venueId', '==', venueId)
+                    .where('date', '==', date)
+                    .where('source', '==', 'venue_block')
+                    .get();
+                docs = snapshot.docs.filter((doc) => {
+                    const data = doc.data() as Record<string, any>;
+                    if (startTime && data.startTime && data.startTime !== startTime) return false;
+                    if (endTime && data.endTime && data.endTime !== endTime) return false;
+                    return true;
+                });
+            }
+
+            docs.forEach((doc) => batch.delete(doc.ref));
+            await batch.commit();
+            return { success: true, removedCount: docs.length };
+        }
+
+        return reply.status(400).send({ error: 'action must be block or unblock' });
+    });
+
+    fastify.delete('/venue/calendar', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { venueId, date, startTime, endTime, slotId } = request.query as any;
+        await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        const batch = fastify.db.batch();
+        let docs: any[] = [];
+
+        if (slotId) {
+            const blockDoc = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION).doc(slotId).get();
+            if (blockDoc.exists) docs = [blockDoc];
+        } else {
+            const snapshot = await fastify.db.collection(AVAILABILITY_SLOTS_COLLECTION)
+                .where('venueId', '==', venueId)
+                .where('date', '==', date)
+                .where('source', '==', 'venue_block')
+                .get();
+            docs = snapshot.docs.filter((doc) => {
+                const data = doc.data() as Record<string, any>;
+                if (startTime && data.startTime && data.startTime !== startTime) return false;
+                if (endTime && data.endTime && data.endTime !== endTime) return false;
+                return true;
             });
         }
-        return { success: true };
+
+        docs.forEach((doc) => batch.delete(doc.ref));
+        await batch.commit();
+        return { success: true, removedCount: docs.length };
     });
 
     fastify.post('/venue/staff/accept', {

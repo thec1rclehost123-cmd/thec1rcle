@@ -127,7 +127,7 @@ export default function ProfilePageClient({ id }: { id: string }) {
                     viewerId,
                     viewerRole,
                 });
-                const response = await fetch(`/api/venue/partners/${id}?${params.toString()}`, {
+                const response = await fetch(`/api/partners/venues/partners/${id}?${params.toString()}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 const payload = await response.json();

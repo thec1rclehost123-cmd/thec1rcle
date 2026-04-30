@@ -14,6 +14,7 @@ import { motion } from "framer-motion";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
 import VenueChart, { ChartSkeleton } from "@/components/ui/VenueChart";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { usePartnerHostOverview } from "@/lib/hooks/useHostQueries";
 import {
     formatINRCompact,
     formatNumber,
@@ -103,6 +104,8 @@ const OVERVIEW_REFRESH_MS = 60_000;
 const OVERVIEW_ORDERS_STALE_MS = 2 * 60 * 1000;
 const OVERVIEW_EVENTS_STALE_MS = 5 * 60 * 1000;
 const OVERVIEW_SERIES_STALE_MS = 60_000;
+const USE_NEW_HOST_OVERVIEW = process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_V2 === "true";
+const ENABLE_HOST_OVERVIEW_COMPARE = process.env.NEXT_PUBLIC_PARTNER_DASHBOARD_HOST_OVERVIEW_COMPARE === "true";
 
 function formatRangeLabel(date: Date, range: OverviewRange) {
     if (range === "1d") {
@@ -377,19 +380,68 @@ function SegmentedControl<T extends string>({
 async function fetchOrdersPage(
     token: string,
     hostId: string,
-    page: number,
     limit: number,
 ) {
     const params = new URLSearchParams({
         hostId,
-        page: String(page),
         limit: String(limit),
     });
-    const response = await fetch(`/api/host/orders?${params.toString()}`, {
+    const response = await fetch(`/api/partners/hosts/orders?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error("Failed to fetch host orders");
     return response.json() as Promise<HostOrdersResponse>;
+}
+
+function mapPartnerOverviewOrders(
+    orders: Array<{
+        orderId: string;
+        orderNumber: string;
+        customerName: string;
+        eventId: string;
+        eventName: string;
+        amount: number;
+        ticketsCount: number;
+        createdAt?: string | null;
+        status?: string;
+        source?: "ticket" | "rsvp";
+    }> | undefined,
+): HostOrder[] {
+    return (orders || []).map((order) => ({
+        id: order.orderId,
+        orderId: order.orderId,
+        orderNumber: order.orderNumber,
+        attendeeId: "",
+        customerName: order.customerName,
+        eventId: order.eventId,
+        eventName: order.eventName,
+        amount: Number(order.amount || 0),
+        ticketsCount: Number(order.ticketsCount || 0),
+        createdAt: order.createdAt || "",
+        status: order.status || "paid",
+        source: order.source || "ticket",
+    }));
+}
+
+function mapPartnerOverviewEvents(
+    events: Array<{
+        eventId: string;
+        title: string;
+        startDate?: string | null;
+        venueName?: string;
+        status?: string;
+        coverImage?: string | null;
+    }> | undefined,
+): HostEvent[] {
+    return (events || []).map((event) => ({
+        id: event.eventId,
+        title: event.title,
+        startDate: event.startDate || undefined,
+        lifecycle: event.status,
+        status: event.status,
+        venueName: event.venueName,
+        coverImage: event.coverImage || undefined,
+    }));
 }
 
 export default function HostDashboardStreaming() {
@@ -412,12 +464,21 @@ export default function HostDashboardStreaming() {
         }
     }, [canViewRevenue, selectedMetric]);
 
+    const unifiedOverviewQuery = usePartnerHostOverview(
+        hostId,
+        Boolean(hostId && user && USE_NEW_HOST_OVERVIEW),
+        selectedRange,
+        selectedMetric,
+    );
+    const preferUnifiedOverview = USE_NEW_HOST_OVERVIEW && !unifiedOverviewQuery.isError;
+    const enableLegacyOverviewQueries = !preferUnifiedOverview || ENABLE_HOST_OVERVIEW_COMPARE;
+
     const recentOrdersQuery = useQuery({
         queryKey: ["host", hostId, "overview-orders-latest"],
-        enabled: Boolean(hostId && user && canViewOrders),
+        enabled: Boolean(hostId && user && canViewOrders && enableLegacyOverviewQueries),
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const payload = await fetchOrdersPage(token, hostId!, 1, 20);
+            const payload = await fetchOrdersPage(token, hostId!, 20);
             return payload.orders || [];
         },
         staleTime: OVERVIEW_ORDERS_STALE_MS,
@@ -426,7 +487,7 @@ export default function HostDashboardStreaming() {
 
     const timeSeriesQuery = useQuery({
         queryKey: ["host", hostId, "time-series", selectedRange, selectedMetric],
-        enabled: Boolean(hostId && user && canViewAnalytics),
+        enabled: Boolean(hostId && user && canViewAnalytics && enableLegacyOverviewQueries),
         queryFn: async (): Promise<TimeSeriesResponse> => {
             const token = await user!.getIdToken();
             const params = new URLSearchParams({
@@ -434,7 +495,7 @@ export default function HostDashboardStreaming() {
                 range: selectedRange,
                 metric: selectedMetric,
             });
-            const res = await fetch(`/api/host/analytics/time-series?${params.toString()}`, {
+            const res = await fetch(`/api/partners/hosts/analytics/time-series?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to fetch time-series data");
@@ -448,14 +509,14 @@ export default function HostDashboardStreaming() {
 
     const upcomingEventsQuery = useQuery({
         queryKey: ["host", hostId, "overview-events"],
-        enabled: Boolean(hostId && user),
+        enabled: Boolean(hostId && user && enableLegacyOverviewQueries),
         queryFn: async () => {
             const token = await user!.getIdToken();
             const params = new URLSearchParams({
                 hostId: hostId!,
                 limit: "20",
             });
-            const response = await fetch(`/api/host/events?${params.toString()}`, {
+            const response = await fetch(`/api/partners/hosts/events?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch host events");
@@ -465,7 +526,35 @@ export default function HostDashboardStreaming() {
         refetchOnMount: false,
     });
 
-    const latestOrders = recentOrdersQuery.data || [];
+    useEffect(() => {
+        if (!ENABLE_HOST_OVERVIEW_COMPARE || !unifiedOverviewQuery.data) return;
+        if (!recentOrdersQuery.data || !timeSeriesQuery.data || !upcomingEventsQuery.data) return;
+
+        console.log("OLD vs NEW", {
+            range: selectedRange,
+            metric: selectedMetric,
+            oldData: {
+                latestOrders: recentOrdersQuery.data,
+                performance: timeSeriesQuery.data,
+                upcomingEvents: upcomingEventsQuery.data?.events || [],
+            },
+            newData: unifiedOverviewQuery.data,
+        });
+    }, [
+        recentOrdersQuery.data,
+        selectedMetric,
+        selectedRange,
+        timeSeriesQuery.data,
+        unifiedOverviewQuery.data,
+        upcomingEventsQuery.data,
+    ]);
+
+    const latestOrders = useMemo(
+        () => preferUnifiedOverview
+            ? mapPartnerOverviewOrders(unifiedOverviewQuery.data?.latestOrders)
+            : (recentOrdersQuery.data || []),
+        [preferUnifiedOverview, recentOrdersQuery.data, unifiedOverviewQuery.data?.latestOrders],
+    );
     const filteredLatestOrders = useMemo(() => {
         const query = orderSearch.trim().toLowerCase();
         if (!query) return latestOrders;
@@ -477,20 +566,27 @@ export default function HostDashboardStreaming() {
     }, [latestOrders, orderSearch]);
 
     const chartData = useMemo((): ChartPoint[] => {
-        const series = timeSeriesQuery.data?.series || [];
+        const series = preferUnifiedOverview
+            ? (unifiedOverviewQuery.data?.performance?.series || [])
+            : (timeSeriesQuery.data?.series || []);
         return series.map((pt) => ({
-            label: pt.label,
+            label: pt.label || "",
             value: Number(
                 selectedMetric === "revenue"
                     ? (pt.revenue ?? pt.value ?? 0)
                     : (pt.ticketsSold ?? pt.value ?? 0)
             ),
         }));
-    }, [timeSeriesQuery.data, selectedMetric]);
+    }, [preferUnifiedOverview, selectedMetric, timeSeriesQuery.data, unifiedOverviewQuery.data?.performance?.series]);
 
     const chartTotal = useMemo(
-        () => chartData.reduce((sum: number, point: ChartPoint) => sum + point.value, 0),
-        [chartData],
+        () => {
+            if (preferUnifiedOverview) {
+                return Number(unifiedOverviewQuery.data?.performance?.total ?? 0);
+            }
+            return chartData.reduce((sum: number, point: ChartPoint) => sum + point.value, 0);
+        },
+        [chartData, preferUnifiedOverview, unifiedOverviewQuery.data?.performance?.total],
     );
     const emptyChartLabels = useMemo(
         () => buildEmptyRangeLabels(selectedRange),
@@ -498,6 +594,9 @@ export default function HostDashboardStreaming() {
     );
 
     const upcomingEvents = useMemo(() => {
+        if (preferUnifiedOverview) {
+            return mapPartnerOverviewEvents(unifiedOverviewQuery.data?.upcomingEvents);
+        }
         const now = startOfDay(new Date());
         const items = (upcomingEventsQuery.data?.events || [])
             .filter((event) => {
@@ -510,7 +609,11 @@ export default function HostDashboardStreaming() {
                 return leftDate - rightDate;
             });
         return items.slice(0, 8);
-    }, [upcomingEventsQuery.data]);
+    }, [preferUnifiedOverview, unifiedOverviewQuery.data?.upcomingEvents, upcomingEventsQuery.data]);
+
+    const performanceLoading = preferUnifiedOverview ? unifiedOverviewQuery.isLoading : timeSeriesQuery.isLoading;
+    const ordersLoading = preferUnifiedOverview ? unifiedOverviewQuery.isLoading : recentOrdersQuery.isLoading;
+    const upcomingEventsLoading = preferUnifiedOverview ? unifiedOverviewQuery.isLoading : upcomingEventsQuery.isLoading;
 
     return (
         <div className="pt-[3px] lg:pt-[6px]">
@@ -586,7 +689,7 @@ export default function HostDashboardStreaming() {
                                             This graph is built from cross-event host performance data, so it only appears for roles with analytics access.
                                         </p>
                                     </div>
-                                ) : timeSeriesQuery.isLoading ? (
+                                ) : performanceLoading ? (
                                     <ChartSkeleton height={360} />
                                 ) : (
                                     <VenueChart
@@ -673,7 +776,7 @@ export default function HostDashboardStreaming() {
                                             Host order activity is only shown for roles with host analytics or guestlist access.
                                         </p>
                                     </div>
-                                ) : recentOrdersQuery.isLoading ? (
+                                ) : ordersLoading ? (
                                     Array.from({ length: 5 }).map((_, index) => (
                                         <div
                                             key={index}
@@ -790,7 +893,7 @@ export default function HostDashboardStreaming() {
                         style={cardStyle()}
                     >
                         <div className="space-y-3">
-                            {upcomingEventsQuery.isLoading ? (
+                            {upcomingEventsLoading ? (
                                 Array.from({ length: 4 }).map((_, index) => (
                                     <div
                                         key={index}

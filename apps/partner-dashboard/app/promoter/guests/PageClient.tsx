@@ -69,7 +69,7 @@ export default function GuestStreamPage() {
             try {
                 const token = await user?.getIdToken();
                 const res = await fetch(
-                    `/api/promoter/guests?promoterId=${promoterId}&limit=50`,
+                    `/api/partners/promoters/guests?promoterId=${promoterId}&limit=50`,
                     { headers: token ? { Authorization: `Bearer ${token}` } : {} }
                 );
                 const data = await res.json();

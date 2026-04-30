@@ -64,7 +64,7 @@ export function VerificationStepper({ verification, promoterId, token, onUpdated
             fd.append("file", file);
             fd.append("promoterId", promoterId);
             fd.append("type", type);
-            const uploadRes = await fetch("/api/promoter/upload", {
+            const uploadRes = await fetch("/api/partners/promoters/upload", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: fd,
@@ -77,7 +77,7 @@ export function VerificationStepper({ verification, promoterId, token, onUpdated
             setUrl(uploadData.url);
 
             // Persist doc URL + transition to PENDING
-            const verRes = await fetch("/api/promoter/settings/verification", {
+            const verRes = await fetch("/api/partners/promoters/settings/verification", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

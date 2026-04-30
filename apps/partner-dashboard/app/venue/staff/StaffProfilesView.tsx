@@ -234,9 +234,9 @@ export default function ProfilesView() {
         try {
             const h = await authHeaders();
             const [pRes, sRes, aRes] = await Promise.all([
-                fetch(`/api/venue/staff-profiles?venueId=${venueId}`, { headers: h }),
-                fetch(`/api/venue/staff?venueId=${venueId}&isActive=all`, { headers: h }),
-                fetch(`/api/venue/staff-profiles/assignments?venueId=${venueId}`, { headers: h }),
+                fetch(`/api/partners/venues/staff-profiles?venueId=${venueId}`, { headers: h }),
+                fetch(`/api/partners/venues/staff?venueId=${venueId}&isActive=all`, { headers: h }),
+                fetch(`/api/partners/venues/staff-profiles/assignments?venueId=${venueId}`, { headers: h }),
             ]);
             if (pRes.ok) setProfiles((await pRes.json()).profiles ?? []);
             if (sRes.ok) setStaff((await sRes.json()).staff ?? []);
@@ -308,7 +308,7 @@ export default function ProfilesView() {
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
             const res = await fetch(
-                `/api/venue/staff-profiles/${selectedProfileId}?venueId=${venueId}`,
+                `/api/partners/venues/staff-profiles/${selectedProfileId}?venueId=${venueId}`,
                 {
                     method: "PATCH",
                     headers: h,
@@ -339,7 +339,7 @@ export default function ProfilesView() {
         setAssigning(true);
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
-            const res = await fetch(`/api/venue/staff-profiles/assign?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/staff-profiles/assign?venueId=${venueId}`, {
                 method: "POST", headers: h,
                 body: JSON.stringify({ staffUserId: assignTarget, profileId: selectedProfileId }),
             });
@@ -357,7 +357,7 @@ export default function ProfilesView() {
         setAssigning(true);
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
-            const res = await fetch(`/api/venue/staff-profiles/assign?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/staff-profiles/assign?venueId=${venueId}`, {
                 method: "DELETE", headers: h,
                 body: JSON.stringify({ staffUserId: uid }),
             });
@@ -378,7 +378,7 @@ export default function ProfilesView() {
         try {
             const h = await authHeaders();
             const res = await fetch(
-                `/api/venue/staff-profiles/${selectedProfileId}?venueId=${venueId}`,
+                `/api/partners/venues/staff-profiles/${selectedProfileId}?venueId=${venueId}`,
                 { method: "DELETE", headers: h }
             );
             if (res.ok) {
@@ -404,7 +404,7 @@ export default function ProfilesView() {
         setCreateError(null);
         try {
             const h = { ...(await authHeaders()), "Content-Type": "application/json" };
-            const res = await fetch(`/api/venue/staff-profiles?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/staff-profiles?venueId=${venueId}`, {
                 method: "POST", headers: h,
                 body: JSON.stringify({
                     profileName: createName.trim(),

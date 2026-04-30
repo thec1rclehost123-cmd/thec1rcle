@@ -230,7 +230,7 @@ function AddBankModal({
     return (
         <ConnectPayoutMethodModal
             title="Connect Payout Method"
-            endpoint="/api/venue/finance/bank-accounts"
+            endpoint="/api/partners/venues/finance/bank-accounts"
             bodyBase={{ venueId }}
             getHeaders={async () => {
                 const token = await getToken();
@@ -255,7 +255,7 @@ function DisputesView({ venueId, onBack, getToken }: { venueId: string; onBack: 
         (async () => {
             try {
                 const token = await getToken();
-                const res = await fetch(`/api/venue/finance/disputes?venueId=${venueId}`, {
+                const res = await fetch(`/api/partners/venues/finance/disputes?venueId=${venueId}`, {
                     headers: token ? { Authorization: `Bearer ${token}` } : {},
                 });
                 const d = await res.json();
@@ -396,7 +396,7 @@ export default function VenueFinancePageClient() {
         setBalanceLoading(true);
         try {
             const token = await getToken();
-            const res = await fetch(`/api/venue/finance/overview?venueId=${venueId}&period=30d`, {
+            const res = await fetch(`/api/partners/venues/finance/overview?venueId=${venueId}&period=30d`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const d = await res.json();
@@ -415,7 +415,7 @@ export default function VenueFinancePageClient() {
         setPayoutsLoading(true);
         try {
             const token = await getToken();
-            const res = await fetch(`/api/venue/finance/payouts?venueId=${venueId}&page=${p}&limit=10`, {
+            const res = await fetch(`/api/partners/venues/finance/payouts?venueId=${venueId}&page=${p}&limit=10`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const d = await res.json();
@@ -430,7 +430,7 @@ export default function VenueFinancePageClient() {
         setAccountsLoading(true);
         try {
             const token = await getToken();
-            const res = await fetch(`/api/venue/finance/bank-accounts?venueId=${venueId}`, {
+            const res = await fetch(`/api/partners/venues/finance/bank-accounts?venueId=${venueId}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             const d = await res.json();
@@ -465,7 +465,7 @@ export default function VenueFinancePageClient() {
 
     const removeAccount = async (accountId: string) => {
         const token = await getToken();
-        await fetch(`/api/venue/finance/bank-accounts?venueId=${venueId}&accountId=${accountId}`, {
+        await fetch(`/api/partners/venues/finance/bank-accounts?venueId=${venueId}&accountId=${accountId}`, {
             method: "DELETE",
             headers: token ? { Authorization: `Bearer ${token}` } : {},
         });

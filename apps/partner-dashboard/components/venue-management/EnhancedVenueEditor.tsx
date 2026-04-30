@@ -603,7 +603,7 @@ function ImageUploadField({
             formData.append("venueId", venueId);
             formData.append("type", type);
 
-            const res = await fetch("/api/venue/upload", {
+            const res = await fetch("/api/partners/venues/upload", {
                 method: "POST",
                 body: formData,
                 headers: {
@@ -707,7 +707,7 @@ function GalleryEditor({
             formData.append("venueId", venueId);
             formData.append("type", "gallery");
 
-            const uploadRes = await fetch("/api/venue/upload", {
+            const uploadRes = await fetch("/api/partners/venues/upload", {
                 method: "POST",
                 body: formData,
                 headers: {
@@ -725,7 +725,7 @@ function GalleryEditor({
 
             console.log("[GalleryEditor] Step 2: Adding to gallery collection...");
 
-            const galleryRes = await fetch("/api/venue/gallery", {
+            const galleryRes = await fetch("/api/partners/venues/gallery", {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,
@@ -769,7 +769,7 @@ function GalleryEditor({
                 return;
             }
 
-            const res = await fetch("/api/venue/gallery", {
+            const res = await fetch("/api/partners/venues/gallery", {
                 method: "POST",
                 headers: {
                     "Authorization": `Bearer ${token}`,

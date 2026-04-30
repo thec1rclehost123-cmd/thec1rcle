@@ -69,7 +69,8 @@ export default async function analyticsRoutes(fastify: FastifyInstance) {
         if (request.user.uid !== id && request.user.role !== 'admin') {
             const membership = await fastify.db.collection('partner_memberships')
                 .where('uid', '==', request.user.uid)
-                .where('promoterId', '==', id)
+                .where('partnerId', '==', id)
+                .where('partnerType', '==', 'promoter')
                 .limit(1).get();
             if (membership.empty) return reply.status(403).send({ error: 'Forbidden' });
         }

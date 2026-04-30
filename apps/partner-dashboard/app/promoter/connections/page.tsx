@@ -31,7 +31,7 @@ export default function PromoterConnectionsPage() {
         setLoading(true);
         try {
             const token = await user?.getIdToken();
-            const res = await fetch(`/api/discovery?partnerId=${promoterId}&role=${role}&action=list`, {
+            const res = await fetch("/api/partners/promoters/connections", {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await res.json();
@@ -207,4 +207,3 @@ export default function PromoterConnectionsPage() {
         </div>
     );
 }
-

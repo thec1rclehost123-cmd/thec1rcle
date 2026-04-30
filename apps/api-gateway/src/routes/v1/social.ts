@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
 
@@ -58,10 +58,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             const { userId: fallbackUserId, targetId } = parsed.data;
             const resolvedUserId = request.user?.uid || fallbackUserId;
             if (!resolvedUserId) {
-                return { following: false };
+                return buildSuccessResponse({ isFollowing: false, following: false });
             }
-            const following = await isFollowing(resolvedUserId, targetId);
-            return { following, isFollowing: following };
+            const followingResult = await isFollowing(resolvedUserId, targetId);
+            // `following` kept as legacy alias; canonical field is `isFollowing`
+            return buildSuccessResponse({ isFollowing: followingResult, following: followingResult });
         } catch (error: any) {
             fastify.log.error(`Error in GET /follow: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: error.message || 'Failed to check follow status', requestId: request.id }));
@@ -172,16 +173,16 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
         const userId = request.user?.uid;
         if (!userId) {
-            return { isFollowing: false };
+            return buildSuccessResponse({ isFollowing: false });
         }
 
         try {
             const { venueId } = parsed.data;
-            const following = await isFollowing(userId, venueId);
-            return { isFollowing: following };
+            const followingResult = await isFollowing(userId, venueId);
+            return buildSuccessResponse({ isFollowing: followingResult });
         } catch (error: any) {
             fastify.log.error(`Error in GET /venues/:venueId/follow-status: ${error.message}`);
-            return { isFollowing: false };
+            return buildSuccessResponse({ isFollowing: false });
         }
     });
 
@@ -243,14 +244,14 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             if (!ordersSnap.empty) {
                 const order = ordersSnap.docs[0].data();
-                return {
+                return buildSuccessResponse({
                     entitlement: {
                         id: ordersSnap.docs[0].id,
                         type: "ticket_purchased",
                         status: "active",
                         grantedAt: order.createdAt
                     }
-                };
+                });
             }
 
             // 2. Check guestlist
@@ -263,17 +264,17 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             if (!guestlistSnap.empty) {
                 const entry = guestlistSnap.docs[0].data();
-                return {
+                return buildSuccessResponse({
                     entitlement: {
                         id: guestlistSnap.docs[0].id,
                         type: "guestlist_approved",
                         status: "active",
                         grantedAt: entry.approvedAt || entry.createdAt
                     }
-                };
+                });
             }
 
-            return { entitlement: null };
+            return buildSuccessResponse({ entitlement: null });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/entitlement/:eventId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -300,20 +301,19 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .get();
 
             if (!blockSnap.empty) {
-                return { allowed: false, reason: "Unable to message this user" };
+                return buildSuccessResponse({ allowed: false, reason: "Unable to message this user" });
             }
 
             // 2. Check if both have tickets/guestlist (Simplified)
-            // In a real scenario, you'd check both uids for confirmed orders for eventId
             const [myEntitlement, theirEntitlement] = await Promise.all([
                 fastify.db.collection("orders").where("userId", "==", userId).where("eventId", "==", eventId).where("status", "==", "confirmed").limit(1).get(),
                 fastify.db.collection("orders").where("userId", "==", recipientId).where("eventId", "==", eventId).where("status", "==", "confirmed").limit(1).get(),
             ]);
 
-            if (myEntitlement.empty) return { allowed: false, reason: "You need a ticket to message" };
-            if (theirEntitlement.empty) return { allowed: false, reason: "This user is not an attendee" };
+            if (myEntitlement.empty) return buildSuccessResponse({ allowed: false, reason: "You need a ticket to message" });
+            if (theirEntitlement.empty) return buildSuccessResponse({ allowed: false, reason: "This user is not an attendee" });
 
-            return { allowed: true };
+            return buildSuccessResponse({ allowed: true });
         } catch (error: any) {
             fastify.log.error(`Error in POST /social/can-dm: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -338,9 +338,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
         try {
             const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-            if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+            if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
             const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
-            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            if (!partnerId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             await fastify.verifyPartnerAccess(request, partnerId);
 
             const mutedUntil = new Date(Date.now() + durationMinutes * 60 * 1000).toISOString();
@@ -354,7 +354,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             return { success: true };
         } catch (error: any) {
-            if (error.message?.includes('Forbidden')) return reply.status(403).send({ error: 'Forbidden' });
+            if (error.message?.includes('Forbidden')) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             fastify.log.error(`Error in POST /social/mute: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
@@ -380,7 +380,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 return mutedUntil > now;
             });
 
-            return { isMuted };
+            return buildSuccessResponse({ isMuted });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/is-muted/:eventId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -404,9 +404,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
         try {
             const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-            if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+            if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
             const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
-            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            if (!partnerId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             await fastify.verifyPartnerAccess(request, partnerId);
 
             await fastify.db.collection("eventChatRemovals").add({
@@ -419,7 +419,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
             return { success: true };
         } catch (error: any) {
-            if (error.message?.includes('Forbidden')) return reply.status(403).send({ error: 'Forbidden' });
+            if (error.message?.includes('Forbidden')) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             fastify.log.error(`Error in POST /social/remove-from-chat: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
@@ -442,7 +442,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .get();
 
             const media = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return { media };
+            return buildSuccessResponse({ media });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/media/:eventId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -534,7 +534,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .limit(1)
                 .get();
 
-            return { isRemoved: !snapshot.empty };
+            return buildSuccessResponse({ isRemoved: !snapshot.empty });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/is-removed/:eventId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -661,7 +661,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .filter(doc => doc.data().initiatedBy !== userId)
                 .map(doc => ({ id: doc.id, ...doc.data() }));
 
-            return { requests };
+            return buildSuccessResponse({ requests });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/requests: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -796,15 +796,15 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/dm/:id/messages', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { id } = request.params;
         const { limit = 50 } = request.query;
 
         try {
             const convoDoc = await fastify.db.collection("privateConversations").doc(id).get();
-            if (!convoDoc.exists) return reply.status(404).send({ error: "Not found" });
+            if (!convoDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Not found', requestId: request.id }));
             if (!(convoDoc.data() as any).participants?.includes(userId)) {
-                return reply.status(403).send({ error: "Forbidden: Not a participant" });
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden: Not a participant', requestId: request.id }));
             }
 
             const snapshot = await fastify.db.collection("directMessages")
@@ -814,7 +814,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .get();
 
             const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return { messages };
+            return buildSuccessResponse({ messages });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/:id/messages: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -838,7 +838,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Forbidden', requestId: request.id }));
             }
 
-            return { conversation: { id: doc.id, ...data } };
+            return buildSuccessResponse({ conversation: { id: doc.id, ...data } });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/dm/:id: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -895,7 +895,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .get();
 
             const typers = snapshot.docs.map(doc => doc.data());
-            return { typers };
+            return buildSuccessResponse({ typers });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/typing/:chatId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -909,7 +909,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/social/chat/:eventId', async (request: any, reply) => {
         const userId = request.user?.uid;
-        if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         const { eventId } = request.params;
         const { limit = 50, lastTimestamp } = request.query;
 
@@ -924,9 +924,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             }
 
             const snapshot = await query.get();
-            const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+            const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })).reverse();
 
-            return { messages: messages.reverse() };
+            return buildSuccessResponse({ messages });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/chat/:eventId: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -1001,7 +1001,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
                 .get();
 
             const blocks = snapshot.docs.map(doc => doc.data().blockedUid);
-            return { blockedUserIds: blocks };
+            return buildSuccessResponse({ blockedUserIds: blocks });
         } catch (error: any) {
             fastify.log.error(`Error in GET /social/blocks: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -1048,5 +1048,5 @@ async function handleUpload(request: any, fastify: any) {
     });
 
     const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-    return { url: publicUrl };
+    return buildSuccessResponse({ url: publicUrl });
 }

@@ -48,7 +48,7 @@ export default function RegistersPage() {
         setError(null);
         try {
             const venueId = profile.activeMembership.partnerId;
-            const res = await fetch(`/api/venue/registers?venueId=${venueId}&date=${selectedDate}`);
+            const res = await fetch(`/api/partners/venues/registers?venueId=${venueId}&date=${selectedDate}`);
             if (!res.ok) throw new Error("Failed to fetch register");
             const data = await res.json();
             setRegister(data.register);
@@ -155,7 +155,7 @@ export default function RegistersPage() {
                 };
             }
 
-            const res = await fetch("/api/venue/registers", {
+            const res = await fetch("/api/partners/venues/registers", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -186,7 +186,7 @@ export default function RegistersPage() {
         if (!resolution) return;
 
         try {
-            const res = await fetch("/api/venue/registers", {
+            const res = await fetch("/api/partners/venues/registers", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

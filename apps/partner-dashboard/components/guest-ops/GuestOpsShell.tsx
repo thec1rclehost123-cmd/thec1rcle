@@ -31,7 +31,7 @@ const DOOR_STATUS_CONFIG: Record<DoorStatus, { label: string; color: string }> =
 
 interface GuestOpsShellProps {
     children: ReactNode;
-    events?: Array<{ id: string; title: string; startDate?: string; status?: string }>;
+    events?: Array<{ id: string; title: string; startDate?: string; status?: string; isLive?: boolean }>;
     summary?: GuestOpsOverview | null;
     openExceptions?: number;
     isLoading?: boolean;
@@ -229,7 +229,7 @@ function StandaloneGuestOpsShell({
 // ── Sub-components ───────────────────────────────────────────────────────────
 
 function EventSelector({ events, selectedId, onChange }: {
-    events: Array<{ id: string; title: string; startDate?: string; status?: string }>;
+    events: Array<{ id: string; title: string; startDate?: string; status?: string; isLive?: boolean }>;
     selectedId: string;
     onChange: (id: string) => void;
 }) {

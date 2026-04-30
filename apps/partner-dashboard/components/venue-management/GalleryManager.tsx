@@ -50,7 +50,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
             const snapshot = await uploadBytes(storageRef, file);
             const downloadURL = await getDownloadURL(snapshot.ref);
 
-            await authedFetch("/api/venue/gallery", {
+            await authedFetch("/api/partners/venues/gallery", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -70,7 +70,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
         if (!window.confirm("Remove this photo from the gallery?")) return;
 
         try {
-            await authedFetch("/api/venue/gallery", {
+            await authedFetch("/api/partners/venues/gallery", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -86,7 +86,7 @@ export default function GalleryManager({ venueId, photos, onRefresh }: GalleryMa
 
     const handleReorder = async (newOrder: GalleryPhoto[]) => {
         try {
-            await authedFetch("/api/venue/gallery", {
+            await authedFetch("/api/partners/venues/gallery", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,

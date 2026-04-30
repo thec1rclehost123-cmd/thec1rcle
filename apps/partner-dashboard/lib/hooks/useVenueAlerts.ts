@@ -11,7 +11,7 @@ interface AlertsResponse {
 /**
  * useVenueAlerts
  *
- * Polls /api/venue/overview/alerts every 60 seconds.
+ * Polls /api/partners/venues/overview/alerts every 60 seconds.
  * Returns an empty array on failure so the dashboard never breaks.
  */
 export function useVenueAlerts(venueId: string | undefined) {
@@ -22,7 +22,7 @@ export function useVenueAlerts(venueId: string | undefined) {
         queryFn: async () => {
             const token = await user!.getIdToken();
             const res = await fetch(
-                `/api/venue/overview/alerts?venueId=${venueId}`,
+                `/api/partners/venues/overview/alerts?venueId=${venueId}`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
             // Return empty array on error instead of throwing — alerts are

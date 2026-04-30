@@ -12,7 +12,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  */
 export async function GET(req: NextRequest) {
     const ctx = await requireHostAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { hostId } = ctx;
 
     const { searchParams } = new URL(req.url);
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
  */
 export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { hostId } = ctx;
 
     const body = await req.json().catch(() => null);
@@ -42,7 +42,7 @@ export async function PATCH(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
     const ctx = await requireHostAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { hostId } = ctx;
 
     const body = await req.json().catch(() => null);

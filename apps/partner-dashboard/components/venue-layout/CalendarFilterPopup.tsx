@@ -90,7 +90,7 @@ export function CalendarFilterPopup({
                 const headers: Record<string, string> = {};
                 if (token) headers["Authorization"] = `Bearer ${token}`;
 
-                const r = await fetch(`/api/venue/events?venueId=${venueId}&limit=200`, { headers });
+                const r = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=200`, { headers });
                 const data = await r.json();
                 
                 if (cancelled) return;

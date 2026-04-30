@@ -2,17 +2,13 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { guestApi, getApiErrorMessage } from "../../lib/api/client";
+import { isGuestBffEnabled } from "../../lib/bff/flags.js";
+import { fetchGuestBffTicketsOverview } from "../../lib/bff/fetchers.js";
+import { logGuestBffParity } from "../../lib/bff/parity.js";
+import { EMPTY_TICKETS, normalizeTicketsWallet } from "./ticketsModel.js";
 
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const TICKETS_ROOT_QUERY_KEY = ["guest", "tickets"];
-
-export const EMPTY_TICKETS = Object.freeze({
-  upcomingTickets: [],
-  pastTickets: [],
-  actionNeeded: [],
-  cancelledTickets: [],
-  coverWalletsByOrder: {},
-});
 
 export function ticketsWalletQueryKey(uid) {
   return [...TICKETS_ROOT_QUERY_KEY, "wallet", uid || "anonymous"];
@@ -22,29 +18,26 @@ export function ticketDetailQueryKey(uid, ticketId) {
   return [...TICKETS_ROOT_QUERY_KEY, "detail", uid || "anonymous", ticketId];
 }
 
-function groupTickets(list = []) {
-  const groups = {};
-  list.forEach((ticket) => {
-    const key = ticket.orderId || ticket.eventId || ticket.id;
-    if (!groups[key]) {
-      groups[key] = { ...ticket, isGroup: true, tickets: [] };
-    }
-    groups[key].tickets.push(ticket);
-  });
-  return Object.values(groups);
-}
-
-export function normalizeTicketsWallet(data = {}) {
-  return {
-    upcomingTickets: groupTickets(data.upcomingTickets || []),
-    pastTickets: groupTickets(data.pastTickets || []),
-    actionNeeded: data.actionNeeded || [],
-    cancelledTickets: data.cancelledTickets || [],
-    coverWalletsByOrder: data.coverWalletsByOrder || {},
-  };
-}
-
 export async function fetchTicketsWallet() {
+  if (isGuestBffEnabled("tickets")) {
+    const overview = await fetchGuestBffTicketsOverview();
+    const wallet = overview?.wallet || EMPTY_TICKETS;
+
+    try {
+      const { response, data } = await guestApi.tickets.wallet();
+      if (response.ok) {
+        logGuestBffParity(
+          "tickets.wallet",
+          normalizeTicketsWallet(data),
+          wallet,
+          { source: overview?.meta?.source || "bff" },
+        );
+      }
+    } catch {}
+
+    return wallet;
+  }
+
   const { response, data } = await guestApi.tickets.wallet();
   if (!response.ok) {
     throw new Error(getApiErrorMessage(data, "Failed to load tickets"));

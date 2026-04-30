@@ -74,7 +74,7 @@ export default function GuestListPageClient() {
             }
             if (cursor) params.set("cursor", cursor);
 
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/guests?${params}`, { headers: authHeaders() });
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests?${params}`, { headers: authHeaders() });
             if (!res.ok) throw new Error("Failed");
             const data = await res.json();
             setGuests(prev => cursor ? [...prev, ...(data.guests ?? [])] : (data.guests ?? []));
@@ -97,7 +97,7 @@ export default function GuestListPageClient() {
             if (!eventId || !venueId) return;
             setIsLoading(true);
             try {
-                const res = await fetch(`/api/venue/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q)}&field=name`, { headers: authHeaders() });
+                const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q)}&field=name`, { headers: authHeaders() });
                 if (res.ok) { const d = await res.json(); setGuests(d.results ?? []); setHasMore(false); }
             } catch (_) {} finally { setIsLoading(false); }
         }, 200);
@@ -105,7 +105,7 @@ export default function GuestListPageClient() {
 
     const handleGuestAction = useCallback(async (action: string, guestId: string, body: object = {}) => {
         if (!eventId || !venueId) return;
-        await fetch(`/api/venue/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`, {
+        await fetch(`/api/partners/venues/guest-ops/${eventId}/guests/${guestId}/${action}?venueId=${venueId}`, {
             method: "POST", headers: authHeaders(), body: JSON.stringify(body),
         });
         fetchGuests();
@@ -135,7 +135,7 @@ export default function GuestListPageClient() {
                     </span>
                     {canExport && !isLocked && (
                         <a
-                            href={`/api/venue/guest-ops/${eventId}/guests/export?venueId=${venueId}&format=csv&piiLevel=masked`}
+                            href={`/api/partners/venues/guest-ops/${eventId}/guests/export?venueId=${venueId}&format=csv&piiLevel=masked`}
                             className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-[var(--v-elevated)] text-[13px] font-medium text-[var(--v-text-primary)] hover:bg-[var(--v-card-hover)]"
                         >
                             <Download size={13} />

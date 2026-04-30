@@ -244,7 +244,7 @@ export default function PromoterDashboardHome() {
         queryKey: ["promoter", "overview", promoterId],
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const res = await fetch("/api/partner/promoter/overview", {
+            const res = await fetch("/api/partners/promoters/overview", {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to load promoter overview");
@@ -259,7 +259,7 @@ export default function PromoterDashboardHome() {
         queryKey: ["promoter", "analytics", promoterId, range],
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const res = await fetch(`/api/partner/promoter/analytics?range=${range}`, {
+            const res = await fetch(`/api/partners/promoters/analytics?range=${range}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to load promoter analytics");
@@ -274,7 +274,7 @@ export default function PromoterDashboardHome() {
         queryKey: ["promoter", "guests", promoterId],
         queryFn: async () => {
             const token = await user!.getIdToken();
-            const res = await fetch(`/api/promoter/guests?promoterId=${promoterId}&limit=6`, {
+            const res = await fetch(`/api/partners/promoters/guests?promoterId=${promoterId}&limit=6`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) throw new Error("Failed to load promoter guests");

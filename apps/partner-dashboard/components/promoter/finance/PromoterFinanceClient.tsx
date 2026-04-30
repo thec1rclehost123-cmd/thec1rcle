@@ -14,7 +14,7 @@ export function PromoterFinanceClient() {
     const { data, isLoading, error, refetch, isRefetching } = useQuery({
         queryKey: ["promoter", "finance"],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/finance`);
+            const res = await fetch(`/api/partners/promoters/finance`);
             if (!res.ok) throw new Error("Failed to fetch finance data");
             return res.json();
         },

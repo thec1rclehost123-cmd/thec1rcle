@@ -1,5 +1,7 @@
 import PageClient from "./PageClient";
 import { guestServerJson } from "../../../lib/api/server";
+import { buildEventDetailView } from "../../../lib/bff/events.js";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
 import {
   buildEventJsonLd,
   buildTitle,
@@ -16,6 +18,12 @@ async function resolveParams(params) {
 
 async function loadEventDetail(eventId) {
   if (!eventId) return null;
+
+  if (isGuestBffEnabled("eventDetail")) {
+    const result = await buildEventDetailView(eventId);
+    return result.data || null;
+  }
+
   const { response, data } = await guestServerJson(`/public/events/${encodeURIComponent(eventId)}`, {
     forwardCookies: false,
     next: { revalidate: EVENT_REVALIDATE_SECONDS },

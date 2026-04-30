@@ -356,6 +356,59 @@ export async function getGuestCoverWallet(db: Firestore, userId: string, orderId
     });
 }
 
+export async function getGuestCoverWalletsByOrderIds(db: Firestore, userId: string, orderIds: string[]) {
+    const uniqueOrderIds = Array.from(new Set((orderIds || []).filter(Boolean)));
+    if (!uniqueOrderIds.length) return {};
+
+    const ownershipChecks = await Promise.all(uniqueOrderIds.map(async (orderId) => {
+        const [orderDoc, rsvpDoc] = await Promise.all([
+            db.collection('orders').doc(orderId).get(),
+            db.collection('rsvp_orders').doc(orderId).get(),
+        ]);
+
+        const owned =
+            (orderDoc.exists && orderDoc.data()?.userId === userId) ||
+            (rsvpDoc.exists && rsvpDoc.data()?.userId === userId);
+
+        return owned ? orderId : null;
+    }));
+
+    const ownedOrderIds = ownershipChecks.filter(Boolean) as string[];
+    if (!ownedOrderIds.length) return {};
+
+    const groups: Record<string, any[]> = {};
+    const chunks = [];
+    for (let index = 0; index < ownedOrderIds.length; index += 10) {
+        chunks.push(ownedOrderIds.slice(index, index + 10));
+    }
+
+    await Promise.all(chunks.map(async (batchOrderIds) => {
+        const snapshot = await db.collection('cover_wallets')
+            .where('orderId', 'in', batchOrderIds)
+            .get();
+
+        snapshot.docs.forEach((doc) => {
+            const wallet = doc.data() as any;
+            const orderId = wallet.orderId;
+            if (!orderId) return;
+            if (!groups[orderId]) groups[orderId] = [];
+            groups[orderId].push({
+                id: doc.id,
+                state: wallet.state,
+                openingBalancePaise: wallet.openingBalancePaise,
+                currentBalancePaise: wallet.currentBalancePaise,
+                totalDebitedPaise: wallet.totalDebitedPaise || 0,
+                terminationTime: wallet.rules?.terminationTime || null,
+                showBalance: wallet.rules?.showBalanceToGuest !== false,
+                showHistory: wallet.rules?.showTransactionHistory !== false,
+                eventId: wallet.eventId,
+            });
+        });
+    }));
+
+    return groups;
+}
+
 export async function generateGuestTicketDownload(userId: string, orderId: string) {
     const order = await getOrderById(orderId);
     if (!order || order.userId !== userId) return null;

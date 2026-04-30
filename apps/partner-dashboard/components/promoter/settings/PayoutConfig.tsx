@@ -34,7 +34,7 @@ export function PayoutConfig({ payout, promoterId, token, onUpdated }: Props) {
         setError("");
         setSaving(true);
         try {
-            const res = await fetch("/api/promoter/settings/payout", {
+            const res = await fetch("/api/partners/promoters/settings/payout", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",

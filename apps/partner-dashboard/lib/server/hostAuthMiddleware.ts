@@ -27,6 +27,19 @@ import {
     type Permission,
 } from "@/lib/rbac/types";
 
+type LegacyHostPermission = "MANAGE_FINANCIALS" | "MANAGE_ORDERS";
+
+function normalizeHostPermissions(requiredPermission: Permission | LegacyHostPermission): Permission[] {
+    switch (requiredPermission) {
+        case "MANAGE_FINANCIALS":
+            return ["MANAGE_PAYOUTS", "VIEW_FINANCIALS"];
+        case "MANAGE_ORDERS":
+            return ["MANAGE_EVENTS"];
+        default:
+            return [requiredPermission];
+    }
+}
+
 export interface HostPIIPolicy {
     showPhone: boolean;
     showEmail: boolean;
@@ -86,8 +99,29 @@ export interface HostAuthContext {
 // ── Error shape ──────────────────────────────────────────────────────────────
 
 export interface HostAuthError {
-    error: string;
+    error: {
+        code: string;
+        message: string;
+        requestId: string;
+    };
     status: number;
+}
+
+function buildAuthError(req: NextRequest, status: number, message: string): HostAuthError {
+    const code =
+        status === 401 ? "UNAUTHORIZED"
+        : status === 403 ? "FORBIDDEN"
+        : status >= 500 ? "INTERNAL_ERROR"
+        : "BAD_REQUEST";
+
+    return {
+        error: {
+            code,
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+        status,
+    };
 }
 
 // ── Extract hostId from request ──────────────────────────────────────────────
@@ -107,31 +141,18 @@ function extractHostId(req: NextRequest): string | null {
 
 export async function requireHostAccess(
     req: NextRequest,
-    requiredPermission?: Permission,
+    requiredPermission?: Permission | LegacyHostPermission,
     explicitHostId?: string
 ): Promise<HostAuthContext | HostAuthError> {
     // 1. Verify Firebase token
     const decodedToken = await verifyAuth(req);
     if (!decodedToken) {
-        return { error: "Unauthorized", status: 401 };
+        return buildAuthError(req, 401, "Unauthorized");
     }
 
     const uid = decodedToken.uid;
 
 
-    // Development bypass
-    if (process.env.NODE_ENV === "development" && uid === "dev-user-123") {
-        const devHostId =
-            explicitHostId || extractHostId(req) || "dev-host-001";
-        return {
-            uid,
-            hostId: devHostId,
-            role: "OWNER",
-            membershipId: "dev-membership",
-            displayName: "Dev Host",
-            piiPolicy: getHostPIIPolicy("OWNER"),
-        };
-    }
     // 2. Resolve hostId from request
     const hostId =
         explicitHostId ||
@@ -140,7 +161,7 @@ export async function requireHostAccess(
             ? ((decodedToken as any).partnerId || null)
             : null);
     if (!hostId) {
-        return { error: "Missing hostId or X-Partner-ID", status: 400 };
+        return buildAuthError(req, 400, "Missing hostId or X-Partner-ID");
     }
 
     // 3. Look up active host membership
@@ -160,7 +181,7 @@ export async function requireHostAccess(
             // Check system admin
             const adminDoc = await db.collection("admins").doc(uid).get();
             if (!adminDoc.exists) {
-                return { error: "Forbidden: no active host membership", status: 403 };
+                return buildAuthError(req, 403, "Forbidden: no active host membership");
             }
             // System admin gets OWNER-level access
             return {
@@ -190,7 +211,7 @@ export async function requireHostAccess(
     const isActive =
         membershipData.isActive === true || membershipData.status === "active";
     if (!isActive) {
-        return { error: "Forbidden: membership is not active", status: 403 };
+        return buildAuthError(req, 403, "Forbidden: membership is not active");
     }
 
     const role = (membershipData.role as HostRole) || "STAFF";
@@ -198,10 +219,11 @@ export async function requireHostAccess(
     // 5. Check permission if required
     if (requiredPermission) {
         const allowedPermissions = HOST_PERMISSIONS[role] || [];
-        if (!allowedPermissions.includes(requiredPermission)) {
+        const normalizedPermissions = normalizeHostPermissions(requiredPermission);
+        const hasPermission = normalizedPermissions.some((permission) => allowedPermissions.includes(permission));
+        if (!hasPermission) {
             return {
-                error: `Forbidden: role ${role} does not have ${requiredPermission}`,
-                status: 403,
+                ...buildAuthError(req, 403, `Forbidden: role ${role} does not have ${requiredPermission}`),
             };
         }
     }

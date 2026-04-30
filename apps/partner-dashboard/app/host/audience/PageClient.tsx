@@ -155,7 +155,7 @@ export default function HostAudiencePage() {
             if (filters.vip) params.set("vip", "true");
             if (filters.source) params.set("source", filters.source);
 
-            const res = await fetch(`/api/host/audience?${params}`, {
+            const res = await fetch(`/api/partners/hosts/audience?${params}`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -185,7 +185,7 @@ export default function HostAudiencePage() {
 
         try {
             const token = typeof user?.getIdToken === "function" ? await user.getIdToken() : "";
-            await fetch(`/api/host/audience`, {
+            await fetch(`/api/partners/hosts/audience`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ hostId, guestId, isVip }),

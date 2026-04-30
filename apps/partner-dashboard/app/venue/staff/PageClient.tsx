@@ -90,7 +90,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
             const token = user ? await user.getIdToken() : null;
             const headers: HeadersInit = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/venue/staff?venueId=${venueId}&isActive=all`, { headers });
+            const res = await fetch(`/api/partners/venues/staff?venueId=${venueId}&isActive=all`, { headers });
             if (!res.ok) { setLoading(false); return; }
             const data = await res.json();
             setStaff(data.staff || []);
@@ -106,7 +106,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
             const token = user ? await user.getIdToken() : null;
             const headers: HeadersInit = {};
             if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/venue/staff-profiles?venueId=${venueId}`, { headers });
+            const res = await fetch(`/api/partners/venues/staff-profiles?venueId=${venueId}`, { headers });
             if (!res.ok) return;
             const data = await res.json();
             setProfiles(data.profiles || []);
@@ -116,7 +116,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
     const handleAddStaff = async (formData: { email: string; name: string; role: string }) => {
         try {
             const token = user ? await user.getIdToken() : null;
-            const res = await fetch("/api/venue/staff", {
+            const res = await fetch("/api/partners/venues/staff", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({
@@ -143,7 +143,7 @@ export default function VenueStaffPage({ setActions }: { setActions: (actions: R
         setActionLoading(staffId + action);
         try {
             const token = user ? await user.getIdToken() : null;
-            const res = await fetch("/api/venue/staff", {
+            const res = await fetch("/api/partners/venues/staff", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({

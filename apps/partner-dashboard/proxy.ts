@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { NextRequest } from "next/server";
 
 /**
- * Edge middleware — runs before every request.
+ * Request proxy hook for API tracing.
  *
  * Injects x-request-id for end-to-end tracing across partner dashboard API routes.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
     const requestId = request.headers.get("x-request-id") || crypto.randomUUID();
 
     const requestHeaders = new Headers(request.headers);

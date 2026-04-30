@@ -277,9 +277,9 @@ export default function HostPartnershipsPage() {
             if (token) headers["Authorization"] = `Bearer ${token}`;
 
             const [partnershipRes, promoterNetworkRes, promoterReqRes] = await Promise.allSettled([
-                fetch(`/api/host/partnerships?hostId=${hostId}`, { headers }),
+                fetch(`/api/partners/hosts/partnerships?hostId=${hostId}`, { headers }),
                 fetch(`/api/discovery?action=list&partnerId=${hostId}&role=host`, { headers }),
-                fetch(`/api/host/promoter-requests?hostId=${hostId}`, { headers }),
+                fetch(`/api/partners/hosts/promoter-requests?hostId=${hostId}`, { headers }),
             ]);
 
             if (partnershipRes.status === "fulfilled" && partnershipRes.value.ok) {
@@ -359,7 +359,7 @@ export default function HostPartnershipsPage() {
     const handleVenueRequest = async (venueId: string) => {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/host/partnerships/request", {
+            await fetch("/api/partners/hosts/partnerships/request", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ hostId, venueId }),
@@ -393,7 +393,7 @@ export default function HostPartnershipsPage() {
         setProcessingRequest(partnershipId);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            await fetch("/api/host/partnerships", {
+            await fetch("/api/partners/hosts/partnerships", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
                 body: JSON.stringify({ partnershipId, action }),

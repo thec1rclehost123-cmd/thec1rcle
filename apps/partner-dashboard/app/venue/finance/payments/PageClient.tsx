@@ -24,7 +24,7 @@ export function PaymentsClient() {
     const { data, isLoading } = useQuery<PaymentsPageData>({
         queryKey: ["finance-payments", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/finance/payments?venueId=${venueId}`);
+            const res = await fetch(`/api/partners/venues/finance/payments?venueId=${venueId}`);
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },

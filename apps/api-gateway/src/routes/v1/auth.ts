@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import {
     appendSetCookieHeader,
     ensureGuestCsrfCookie,
@@ -334,7 +334,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/csrf', async (request, reply) => {
         const token = ensureGuestCsrfCookie(request, reply);
-        return { success: true, csrfToken: token };
+        return buildSuccessResponse({ csrfToken: token });
     });
 
     fastify.get('/me', async (request: any, reply) => {
@@ -407,7 +407,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             const decoded = await createSessionFromIdToken(fastify, reply, signIn.idToken, rememberMe);
             const userRecord = await fastify.auth.getUser(decoded.uid);
             const bootstrap = await buildBootstrapForUid(fastify, toBootstrapIdentity(userRecord));
-            return { success: true, bootstrap };
+            return buildSuccessResponse({ bootstrap });
         } catch (error: any) {
             const message = mapAuthErrorMessage(error);
             return reply.status(error?.statusCode || 401).send(buildErrorResponse({
@@ -457,7 +457,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
             await createSessionFromIdToken(fastify, reply, signIn.idToken, true);
             const bootstrap = await buildBootstrapForUid(fastify, toBootstrapIdentity(userRecord));
-            return { success: true, bootstrap };
+            return buildSuccessResponse({ bootstrap });
         } catch (error: any) {
             const message = mapAuthErrorMessage(error);
             return reply.status(error?.statusCode || 400).send(buildErrorResponse({
@@ -546,11 +546,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             // 2. Generate a custom token so the client can sign in immediately
             const customToken = await fastify.auth.createCustomToken(userRecord.uid);
 
-            return {
-                success: true,
-                uid: userRecord.uid,
-                customToken
-            };
+            return buildSuccessResponse({ uid: userRecord.uid, customToken });
         } catch (error: any) {
             if (error.code === 'auth/email-already-exists') {
                 return reply.status(409).send(buildErrorResponse({
@@ -779,7 +775,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 updatedAt: FieldValue.serverTimestamp()
             });
 
-            return { success: true, requestId };
+            return buildSuccessResponse({ requestId });
         } catch (error: any) {
             fastify.log.error(`Error in POST /auth/onboard: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({
@@ -814,7 +810,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 }));
             }
 
-            return doc.data();
+            return buildSuccessResponse({ request: doc.data() as Record<string, unknown> });
         } catch (error: any) {
             fastify.log.error(`Error in GET /auth/onboard-status: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({
@@ -849,7 +845,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             // Note: we might also update the profile hostStatus
             await fastify.profileService.updateProfile(userId, 'user', { hostStatus: 'pending' });
 
-            return { success: true, applicationId: applicationRef.id };
+            return buildSuccessResponse({ applicationId: applicationRef.id });
         } catch (error: any) {
             fastify.log.error(`Error in POST /auth/host-verification: ${error.message}`);
             return reply.status(500).send(buildErrorResponse({
@@ -871,20 +867,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const membership = request.authContext?.activeMembership || request.user?.activeMembership;
         if (!membership) {
-            return reply.status(404).send({ error: 'No active partnership found' });
+            return reply.status(404).send(buildErrorResponse({
+                code: 'NO_ACTIVE_PARTNERSHIP',
+                message: 'No active partnership found',
+                requestId: request.id,
+            }));
         }
         const { partnerType, role } = membership;
         const permissions = getPermissionsForRole(partnerType, role);
         const tabVisibility = getDefaultTabVisibility(partnerType, role);
-
-        return {
+        const context: Record<string, unknown> = {
             partnerType,
             role,
             permissions,
             tabVisibility,
-            ...(partnerType === 'promoter'
-                ? { commissionTiers: PROMOTER_COMMISSION_TIERS }
-                : {}),
+            ...(partnerType === 'promoter' ? { commissionTiers: PROMOTER_COMMISSION_TIERS } : {}),
         };
+        return buildSuccessResponse(context);
     });
 }

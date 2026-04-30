@@ -16,14 +16,10 @@ const nextConfig = {
       "firebase/firestore",
       "firebase/storage"
     ],
-    instrumentationHook: true,
   },
   productionBrowserSourceMaps: false,
   typescript: {
     ignoreBuildErrors: false,
-  },
-  eslint: {
-    ignoreDuringBuilds: true,
   },
   images: {
     dangerouslyAllowSVG: true,

@@ -145,7 +145,7 @@ export default function VenueProfileClient({
         const load = async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/venue/profile?venueId=${venueId}`, {
+                const res = await fetch(`/api/partners/venues/profile?venueId=${venueId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) return;
@@ -192,9 +192,9 @@ export default function VenueProfileClient({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [eventsRes, connectionsRes, summaryRes] = await Promise.allSettled([
-                    fetch(`/api/venue/events?venueId=${venueId}&limit=200&status=all`, { headers }),
+                    fetch(`/api/partners/venues/events?venueId=${venueId}&limit=200&status=all`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${venueId}&role=venue`, { headers }),
-                    fetch(`/api/venue/overview/summary?venueId=${venueId}`, { headers }),
+                    fetch(`/api/partners/venues/overview/summary?venueId=${venueId}`, { headers }),
                 ]);
 
                 const eventsData     = eventsRes.status === "fulfilled"      && eventsRes.value.ok      ? await eventsRes.value.json()      : null;
@@ -215,7 +215,7 @@ export default function VenueProfileClient({
 
                 // Write computed stats back to venue doc so discovery API can read real values
                 user.getIdToken().then((token) =>
-                    fetch("/api/venue/profile", {
+                    fetch("/api/partners/venues/profile", {
                         method: "PATCH",
                         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -291,7 +291,7 @@ export default function VenueProfileClient({
             formData.append("venueId", venueId);
             formData.append("type", type);
 
-            const res = await fetch("/api/venue/upload", {
+            const res = await fetch("/api/partners/venues/upload", {
                 method: "POST",
                 headers: { Authorization: `Bearer ${token}` },
                 body: formData,
@@ -341,7 +341,7 @@ export default function VenueProfileClient({
                 updates.coverURL = backdropUrl;   // Presence tab reads coverURL
             }
 
-            const res = await fetch("/api/venue/profile", {
+            const res = await fetch("/api/partners/venues/profile", {
                 method: "PATCH",
                 headers: {
                     Authorization: `Bearer ${token}`,

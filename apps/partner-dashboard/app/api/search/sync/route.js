@@ -7,6 +7,17 @@ import { NextResponse } from "next/server";
 import { verifyAuth } from "@/lib/server/auth";
 import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
+function errorResponse(request, status, message, code) {
+    return NextResponse.json({
+        success: false,
+        error: {
+            code: code || (status === 401 ? "UNAUTHORIZED" : status >= 500 ? "INTERNAL_ERROR" : "BAD_REQUEST"),
+            message,
+            requestId: request.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+    }, { status });
+}
+
 /**
  * POST /api/search/sync
  * Sync events to Meilisearch via Gateway
@@ -14,7 +25,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  */
 export async function POST(request) {
     const auth = await verifyAuth(request);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!auth) return errorResponse(request, 401, "Unauthorized");
 
     const body = await request.json();
     return proxyToGateway(request, `${GATEWAY_URL}/api/v1/search/sync`, {
@@ -22,4 +33,3 @@ export async function POST(request) {
         body: JSON.stringify(body)
     });
 }
-

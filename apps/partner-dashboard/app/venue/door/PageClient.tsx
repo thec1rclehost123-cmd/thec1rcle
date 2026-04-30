@@ -58,7 +58,7 @@ export default function DoorPageClient() {
                 // Walk-ins are event-scoped — only fetch when an event is selected
                 if (eventId) {
                     const wiRes = await fetch(
-                        `/api/venue/walk-ins?eventId=${eventId}&venueId=${venueId}&limit=200`,
+                        `/api/partners/venues/walk-ins?eventId=${eventId}&venueId=${venueId}&limit=200`,
                         { headers }
                     );
                     if (wiRes.ok) {
@@ -82,7 +82,7 @@ export default function DoorPageClient() {
                 // Dine-ins: use eventId if set, otherwise scope to venue
                 const diEventId = eventId || `venue_${venueId}`;
                 const diRes = await fetch(
-                    `/api/venue/door/dinein?eventId=${encodeURIComponent(diEventId)}&venueId=${venueId}&limit=200`,
+                    `/api/partners/venues/door/dinein?eventId=${encodeURIComponent(diEventId)}&venueId=${venueId}&limit=200`,
                     { headers }
                 );
                 if (diRes.ok) {
@@ -130,7 +130,7 @@ export default function DoorPageClient() {
         (async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/venue/events?venueId=${venueId}&status=all`, {
+                const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&status=all`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (res.ok) {

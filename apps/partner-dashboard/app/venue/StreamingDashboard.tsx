@@ -377,7 +377,7 @@ async function fetchOrdersPage(
         page: String(page),
         limit: String(limit),
     });
-    const response = await fetch(`/api/venue/orders?${params.toString()}`, {
+    const response = await fetch(`/api/partners/venues/orders?${params.toString()}`, {
         headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) throw new Error("Failed to fetch venue orders");
@@ -426,7 +426,7 @@ export default function VenueDashboardStreaming() {
                 range: selectedRange,
                 metric: selectedMetric,
             });
-            const res = await fetch(`/api/venue/analytics/time-series?${params.toString()}`, {
+            const res = await fetch(`/api/partners/venues/analytics/time-series?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!res.ok) {
@@ -458,7 +458,7 @@ export default function VenueDashboardStreaming() {
                 limit: "20",
                 status: "all",
             });
-            const response = await fetch(`/api/venue/events?${params.toString()}`, {
+            const response = await fetch(`/api/partners/venues/events?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },
             });
             if (!response.ok) throw new Error("Failed to fetch venue events");

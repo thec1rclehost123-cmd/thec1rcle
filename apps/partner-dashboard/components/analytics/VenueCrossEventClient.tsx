@@ -152,49 +152,49 @@ export default function VenueCrossEventClient() {
 
     const overviewQuery = useQuery({
         queryKey: ["venue-cross-overview", venueId, range],
-        queryFn: () => authedFetch(`/api/venue/analytics/overview?venueId=${venueId}&range=${range}`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/overview?venueId=${venueId}&range=${range}`),
         enabled: Boolean(venueId && activeTab === "overview"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const tsRevenueQuery = useQuery({
         queryKey: ["venue-ts-revenue", venueId, RANGES.find(r => r.id === range)?.tsRange],
-        queryFn: () => authedFetch(`/api/venue/analytics/time-series?venueId=${venueId}&range=${RANGES.find(r => r.id === range)?.tsRange}&metric=revenue`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/time-series?venueId=${venueId}&range=${RANGES.find(r => r.id === range)?.tsRange}&metric=revenue`),
         enabled: Boolean(venueId && activeTab === "revenue"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const tsTicketsQuery = useQuery({
         queryKey: ["venue-ts-tickets", venueId, RANGES.find(r => r.id === range)?.tsRange],
-        queryFn: () => authedFetch(`/api/venue/analytics/time-series?venueId=${venueId}&range=${RANGES.find(r => r.id === range)?.tsRange}&metric=tickets`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/time-series?venueId=${venueId}&range=${RANGES.find(r => r.id === range)?.tsRange}&metric=tickets`),
         enabled: Boolean(venueId && activeTab === "revenue"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const audienceQuery = useQuery({
         queryKey: ["venue-audience", venueId, range],
-        queryFn: () => authedFetch(`/api/venue/analytics/audience?venueId=${venueId}&range=${range}`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/audience?venueId=${venueId}&range=${range}`),
         enabled: Boolean(venueId && activeTab === "audience"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const hostsQuery = useQuery({
         queryKey: ["venue-partners", venueId, range],
-        queryFn: () => authedFetch(`/api/venue/analytics/partners?venueId=${venueId}&range=${range}`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/partners?venueId=${venueId}&range=${range}`),
         enabled: Boolean(venueId && activeTab === "hosts"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const opsQuery = useQuery({
         queryKey: ["venue-ops", venueId, range],
-        queryFn: () => authedFetch(`/api/venue/analytics/ops?venueId=${venueId}&range=${range}`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/ops?venueId=${venueId}&range=${range}`),
         enabled: Boolean(venueId && activeTab === "operations"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });
 
     const strategyQuery = useQuery({
         queryKey: ["venue-strategy", venueId],
-        queryFn: () => authedFetch(`/api/venue/analytics/strategy?venueId=${venueId}`),
+        queryFn: () => authedFetch(`/api/partners/venues/analytics/strategy?venueId=${venueId}`),
         enabled: Boolean(venueId && activeTab === "strategy"),
         staleTime: Infinity, refetchOnWindowFocus: false, refetchOnReconnect: false,
     });

@@ -14,6 +14,9 @@ export interface EventCapacity {
     doorWalkInCount: number;
     available: number;
     isSoldOut: boolean;
+    currentCount?: number;
+    capacityPercentage?: number;
+    availabilityMessage?: string;
     isNearCapacity?: boolean;
 }
 

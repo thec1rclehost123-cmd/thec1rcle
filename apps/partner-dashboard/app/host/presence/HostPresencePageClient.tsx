@@ -105,7 +105,7 @@ export default function HostPresencePageClient() {
         setIsError(false);
         try {
             const partnerId = profile.activeMembership.partnerId;
-            const res = await authedFetch(`/api/host/page?hostId=${partnerId}&dashboard=true`);
+            const res = await authedFetch(`/api/partners/hosts/page?hostId=${partnerId}&dashboard=true`);
             if (res.ok) {
                 const json = await res.json();
                 setData({
@@ -138,7 +138,7 @@ export default function HostPresencePageClient() {
         setIsSaving(true);
         setSaveStatus("saving");
         try {
-            const res = await authedFetch("/api/host/page", {
+            const res = await authedFetch("/api/partners/hosts/page", {
                 method: "POST",
                 body: JSON.stringify({
                     hostId: profile.activeMembership.partnerId,
@@ -1142,7 +1142,7 @@ export default function HostPresencePageClient() {
                                                     setBroadcastStatus("idle");
                                                     setBroadcastError("");
                                                     try {
-                                                        const res = await fetch("/api/host/broadcast", {
+                                                        const res = await fetch("/api/partners/hosts/broadcast", {
                                                             method: "POST",
                                                             headers: {
                                                                 "Content-Type": "application/json",

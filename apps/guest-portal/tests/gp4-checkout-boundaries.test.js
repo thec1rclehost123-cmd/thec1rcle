@@ -47,6 +47,11 @@ test("Checkout payment surfaces stay on typed guest API helpers", () => {
   assert.equal(checkoutHook.includes("applyTicketQuantityDelta"), true, "checkout session hook should derive quantity changes through the checkout model");
   assert.equal(checkoutHook.includes("buildReserveCheckoutPayload"), true, "checkout session hook should build reservation payloads through the checkout model");
   assert.equal(checkoutHook.includes("buildInitiateCheckoutPayload"), true, "checkout session hook should build initiation payloads through the checkout model");
+  assert.equal(checkoutApi.includes('guestBffJson("/checkout/quote"'), true, "checkout API adapter must use the BFF quote route");
+  assert.equal(checkoutApi.includes('guestBffJson("/checkout/reserve"'), true, "checkout API adapter must use the BFF reserve route");
+  assert.equal(checkoutApi.includes('guestBffJson("/checkout/initiate"'), true, "checkout API adapter must use the BFF initiate route");
+  assert.equal(checkoutApi.includes('guestBffJson("/checkout/verify"'), true, "checkout API adapter must use the BFF verify route");
+  assert.equal(checkoutApi.includes('guestBffJson(`/checkout/recover?${query}`'), true, "checkout API adapter must use the BFF recovery route");
   assert.equal(checkoutApi.includes("guestApi.checkout.calculate"), true, "checkout API adapter must call the typed guest API for quote calculation");
   assert.equal(checkoutApi.includes("guestApi.checkout.promo"), true, "checkout API adapter must call the typed guest API for promo validation");
   assert.equal(checkoutApi.includes("guestApi.checkout.reserve"), true, "checkout API adapter must call the typed guest API for reservation");

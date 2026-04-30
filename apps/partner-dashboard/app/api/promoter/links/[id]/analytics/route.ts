@@ -9,7 +9,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const ctx = await requirePromoterAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { id: linkId } = await params;
     const { searchParams } = new URL(req.url);
     searchParams.set("promoterId", ctx.promoterId);

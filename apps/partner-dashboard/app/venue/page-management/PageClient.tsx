@@ -53,7 +53,7 @@ export default function VenuePageManagement() {
         try {
             setError(null);
             // Fetch all venue data - updated API to return both upcoming and past events
-            const res = await authedFetch(`/api/venue/page?venueId=${venueId}&dashboard=true&events=true`);
+            const res = await authedFetch(`/api/partners/venues/page?venueId=${venueId}&dashboard=true&events=true`);
             const json = await res.json();
 
             if (res.ok && json.venue) {
@@ -84,7 +84,7 @@ export default function VenuePageManagement() {
         if (!venueId || !user) return;
         setSaveStatus("saving");
         try {
-            const res = await authedFetch("/api/venue/page", {
+            const res = await authedFetch("/api/partners/venues/page", {
                 method: "POST",
                 body: JSON.stringify({ venueId, updates })
             });

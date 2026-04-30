@@ -56,6 +56,8 @@ test("phase 3 auth orchestration moves provider and flow decisions behind featur
   assert.equal(authApi.includes("guestApi.auth.me"), true);
   assert.equal(authApi.includes("guestApi.auth.login"), true);
   assert.equal(authApi.includes("guestApi.auth.register"), true);
+  assert.equal(authApi.includes('guestBffJson("/profile/update"'), true);
+  assert.equal(authApi.includes('isGuestBffEnabled("profile")'), true);
   assert.equal(authApi.includes("guestApi.profiles.personal"), true);
   assert.equal(authApi.includes("guestApi.profiles.social"), true);
   assert.equal(authApi.includes("guestApi.profiles.bio"), true);

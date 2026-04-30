@@ -31,6 +31,7 @@ import staffRoutes from './routes/v1/staff';
 import profileRoutes from './routes/v1/profiles';
 import financeRoutes from './routes/v1/finance';
 import promoterRoutes from './routes/v1/promoters';
+import promoterV2Routes from './routes/v1/promoters-v2';
 import analyticsRoutes from './routes/v1/analytics';
 import tableRoutes from './routes/v1/tables';
 import waitlistRoutes from './routes/v1/waitlist';
@@ -63,6 +64,10 @@ import seoRoutes from './routes/seo';
 import openApiRoutes from './routes/openapi';
 import discoveryRoutes from './routes/v1/discovery';
 import doorRoutes from './routes/v1/door';
+import partnersHostRoutes from './routes/v1/partners/hosts';
+import partnersVenueRoutes from './routes/v1/partners/venues';
+import partnersPromoterRoutes from './routes/v1/partners/promoters';
+import partnersFinanceRoutes from './routes/v1/partners/finance';
 import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -115,7 +120,7 @@ async function main() {
     });
 
     // 🛡️ SECURITY HEADERS — applied to every response
-    server.addHook('onSend', async (_request, reply) => {
+    server.addHook('onSend', async (request, reply, payload) => {
         reply.header('X-Content-Type-Options', 'nosniff');
         reply.header('X-Frame-Options', 'DENY');
         reply.header('X-XSS-Protection', '1; mode=block');
@@ -127,6 +132,52 @@ async function main() {
         }
         // Minimal CSP — API gateway returns JSON, not HTML, but defence-in-depth
         reply.header('Content-Security-Policy', "default-src 'none'");
+
+        const contentType = String(reply.getHeader('content-type') || '');
+        if (reply.statusCode < 400 || !contentType.includes('application/json')) {
+            return payload;
+        }
+
+        let body: any = payload;
+        if (typeof payload === 'string') {
+            try {
+                body = JSON.parse(payload);
+            } catch {
+                return payload;
+            }
+        }
+
+        if (!body || typeof body !== 'object' || Array.isArray(body)) {
+            return payload;
+        }
+
+        const defaultCode =
+            reply.statusCode === 400 ? 'BAD_REQUEST'
+            : reply.statusCode === 401 ? 'UNAUTHORIZED'
+            : reply.statusCode === 403 ? 'FORBIDDEN'
+            : reply.statusCode === 404 ? 'NOT_FOUND'
+            : reply.statusCode === 409 ? 'CONFLICT'
+            : reply.statusCode >= 500 ? 'INTERNAL_ERROR'
+            : 'REQUEST_ERROR';
+
+        if (typeof body.error === 'string') {
+            return JSON.stringify(buildErrorResponse({
+                code: defaultCode,
+                message: body.error,
+                requestId: request.id,
+            }));
+        }
+
+        if (body.error && typeof body.error === 'object' && !body.error.requestId) {
+            return JSON.stringify(buildErrorResponse({
+                code: body.error.code || defaultCode,
+                message: body.error.message || 'Request failed',
+                requestId: request.id,
+                details: body.error.details,
+            }));
+        }
+
+        return payload;
     });
 
     // ⚡ PERFORMANCE LOGGING: Track request duration
@@ -238,6 +289,7 @@ async function main() {
     await server.register(profileRoutes, { prefix: '/api/v1' });
     await server.register(financeRoutes, { prefix: '/api/v1' });
     await server.register(promoterRoutes, { prefix: '/api/v1' });
+    await server.register(promoterV2Routes, { prefix: '/api/v1/promoters' });
     await server.register(analyticsRoutes, { prefix: '/api/v1/analytics' });
     await server.register(tableRoutes, { prefix: '/api/v1/tables' });
     await server.register(waitlistRoutes, { prefix: '/api/v1/waitlist' });
@@ -272,6 +324,12 @@ async function main() {
     await server.register(guestPromoterRoutes, { prefix: '/api/v1/public' });
     await server.register(guestPassRoutes, { prefix: '/api/v1' });
 
+    // Unified Partner Domain — new clean API (Phase 1)
+    await server.register(partnersHostRoutes, { prefix: '/api/v1' });
+    await server.register(partnersVenueRoutes, { prefix: '/api/v1' });
+    await server.register(partnersPromoterRoutes, { prefix: '/api/v1' });
+    await server.register(partnersFinanceRoutes, { prefix: '/api/v1' });
+
     // Enhanced Database-aware Health Check
     server.get('/health', async (request, reply) => {
         const health: any = {
@@ -293,15 +351,16 @@ async function main() {
             health.status = 'error';
         }
 
-        // 2. Check Redis
+        // 2. Check Redis — optional service; degraded state does not fail the health check
         if (server.redis && server.redis.status === 'ready') {
             health.services.redis = 'healthy';
         } else {
-            health.services.redis = 'unhealthy';
-            health.status = 'error';
+            health.services.redis = 'degraded';
+            if (health.status === 'ok') health.status = 'degraded';
         }
 
-        const statusCode = health.status === 'ok' ? 200 : 503;
+        // 200 for ok/degraded; 503 only when Firestore (primary DB) is unreachable
+        const statusCode = health.status === 'error' ? 503 : 200;
         return reply.status(statusCode).send(health);
     });
 

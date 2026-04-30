@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 // @ts-ignore
 import { getGuestWallet, getGuestWalletTicket } from '@c1rcle/core/guest-wallet-profile-notification-service';
 import {
@@ -15,6 +15,7 @@ import {
     createGuestShareBundle,
     generateGuestTicketDownload,
     getGuestCoverWallet,
+    getGuestCoverWalletsByOrderIds,
     getGuestCoupleStatus,
     getGuestPendingTransfers,
     getGuestShareState,
@@ -100,6 +101,10 @@ const CoverWalletQuery = z.object({
     orderId: z.string(),
 }).strict();
 
+const CoverWalletBatchBody = z.object({
+    orderIds: z.array(z.string()).min(1).max(50),
+}).strict();
+
 const DownloadQuery = z.object({
     orderId: z.string(),
 }).strict();
@@ -133,7 +138,9 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         if (!userId) return;
 
         try {
-            return await getGuestWallet(fastify.db, fastify.auth, userId);
+            const wallet = await getGuestWallet(fastify.db, fastify.auth, userId);
+            // Keep top-level wallet fields for backward compat; add canonical data envelope
+            return { success: true, data: wallet, ...wallet };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
@@ -166,7 +173,7 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         try {
             const result = await acceptGuestTransfer(userId, request.body.transferCode);
             fastify.log.info({ requestId: request.id, userId, transferCode: request.body.transferCode }, 'Guest transfer accepted');
-            return { success: true, ...result };
+            return buildSuccessResponse(result as Record<string, unknown>);
         } catch (error: any) {
             const status = error.message?.includes('already') ? 409 : 400;
             fastify.log.warn({ requestId: request.id, userId, error: error.message }, 'PATCH /tickets/transfer rejected');
@@ -399,6 +406,21 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
             return { success: true, wallets };
         } catch (error: any) {
             fastify.log.error({ requestId: request.id, userId, error: error.message }, 'GET /tickets/cover-wallet failed');
+            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
+        }
+    });
+
+    fastify.post('/tickets/cover-wallets', {
+        preHandler: [fastify.validate({ body: CoverWalletBatchBody })],
+    }, async (request: any, reply) => {
+        const userId = requireUser(reply, request);
+        if (!userId) return;
+
+        try {
+            const walletsByOrder = await getGuestCoverWalletsByOrderIds(fastify.db, userId, request.body.orderIds);
+            return buildSuccessResponse({ walletsByOrder });
+        } catch (error: any) {
+            fastify.log.error({ requestId: request.id, userId, error: error.message }, 'POST /tickets/cover-wallets failed');
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Internal server error', requestId: request.id }));
         }
     });

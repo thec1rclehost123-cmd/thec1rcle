@@ -29,6 +29,10 @@ vi.mock('../../services/guest-gp5', () => ({
     cancelGuestPartnerSlot: vi.fn(async () => ({ success: true })),
     previewGuestPairClaim: vi.fn(async () => ({ id: 'claim_1', eventId: 'event_1' })),
     getGuestCoverWallet: vi.fn(async () => [{ id: 'wallet_1' }]),
+    getGuestCoverWalletsByOrderIds: vi.fn(async () => ({
+        ord_1: [{ id: 'wallet_1', orderId: 'ord_1', currentBalancePaise: 3200 }],
+        ord_2: [],
+    })),
     generateGuestTicketDownload: vi.fn(async () => ({ buffer: Buffer.from('pdf'), filename: 'ticket-ord_1.pdf' })),
 }));
 
@@ -131,6 +135,26 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
         await server.close();
     });
 
+    it('POST /api/v1/tickets/cover-wallets returns wallets grouped by order id', async () => {
+        const server = await buildServer();
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/tickets/cover-wallets',
+            headers: { authorization: 'Bearer test-token' },
+            payload: { orderIds: ['ord_1', 'ord_2'] },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            success: true,
+            walletsByOrder: {
+                ord_1: [{ id: 'wallet_1', orderId: 'ord_1', currentBalancePaise: 3200 }],
+                ord_2: [],
+            },
+        });
+        await server.close();
+    });
+
     it('GET /api/v1/guest-profiles/:id returns the guest profile aggregate', async () => {
         const server = await buildServer();
         const response = await server.inject({
@@ -155,7 +179,7 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual({ unreadCount: 3 });
+        expect(response.json()).toMatchObject({ success: true, unreadCount: 3, notifications: [] });
         await server.close();
     });
 
@@ -168,7 +192,7 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual({ id: 'notif_1', isRead: true });
+        expect(response.json()).toEqual({ success: true });
         await server.close();
     });
 });

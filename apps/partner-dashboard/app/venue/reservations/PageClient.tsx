@@ -41,7 +41,7 @@ export default function ReservationsPage() {
         setError(null);
 
         try {
-            const res = await fetch(`/api/venue/reservations?venueId=${venueId}`);
+            const res = await fetch(`/api/partners/venues/reservations?venueId=${venueId}`);
             if (!res.ok) throw new Error("Failed to fetch reservations");
             const data = await res.json();
             setReservations(data.reservations || []);
@@ -62,7 +62,7 @@ export default function ReservationsPage() {
         setProcessingId(id);
 
         try {
-            const res = await fetch(`/api/venue/reservations/${id}`, {
+            const res = await fetch(`/api/partners/venues/reservations/${id}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: newStatus }),

@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 import { GATEWAY_URL } from "@/lib/server/apiGateway";
 
+function errorResponse(req: NextRequest, status: number, message: string, code?: string) {
+    return NextResponse.json({
+        success: false,
+        error: {
+            code: code || (status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : status === 502 ? "BAD_GATEWAY" : "REQUEST_ERROR"),
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+    }, { status });
+}
+
 /**
  * GET /api/venue/events/[id]/computed-analytics
  *
@@ -12,7 +23,7 @@ import { GATEWAY_URL } from "@/lib/server/apiGateway";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const ctx = await requireVenueAccess(req, "view_analytics");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return errorResponse(req, ctx.status, ctx.error.message, ctx.error.code);
 
     const token = req.headers.get("authorization") ?? "";
     const headers: Record<string, string> = {
@@ -28,7 +39,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ]);
 
     if (!overviewRes.ok || !financeRes.ok) {
-        return NextResponse.json({ error: "Failed to load event data" }, { status: 502 });
+        return errorResponse(req, 502, "Failed to load event data");
     }
 
     const [overview, finance] = await Promise.all([overviewRes.json(), financeRes.json()]);

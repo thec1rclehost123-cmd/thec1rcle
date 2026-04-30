@@ -104,7 +104,7 @@ export default function EventsManagementPage() {
         (async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/venue/events?venueId=${venueId}&status=all`, {
+                const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&status=all`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) throw new Error("API Route failed");
@@ -160,7 +160,7 @@ export default function EventsManagementPage() {
         if (!eventId || !user) return;
         try {
             const token = await user.getIdToken();
-            const res = await fetch("/api/venue/events", {
+            const res = await fetch("/api/partners/venues/events", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ eventId, action, data }),

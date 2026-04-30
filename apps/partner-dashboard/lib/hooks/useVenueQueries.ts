@@ -36,7 +36,7 @@ export function useVenueOverviewSummary(venueId: string | undefined, range?: str
     const rangeParam = range ? `&range=${encodeURIComponent(range)}` : "";
     return useAuthenticatedQuery(
         ["venue-overview-summary", venueId || "", range || "30d"],
-        `/api/venue/overview/summary?venueId=${venueId}${rangeParam}`,
+        `/api/partners/venues/overview/summary?venueId=${venueId}${rangeParam}`,
         { enabled: !!venueId, staleTime: 2 * 60 * 1000 }
     );
 }
@@ -48,7 +48,7 @@ export function useVenueOverviewSummary(venueId: string | undefined, range?: str
 export function useVenueConnections(venueId: string | undefined) {
     return useAuthenticatedQuery(
         ["venue-connections", venueId || ""],
-        `/api/discovery?action=list&partnerId=${venueId}&role=venue`,
+        "/api/partners/venues/partnerships",
         { enabled: !!venueId }
     );
 }
@@ -61,7 +61,7 @@ export function useTonightEvent(venueId: string | undefined) {
     // Step 1: Fetch today's events (uses the ?date=today server filter)
     const eventsQuery = useAuthenticatedQuery<{ events: any[] }>(
         ["venue-events-today", venueId || ""],
-        `/api/venue/events?venueId=${venueId}&date=today`,
+        `/api/partners/venues/events?venueId=${venueId}&date=today`,
         { enabled: !!venueId, staleTime: 2 * 60 * 1000 }
     );
 
@@ -70,7 +70,7 @@ export function useTonightEvent(venueId: string | undefined) {
     // Step 2: Fetch tonight's ops data (only if there's an event today)
     const tonightQuery = useAuthenticatedQuery(
         ["venue-tonight-ops", tonightEventId || ""],
-        `/api/venue/overview/tonight?eventId=${tonightEventId}`,
+        `/api/partners/venues/overview/tonight?eventId=${tonightEventId}`,
         {
             enabled: !!tonightEventId,
             staleTime: 30 * 1000, // 30s — live ops data

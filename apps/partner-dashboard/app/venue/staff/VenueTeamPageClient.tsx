@@ -381,7 +381,7 @@ export default function VenueTeamPageClient() {
 
         try {
             const headers = await getHeaders();
-            const response = await fetch(`/api/venue/staff?venueId=${venueId}&isActive=all`, { headers });
+            const response = await fetch(`/api/partners/venues/staff?venueId=${venueId}&isActive=all`, { headers });
             if (!response.ok) throw new Error("Failed to load team members");
             const data = await response.json();
             setStaff(data.staff ?? []);
@@ -404,7 +404,7 @@ export default function VenueTeamPageClient() {
     const handleAdd = async (data: { email: string; name: string; role: EditableVenueRole }) => {
         try {
             const headers = await getHeaders();
-            const response = await fetch("/api/venue/staff", {
+            const response = await fetch("/api/partners/venues/staff", {
                 method: "POST",
                 headers,
                 body: JSON.stringify({
@@ -434,7 +434,7 @@ export default function VenueTeamPageClient() {
     const handleAction = async (staffId: string, action: "suspend" | "reactivate" | "remove") => {
         try {
             const headers = await getHeaders();
-            const response = await fetch("/api/venue/staff", {
+            const response = await fetch("/api/partners/venues/staff", {
                 method: "PATCH",
                 headers,
                 body: JSON.stringify({
@@ -463,7 +463,7 @@ export default function VenueTeamPageClient() {
         if (!editTarget) return;
         try {
             const headers = await getHeaders();
-            const response = await fetch("/api/venue/staff", {
+            const response = await fetch("/api/partners/venues/staff", {
                 method: "PATCH",
                 headers,
                 body: JSON.stringify({

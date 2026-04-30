@@ -30,13 +30,30 @@ type AuthedHandler<T> = (
     ctx: ResolvedRouteContext<T>
 ) => Promise<NextResponse | Response> | NextResponse | Response;
 
+function errorBody(req: NextRequest, status: number, message: string) {
+    const code =
+        status === 401 ? "UNAUTHORIZED"
+        : status === 403 ? "FORBIDDEN"
+        : status >= 500 ? "INTERNAL_ERROR"
+        : "BAD_REQUEST";
+
+    return {
+        success: false,
+        error: {
+            code,
+            message,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        },
+    };
+}
+
 export function withAuth<T = any>(handler: (req: NextRequest, auth: any, ctx: { params: T }) => any): any {
     return (async (req: NextRequest, ctx: { params: Promise<T> }): Promise<NextResponse | Response> => {
         try {
             const auth = await verifyAuth(req);
             if (!auth) {
                 logger.warn("withAuth", "Unauthorized request rejected", { path: req.nextUrl.pathname, method: req.method });
-                return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+                return NextResponse.json(errorBody(req, 401, "Unauthorized"), { status: 401 });
             }
 
             // Next.js 15+ has Promise-based params. We resolve them here so handlers can use them synchronously.
@@ -44,7 +61,7 @@ export function withAuth<T = any>(handler: (req: NextRequest, auth: any, ctx: { 
             return handler(req, auth, { params: resolvedParams });
         } catch (err: any) {
             logger.error("withAuth", "Unhandled error in route handler", { path: req.nextUrl.pathname, error: err?.message });
-            return NextResponse.json({ success: false, error: "Internal Server Error" }, { status: 500 });
+            return NextResponse.json(errorBody(req, 500, "Internal Server Error"), { status: 500 });
         }
     }) as any;
 }
@@ -61,7 +78,7 @@ export async function requireAuth(req: NextRequest): Promise<Record<string, any>
     const auth = await verifyAuth(req);
     if (!auth) {
         logger.warn("requireAuth", "Unauthorized request rejected", { path: req.nextUrl.pathname, method: req.method });
-        return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
+        return NextResponse.json(errorBody(req, 401, "Unauthorized"), { status: 401 });
     }
     return auth;
 }

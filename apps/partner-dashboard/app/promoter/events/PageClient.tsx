@@ -173,8 +173,8 @@ export default function PromoterEventsPage() {
             if (selectedCity) params.set("city", selectedCity);
 
             const [eventsRes, linksRes] = await Promise.all([
-                fetch(`/api/promoter/events?${params.toString()}`, { headers }),
-                fetch("/api/promoter/links?isActive=true", { headers }),
+                fetch(`/api/partners/promoters/events?${params.toString()}`, { headers }),
+                fetch("/api/partners/promoters/links?isActive=true", { headers }),
             ]);
 
             if (!eventsRes.ok || !linksRes.ok) {

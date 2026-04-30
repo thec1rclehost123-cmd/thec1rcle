@@ -93,7 +93,7 @@ export function OperatingCalendar() {
             const tok = await user?.getIdToken();
             const param = role === "venue" ? `venueId=${pid}` : `hostId=${pid}`;
             const res = await fetch(
-                `/api/venue/calendar?${param}&view=operating&startDate=${start}&endDate=${end}`,
+                `/api/partners/venues/calendar?${param}&view=operating&startDate=${start}&endDate=${end}`,
                 { headers: tok ? { Authorization: `Bearer ${tok}` } : {} }
             );
             const data = await res.json();
@@ -156,7 +156,7 @@ export function OperatingCalendar() {
         if (!profile?.activeMembership?.partnerId) return;
         const tok = await user?.getIdToken();
         const pid = profile.activeMembership.partnerId;
-        const res = await fetch(`/api/venue/calendar?venueId=${pid}`, {
+        const res = await fetch(`/api/partners/venues/calendar?venueId=${pid}`, {
             method: "POST",
             headers: { "Content-Type": "application/json", ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
             body: JSON.stringify({ action, venueId: pid, date, reason, startTime, endTime }),

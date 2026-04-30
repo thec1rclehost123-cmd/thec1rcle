@@ -63,6 +63,7 @@ test("hot-path guest components use feature-owned client API seams", () => {
   assert.equal(coverWallet.includes("fetchCoverChargeWallet"), true);
   assert.equal(coverWallet.includes("guestApi."), false);
 
+  assert.equal(confirmationPage.includes("fetchGuestBffConfirmation"), true);
   assert.equal(confirmationPage.includes("fetchGuestOrder"), true);
   assert.equal(confirmationPage.includes("guestApi.orders.get"), false);
 });

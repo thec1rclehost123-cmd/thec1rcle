@@ -109,21 +109,21 @@ export function normalizeNotification(
 
 export function getNotificationFetchUrl(partnerType: NotificationPartnerType, partnerId?: string) {
     if (!partnerId) return null;
-    if (partnerType === "host") return "/api/host/notifications?limit=20";
-    if (partnerType === "promoter") return "/api/promoter/notifications?limit=20";
-    if (partnerType === "venue") return `/api/venue/notifications?venueId=${partnerId}&limit=20`;
+    if (partnerType === "host") return "/api/partners/hosts/notifications?limit=20";
+    if (partnerType === "promoter") return "/api/partners/promoters/notifications?limit=20";
+    if (partnerType === "venue") return `/api/partners/venues/notifications?venueId=${partnerId}&limit=20`;
     return null;
 }
 
 export function buildMarkAllReadRequest(partnerType: NotificationPartnerType, partnerId?: string) {
     if (partnerType === "host") {
-        return { url: "/api/host/notifications", body: { markAllRead: true } };
+        return { url: "/api/partners/hosts/notifications", body: { markAllRead: true } };
     }
     if (partnerType === "venue" && partnerId) {
-        return { url: "/api/venue/notifications", body: { venueId: partnerId, markAllRead: true } };
+        return { url: "/api/partners/venues/notifications", body: { venueId: partnerId, markAllRead: true } };
     }
     if (partnerType === "promoter") {
-        return { url: "/api/promoter/notifications", body: { markAllRead: true } };
+        return { url: "/api/partners/promoters/notifications", body: { markAllRead: true } };
     }
     return null;
 }
@@ -131,7 +131,7 @@ export function buildMarkAllReadRequest(partnerType: NotificationPartnerType, pa
 export function buildQuickActionRequest(partnerType: NotificationPartnerType, partnerId: string | undefined, notif: Notification, action: "approve" | "reject") {
     if (partnerType !== "venue" || !partnerId) return null;
     return {
-        url: "/api/venue/notifications",
+        url: "/api/partners/venues/notifications",
         body: {
             venueId: partnerId,
             notificationId: notif.id,

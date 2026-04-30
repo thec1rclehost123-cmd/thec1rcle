@@ -77,7 +77,7 @@ export default function PayoutsPage() {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers = token ? { Authorization: `Bearer ${token}` } : {};
-            const payoutRes = await fetch(`/api/promoter/payouts?promoterId=${promoterId}`, { headers });
+            const payoutRes = await fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers });
             const payoutData = await payoutRes.json();
             setBalance(payoutData.balance || null);
             setPayouts(payoutData.payouts || []);

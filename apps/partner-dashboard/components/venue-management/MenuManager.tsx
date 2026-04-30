@@ -54,7 +54,7 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
                 const snapshot = await uploadBytes(storageRef, file);
                 const downloadURL = await getDownloadURL(snapshot.ref);
 
-                return authedFetch("/api/venue/menu", {
+                return authedFetch("/api/partners/venues/menu", {
                     method: "POST",
                     body: JSON.stringify({
                         venueId,
@@ -78,7 +78,7 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
         if (!window.confirm("Remove this menu page?")) return;
 
         try {
-            await authedFetch("/api/venue/menu", {
+            await authedFetch("/api/partners/venues/menu", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,
@@ -95,7 +95,7 @@ export default function MenuManager({ venueId, menuItems, onRefresh }: MenuManag
 
     const handleReorder = async (newOrder: MenuItem[]) => {
         try {
-            await authedFetch("/api/venue/menu", {
+            await authedFetch("/api/partners/venues/menu", {
                 method: "POST",
                 body: JSON.stringify({
                     venueId,

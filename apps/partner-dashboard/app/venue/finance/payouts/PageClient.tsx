@@ -38,7 +38,7 @@ export default function VenuePayoutsSettingsClient() {
         setLoading(true);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const res = await fetch(`/api/venue/finance/overview?venueId=${venueId}&period=90d`, {
+            const res = await fetch(`/api/partners/venues/finance/overview?venueId=${venueId}&period=90d`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (res.ok) {

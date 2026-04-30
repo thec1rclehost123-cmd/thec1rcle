@@ -1,6 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
+import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import {
     getEventQueueStatus,
     getEventSurgeStatus,
@@ -11,6 +11,8 @@ import {
     trackGuestEventView,
     verifyEventWaitlistAccess,
 } from '@c1rcle/core/guest-event-conversion';
+// @ts-ignore - JS module with runtime exports
+import { buildEvent } from '@c1rcle/core/event-engine';
 
 const EventNearbyQuery = z.object({
     lat: z.string(),
@@ -57,6 +59,107 @@ function getRequestViewerId(request: any) {
     const ip = request.headers['x-forwarded-for'] || request.ip || '127.0.0.1';
     const userAgent = request.headers['user-agent'] || 'unknown';
     return Buffer.from(`${ip}-${userAgent}`).toString('base64');
+}
+
+async function getEventViewerState(db: any, eventId: string, userId: string | null) {
+    const surgeStatus = await getEventSurgeStatus(db, eventId);
+    if (!userId) {
+        return {
+            hasRsvped: false,
+            queue: null,
+            surgeActive: surgeStatus?.status === 'surge',
+        };
+    }
+
+    const [userDoc, queueSnapshot] = await Promise.all([
+        db.collection('users').doc(userId).get(),
+        db.collection('event_queues')
+            .where('eventId', '==', eventId)
+            .where('userId', '==', userId)
+            .where('status', 'in', ['waiting', 'admitted', 'payment_failed'])
+            .limit(1)
+            .get(),
+    ]);
+
+    const userData = userDoc.exists ? userDoc.data() || {} : {};
+    const attendedEvents = Array.isArray(userData.attendedEvents) ? userData.attendedEvents : [];
+    let queue = null;
+
+    if (!queueSnapshot.empty) {
+        const queueDoc = queueSnapshot.docs[0];
+        try {
+            queue = await getEventQueueStatus(db, queueDoc.id);
+        } catch {
+            queue = { id: queueDoc.id, ...queueDoc.data() };
+        }
+    }
+
+    return {
+        hasRsvped: attendedEvents.includes(eventId),
+        queue,
+        surgeActive: surgeStatus?.status === 'surge',
+    };
+}
+
+const SCHEDULING_BLOCKING_STATUSES = new Set(['blocked', 'booked', 'approved', 'pending', 'requested', 'countered', 'changes_requested']);
+
+function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
+    return aStart < bEnd && bStart < aEnd;
+}
+
+function hasSchedulingConflict(slotDocs: any[], proposed: { startTime?: string | null; endTime?: string | null }, ignoreId?: string) {
+    return slotDocs.some((doc: any) => {
+        if (ignoreId && doc.id === ignoreId) return false;
+
+        const slot = doc.data ? (doc.data() as Record<string, any>) : (doc as Record<string, any>);
+        const status = String(slot.status || '').toLowerCase();
+        if (!SCHEDULING_BLOCKING_STATUSES.has(status)) return false;
+
+        const startTime = slot.startTime || slot.requestedStartTime || null;
+        const endTime = slot.endTime || slot.requestedEndTime || null;
+
+        if (!startTime || !endTime || !proposed.startTime || !proposed.endTime) {
+            return true;
+        }
+
+        return rangesOverlap(startTime, endTime, proposed.startTime, proposed.endTime);
+    });
+}
+
+async function enrichPartnerSnapshots(db: any, event: Record<string, any>) {
+    const enriched = { ...event };
+
+    const [hostSnap, venueSnap] = await Promise.all([
+        event.hostId ? db.collection('hosts').doc(String(event.hostId)).get().catch(() => null) : Promise.resolve(null),
+        event.venueId ? db.collection('venues').doc(String(event.venueId)).get().catch(() => null) : Promise.resolve(null),
+    ]);
+
+    if (hostSnap?.exists) {
+        const data = hostSnap.data() as Record<string, any>;
+        enriched.hostData = {
+            id: hostSnap.id,
+            handle: data.handle || event.host || '',
+            name: data.name || data.displayName || '',
+            avatar: data.avatar || data.photoURL || '',
+            slug: data.slug || hostSnap.id,
+            type: 'host',
+        };
+    }
+
+    if (venueSnap?.exists) {
+        const data = venueSnap.data() as Record<string, any>;
+        enriched.venueData = {
+            id: venueSnap.id,
+            name: data.name || event.venue || event.venueName || '',
+            slug: data.slug || venueSnap.id,
+            photoURL: data.photoURL || data.image || '',
+            image: data.image || data.photoURL || '',
+            area: data.area || '',
+            type: 'venue',
+        };
+    }
+
+    return enriched;
 }
 
 export default async function eventRoutes(fastify: FastifyInstance) {
@@ -181,6 +284,31 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             return reply.status(status).send(buildErrorResponse({
                 code: status === 404 ? 'NOT_FOUND' : 'INTERNAL_ERROR',
                 message: error.message || 'Unable to update RSVP',
+                requestId: request.id,
+            }));
+        }
+    });
+
+    fastify.get('/events/:id/viewer-state', {
+        preHandler: [fastify.validate({ params: EventParamId })]
+    }, async (request: any, reply) => {
+        try {
+            const eventDoc = await fastify.db.collection('events').doc(request.params.id).get();
+            if (!eventDoc.exists) {
+                return reply.status(404).send(buildErrorResponse({
+                    code: 'NOT_FOUND',
+                    message: 'Event not found',
+                    requestId: request.id,
+                }));
+            }
+
+            const viewerState = await getEventViewerState(fastify.db, request.params.id, request.user?.uid || null);
+            return buildSuccessResponse(viewerState);
+        } catch (error: any) {
+            request.log.error({ error }, 'Failed to load event viewer state');
+            return reply.status(500).send(buildErrorResponse({
+                code: 'INTERNAL_ERROR',
+                message: error.message || 'Unable to load event viewer state',
                 requestId: request.id,
             }));
         }
@@ -411,6 +539,28 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         const hostId: string = body.creatorId || body.hostId || userId;
         const isDraft: boolean = body.lifecycle === 'draft';
+        if (body.creatorRole === 'host') {
+            body.creatorId = hostId;
+            body.hostId = hostId;
+        }
+
+        // Verify the authenticated user has access to the claimed host identity.
+        // Skip when hostId === userId (solo host whose Firebase UID is the host doc ID).
+        if (hostId !== userId) {
+            const [memberSnap, hostDoc] = await Promise.all([
+                fastify.db.collection('partner_memberships')
+                    .where('uid', '==', userId)
+                    .where('partnerId', '==', hostId)
+                    .where('isActive', '==', true)
+                    .limit(1)
+                    .get(),
+                fastify.db.collection('hosts').doc(hostId).get(),
+            ]);
+            const isDirectOwner = hostDoc.exists && (hostDoc.data() as any)?.ownerId === userId;
+            if (memberSnap.empty && !isDirectOwner) {
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You do not have access to this host', requestId: request.id }));
+            }
+        }
 
         // --- Normalize image fields ---
         const normalizedPoster = body.coverImage || body.coverPhoto || body.poster || body.image || body.images?.[0] || '';
@@ -436,30 +586,16 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }
         }
 
-        // --- Calendar and slot availability checks ---
+        // --- Scheduling availability checks (single source: availability_slots) ---
         if (!isDraft && body.venueId && body.startDate) {
-            const calSnap = await fastify.db.collection('venue_calendar')
+            const slotsSnap = await fastify.db.collection('availability_slots')
                 .where('venueId', '==', body.venueId)
                 .where('date', '==', body.startDate)
-                .limit(1)
+                .limit(50)
                 .get();
 
-            const calDay = calSnap.empty ? null : calSnap.docs[0].data();
-            if (calDay?.status === 'blocked') {
-                return reply.status(409).send(buildErrorResponse({ code: 'CONFLICT', message: 'This date is blocked on the venue calendar', requestId: request.id }));
-            }
-
-            if (body.startTime && body.endTime && calDay) {
-                const slots: any[] = calDay.slots || [];
-                function rangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: string) {
-                    return aStart < bEnd && bStart < aEnd;
-                }
-                const slotConflict = slots.some((s: any) =>
-                    s && s.status !== 'available' && rangesOverlap(s.startTime, s.endTime, body.startTime, body.endTime)
-                );
-                if (slotConflict) {
-                    return reply.status(409).send(buildErrorResponse({ code: 'CONFLICT', message: 'The selected venue time slot is unavailable', requestId: request.id }));
-                }
+            if (hasSchedulingConflict(slotsSnap.docs, { startTime: body.startTime, endTime: body.endTime })) {
+                return reply.status(409).send(buildErrorResponse({ code: 'CONFLICT', message: 'The selected venue time slot is unavailable', requestId: request.id }));
             }
         }
 
@@ -486,40 +622,74 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
 
         try {
-            const event = await fastify.eventService.createEvent(body, hostId, hostId);
+            const event = buildEvent({
+                ...body,
+                creatorId: hostId,
+                workspaceId: hostId,
+            }) as Record<string, any>;
+            event.workspaceId = hostId;
+            const eventRecord = await enrichPartnerSnapshots(fastify.db, event);
+
+            const slotRecord = body.creatorRole === 'host' && body.venueId && !isDraft
+                ? {
+                    eventId: event.id,
+                    hostId,
+                    creatorId: hostId,
+                    hostName: body.host || '',
+                    venueId: body.venueId,
+                    venueName: body.venueName || body.venue || '',
+                    date: body.startDate,
+                    startTime: body.startTime || null,
+                    endTime: body.endTime || null,
+                    requestedDate: body.startDate,
+                    requestedStartTime: body.startTime || null,
+                    requestedEndTime: body.endTime || null,
+                    requestedBy: hostId,
+                    notes: `Event creation request: ${body.title}`,
+                    source: 'host_event_request',
+                    status: 'pending',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    createdBy: userId,
+                }
+                : null;
+
+            await fastify.db.runTransaction(async (transaction: any) => {
+                if (slotRecord) {
+                    const conflictingSlots = await transaction.get(
+                        fastify.db.collection('availability_slots')
+                            .where('venueId', '==', body.venueId)
+                            .where('date', '==', body.startDate)
+                            .limit(50)
+                    );
+
+                    if (hasSchedulingConflict(conflictingSlots.docs, { startTime: body.startTime, endTime: body.endTime }, event.id)) {
+                        const conflictError: any = new Error('The selected venue time slot is unavailable');
+                        conflictError.statusCode = 409;
+                        conflictError.code = 'CONFLICT';
+                        throw conflictError;
+                    }
+
+                    transaction.create(fastify.db.collection('availability_slots').doc(event.id), slotRecord);
+                }
+
+                transaction.create(fastify.db.collection('events').doc(event.id), eventRecord);
+            });
 
             await fastify.cache.invalidateNamespace('events:list');
             await fastify.cache.invalidateNamespace('events:nearby');
             await fastify.publicDiscoveryService.syncEventReadModels(event.id);
             await fastify.invalidatePublicDiscovery('all');
 
-            // Create slot request for non-draft host events at a venue
-            if (body.creatorRole === 'host' && body.venueId && !isDraft) {
-                try {
-                    const slotRequestId = `${event.id}_${Date.now()}`;
-                    await fastify.db.collection('slot_requests').doc(slotRequestId).set({
-                        eventId:            event.id,
-                        hostId,
-                        hostName:           body.host || '',
-                        venueId:            body.venueId,
-                        venueName:          body.venueName || body.venue || '',
-                        requestedDate:      body.startDate,
-                        requestedStartTime: body.startTime,
-                        requestedEndTime:   body.endTime,
-                        notes:              `Event creation request: ${body.title}`,
-                        status:             'pending',
-                        createdAt:          new Date().toISOString(),
-                        createdBy:          userId,
-                    });
-                } catch (slotErr: any) {
-                    fastify.log.warn(`[partner/events/create] slot request failed: ${slotErr.message}`);
-                }
-            }
-
             return reply.status(201).send({ success: true, event: { id: event.id } });
         } catch (error: any) {
             fastify.log.error(`[partner/events/create] ${error.message}`);
-            return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to create event', requestId: request.id }));
+            const statusCode = Number(error?.statusCode) || 500;
+            return reply.status(statusCode).send(buildErrorResponse({
+                code: error?.code || (statusCode === 409 ? 'CONFLICT' : 'INTERNAL_ERROR'),
+                message: error?.message || 'Failed to create event',
+                requestId: request.id,
+            }));
         }
     });
 

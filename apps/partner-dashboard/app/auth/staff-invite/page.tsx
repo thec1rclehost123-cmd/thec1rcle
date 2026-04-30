@@ -35,7 +35,7 @@ function StaffInviteContent() {
         }
 
         // Fetch invite info to show the user what they're accepting
-        fetch(`/api/venue/staff/accept?code=${code}&venue=${venueId}`)
+        fetch(`/api/partners/venues/staff/accept?code=${code}&venue=${venueId}`)
             .then(r => r.json())
             .then(data => {
                 if (data.error) {
@@ -62,7 +62,7 @@ function StaffInviteContent() {
         setErrorMsg("");
 
         try {
-            const res = await fetch("/api/venue/staff/accept", {
+            const res = await fetch("/api/partners/venues/staff/accept", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ inviteCode: code, venueId, password }),

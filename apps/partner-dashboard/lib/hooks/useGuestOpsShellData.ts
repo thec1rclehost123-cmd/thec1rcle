@@ -44,7 +44,7 @@ export function useGuestOpsShellData(): GuestOpsShellData {
     useEffect(() => {
         if (hub) return;
         if (!venueId) return;
-        fetch(`/api/venue/events?venueId=${venueId}`, { headers: authHeaders() })
+        fetch(`/api/partners/venues/events?venueId=${venueId}`, { headers: authHeaders() })
             .then(r => r.ok ? r.json() : { events: [] })
             .then(d => setStandaloneEvents(d.events ?? []))
             .catch(() => {});
@@ -57,8 +57,8 @@ export function useGuestOpsShellData(): GuestOpsShellData {
 
         setStandaloneLoading(true);
         Promise.all([
-            fetch(`/api/venue/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
-            fetch(`/api/venue/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
+            fetch(`/api/partners/venues/guest-ops/${eventId}/summary?venueId=${venueId}`, { headers: authHeaders() }),
+            fetch(`/api/partners/venues/guest-ops/${eventId}/exceptions?venueId=${venueId}&status=open`, { headers: authHeaders() }),
         ]).then(async ([sumRes, excRes]) => {
             if (sumRes.ok) setStandaloneSummary(await sumRes.json());
             if (excRes.ok) { const d = await excRes.json(); setStandaloneOpenExceptions(d.openCount ?? 0); }

@@ -5,8 +5,19 @@ import profileRoutes from './profiles';
 
 async function buildServer() {
     const server = Fastify({ logger: false });
-    const createProfile = vi.fn();
-    const updateProfile = vi.fn();
+    let currentProfile = {
+        uid: 'user_1',
+        email: 'guest@example.com',
+        displayName: 'Guest',
+        gender: 'man',
+        genderLastChangedAt: new Date().toISOString(),
+    };
+    const createProfile = vi.fn(async (profile: any) => {
+        currentProfile = { ...currentProfile, ...profile };
+    });
+    const updateProfile = vi.fn(async (_userId: string, _type: string, updates: any) => {
+        currentProfile = { ...currentProfile, ...updates };
+    });
 
     server.decorate('db', {
         collection(name: string) {
@@ -18,11 +29,7 @@ async function buildServer() {
                                 return {
                                     id,
                                     exists: true,
-                                    data: () => ({
-                                        uid: id,
-                                        gender: 'man',
-                                        genderLastChangedAt: new Date().toISOString(),
-                                    }),
+                                    data: () => currentProfile,
                                 };
                             },
                         };
@@ -117,6 +124,35 @@ describe('profile routes GP-1 contracts', () => {
         expect(response.statusCode).toBe(429);
         expect(response.json().error.code).toBe('PROFILE_UPDATE_COOLDOWN');
         expect(updateProfile).not.toHaveBeenCalled();
+
+        await server.close();
+    });
+
+    it('PATCH /profiles accepts direct-field updates and returns the normalized profile', async () => {
+        const { server, updateProfile } = await buildServer();
+
+        const response = await server.inject({
+            method: 'PATCH',
+            url: '/profiles',
+            payload: {
+                city: 'Pune',
+                displayName: 'Night Owl',
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(updateProfile).toHaveBeenCalledWith('user_1', 'user', expect.objectContaining({
+            city: 'Pune',
+            displayName: 'Night Owl',
+        }));
+        expect(response.json()).toMatchObject({
+            success: true,
+            profile: expect.objectContaining({
+                city: 'Pune',
+                displayName: 'Night Owl',
+                uid: 'user_1',
+            }),
+        });
 
         await server.close();
     });

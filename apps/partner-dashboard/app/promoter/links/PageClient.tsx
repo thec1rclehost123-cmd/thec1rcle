@@ -216,8 +216,8 @@ export default function PromoLinksPage() {
             const headers: Record<string, string> = nextToken ? { Authorization: `Bearer ${nextToken}` } : {};
 
             const [linksRes, statsRes] = await Promise.all([
-                fetch("/api/promoter/links?limit=100", { headers }),
-                fetch("/api/promoter/stats", { headers }),
+                fetch("/api/partners/promoters/links?limit=100", { headers }),
+                fetch("/api/partners/promoters/stats", { headers }),
             ]);
 
             if (!linksRes.ok || !statsRes.ok) {

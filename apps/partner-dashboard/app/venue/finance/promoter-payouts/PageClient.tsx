@@ -24,7 +24,7 @@ export function PromoterPayoutsClient() {
     const { data, isLoading } = useQuery<PartnerPayoutsPageData>({
         queryKey: ["finance-promoter-payouts", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/venue/finance/promoter-payouts?venueId=${venueId}`);
+            const res = await fetch(`/api/partners/venues/finance/promoter-payouts?venueId=${venueId}`);
             if (!res.ok) throw new Error("Failed");
             return res.json();
         },

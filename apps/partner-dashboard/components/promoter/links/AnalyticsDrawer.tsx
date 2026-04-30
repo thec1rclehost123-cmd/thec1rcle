@@ -84,7 +84,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated,
         const headers: Record<string, string> = {};
         if (token) headers["Authorization"] = `Bearer ${token}`;
 
-        fetch(`/api/promoter/links/${linkId}/analytics`, { headers })
+        fetch(`/api/partners/promoters/links/${linkId}/analytics`, { headers })
             .then(r => r.ok ? r.json() : null)
             .then(d => setData(d))
             .catch(() => setData(null))
@@ -108,7 +108,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated,
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/promoter/links/${linkId}`, {
+            const res = await fetch(`/api/partners/promoters/links/${linkId}`, {
                 method: "PATCH",
                 headers,
                 body: JSON.stringify({ action: "deactivate" })
@@ -131,7 +131,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated,
         try {
             const headers: Record<string, string> = { "Content-Type": "application/json" };
             if (token) headers["Authorization"] = `Bearer ${token}`;
-            const res = await fetch(`/api/promoter/links/${linkId}`, {
+            const res = await fetch(`/api/partners/promoters/links/${linkId}`, {
                 method: "PATCH",
                 headers,
                 body: JSON.stringify({ action: "reactivate" })

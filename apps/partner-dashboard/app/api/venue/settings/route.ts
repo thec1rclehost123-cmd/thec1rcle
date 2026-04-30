@@ -5,7 +5,7 @@ import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
 
 export async function GET(req: NextRequest) {
     const ctx = await requireVenueAccess(req, "settings:read");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
 
     const { searchParams } = new URL(req.url);
     searchParams.set("venueId", ctx.venueId);
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
     const ctx = await requireVenueAccess(req, "settings:edit");
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
 
     const body = await req.json().catch(() => null);
     if (!body?.patch) return fail("patch required", 400);

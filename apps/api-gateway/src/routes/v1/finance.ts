@@ -1,9 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import type { Firestore } from 'firebase-admin/firestore';
-import { getFinancialSummary, getTransactionHistory, processRefund } from '@c1rcle/core/finance-engine';
-// @ts-ignore — JS module, no type declarations
-import { MONEY_STATES } from '@c1rcle/core/ledger-engine';
+import { getFinancialSummary, processRefund } from '@c1rcle/core/finance-engine';
 import { z } from 'zod';
+import { FinanceService } from '../../services/unified/finance-service.js';
 
 // ── Existing schemas ──────────────────────────────────────────────────────────
 
@@ -59,29 +58,147 @@ const InvoicesQuery = z.object({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Sum ledger_entries for an actorId filtered by one or more states.
- * Amounts in ledger are stored in rupees; caller multiplies by 100 for paise.
- */
-async function sumLedger(
-    db: Firestore,
-    actorId: string,
-    states: string[]
-): Promise<number> {
-    const snapshots = await Promise.all(
-        states.map((state) =>
-            db.collection('ledger_entries')
-                .where('actorId', '==', actorId)
-                .where('state', '==', state)
-                .get()
-        )
+type UnifiedPartnerType = 'host' | 'venue' | 'promoter';
+
+function normalizePartnerType(entityType?: string, fallback: UnifiedPartnerType = 'host'): UnifiedPartnerType {
+    const normalized = String(entityType || '').toLowerCase();
+    if (normalized === 'promoter') return 'promoter';
+    if (normalized === 'venue' || normalized === 'club') return 'venue';
+    if (normalized === 'host') return 'host';
+    return fallback;
+}
+
+function buildFinanceContext(request: any, partnerId: string, entityType?: string, fallback: UnifiedPartnerType = 'host') {
+    const type = normalizePartnerType(entityType, fallback);
+    return {
+        partnerId,
+        uid: String(request.user?.uid || partnerId),
+        type,
+        roles: [],
+        venueIds: type === 'venue' ? [partnerId] : [],
+        displayName: String(request.user?.displayName || request.user?.email || request.user?.uid || 'Partner'),
+    };
+}
+
+async function resolveOrderPartnerId(db: Firestore, orderId: string) {
+    const orderDoc = await db.collection('orders').doc(orderId).get();
+    if (!orderDoc.exists) {
+        return { exists: false, partnerId: null as string | null };
+    }
+
+    const order = orderDoc.data() as Record<string, any>;
+    const directPartnerId = order.partnerId || order.venueId || order.hostId || order.creatorId || null;
+    if (directPartnerId) {
+        return { exists: true, partnerId: String(directPartnerId) };
+    }
+
+    const eventId = order.eventId ? String(order.eventId) : '';
+    if (!eventId) {
+        return { exists: true, partnerId: null as string | null };
+    }
+
+    const eventDoc = await db.collection('events').doc(eventId).get();
+    if (!eventDoc.exists) {
+        return { exists: true, partnerId: null as string | null };
+    }
+
+    const event = eventDoc.data() as Record<string, any>;
+    return {
+        exists: true,
+        partnerId: String(event.creatorId || event.hostId || event.venueId || ''),
+    };
+}
+
+async function listPromoterPayoutRows(db: Firestore, promoterId: string, limit = 100) {
+    const snap = await db.collection('payouts')
+        .where('partnerId', '==', promoterId)
+        .limit(Math.min(Math.max(limit, 1), 200))
+        .get();
+
+    return snap.docs
+        .map((doc) => {
+            const data = doc.data() as Record<string, any>;
+            return {
+                id: doc.id,
+                amount: Number(data.amount) || 0,
+                status: String(data.status || 'pending').toLowerCase(),
+                paymentMethod: data.paymentMethod || data.method || 'bank_transfer',
+                requestedAt: data.requestedAt || data.createdAt || data.timestamp || null,
+                completedAt: data.completedAt || data.updatedAt || data.timestamp || null,
+                paymentDetails: data.paymentDetails || null,
+                bankName: data.bankName || null,
+                last4: data.last4 || data.accountLast4 || null,
+            };
+        })
+        .sort((left, right) => {
+            const leftTime = new Date(left.requestedAt || left.completedAt || 0).getTime();
+            const rightTime = new Date(right.requestedAt || right.completedAt || 0).getTime();
+            return rightTime - leftTime;
+        });
+}
+
+async function listPromoterCommissionDetails(db: Firestore, promoterId: string, limit = 50) {
+    const financeService = new FinanceService(db);
+    const ledger = await financeService.getLedger(
+        {
+            partnerId: promoterId,
+            uid: promoterId,
+            type: 'promoter',
+            roles: [],
+            venueIds: [],
+            displayName: 'Promoter',
+        },
+        { type: 'promoter_commission', limit: Math.min(Math.max(limit, 1), 200) }
     );
-    return snapshots.reduce((total, snap) => {
-        return total + snap.docs.reduce((sum, doc) => sum + (Number(doc.data().amount) || 0), 0);
-    }, 0);
+
+    return ledger.data.map((entry) => ({
+        id: entry.entryId,
+        eventId: entry.eventId || null,
+        eventName: null,
+        buyerName: null,
+        amount: Number(entry.amount) || 0,
+        revenue: Number(entry.amount) || 0,
+        status: String(entry.status || 'pending').toLowerCase(),
+        date: entry.createdAt || null,
+        source: 'partner_ledger',
+    }));
+}
+
+async function buildPromoterFinancePayload(db: Firestore, promoterId: string) {
+    const financeService = new FinanceService(db);
+    const ctx = {
+        partnerId: promoterId,
+        uid: promoterId,
+        type: 'promoter' as const,
+        roles: [],
+        venueIds: [],
+        displayName: 'Promoter',
+    };
+    const [baseBalance, payouts, commissionDetails] = await Promise.all([
+        financeService.getBalances(ctx),
+        listPromoterPayoutRows(db, promoterId, 100),
+        listPromoterCommissionDetails(db, promoterId, 100),
+    ]);
+
+    const totalPaid = payouts
+        .filter((payout) => ['completed', 'paid', 'cleared'].includes(payout.status))
+        .reduce((sum, payout) => sum + Math.abs(payout.amount), 0);
+
+    return {
+        balance: {
+            totalEarned: (Number(baseBalance.available) || 0) + (Number(baseBalance.pending) || 0),
+            available: Number(baseBalance.available) || 0,
+            pending: Number(baseBalance.pending) || 0,
+            totalPaid,
+            instantAvailable: 0,
+        },
+        payouts,
+        commissionDetails,
+    };
 }
 
 export default async function financeRoutes(fastify: FastifyInstance) {
+    const financeService = new FinanceService({ db: fastify.db, log: fastify.log, redis: fastify.redis });
 
     // ── Existing routes ───────────────────────────────────────────────────────
 
@@ -89,13 +206,32 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * GET /api/v1/finance/summary
      */
     fastify.get('/summary', {
-        preHandler: [fastify.validate({ querystring: SummaryQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: SummaryQuery })]
     }, async (request, reply) => {
         const { entityId, type } = request.query as { entityId: string; type: string };
         try {
+            if (!entityId) return reply.status(400).send({ error: 'entityId required' });
             await fastify.verifyPartnerAccess(request, entityId);
-            const summary = await getFinancialSummary(entityId, type);
-            return summary;
+            if (String(type).toLowerCase() === 'event') {
+                return await getFinancialSummary(entityId, type);
+            }
+
+            const ctx = buildFinanceContext(request, entityId, type, normalizePartnerType(type, 'host'));
+            const [overview, balances] = await Promise.all([
+                financeService.getOverview(ctx),
+                financeService.getBalances(ctx),
+            ]);
+
+            return {
+                entityId,
+                type,
+                netRevenue: overview.totalRevenue,
+                availableBalance: balances.available,
+                pendingBalance: balances.pending,
+                paidOut: 0,
+                refundPending: 0,
+                currency: balances.currency,
+            };
         } catch (error: any) {
             fastify.log.error(`Finance summary failed for entityId=${entityId}: ${error.message}`);
             return reply.status(
@@ -108,15 +244,32 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * GET /api/v1/finance/history
      */
     fastify.get('/history', {
-        preHandler: [fastify.validate({ querystring: HistoryQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: HistoryQuery })]
     }, async (request, reply) => {
-        const { entityId, limit, state } = request.query as { entityId: string; limit?: string; state?: string };
+        const { entityId, venueId, limit, state } = request.query as { entityId?: string; venueId?: string; limit?: string; state?: string };
+        const targetId = entityId || venueId;
         try {
-            const history = await getTransactionHistory(entityId, {
+            if (!targetId) return reply.status(400).send({ error: 'entityId or venueId required' });
+            await fastify.verifyPartnerAccess(request, targetId);
+            const ctx = buildFinanceContext(request, targetId, venueId ? 'venue' : undefined, venueId ? 'venue' : 'host');
+            const history = await financeService.getLedger(ctx, {
                 limit: limit ? parseInt(limit) : 50,
-                state,
             });
-            return history;
+            return history.data
+                .filter((entry) => !state || String(entry.status || '').toLowerCase() === String(state).toLowerCase())
+                .map((entry) => ({
+                    id: entry.entryId,
+                    entityId: targetId,
+                    actorId: targetId,
+                    amount: entry.amount,
+                    currency: entry.currency,
+                    state: String(entry.status || '').toUpperCase(),
+                    timestamp: entry.createdAt,
+                    type: entry.type,
+                    referenceId: entry.referenceId,
+                    eventId: entry.eventId,
+                    source: 'partner_ledger',
+                }));
         } catch (error: any) {
             fastify.log.error(`Finance history failed for entityId=${entityId}: ${error.message}`);
             reply.status(500).send({ error: 'Failed to load transaction history' });
@@ -127,10 +280,14 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * POST /api/v1/finance/refund
      */
     fastify.post('/refund', {
-        preHandler: [fastify.validate({ body: RefundBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: RefundBody })]
     }, async (request, reply) => {
         const { orderId, amount, reason } = request.body as { orderId: string; amount: number; reason: string };
         try {
+            const { exists, partnerId } = await resolveOrderPartnerId(fastify.db, orderId);
+            if (!exists) return reply.status(404).send({ error: 'Order not found' });
+            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+            await fastify.verifyPartnerAccess(request, partnerId);
             const result = await processRefund(orderId, amount, reason, (request as any).user?.uid);
             return result;
         } catch (error: any) {
@@ -143,12 +300,13 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * GET /api/v1/finance/promoter/balance/:promoterId
      */
     fastify.get('/promoter/balance/:promoterId', {
-        preHandler: [fastify.validate({ params: PromoterIdParam })]
+        preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })]
     }, async (request, reply) => {
         const { promoterId } = request.params as { promoterId: string };
         try {
-            const { getPromoterPayoutBalance } = await import('@c1rcle/core/payout-engine');
-            return await getPromoterPayoutBalance(promoterId);
+            await fastify.verifyPartnerAccess(request, promoterId);
+            const payload = await buildPromoterFinancePayload(fastify.db, promoterId);
+            return payload.balance;
         } catch (error: any) {
             fastify.log.error(`Payout balance failed for promoterId=${promoterId}: ${error.message}`);
             reply.status(500).send({ error: 'Failed to load payout balance' });
@@ -159,10 +317,12 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * POST /api/v1/finance/promoter/payout
      */
     fastify.post('/promoter/payout', {
-        preHandler: [fastify.validate({ body: PayoutBody })]
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })]
     }, async (request, reply) => {
         const data = request.body as any;
         try {
+            if (!data.promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, data.promoterId);
             const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
             return await requestPromoterPayout(data);
         } catch (error: any) {
@@ -175,15 +335,202 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * GET /api/v1/finance/promoter/payouts/:promoterId
      */
     fastify.get('/promoter/payouts/:promoterId', {
-        preHandler: [fastify.validate({ params: PromoterIdParam })]
+        preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })]
     }, async (request, reply) => {
         const { promoterId } = request.params as { promoterId: string };
         try {
-            const { listPromoterPayouts } = await import('@c1rcle/core/payout-engine');
-            return await listPromoterPayouts(promoterId);
+            await fastify.verifyPartnerAccess(request, promoterId);
+            return { payouts: await listPromoterPayoutRows(fastify.db, promoterId, 100) };
         } catch (error: any) {
             fastify.log.error(`Payout list failed for promoterId=${promoterId}: ${error.message}`);
             reply.status(500).send({ error: 'Failed to load payouts' });
+        }
+    });
+
+    fastify.get('/promoter/payouts', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId } = request.query as { promoterId?: string };
+        try {
+            if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+            const payload = await buildPromoterFinancePayload(fastify.db, promoterId);
+            return { balance: payload.balance, payouts: payload.payouts };
+        } catch (error: any) {
+            fastify.log.error(`Promoter payouts failed for promoterId=${promoterId}: ${error.message}`);
+            return reply.status(
+                error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500
+            ).send({ error: 'Failed to load payouts' });
+        }
+    });
+
+    fastify.post('/promoter/payouts', {
+        preHandler: [fastify.requireAuth, fastify.validate({ body: PayoutBody })]
+    }, async (request: any, reply) => {
+        const data = request.body as any;
+        try {
+            if (!data.promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, data.promoterId);
+            const { requestPromoterPayout } = await import('@c1rcle/core/payout-engine');
+            return await requestPromoterPayout(data);
+        } catch (error: any) {
+            fastify.log.error(`Promoter payout request failed for promoterId=${data.promoterId}: ${error.message}`);
+            return reply.status(400).send({ error: error.message || 'Failed to request payout' });
+        }
+    });
+
+    fastify.delete('/promoter/payouts', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId, payoutId } = request.query as { promoterId?: string; payoutId?: string };
+        try {
+            if (!promoterId || !payoutId) return reply.status(400).send({ error: 'promoterId and payoutId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+
+            const ref = fastify.db.collection('payouts').doc(payoutId);
+            const doc = await ref.get();
+            if (!doc.exists) return reply.status(404).send({ error: 'Payout not found' });
+
+            const payout = doc.data() as Record<string, any>;
+            if (String(payout.partnerId || '') !== promoterId) return reply.status(403).send({ error: 'Forbidden' });
+            if (!['pending', 'processing'].includes(String(payout.status || '').toLowerCase())) {
+                return reply.status(409).send({ error: 'Only pending payouts can be cancelled' });
+            }
+
+            await ref.update({
+                status: 'cancelled',
+                cancelledAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Promoter payout cancel failed for payoutId=${payoutId}: ${error.message}`);
+            return reply.status(
+                error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500
+            ).send({ error: 'Failed to cancel payout' });
+        }
+    });
+
+    fastify.get('/promoter/finance/bank-accounts', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId } = request.query as { promoterId?: string };
+        try {
+            if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+            const snap = await fastify.db.collection('bank_accounts')
+                .where('partnerId', '==', promoterId)
+                .get();
+
+            return {
+                accounts: snap.docs.map((doc) => {
+                    const data = doc.data() as Record<string, any>;
+                    return {
+                        id: doc.id,
+                        bankName: data.bankName || 'Bank Account',
+                        last4: data.last4 || data.accountLast4 || '0000',
+                        isDefault: data.isDefault ?? false,
+                        paymentType: data.paymentType || 'bank_account',
+                    };
+                })
+            };
+        } catch (error: any) {
+            fastify.log.error(`Promoter bank accounts failed for promoterId=${promoterId}: ${error.message}`);
+            return { accounts: [] };
+        }
+    });
+
+    fastify.post('/promoter/finance/bank-accounts', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const body = request.body as Record<string, any>;
+        const promoterId = String(body.promoterId || '');
+        try {
+            if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+
+            const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
+            const rawNumber = paymentType === 'debit_card'
+                ? String(body.cardNumber || '').trim()
+                : String(body.accountNumber || '').trim();
+            if (!rawNumber) return reply.status(400).send({ error: 'Account number or card number required' });
+
+            const last4 = rawNumber.slice(-4);
+            const now = new Date().toISOString();
+            const ref = await fastify.db.collection('bank_accounts').add({
+                partnerId: promoterId,
+                paymentType,
+                accountHolderName: body.accountHolderName || body.cardHolderName || '',
+                bankName: body.bankName || body.cardBrand || 'Bank Account',
+                ifscCode: body.ifscCode || null,
+                accountNumber: paymentType === 'bank_account' ? rawNumber : null,
+                cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
+                cardLast4: paymentType === 'debit_card' ? last4 : null,
+                last4,
+                isDefault: body.isDefault !== false,
+                createdAt: now,
+                updatedAt: now,
+            });
+
+            return reply.status(201).send({
+                account: {
+                    id: ref.id,
+                    bankName: body.bankName || body.cardBrand || 'Bank Account',
+                    last4,
+                    isDefault: body.isDefault !== false,
+                    paymentType,
+                }
+            });
+        } catch (error: any) {
+            fastify.log.error(`Promoter bank account create failed for promoterId=${promoterId}: ${error.message}`);
+            return reply.status(
+                error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500
+            ).send({ error: 'Failed to save payout method' });
+        }
+    });
+
+    fastify.delete('/promoter/finance/bank-accounts', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const query = request.query as { promoterId?: string; accountId?: string };
+        const body = (request.body || {}) as Record<string, any>;
+        const promoterId = query.promoterId || String(body.promoterId || '');
+        const accountId = query.accountId || String(body.accountId || '');
+        try {
+            if (!promoterId || !accountId) return reply.status(400).send({ error: 'promoterId and accountId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+
+            const ref = fastify.db.collection('bank_accounts').doc(accountId);
+            const doc = await ref.get();
+            if (!doc.exists) return reply.status(404).send({ error: 'Account not found' });
+
+            const account = doc.data() as Record<string, any>;
+            if (String(account.partnerId || '') !== promoterId) return reply.status(403).send({ error: 'Forbidden' });
+
+            await ref.delete();
+            return { success: true };
+        } catch (error: any) {
+            fastify.log.error(`Promoter bank account delete failed for accountId=${accountId}: ${error.message}`);
+            return reply.status(
+                error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500
+            ).send({ error: 'Failed to delete payout method' });
+        }
+    });
+
+    fastify.get('/partner/promoter/finance', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { promoterId } = request.query as { promoterId?: string };
+        try {
+            if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
+            await fastify.verifyPartnerAccess(request, promoterId);
+            return await buildPromoterFinancePayload(fastify.db, promoterId);
+        } catch (error: any) {
+            fastify.log.error(`Partner promoter finance failed for promoterId=${promoterId}: ${error.message}`);
+            return reply.status(
+                error.message.includes('Forbidden') || error.message.includes('Unauthorized') ? 403 : 500
+            ).send({ error: 'Failed to load promoter finance' });
         }
     });
 
@@ -205,25 +552,23 @@ export default async function financeRoutes(fastify: FastifyInstance) {
     fastify.get('/venue/finance/overview', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
-        const { entityId, venueId } = request.query as any;
+        const { entityId, venueId, entityType } = request.query as any;
         const targetId = entityId || venueId;
         if (!targetId) return reply.status(400).send({ error: 'venueId or entityId required' });
         try {
             await fastify.verifyPartnerAccess(request, targetId);
-
-            // Fetch ledger sums
-            const [payable, held, settled] = await Promise.all([
-                sumLedger(fastify.db, entityId, [MONEY_STATES.PAYABLE]),
-                sumLedger(fastify.db, entityId, [MONEY_STATES.HELD]),
-                sumLedger(fastify.db, entityId, [MONEY_STATES.SETTLED]),
+            const ctx = buildFinanceContext(request, targetId, entityType || (venueId ? 'venue' : 'host'), venueId ? 'venue' : 'host');
+            const [balances, overview] = await Promise.all([
+                financeService.getBalances(ctx),
+                financeService.getOverview(ctx),
             ]);
 
             return {
                 metrics: {
-                    availableBalance: Math.max(0, payable),
-                    pendingPayouts: Math.max(0, held + settled),
-                    totalRevenue: Math.max(0, payable + held + settled),
-                    currency: 'INR'
+                    availableBalance: Math.max(0, Number(balances.available) || 0),
+                    pendingPayouts: Math.max(0, Number(balances.pending) || 0),
+                    totalRevenue: Math.max(0, Number(overview.totalRevenue) || 0),
+                    currency: balances.currency || 'INR'
                 }
             };
         } catch (error: any) {
@@ -232,25 +577,21 @@ export default async function financeRoutes(fastify: FastifyInstance) {
     });
 
     fastify.get('/wallet', {
-        preHandler: [fastify.validate({ querystring: EntityQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
-        const { entityId, venueId } = request.query as any;
+        const { entityId, venueId, entityType } = request.query as any;
         const targetId = entityId || venueId;
         if (!targetId) return reply.status(400).send({ error: 'venueId or entityId required' });
         try {
             await fastify.verifyPartnerAccess(request, targetId);
-
-            const [payable, held, settled] = await Promise.all([
-                sumLedger(fastify.db, targetId, [MONEY_STATES.PAYABLE]),
-                sumLedger(fastify.db, targetId, [MONEY_STATES.HELD]),
-                sumLedger(fastify.db, targetId, [MONEY_STATES.SETTLED]),
-            ]);
+            const ctx = buildFinanceContext(request, targetId, entityType || (venueId ? 'venue' : 'host'), venueId ? 'venue' : 'host');
+            const balances = await financeService.getBalances(ctx);
 
             return {
-                availablePaise: Math.max(0, Math.round(payable * 100)),
-                pendingPaise: Math.max(0, Math.round((held + settled) * 100)),
-                heldPaise: Math.max(0, Math.round(held * 100)),
-                currency: 'INR',
+                availablePaise: Math.max(0, Math.round((Number(balances.available) || 0) * 100)),
+                pendingPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
+                heldPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
+                currency: balances.currency || 'INR',
             };
         } catch (error: any) {
             fastify.log.error(`Wallet balance failed for entityId=${entityId}: ${error.message}`);
@@ -268,24 +609,20 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * pendingSettlementPaise  = HELD + SETTLED entries (event done but not yet allocated)
      */
     fastify.get('/payout-balance', {
-        preHandler: [fastify.validate({ querystring: EntityQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
-        const { entityId, venueId } = request.query as any;
+        const { entityId, venueId, entityType } = request.query as any;
         const targetId = entityId || venueId;
         if (!targetId) return reply.status(400).send({ error: 'venueId or entityId required' });
         try {
             await fastify.verifyPartnerAccess(request, targetId);
-
-            const [payable, held, settled] = await Promise.all([
-                sumLedger(fastify.db, entityId, [MONEY_STATES.PAYABLE]),
-                sumLedger(fastify.db, entityId, [MONEY_STATES.HELD]),
-                sumLedger(fastify.db, entityId, [MONEY_STATES.SETTLED]),
-            ]);
+            const ctx = buildFinanceContext(request, targetId, entityType || (venueId ? 'venue' : 'host'), venueId ? 'venue' : 'host');
+            const balances = await financeService.getBalances(ctx);
 
             return {
-                withdrawablePaise: Math.max(0, Math.round(payable * 100)),
-                pendingSettlementPaise: Math.max(0, Math.round((held + settled) * 100)),
-                currency: 'INR',
+                withdrawablePaise: Math.max(0, Math.round((Number(balances.available) || 0) * 100)),
+                pendingSettlementPaise: Math.max(0, Math.round((Number(balances.pending) || 0) * 100)),
+                currency: balances.currency || 'INR',
             };
         } catch (error: any) {
             fastify.log.error(`Payout balance failed for entityId=${entityId}: ${error.message}`);
@@ -345,7 +682,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * Fallback: payouts collection (written by payout-engine batch settlement).
      */
     fastify.get('/payout-history', {
-        preHandler: [fastify.validate({ querystring: PayoutHistoryQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })]
     }, async (request, reply) => {
         const { entityId, limit: limitStr, cursor } = request.query as {
             entityId: string;
@@ -374,7 +711,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             }
 
             const snap = await q.get();
-            let allDocs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            let allDocs: any[] = snap.docs.map(d => ({ id: d.id, ...d.data() }));
             
             // In-memory sort
             allDocs.sort((a, b) => {
@@ -460,7 +797,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * Returns null until subscription billing is implemented.
      */
     fastify.get('/subscription', {
-        preHandler: [fastify.validate({ querystring: EntityQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
         const { entityId } = request.query as { entityId: string };
         try {
@@ -486,7 +823,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * Greenfield — returns empty until billing is implemented.
      */
     fastify.get('/billing-methods', {
-        preHandler: [fastify.validate({ querystring: EntityQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
         const { entityId } = request.query as { entityId: string };
         try {
@@ -509,7 +846,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      * Greenfield — returns empty until subscription billing is implemented.
      */
     fastify.get('/invoices', {
-        preHandler: [fastify.validate({ querystring: InvoicesQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: InvoicesQuery })]
     }, async (request, reply) => {
         const { entityId } = request.query as { entityId: string };
         try {
@@ -531,17 +868,22 @@ export default async function financeRoutes(fastify: FastifyInstance) {
     fastify.get('/venue/finance/bank-accounts', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
-        const { entityId, venueId } = request.query as any;
+        const { entityId, venueId, entityType } = request.query as any;
         const targetId = entityId || venueId;
         if (!targetId) return reply.status(400).send({ error: 'venueId or entityId required' });
         try {
             await fastify.verifyPartnerAccess(request, targetId);
-            const snap = await fastify.db.collection('bank_accounts')
-                .where('partnerId', '==', targetId)
-                .get();
+            const ctx = buildFinanceContext(request, targetId, entityType || (venueId ? 'venue' : 'host'), venueId ? 'venue' : 'host');
+            const accounts = await financeService.getBankAccounts(ctx);
 
             return {
-                accounts: snap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+                accounts: accounts.map((account) => ({
+                    id: account.accountId,
+                    bankName: account.bankName,
+                    last4: account.last4,
+                    isDefault: account.isDefault,
+                    paymentType: account.paymentType,
+                }))
             };
         } catch (error: any) {
             return { accounts: [] };
@@ -554,23 +896,21 @@ export default async function financeRoutes(fastify: FastifyInstance) {
     fastify.get('/venue/finance/disputes', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
     }, async (request, reply) => {
-        const { entityId } = request.query as any;
+        const { entityId, entityType } = request.query as any;
         try {
             await fastify.verifyPartnerAccess(request, entityId);
-            const snap = await fastify.db.collection('disputes')
-                .where('partnerId', '==', entityId)
-                .limit(100)
-                .get();
-
-            const disputes = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            disputes.sort((a: any, b: any) => {
-                const dateA = new Date(a.createdAt || 0).getTime();
-                const dateB = new Date(b.createdAt || 0).getTime();
-                return dateB - dateA;
-            });
+            const ctx = buildFinanceContext(request, entityId, entityType, 'venue');
+            const disputeResult = await financeService.getDisputes(ctx);
 
             return {
-                disputes: disputes.slice(0, 50)
+                disputes: disputeResult.data.map((dispute) => ({
+                    id: dispute.disputeId,
+                    orderId: dispute.orderId,
+                    amount: dispute.amount,
+                    status: dispute.status,
+                    reason: dispute.reason,
+                    createdAt: dispute.createdAt,
+                }))
             };
         } catch (error: any) {
             return { disputes: [] };
@@ -593,18 +933,25 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         const { venueId, limit: limitStr = '50' } = request.query as any;
         if (!venueId) return reply.status(400).send({ error: 'venueId required' });
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
-        
-        const limit = Math.min(parseInt(limitStr), 100);
-        const snap = await fastify.db.collection('ledger_entries')
-            .where('actorId', '==', venueId)
-            .limit(limit)
-            .get();
-        
-        const entries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        // In-memory sort by timestamp desc
-        entries.sort((a: any, b: any) => new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime());
-        
-        return { ledger: entries };
+
+        const result = await financeService.getLedger(
+            buildFinanceContext(request, venueId, 'venue', 'venue'),
+            { limit: Math.min(parseInt(limitStr), 100) }
+        );
+
+        return {
+            ledger: result.data.map((entry) => ({
+                id: entry.entryId,
+                eventId: entry.eventId,
+                amount: entry.amount,
+                currency: entry.currency,
+                state: String(entry.status || '').toUpperCase(),
+                type: entry.type,
+                timestamp: entry.createdAt,
+                referenceId: entry.referenceId,
+                source: 'partner_ledger',
+            }))
+        };
     });
 
     fastify.get('/venue/finance/host-payouts', {

@@ -77,6 +77,9 @@ export const guestV1OpenApi = {
             get: { operationId: 'getOrderCancelEligibility', tags: ['orders'] },
             post: { operationId: 'requestOrderCancel', tags: ['orders'] },
         },
+        '/orders/{orderId}/reissue': {
+            post: { operationId: 'reissueOrderFulfillment', tags: ['orders'] },
+        },
         '/tickets': { get: { operationId: 'getGuestTickets', tags: ['tickets'] } },
         '/tickets/{ticketId}': { get: { operationId: 'getGuestTicket', tags: ['tickets'] } },
         '/tickets/share': { post: { operationId: 'createTicketShareBundle', tags: ['tickets'] } },

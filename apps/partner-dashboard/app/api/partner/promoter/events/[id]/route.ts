@@ -5,7 +5,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const { id } = await params;
     const ctx = await requirePromoterAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("promoterId", ctx.promoterId);
     return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partner/promoter/events/${id}?${searchParams}`, {});

@@ -14,7 +14,7 @@ export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId:
     const { data, isLoading, error } = useQuery({
         queryKey: ["promoter", "event", assignmentId],
         queryFn: async () => {
-            const res = await fetch(`/api/partner/promoter/events/${assignmentId}`);
+            const res = await fetch(`/api/partners/promoters/events/${assignmentId}`);
             if (!res.ok) throw new Error("Failed to fetch event detail");
             return res.json();
         },

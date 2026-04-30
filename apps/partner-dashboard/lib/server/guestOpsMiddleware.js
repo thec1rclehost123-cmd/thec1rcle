@@ -9,6 +9,24 @@ import { verifyAuth } from './auth';
 import { getAdminDb } from '../firebase/admin';
 import { VENUE_PERMISSIONS } from '../rbac/types';
 
+function buildAuthError(request, status, message) {
+    const code =
+        status === 401 ? 'UNAUTHORIZED'
+        : status === 403 ? 'FORBIDDEN'
+        : status === 404 ? 'NOT_FOUND'
+        : status >= 500 ? 'INTERNAL_ERROR'
+        : 'BAD_REQUEST';
+
+    return {
+        error: {
+            code,
+            message,
+            requestId: request.headers.get('x-request-id') || crypto.randomUUID(),
+        },
+        status,
+    };
+}
+
 /**
  * Resolve the venue membership for the authenticated user.
  * Returns null if user is not an active member of the venue.
@@ -58,24 +76,24 @@ async function getEventScoped(eventId, venueId) {
  */
 export async function requireGuestOpsAccess(request, venueId, eventId, requiredPermissions = ['VIEW_GUESTLIST']) {
     const user = await verifyAuth(request);
-    if (!user) return { error: 'Unauthorized', status: 401 };
+    if (!user) return buildAuthError(request, 401, 'Unauthorized');
 
-    if (!venueId) return { error: 'venueId is required', status: 400 };
+    if (!venueId) return buildAuthError(request, 400, 'venueId is required');
 
     const membership = await getVenueMembership(user.uid, venueId);
-    if (!membership) return { error: 'Forbidden — not a venue member', status: 403 };
+    if (!membership) return buildAuthError(request, 403, 'Forbidden — not a venue member');
 
     const rolePermissions = VENUE_PERMISSIONS[membership.role] || [];
     // Override permissions on membership take precedence
     const effectivePerms = membership.permissions?.length ? membership.permissions : rolePermissions;
 
     const hasPermission = requiredPermissions.some(p => effectivePerms.includes(p));
-    if (!hasPermission) return { error: 'Insufficient permissions', status: 403 };
+    if (!hasPermission) return buildAuthError(request, 403, 'Insufficient permissions');
 
     let event = null;
     if (eventId) {
         event = await getEventScoped(eventId, venueId);
-        if (!event) return { error: 'Event not found or does not belong to this venue', status: 404 };
+        if (!event) return buildAuthError(request, 404, 'Event not found or does not belong to this venue');
     }
 
     return { user, membership, event };

@@ -1,5 +1,7 @@
 import ExploreClient from "../../components/ExploreClient";
 import { guestServerJson } from "../../lib/api/server";
+import { buildExploreFeedView } from "../../lib/bff/explore.js";
+import { isGuestBffEnabled } from "../../lib/bff/flags.js";
 import { getSiteUrl } from "../../features/seo/seoUtils";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +13,21 @@ export const metadata = {
 };
 
 async function loadExploreData() {
+  if (isGuestBffEnabled("explore")) {
+    const result = await buildExploreFeedView({
+      includeFeatured: true,
+      limit: 24,
+      sort: "heat",
+    });
+    const data = result.data || {};
+
+    return {
+      events: data.events || [],
+      featuredEvents: data.featuredEvents || [],
+      errors: data.errors || [],
+    };
+  }
+
   const [eventsResult, featuredResult] = await Promise.all([
     guestServerJson("/public/events?limit=24&sort=heat", { forwardCookies: false, next: { revalidate: 60 } }),
     guestServerJson("/public/events/featured?limit=6", { forwardCookies: false, next: { revalidate: 60 } }),

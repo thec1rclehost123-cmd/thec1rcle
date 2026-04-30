@@ -11,7 +11,7 @@ import {
     createUserWithEmailAndPassword,
     updateProfile as updateFirebaseProfile
 } from "firebase/auth";
-import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase/client";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 import { DashboardProfile, PartnerMembership, PartnerType, StaffRole } from "@/lib/rbac/types";
 
 // ── Atomic permissions object — always set together to avoid race conditions ──
@@ -101,7 +101,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     const [permissions, setPermissions] = useState<PermissionsState>(EMPTY_PERMISSIONS);
     const [grantedPermissions, setGrantedPermissions] = useState<string[]>([]);
     const [serverDefaultTabVisibility, setServerDefaultTabVisibility] = useState<Partial<Record<string, boolean>> | null>(null);
-    // membershipId for onSnapshot real-time listener (staff only)
+    // membershipId for periodic permission refresh (staff only)
     const [membershipId, setMembershipId] = useState<string | null>(null);
     const lastProfileFetchRef = useRef<number>(0);
 
@@ -251,7 +251,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                     piiPolicy: userData._staffPiiPolicy ?? null,
                 });
 
-                // Capture membershipId for real-time onSnapshot listener (staff only)
+                // Capture membershipId for periodic staff-permission refresh
                 setMembershipId(userData.activeMembership?.membershipId ?? null);
 
                 setProfile({
@@ -307,36 +307,42 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
         return () => document.removeEventListener("visibilitychange", handleVisibility);
     }, [user]);
 
-    // Real-time permission sync via Firestore onSnapshot on the staff's membership doc.
+    // Permission sync via authenticated gateway polling. This preserves the
+    // staff-permission refresh path without direct Firestore access in the browser.
     useEffect(() => {
         if (!user || !membershipId) return;
-        let unsub: (() => void) | undefined;
+        let cancelled = false;
 
-        const setupSnapshot = async () => {
+        const syncPermissions = async () => {
             try {
-                const { doc: firestoreDoc, onSnapshot: firestoreOnSnapshot } = await import("firebase/firestore") as any;
-                const db = getFirebaseDb();
-                const docRef = firestoreDoc(db, "partner_memberships", membershipId);
-
-                unsub = firestoreOnSnapshot(docRef, (snapshot: any) => {
-                    const data = snapshot.data();
-                    if (data) {
-                        setPermissions({
-                            tabVisibility: (data.tabVisibility as Record<string, boolean>) || null,
-                            actionPermissions: (data.actionPermissions as Record<string, boolean>) || null,
-                            piiPolicy: (data.piiPolicy as Record<string, boolean>) || null,
-                        });
-                    }
+                const token = await user.getIdToken();
+                const res = await fetch("/api/auth/me", {
+                    headers: { Authorization: `Bearer ${token}` },
                 });
+                if (!res.ok) return;
+                const data: MeApiResponse | null = await res.json().catch(() => null);
+                if (cancelled || !data?.user) return;
+                const userData = data.user;
+                setPermissions({
+                    tabVisibility: userData._staffTabVisibility ?? null,
+                    actionPermissions: userData._staffActionPermissions ?? null,
+                    piiPolicy: userData._staffPiiPolicy ?? null,
+                });
+                setMembershipId(userData.activeMembership?.membershipId ?? membershipId);
+                lastProfileFetchRef.current = Date.now();
             } catch (err) {
-                console.error("Error setting up Firestore snapshot:", err);
+                console.error("Error refreshing staff permissions:", err);
             }
         };
 
-        setupSnapshot();
+        syncPermissions().catch(() => {});
+        const intervalId = window.setInterval(() => {
+            syncPermissions().catch(() => {});
+        }, 30_000);
 
         return () => {
-            if (unsub) unsub();
+            cancelled = true;
+            window.clearInterval(intervalId);
         };
     }, [user, membershipId]);
 

@@ -597,7 +597,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
 
     const fetchPartnerships = useCallback(async () => {
         try {
-            const res = await fetch(`/api/venue/partnerships?hostId=${profile?.activeMembership?.partnerId}&status=active`);
+            const res = await fetch(`/api/partners/venues/partnerships?hostId=${profile?.activeMembership?.partnerId}&status=active`);
             const data = await res.json();
             const activePartnerships = data.partnerships || [];
             setPartnerships(activePartnerships);

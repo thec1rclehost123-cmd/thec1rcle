@@ -65,7 +65,7 @@ export default function ScannerOversightPageClient() {
         if (!eventId || !venueId) return;
         setDevicesLoading(true);
         try {
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/scanner/devices?venueId=${venueId}`, { headers: authHeaders() });
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/scanner/devices?venueId=${venueId}`, { headers: authHeaders() });
             if (res.ok) { const d = await res.json(); setDevices(d.devices ?? []); }
         } finally {
             setDevicesLoading(false);
@@ -76,7 +76,7 @@ export default function ScannerOversightPageClient() {
         if (!eventId || !venueId) return;
         setStreamLoading(true);
         try {
-            const res = await fetch(`/api/venue/guest-ops/${eventId}/scanner/stream?venueId=${venueId}&limit=50`, { headers: authHeaders() });
+            const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/scanner/stream?venueId=${venueId}&limit=50`, { headers: authHeaders() });
             if (res.ok) { const d = await res.json(); setScanStream(d.scans ?? []); }
         } finally {
             setStreamLoading(false);

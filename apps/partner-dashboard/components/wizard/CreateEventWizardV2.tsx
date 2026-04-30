@@ -178,7 +178,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             endDate: startDate,
         });
         const endpoint = role === "host"
-            ? `/api/host/venue-calendar?venueId=${venueId}&${params.toString()}`
+            ? `/api/partners/hosts/venue-calendar?venueId=${venueId}&${params.toString()}`
             : `/api/venues/${venueId}/calendar?${params.toString()}`;
         const res = await authedFetch(endpoint);
         const data = await res.json();
@@ -383,7 +383,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (role === 'host' && profile?.activeMembership?.partnerId) {
             const fetchPartnerships = async () => {
                 try {
-                    const res = await authedFetch(`/api/host/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
+                    const res = await authedFetch(`/api/partners/hosts/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
                     const data = await res.json();
                     setPartnerships(data.partnerships || []);
                 } catch (err) {
@@ -722,7 +722,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     }
                 }
 
-                res = await authedFetch(`/api/host/events/${draftId}/${isResubmission ? "resubmit" : "submit"}`, {
+                res = await authedFetch(`/api/partners/hosts/events/${draftId}/${isResubmission ? "resubmit" : "submit"}`, {
                     method: isResubmission ? "PATCH" : "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ hostNote: payload.hostNote || null }),
@@ -1056,11 +1056,11 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                 <div className="px-2 space-y-1">
                                     <div className="flex items-center justify-between py-1.5 border-b border-border-subtle">
                                         <span className="text-[11px] font-medium text-text-tertiary">Inventory Value</span>
-                                        <span className="text-[13px] font-black text-text-primary">{formatCurrency(grandTotal.value)}</span>
+                                        <span className="text-[13px] font-black text-text-primary">{formatCurrency(grandTotal.revenue)}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-1.5 border-b border-border-subtle">
                                         <span className="text-[11px] font-medium text-text-tertiary">Total Capacity</span>
-                                        <span className="text-[13px] font-black text-text-primary">{grandTotal.quantity}</span>
+                                        <span className="text-[13px] font-black text-text-primary">{grandTotal.capacity}</span>
                                     </div>
                                     <div className="flex items-center justify-between py-2">
                                         <span className="text-caption">Ticket Tiers</span>

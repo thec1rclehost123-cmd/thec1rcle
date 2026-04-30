@@ -72,7 +72,7 @@ export default function PresenceConfigEditor() {
         const fetchConfig = async () => {
             try {
                 console.log("Venue ID:", venueId);
-                const res = await authedFetch(`/api/venue/presence?venueId=${venueId}`);
+                const res = await authedFetch(`/api/partners/venues/presence?venueId=${venueId}`);
                 const json = await res.json();
                 console.log("Presence Data:", json.presenceConfig);
 
@@ -107,7 +107,7 @@ export default function PresenceConfigEditor() {
             formData.append("type", "presence");
 
             const token = await user.getIdToken(true);
-            const res = await fetch("/api/venue/upload", {
+            const res = await fetch("/api/partners/venues/upload", {
                 method: "POST",
                 headers: { "Authorization": `Bearer ${token}` },
                 body: formData
@@ -163,7 +163,7 @@ export default function PresenceConfigEditor() {
         setSaveStatus("idle");
 
         try {
-            const res = await authedFetch("/api/venue/presence", {
+            const res = await authedFetch("/api/partners/venues/presence", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ venueId, presenceConfig: config })

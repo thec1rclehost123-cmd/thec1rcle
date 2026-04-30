@@ -34,7 +34,7 @@ function useAuthenticatedQuery<T = any>(
 export function usePromoterPartnerships(promoterId: string | undefined) {
     return useAuthenticatedQuery(
         ["promoter-partnerships", promoterId || ""],
-        `/api/discovery?partnerId=${promoterId}&role=promoter&action=list`,
+        "/api/partners/promoters/connections",
         { enabled: !!promoterId }
     );
 }

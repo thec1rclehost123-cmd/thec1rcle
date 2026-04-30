@@ -8,7 +8,10 @@ const REQUIRED_ENV_VARS = [
 
 export function register() {
     if (process.env.NEXT_RUNTIME === "nodejs") {
-        const missing = REQUIRED_ENV_VARS.filter((k) => !process.env[k]);
+        const hasAdminSdkPath = Boolean(process.env.FIREBASE_ADMIN_SDK_PATH);
+        const missing = hasAdminSdkPath
+            ? []
+            : REQUIRED_ENV_VARS.filter((k) => !process.env[k]);
         if (missing.length > 0) {
             console.error(
                 JSON.stringify({

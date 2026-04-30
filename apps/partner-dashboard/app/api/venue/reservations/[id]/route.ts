@@ -12,7 +12,7 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const ctx = await requireVenueAccess(req);
-    if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { id } = await params;
     const body = await req.json();
     return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue-settings/venue/reservations/${id}`, {
