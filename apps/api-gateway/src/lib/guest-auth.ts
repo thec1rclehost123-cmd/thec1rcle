@@ -95,11 +95,13 @@ export function buildGuestAuthBootstrap({
     rawProfile,
     onboardingRequest = null,
     unreadNotificationCount = 0,
+    activeMembership = null,
 }: {
     user: Record<string, any>;
     rawProfile?: Record<string, any> | null;
     onboardingRequest?: Record<string, any> | null;
     unreadNotificationCount?: number;
+    activeMembership?: Record<string, any> | null;
 }) {
     const identity = {
         uid: String(user.uid),
@@ -123,7 +125,11 @@ export function buildGuestAuthBootstrap({
 
     return {
         identity,
-        user: { ...identity, ...(profile || {}) },
+        user: {
+            ...identity,
+            ...(profile || {}),
+            ...(activeMembership ? { activeMembership } : {}),
+        },
         profile,
         onboarding: {
             onboardingComplete: onboarding.onboardingComplete,

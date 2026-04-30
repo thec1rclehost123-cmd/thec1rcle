@@ -51,6 +51,7 @@ async function deepReset(email) {
             role: 'partner',
             partnerId: 'v_system_test_01',
             partnerType: 'venue',
+            partnerRole: 'OWNER',
             admin_role: 'super'
         });
         console.log(`✅ Custom claims injected.`);

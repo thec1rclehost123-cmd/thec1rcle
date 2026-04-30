@@ -63,8 +63,11 @@ async function linkAndApprove(email) {
 
         // 2. Promote user to Partner role so the Dashboard accepts them
         await auth.setCustomUserClaims(uid, {
-            admin: true, // Also keep admin for console
+            admin: true,
             role: 'partner',
+            partnerId: 'v_system_test_01',
+            partnerType: 'venue',
+            partnerRole: 'OWNER',
             admin_role: 'super'
         });
         

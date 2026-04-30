@@ -109,6 +109,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 rawProfile: userDoc.exists ? { uid: userDoc.id, ...userDoc.data() } : null,
                 onboardingRequest,
                 unreadNotificationCount,
+                activeMembership: (request.user as any)?.activeMembership || null,
             });
         } catch (error: any) {
             fastify.log.error(`Error in GET /auth/me: ${error.message}`);
