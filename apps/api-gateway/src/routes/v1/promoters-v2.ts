@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
 import { resolvePromoterRequestContext } from '../../lib/promoter-request-context';
-import { PROMOTERS_V2_FLAGS } from '../../lib/promoters-v2-flags';
 
 const AnalyticsQuery = z.object({
     range: z.enum(['7d', '30d', '90d', 'ytd', 'all']).optional(),
@@ -29,19 +28,6 @@ const FinanceQuery = z.object({
     limit: z.coerce.number().min(1).max(200).optional(),
 }).strict();
 
-async function ensureV2Enabled(fastify: FastifyInstance, request: any, reply: any) {
-    const enabled = await fastify.isFeatureEnabled(PROMOTERS_V2_FLAGS.ROUTES, false);
-    if (!enabled) {
-        reply.status(404).send(buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Not found',
-            requestId: request.id,
-        }));
-        return false;
-    }
-    return true;
-}
-
 async function getPromoterContextOrReply(fastify: FastifyInstance, request: any, reply: any) {
     const context = await resolvePromoterRequestContext(fastify as any, request);
     if (!context) {
@@ -59,7 +45,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/overview', {
         preHandler: [fastify.requireAuth],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         return fastify.promoterServiceV2.getOverview(context);
@@ -68,7 +53,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/analytics', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: AnalyticsQuery })],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         const query = request.query as z.infer<typeof AnalyticsQuery>;
@@ -78,7 +62,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/links', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         const query = request.query as z.infer<typeof LinksQuery>;
@@ -88,7 +71,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/events', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: EventsQuery })],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         const query = request.query as z.infer<typeof EventsQuery>;
@@ -98,7 +80,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/finance', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: FinanceQuery })],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         const query = request.query as z.infer<typeof FinanceQuery>;
@@ -108,7 +89,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/payouts', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: FinanceQuery })],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         const query = request.query as z.infer<typeof FinanceQuery>;
@@ -118,7 +98,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/profile', {
         preHandler: [fastify.requireAuth],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         return fastify.promoterServiceV2.getProfile(context);
@@ -127,7 +106,6 @@ export default async function promoterV2Routes(fastify: FastifyInstance) {
     fastify.get('/me/settings', {
         preHandler: [fastify.requireAuth],
     }, async (request: any, reply) => {
-        if (!(await ensureV2Enabled(fastify, request, reply))) return;
         const context = await getPromoterContextOrReply(fastify, request, reply);
         if (!context) return;
         return fastify.promoterServiceV2.getSettings(context);
