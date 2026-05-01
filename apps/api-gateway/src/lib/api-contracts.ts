@@ -1,4 +1,13 @@
-import type { ApiErrorPayload, StandardErrorResponse } from '@c1rcle/types';
+export interface ApiErrorPayload {
+    code: string;
+    message: string;
+    details?: Array<{ path: string; message: string }> | Record<string, unknown> | null;
+    requestId?: string;
+}
+
+export interface StandardErrorResponse {
+    error: ApiErrorPayload;
+}
 
 export function buildErrorResponse(payload: ApiErrorPayload): StandardErrorResponse & { success: false } {
     const error: ApiErrorPayload = {

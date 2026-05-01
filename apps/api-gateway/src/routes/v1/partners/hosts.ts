@@ -100,9 +100,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await ref.update(safe);
     await fastify.writeAuditLog({
       action: 'TEAM_MEMBER_UPDATED',
-      actorId: hostId,
-      targetId: memberId,
-      details: { patch: safe },
+      actorUid: hostId,
+      entityId: memberId,
+      payload: { patch: safe },
     }).catch(() => {});
     return { success: true };
   };
@@ -128,8 +128,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await ref.update({ isActive: false, removedAt: new Date().toISOString() });
     await fastify.writeAuditLog({
       action: 'TEAM_MEMBER_REMOVED',
-      actorId: hostId,
-      targetId: memberId,
+      actorUid: hostId,
+      entityId: memberId,
     }).catch(() => {});
     return { success: true };
   };
@@ -156,9 +156,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.invalidatePublicDiscovery('all').catch(() => {});
     await fastify.writeAuditLog({
       action: 'HOST_PROFILE_UPDATED',
-      actorId: hostId,
-      targetId: hostId,
-      details: { patch: safe },
+      actorUid: hostId,
+      entityId: hostId,
+      payload: { patch: safe },
     }).catch(() => {});
     return getHostProfile(hostId);
   };
@@ -417,7 +417,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
     return {
       event: {
-        id: event.id,
+        id: event.eventId,
         title: event.title,
         status: event.status,
         startDate: event.startDate,
@@ -542,9 +542,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     await fastify.writeAuditLog({
       action: 'EVENT_TICKETS_UPDATED',
-      actorId: request.user?.uid || hostId,
-      targetId: eventId,
-      details: { hostId },
+      actorUid: hostId,
+      entityId: eventId,
+      payload: { hostId },
     }).catch(() => {});
     return { success: true };
   };
@@ -585,9 +585,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.writeAuditLog({
       action: 'EVENT_SUBMITTED',
-      actorId: request.user?.uid || hostId,
-      targetId: eventId,
-      details: { hostId },
+      actorUid: request.user?.uid || hostId,
+      entityId: eventId,
+      payload: { hostId },
     }).catch(() => {});
     return { success: true };
   };
@@ -631,9 +631,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.writeAuditLog({
       action: 'EVENT_RESUBMITTED',
-      actorId: request.user?.uid || hostId,
-      targetId: eventId,
-      details: { hostId, note: body.note },
+      actorUid: request.user?.uid || hostId,
+      entityId: eventId,
+      payload: { hostId, note: body.note },
     }).catch(() => {});
     return { success: true };
   };
@@ -681,7 +681,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       const dayEvents = events.filter((event: any) => String(event.startDate || '').slice(0, 10) === dateKey);
       
       // Mask events not owned by this host
-      const maskedEvents = dayEvents.map(ev => {
+      const maskedEvents = dayEvents.map((ev: any) => {
         const isOwner = String(ev.creatorId || ev.hostId || '') === hostId;
         if (isOwner) return ev;
         return { 
@@ -1185,9 +1185,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             await ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString(), cancelledBy: ctx.uid });
             await fastify.writeAuditLog({
               action: 'ORDER_CANCELLED',
-              actorId: ctx.uid,
-              targetId: orderId,
-              details: { hostId: ctx.partnerId },
+              actorUid: ctx.uid,
+              entityId: orderId,
+              payload: { hostId: ctx.partnerId },
             }).catch(() => {});
             return reply.send({ success: true });
           }

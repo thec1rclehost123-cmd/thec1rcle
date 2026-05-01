@@ -4,6 +4,7 @@ import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { HostService } from '../../services/unified/host-service.js';
 import { buildErrorResponse } from '../../lib/api-contracts';
 import { buildPayoutAccountRecord, sanitizeEventResubmissionPatch } from '../../lib/partner-hardening.js';
+import { resolvePartnerContext } from '../../lib/partner-context.js';
 
 const HostOverviewQuery = z.object({
     hostId: z.string()
@@ -71,14 +72,14 @@ export default async function hostRoutes(fastify: FastifyInstance) {
                     pendingItems: overview.stats.activeEventsCount
                 },
                 upcomingEvents: overview.upcomingEvents.map(e => ({
-                    id: e.id,
+                    id: e.eventId,
                     name: e.title,
                     date: e.startDate,
                     startDate: e.startDate,
                     venue_name: e.venueName || "TBD",
                     status: e.status,
-                    lifecycle: e.lifecycle,
-                    poster_url: e.image
+                    lifecycle: e.status,
+                    poster_url: e.coverImage
                 }))
             };
 
@@ -124,9 +125,9 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         await fastify.invalidatePublicDiscovery('all').catch(() => {});
         await fastify.writeAuditLog({
             action: 'HOST_PROFILE_UPDATED',
-            actorId: request.user?.uid || hostId,
-            targetId: hostId,
-            details: { patch: safe }
+            actorUid: request.user?.uid || hostId,
+            entityId: hostId,
+            payload: { patch: safe }
         }).catch(() => {});
         const doc = await fastify.db.collection('hosts').doc(hostId).get();
         return { host: { id: doc.id, ...doc.data() } };
@@ -272,9 +273,9 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const ref = await fastify.db.collection('bank_accounts').add(account.record);
         await fastify.writeAuditLog({
             action: 'BANK_ACCOUNT_ADDED',
-            actorId: request.user?.uid || hostId,
-            targetId: ref.id,
-            details: { hostId }
+            actorUid: request.user?.uid || hostId,
+            entityId: ref.id,
+            payload: { hostId }
         }).catch(() => {});
         return reply.status(201).send(account.response(ref.id));
     });
@@ -298,9 +299,9 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         await ref.delete();
         await fastify.writeAuditLog({
             action: 'BANK_ACCOUNT_DELETED',
-            actorId: request.user?.uid || hostId,
-            targetId: accountId,
-            details: { hostId }
+            actorUid: request.user?.uid || hostId,
+            entityId: accountId,
+            payload: { hostId }
         }).catch(() => {});
         return { success: true };
     });
@@ -355,9 +356,9 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         await fastify.db.collection('partner_memberships').doc(memberId).update(safe);
         await fastify.writeAuditLog({
             action: 'TEAM_MEMBER_UPDATED',
-            actorId: request.user?.uid || m.partnerId,
-            targetId: memberId,
-            details: { hostId: m.partnerId, patch: safe }
+            actorUid: request.user?.uid || m.partnerId,
+            entityId: memberId,
+            payload: { hostId: m.partnerId, patch: safe }
         }).catch(() => {});
         return { success: true };
     });
@@ -371,9 +372,9 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         await fastify.db.collection('partner_memberships').doc(memberId).update({ isActive: false, removedAt: new Date().toISOString() });
         await fastify.writeAuditLog({
             action: 'TEAM_MEMBER_REMOVED',
-            actorId: request.user?.uid || m.partnerId,
-            targetId: memberId,
-            details: { hostId: m.partnerId }
+            actorUid: request.user?.uid || m.partnerId,
+            entityId: memberId,
+            payload: { hostId: m.partnerId }
         }).catch(() => {});
         return { success: true };
     });
@@ -626,7 +627,8 @@ export default async function hostRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const { id } = request.params as any;
         try {
-            const ctx = buildHostContext(request);
+            const ctx = await resolvePartnerContext(fastify.db, request);
+            if (!ctx) return reply.status(403).send({ error: 'Forbidden' });
             const event = await hostService.getEvent(ctx, id);
 
             if (!event) {
