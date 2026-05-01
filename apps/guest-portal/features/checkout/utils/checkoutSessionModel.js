@@ -1,5 +1,7 @@
 import { normalizeReservationItems } from "./checkoutViewModel";
 
+const ADMISSION_TOKEN_STORAGE_PREFIX = "admission_token_";
+
 export function getReservationItemsSignature(items) {
   return JSON.stringify(normalizeReservationItems(items));
 }
@@ -74,8 +76,36 @@ export function shouldReserveBeforeCheckout({ cartReservation, eventId, selected
   return !shouldUseSavedReservationQuote({ cartReservation, eventId, selectedTickets });
 }
 
-export function buildReserveCheckoutPayload({ eventId, selectedTickets, userUid }) {
+export function getAdmissionTokenStorageKey(eventId) {
+  if (!eventId) return null;
+  return `${ADMISSION_TOKEN_STORAGE_PREFIX}${eventId}`;
+}
+
+export function readAdmissionToken(eventId) {
+  if (typeof window === "undefined") return null;
+  const storageKey = getAdmissionTokenStorageKey(eventId);
+  if (!storageKey) return null;
+
+  try {
+    return window.sessionStorage.getItem(storageKey) || null;
+  } catch {
+    return null;
+  }
+}
+
+export function clearAdmissionToken(eventId) {
+  if (typeof window === "undefined") return;
+  const storageKey = getAdmissionTokenStorageKey(eventId);
+  if (!storageKey) return;
+
+  try {
+    window.sessionStorage.removeItem(storageKey);
+  } catch {}
+}
+
+export function buildReserveCheckoutPayload({ admissionToken = null, eventId, selectedTickets, userUid }) {
   return {
+    admissionToken: admissionToken || undefined,
     eventId,
     items: normalizeReservationItems(selectedTickets),
     deviceId: `browser-${userUid || "anon"}`,

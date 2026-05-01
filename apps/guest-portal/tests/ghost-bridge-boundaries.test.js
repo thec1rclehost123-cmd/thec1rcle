@@ -76,9 +76,10 @@ test("Guest Portal no longer keeps the temporary client compatibility shim or ro
 
 test("Guest Portal source tree does not keep duplicate or backup runtime artifacts", () => {
   const ignoredDirs = new Set([".next", "node_modules", "coverage"]);
-  const runtimeRoots = ["app/api", "app/checkout", "app/event", "app/explore", "lib/bff"];
+  const runtimeRoots = [".", "app", "components", "features", "lib", "tests"];
   const offenders = [];
-  const duplicatePattern = /(?: 2\.[jt]sx?| copy\.[jt]sx?|\.bak|\.old)$/;
+  const duplicatePattern = /(?: [23]\.[jt]sx?| copy\.[jt]sx?|\.bak|\.old)$/;
+  const seen = new Set();
 
   const visit = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -88,7 +89,10 @@ test("Guest Portal source tree does not keep duplicate or backup runtime artifac
       }
 
       if (duplicatePattern.test(entry.name)) {
-        offenders.push(join(dir, entry.name).replace(`${root}/`, ""));
+        const relativePath = join(dir, entry.name).replace(`${root}/`, "");
+        if (seen.has(relativePath)) continue;
+        seen.add(relativePath);
+        offenders.push(relativePath);
       }
     }
   };

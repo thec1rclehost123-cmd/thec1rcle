@@ -7,7 +7,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ ord
     const ctx = await requireHostAccess(req, "MANAGE_ORDERS");
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => ({}));
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/orders/${orderId}/cancel`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/orders/${orderId}/cancel`, {
         method: "POST",
         body: JSON.stringify({ hostId: ctx.hostId, ...body }),
     });

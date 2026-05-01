@@ -16,6 +16,7 @@ import type {
 import { toIso, toNum, safeStr } from './types.js';
 import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
+import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
 
 // ─── PromoterService ──────────────────────────────────────────────────────────
 //
@@ -186,7 +187,7 @@ export class PromoterService {
       active: true,
       clickCount: 0,
       conversionCount: 0,
-      commissionRate: input.commissionRate,
+      commissionRate: normalizePromoterCommissionRate(input.commissionRate),
       revenue: 0,
       createdAt: now,
       updatedAt: now,

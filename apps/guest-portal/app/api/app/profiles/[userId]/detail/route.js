@@ -2,9 +2,9 @@ import {
   parseGuestBffInput,
   profileDetailDataSchema,
   profileDetailParamsSchema,
-} from "../../../../../../../lib/bff/contracts.js";
-import { buildProfileDetailView } from "../../../../../../../lib/bff/profile.js";
-import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../../lib/bff/server.js";
+} from "../../../../../../lib/bff/contracts.js";
+import { buildProfileDetailView } from "../../../../../../lib/bff/profile.js";
+import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../lib/bff/server.js";
 
 export const dynamic = "force-dynamic";
 

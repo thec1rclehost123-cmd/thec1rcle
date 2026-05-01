@@ -88,7 +88,7 @@ export interface PromoterAttribution {
 
 // ─── Venue Slot (single scheduling system) ───────────────────────────────────
 
-export type SlotStatus = 'open' | 'requested' | 'approved' | 'occupied' | 'blocked';
+export type SlotStatus = 'open' | 'requested' | 'approved' | 'occupied' | 'blocked' | 'rejected';
 
 export interface VenueSlot {
   slotId: string;

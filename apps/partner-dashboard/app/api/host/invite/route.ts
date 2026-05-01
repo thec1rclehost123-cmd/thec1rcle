@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     const ctx = await requireHostAccess(req, "MANAGE_STAFF");
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => ({}));
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/invite`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/invite`, {
         method: "POST",
         body: JSON.stringify({ hostId: ctx.hostId, ...body }),
     });

@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { FastifyInstance } from 'fastify';
 import { manageConnection, generatePromoterLink, getPromoterStats, listConnections, trackPromoterLinkClick } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
+import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
 
 const ConnectionsQuery = z.object({
     entityId: z.string(),
@@ -405,7 +406,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             eventTitle: pickString(body.eventTitle, event.title, event.name),
             campaignLabel: pickString(body.campaignLabel),
             ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-            commissionRate: toNumber(body.commissionRate || event.promoterSettings?.commissionRate || event.commissionRate || 0),
+            commissionRate: normalizePromoterCommissionRate(body.commissionRate || event.promoterSettings?.commissionRate || event.commissionRate || 0),
             commissionType: pickString(body.commissionType, 'percentage'),
             code,
             clicks: 0,

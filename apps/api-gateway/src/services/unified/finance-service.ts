@@ -1,4 +1,4 @@
-import type { Firestore } from 'firebase-admin/firestore';
+import { FieldValue, type Firestore } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   LedgerEntry,
@@ -17,6 +17,17 @@ import type {
 import { toIso, toNum, safeStr } from './types.js';
 import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
+
+const LEDGER_AGGREGATES_COLLECTION = 'partner_finance_aggregates';
+const LEDGER_IDEMPOTENCY_COLLECTION = 'partner_ledger_idempotency';
+const REVENUE_FIELDS_BY_TYPE = {
+  host_payout: 'hostPayout',
+  venue_share: 'venueShare',
+  promoter_commission: 'promoterCommission',
+} as const;
+
+type RevenueFieldName = (typeof REVENUE_FIELDS_BY_TYPE)[keyof typeof REVENUE_FIELDS_BY_TYPE];
+type AggregateBalances = Record<LedgerEntryStatus, number>;
 
 // ─── FinanceService ───────────────────────────────────────────────────────────
 //
@@ -53,13 +64,8 @@ export class FinanceService {
   async getOverview(ctx: PartnerContext): Promise<FinanceOverview> {
     const partnerId = ctx.partnerId;
     const startedAt = Date.now();
-
-    const [settled, pending] = await Promise.all([
-      this.sumLedger(partnerId, 'settled'),
-      this.sumLedger(partnerId, 'pending'),
-    ]);
-
-    const revenueByPeriod = await this.getRevenueByPeriod(partnerId, 30);
+    const balances = await this.readBalanceAggregate(partnerId);
+    const revenueByPeriod = await this.getRevenueByPeriod(ctx, 30);
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 500) {
@@ -70,11 +76,61 @@ export class FinanceService {
     }
 
     return {
-      totalRevenue: settled + pending,
-      pendingPayouts: pending,
-      settledPayouts: settled,
+      totalRevenue: balances.settled + balances.pending,
+      pendingPayouts: balances.pending,
+      settledPayouts: balances.settled,
       currency: 'INR',
       revenueByPeriod,
+    };
+  }
+
+  async getFinanceSummary(ctx: PartnerContext): Promise<any> {
+    const partnerId = ctx.partnerId;
+    const [balances, doc, payoutsSnap] = await Promise.all([
+      this.readBalanceAggregate(partnerId),
+      this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
+      this.db.collection('payouts')
+        .where('partnerId', '==', partnerId)
+        .where('status', 'in', ['completed', 'paid', 'cleared'])
+        .get(),
+    ]);
+
+    const aggregate = doc.exists ? doc.data() : {};
+    const totalsByType = aggregate?.totalsByType || {};
+    
+    // Sum all successful payouts
+    const paidOut = payoutsSnap.docs.reduce((sum, d) => sum + Math.abs(toNum(d.data().amount)), 0);
+
+    // Get pending refunds from ledger (this might be slow if many, but aggregate doesn't split pending by type)
+    // Actually, let's just use 0 if not easily available from aggregate for now, 
+    // OR query the ledger for the last few days of pending refunds.
+    // Given it's a P0, let's try to get it right.
+    const pendingRefundsSnap = await this.db.collection('partner_ledger')
+      .where('toPartnerId', '==', partnerId)
+      .where('type', '==', 'refund')
+      .where('status', '==', 'pending')
+      .limit(50)
+      .get();
+    
+    const refundPending = pendingRefundsSnap.docs.reduce((sum, d) => sum + Math.abs(toNum(d.data().amount)), 0);
+
+    // Get total tickets sold from orders collection
+    const ticketsSnap = await this.db.collection('orders')
+      .where('hostId', '==', partnerId)
+      .where('status', 'in', ['paid', 'checked_in'])
+      .get()
+      .catch(() => ({ size: 0, docs: [] }));
+    
+    const totalTicketsSold = (ticketsSnap as any).docs.reduce((sum: number, doc: any) => sum + toNum(doc.data().ticketCount || 1), 0);
+
+    return {
+      netRevenue: balances.settled + balances.pending,
+      availableBalance: balances.settled,
+      pendingBalance: balances.pending,
+      totalTicketsSold,
+      paidOut,
+      refundPending,
+      currency: aggregate?.currency || 'INR',
     };
   }
 
@@ -103,9 +159,9 @@ export class FinanceService {
     const snap = await q.get().catch((err: any) => {
       this.log.error(
         { service: 'FinanceService', method: 'getLedger', partnerId, error: err?.message ?? String(err) },
-        'Ledger query failed — returning empty result'
+        'Ledger query failed'
       );
-      return null;
+      throw err;
     });
 
     const durationMs = Date.now() - startedAt;
@@ -116,7 +172,7 @@ export class FinanceService {
       );
     }
 
-    const docs: any[] = snap?.docs ?? [];
+    const docs: any[] = snap.docs ?? [];
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToLedgerEntry(doc));
     const nextCursor = hasMore ? items[items.length - 1]?.entryId ?? null : null;
@@ -184,12 +240,9 @@ export class FinanceService {
     const startedAt = Date.now();
 
     // Compute from ledger — sole source of truth
-    const [available, pending] = await Promise.all([
-      this.sumLedger(ctx.partnerId, 'settled'),
-      this.sumLedger(ctx.partnerId, 'pending'),
-    ]);
+    const balances = await this.readBalanceAggregate(ctx.partnerId);
 
-    const result: BalanceSummary = { available, pending, currency: 'INR' };
+    const result: BalanceSummary = { available: balances.settled, pending: balances.pending, currency: 'INR' };
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
@@ -285,7 +338,7 @@ export class FinanceService {
     }
   ): Promise<void> {
     const now = new Date();
-    const batch = this.db.batch();
+    const createdAt = toIso(now) || now.toISOString();
     const platformFee = Math.round(grossAmount * participants.platformFeeRate);
     const venueShare = Math.round(grossAmount * participants.venueShareRate);
     const promoterCommission = participants.promoterId
@@ -293,7 +346,7 @@ export class FinanceService {
       : 0;
     const hostPayout = grossAmount - platformFee - venueShare - promoterCommission;
 
-    const base = { eventId, currency: 'INR' as const, referenceId: orderId, createdAt: toIso(now) };
+    const base = { eventId, currency: 'INR' as const, referenceId: orderId, createdAt };
 
     const entries: Omit<LedgerEntry, 'entryId'>[] = [
       { ...base, type: 'ticket_revenue', amount: grossAmount, fromPartnerId: null, toPartnerId: 'platform', status: 'settled', settledAt: toIso(now) },
@@ -314,12 +367,37 @@ export class FinanceService {
       });
     }
 
-    for (const entry of entries) {
-      const ref = this.db.collection('partner_ledger').doc();
-      batch.set(ref, entry);
-    }
+    let created = false;
+    const idempotencyRef = this.db.collection(LEDGER_IDEMPOTENCY_COLLECTION).doc(orderId);
 
-    await batch.commit();
+    await this.db.runTransaction(async (txn) => {
+      const markerDoc = await txn.get(idempotencyRef);
+      if (markerDoc.exists) return;
+
+      created = true;
+      for (const entry of entries) {
+        const ref = this.db.collection('partner_ledger').doc();
+        txn.set(ref, entry);
+      }
+
+      txn.set(idempotencyRef, {
+        orderId,
+        eventId,
+        partnerIds: Array.from(new Set([participants.hostId, participants.venueId, participants.promoterId].filter(Boolean))),
+        entryCount: entries.length,
+        createdAt,
+      });
+
+      this.applyAggregateWrites(txn, entries, createdAt);
+    });
+
+    if (!created) {
+      this.log.warn(
+        { service: 'FinanceService', method: 'recordTicketSale', eventId, orderId },
+        'Skipped duplicate ledger write for ticket sale'
+      );
+      return;
+    }
 
     this.log.info(
       { service: 'FinanceService', method: 'recordTicketSale', eventId, orderId, gross: grossAmount, entryCount: entries.length },
@@ -341,7 +419,8 @@ export class FinanceService {
     amount: number,
     partnerId: string
   ): Promise<void> {
-      await this.db.collection('partner_ledger').add({
+      const createdAt = toIso(new Date()) || new Date().toISOString();
+      const entry: Omit<LedgerEntry, 'entryId'> = {
         eventId,
         type: 'refund' as LedgerEntryType,
         amount: -Math.abs(amount),
@@ -350,9 +429,29 @@ export class FinanceService {
         toPartnerId: partnerId,
         status: 'settled' as LedgerEntryStatus,
         referenceId: orderId,
-        settledAt: toIso(new Date()),
-        createdAt: toIso(new Date()),
+        settledAt: createdAt,
+        createdAt,
+      };
+
+    const idempotencyRef = this.db.collection(LEDGER_IDEMPOTENCY_COLLECTION).doc(`refund_${orderId}`);
+
+    await this.db.runTransaction(async (txn) => {
+      const markerDoc = await txn.get(idempotencyRef);
+      if (markerDoc.exists) return;
+
+      const ref = this.db.collection('partner_ledger').doc();
+      txn.set(ref, entry);
+      this.applyAggregateWrites(txn, [entry], entry.createdAt || createdAt);
+
+      txn.set(idempotencyRef, {
+        orderId,
+        eventId,
+        partnerId,
+        type: 'refund',
+        amount: entry.amount,
+        createdAt,
       });
+    });
 
       this.log.info(
         { service: 'FinanceService', method: 'recordRefund', eventId, orderId, amount, partnerId },
@@ -398,72 +497,224 @@ export class FinanceService {
   }
 
   private async sumLedger(partnerId: string, status: LedgerEntryStatus): Promise<number> {
-    const startedAt = Date.now();
-    const snap = await this.db
-      .collection('partner_ledger')
-      .where('toPartnerId', '==', partnerId)
-      .where('status', '==', status)
-      .select('amount')
-      .get()
-      .catch((err: any) => {
-        this.log.error(
-          { service: 'FinanceService', method: 'sumLedger', partnerId, status, error: err?.message ?? String(err) },
-          'Ledger sum query failed — returning 0'
-        );
-        return null;
-      });
-
-    const durationMs = Date.now() - startedAt;
-    if (durationMs > 300) {
-      this.log.warn(
-        { service: 'FinanceService', method: 'sumLedger', partnerId, status, durationMs, docCount: snap?.docs?.length ?? 0 },
-        'Slow ledger aggregation'
-      );
-    }
-
-    if (!snap) return 0;
-    return snap.docs.reduce((sum, doc) => sum + toNum((doc.data() as any).amount), 0);
+    const balances = await this.readBalanceAggregate(partnerId);
+    return balances[status] ?? 0;
   }
 
-  private async getRevenueByPeriod(partnerId: string, days: number): Promise<DataPoint[]> {
-    const from = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  private async getRevenueByPeriod(ctx: PartnerContext, days: number): Promise<DataPoint[]> {
+    const fromKey = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const startedAt = Date.now();
+    const revenueField = this.getRevenueFieldForPartnerType(ctx.type);
+
+    await this.readBalanceAggregate(ctx.partnerId);
 
     const snap = await this.db
-      .collection('partner_ledger')
-      .where('toPartnerId', '==', partnerId)
-      .where('type', '==', 'host_payout')
-      .where('createdAt', '>=', from)
-      .orderBy('createdAt', 'asc')
-      .limit(500)
+      .collection(LEDGER_AGGREGATES_COLLECTION)
+      .doc(ctx.partnerId)
+      .collection('daily')
+      .where('date', '>=', fromKey)
+      .orderBy('date', 'asc')
+      .limit(Math.max(days + 14, 120))
       .get()
       .catch((err: any) => {
         this.log.error(
-          { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId, days, error: err?.message ?? String(err) },
+          { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId: ctx.partnerId, days, error: err?.message ?? String(err) },
           'Revenue period query failed'
         );
-        return null;
+        throw err;
       });
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
-        { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId, durationMs },
+        { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId: ctx.partnerId, durationMs },
         'Slow revenue aggregation'
       );
     }
 
-    if (!snap) return [];
+    return snap.docs
+      .map((doc) => {
+        const d = doc.data() as Record<string, any>;
+        const date = safeStr(d.date || doc.id);
+        return { date, value: toNum(d[revenueField]) };
+      })
+      .filter((point) => point.date);
+  }
 
-    const byDate: Record<string, number> = {};
-    for (const doc of snap.docs) {
-      const d = doc.data() as Record<string, any>;
-      const date = toIso(d.createdAt)?.split('T')[0];
-      if (date) byDate[date] = (byDate[date] ?? 0) + toNum(d.amount);
+  private async readBalanceAggregate(partnerId: string): Promise<AggregateBalances> {
+    const doc = await this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get().catch((err: any) => {
+      this.log.error(
+        { service: 'FinanceService', method: 'readBalanceAggregate', partnerId, error: err?.message ?? String(err) },
+        'Ledger aggregate read failed'
+      );
+      throw err;
+    });
+
+    if (!doc.exists) return this.rebuildPartnerLedgerAggregate(partnerId);
+
+    const balances = (doc.data()?.balances || {}) as Record<string, any>;
+    return {
+      pending: toNum(balances.pending),
+      settled: toNum(balances.settled),
+      disputed: toNum(balances.disputed),
+      reversed: toNum(balances.reversed),
+    };
+  }
+
+  private getRevenueFieldForPartnerType(type: PartnerContext['type']): RevenueFieldName {
+    if (type === 'venue') return 'venueShare';
+    if (type === 'promoter') return 'promoterCommission';
+    return 'hostPayout';
+  }
+
+  private applyAggregateWrites(txn: any, entries: Omit<LedgerEntry, 'entryId'>[], createdAt: string) {
+    const aggregateMap = new Map<string, {
+      balances: Partial<Record<LedgerEntryStatus, number>>;
+      totalsByType: Partial<Record<LedgerEntryType, number>>;
+      daily: Map<string, Partial<Record<RevenueFieldName, number>>>;
+    }>();
+
+    for (const entry of entries) {
+      const partnerId = entry.toPartnerId;
+      if (!partnerId) continue;
+
+      const next = aggregateMap.get(partnerId) || {
+        balances: {} as Partial<Record<LedgerEntryStatus, number>>,
+        totalsByType: {} as Partial<Record<LedgerEntryType, number>>,
+        daily: new Map<string, Partial<Record<RevenueFieldName, number>>>(),
+      };
+      next.balances[entry.status] = (next.balances[entry.status] ?? 0) + entry.amount;
+      next.totalsByType[entry.type] = (next.totalsByType[entry.type] ?? 0) + entry.amount;
+
+      const revenueField = REVENUE_FIELDS_BY_TYPE[entry.type as keyof typeof REVENUE_FIELDS_BY_TYPE];
+      const dateKey = String(entry.createdAt || createdAt).slice(0, 10);
+      if (revenueField && dateKey) {
+        const daily = next.daily.get(dateKey) || {} as Partial<Record<RevenueFieldName, number>>;
+        daily[revenueField] = (daily[revenueField] ?? 0) + entry.amount;
+        next.daily.set(dateKey, daily);
+      }
+
+      aggregateMap.set(partnerId, next);
     }
 
-    return Object.entries(byDate)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([date, value]) => ({ date, value }));
+    for (const [partnerId, aggregate] of aggregateMap.entries()) {
+      const aggregateRef = this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId);
+      const balancePayload = Object.fromEntries(
+        Object.entries(aggregate.balances).map(([status, amount]) => [status, FieldValue.increment(amount as number)])
+      );
+      const totalsPayload = Object.fromEntries(
+        Object.entries(aggregate.totalsByType).map(([type, amount]) => [type, FieldValue.increment(amount as number)])
+      );
+      txn.set(aggregateRef, {
+        partnerId,
+        currency: 'INR',
+        balances: balancePayload,
+        totalsByType: totalsPayload,
+        updatedAt: createdAt,
+      }, { merge: true });
+
+      for (const [dateKey, daily] of aggregate.daily.entries()) {
+        const dailyPayload = Object.fromEntries(
+          Object.entries(daily).map(([field, amount]) => [field, FieldValue.increment(amount as number)])
+        );
+        txn.set(aggregateRef.collection('daily').doc(dateKey), {
+          date: dateKey,
+          createdAt: dateKey,
+          updatedAt: createdAt,
+          ...dailyPayload,
+        }, { merge: true });
+      }
+    }
+  }
+
+  private async rebuildPartnerLedgerAggregate(partnerId: string): Promise<AggregateBalances> {
+    const startedAt = Date.now();
+    const snap = await this.db
+      .collection('partner_ledger')
+      .where('toPartnerId', '==', partnerId)
+      .get()
+      .catch((err: any) => {
+        this.log.error(
+          { service: 'FinanceService', method: 'rebuildPartnerLedgerAggregate', partnerId, error: err?.message ?? String(err) },
+          'Ledger aggregate rebuild query failed'
+        );
+        throw err;
+      });
+
+    const balances: AggregateBalances = {
+      pending: 0,
+      settled: 0,
+      disputed: 0,
+      reversed: 0,
+    };
+    const totalsByType: Partial<Record<LedgerEntryType, number>> = {};
+    const daily = new Map<string, Record<string, number>>();
+
+    for (const doc of snap.docs) {
+      const data = doc.data() as Record<string, any>;
+      const status = (data.status || 'pending') as LedgerEntryStatus;
+      const type = (data.type || 'ticket_revenue') as LedgerEntryType;
+      const amount = toNum(data.amount);
+      balances[status] = (balances[status] ?? 0) + amount;
+      totalsByType[type] = (totalsByType[type] ?? 0) + amount;
+
+      const revenueField = REVENUE_FIELDS_BY_TYPE[type as keyof typeof REVENUE_FIELDS_BY_TYPE];
+      const dateKey = toIso(data.createdAt)?.slice(0, 10);
+      if (revenueField && dateKey) {
+        const bucket = daily.get(dateKey) || {};
+        bucket[revenueField] = (bucket[revenueField] ?? 0) + amount;
+        daily.set(dateKey, bucket);
+      }
+    }
+
+    const aggregateRef = this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId);
+    const dailyEntries = Array.from(daily.entries());
+    const chunkSize = 400;
+
+    if (dailyEntries.length === 0) {
+      await this.db.batch().set(aggregateRef, {
+        partnerId,
+        currency: 'INR',
+        balances,
+        totalsByType,
+        rebuiltAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }, { merge: false }).commit();
+    } else {
+      for (let start = 0; start < dailyEntries.length; start += chunkSize) {
+        const batch = this.db.batch();
+        if (start === 0) {
+          batch.set(aggregateRef, {
+            partnerId,
+            currency: 'INR',
+            balances,
+            totalsByType,
+            rebuiltAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          }, { merge: false });
+        }
+        for (const [dateKey, bucket] of dailyEntries.slice(start, start + chunkSize)) {
+          batch.set(aggregateRef.collection('daily').doc(dateKey), {
+            date: dateKey,
+            createdAt: dateKey,
+            updatedAt: new Date().toISOString(),
+            hostPayout: toNum(bucket.hostPayout),
+            venueShare: toNum(bucket.venueShare),
+            promoterCommission: toNum(bucket.promoterCommission),
+          }, { merge: false });
+        }
+        await batch.commit();
+      }
+    }
+
+    const durationMs = Date.now() - startedAt;
+    if (durationMs > 300) {
+      this.log.warn(
+        { service: 'FinanceService', method: 'rebuildPartnerLedgerAggregate', partnerId, durationMs, docCount: snap.docs.length },
+        'Rebuilt partner ledger aggregate from source ledger'
+      );
+    }
+
+    return balances;
   }
 }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { checkoutReserveBodySchema } from "../lib/bff/contracts.js";
 import { getGuestBffFlags } from "../lib/bff/flags.js";
 import { normalizeCheckoutEventDetail } from "../features/checkout/checkoutEventModel.js";
 
@@ -124,4 +125,25 @@ test("Shared checkout event normalization keeps ticket catalog tiers available t
 
   assert.equal(normalized?.id, "evt_123");
   assert.deepEqual(normalized?.tickets, [{ id: "tier_1", name: "General", price: 500 }]);
+});
+
+test("Guest Portal checkout reserve contract and payload builder preserve waiting-room admission tokens", () => {
+  const checkoutSessionModel = readFileSync(
+    join(root, "features/checkout/utils/checkoutSessionModel.js"),
+    "utf8",
+  );
+
+  assert.equal(
+    checkoutSessionModel.includes("admissionToken: admissionToken || undefined"),
+    true,
+    "checkout reserve payload builder should forward the waiting-room admission token",
+  );
+
+  const parsed = checkoutReserveBodySchema.safeParse({
+    admissionToken: "evt_123:user_1:queue_987:signed",
+    deviceId: "browser-user_1",
+    eventId: "evt_123",
+    items: [{ tierId: "tier_1", quantity: 2 }],
+  });
+  assert.equal(parsed.success, true);
 });

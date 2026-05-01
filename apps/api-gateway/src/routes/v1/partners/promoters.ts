@@ -6,6 +6,7 @@ import { resolvePartnerContext, requireType } from '../../../lib/partner-context
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
+import { buildPayoutAccountRecord, normalizePromoterCommissionRate } from '../../../lib/partner-hardening.js';
 
 const AnalyticsQuerySchema = z.object({
   from: z.string().optional(),
@@ -399,7 +400,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       eventTitle: pickString(body.eventTitle, event.title, event.name),
       campaignLabel: pickString(body.campaignLabel),
       ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
-      commissionRate: toNumber(body.commissionRate || event.promoterSettings?.commissionRate || event.commissionRate || 0),
+      commissionRate: normalizePromoterCommissionRate(body.commissionRate || event.promoterSettings?.commissionRate || event.commissionRate || 0),
       commissionType: pickString(body.commissionType, 'percentage'),
       code,
       clicks: 0,
@@ -762,31 +763,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   };
 
   const createBankAccount = async (promoterId: string, body: Record<string, any>) => {
-    const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
-    const rawNumber = paymentType === 'debit_card' ? String(body.cardNumber || '').trim() : String(body.accountNumber || '').trim();
-    if (!rawNumber) {
-      const err: any = new Error('Account number or card number required');
-      err.statusCode = 400;
-      err.code = 'BAD_REQUEST';
-      throw err;
-    }
-    const last4 = rawNumber.slice(-4);
-    const now = new Date().toISOString();
-    const ref = await fastify.db.collection('bank_accounts').add({
-      partnerId: promoterId,
-      paymentType,
-      accountHolderName: body.accountHolderName || body.cardHolderName || '',
-      bankName: body.bankName || body.cardBrand || 'Bank Account',
-      ifscCode: body.ifscCode || null,
-      accountNumber: paymentType === 'bank_account' ? rawNumber : null,
-      cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
-      cardLast4: paymentType === 'debit_card' ? last4 : null,
-      last4,
-      isDefault: body.isDefault !== false,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return { account: { id: ref.id, bankName: body.bankName || body.cardBrand || 'Bank Account', last4, isDefault: body.isDefault !== false, paymentType } };
+    const account = buildPayoutAccountRecord(body, { partnerId: promoterId, ownerType: 'promoter' });
+    const ref = await fastify.db.collection('bank_accounts').add(account.record);
+    return account.response(ref.id);
   };
 
   const deleteBankAccount = async (promoterId: string, accountId: string) => {
@@ -1396,9 +1375,9 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           return reply.send({ accounts: ((snap as any).docs || []).map((doc: any) => ({ id: doc.id, ...(doc.data() || {}), accountNumber: undefined })) });
         }
         if (rest === 'settings/payout' && request.method === 'POST') {
-          const now = new Date().toISOString();
-          const ref = await fastify.db.collection('bank_accounts').add({ ...body, ownerId: ctx.partnerId, ownerType: 'promoter', verified: false, createdAt: now });
-          return reply.send({ success: true, id: ref.id });
+          const account = buildPayoutAccountRecord(body, { partnerId: ctx.partnerId, ownerType: 'promoter' });
+          const ref = await fastify.db.collection('bank_accounts').add(account.record);
+          return reply.send({ success: true, id: ref.id, account: account.response(ref.id).account });
         }
 
         if (rest === 'settings/security/logout-all' && request.method === 'POST') {

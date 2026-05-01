@@ -3,6 +3,7 @@ import type { Firestore } from 'firebase-admin/firestore';
 import { getFinancialSummary, processRefund } from '@c1rcle/core/finance-engine';
 import { z } from 'zod';
 import { FinanceService } from '../../services/unified/finance-service.js';
+import { buildPayoutAccountRecord } from '../../lib/partner-hardening.js';
 
 // ── Existing schemas ──────────────────────────────────────────────────────────
 
@@ -217,20 +218,12 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             }
 
             const ctx = buildFinanceContext(request, entityId, type, normalizePartnerType(type, 'host'));
-            const [overview, balances] = await Promise.all([
-                financeService.getOverview(ctx),
-                financeService.getBalances(ctx),
-            ]);
+            const summary = await financeService.getFinanceSummary(ctx);
 
             return {
                 entityId,
                 type,
-                netRevenue: overview.totalRevenue,
-                availableBalance: balances.available,
-                pendingBalance: balances.pending,
-                paidOut: 0,
-                refundPending: 0,
-                currency: balances.currency,
+                ...summary
             };
         } catch (error: any) {
             fastify.log.error(`Finance summary failed for entityId=${entityId}: ${error.message}`);
@@ -450,38 +443,9 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             if (!promoterId) return reply.status(400).send({ error: 'promoterId required' });
             await fastify.verifyPartnerAccess(request, promoterId);
 
-            const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
-            const rawNumber = paymentType === 'debit_card'
-                ? String(body.cardNumber || '').trim()
-                : String(body.accountNumber || '').trim();
-            if (!rawNumber) return reply.status(400).send({ error: 'Account number or card number required' });
-
-            const last4 = rawNumber.slice(-4);
-            const now = new Date().toISOString();
-            const ref = await fastify.db.collection('bank_accounts').add({
-                partnerId: promoterId,
-                paymentType,
-                accountHolderName: body.accountHolderName || body.cardHolderName || '',
-                bankName: body.bankName || body.cardBrand || 'Bank Account',
-                ifscCode: body.ifscCode || null,
-                accountNumber: paymentType === 'bank_account' ? rawNumber : null,
-                cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
-                cardLast4: paymentType === 'debit_card' ? last4 : null,
-                last4,
-                isDefault: body.isDefault !== false,
-                createdAt: now,
-                updatedAt: now,
-            });
-
-            return reply.status(201).send({
-                account: {
-                    id: ref.id,
-                    bankName: body.bankName || body.cardBrand || 'Bank Account',
-                    last4,
-                    isDefault: body.isDefault !== false,
-                    paymentType,
-                }
-            });
+            const account = buildPayoutAccountRecord(body, { partnerId: promoterId, ownerType: 'promoter' });
+            const ref = await fastify.db.collection('bank_accounts').add(account.record);
+            return reply.status(201).send(account.response(ref.id));
         } catch (error: any) {
             fastify.log.error(`Promoter bank account create failed for promoterId=${promoterId}: ${error.message}`);
             return reply.status(

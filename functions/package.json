@@ -1,5 +1,6 @@
 {
     "name": "functions",
+    "version": "0.1.0",
     "scripts": {
         "build": "esbuild src/index.ts --bundle --platform=node --target=node20 --outfile=lib/index.js --external:firebase-admin --external:firebase-functions",
         "type-check": "tsc --noEmit",

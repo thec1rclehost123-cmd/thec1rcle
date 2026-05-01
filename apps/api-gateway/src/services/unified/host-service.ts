@@ -19,6 +19,7 @@ import type {
 import { toIso, toNum, safeStr } from './types.js';
 import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
+import { FinanceService } from './finance-service.js';
 
 // ─── HostService ──────────────────────────────────────────────────────────────
 //
@@ -28,6 +29,7 @@ import { consoleLogger } from './service-context.js';
 export class HostService {
   private db: Firestore;
   private log: ServiceLogger;
+  private financeService: FinanceService;
 
   constructor(ctx: ServiceContext);
   /** @deprecated Use ServiceContext form. Retained for backward compatibility. */
@@ -36,9 +38,11 @@ export class HostService {
     if ('db' in arg && 'log' in arg) {
       this.db = arg.db;
       this.log = arg.log;
+      this.financeService = new FinanceService(arg as ServiceContext);
     } else {
       this.db = arg as Firestore;
       this.log = consoleLogger;
+      this.financeService = new FinanceService(this.db);
     }
   }
 
@@ -52,17 +56,18 @@ export class HostService {
     const range = options.range ?? '1m';
     const metric = options.metric ?? 'tickets';
 
-    const [statsSnap, upcomingEvents, latestOrders, performance] = await Promise.all([
+    const [statsSnap, upcomingEvents, latestOrders, performance, balances] = await Promise.all([
       this.db.collection('host_stats').doc(partnerId).get().catch((err) => { this.log.error({ service: 'HostService', method: 'getOverview', partnerId, error: err?.message ?? String(err) }, 'host_stats read failed'); return null; }),
       this.getUpcomingEvents(partnerId),
       this.getLatestOrders(partnerId),
       this.getPerformance(partnerId, range, metric),
+      this.financeService.getBalances(ctx),
     ]);
 
     const raw = statsSnap?.exists ? (statsSnap.data() as Record<string, any>) : {};
     const stats: HostOverviewStats = {
       totalTicketsSold: toNum(raw.totalTicketsSold),
-      totalRevenue: toNum(raw.totalRevenue),
+      totalRevenue: balances.available + balances.pending,
       activeEventsCount: toNum(raw.activeEventsCount),
       upcomingEventsCount: toNum(raw.upcomingEventsCount),
       completedEventsCount: toNum(raw.completedEventsCount),
@@ -120,7 +125,7 @@ export class HostService {
 
     const data = doc.data() as Record<string, any>;
     const ownerId = safeStr(data.creatorId || data.hostId || data.ownerPartnerId);
-    if (ownerId !== ctx.partnerId && !ctx.roles.includes('host_owner')) return null;
+    if (!ownerId || ownerId !== ctx.partnerId) return null;
 
     return this.docToEventDetail(doc);
   }

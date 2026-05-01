@@ -44,7 +44,7 @@ describe("POST /api/host/events/[id]/submit", () => {
         expect(requireHostAccessMock).toHaveBeenCalledWith(req, "MANAGE_EVENTS");
         expect(proxyToGatewayMock).toHaveBeenCalledWith(
             req,
-            "http://gateway.test/api/v1/host/events/evt_1/submit",
+            "http://gateway.test/api/v1/partners/hosts/events/evt_1/submit",
             {
                 method: "POST",
                 body: JSON.stringify({

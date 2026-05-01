@@ -7,6 +7,8 @@ import { fetchGuestBffTicketsOverview } from "../../lib/bff/fetchers.js";
 import { logGuestBffParity } from "../../lib/bff/parity.js";
 import { EMPTY_TICKETS, normalizeTicketsWallet } from "./ticketsModel.js";
 
+export { EMPTY_TICKETS } from "./ticketsModel.js";
+
 const CACHE_TTL_MS = 2 * 60 * 1000;
 const TICKETS_ROOT_QUERY_KEY = ["guest", "tickets"];
 

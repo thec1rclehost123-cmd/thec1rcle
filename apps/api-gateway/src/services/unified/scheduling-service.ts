@@ -109,7 +109,35 @@ export class SchedulingService {
 
   async createSlot(ctx: PartnerContext, venueId: string, input: CreateSlotInput): Promise<VenueSlot> {
     const now = new Date();
-    const ref = await this.db.collection(SLOTS_COLLECTION).add({
+    let createdSlotId: string | null = null;
+
+    await this.db.runTransaction(async (txn) => {
+      const existingSnap = await txn.get(
+        this.db.collection(SLOTS_COLLECTION)
+          .where('venueId', '==', venueId)
+          .where('date', '==', input.date)
+          .limit(100)
+      );
+
+      for (const doc of existingSnap.docs) {
+        const d = doc.data() as Record<string, any>;
+        const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
+        if (!['open', 'requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
+
+        const existingStart = safeStr(d.requestedStartTime || d.startTime);
+        const existingEnd = safeStr(d.requestedEndTime || d.endTime);
+        if (!existingStart || !existingEnd) continue;
+        if (!timesOverlap(input.startTime, input.endTime, existingStart, existingEnd)) continue;
+
+        const err: any = new Error('Time slot conflict: another slot already covers this range');
+        err.statusCode = 409;
+        err.code = 'SLOT_CONFLICT';
+        throw err;
+      }
+
+      const ref = this.db.collection(SLOTS_COLLECTION).doc();
+      createdSlotId = ref.id;
+      txn.set(ref, {
         venueId,
         date: input.date,
         startTime: input.startTime,
@@ -127,13 +155,14 @@ export class SchedulingService {
         createdAt: now,
         updatedAt: now,
       });
+    });
 
     this.log.info(
-      { service: 'SchedulingService', method: 'createSlot', venueId, slotId: ref.id, status: input.status ?? 'open' },
+      { service: 'SchedulingService', method: 'createSlot', venueId, slotId: createdSlotId, status: input.status ?? 'open' },
       'Slot created'
     );
 
-    const doc = await ref.get();
+    const doc = await this.db.collection(SLOTS_COLLECTION).doc(createdSlotId!).get();
     return this.legacyDocToSlot(doc as any, venueId);
   }
 
@@ -145,28 +174,82 @@ export class SchedulingService {
     notes?: string
   ): Promise<VenueSlot | null> {
     const ref = this.db.collection(SLOTS_COLLECTION).doc(slotId);
-    const doc = await ref.get();
-    if (!doc.exists) return null;
-    if (safeStr(doc.data()?.venueId) !== venueId) return null;
+    let updatedSlot: VenueSlot | null = null;
 
-    const updates: Record<string, any> = { status, updatedAt: new Date() };
-    if (notes !== undefined) updates.notes = notes;
-    if (status === 'approved') updates.approvedBy = ctx.partnerId;
-    if (status === 'approved') {
-      updates.date = doc.data()?.requestedDate || doc.data()?.date || null;
-      updates.startTime = doc.data()?.requestedStartTime || doc.data()?.startTime || null;
-      updates.endTime = doc.data()?.requestedEndTime || doc.data()?.endTime || null;
-    }
+    await this.db.runTransaction(async (txn) => {
+      const doc = await txn.get(ref);
+      if (!doc.exists) return;
+      if (safeStr(doc.data()?.venueId) !== venueId) return;
 
-    await ref.update(updates);
+      const current = this.legacyDocToSlot(doc as any, venueId);
+      if (current.status === status) {
+        updatedSlot = current;
+        return;
+      }
+
+      const updates: Record<string, any> = { status, updatedAt: new Date() };
+      if (notes !== undefined) updates.notes = notes;
+
+      if (status === 'approved') {
+        const approvalDate = doc.data()?.requestedDate || doc.data()?.date || null;
+        const approvalStart = doc.data()?.requestedStartTime || doc.data()?.startTime || null;
+        const approvalEnd = doc.data()?.requestedEndTime || doc.data()?.endTime || null;
+        if (!approvalDate || !approvalStart || !approvalEnd) {
+          const err: any = new Error('Requested slot is missing a complete approval time range');
+          err.statusCode = 409;
+          err.code = 'INVALID_SLOT';
+          throw err;
+        }
+
+        const sameDaySnap = await txn.get(
+          this.db.collection(SLOTS_COLLECTION)
+            .where('venueId', '==', venueId)
+            .where('date', '==', approvalDate)
+            .limit(100)
+        );
+
+        for (const slotDoc of sameDaySnap.docs) {
+          if (slotDoc.id === slotId) continue;
+          const candidate = slotDoc.data() as Record<string, any>;
+          const candidateStatus = normalizeLegacyStatus(safeStr(candidate.status || candidate.slotStatus || 'open'));
+          if (!['approved', 'occupied', 'blocked'].includes(candidateStatus)) continue;
+
+          const candidateStart = safeStr(candidate.requestedStartTime || candidate.startTime);
+          const candidateEnd = safeStr(candidate.requestedEndTime || candidate.endTime);
+          if (!candidateStart || !candidateEnd) continue;
+          if (!timesOverlap(approvalStart, approvalEnd, candidateStart, candidateEnd)) continue;
+
+          const err: any = new Error('Time slot conflict: another event is already scheduled at this time');
+          err.statusCode = 409;
+          err.code = 'SLOT_CONFLICT';
+          throw err;
+        }
+
+        updates.approvedBy = ctx.partnerId;
+        updates.respondedAt = new Date();
+        updates.date = approvalDate;
+        updates.startTime = approvalStart;
+        updates.endTime = approvalEnd;
+      }
+
+      if (status === 'rejected') {
+        updates.rejectedBy = ctx.partnerId;
+        updates.respondedAt = new Date();
+      }
+
+      txn.update(ref, updates);
+      updatedSlot = this.legacyDocToSlot({
+        id: doc.id,
+        data: () => ({ ...(doc.data() || {}), ...updates }),
+      } as any, venueId);
+    });
 
     this.log.info(
       { service: 'SchedulingService', method: 'updateSlotStatus', venueId, slotId, newStatus: status },
       'Slot status updated'
     );
 
-    const updated = await ref.get();
-    return this.legacyDocToSlot(updated as any, venueId);
+    return updatedSlot;
   }
 
   // ── Slot requests (host → venue) ──────────────────────────────────────────
@@ -269,7 +352,7 @@ export class SchedulingService {
   }
 
   async rejectRequest(ctx: PartnerContext, venueId: string, slotId: string, notes?: string): Promise<VenueSlot | null> {
-    return this.updateSlotStatus(ctx, venueId, slotId, 'open', notes);
+    return this.updateSlotStatus(ctx, venueId, slotId, 'rejected', notes);
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
@@ -334,5 +417,6 @@ function normalizeLegacyStatus(raw: string): SlotStatus {
   if (s === 'approved' || s === 'confirmed') return 'approved';
   if (s === 'occupied' || s === 'booked' || s === 'active') return 'occupied';
   if (s === 'blocked' || s === 'closed') return 'blocked';
+  if (s === 'rejected' || s === 'declined') return 'rejected';
   return 'open';
 }

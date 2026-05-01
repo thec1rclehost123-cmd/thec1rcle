@@ -7,14 +7,14 @@ export async function GET(req: NextRequest) {
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", ctx.hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/partnerships?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/partnerships?${searchParams}`, {});
 }
 
 export async function PATCH(req: NextRequest) {
     const ctx = await requireHostAccess(req);
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => null);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/partnerships`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/partnerships`, {
         method: "PATCH",
         body: JSON.stringify({ hostId: ctx.hostId, ...body }),
     });

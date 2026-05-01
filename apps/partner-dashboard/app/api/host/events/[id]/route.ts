@@ -8,7 +8,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", ctx.hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/events/${id}?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/events/${id}?${searchParams}`, {});
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const ctx = await requireHostAccess(req, "MANAGE_EVENTS");
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => ({}));
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/events/${id}`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/events/${id}`, {
         method: "PATCH",
         body: JSON.stringify({ hostId: ctx.hostId, ...body }),
     });

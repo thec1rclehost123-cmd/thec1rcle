@@ -110,6 +110,7 @@ export const checkoutQuoteBodySchema = z.object({
 }).strict();
 
 export const checkoutReserveBodySchema = z.object({
+  admissionToken: z.string().max(256).optional(),
   deviceId: z.string().optional(),
   eventId: z.string().min(1),
   items: z.array(reservationItemSchema).min(1),

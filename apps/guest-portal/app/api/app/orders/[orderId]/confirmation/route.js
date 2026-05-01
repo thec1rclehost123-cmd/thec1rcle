@@ -1,10 +1,10 @@
-import { buildOrderConfirmationView } from "../../../../../../../lib/bff/orders.js";
+import { buildOrderConfirmationView } from "../../../../../../lib/bff/orders.js";
 import {
   confirmationDataSchema,
   confirmationParamsSchema,
   parseGuestBffInput,
-} from "../../../../../../../lib/bff/contracts.js";
-import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../../lib/bff/server.js";
+} from "../../../../../../lib/bff/contracts.js";
+import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../lib/bff/server.js";
 
 export const dynamic = "force-dynamic";
 

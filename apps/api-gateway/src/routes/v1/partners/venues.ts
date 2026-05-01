@@ -1,9 +1,11 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import { FinanceService } from '../../../services/unified/finance-service.js';
 import { VenueService } from '../../../services/unified/venue-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
+import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 
 const EventFiltersSchema = z.object({
   status: z.enum(['draft', 'pending_approval', 'approved', 'published', 'live', 'completed', 'cancelled']).optional(),
@@ -218,6 +220,7 @@ function slotRangesOverlap(aStart: string, aEnd: string, bStart: string, bEnd: s
 
 export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   const svcCtx = { db: fastify.db, log: fastify.log, redis: fastify.redis };
+  const financeService = new FinanceService(svcCtx);
   const venueService = new VenueService(svcCtx);
   const schedulingService = new SchedulingService(svcCtx);
 
@@ -983,6 +986,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const slotRequests = snap.docs.map((doc: any) => normalizeSlotRecord(doc)).sort((left: any, right: any) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
           return reply.send({ slotRequests, requests: slotRequests });
         }
+        if (rest === 'slots' && request.method === 'POST') {
+          const slot = await schedulingService.createSlot(ctx, ctx.partnerId, {
+            date: String(body.date || ''),
+            startTime: String(body.startTime || '00:00'),
+            endTime: String(body.endTime || '23:59'),
+            status: 'blocked',
+            notes: body.note || body.notes || body.reason || null,
+          });
+          return reply.status(201).send({ success: true, slot });
+        }
 
         const slotMatch = rest.match(/^slots\/([^/]+)$/);
         if (slotMatch && request.method === 'GET') {
@@ -1071,10 +1084,15 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
         if (rest === 'calendar' && request.method === 'POST') {
           const normalizedAction = String(body.action || body.type || '').toLowerCase();
-          const now = new Date().toISOString();
           if (normalizedAction === 'block') {
-            const blockRef = await fastify.db.collection('availability_slots').add({ venueId: ctx.partnerId, date: body.date, requestedDate: body.date, startTime: body.startTime || null, endTime: body.endTime || null, requestedStartTime: body.startTime || null, requestedEndTime: body.endTime || null, reason: body.reason, source: 'venue_block', status: 'blocked', createdAt: now, updatedAt: now });
-            return reply.send({ success: true, slotId: blockRef.id });
+            const slot = await schedulingService.createSlot(ctx, ctx.partnerId, {
+              date: String(body.date || ''),
+              startTime: String(body.startTime || '00:00'),
+              endTime: String(body.endTime || '23:59'),
+              status: 'blocked',
+              notes: body.note || body.notes || body.reason || null,
+            });
+            return reply.send({ success: true, slotId: slot.slotId, slot });
           }
           if (normalizedAction === 'unblock') {
             const batch = fastify.db.batch();
@@ -1224,19 +1242,43 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             const guestAction = guestActionMatch[2];
             const now = new Date().toISOString();
             const orderRef = fastify.db.collection('orders').doc(guestOrderId);
-            const orderDoc = await orderRef.get();
-            if (!orderDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Order not found', requestId: request.id }));
-            if (guestAction === 'check-in') {
-              await orderRef.update({ checkedInAt: now, checkedInBy: ctx.uid });
-              await fastify.db.collection('check_ins').add({ eventId: gopsEventId, orderId: guestOrderId, checkedInAt: now, checkedInBy: ctx.uid });
-            } else if (guestAction === 'flag') {
-              await orderRef.update({ flaggedAt: now, flagReason: String(body.reason || 'Flagged by venue staff'), flaggedBy: ctx.uid });
-            } else if (guestAction === 'deny') {
-              await orderRef.update({ deniedAt: now, denyReason: String(body.reason || 'Denied by venue staff'), deniedBy: ctx.uid });
-            } else if (guestAction === 're-entry') {
-              await orderRef.update({ reEntryAt: now, reEntryBy: ctx.uid, checkedInAt: null });
+            
+            try {
+              await fastify.db.runTransaction(async (tx: any) => {
+                const orderDoc = await tx.get(orderRef);
+                if (!orderDoc.exists) {
+                  const err: any = new Error('Order not found');
+                  err.statusCode = 404;
+                  throw err;
+                }
+                const order = orderDoc.data();
+
+                if (guestAction === 'check-in') {
+                  if (order.checkedInAt) {
+                    const err: any = new Error('Already checked in');
+                    err.statusCode = 409;
+                    throw err;
+                  }
+                  tx.update(orderRef, { checkedInAt: now, checkedInBy: ctx.uid });
+                  const checkInRef = fastify.db.collection('check_ins').doc(`${gopsEventId}_${guestOrderId}`);
+                  tx.set(checkInRef, { eventId: gopsEventId, orderId: guestOrderId, checkedInAt: now, checkedInBy: ctx.uid });
+                } else if (guestAction === 'flag') {
+                  tx.update(orderRef, { flaggedAt: now, flagReason: String(body.reason || 'Flagged by venue staff'), flaggedBy: ctx.uid });
+                } else if (guestAction === 'deny') {
+                  tx.update(orderRef, { deniedAt: now, denyReason: String(body.reason || 'Denied by venue staff'), deniedBy: ctx.uid });
+                } else if (guestAction === 're-entry') {
+                  tx.update(orderRef, { reEntryAt: now, reEntryBy: ctx.uid, checkedInAt: null });
+                  const checkInRef = fastify.db.collection('check_ins').doc(`${gopsEventId}_${guestOrderId}`);
+                  tx.delete(checkInRef);
+                }
+              });
+              return reply.send({ success: true });
+            } catch (err: any) {
+              if (err.statusCode) {
+                return reply.status(err.statusCode).send(buildErrorResponse({ code: err.statusCode === 409 ? 'CONFLICT' : 'NOT_FOUND', message: err.message, requestId: request.id }));
+              }
+              throw err;
             }
-            return reply.send({ success: true });
           }
 
           if (gopsPath === 'exceptions' && request.method === 'GET') {
@@ -1416,15 +1458,61 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         const financeBankMatch = rest === 'finance/bank-accounts';
         const financeDisputesMatch = rest === 'finance/disputes';
 
-        if ((financeOverviewMatch || rest === 'finance/venue-payouts') && request.method === 'GET') {
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          const [ordersSnap, payoutsSnap] = await Promise.all([
-            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+        if (financeOverviewMatch && request.method === 'GET') {
+          const [overview, balances, payoutsSnap, accountsSnap] = await Promise.all([
+            financeService.getOverview(ctx),
+            financeService.getBalances(ctx),
             fastify.db.collection('payouts').where('recipientId', '==', ctx.partnerId).where('recipientType', '==', 'venue').limit(10).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('bank_accounts').where('ownerId', '==', ctx.partnerId).where('ownerType', '==', 'venue').limit(1).get().catch(() => ({ empty: true, docs: [] as any[] })),
           ]);
-          const grossPaise = ((ordersSnap as any).docs || []).reduce((s: number, d: any) => s + (d.data().totalPaise || Math.round((d.data().amount || 0) * 100)), 0);
-          const pendingPayout = ((payoutsSnap as any).docs || []).filter((d: any) => d.data().status === 'pending').reduce((s: number, d: any) => s + (d.data().amountPaise || 0), 0);
-          return reply.send({ period: '30d', grossRevenuePaise: grossPaise, grossRevenue: grossPaise / 100, pendingPayoutPaise: pendingPayout, pendingPayout: pendingPayout / 100, recentPayouts: ((payoutsSnap as any).docs || []).slice(0, 5).map((d: any) => ({ id: d.id, ...d.data() })) });
+          const recentPayouts = ((payoutsSnap as any).docs || []).slice(0, 5).map((d: any) => ({ id: d.id, ...d.data() }));
+          const settledPayouts = recentPayouts
+            .filter((row: any) => ['completed', 'paid', 'cleared', 'settled'].includes(String(row.status || '').toLowerCase()))
+            .reduce((sum: number, row: any) => sum + toNumber(row.amount || row.amountPaise || 0), 0);
+          const payoutState = (accountsSnap as any).empty ? 'unconnected' : 'active';
+          return reply.send({
+            period: String(query.period || '30d'),
+            metrics: {
+              availableBalance: toNumber(balances.available),
+              pendingPayouts: toNumber(balances.pending),
+              settledPayouts,
+              totalRevenue: toNumber(overview.totalRevenue),
+              currency: overview.currency || 'INR',
+              payoutState,
+            },
+            grossRevenue: toNumber(overview.totalRevenue),
+            pendingPayout: toNumber(balances.pending),
+            recentPayouts,
+            revenueByPeriod: overview.revenueByPeriod || [],
+          });
+        }
+
+        if (rest === 'finance/venue-payouts' && request.method === 'GET') {
+          const [balances, payoutsSnap] = await Promise.all([
+            financeService.getBalances(ctx),
+            fastify.db.collection('payouts').where('recipientId', '==', ctx.partnerId).where('recipientType', '==', 'venue').limit(50).get().catch(() => ({ docs: [] as any[] })),
+          ]);
+          const history = ((payoutsSnap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              id: doc.id,
+              amountPaise: data.amountPaise || Math.round((toNumber(data.amount) || 0) * 100),
+              status: String(data.status || 'pending').toLowerCase(),
+              requestedAt: data.requestedAt || data.createdAt || null,
+              method: data.paymentMethod || null,
+              methodDetail: data.bankName || null,
+              eventName: data.eventName || null,
+              eventDate: data.eventDate || null,
+            };
+          });
+          history.sort((left: any, right: any) => new Date(right.requestedAt || 0).getTime() - new Date(left.requestedAt || 0).getTime());
+          return reply.send({
+            balance: {
+              withdrawablePaise: Math.round(toNumber(balances.available) * 100),
+              pendingSettlementPaise: Math.round(toNumber(balances.pending) * 100),
+            },
+            history,
+          });
         }
 
         if (financeLedgerMatch && request.method === 'GET') {
@@ -1457,9 +1545,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           return reply.send({ accounts: ((snap as any).docs || []).map((doc: any) => ({ id: doc.id, ...(doc.data() || {}), accountNumber: undefined })) });
         }
         if (financeBankMatch && request.method === 'POST') {
-          const now = new Date().toISOString();
-          const ref = await fastify.db.collection('bank_accounts').add({ ...body, ownerId: ctx.partnerId, ownerType: 'venue', verified: false, createdAt: now });
-          return reply.send({ success: true, id: ref.id });
+          const account = buildPayoutAccountRecord(body, { partnerId: ctx.partnerId, ownerType: 'venue' });
+          const ref = await fastify.db.collection('bank_accounts').add(account.record);
+          return reply.send({ success: true, id: ref.id, account: account.response(ref.id).account });
         }
         if (financeBankMatch && request.method === 'DELETE') {
           const accountId = String(query.accountId || '');

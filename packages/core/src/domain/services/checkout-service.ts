@@ -55,7 +55,11 @@ export class CheckoutService {
         workspaceId?: string | null,
         options?: { queueId?: string | null }
     }): Promise<any> {
-        console.log(`[Checkout] Reserving items for user ${params.userId} on event ${params.eventId}`);
+        telemetry.track("CHECKOUT_RESERVE_REQUESTED", {
+            eventId: params.eventId,
+            queueId: params.options?.queueId || null,
+            userId: params.userId,
+        });
         return this.inventory.reserve({
             ...params,
             queueId: params.options?.queueId
@@ -186,7 +190,11 @@ export class CheckoutService {
         }
     }): Promise<any> {
         const { orderId, razorpayOrderId, razorpayPaymentId, userId = null, paymentGatewayConfig } = params;
-        console.log(`[Checkout] Verifying payment ${razorpayPaymentId} for order ${orderId}`);
+        telemetry.track("CHECKOUT_PAYMENT_VERIFY_REQUESTED", {
+            orderId,
+            razorpayPaymentId,
+            userId,
+        });
 
         const paymentRecord = await this.orderRepo.getPaymentRecord(orderId, razorpayOrderId);
         if (!paymentRecord) {
@@ -335,7 +343,12 @@ export class CheckoutService {
      */
     async cancelOrder(params: any, options: any = {}) {
         const { order, event, cancelledBy, cancelledByType } = params;
-        console.log(`[Checkout] Cancelling order ${order.id} by ${cancelledBy}`);
+        telemetry.track("CHECKOUT_CANCEL_REQUESTED", {
+            cancelledBy,
+            cancelledByType,
+            eventId: event?.id || order?.eventId || null,
+            orderId: order.id,
+        });
         
         const result = await this.cancellation.cancel({
             ...params,

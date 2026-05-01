@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/settings?${searchParams.toString()}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/settings?${searchParams.toString()}`, {});
 }
 
 /**
@@ -31,7 +31,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json().catch(() => null);
     if (!body?.patch) return fail("patch required", 400);
 
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/settings`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/settings`, {
         method: "PATCH",
         body: JSON.stringify({ hostId, patch: body.patch }),
     });
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json().catch(() => null);
     if (!body) return fail("Request body required", 400);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/settings`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/settings`, {
         method: "POST",
         body: JSON.stringify({ hostId, ...body }),
     });

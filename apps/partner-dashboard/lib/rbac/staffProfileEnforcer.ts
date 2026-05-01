@@ -207,21 +207,6 @@ export async function requireVenueAccess(
                 };
             }
 
-            // Fallback 2: check users doc activeMembership (for other edge cases)
-            const userDoc = await db.collection("users").doc(user.uid).get();
-            const userData = userDoc.exists ? userDoc.data() : null;
-            if (userData?.activeMembership?.partnerId === venueId) {
-                return {
-                    uid: user.uid,
-                    venueId,
-                    membershipId: "owner-doc",
-                    baseRole: "OWNER",
-                    piiPolicy: OWNER_PII_POLICY,
-                    guestlistScope: "editable",
-                    eventScope: null,
-                    canDo: () => true,
-                };
-            }
             return buildAuthError(request, 403, "No active venue membership");
         }
 
@@ -287,20 +272,6 @@ export async function requireVenueAccess(
                 };
             }
 
-            const userDoc = await db.collection("users").doc(user.uid).get();
-            const userData = userDoc.exists ? userDoc.data() : null;
-            if (userData?.activeMembership?.partnerId === venueId) {
-                return {
-                    uid: user.uid,
-                    venueId,
-                    membershipId: "owner-doc-fallback",
-                    baseRole: "OWNER",
-                    piiPolicy: OWNER_PII_POLICY,
-                    guestlistScope: "editable",
-                    eventScope: null,
-                    canDo: () => true,
-                };
-            }
             return buildAuthError(request, 403, "Insufficient permissions");
         }
 

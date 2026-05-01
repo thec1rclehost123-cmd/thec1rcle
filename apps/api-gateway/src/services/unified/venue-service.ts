@@ -113,17 +113,33 @@ export class VenueService {
   // ── Guest Ops ─────────────────────────────────────────────────────────────
 
   async getGuestOps(ctx: PartnerContext, eventId: string): Promise<GuestOpsSummary> {
-    const eventDoc = await this.db.collection('events').doc(eventId).get();
-    if (!eventDoc.exists) {
-      return { eventId, totalGuests: 0, checkedIn: 0, pending: 0, denied: 0 };
-    }
-    const d = eventDoc.data() as Record<string, any>;
+    const [ordersSnap, checkInsSnap] = await Promise.all([
+      this.db.collection('orders').where('eventId', '==', eventId).get().catch((err) => {
+        this.log.error({ service: 'VenueService', method: 'getGuestOps', venueId: ctx.partnerId, eventId, collection: 'orders', error: err?.message ?? String(err) }, 'Guest orders query failed');
+        return { docs: [] as any[] };
+      }),
+      this.db.collection('check_ins').where('eventId', '==', eventId).get().catch((err) => {
+        this.log.error({ service: 'VenueService', method: 'getGuestOps', venueId: ctx.partnerId, eventId, collection: 'check_ins', error: err?.message ?? String(err) }, 'Guest check-ins query failed');
+        return { docs: [] as any[], size: 0 };
+      }),
+    ]);
+
+    const paidOrders = (ordersSnap as any).docs.filter((doc: any) => {
+      const status = String(doc.data()?.status || '').toLowerCase();
+      return ['paid', 'confirmed', 'completed'].includes(status);
+    });
+    const totalGuests = paidOrders.reduce((sum: number, doc: any) => sum + toNum(doc.data()?.ticketCount ?? 1), 0);
+    const denied = paidOrders.reduce((sum: number, doc: any) => (
+      doc.data()?.deniedAt ? sum + toNum(doc.data()?.ticketCount ?? 1) : sum
+    ), 0);
+    const checkedIn = (checkInsSnap as any).size ?? (checkInsSnap as any).docs?.length ?? 0;
+
     return {
       eventId,
-      totalGuests: toNum(d.capacity),
-      checkedIn: toNum(d.checkedInCount),
-      pending: toNum(d.pendingCount),
-      denied: toNum(d.deniedCount),
+      totalGuests,
+      checkedIn,
+      pending: Math.max(0, totalGuests - checkedIn - denied),
+      denied,
     };
   }
 

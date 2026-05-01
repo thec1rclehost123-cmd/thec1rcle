@@ -7,5 +7,5 @@ export async function GET(req: NextRequest) {
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("venueId", ctx.venueId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/finance/disputes?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/venues/finance/disputes?${searchParams}`, {});
 }

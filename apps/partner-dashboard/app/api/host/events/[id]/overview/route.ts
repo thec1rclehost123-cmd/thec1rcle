@@ -8,5 +8,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", ctx.hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/events/${id}/overview?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/events/${id}/overview?${searchParams}`, {});
 }

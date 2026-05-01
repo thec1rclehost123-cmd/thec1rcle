@@ -30,5 +30,9 @@ export async function GET(req: NextRequest) {
     if ("error" in ctx) return authError(req, ctx.status, ctx.error);
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", ctx.hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/overview?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/overview?${searchParams}`, {
+        headers: {
+            'x-workspace-id': ctx.hostId
+        }
+    });
 }

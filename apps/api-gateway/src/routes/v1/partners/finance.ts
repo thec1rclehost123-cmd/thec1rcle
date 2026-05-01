@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { resolvePartnerContext } from '../../../lib/partner-context.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
+import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 
 const LedgerQuerySchema = z.object({
   from: z.string().optional(),
@@ -133,17 +134,6 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
   };
 
   const createBankAccount = async (partnerId: string, body: Record<string, any>) => {
-    const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
-    const rawNumber = paymentType === 'debit_card'
-      ? String(body.cardNumber || '').trim()
-      : String(body.accountNumber || '').trim();
-    if (!rawNumber) {
-      const err: any = new Error('Account number or card number required');
-      err.statusCode = 400;
-      err.code = 'BAD_REQUEST';
-      throw err;
-    }
-
     if (body.isDefault) {
       const existing = await fastify.db.collection('bank_accounts')
         .where('partnerId', '==', partnerId)
@@ -158,32 +148,9 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const last4 = rawNumber.slice(-4);
-    const now = new Date().toISOString();
-    const ref = await fastify.db.collection('bank_accounts').add({
-      partnerId,
-      paymentType,
-      accountHolderName: body.accountHolderName || body.cardHolderName || '',
-      bankName: body.bankName || body.cardBrand || 'Bank Account',
-      ifscCode: body.ifscCode || null,
-      accountNumber: paymentType === 'bank_account' ? rawNumber : null,
-      cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
-      cardLast4: paymentType === 'debit_card' ? last4 : null,
-      last4,
-      isDefault: body.isDefault !== false,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    return {
-      account: {
-        id: ref.id,
-        bankName: body.bankName || body.cardBrand || 'Bank Account',
-        last4,
-        isDefault: body.isDefault !== false,
-        paymentType,
-      },
-    };
+    const account = buildPayoutAccountRecord(body, { partnerId, ownerType: 'promoter' });
+    const ref = await fastify.db.collection('bank_accounts').add(account.record);
+    return account.response(ref.id);
   };
 
   const deleteBankAccount = async (partnerId: string, accountId: string) => {
@@ -315,10 +282,7 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
     if (!ctx) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'No partner identity found', requestId: request.id }));
 
     try {
-      const now = new Date();
-      const { accountNumber, ifscCode, bankName, accountHolderName, isDefault } = request.body;
-
-      if (isDefault) {
+      if (request.body.isDefault) {
         const existing = await fastify.db
           .collection('bank_accounts')
           .where('partnerId', '==', ctx.partnerId)
@@ -334,28 +298,15 @@ export default async function partnersFinanceRoutes(fastify: FastifyInstance) {
         }
       }
 
-      const ref = await fastify.db.collection('bank_accounts').add({
-        partnerId: ctx.partnerId,
-        accountNumber,
-        last4: String(accountNumber).slice(-4),
-        ifscCode,
-        bankName,
-        accountHolderName,
-        isDefault: isDefault ?? false,
-        paymentType: 'bank_account',
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      const doc = await ref.get();
-      const d = doc.data() as Record<string, any>;
+      const account = buildPayoutAccountRecord(request.body, { partnerId: ctx.partnerId, ownerType: ctx.type });
+      const ref = await fastify.db.collection('bank_accounts').add(account.record);
       return reply.status(201).send({
         account: {
-          accountId: doc.id,
-          last4: String(d.last4),
-          bankName: String(d.bankName),
-          isDefault: Boolean(d.isDefault),
-          paymentType: 'bank_account',
+          accountId: ref.id,
+          last4: account.last4,
+          bankName: account.bankName,
+          isDefault: account.isDefault,
+          paymentType: account.paymentType,
         },
       });
     } catch (err: any) {

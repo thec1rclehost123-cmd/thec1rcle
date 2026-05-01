@@ -15,12 +15,14 @@ import {
   buildInitiateCheckoutPayload,
   buildPromoValidationPayload,
   buildReserveCheckoutPayload,
+  clearAdmissionToken,
   createCheckoutActionId,
   deriveCheckoutConstraints,
   getPromoterCodeFromSearch,
   getReservationItemsSignature,
   isReservationActive,
   mergeAttendeeDetails,
+  readAdmissionToken,
   shouldReserveBeforeCheckout,
   shouldUseSavedReservationQuote,
 } from "../utils/checkoutSessionModel";
@@ -36,7 +38,7 @@ import { useRazorpayCheckout } from "./useRazorpayCheckout";
 
 const PENDING_ORDER_STORAGE_KEY = "c1rcle_checkout_pending_order";
 const PENDING_ORDER_TTL_MS = 30 * 60 * 1000;
-const QUOTE_REUSE_WINDOW_MS = 3_000;
+const QUOTE_REUSE_WINDOW_MS = 30_000;
 
 function readPendingOrderSnapshot() {
   if (typeof window === "undefined") return null;
@@ -114,6 +116,15 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
     userId: user?.uid || null,
   });
 
+  const clearCheckoutAdmissionToken = useCallback(() => {
+    clearAdmissionToken(event?.id);
+  }, [event?.id]);
+
+  const clearCheckoutReservation = useCallback(() => {
+    clearPersistedReservation();
+    clearCheckoutAdmissionToken();
+  }, [clearCheckoutAdmissionToken, clearPersistedReservation]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const ref = getPromoterCodeFromSearch(window.location.search);
@@ -166,14 +177,14 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
 
   const finishSuccessfulCheckout = useCallback((orderId) => {
     persistPendingOrder(orderId);
-    clearPersistedReservation();
+    clearCheckoutReservation();
     setProcessingState("issuing");
     setIsSuccess(true);
     router.prefetch("/tickets");
     redirectTimeoutRef.current = window.setTimeout(() => {
       router.push(`/confirmation/${orderId}`);
     }, 4000);
-  }, [clearPersistedReservation, persistPendingOrder, router]);
+  }, [clearCheckoutReservation, persistPendingOrder, router]);
 
   const resolveFinalOrderState = useCallback(async (orderId = null) => {
     const targetOrderId = orderId || readCurrentPendingOrderId();
@@ -205,7 +216,7 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
     setAttendeeDetails(mergeAttendeeDetails({ name: "", email: "", phone: "" }, user, profile));
 
     if (previousUserId && previousUserId !== nextUserId) {
-      clearPersistedReservation();
+      clearCheckoutReservation();
       clearPendingOrder();
       checkoutActionIdRef.current = null;
       paymentInFlightRef.current = false;
@@ -218,7 +229,7 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
       setStep(1);
       setError("Your session changed. Please review checkout again.");
     }
-  }, [clearPendingOrder, clearPersistedReservation, profile, user]);
+  }, [clearCheckoutReservation, clearPendingOrder, profile, user]);
 
   const selectedTicketSignature = useMemo(
     () => getReservationItemsSignature(selectedTickets),
@@ -434,13 +445,13 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
   }, []);
 
   const handleCartExpired = useCallback(() => {
-    clearPersistedReservation();
+    clearCheckoutReservation();
     setSelectedTickets([]);
     setError("Your cart reservation has expired. Please select tickets again.");
     setCheckoutQuote(null);
     setPricingResult(null);
     setStep(1);
-  }, [clearPersistedReservation]);
+  }, [clearCheckoutReservation]);
 
   const totalSelectedQuantity = useMemo(() => {
     return selectedTickets.reduce((sum, ticket) => sum + Number(ticket.quantity), 0);
@@ -621,8 +632,10 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
       let nextReservation = quoteReservation;
       if (shouldReserveBeforeCheckout({ cartReservation: nextReservation, eventId: event.id, selectedTickets })) {
         setProcessingState("reserving");
+        const admissionToken = readAdmissionToken(event.id);
         const reserveData = await reserveCheckoutInventory(
           buildReserveCheckoutPayload({
+            admissionToken,
             eventId: event.id,
             selectedTickets,
             userUid: user?.uid,
@@ -708,7 +721,7 @@ export function useCheckoutSession({ event, initialSummary = null, initialTicket
     canProceedStep2,
     canSubmitCheckout,
     cartReservation,
-    clearPersistedReservation,
+    clearPersistedReservation: clearCheckoutReservation,
     displayFees,
     displaySubtotal,
     displayTiers,

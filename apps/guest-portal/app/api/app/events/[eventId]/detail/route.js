@@ -1,10 +1,10 @@
-import { buildEventDetailView } from "../../../../../../../lib/bff/events.js";
+import { buildEventDetailView } from "../../../../../../lib/bff/events.js";
 import {
   eventDetailDataSchema,
   eventDetailParamsSchema,
   parseGuestBffInput,
-} from "../../../../../../../lib/bff/contracts.js";
-import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../../lib/bff/server.js";
+} from "../../../../../../lib/bff/contracts.js";
+import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../../lib/bff/server.js";
 
 export const dynamic = "force-dynamic";
 

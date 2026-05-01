@@ -92,6 +92,17 @@ function buildDbMock() {
 async function buildServer() {
     const server = Fastify({ logger: false });
     const checkoutService = {
+        reserveItems: vi.fn(async ({ eventId, items, userId, deviceId, options, workspaceId }: any) => ({
+            reservationId: 'res_1',
+            eventId,
+            items,
+            userId,
+            deviceId,
+            queueId: options?.queueId || null,
+            workspaceId: workspaceId || null,
+            status: 'active',
+            expiresAt: '2099-01-01T21:00:00.000Z',
+        })),
         validatePricing: vi.fn(async () => ({
             success: true,
             pricing: {
@@ -160,6 +171,10 @@ async function buildServer() {
         set: vi.fn(async () => undefined),
         delete: vi.fn(async () => undefined),
     } as any);
+    server.decorate('requireAuth', async (request: any, reply: any) => {
+        if (request.user?.uid) return;
+        return reply.status(401).send({ success: false, error: 'Unauthorized' });
+    });
     server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
     server.decorate('checkoutService', checkoutService as any);
     server.decorate('orderRepo', orderRepo as any);
@@ -215,6 +230,40 @@ describe('GP-4 gateway checkout/payment routes', () => {
             null
         );
         expect(checkoutService.preparePayment).toHaveBeenCalledWith('ord_1', 'user_1', expect.any(Object));
+
+        await server.close();
+    });
+
+    it('POST /api/v1/checkout/reserve forwards admissionToken-derived queueId to the shared checkout service', async () => {
+        const { server, checkoutService } = await buildServer();
+
+        const response = await server.inject({
+            method: 'POST',
+            url: '/api/v1/checkout/reserve',
+            headers: { authorization: 'Bearer test-token' },
+            payload: {
+                eventId: 'event_1',
+                items: [{ tierId: 'tier_1', quantity: 2 }],
+                deviceId: 'browser-user_1',
+                admissionToken: 'event_1:user_1:queue_123:signature',
+            },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toMatchObject({
+            reservationId: 'res_1',
+            eventId: 'event_1',
+            queueId: 'queue_123',
+            status: 'active',
+        });
+        expect(checkoutService.reserveItems).toHaveBeenCalledWith({
+            eventId: 'event_1',
+            userId: 'user_1',
+            deviceId: 'browser-user_1',
+            items: [{ tierId: 'tier_1', quantity: 2 }],
+            workspaceId: null,
+            options: { queueId: 'queue_123' },
+        });
 
         await server.close();
     });
@@ -438,8 +487,9 @@ describe('GP-4 gateway checkout/payment routes', () => {
         await server.close();
     });
 
-    it('PATCH /api/v1/payments/verify rejects mock payment payloads unless explicitly enabled', async () => {
+    it('PATCH /api/v1/payments/verify rejects mock payment payloads in production', async () => {
         const { server, checkoutService } = await buildServer();
+        process.env.NODE_ENV = 'production';
 
         const response = await server.inject({
             method: 'PATCH',
@@ -454,7 +504,9 @@ describe('GP-4 gateway checkout/payment routes', () => {
         });
 
         expect(response.statusCode).toBe(400);
-        expect(response.json()).toMatchObject({ error: 'Mock payments are disabled' });
+        expect(response.json()).toMatchObject({
+            error: expect.objectContaining({ message: 'Mock payments are disabled' }),
+        });
         expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
 
         await server.close();
@@ -477,7 +529,9 @@ describe('GP-4 gateway checkout/payment routes', () => {
         });
 
         expect(response.statusCode).toBe(500);
-        expect(response.json()).toMatchObject({ error: 'Payment verification is not configured' });
+        expect(response.json()).toMatchObject({
+            error: expect.objectContaining({ message: 'Payment verification is not configured' }),
+        });
         expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
 
         await server.close();

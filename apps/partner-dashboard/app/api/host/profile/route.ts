@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
     searchParams.set("hostId", ctx.hostId);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/profile?${searchParams}`, {});
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/profile?${searchParams}`, {});
 }
 
 export async function PATCH(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function PATCH(req: NextRequest) {
     if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const body = await req.json().catch(() => null);
     if (!body) return fail("Request body required", 400);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/host/profile`, {
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/profile`, {
         method: "PATCH",
         body: JSON.stringify({ hostId: ctx.hostId, patch: body }),
     });

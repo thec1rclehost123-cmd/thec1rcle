@@ -1224,15 +1224,44 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         if (codeSnap.empty || codeSnap.docs[0].data().isRevoked)
             return reply.status(403).send({ error: 'Invalid event code' });
 
+        const orderRef = fastify.db.collection('orders').doc(orderId);
+        const scanDocId = `${orderId}_manual`;
+        const scanRef = fastify.db.collection('ticket_scans').doc(scanDocId);
+        let alreadyCheckedIn = false;
+
+        await fastify.db.runTransaction(async (tx: any) => {
+            const orderDoc = await tx.get(orderRef);
+            if (!orderDoc.exists) throw new Error('Order not found');
+            const order = orderDoc.data();
+            
+            if (order.status === 'checked_in') {
+                alreadyCheckedIn = true;
+                return;
+            }
+
+            const now = new Date().toISOString();
+            tx.update(orderRef, {
+                status: 'checked_in',
+                checkedInAt: now,
+                checkInSource: 'manual_guestlist'
+            });
+
+            tx.set(scanRef, {
+                orderId,
+                eventId,
+                result: 'valid',
+                scannedBy: { uid: `scanner_${eventCode}`, name: 'Manual Guestlist', role: 'door_staff' },
+                device: { id: 'guestlist', bound: false },
+                scannedAt: now,
+                createdAt: now
+            });
+        });
+
+        if (alreadyCheckedIn) {
+            return reply.status(400).send({ error: 'Guest already checked in', success: false });
+        }
+
         const now = new Date().toISOString();
-        await fastify.db.collection('orders').doc(orderId).update({
-            status: 'checked_in', checkedInAt: now, checkInSource: 'manual_guestlist'
-        });
-        await recordScanAttempt(fastify.db, {
-            orderId, eventId, result: 'valid',
-            scannedBy: { uid: `scanner_${eventCode}`, name: 'Manual Guestlist', role: 'door_staff' },
-            device: { id: 'guestlist', bound: false }
-        });
         await Promise.allSettled([
             updateScannerSummary(fastify.db, eventId, auth.codeData?.venueId || null, {
                 checkedIn: 1,
