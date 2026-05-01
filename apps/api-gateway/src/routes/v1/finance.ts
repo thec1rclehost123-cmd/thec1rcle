@@ -609,7 +609,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             await fastify.verifyPartnerAccess(request, entityId);
             const snap = await fastify.db.collection('payouts')
                 .where('partnerId', '==', entityId)
-                .limit(100)
+                .limit(limit + 1)
                 .get();
 
             const payouts = snap.docs.map(doc => {
@@ -631,8 +631,9 @@ export default async function financeRoutes(fastify: FastifyInstance) {
                 return dateB - dateA;
             });
 
+            const hasMore = payouts.length > limit;
             const sliced = payouts.slice(0, limit);
-            return { payouts: sliced, hasMore: payouts.length >= limit };
+            return { payouts: sliced, hasMore };
         } catch (error: any) {
             return { payouts: [], hasMore: false };
         }
@@ -664,7 +665,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
             // Build base query on payout_requests
             let q: FirebaseFirestore.Query = db.collection('payout_requests')
                 .where('venueId', '==', entityId)
-                .limit(200);
+                .limit(limit + 1);
 
             // Cursor-based pagination
             if (cursor) {
@@ -684,8 +685,8 @@ export default async function financeRoutes(fastify: FastifyInstance) {
                 return dateB - dateA;
             });
 
-            const docs = allDocs.slice(0, limit);
             const hasMore = allDocs.length > limit;
+            const docs = allDocs.slice(0, limit);
 
             const history = docs.map((d: any) => {
                 return {

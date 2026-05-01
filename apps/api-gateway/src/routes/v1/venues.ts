@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { getAdminStorage } from '@c1rcle/core/admin';
 
 const VenueIdQuery = z.object({ venueId: z.string() });
+const VenueCrmQuery = z.object({ venueId: z.string(), limit: z.string().optional().default('50'), cursor: z.string().optional() });
 const VenueProfilePatch = z.object({ venueId: z.string(), patch: z.record(z.string(), z.any()) });
 const VenueOrdersQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional(), status: z.string().optional() });
 const VenueFinanceQuery = z.object({ venueId: z.string(), limit: z.string().optional(), cursor: z.string().optional() });
@@ -461,19 +462,27 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     });
 
     fastify.get('/venue/crm/online', {
-        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueCrmQuery })]
     }, async (request: any, reply) => {
-        const { venueId } = request.query as any;
+        const { venueId, limit: limitStr, cursor } = request.query as any;
+        const pageSize = Math.min(parseInt(limitStr) || 50, 100);
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         try {
-            // Fetch attendees who have a profile for this venue
-            const snap = await fastify.db.collection('attendees')
+            let q: any = fastify.db.collection('attendees')
                 .where('venueId', '==', venueId)
-                .limit(1000)
-                .get();
+                .limit(pageSize + 1);
 
-            const customers = snap.docs.map(doc => {
+            if (cursor) {
+                const cursorDoc = await fastify.db.collection('attendees').doc(cursor).get();
+                if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+            }
+
+            const snap = await q.get();
+            const docs = snap.docs.slice(0, pageSize);
+            const hasMore = snap.docs.length > pageSize;
+
+            const customers = docs.map((doc: any) => {
                 const d = doc.data();
                 return {
                     id: doc.id,
@@ -488,9 +497,9 @@ export default async function venueRoutes(fastify: FastifyInstance) {
                 };
             });
 
-            return { customers };
+            return { customers, hasMore, nextCursor: hasMore ? docs[docs.length - 1].id : null };
         } catch (error: any) {
-            return { customers: [] };
+            return { customers: [], hasMore: false };
         }
     });
 

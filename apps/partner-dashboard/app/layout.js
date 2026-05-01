@@ -6,8 +6,6 @@ import { QueryProvider } from "../components/providers/QueryProvider";
 import { WebVitals } from "../components/WebVitals";
 import { ErrorBoundary } from "../components/ErrorBoundary";
 
-export const dynamic = "force-dynamic";
-
 export const metadata = {
   title: {
     default: "THE C1RCLE | Partner Dashboard",

@@ -73,7 +73,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         const { status } = request.query;
         let q: any = fastify.db.collection(COL).where('promoterId', '==', promoterId);
         if (status) q = q.where('status', '==', status);
-        const snap = await q.get();
+        const snap = await q.limit(100).get();
         return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     });
 
@@ -87,7 +87,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         let q: any = fastify.db.collection(COL).where('targetId', '==', targetId);
         if (role) q = q.where('targetType', '==', role);
         if (status) q = q.where('status', '==', status);
-        const snap = await q.get();
+        const snap = await q.limit(100).get();
         return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     });
 
