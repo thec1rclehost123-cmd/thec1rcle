@@ -2,17 +2,20 @@
  * Staff Profile Enforcer — server-side middleware helper
  * Venue Dashboard v2 — Feature 1
  *
+ * Delegates base token + membership resolution to requirePartnerAccess,
+ * then layers on fine-grained venue RBAC via resolveEffectiveProfile.
+ *
  * Usage in API routes:
  *   const ctx = await requireVenueAccess(request, "events:create");
  *   if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
  */
 
-import { NextResponse } from "next/server";
 import { verifyAuth } from "../server/auth";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { requirePartnerAccess, buildPartnerAuthError } from "../server/partnerAuthMiddleware";
 import { resolveEffectiveProfile } from "../server/staffProfileStore";
 import type { StaffAction, PIIPolicy } from "../types/staffProfile";
-import { DEFAULT_PII_POLICY, OWNER_PII_POLICY } from "../types/staffProfile";
+import { OWNER_PII_POLICY } from "../types/staffProfile";
 
 type LegacyStaffAction =
     | "manage_calendar"
@@ -25,20 +28,14 @@ type LegacyStaffAction =
     | "manage_staff";
 
 const LEGACY_STAFF_ACTION_ALIASES: Record<LegacyStaffAction, StaffAction[]> = {
-    manage_calendar: ["calendar:block_slot", "calendar:unblock_slot", "calendar:approve_host_request"],
-    manage_events: ["events:create", "events:edit", "events:cancel", "events:duplicate", "events:approve_requests"],
-    view_analytics: ["analytics:read"],
-    view_financials: [
-        "finance:read_overview",
-        "finance:read_ledger",
-        "finance:read_payouts",
-        "finance:read_host_payouts",
-        "finance:read_promoter_payouts",
-    ],
-    manage_financials: ["finance:initiate_payout", "settings:edit"],
-    manage_orders: ["orders_resendReceipt", "orders_refund", "orders_refundResell"],
+    manage_calendar:  ["calendar:block_slot", "calendar:unblock_slot", "calendar:approve_host_request"],
+    manage_events:    ["events:create", "events:edit", "events:cancel", "events:duplicate", "events:approve_requests"],
+    view_analytics:   ["analytics:read"],
+    view_financials:  ["finance:read_overview", "finance:read_ledger", "finance:read_payouts", "finance:read_host_payouts", "finance:read_promoter_payouts"],
+    manage_financials:["finance:initiate_payout", "settings:edit"],
+    manage_orders:    ["orders_resendReceipt", "orders_refund", "orders_refundResell"],
     manage_promoters: ["events:edit"],
-    manage_staff: ["staff:invite", "staff:edit_profiles", "staff:revoke"],
+    manage_staff:     ["staff:invite", "staff:edit_profiles", "staff:revoke"],
 };
 
 export interface VenueAuthContext {
@@ -53,60 +50,37 @@ export interface VenueAuthContext {
 }
 
 export interface VenueAuthError {
-    error: {
-        code: string;
-        message: string;
-        requestId: string;
-    };
+    error: { code: string; message: string; requestId: string };
     status: number;
 }
 
-function buildAuthError(request: Request, status: number, message: string): VenueAuthError {
-    const code =
-        status === 401 ? "UNAUTHORIZED"
-        : status === 403 ? "FORBIDDEN"
-        : status === 404 ? "NOT_FOUND"
-        : status >= 500 ? "INTERNAL_ERROR"
-        : "BAD_REQUEST";
-
+function ownerContext(uid: string, venueId: string, membershipId: string): VenueAuthContext {
     return {
-        error: {
-            code,
-            message,
-            requestId: request.headers.get("x-request-id") || crypto.randomUUID(),
-        },
-        status,
+        uid, venueId, membershipId,
+        baseRole: "OWNER",
+        piiPolicy: OWNER_PII_POLICY,
+        guestlistScope: "editable",
+        eventScope: null,
+        canDo: () => true,
     };
 }
 
-/** Elevated roles that bypass all custom profile restrictions */
-const BYPASS_ROLES = new Set(["OWNER"]);
-
-// P1: 15s TTL balances performance vs. permission propagation delay.
-// The BFF runs as serverless (Vercel) — each instance is short-lived, so in-memory
-// LRU is the correct strategy here. Cross-instance consistency is handled by the
-// API gateway's Redis-backed HybridCache for routes that go through Fastify.
+// ── Size-bounded LRU cache (15s TTL) ─────────────────────────────────────────
+// BFF runs serverless — each instance is short-lived, so in-memory LRU is correct.
+// Cross-instance consistency is handled by the API gateway's Redis-backed HybridCache.
 const ACCESS_CACHE_TTL_MS = 15_000;
 const ACCESS_CACHE_MAX = 500;
 
-/** P0-5: Size-bounded LRU cache replacing unbounded Map.
- *  Uses JS Map insertion-order guarantee — evicts oldest entry when full.
- *  P1: Retained as L1 cache for BFF; API gateway uses Redis L2. */
 class BoundedCache<V> {
-  private map = new Map<string, V>();
-  constructor(private max: number) {}
-  get(key: string) { return this.map.get(key); }
-  set(key: string, val: V) {
-    // Delete first so re-insertion moves key to newest position
-    this.map.delete(key);
-    if (this.map.size >= this.max) {
-      const oldest = this.map.keys().next().value!;
-      this.map.delete(oldest);
+    private map = new Map<string, V>();
+    constructor(private max: number) {}
+    get(key: string) { return this.map.get(key); }
+    set(key: string, val: V) {
+        this.map.delete(key);
+        if (this.map.size >= this.max) this.map.delete(this.map.keys().next().value!);
+        this.map.set(key, val);
     }
-    this.map.set(key, val);
-  }
-  /** Clear all entries — used when a membership change is detected */
-  clear() { this.map.clear(); }
+    clear() { this.map.clear(); }
 }
 
 const accessCache = new BoundedCache<{ ctx: VenueAuthContext; expiresAt: number }>(ACCESS_CACHE_MAX);
@@ -116,8 +90,17 @@ export async function requireVenueAccess(
     requiredAction?: StaffAction | LegacyStaffAction
 ): Promise<VenueAuthContext | VenueAuthError> {
     try {
+        if (!isFirebaseConfigured()) {
+            return buildPartnerAuthError(request as any, 503,
+                process.env.NODE_ENV === "development"
+                    ? "Service unavailable: Firebase Admin is in Toy Mode (missing credentials). Check your terminal console for details."
+                    : "Service temporarily unavailable"
+            );
+        }
+
+        // Fast token decode (local, no network) — needed to build the cache key
         const user = await verifyAuth(request);
-        if (!user) return buildAuthError(request, 401, "Unauthorized");
+        if (!user) return buildPartnerAuthError(request as any, 401, "Unauthorized");
 
         const { searchParams } = new URL(request.url);
         const venueId =
@@ -130,113 +113,29 @@ export async function requireVenueAccess(
             null;
 
         if (!venueId || venueId === "null" || venueId === "undefined") {
-            return buildAuthError(request, 400, "partnerId (venue/host) required");
+            return buildPartnerAuthError(request as any, 400, "partnerId (venue/host) required");
         }
 
-        // Short-circuit if we have a warm cache entry (skips all Firestore reads)
+        // LRU cache short-circuit — skips all Firestore reads for repeat calls within 15s
         if (!requiredAction) {
-            const cacheKey = `${user.uid}:${venueId}`;
-            const hit = accessCache.get(cacheKey);
+            const hit = accessCache.get(`${user.uid}:${venueId}`);
             if (hit && hit.expiresAt > Date.now()) return hit.ctx;
         }
 
-        if (!isFirebaseConfigured()) {
-            return buildAuthError(request, 503, "Service unavailable: Firebase not configured");
-        }
+        // Delegate base auth to the unified resolver (token + memberships + fallbacks)
+        const base = await requirePartnerAccess(request as any, { type: "venue", explicitPartnerId: venueId });
+        if ("error" in base) return base;
 
-        // Owners have JWT claims (partnerId/partnerRole) but no partner_memberships doc
-        const claimsPartnerId = (user as any).partnerId;
-        const claimsRole = ((user as any).partnerRole || "").toUpperCase();
-        if (claimsPartnerId === venueId && claimsRole === "OWNER") {
-            return {
-                uid: user.uid,
-                venueId,
-                membershipId: "owner-claims",
-                baseRole: "OWNER",
-                piiPolicy: OWNER_PII_POLICY,
-                guestlistScope: "editable",
-                eventScope: null,
-                canDo: () => true,
-            };
-        }
+        // OWNER path — no profile resolution needed
+        if (base.role === "OWNER") return ownerContext(base.uid, venueId, base.membershipId);
 
-        const db = getAdminDb();
-        if (!db) {
-            console.error("[RBAC Enforcer] Database instance is null (Toy Mode). Check your FIREBASE_* environment variables.");
-            return { 
-                ...buildAuthError(
-                    request,
-                    503,
-                    process.env.NODE_ENV === "development" 
-                    ? "Service unavailable: Firebase Admin is in Toy Mode (missing credentials). Check your terminal console for details." 
-                    : "Service temporarily unavailable"
-                ),
-            };
-        }
-
-        // Find active membership for this user + partnerId
-        const snap = await db
-            .collection("partner_memberships")
-            .where("uid", "==", user.uid)
-            .where("partnerId", "==", venueId)
-            .where("partnerType", "==", "venue")
-            .where("isActive", "==", true)
-            .limit(1)
-            .get();
-
-        if (snap.empty) {
-            // Fallback 1: check direct ownership (for owners without memberships)
-            const [venueDoc, hostDoc] = await Promise.all([
-                db.collection("venues").doc(venueId).get(),
-                db.collection("hosts").doc(venueId).get(),
-            ]);
-
-            if (
-                (venueDoc.exists && venueDoc.data()?.ownerId === user.uid) ||
-                (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)
-            ) {
-                return {
-                    uid: user.uid,
-                    venueId,
-                    membershipId: "owner-direct",
-                    baseRole: "OWNER",
-                    piiPolicy: OWNER_PII_POLICY,
-                    guestlistScope: "editable",
-                    eventScope: null,
-                    canDo: () => true,
-                };
-            }
-
-            return buildAuthError(request, 403, "No active venue membership");
-        }
-
-        const memberDoc = snap.docs[0];
-        const membershipId = memberDoc.id;
-        const baseRole = String(memberDoc.data()?.role || "").toUpperCase();
-
-        // OWNER bypasses everything
-        if (BYPASS_ROLES.has(baseRole)) {
-            return {
-                uid: user.uid,
-                venueId,
-                membershipId,
-                baseRole,
-                piiPolicy: OWNER_PII_POLICY,
-                guestlistScope: "editable",
-                eventScope: null,
-                canDo: () => true,
-            };
-        }
-
-        // Resolve effective profile
-        const effective = await resolveEffectiveProfile(venueId, membershipId);
+        // Staff path — resolve fine-grained effective profile
+        const effective = await resolveEffectiveProfile(venueId, base.membershipId);
 
         const rawCanDo = (action: StaffAction): boolean => {
-            // MANAGER has broad defaults — only deny if explicit false
             const normalizedRole = String(effective.baseRole || "").toUpperCase();
-            if (normalizedRole === "MANAGER") {
-                return effective.actionPermissions[action] !== false;
-            }
+            // MANAGER has broad defaults — only deny if explicitly false
+            if (normalizedRole === "MANAGER") return effective.actionPermissions[action] !== false;
             return effective.actionPermissions[action] === true;
         };
 
@@ -244,67 +143,47 @@ export async function requireVenueAccess(
             const aliases = action in LEGACY_STAFF_ACTION_ALIASES
                 ? LEGACY_STAFF_ACTION_ALIASES[action as LegacyStaffAction]
                 : [];
-            const candidates = [action as StaffAction, ...aliases];
-            return candidates.some((candidate) => rawCanDo(candidate));
+            return [action as StaffAction, ...aliases].some(rawCanDo);
         };
 
         if (requiredAction && !canDo(requiredAction)) {
-            // Last-resort owner check: a stale/wrong-role partner_memberships entry may exist
-            // or a users doc activeMembership, or direct ownership of the venue itself.
+            // Last-resort: a stale membership doc with wrong role may exist — check direct ownership
+            const db = getAdminDb();
             const [venueDoc, hostDoc] = await Promise.all([
                 db.collection("venues").doc(venueId).get(),
                 db.collection("hosts").doc(venueId).get(),
             ]);
-
-            if (
-                (venueDoc.exists && venueDoc.data()?.ownerId === user.uid) ||
-                (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)
-            ) {
-                return {
-                    uid: user.uid,
-                    venueId,
-                    membershipId: "owner-direct-fallback",
-                    baseRole: "OWNER",
-                    piiPolicy: OWNER_PII_POLICY,
-                    guestlistScope: "editable",
-                    eventScope: null,
-                    canDo: () => true,
-                };
+            if ((venueDoc.exists && venueDoc.data()?.ownerId === user.uid) ||
+                (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)) {
+                return ownerContext(user.uid, venueId, "owner-direct-fallback");
             }
-
-            return buildAuthError(request, 403, "Insufficient permissions");
+            return buildPartnerAuthError(request as any, 403, "Insufficient permissions");
         }
 
         const result: VenueAuthContext = {
-            uid: user.uid,
+            uid: base.uid,
             venueId,
-            membershipId,
+            membershipId: base.membershipId,
             baseRole: effective.baseRole,
             piiPolicy: effective.piiPolicy,
             guestlistScope: effective.guestlistScope,
             eventScope: effective.eventScope,
             canDo,
         };
-        accessCache.set(`${user.uid}:${venueId}`, { ctx: result, expiresAt: Date.now() + ACCESS_CACHE_TTL_MS });
+        accessCache.set(`${base.uid}:${venueId}`, { ctx: result, expiresAt: Date.now() + ACCESS_CACHE_TTL_MS });
         return result;
     } catch (err: any) {
         const msg = err?.message || "Unknown error";
         console.error("[RBAC Enforcer] Internal Access Check Error:", msg);
-        return { 
-            ...buildAuthError(
-                request,
-                500,
-                process.env.NODE_ENV === "development" 
-                ? `Internal authorization error: ${msg}` 
+        return buildPartnerAuthError(request as any, 500,
+            process.env.NODE_ENV === "development"
+                ? `Internal authorization error: ${msg}`
                 : "Internal authorization error"
-            ),
-        };
+        );
     }
 }
 
-/** Apply PII masking to any record (or array of records) based on policy.
- *  Recursively masks nested objects and arrays so nested PII fields like
- *  booking.user.phone or event.guest.email are also protected. */
+/** Apply PII masking to any record (or array of records) based on policy. */
 export function applyPIIMask<T>(record: T, policy: PIIPolicy): T {
     if (!record || typeof record !== "object") return record;
     if (Array.isArray(record)) {
@@ -314,54 +193,41 @@ export function applyPIIMask<T>(record: T, policy: PIIPolicy): T {
     const out: Record<string, unknown> = { ...(record as Record<string, unknown>) };
 
     if (!policy.showPhone) {
-        if ("phoneFull" in out && typeof out.phoneFull === "string") {
-            (out as any).phoneFull = undefined;
-        }
+        if ("phoneFull" in out && typeof out.phoneFull === "string") (out as any).phoneFull = undefined;
         if ("phone" in out && typeof out.phone === "string") {
             const p = out.phone as string;
             (out as any).phone = `****${p.slice(-4)}`;
         }
     }
-
     if (!policy.showEmail && "email" in out && typeof out.email === "string") {
         const parts = (out.email as string).split("@");
         (out as any).email = `${parts[0].slice(0, 2)}****@${parts[1] ?? ""}`;
     }
-
     if (!policy.showLastName) {
         if ("guestName" in out && typeof out.guestName === "string") {
             const parts = (out.guestName as string).split(" ");
-            if (parts.length > 1) {
-                (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
-            }
+            if (parts.length > 1) (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
         }
         if ("lastName" in out && typeof out.lastName === "string") {
             (out as any).lastName = `${out.lastName[0]}.`;
         }
     }
-
     if (!policy.showOrderAmount) {
         (out as any).amountPaise = undefined;
         (out as any).amount = undefined;
         (out as any).grossPaise = undefined;
         (out as any).netPaise = undefined;
     }
-
     if (!policy.showPayoutAmounts) {
         (out as any).payoutAmount = undefined;
         (out as any).payoutAmountPaise = undefined;
         (out as any).settledAmount = undefined;
         (out as any).pendingAmount = undefined;
     }
-
-    // Recurse into nested objects (depth guard via typeof check avoids Dates/RegExp etc.)
     for (const key of Object.keys(out)) {
         const val = out[key];
-        if (val && typeof val === "object") {
-            out[key] = applyPIIMask(val, policy);
-        }
+        if (val && typeof val === "object") out[key] = applyPIIMask(val, policy);
     }
-
     return out as unknown as T;
 }
 
@@ -371,9 +237,8 @@ export async function requireManagementRole(
 ): Promise<{ uid: string; venueId: string } | VenueAuthError> {
     const ctx = await requireVenueAccess(request);
     if ("error" in ctx) return ctx;
-    const normalizedRole = (ctx.baseRole || "").toUpperCase();
-    if (!["OWNER", "MANAGER"].includes(normalizedRole)) {
-        return buildAuthError(request, 403, "Manager or Owner role required");
+    if (!["OWNER", "MANAGER"].includes((ctx.baseRole || "").toUpperCase())) {
+        return buildPartnerAuthError(request as any, 403, "Manager or Owner role required");
     }
     return { uid: ctx.uid, venueId: ctx.venueId };
 }
