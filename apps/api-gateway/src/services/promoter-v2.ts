@@ -186,7 +186,7 @@ export class PromoterServiceV2 {
             financeSnapshot: financePayload.balance,
             meta: {
                 version: 'v2-parallel-read',
-                dataSources: ['promoter_links', 'promoter_commissions', 'promoter_ledger', 'payouts', 'promoters'],
+                dataSources: ['promoter_links', 'promoter_commissions', 'partner_ledger', 'payouts', 'promoters'],
             },
         };
     }
@@ -487,9 +487,11 @@ export class PromoterServiceV2 {
                 version: 'v2-parallel-read',
                 commissionSource: commissionRows.some((row) => row.source === 'promoter_commissions')
                     ? 'promoter_commissions'
-                    : commissionRows.some((row) => row.source === 'promoter_ledger')
-                        ? 'promoter_ledger'
-                        : 'promoter_assignments',
+                    : commissionRows.some((row) => row.source === 'partner_ledger')
+                        ? 'partner_ledger'
+                        : commissionRows.some((row) => row.source === 'promoter_ledger')
+                            ? 'promoter_ledger'
+                            : 'promoter_assignments',
             },
         };
     }
@@ -590,10 +592,58 @@ export class PromoterServiceV2 {
         const commissionRows = await this.loadCommissionCollectionRows(promoterId, eventId, limit);
         if (commissionRows.length > 0) return commissionRows;
 
+        // partner_ledger is canonical — check before legacy promoter_ledger
+        const partnerLedgerRows = await this.loadPartnerLedgerRows(promoterId, eventId, limit);
+        if (partnerLedgerRows.length > 0) return partnerLedgerRows;
+
+        // promoter_ledger: historical fallback for entries created before migration
         const ledgerRows = await this.loadLegacyLedgerRows(promoterId, eventId, limit);
         if (ledgerRows.length > 0) return ledgerRows;
 
+        // promoter_assignments: oldest fallback — event-level aggregates only
         return this.loadAssignmentRows(promoterId, eventId, limit);
+    }
+
+    private async loadPartnerLedgerRows(promoterId: string, eventId?: string, limit = 200) {
+        let query: Query = this.db.collection('partner_ledger')
+            .where('toPartnerId', '==', promoterId)
+            .where('type', '==', 'promoter_commission');
+        const snapshot = await safeOrderedQuery(query, limit);
+        let rows = snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as any[];
+        if (eventId) rows = rows.filter((row) => String(row.eventId || '') === String(eventId));
+
+        const orderMap = await this.loadOrdersByIds(rows.map((row) => String(row.referenceId || '')));
+        const eventMap = await this.loadEventsByIds(rows.map((row) => String(row.eventId || '')));
+
+        return rows
+            .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0))
+            .slice(0, limit)
+            .map((row) => {
+                const order = orderMap.get(String(row.referenceId || '')) || {};
+                const event = eventMap.get(String(row.eventId || '')) || {};
+                const status = row.status === 'settled' ? 'cleared'
+                    : row.status === 'failed' ? 'rejected'
+                    : 'pending';
+                return {
+                    id: String(row.id),
+                    source: 'partner_ledger',
+                    orderId: pickString(row.referenceId),
+                    eventId: pickString(row.eventId),
+                    eventName: pickString(event.title, event.name, order.eventTitle, 'Event'),
+                    buyerName: maskName(pickString(order.guestName, order.buyerName, order.userName, 'Guest')),
+                    amount: toNumber(row.amount),
+                    revenue: toNumber(order.totalAmount || order.amount || 0),
+                    ticketsSold: Array.isArray(order.tickets)
+                        ? order.tickets.reduce((s: number, t: any) => s + toNumber(t?.quantity || 1), 0)
+                        : toNumber(order.quantity || 1),
+                    commissionRate: toNumber(order?.promoterAttribution?.commissionRate || 0),
+                    linkCode: pickString(order.promoterCode, order?.promoterAttribution?.linkCode),
+                    status,
+                    date: toIso(row.createdAt),
+                    settledAt: toIso(row.settledAt),
+                    currency: 'INR',
+                };
+            });
     }
 
     private async loadCommissionCollectionRows(promoterId: string, eventId?: string, limit = 200) {

@@ -170,18 +170,27 @@ export const handleTicketFulfillment = inngest.createFunction(
 
                 const commission = Math.round(totalAmount * commissionRate * 100) / 100;
 
-                // Add to promoter ledger
-                await db.collection("promoter_ledger").add({
-                    promoterId,
-                    orderId,
-                    eventId,
-                    promoCode: promoterCode,
-                    orderAmount: totalAmount,
-                    commissionRate,
-                    commissionAmount: commission,
-                    status: "pending", // Will be settled after event
-                    createdAt: new Date().toISOString()
-                });
+                // Write to partner_ledger (canonical) — skip if finance-service already wrote for this order
+                const idempotencyRef = db.collection("partner_ledger_idempotency").doc(orderId);
+                const idempotencyDoc = await idempotencyRef.get();
+                if (!idempotencyDoc.exists) {
+                    const now = new Date().toISOString();
+                    await db.collection("partner_ledger").add({
+                        type: "promoter_commission",
+                        toPartnerId: promoterId,
+                        fromPartnerId: null,
+                        eventId,
+                        referenceId: orderId,
+                        amount: commission,
+                        currency: "INR",
+                        status: "pending",
+                        settledAt: null,
+                        createdAt: now,
+                    });
+                    await db.collection("partner_ledger_idempotency").doc(`promo_${orderId}`).set({
+                        orderId, eventId, promoterId, type: "promo_commission", createdAt: now,
+                    });
+                }
 
                 // Increment promoter stats
                 await db.collection("promoters").doc(promoterId).update({
@@ -380,23 +389,32 @@ export const processEventSettlement = inngest.createFunction(
             return { hostPayout };
         });
 
-        // Step 4: Mark promoter commissions as ready for payout
+        // Step 4: Mark promoter commissions as settled
         await step.run("finalize-promoter-commissions", async () => {
-            const commissions = await db.collection("promoter_ledger")
+            const now = new Date().toISOString();
+            // Settle partner_ledger entries (canonical collection)
+            const ledgerSnap = await db.collection("partner_ledger")
                 .where("eventId", "==", eventId)
+                .where("type", "==", "promoter_commission")
                 .where("status", "==", "pending")
                 .get();
 
             const batch = db.batch();
-            commissions.docs.forEach(doc => {
-                batch.update(doc.ref, {
-                    status: "ready_for_payout",
-                    finalizedAt: new Date().toISOString()
-                });
+            ledgerSnap.docs.forEach(doc => {
+                batch.update(doc.ref, { status: "settled", settledAt: now });
             });
-            await batch.commit();
 
-            return { promoterCommissions: commissions.size };
+            // Also settle any historical promoter_ledger entries (created before migration)
+            const legacySnap = await db.collection("promoter_ledger")
+                .where("eventId", "==", eventId)
+                .where("status", "==", "pending")
+                .get();
+            legacySnap.docs.forEach(doc => {
+                batch.update(doc.ref, { status: "ready_for_payout", finalizedAt: now });
+            });
+
+            await batch.commit();
+            return { promoterCommissions: ledgerSnap.size + legacySnap.size };
         });
 
         // Step 5: Create settlement summary
