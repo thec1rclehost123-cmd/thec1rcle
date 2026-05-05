@@ -2,9 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { HostService } from '../../services/unified/host-service.js';
-import { buildErrorResponse } from '../../lib/api-contracts';
 import { buildPayoutAccountRecord, sanitizeEventResubmissionPatch } from '../../lib/partner-hardening.js';
-import { resolvePartnerContext } from '../../lib/partner-context.js';
 
 const HostOverviewQuery = z.object({
     hostId: z.string()
@@ -618,27 +616,5 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         };
         await fastify.cache.set('host', cacheKey, result, 120);
         return reply.header('Cache-Control', 'private, max-age=120').send(result);
-    });
-    /**
-     * GET /api/v1/host/events/:id
-     */
-    fastify.get('/events/:id', {
-        preHandler: [fastify.requireAuth]
-    }, async (request: any, reply) => {
-        const { id } = request.params as any;
-        try {
-            const ctx = await resolvePartnerContext(fastify.db, request);
-            if (!ctx) return reply.status(403).send({ error: 'Forbidden' });
-            const event = await hostService.getEvent(ctx, id);
-
-            if (!event) {
-                return reply.status(404).send({ error: 'Event not found or access denied' });
-            }
-
-            return event;
-        } catch (error: any) {
-            fastify.log.error(`Host event detail failed for id=${id}: ${error.message}`);
-            return reply.status(500).send({ error: 'Failed to load event details' });
-        }
     });
 }
