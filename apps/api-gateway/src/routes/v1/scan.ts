@@ -328,6 +328,19 @@ export default async function scanRoutes(fastify: FastifyInstance) {
                     'stats.checkIns': FieldValue.increment(1),
                 }).catch(() => {});
             }
+            const checkedInEventId = eventId || payload.eventId;
+            if (checkedInEventId) {
+                fastify.broadcast({
+                    type: 'TICKET_CHECKED_IN',
+                    payload: {
+                        eventId: checkedInEventId,
+                        guestName: result.ownerName || 'Guest',
+                        ticketType: result.entitlementType || 'general',
+                        scanId: result.entitlementId,
+                        scannedAt: new Date().toISOString(),
+                    },
+                }, `event:${checkedInEventId}`);
+            }
             return {
                 success: true, result: 'valid', scanId: result.entitlementId,
                 ticket: { orderId: '', eventId: eventId || '', eventTitle: '', ticketName: 'Entry', quantity: 1, entryType: result.entitlementType || 'general', userName: result.ownerName || 'Guest', userEmail: '' },
@@ -547,6 +560,18 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             fastify.db.collection('events').doc(payload.e).update({
                 'stats.checkIns': FieldValue.increment(payload.q || 1),
             }).catch(() => {});
+        }
+        if (payload.e) {
+            fastify.broadcast({
+                type: 'TICKET_CHECKED_IN',
+                payload: {
+                    eventId: payload.e,
+                    guestName: order?.userName || 'Guest',
+                    ticketType: payload.et || 'general',
+                    scanId: scanDocId,
+                    scannedAt: new Date().toISOString(),
+                },
+            }, `event:${payload.e}`);
         }
         return {
             success: true, result: 'valid', scanId: scanDocId,

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { User, subscribeToAuthState } from "@/lib/firebase";
+import { wsManager } from "@/lib/websocket";
 import { useProfileStore } from "./profileStore";
 import { useNotificationsStore } from "./notificationsStore";
 
@@ -37,8 +38,12 @@ export function initAuthListener() {
         setUser(user);
         setInitialized(true);
 
-        // On sign-out: clean up all user-scoped Firestore subscriptions
-        if (!user) {
+        if (user) {
+            // Start the shared WS connection when user signs in
+            user.getIdToken().then((token) => wsManager.start(token)).catch(() => wsManager.start());
+        } else {
+            // Stop WS and clean up subscriptions on sign-out
+            wsManager.stop();
             useProfileStore.getState().clearProfile();
             useNotificationsStore.getState().clearNotifications();
         }

@@ -20,6 +20,7 @@ import {
     ArrowUpRight, Loader2,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useWebSocket } from "@/lib/hooks/useWebSocket";
 import StudioShell from "@/components/studio/StudioShell";
 import { normalizeAnalyticsV2 } from "@/lib/analytics/zeroState";
 import type { AnalyticsV2 } from "@/lib/analytics/types";
@@ -405,7 +406,20 @@ export default function LiveClient() {
         }
     }, [profile, user]);
 
-    // Initial fetch + polling loop
+    // WebSocket: push-based updates when check-ins happen on the live event
+    const liveEventId = data?.eventScorecards.find(e => e.status === "live")?.id ?? null;
+    useWebSocket({
+        topics: liveEventId ? [`event:${liveEventId}`] : [],
+        getToken: async () => (user ? user.getIdToken() : null),
+        enabled: Boolean(liveEventId),
+        onMessage: (msg) => {
+            if (msg.type === "TICKET_CHECKED_IN" || msg.type === "ORDER_CONFIRMED") {
+                fetchData(true);
+            }
+        },
+    });
+
+    // Initial fetch + polling loop (30s fallback when WS is down)
     useEffect(() => {
         fetchData();
         timerRef.current = setInterval(() => fetchData(true), POLL_INTERVAL_MS);

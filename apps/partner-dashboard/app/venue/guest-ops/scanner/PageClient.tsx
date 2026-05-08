@@ -6,6 +6,7 @@ import { TicketValidityChip } from "@/components/guest-ops/chips/TicketValidityC
 import { OfflineSyncBanner } from "@/components/guest-ops/OfflineSyncBanner";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
+import { useWebSocket } from "@/lib/hooks/useWebSocket";
 import { GuestSyncEngine, type SyncState } from "@/lib/client/offlineGuestSync";
 import { cn } from "@/lib/utils";
 import {
@@ -28,6 +29,7 @@ export default function ScannerOversightPageClient() {
         eventId, venueId, events, summary, openExceptions,
         isLoading: shellLoading, authHeaders,
     } = useGuestOpsShellData();
+    const { getIdToken } = useDashboardAuth();
 
     // Scanner state
     const [devices, setDevices] = useState<ScannerDevice[]>([]);
@@ -91,13 +93,27 @@ export default function ScannerOversightPageClient() {
         fetchStream();
     }, [eventId, fetchDevices, fetchStream]);
 
-    // Live polling every 8s
+    // WebSocket: push-based updates replace the 8s poll.
+    // TICKET_CHECKED_IN triggers an immediate stream + device refetch.
+    const { connected: wsConnected } = useWebSocket({
+        topics: eventId ? [`event:${eventId}`] : [],
+        getToken: getIdToken,
+        enabled: Boolean(eventId) && isLive,
+        onMessage: (msg) => {
+            if (msg.type === "TICKET_CHECKED_IN") {
+                fetchStream();
+                fetchDevices();
+            }
+        },
+    });
+
+    // Fallback poll at 30s (keeps data fresh if WS is down)
     useEffect(() => {
         if (!eventId || !isLive) return;
         pollRef.current = setInterval(() => {
             fetchDevices();
             fetchStream();
-        }, 8_000);
+        }, 30_000);
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [eventId, isLive, fetchDevices, fetchStream]);
 

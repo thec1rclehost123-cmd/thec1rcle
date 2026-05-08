@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { GuestOpsShell } from "@/components/guest-ops/GuestOpsShell";
 import { useGuestOpsShellData } from "@/lib/hooks/useGuestOpsShellData";
+import { useWebSocket } from "@/lib/hooks/useWebSocket";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import {
@@ -17,8 +19,9 @@ export default function GuestOpsOverviewPageClient() {
         eventId, venueId, events, summary: shellSummary,
         openExceptions, isLoading: shellLoading, authHeaders,
     } = useGuestOpsShellData();
+    const { getIdToken } = useDashboardAuth();
 
-    // Overview keeps its own live summary for the KPI grid + 15s polling
+    // Overview keeps its own live summary for the KPI grid
     const [summary, setSummary] = useState<GuestOpsOverview | null>(null);
     const [devices, setDevices] = useState<ScannerDevice[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -45,10 +48,22 @@ export default function GuestOpsOverviewPageClient() {
         fetchSummary(eventId).finally(() => setIsLoading(false));
     }, [eventId, fetchSummary]);
 
-    // Poll every 15s for real-time KPI updates
+    // WebSocket: push-based KPI updates on check-in or new order.
+    useWebSocket({
+        topics: eventId ? [`event:${eventId}`] : [],
+        getToken: getIdToken,
+        enabled: Boolean(eventId),
+        onMessage: (msg) => {
+            if (msg.type === "TICKET_CHECKED_IN" || msg.type === "ORDER_CONFIRMED") {
+                fetchSummary(eventId!);
+            }
+        },
+    });
+
+    // Fallback poll at 60s (keeps data fresh if WS is down)
     useEffect(() => {
         if (!eventId) return;
-        pollRef.current = setInterval(() => fetchSummary(eventId), 15_000);
+        pollRef.current = setInterval(() => fetchSummary(eventId), 60_000);
         return () => { if (pollRef.current) clearInterval(pollRef.current); };
     }, [eventId, fetchSummary]);
 

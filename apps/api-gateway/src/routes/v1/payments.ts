@@ -319,6 +319,13 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
                     eventType,
                 });
 
+                if (!result?.alreadyConfirmed && result?.eventId) {
+                    fastify.broadcast({
+                        type: 'ORDER_CONFIRMED',
+                        payload: { orderId, eventId: result.eventId },
+                    }, `event:${result.eventId}`);
+                }
+
                 return {
                     success: true,
                     alreadyConfirmed: Boolean(result?.alreadyConfirmed),
