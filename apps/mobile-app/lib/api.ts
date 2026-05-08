@@ -85,7 +85,6 @@ async function apiFetch<T = any>(
     }
 
     const url = `${API_BASE}${path}`;
-    console.log(`[API] Fetching URL: ${url}`);
 
     // Step 1: Set timeout based on path
     const isCheckout = path.includes("/checkout") || path.includes("/payments");

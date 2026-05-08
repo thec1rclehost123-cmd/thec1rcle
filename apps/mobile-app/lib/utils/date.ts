@@ -67,11 +67,3 @@ export function formatRelativeTime(value: unknown): string {
     if (days < 7) return `${days}d ago`;
     return formatEventDate(d);
 }
-
-/** Full date + time for display: "Sat, Mar 15 · 8:00 PM" */
-export function formatEventDateTime(value: unknown): string {
-    const date = formatEventDate(value);
-    const time = formatEventTime(value);
-    if (date === "TBD") return "TBD";
-    return `${date} · ${time}`;
-}
