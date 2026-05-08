@@ -21,6 +21,7 @@ export interface CartItem {
     eventCoverImage?: string;
     tier: TicketTier;
     quantity: number;
+    priceTotal?: number;
     promoterCode?: string;
     discount?: number;
 }

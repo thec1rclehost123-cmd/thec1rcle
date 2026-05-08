@@ -506,7 +506,7 @@ function SegmentedHeader({
 
     return (
         <View style={styles.headerRow}>
-            <Pressable onPress={() => router.push("/wallet")} style={styles.headerIconBtn}>
+            <Pressable onPress={() => router.push("/profile")} style={styles.headerIconBtn}>
                 <Wallet size={24} color={colors.gold} />
             </Pressable>
 
@@ -1309,6 +1309,59 @@ const styles = StyleSheet.create({
     breakdownTotalValue: {
         color: colors.gold,
         fontSize: 17,
+        fontWeight: "700",
+    },
+
+    // Pending reservation banner
+    pendingReservationCard: {
+        marginTop: 12,
+        backgroundColor: "rgba(255, 165, 0, 0.12)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 165, 0, 0.3)",
+        borderRadius: 16,
+        padding: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 12,
+    },
+    pendingReservationCopy: {
+        flex: 1,
+    },
+    pendingReservationEyebrow: {
+        color: "rgba(255, 165, 0, 0.9)",
+        fontSize: 11,
+        fontWeight: "700",
+        letterSpacing: 0.8,
+        textTransform: "uppercase",
+        marginBottom: 2,
+    },
+    pendingReservationTitle: {
+        color: colors.gold,
+        fontSize: 14,
+        fontWeight: "600",
+    },
+    pendingReservationActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    pendingReservationDismiss: {
+        color: "rgba(255,255,255,0.5)",
+        fontSize: 13,
+        fontWeight: "500",
+    },
+    pendingReservationButton: {
+        backgroundColor: "rgba(255, 165, 0, 0.2)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 165, 0, 0.4)",
+        borderRadius: 10,
+        paddingVertical: 6,
+        paddingHorizontal: 14,
+    },
+    pendingReservationButtonText: {
+        color: colors.gold,
+        fontSize: 13,
         fontWeight: "700",
     },
 

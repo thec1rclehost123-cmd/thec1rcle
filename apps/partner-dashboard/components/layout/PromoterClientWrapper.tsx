@@ -14,10 +14,18 @@ import { usePathname, useRouter } from "next/navigation";
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const PROMOTER_HREF_TO_TAB: Record<string, string> = {
     "/promoter":            "overview",
-    "/promoter/events":     "events",
-    "/promoter/analytics":  "analytics",
-    "/promoter/finance":    "finance",
-    "/promoter/partners":   "partners",
+    "/promoter/events":         "events",
+    "/promoter/links":          "links",
+    "/promoter/guests":         "guests",
+    "/promoter/analytics":      "analytics",
+    "/promoter/finance":        "finance",
+    "/promoter/payouts":        "finance",
+    "/promoter/partners":       "partners",
+    "/promoter/partnerships":   "partners",
+    "/promoter/connections":    "partners",
+    "/promoter/persona":        "overview",
+    "/promoter/profile":        "overview",
+    "/promoter/settings":       "overview",
 };
 
 function itemTab(href: string): string | null {

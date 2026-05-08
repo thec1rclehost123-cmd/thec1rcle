@@ -130,7 +130,7 @@ export default function DoorPageClient() {
         (async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&status=all`, {
+                const res = await fetch(`/api/partners/venues/events?venueId=${venueId}`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (res.ok) {

@@ -21,13 +21,16 @@ interface HeaderProps {
 export function Header({
     title,
     subtitle,
-    leftAction,
-    rightAction,
+    leftAction: leftActionRaw,
+    rightAction: rightActionRaw,
     transparent = false,
     showBorder = true,
     animated = true,
     large = false,
 }: HeaderProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const leftAction = leftActionRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const rightAction = rightActionRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const insets = useSafeAreaInsets();
 
     const Container = animated ? Animated.View : View;
@@ -111,10 +114,11 @@ export function SearchHeader({
     value,
     onChangeText,
     placeholder = "Search...",
-    rightAction,
+    rightAction: rightActionRaw,
     onFocus,
     onBlur,
 }: SearchHeaderProps) {
+    const rightAction = rightActionRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const insets = useSafeAreaInsets();
 
     return (
@@ -139,7 +143,8 @@ interface LargeTitleHeaderProps {
     rightAction?: ReactNode;
 }
 
-export function LargeTitleHeader({ title, subtitle, rightAction }: LargeTitleHeaderProps) {
+export function LargeTitleHeader({ title, subtitle, rightAction: rightActionRaw }: LargeTitleHeaderProps) {
+    const rightAction = rightActionRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const insets = useSafeAreaInsets();
 
     return (

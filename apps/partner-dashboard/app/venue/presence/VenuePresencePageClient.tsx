@@ -111,14 +111,14 @@ export default function VenuePresencePageClient() {
             if (res.ok) {
                 const json = await res.json();
                 setData({
-                    profile: json.venue,
+                    profile: json,
                     posts: [],
                     highlights: json.highlights || [],
                     stats: {
-                        followersCount: json.venue?.followersCount || 0,
+                        followersCount: json.followersCount || 0,
                         postsCount: 0,
-                        totalLikes: json.venue?.totalLikes || 0,
-                        totalViews: json.venue?.totalViews || 0
+                        totalLikes: json.totalLikes || 0,
+                        totalViews: json.totalViews || 0
                     }
                 });
             } else {

@@ -42,12 +42,12 @@ const sizeStyles = {
 };
 
 export function Button({
-    children,
+    children: childrenRaw,
     variant = "primary",
     size = "md",
     loading = false,
     disabled = false,
-    icon,
+    icon: iconRaw,
     iconPosition = "left",
     fullWidth = false,
     haptic = true,
@@ -55,6 +55,9 @@ export function Button({
     style,
     ...props
 }: ButtonProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const icon = iconRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const scale = useSharedValue(1);
     const opacity = useSharedValue(1);
 

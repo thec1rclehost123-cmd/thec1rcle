@@ -37,13 +37,15 @@ interface LiquidGlassProps {
 }
 
 export function LiquidGlass({
-    children,
+    children: childrenRaw,
     style,
     intensity = 40,
     borderRadius = 24,
     glowColor = colors.iris,
     animated = true,
 }: LiquidGlassProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const shimmerX = useSharedValue(0);
     const borderGlow = useSharedValue(0);
 
@@ -264,7 +266,8 @@ interface HolographicCardProps {
     style?: ViewStyle;
 }
 
-export function HolographicCard({ children, style }: HolographicCardProps) {
+export function HolographicCard({ children: childrenRaw, style }: HolographicCardProps) {
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const hueRotate = useSharedValue(0);
 
     useEffect(() => {
@@ -440,7 +443,8 @@ interface PulseRingProps {
     children?: React.ReactNode;
 }
 
-export function PulseRing({ size = 60, color = colors.iris, children }: PulseRingProps) {
+export function PulseRing({ size = 60, color = colors.iris, children: childrenRaw }: PulseRingProps) {
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const ring1Scale = useSharedValue(1);
     const ring1Opacity = useSharedValue(0.6);
     const ring2Scale = useSharedValue(1);
@@ -526,12 +530,13 @@ interface GradientBorderCardProps {
 }
 
 export function GradientBorderCard({
-    children,
+    children: childrenRaw,
     colors: gradientColors,
     borderWidth = 2,
     borderRadius = 24,
     style,
 }: GradientBorderCardProps) {
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const defaultColors: readonly [string, string, ...string[]] = [colors.iris, "#FF6B4A", "#FFD93D", "#6BCB77"];
     const finalColors = gradientColors
         ? (gradientColors as unknown as readonly [string, string, ...string[]])
@@ -585,7 +590,8 @@ interface BentoCellProps {
     style?: ViewStyle;
 }
 
-export function BentoCell({ children, span = 1, style }: BentoCellProps) {
+export function BentoCell({ children: childrenRaw, span = 1, style }: BentoCellProps) {
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const cellStyle: ViewStyle = {
         ...styles.bentoCell,
         ...(span === 2 ? styles.bentoCellWide : {}),
@@ -603,7 +609,8 @@ export function BentoCell({ children, span = 1, style }: BentoCellProps) {
     );
 }
 
-export function BentoGrid({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+export function BentoGrid({ children: childrenRaw, style }: { children: React.ReactNode; style?: ViewStyle }) {
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     return (
         <View style={[styles.bentoGrid, style]}>
             {children}

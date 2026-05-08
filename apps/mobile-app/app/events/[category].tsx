@@ -173,7 +173,6 @@ export default function CategoryScreen() {
                 <FlashList
                     data={events}
                     keyExtractor={(e) => e.id}
-                    estimatedItemSize={240}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
                     renderItem={({ item, index }) => (
                         <CategoryEventCard event={item} index={index} />

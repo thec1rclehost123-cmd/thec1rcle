@@ -188,6 +188,7 @@ export interface PricingResult {
         subtotal: number;
         discount?: number;
         discountTotal?: number;
+        totalQuantity?: number;
         discounts?: Array<{
             code?: string;
             label?: string;

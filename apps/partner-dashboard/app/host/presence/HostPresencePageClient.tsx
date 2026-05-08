@@ -109,14 +109,14 @@ export default function HostPresencePageClient() {
             if (res.ok) {
                 const json = await res.json();
                 setData({
-                    profile: json.host,
+                    profile: json,
                     posts: json.posts || [],
                     highlights: json.highlights || [],
                     stats: json.stats || {
-                        followersCount: json.host?.followersCount || 0,
+                        followersCount: json.followersCount || 0,
                         postsCount: 0,
-                        totalLikes: json.host?.totalLikes || 0,
-                        totalViews: json.host?.totalViews || 0,
+                        totalLikes: json.totalLikes || 0,
+                        totalViews: json.totalViews || 0,
                     }
                 });
             } else {

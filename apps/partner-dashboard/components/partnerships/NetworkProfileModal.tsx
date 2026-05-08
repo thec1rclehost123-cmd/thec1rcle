@@ -154,7 +154,7 @@ export function NetworkProfileModal({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [eventsRes, connectionsRes, summaryRes] = await Promise.allSettled([
-                    fetch(`/api/partners/venues/events?venueId=${profile.id}&limit=200&status=all`, { headers }),
+                    fetch(`/api/partners/venues/events?venueId=${profile.id}&limit=200`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${profile.id}&role=venue`, { headers }),
                     fetch(`/api/partners/venues/overview/summary?venueId=${profile.id}`, { headers }),
                 ]);

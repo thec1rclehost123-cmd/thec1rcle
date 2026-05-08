@@ -43,7 +43,7 @@ const paddingStyles = {
 };
 
 export function Card({
-    children,
+    children: childrenRaw,
     variant = "default",
     onPress,
     style,
@@ -53,6 +53,8 @@ export function Card({
     padding = "md",
     haptic = true,
 }: CardProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({

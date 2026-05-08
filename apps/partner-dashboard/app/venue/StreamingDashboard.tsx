@@ -456,7 +456,6 @@ export default function VenueDashboardStreaming() {
             const params = new URLSearchParams({
                 venueId: venueId!,
                 limit: "20",
-                status: "all",
             });
             const response = await fetch(`/api/partners/venues/events?${params.toString()}`, {
                 headers: { Authorization: `Bearer ${token}` },

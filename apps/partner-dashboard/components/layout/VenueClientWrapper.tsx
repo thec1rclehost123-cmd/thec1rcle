@@ -61,11 +61,17 @@ const HREF_TO_TAB: Record<string, VenueTab> = {
     "/venue/walk-ins":        "door",
     "/venue/guest-ops":       "door",
     "/venue/registers":       "door",
+    "/venue/tables":          "door",
+    "/venue/reservations":    "door",
+    "/venue/door/dinein":     "door",
+    "/venue/door/sell":       "door",
     "/venue/partnerships":    "partners",
     "/venue/connections":     "partners",
     "/venue/page-management": "presence",
     "/venue/menu":            "presence",
     "/venue/staff":           "staff",
+    "/venue/orders":          "finance",
+    "/venue/payouts":         "finance",
     "/venue/security":        "settings",
 };
 

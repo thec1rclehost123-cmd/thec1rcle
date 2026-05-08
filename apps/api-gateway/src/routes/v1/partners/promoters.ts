@@ -713,9 +713,21 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const snapshots = await Promise.all(chunks.map((chunk) => fastify.db.collection('orders').where('promoterCode', 'in', chunk).get()));
     const allDocs = snapshots.flatMap((snapshot: any) => snapshot.docs);
     const hasMore = allDocs.length > limit;
-    const guests = allDocs.slice(0, limit).map((doc: any) => {
+    const orderDocs = allDocs.slice(0, limit);
+    const eventIds = [...new Set(orderDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean))];
+    const eventChunks: string[][] = [];
+    for (let i = 0; i < eventIds.length; i += 10) eventChunks.push(eventIds.slice(i, i + 10));
+    const eventSnaps = eventChunks.length > 0 ? await Promise.all(eventChunks.map((chunk) => fastify.db.collection('events').where('__name__', 'in', chunk).get())) : [];
+    const eventMap = new Map<string, string>();
+    for (const snap of eventSnaps) {
+      for (const doc of (snap as any).docs || []) eventMap.set(doc.id, (doc.data() as any).title || (doc.data() as any).name || '');
+    }
+    const guests = orderDocs.map((doc: any) => {
       const order = doc.data() as Record<string, any>;
-      return { id: doc.id, guestName: order.guestName || order.buyerName, eventId: order.eventId, promoterCode: order.promoterCode, createdAt: order.createdAt };
+      const totalPaise = toNumber(order.totalPaise || 0);
+      const amount = totalPaise > 0 ? totalPaise / 100 : toNumber(order.amount || 0);
+      const commissionRate = toNumber(order.commissionRate || 0.1);
+      return { id: doc.id, guestName: order.guestName || order.buyerName || 'Guest', eventTitle: eventMap.get(String(order.eventId || '')) || 'Event', eventId: order.eventId, amount, commission: Math.round(amount * commissionRate * 100) / 100, ticketCount: toNumber(order.ticketCount || 1), status: String(order.status || 'paid'), checkedIn: !!order.checkedIn, source: order.promoterCode || 'link', promoterCode: order.promoterCode, createdAt: order.createdAt };
     });
     return { guests, hasMore, nextCursor: hasMore ? guests[guests.length - 1]?.id ?? null : null };
   };
@@ -888,7 +900,15 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         ...legacyBody,
         stats,
         kpis: buildPromoterKpis(stats, assignments),
-        activeAssignments: assignments,
+        activeAssignments: assignments.map((a: PlainRecord) => ({
+          ...a,
+          eventName: String(asRecord(a.event).name || a.eventName || a.eventTitle || ''),
+          venueName: String(asRecord(a.event).venue || a.venueName || ''),
+          eventDate: (asRecord(a.event).date || a.eventDate) ?? null,
+          coverImage: String(asRecord(a.event).coverUrl || a.coverImage || '') || null,
+          ticketsSold: toNumber(asRecord(a.stats).ticketsSold ?? a.ticketsSold ?? 0),
+          commission: toNumber(asRecord(a.stats).estimatedCommission ?? a.commission ?? 0),
+        })),
         conversionSnapshot: {
           rate: (legacyBody as any).conversionRate ?? `${(toNumber((stats as any).conversionRate) * 100).toFixed(1)}%`,
           clicks: toNumber(stats.totalClicks ?? stats.clicks),
@@ -1300,9 +1320,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             fastify.db.collection('promoter_connections').where('promoterId', '==', ctx.partnerId).where('status', '==', 'active').get().catch(() => ({ docs: [] as any[], size: 0 })),
             fastify.db.collection('events').where('promoterId', '==', ctx.partnerId).get().catch(() => ({ docs: [] as any[], size: 0 })),
           ]);
-          const totalClicks = ((linksSnap as any).docs || []).reduce((s: number, d: any) => s + (d.data().clicks || 0), 0);
-          const totalConversions = ((linksSnap as any).docs || []).reduce((s: number, d: any) => s + (d.data().conversions || 0), 0);
-          return reply.send({ links: (linksSnap as any).size || 0, activeConnections: (connectionsSnap as any).size || 0, events: (eventsSnap as any).size || 0, totalClicks, totalConversions, conversionRate: totalClicks > 0 ? Math.round((totalConversions / totalClicks) * 100) : 0 });
+          const allLinkDocs = (linksSnap as any).docs || [];
+          const activeLinks = allLinkDocs.filter((d: any) => d.data().isActive !== false).length;
+          const totalClicks = allLinkDocs.reduce((s: number, d: any) => s + (d.data().clicks || 0), 0);
+          const totalConversions = allLinkDocs.reduce((s: number, d: any) => s + (d.data().conversions || 0), 0);
+          const totalEarnings = allLinkDocs.reduce((s: number, d: any) => s + (d.data().totalEarnings || d.data().earnings || 0), 0);
+          return reply.send({ links: (linksSnap as any).size || 0, activeLinks, activeConnections: (connectionsSnap as any).size || 0, events: (eventsSnap as any).size || 0, totalClicks, totalConversions, totalSales: totalConversions, totalEarnings, conversionRate: totalClicks > 0 ? Math.round((totalConversions / totalClicks) * 100) : 0 });
         }
 
         // payouts POST (request payout) / DELETE (cancel payout)

@@ -192,7 +192,7 @@ export default function VenueProfileClient({
                 const headers = { Authorization: `Bearer ${token}` };
 
                 const [eventsRes, connectionsRes, summaryRes] = await Promise.allSettled([
-                    fetch(`/api/partners/venues/events?venueId=${venueId}&limit=200&status=all`, { headers }),
+                    fetch(`/api/partners/venues/events?venueId=${venueId}&limit=100`, { headers }),
                     fetch(`/api/discovery?action=list&partnerId=${venueId}&role=venue`, { headers }),
                     fetch(`/api/partners/venues/overview/summary?venueId=${venueId}`, { headers }),
                 ]);

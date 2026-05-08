@@ -9,6 +9,7 @@ import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
 function getDb() { return getFirestore(getFirebaseApp()); }
 
 export interface EmergencyContact {
+    id?: string;
     name: string;
     phone: string;
     relationship?: string;

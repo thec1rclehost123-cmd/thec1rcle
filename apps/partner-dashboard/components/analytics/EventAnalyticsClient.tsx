@@ -53,7 +53,7 @@ export default function EventAnalyticsClient({
         queryKey: [role, "events", entityId, "all"],
         queryFn: async () => {
             const token = await user?.getIdToken();
-            const res = await fetch(`/api/${role}/events?${idParam}=${entityId}&status=all`, {
+            const res = await fetch(`/api/${role}/events?${idParam}=${entityId}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             if (!res.ok) return null;

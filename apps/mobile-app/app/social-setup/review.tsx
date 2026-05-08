@@ -365,7 +365,6 @@ const styles = StyleSheet.create({
         right: 0,
         padding: 16,
         paddingBottom: 20,
-        background: "linear-gradient(transparent, rgba(0,0,0,0.8))",
     },
     cardName: {
         color: "#fff",

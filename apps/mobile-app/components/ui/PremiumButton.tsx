@@ -66,13 +66,13 @@ const sizeConfig = {
 // PREMIUM BUTTON
 // ============================================
 export function PremiumButton({
-    children,
+    children: childrenRaw,
     variant = "primary",
     size = "md",
     loading = false,
     disabled = false,
     fullWidth = false,
-    icon,
+    icon: iconRaw,
     iconPosition = "left",
     glow = false,
     pulse = false,
@@ -80,6 +80,9 @@ export function PremiumButton({
     style,
     textStyle,
 }: PremiumButtonProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const children = childrenRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+    const icon = iconRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const scale = useSharedValue(1);
     const glowOpacity = useSharedValue(glow ? 0.5 : 0);
     const pulseScale = useSharedValue(1);
@@ -298,7 +301,7 @@ interface IconButtonProps {
 }
 
 export function IconButton({
-    icon,
+    icon: iconRaw,
     size = 44,
     variant = "ghost",
     color = colors.gold,
@@ -306,6 +309,7 @@ export function IconButton({
     onPress,
     style,
 }: IconButtonProps) {
+    const icon = iconRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const scale = useSharedValue(1);
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -365,7 +369,8 @@ interface FABProps {
     style?: ViewStyle;
 }
 
-export function FloatingActionButton({ icon, onPress, pulse = true, style }: FABProps) {
+export function FloatingActionButton({ icon: iconRaw, onPress, pulse = true, style }: FABProps) {
+    const icon = iconRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const scale = useSharedValue(1);
     const pulseScale = useSharedValue(1);
     const glowOpacity = useSharedValue(0.5);

@@ -664,7 +664,7 @@ export default function MarketingPage() {
         enabled: Boolean(venueId && user),
         queryFn: async () => {
             const token = await user?.getIdToken();
-            const response = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=200`, {
+            const response = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=100`, {
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
             });
             if (!response.ok) throw new Error("Failed to fetch events");
@@ -729,7 +729,7 @@ export default function MarketingPage() {
 
                 // ── Step 1: Fetch ALL events for this venue ───────────────────
                 const eventsRes = await fetch(
-                    `/api/partners/venues/events?venueId=${venueId}&status=all&limit=50`,
+                    `/api/partners/venues/events?venueId=${venueId}&limit=50`,
                     { headers }
                 );
                 if (cancelled) return;

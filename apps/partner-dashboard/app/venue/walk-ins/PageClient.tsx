@@ -305,7 +305,7 @@ export function WalkInsClient() {
     const { data: eventsData } = useQuery({
         queryKey: ["venue-events-list", venueId],
         queryFn: async () => {
-            const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&status=PUBLISHED,ACTIVE&limit=30`);
+            const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=30`);
             if (!res.ok) return { events: [] };
             return res.json();
         },

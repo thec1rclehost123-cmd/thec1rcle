@@ -91,7 +91,7 @@ export default function VenueEventRequestsPage() {
             const headers = await getHeaders();
 
             const [slotsRes, submittedRes] = await Promise.all([
-                fetch(`/api/slots?venueId=${venueId}&status=${activeTab === "pending" ? "pending" : ""}`, {
+                fetch(`/api/slots?venueId=${venueId}${activeTab === "pending" ? "&status=pending" : ""}`, {
                     headers,
                 }),
                 fetch(`/api/events?venueId=${venueId}&lifecycle=${EVENT_LIFECYCLE.SUBMITTED}`, {

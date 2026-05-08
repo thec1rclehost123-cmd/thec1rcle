@@ -22,11 +22,13 @@ export function Input({
     label,
     error,
     hint,
-    icon,
+    icon: iconRaw,
     iconPosition = "left",
     style,
     ...props
 }: InputProps) {
+    // Bridge React 18/19 ReactNode incompatibility (two @types/react versions in monorepo)
+    const icon = iconRaw as any; // eslint-disable-line @typescript-eslint/no-explicit-any
     const isFocused = useSharedValue(0);
     const hasLeftIcon = Boolean(icon && iconPosition === "left");
     const hasRightIcon = Boolean(icon && iconPosition === "right");

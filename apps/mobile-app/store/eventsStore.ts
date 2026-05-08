@@ -43,6 +43,7 @@ export interface Event {
     hostName?: string;
     coverImage?: string;
     tickets?: TicketTier[];
+    minPrice?: number;
     status?: string;
     lifecycle?: string; // Canonical state: draft, scheduled, live, etc.
     heatScore?: number;
@@ -70,6 +71,7 @@ export interface TicketTier {
     price: number;
     quantity: number;
     remaining: number;
+    soldPercent?: number;
     description?: string;
     entryType?: string;
 }

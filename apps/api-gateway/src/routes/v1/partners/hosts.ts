@@ -142,7 +142,8 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       err.code = 'NOT_FOUND';
       throw err;
     }
-    return { host: { id: doc.id, ...(doc.data() || {}) } };
+    const data = { id: doc.id, ...(doc.data() || {}) };
+    return { host: data, profile: data };
   };
 
   const updateHostProfile = async (hostId: string, patch: PlainRecord) => {
@@ -262,7 +263,13 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         id: dispute.disputeId,
         orderId: dispute.orderId,
         amount: toNumber(dispute.amount),
+        disputedAmount: toNumber(dispute.disputedAmount ?? dispute.amount),
+        disputeFee: toNumber(dispute.disputeFee ?? 0),
         status: dispute.status,
+        disputeStatus: String(dispute.disputeStatus ?? dispute.status ?? 'pending'),
+        curatorStatus: dispute.curatorStatus ?? null,
+        customerName: dispute.customerName ?? dispute.buyerName ?? null,
+        trackingLink: dispute.trackingLink ?? null,
         reason: dispute.reason ?? null,
         createdAt: dispute.createdAt ?? null,
       })),
@@ -404,18 +411,178 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
-    const [ordersSnap, checkinsSnap, tiersSnap] = await Promise.all([
+    const [ordersSnap, checkinsSnap, tiersSnap, eventDoc] = await Promise.all([
       fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get(),
       fastify.db.collection('ticket_scans').where('eventId', '==', eventId).get(),
       fastify.db.collection('events').doc(eventId).collection('ticket_tiers').get(),
+      fastify.db.collection('events').doc(eventId).get(),
     ]);
 
-    const orders = ordersSnap.docs.map(d => d.data());
-    const totalRevenue = orders.reduce((sum, o) => sum + toNumber(o.totalPaise || 0), 0) / 100;
-    const ticketsSold = orders.reduce((sum, o) => sum + toNumber(o.ticketCount || 1), 0);
-    const checkedIn = checkinsSnap.size;
+    const orders = ordersSnap.docs.map(d => ({ id: ordersSnap.docs[ordersSnap.docs.indexOf(d)].id, ...d.data() }));
+    const checkins = checkinsSnap.docs.map(d => d.data());
+    const tiers = tiersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const eventData = eventDoc.data() || {};
+
+    // Revenue & tickets
+    const grossRevenuePaise = orders.reduce((sum: number, o: any) => sum + toNumber(o.totalPaise || 0), 0);
+    const grossRevenue = grossRevenuePaise / 100;
+    const platformFeePct = 0.05; // 5% estimated platform fee
+    const estimatedEarnings = grossRevenue * (1 - platformFeePct);
+    const ticketsSold = orders.reduce((sum: number, o: any) => sum + toNumber(o.ticketCount || 1), 0);
+    const totalCheckedIn = checkins.length;
+    const capacity = tiers.reduce((sum: number, t: any) => sum + toNumber(t.capacity || t.quantity || 0), 0);
+    const inventory = capacity - ticketsSold;
+    const sellThrough = capacity > 0 ? Math.round((ticketsSold / capacity) * 100) : 0;
+
+    // Guest list size = unique attendee orders
+    const uniqueBuyers = new Set(orders.map((o: any) => o.userId || o.buyerEmail)).size;
+    const guestListSize = uniqueBuyers;
+
+    // Conversion: views → purchases (views from event doc)
+    const views = toNumber(eventData.stats?.views || eventData.views || 0);
+    const saves = toNumber(eventData.stats?.saves || eventData.saves || 0);
+    const conversionRate = views > 0 ? Math.round((ticketsSold / views) * 1000) / 10 : 0; // % with 1 decimal
+
+    // Repeat vs new guests (buyers who appear in past orders for this host)
+    const uniqueAttendees = uniqueBuyers;
+    const repeatGuests = 0; // Would need cross-event query — return 0 as safe default
+    const firstTimeGuests = uniqueAttendees;
+
+    // Ticket mix & top tier
+    const tierMap: Record<string, { tierId: string; tierName: string; sold: number; revenue: number }> = {};
+    for (const o of orders as any[]) {
+      const items: any[] = o.items || o.tickets || [];
+      for (const item of items) {
+        const tierId = item.tierId || item.tierName || 'unknown';
+        const tierName = item.tierName || tierId;
+        const qty = toNumber(item.quantity || 1);
+        const rev = toNumber(item.priceAtPurchase || item.price || 0) * qty;
+        if (!tierMap[tierId]) tierMap[tierId] = { tierId, tierName, sold: 0, revenue: 0 };
+        tierMap[tierId].sold += qty;
+        tierMap[tierId].revenue += rev;
+      }
+    }
+    // Fallback if no order items — use tier docs with sold counts
+    if (Object.keys(tierMap).length === 0) {
+      for (const t of tiers as any[]) {
+        const sold = toNumber(t.sold || t.soldCount || 0);
+        const revenue = sold * toNumber(t.price || 0);
+        tierMap[t.id] = { tierId: t.id, tierName: t.name || 'Tier', sold, revenue };
+      }
+    }
+    const ticketMix = Object.values(tierMap);
+    const topTier = ticketMix.length > 0
+      ? ticketMix.reduce((best, t) => (t.sold > best.sold ? t : best), ticketMix[0])
+      : null;
+
+    // Top promoter
+    const promoterSales: Record<string, { name: string; sales: number; revenue: number }> = {};
+    for (const o of orders as any[]) {
+      const code = o.promoterCode || o.promoter;
+      if (code) {
+        if (!promoterSales[code]) promoterSales[code] = { name: code, sales: 0, revenue: 0 };
+        promoterSales[code].sales += toNumber(o.ticketCount || 1);
+        promoterSales[code].revenue += toNumber(o.totalPaise || 0) / 100;
+      }
+    }
+    const topPromoterEntries = Object.values(promoterSales);
+    const topPromoter = topPromoterEntries.length > 0
+      ? topPromoterEntries.reduce((best, p) => (p.sales > best.sales ? p : best), topPromoterEntries[0])
+      : null;
+
+    // Location distribution — from buyer city/state in orders
+    const locationMap: Record<string, number> = {};
+    for (const o of orders as any[]) {
+      const city = o.buyerCity || o.city || 'Unknown';
+      locationMap[city] = (locationMap[city] || 0) + 1;
+    }
+    const locationDistribution = Object.entries(locationMap)
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+
+    // Sales timeline (daily buckets)
+    const salesBuckets: Record<string, { tickets: number; revenue: number; checkIns: number }> = {};
+    for (const o of orders as any[]) {
+      const date = (o.createdAt || '').slice(0, 10);
+      if (!date) continue;
+      if (!salesBuckets[date]) salesBuckets[date] = { tickets: 0, revenue: 0, checkIns: 0 };
+      salesBuckets[date].tickets += toNumber(o.ticketCount || 1);
+      salesBuckets[date].revenue += toNumber(o.totalPaise || 0) / 100;
+    }
+    for (const c of checkins) {
+      const date = ((c as any).scannedAt || '').slice(0, 10);
+      if (date && salesBuckets[date]) salesBuckets[date].checkIns++;
+    }
+    const salesTimeline = Object.entries(salesBuckets)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, b]) => ({
+        date,
+        label: new Date(date + 'T00:00:00Z').toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }),
+        tickets: b.tickets,
+        revenue: b.revenue,
+        checkIns: b.checkIns,
+      }));
+
+    // Hourly timeline (from check-in scan times)
+    const hourlyBuckets: Record<number, { tickets: number; revenue: number; checkIns: number }> = {};
+    for (let h = 0; h < 24; h++) hourlyBuckets[h] = { tickets: 0, revenue: 0, checkIns: 0 };
+    for (const c of checkins) {
+      const ts = (c as any).scannedAt || '';
+      if (ts) {
+        const hour = new Date(ts).getHours();
+        hourlyBuckets[hour].checkIns++;
+      }
+    }
+    for (const o of orders as any[]) {
+      const ts = o.createdAt || '';
+      if (ts) {
+        const hour = new Date(ts).getHours();
+        hourlyBuckets[hour].tickets += toNumber(o.ticketCount || 1);
+        hourlyBuckets[hour].revenue += toNumber(o.totalPaise || 0) / 100;
+      }
+    }
+    const hourlyTimeline = Array.from({ length: 24 }, (_, h) => {
+      const label = `${h === 0 ? 12 : h <= 12 ? h : h - 12}${h < 12 ? 'am' : 'pm'}`;
+      return { hour: h, label, ...hourlyBuckets[h] };
+    });
+    const peakSalesHour = hourlyTimeline.reduce(
+      (peak, h) => (h.revenue > (peak?.revenue || 0) ? { label: h.label, revenue: h.revenue } : peak),
+      null as { label: string; revenue: number } | null
+    );
+    const peakCheckInHour = hourlyTimeline.reduce(
+      (peak, h) => (h.checkIns > (peak?.checkIns || 0) ? { label: h.label, checkIns: h.checkIns } : peak),
+      null as { label: string; checkIns: number } | null
+    );
 
     return {
+      // Core stats (matches OverviewData interface)
+      ticketsSold,
+      grossRevenue,
+      estimatedEarnings,
+      guestListSize,
+      totalCheckedIn,
+      conversionRate,
+      sellThrough,
+      uniqueAttendees,
+      repeatGuests,
+      firstTimeGuests,
+      topTier,
+      locationDistribution,
+      ticketMix,
+      inventory,
+      capacity,
+      isPublic: eventData.isPublic !== false,
+      isLiveEditable: (eventData.status === 'live' || eventData.lifecycle === 'live'),
+      topPromoter,
+      views,
+      saves,
+      salesTimeline,
+      hourlyTimeline,
+      peakSalesHour,
+      peakCheckInHour,
+      timeZone: eventData.timeZone || 'Asia/Kolkata',
+      // Keep legacy shape for backwards compat
       event: {
         id: event.eventId,
         title: event.title,
@@ -424,13 +591,13 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         venueName: event.venueName,
       },
       stats: {
-        revenue: totalRevenue,
+        revenue: grossRevenue,
         ticketsSold,
-        checkedIn,
-        capacity: tiersSnap.docs.reduce((sum, d) => sum + toNumber(d.data().capacity || 0), 0),
+        checkedIn: totalCheckedIn,
+        capacity,
       },
-      recentOrders: orders.slice(0, 10).map(o => ({
-        id: o.orderId,
+      recentOrders: orders.slice(0, 10).map((o: any) => ({
+        id: o.orderId || o.id,
         userName: o.userName,
         amount: toNumber(o.totalPaise || 0) / 100,
         createdAt: o.createdAt,
@@ -517,17 +684,40 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   const getHostEventTickets = async (hostId: string, eventId: string) => {
     const event = await getHostEventAndVerify(hostId, eventId);
-    return {
-      tiers: asArray(event.ticketTiers || event.tiers || event.tickets).map((tier: PlainRecord, index: number) => ({
+    const rawTiers = asArray((event as PlainRecord).ticketTiers || (event as PlainRecord).tiers || (event as PlainRecord).tickets);
+    const tiers = rawTiers.map((tier: PlainRecord, index: number) => {
+      const qty = toNumber(tier.quantity || tier.maxQuantity || 0);
+      const sold = toNumber(tier.sold || 0);
+      const remaining = Math.max(0, qty - sold);
+      const sellThrough = qty > 0 ? Math.round((sold / qty) * 100) : 0;
+      return {
         id: tier.id || tier.tierId || String(index),
-        name: tier.name,
-        price: tier.price,
-        quantity: tier.quantity || tier.maxQuantity || 0,
-        sold: tier.sold || 0,
+        name: tier.name || '',
+        description: tier.description || '',
+        entryType: tier.entryType || 'general',
+        price: toNumber(tier.price || 0),
+        quantity: qty,
+        sold,
+        remaining,
+        sellThrough,
+        startSale: tier.startSale || tier.saleStartDate || null,
+        endSale: tier.endSale || tier.saleEndDate || null,
+        minPurchaseQuantity: toNumber(tier.minPurchaseQuantity || tier.minQty || 1),
+        maxPurchaseQuantity: toNumber(tier.maxPurchaseQuantity || tier.maxQty || 10),
+        promoterEnabled: tier.promoterEnabled !== false,
+        isHidden: !!tier.isHidden,
+        isDisabled: !!tier.isDisabled,
+        isSoldOut: qty > 0 && remaining === 0,
+        passwordProtected: !!tier.passwordProtected,
+        requiresApproval: !!tier.requiresApproval,
         status: tier.status || 'active',
-      })),
-      eventId,
-    };
+        order: toNumber(tier.order ?? index),
+      };
+    });
+    const totalSold = tiers.reduce((s, t) => s + t.sold, 0);
+    const totalInventory = tiers.reduce((s, t) => s + t.quantity, 0);
+    const totalRemaining = tiers.reduce((s, t) => s + t.remaining, 0);
+    return { tiers, totalSold, totalInventory, totalRemaining };
   };
 
   const updateHostEventTickets = async (hostId: string, eventId: string, body: PlainRecord) => {
@@ -639,12 +829,52 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostAnalyticsTimeSeries = async (hostId: string, query: PlainRecord) => {
-    const cacheKey = `${hostId}:${query.range || '1w'}:${query.metric || 'revenue'}`;
+    const range = String(query.range || '1w');
+    const metric = String(query.metric || 'revenue');
+    const cacheKey = `${hostId}:${range}:${metric}:v2`;
     const cached = await fastify.cache.get('analytics:host:ts', cacheKey);
     if (cached) return { ...cached, fromCache: true };
-    const stats = await getHostAnalytics(hostId, (query.range || '1w') as any);
-    await fastify.cache.set('analytics:host:ts', cacheKey, stats, 120);
-    return stats;
+
+    const days = range === '1d' ? 1 : range === '1w' ? 7 : range === '1m' ? 30 : range === '3m' ? 90 : 7;
+    const nowMs = Date.now();
+    const fromMs = nowMs - days * 86400000;
+    const fromIso = new Date(fromMs).toISOString();
+
+    const ordersSnap = await fastify.db.collection('orders')
+      .where('hostId', '==', hostId)
+      .where('status', '==', 'paid')
+      .where('createdAt', '>=', fromIso)
+      .limit(1000)
+      .get()
+      .catch(() => ({ docs: [] as any[] }));
+
+    const buckets = new Map<string, { revenue: number; ticketsSold: number }>();
+    for (let d = 0; d < days; d++) {
+      const label = new Date(fromMs + d * 86400000).toISOString().slice(0, 10);
+      buckets.set(label, { revenue: 0, ticketsSold: 0 });
+    }
+    for (const doc of (ordersSnap as any).docs) {
+      const od = doc.data() || {};
+      const label = String(od.createdAt || '').slice(0, 10);
+      if (buckets.has(label)) {
+        const b = buckets.get(label)!;
+        b.revenue += toNumber(od.amount || od.total || 0);
+        b.ticketsSold += toNumber(od.ticketsCount || od.quantity || 1);
+      }
+    }
+
+    const series = Array.from(buckets.entries()).map(([date, b]) => ({
+      label: date,
+      date,
+      revenue: b.revenue,
+      ticketsSold: b.ticketsSold,
+      value: metric === 'revenue' ? b.revenue : b.ticketsSold,
+    }));
+    const totals = series.reduce((acc, pt) => ({ revenue: acc.revenue + pt.revenue, ticketsSold: acc.ticketsSold + pt.ticketsSold }), { revenue: 0, ticketsSold: 0 });
+    const legacyStats = await getHostAnalytics(hostId, range as any).catch(() => ({}));
+    const result = { ...asRecord(legacyStats), series, total: metric === 'revenue' ? totals.revenue : totals.ticketsSold };
+    await fastify.cache.set('analytics:host:ts', cacheKey, result, 120);
+    return result;
   };
 
   const getHostVenueCalendar = async (hostId: string, query: PlainRecord) => {
@@ -905,6 +1135,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
     try {
       requireType(ctx, 'host');
+      // When include=sessions, return active sessions for this user
+      if ((request.query as any).include === 'sessions') {
+        const snap = await fastify.db.collection('host_sessions').where('uid', '==', ctx.uid).limit(20).get().catch(() => ({ docs: [] as any[] }));
+        const sessions = ((snap as any).docs || []).map((d: any) => d.data() || {});
+        return reply.send({ sessions });
+      }
       const settings = await hostService.getSettings(ctx);
       return reply.header('Cache-Control', 'private, max-age=300').send(settings);
     } catch (err: any) {
@@ -1035,6 +1271,134 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         const eventOverviewMatch = rest.match(/^events\/([^/]+)\/overview$/);
         if (eventOverviewMatch && request.method === 'GET') return reply.send(await getHostEventOverview(ctx, eventOverviewMatch[1]));
 
+        const hostEventFinanceMatch = rest.match(/^events\/([^/]+)\/finance$/);
+        if (hostEventFinanceMatch && request.method === 'GET') {
+          const evtId = hostEventFinanceMatch[1];
+          const event = await getHostEventAndVerify(ctx.partnerId, evtId);
+          const [ordersSnap, walkInsSnap] = await Promise.all([
+            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('walk_in_entries').doc(evtId).collection('logs').get().catch(() => ({ docs: [] as any[] })),
+          ]);
+          const orderDocs = (ordersSnap as any).docs || [];
+          const walkInDocs = (walkInsSnap as any).docs || [];
+          const gross = orderDocs.reduce((s: number, d: any) => s + toNumber(d.data().totalPaise || 0), 0) / 100;
+          const refundAmount = orderDocs.filter((d: any) => d.data().refundedAt).reduce((s: number, d: any) => s + toNumber(d.data().refundPaise || 0), 0) / 100;
+          const platformFee = Math.round(gross * 0.05 * 100) / 100;
+          const venueCommissionRate = toNumber((event as PlainRecord).venueCommissionRate || 15);
+          const venueCommission = Math.round(gross * (venueCommissionRate / 100) * 100) / 100;
+          const walkInRevenue = walkInDocs.reduce((s: number, d: any) => s + toNumber(d.data().amount || 0), 0);
+          const net = Math.max(0, gross - platformFee - refundAmount);
+          const tierMap = new Map<string, { tierName: string; sold: number; revenue: number }>();
+          for (const d of orderDocs) {
+            const o = d.data();
+            const tierId = o.tierId || 'unknown';
+            const tierName = o.tierName || 'Ticket';
+            if (!tierMap.has(tierId)) tierMap.set(tierId, { tierName, sold: 0, revenue: 0 });
+            const entry = tierMap.get(tierId)!;
+            entry.sold += toNumber(o.ticketCount || 1);
+            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+          }
+          const ticketMix = Array.from(tierMap.entries()).map(([tierId, v]) => ({ tierId, tierName: v.tierName, revenue: v.revenue, sold: v.sold }));
+          const ev = event as PlainRecord;
+          return reply.send({
+            gross, platformFee, venueCommission, venueCommissionRate, refundAmount, expenses: 0, net,
+            walkInRevenue, walkInOrders: walkInDocs.length, onlineRevenue: gross, onlineOrders: orderDocs.length,
+            settlementStatus: ev.settlementStatus || 'pending', paidAt: ev.settledAt || null,
+            paymentSources: [{ label: 'Online', amount: gross, orders: orderDocs.length }],
+            intakeChannels: [{ label: 'App', amount: gross, orders: orderDocs.length }],
+            ticketMix, hostPayout: null, promoterPayouts: [], payoutSummary: null,
+          });
+        }
+
+        const hostEventAttendeesMatchSingle = rest.match(/^events\/([^/]+)\/attendees\/([^/]+)$/);
+        if (hostEventAttendeesMatchSingle && request.method === 'GET') {
+          const [, evtId, attendeeId] = hostEventAttendeesMatchSingle;
+          const event = await getHostEventAndVerify(ctx.partnerId, evtId);
+          const [orderDoc, allOrdersSnap] = await Promise.all([
+            fastify.db.collection('orders').doc(attendeeId).get(),
+            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid').limit(200).get().catch(() => ({ docs: [] as any[] })),
+          ]);
+          if (!orderDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Attendee not found', requestId: request.id }));
+          const o = orderDoc.data() as PlainRecord;
+          const lifetimeSnap = await fastify.db.collection('orders').where('buyerPhone', '==', o.buyerPhone || '').where('status', '==', 'paid').limit(50).get().catch(() => ({ docs: [] as any[] }));
+          const lifetimeOrders = ((lifetimeSnap as any).docs || []).map((d: any) => {
+            const od = d.data() || {};
+            return { id: d.id, orderIndex: null, orderNumber: d.id.slice(0, 8).toUpperCase(), eventId: od.eventId || evtId, eventName: od.eventTitle || od.eventName || 'Event', eventImage: od.eventImage || '', customerName: od.buyerName || 'Guest', email: od.buyerEmail || '', phone: od.buyerPhone || '', amount: toNumber(od.totalPaise || 0) / 100, ticketsCount: toNumber(od.ticketCount || 1), createdAt: od.createdAt || null, confirmedAt: od.confirmedAt || null, checkedInAt: od.checkedInAt || null, cancelledAt: od.cancelledAt || null, updatedAt: od.updatedAt || null, status: od.checkedInAt ? 'checked_in' : 'paid', source: od.source || 'ticket', tags: od.tags || [], promoterCode: od.promoterCode || null, note: od.note || null, items: [] };
+          });
+          const allOrders = (allOrdersSnap as any).docs || [];
+          const buyerOrders = allOrders.filter((d: any) => d.data().buyerPhone === o.buyerPhone || d.data().buyerEmail === o.buyerEmail);
+          const attendee = {
+            id: attendeeId, attendeeId, fullName: o.buyerName || 'Guest', email: o.buyerEmail || '', phone: o.buyerPhone || '',
+            instagram: o.instagram || '', ticketTier: o.tierName || '', tierId: o.tierId || '', quantity: toNumber(o.ticketCount || 1),
+            totalSpend: toNumber(o.totalPaise || 0) / 100, source: o.source || 'online', status: o.checkedInAt ? 'checked_in' : 'paid',
+            purchasedAt: o.createdAt || null, checkedInAt: o.checkedInAt || null, city: o.city || '', area: o.area || '',
+            isVip: !!o.isVip, tags: o.tags || [], orderId: attendeeId, orderSummary: `${o.ticketCount || 1} ticket(s)`,
+            orderNumber: attendeeId.slice(0, 8).toUpperCase(), stats: { eventsAttended: buyerOrders.length, lifetimeSpend: toNumber(o.totalPaise || 0) / 100 }, joinedAt: o.createdAt || null,
+          };
+          const timeline: any[] = [
+            { id: 'purchase', label: 'Ticket Purchased', timestamp: o.createdAt || null, kind: 'purchase' },
+            ...(o.checkedInAt ? [{ id: 'checkin', label: 'Checked In', timestamp: o.checkedInAt, kind: 'checkin' }] : []),
+          ];
+          return reply.send({ attendee, orders: lifetimeOrders, timeline, selectedOrderId: attendeeId });
+        }
+
+        const hostEventAttendeesMatch = rest.match(/^events\/([^/]+)\/attendees$/);
+        if (hostEventAttendeesMatch && request.method === 'GET') {
+          const evtId = hostEventAttendeesMatch[1];
+          const event = await getHostEventAndVerify(ctx.partnerId, evtId);
+          const ev = event as PlainRecord;
+          const page = parseInt(String(query.page || '1'), 10) || 1;
+          const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
+          let q: any = fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid');
+          if (query.tierId) q = q.where('tierId', '==', query.tierId);
+          const snap = await q.limit(500).get().catch(() => ({ docs: [] as any[] }));
+          let orderDocs = (snap as any).docs || [];
+          if (query.status && query.status !== 'all') {
+            if (query.status === 'checked_in') orderDocs = orderDocs.filter((d: any) => !!d.data().checkedInAt);
+            else if (query.status === 'not_arrived') orderDocs = orderDocs.filter((d: any) => !d.data().checkedInAt);
+          }
+          if (query.q) {
+            const term = String(query.q).toLowerCase();
+            orderDocs = orderDocs.filter((d: any) => { const o = d.data(); return (o.buyerName || '').toLowerCase().includes(term) || (o.buyerPhone || '').includes(term); });
+          }
+          const total = orderDocs.length;
+          const totalPages = Math.ceil(total / limit);
+          const paged = orderDocs.slice((page - 1) * limit, page * limit);
+          const attendees = paged.map((doc: any) => {
+            const o = doc.data() || {};
+            return { id: doc.id, attendeeId: doc.id, fullName: o.buyerName || 'Guest', email: o.buyerEmail || '', phone: o.buyerPhone || '', instagram: o.instagram || '', ticketTier: o.tierName || '', tierId: o.tierId || '', quantity: toNumber(o.ticketCount || 1), totalSpend: toNumber(o.totalPaise || 0) / 100, source: o.source || 'online', status: o.checkedInAt ? 'checked_in' : 'paid', purchasedAt: o.createdAt || null, checkedInAt: o.checkedInAt || null, city: o.city || '', area: o.area || '', isVip: !!o.isVip, tags: o.tags || [], orderId: doc.id, orderSummary: `${o.ticketCount || 1} ticket(s)` };
+          });
+          const rawTiers = asArray(ev.ticketTiers || ev.tiers || []);
+          const tierOptions = rawTiers.map((t: any, i: number) => ({ id: t.id || String(i), name: t.name || 'Ticket' }));
+          return reply.send({ attendees, pagination: { page, limit, total, totalPages }, filters: { tierOptions, sourceOptions: ['online', 'door', 'promoter'], statusOptions: ['checked_in', 'not_arrived'] } });
+        }
+
+        const hostEventPromotersMatch = rest.match(/^events\/([^/]+)\/promoters$/);
+        if (hostEventPromotersMatch && request.method === 'GET') {
+          const evtId = hostEventPromotersMatch[1];
+          await getHostEventAndVerify(ctx.partnerId, evtId);
+          const [assignmentsSnap, settingsDoc] = await Promise.all([
+            fastify.db.collection('promoter_assignments').where('eventId', '==', evtId).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('event_promoter_settings').doc(evtId).get().catch(() => null),
+          ]);
+          const promoters = ((assignmentsSnap as any).docs || []).map((doc: any) => ({ assignmentId: doc.id, ...(doc.data() || {}), id: doc.id }));
+          const settingsData = settingsDoc && (settingsDoc as any).exists ? ((settingsDoc as any).data() || {}) : {};
+          const promoterSettings = { mode: settingsData.mode || 'all', commissionRate: settingsData.commissionRate || 10, ...settingsData };
+          const totalPromoters = promoters.length;
+          const activePromoters = promoters.filter((p: any) => p.isActive !== false).length;
+          const disabledPromoters = totalPromoters - activePromoters;
+          const ticketsSold = promoters.reduce((s: number, p: any) => s + toNumber(p.ticketsSold || 0), 0);
+          const revenue = promoters.reduce((s: number, p: any) => s + toNumber(p.revenue || 0), 0);
+          const clicks = promoters.reduce((s: number, p: any) => s + toNumber(p.clicks || 0), 0);
+          return reply.send({ promoters, promoterSettings, summary: { totalPromoters, selectedPromoters: activePromoters, activePromoters, disabledPromoters, ticketsSold, revenue, clicks } });
+        }
+        if (hostEventPromotersMatch && request.method === 'PATCH') {
+          const evtId = hostEventPromotersMatch[1];
+          await getHostEventAndVerify(ctx.partnerId, evtId);
+          await fastify.db.collection('event_promoter_settings').doc(evtId).set({ ...body, eventId: evtId, hostId: ctx.partnerId, updatedAt: new Date().toISOString() }, { merge: true });
+          return reply.send({ success: true });
+        }
+
         const checkInMatch = rest.match(/^events\/([^/]+)\/check-in$/);
         if (checkInMatch && request.method === 'POST') return reply.send(await processGuestCheckIn(ctx, checkInMatch[1], body));
 
@@ -1097,6 +1461,14 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           return reply.status(201).send({ success: true, partnershipId: ref.id });
         }
 
+        if (rest === 'team' && request.method === 'POST') {
+          const { email, phone, firstName, lastName, role, granularPermissions, partnerName } = body;
+          if (!email && !phone) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'email or phone required', requestId: request.id }));
+          const now = new Date().toISOString();
+          const ref = await fastify.db.collection('host_team_invitations').add({ hostId: ctx.partnerId, email: email || null, phone: phone || null, firstName: firstName || null, lastName: lastName || null, role: role || 'member', granularPermissions: granularPermissions || {}, partnerName: partnerName || null, status: 'pending', createdAt: now });
+          return reply.status(201).send({ success: true, invitationId: ref.id });
+        }
+
         if (rest === 'invite' && request.method === 'POST') {
           const email = String(body.email || '').toLowerCase().trim();
           const role = String(body.role || 'PROMOTER');
@@ -1130,34 +1502,137 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'audience' && request.method === 'GET') {
-          const range = String(query.range || '30d');
-          const days = range === '7d' ? 7 : range === '90d' ? 90 : 30;
-          const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-          const [ordersSnap, followersSnap] = await Promise.all([
-            fastify.db.collection('orders').where('hostId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', since).limit(500).get().catch(() => ({ docs: [] as any[] })),
-            fastify.db.collection('follows').where('hostId', '==', ctx.partnerId).limit(1000).get().catch(() => ({ docs: [] as any[], size: 0 })),
+          const limit = Math.min(toNumber(query.limit) || 50, 100);
+          const filterVip = query.vip === 'true';
+          const filterSource = String(query.source || '');
+
+          // Pull all paid orders for this host to build a guest profile per buyer
+          const [ordersSnap, vipSnap] = await Promise.all([
+            fastify.db.collection('orders').where('hostId', '==', ctx.partnerId).where('status', '==', 'paid').limit(500).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('host_vip_guests').where('hostId', '==', ctx.partnerId).get().catch(() => ({ docs: [] as any[] })),
           ]);
-          const orders = ((ordersSnap as any).docs || []).map((d: any) => d.data() || {});
-          const genderCounts: Record<string, number> = {};
-          const ageBuckets: Record<string, number> = { '18-24': 0, '25-34': 0, '35-44': 0, '45+': 0 };
-          for (const o of orders) {
-            if (o.buyerGender) genderCounts[o.buyerGender] = (genderCounts[o.buyerGender] || 0) + 1;
-            const age = toNumber(o.buyerAge);
-            if (age >= 18 && age <= 24) ageBuckets['18-24']++;
-            else if (age >= 25 && age <= 34) ageBuckets['25-34']++;
-            else if (age >= 35 && age <= 44) ageBuckets['35-44']++;
-            else if (age >= 45) ageBuckets['45+']++;
+
+          const vipSet = new Set<string>(
+            ((vipSnap as any).docs || []).map((d: any) => String(d.data()?.guestId || d.id))
+          );
+
+          // Group orders by buyer key (phone > email > uid)
+          const guestMap = new Map<string, { orders: any[]; eventIds: Set<string> }>();
+          for (const doc of ((ordersSnap as any).docs || [])) {
+            const o = doc.data() || {};
+            const key = String(o.buyerPhone || o.buyerEmail || o.buyerId || o.userId || doc.id);
+            if (!key) continue;
+            if (!guestMap.has(key)) guestMap.set(key, { orders: [], eventIds: new Set() });
+            const entry = guestMap.get(key)!;
+            entry.orders.push({ ...o, _docId: doc.id });
+            if (o.eventId) entry.eventIds.add(o.eventId);
           }
-          return reply.send({ totalFollowers: (followersSnap as any).size || 0, totalBuyers: orders.length, genderDistribution: genderCounts, ageDistribution: ageBuckets, range });
+
+          // Build guest profiles
+          let guests: any[] = [];
+          for (const [guestId, { orders: gOrders, eventIds }] of guestMap) {
+            const latest = gOrders.reduce((a: any, b: any) =>
+              new Date(a.createdAt || 0) > new Date(b.createdAt || 0) ? a : b
+            );
+            const rawName: string = latest.buyerName || latest.customerName || '';
+            const maskedName = rawName.length > 2
+              ? rawName.slice(0, 2) + '*'.repeat(Math.max(2, rawName.length - 2))
+              : rawName || 'Guest';
+            const source: string = latest.source || (latest.isComp ? 'comp' : 'ticket');
+            const isVip = vipSet.has(guestId);
+            if (filterVip && !isVip) continue;
+            if (filterSource && source !== filterSource) continue;
+            guests.push({
+              guestId,
+              maskedName,
+              eventsAttended: eventIds.size,
+              lastEventNames: gOrders.map((o: any) => o.eventTitle || o.eventName || '').filter(Boolean).slice(0, 3),
+              lastSeen: latest.createdAt || null,
+              source,
+              isVip,
+              city: latest.city || latest.buyerCity || null,
+              isRepeat: eventIds.size > 1,
+            });
+          }
+
+          // Sort by lastSeen desc
+          guests.sort((a, b) => new Date(b.lastSeen || 0).getTime() - new Date(a.lastSeen || 0).getTime());
+
+          const cursor = toNumber(query.cursor) || 0;
+          const page = guests.slice(cursor, cursor + limit);
+          const hasMore = guests.length > cursor + limit;
+          return reply.send({
+            guests: page,
+            total: guests.length,
+            hasMore,
+            nextCursor: hasMore ? String(cursor + limit) : null,
+          });
+        }
+
+        if (rest === 'audience' && request.method === 'PATCH') {
+          const guestId = String(body.guestId || '');
+          const isVip = body.isVip === true;
+          if (!guestId) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'guestId required', requestId: request.id }));
+          const docId = `${ctx.partnerId}_${guestId}`;
+          if (isVip) {
+            await fastify.db.collection('host_vip_guests').doc(docId).set({ hostId: ctx.partnerId, guestId, isVip: true, updatedAt: new Date().toISOString() }, { merge: true });
+          } else {
+            await fastify.db.collection('host_vip_guests').doc(docId).delete().catch(() => {});
+          }
+          return reply.send({ success: true, guestId, isVip });
+        }
+
+        if (rest === 'settings' && request.method === 'PATCH') {
+          const patch = asRecord(body.patch || body);
+          const allowedFields = ['displayName', 'bio', 'contactEmail', 'contactPhone', 'socialLinks', 'notificationPreferences', 'bookingPolicy', 'coverCharge', 'dressCode', 'ageRestriction', 'instagramHandle', 'youtubeHandle', 'spotifyHandle', 'isPublic', 'allowDirectBooking'];
+          const safe: PlainRecord = {};
+          for (const key of allowedFields) if (patch[key] !== undefined) safe[key] = patch[key];
+          safe.updatedAt = new Date().toISOString();
+          await fastify.db.collection('hosts').doc(ctx.partnerId).set(safe, { merge: true });
+          const doc = await fastify.db.collection('hosts').doc(ctx.partnerId).get();
+          const settings = doc.exists ? { id: doc.id, ...(doc.data() || {}) } : safe;
+          return reply.send({ success: true, settings });
+        }
+
+        if (rest === 'settings' && request.method === 'POST') {
+          const action = String(body.action || '');
+          if (action === 'WRITE_SESSION') {
+            const sessionData = asRecord(body.sessionData || {});
+            const sessionId = String(sessionData.sessionId || body.sessionId || '');
+            if (sessionId) {
+              await fastify.db.collection('host_sessions').doc(`${ctx.uid}_${sessionId}`).set({
+                uid: ctx.uid, hostId: ctx.partnerId, sessionId,
+                userAgent: String(sessionData.userAgent || ''),
+                deviceType: String(sessionData.deviceType || 'desktop'),
+                lastActiveAt: String(sessionData.lastActiveAt || new Date().toISOString()),
+                createdAt: new Date().toISOString(),
+              }, { merge: true });
+            }
+            return reply.send({ success: true });
+          }
+          if (action === 'REVOKE_SESSION') {
+            const sessionId = String(body.sessionId || '');
+            if (sessionId) {
+              await fastify.db.collection('host_sessions').doc(`${ctx.uid}_${sessionId}`).delete().catch(() => {});
+            }
+            return reply.send({ success: true });
+          }
+          return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'Unknown settings action', requestId: request.id }));
         }
 
         if (rest === 'settings/session/revoke' && request.method === 'POST') {
           try {
             await (fastify as any).firebaseAdmin?.auth().revokeRefreshTokens(ctx.uid);
           } catch {
-            // revokeRefreshTokens may not be available in all Firebase Admin setups; log and continue
             fastify.log.warn(`[partners/hosts] revokeRefreshTokens not available for uid=${ctx.uid}`);
           }
+          await fastify.db.collection('host_sessions').where('uid', '==', ctx.uid).limit(50).get()
+            .then((snap: any) => {
+              if (snap.empty) return;
+              const batch = fastify.db.batch();
+              snap.docs.forEach((d: any) => batch.delete(d.ref));
+              return batch.commit();
+            }).catch(() => {});
           return reply.send({ success: true });
         }
 
@@ -1192,6 +1667,25 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             return reply.send({ success: true });
           }
           return reply.send({ success: true });
+        }
+
+        if (rest === 'analytics/overview' && request.method === 'GET') {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+            fastify.db.collection('events').where('creatorId', '==', ctx.partnerId).get().catch(() => ({ docs: [] as any[], size: 0 })),
+            fastify.db.collection('orders').where('hostId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('check_ins').where('hostId', '==', ctx.partnerId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
+          ]);
+          const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)), 0);
+          const totalTickets = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().ticketCount || 0), 0);
+          const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
+          return reply.send({
+            period: '30d',
+            events: { total: eventCount },
+            revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
+            tickets: { sold: totalTickets },
+            attendance: { checkedIn: (checkinsSnap as any).size || 0 },
+          });
         }
 
         return reply.status(404).send(buildErrorResponse({

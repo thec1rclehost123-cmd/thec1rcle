@@ -13,6 +13,7 @@ import {
     Layout,
     Inbox,
     UserCog,
+    Users,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { AppleTopBar } from "@/components/shared/AppleTopBar";
@@ -32,6 +33,7 @@ const MENU_SECTIONS = [
             { icon: Inbox,           label: "Requests",  href: "/host/events/requests" },
             { icon: Calendar,        label: "Calendar",  href: "/host/calendar" },
             { icon: Network,         label: "Partners",  href: "/host/network" },
+            { icon: Users,           label: "Audience",  href: "/host/audience" },
             { icon: BarChart2,       label: "Analytics", href: "/host/analytics" },
             { icon: Banknote,        label: "Finance",   href: "/host/finance" },
             { icon: UserCog,         label: "Team",      href: "/host/team" },
@@ -42,15 +44,23 @@ const MENU_SECTIONS = [
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const HOST_HREF_TO_TAB: Record<string, string> = {
-    "/host":            "overview",
-    "/host/events":          "events",
-    "/host/events/requests": "requests",
-    "/host/calendar":        "calendar",
-    "/host/network":    "network",
-    "/host/analytics":  "analytics",
-    "/host/finance":    "finance",
-    "/host/team":       "team",
-    "/host/presence":   "presence",
+    "/host":                   "overview",
+    "/host/events":            "events",
+    "/host/events/requests":   "requests",
+    "/host/calendar":          "calendar",
+    "/host/network":           "network",
+    "/host/partnerships":      "network",
+    "/host/partners":          "network",
+    "/host/promoters":         "network",
+    "/host/audience":          "audience",
+    "/host/analytics":         "analytics",
+    "/host/finance":           "finance",
+    "/host/team":              "team",
+    "/host/presence":          "presence",
+    "/host/page-management":   "presence",
+    "/host/profile":           "overview",
+    "/host/ops":               "overview",
+    "/host/settings":          "overview",
 };
 
 function itemTab(href: string): string | null {
