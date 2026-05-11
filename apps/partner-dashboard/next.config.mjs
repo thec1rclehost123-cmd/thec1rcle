@@ -70,6 +70,15 @@ const nextConfig = {
       { source: '/api/clubs/:path*', destination: '/api/venues/:path*', permanent: true }
     ]
   },
+  async rewrites() {
+    const gatewayUrl = process.env.GATEWAY_URL || 'http://localhost:4000';
+    return [
+      {
+        source: '/api/v1/:path*',
+        destination: `${gatewayUrl}/api/v1/:path*`
+      }
+    ]
+  },
 };
 
 // Skip Sentry wrapper in local development — it adds webpack overhead on every HMR cycle

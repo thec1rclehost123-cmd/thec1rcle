@@ -34,7 +34,7 @@ async function sendEmail(recipient: string, code: string) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            from: 'THE C1RCLE <thec1rcle.host123@gmail.com>',
+            from: 'noreply@thec1rcle.com',
             to: recipient,
             subject: 'Your Access Key',
             html: `
@@ -49,7 +49,9 @@ async function sendEmail(recipient: string, code: string) {
     });
 
     if (!response.ok) {
-        throw new Error('Unable to send authorization code.');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Resend API error:', response.status, errorData);
+        throw new Error(errorData.message || 'Unable to send authorization code.');
     }
 }
 
