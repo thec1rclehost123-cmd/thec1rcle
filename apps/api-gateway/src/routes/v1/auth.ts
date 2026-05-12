@@ -388,10 +388,14 @@ export default async function authRoutes(fastify: FastifyInstance) {
             }
 
         } catch (error: any) {
-            fastify.log.error(`Error in GET /auth/me: ${error.message}`);
+            fastify.log.error({
+                requestId: request.id,
+                error: error?.message,
+                stack: error?.stack,
+            }, 'GET /auth/me unhandled error');
             return reply.status(500).send(buildErrorResponse({
                 code: 'INTERNAL_ERROR',
-                message: 'Internal Server Error',
+                message: process.env.NODE_ENV !== 'production' ? (error?.message || 'Internal Server Error') : 'Internal Server Error',
                 requestId: request.id,
             }));
         }
