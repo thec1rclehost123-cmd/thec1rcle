@@ -320,6 +320,36 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         }
     });
 
+    fastify.get('/venue/analytics/overview', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { venueId } = request.query as any;
+        if (!venueId) return reply.status(400).send({ error: 'venueId required' });
+        await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+            fastify.db.collection('events').where('venueId', '==', venueId).get().catch(() => ({ docs: [] as any[], size: 0 })),
+            fastify.db.collection('orders').where('venueId', '==', venueId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('check_ins').where('venueId', '==', venueId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
+        ]);
+        const orderDocs = (ordersSnap as any).docs || [];
+        const totalRevenuePaise = orderDocs.reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)), 0);
+        const totalTickets = orderDocs.reduce((sum: number, doc: any) => sum + (doc.data().ticketCount || 0), 0);
+        const totalCheckIns = (checkinsSnap as any).size || 0;
+        const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
+        return reply.send({
+            period: '30d',
+            totalRevenue: totalRevenuePaise / 100,
+            totalTicketsSold: totalTickets,
+            totalCheckIns,
+            totalEvents: eventCount,
+            events: { total: eventCount },
+            revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
+            tickets: { sold: totalTickets },
+            attendance: { checkedIn: totalCheckIns },
+        });
+    });
+
     fastify.get('/venue/overview/summary', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueIdQuery })]
     }, async (request: any, reply) => {

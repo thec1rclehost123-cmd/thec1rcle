@@ -89,18 +89,31 @@ export async function resolvePartnerContext(
   }
 
   // 3. Firestore partner_memberships query
-  const snap = await db
+  // Primary: isActive == true. Fallback: status == 'active' for memberships that use
+  // the status field instead of isActive (both are treated as valid by the BFF layer).
+  const primarySnap = await db
     .collection('partner_memberships')
     .where('uid', '==', uid)
     .where('isActive', '==', true)
     .orderBy('createdAt', 'desc')
     .limit(10)
     .get()
-    .catch(async () =>
-      db.collection('partner_memberships').where('uid', '==', uid).limit(10).get()
-    );
+    .catch(() => null);
 
-  for (const doc of snap.docs) {
+  const memberDocs = primarySnap?.docs ?? [];
+
+  if (memberDocs.length === 0) {
+    const statusSnap = await db
+      .collection('partner_memberships')
+      .where('uid', '==', uid)
+      .where('status', '==', 'active')
+      .limit(10)
+      .get()
+      .catch(() => null);
+    if (statusSnap) memberDocs.push(...statusSnap.docs);
+  }
+
+  for (const doc of memberDocs) {
     const ctx = buildFromMembership(uid, doc.data(), user);
     if (ctx) return ctx;
   }

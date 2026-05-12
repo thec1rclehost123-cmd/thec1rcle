@@ -565,6 +565,32 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         }
     });
 
+    // ── Host Analytics Overview ───────────────────────────────────────────────
+
+    fastify.get('/host/analytics/overview', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { hostId } = request.query as any;
+        if (!hostId) return reply.status(400).send({ error: 'hostId required' });
+        await fastify.verifyPartnerAccess(request, hostId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+        const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
+            fastify.db.collection('events').where('creatorId', '==', hostId).get().catch(() => ({ docs: [] as any[], size: 0 })),
+            fastify.db.collection('orders').where('hostId', '==', hostId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('check_ins').where('hostId', '==', hostId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
+        ]);
+        const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)), 0);
+        const totalTickets = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().ticketCount || 0), 0);
+        const eventCount = (eventsSnap as any).size || ((eventsSnap as any).docs || []).length;
+        return reply.send({
+            period: '30d',
+            events: { total: eventCount },
+            revenue: { totalPaise: totalRevenuePaise, total: totalRevenuePaise / 100 },
+            tickets: { sold: totalTickets },
+            attendance: { checkedIn: (checkinsSnap as any).size || 0 },
+        });
+    });
+
     // ── Host Venue Calendar ───────────────────────────────────────────────────
 
     fastify.get('/host/venue-calendar', {

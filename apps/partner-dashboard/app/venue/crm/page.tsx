@@ -714,7 +714,6 @@ export default function MarketingPage() {
 
     useEffect(() => {
         if (!venueId || !user) {
-            console.warn("[Marketing] useEffect skipped — venueId:", venueId, "user:", !!user);
             return;
         }
 

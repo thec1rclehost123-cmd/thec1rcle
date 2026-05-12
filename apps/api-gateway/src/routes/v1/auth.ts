@@ -869,7 +869,41 @@ export default async function authRoutes(fastify: FastifyInstance) {
     fastify.get('/partner-context', {
         preHandler: [fastify.requireAuth]
     }, async (request: any, reply) => {
-        const membership = request.authContext?.activeMembership || request.user?.activeMembership;
+        let membership = request.authContext?.activeMembership || request.user?.activeMembership;
+
+        if (!membership) {
+            // activeMembership is only pre-loaded when x-workspace-id is sent.
+            // Fall back to a direct Firestore lookup so this endpoint works
+            // regardless of whether the workspace preHandler ran.
+            const uid = request.user?.uid;
+            if (uid) {
+                try {
+                    const primarySnap = await fastify.db
+                        .collection('partner_memberships')
+                        .where('uid', '==', uid)
+                        .where('isActive', '==', true)
+                        .limit(1)
+                        .get();
+                    if (!primarySnap.empty) {
+                        membership = primarySnap.docs[0].data();
+                    } else {
+                        // Some memberships use status:'active' instead of isActive:true
+                        const statusSnap = await fastify.db
+                            .collection('partner_memberships')
+                            .where('uid', '==', uid)
+                            .where('status', '==', 'active')
+                            .limit(1)
+                            .get();
+                        if (!statusSnap.empty) {
+                            membership = statusSnap.docs[0].data();
+                        }
+                    }
+                } catch (err) {
+                    fastify.log.warn({ uid, err }, 'partner-context: membership lookup failed');
+                }
+            }
+        }
+
         if (!membership) {
             return reply.status(404).send(buildErrorResponse({
                 code: 'NO_ACTIVE_PARTNERSHIP',
