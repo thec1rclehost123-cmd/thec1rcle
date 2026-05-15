@@ -138,12 +138,10 @@ export default function HostPresencePageClient() {
         setIsSaving(true);
         setSaveStatus("saving");
         try {
-            const res = await authedFetch("/api/partners/hosts/page", {
-                method: "POST",
-                body: JSON.stringify({
-                    hostId: profile.activeMembership.partnerId,
-                    updates
-                })
+            const res = await authedFetch("/api/host/profile", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(updates)
             });
             if (res.ok) {
                 fetchProfileData();

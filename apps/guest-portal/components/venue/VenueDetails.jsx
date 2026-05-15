@@ -66,7 +66,7 @@ export default function VenueDetails({ venue }) {
             };
 
             return (
-                <div className="grid grid-cols-2 gap-x-6 gap-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 sm:gap-x-6 gap-y-2">
                     {days.map(day => {
                         const timeValue = timings[day] || timings[day.charAt(0).toUpperCase() + day.slice(1)];
                         const displayTime = formatTimeValue(timeValue);
@@ -86,14 +86,14 @@ export default function VenueDetails({ venue }) {
     };
 
     return (
-        <section className="px-6 sm:px-12 lg:px-24 py-16 bg-black/[0.02] dark:bg-white/[0.02]">
+        <section className="px-4 sm:px-6 md:px-12 lg:px-24 py-8 sm:py-12 md:py-16 bg-black/[0.02] dark:bg-white/[0.02]">
             <div className="max-w-5xl mx-auto">
                 {/* Section Header */}
                 <div className="mb-12">
                     <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] block mb-3">
                         Complete Details
                     </span>
-                    <h2 className="text-4xl md:text-5xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
+                    <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
                         Know Before You Go
                     </h2>
                 </div>
@@ -103,7 +103,7 @@ export default function VenueDetails({ venue }) {
                     <div className="lg:col-span-2 space-y-6">
                         {/* Map Embed */}
                         {(address || coordinates) && (
-                            <div className="rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 h-[300px]">
+                            <div className="rounded-3xl overflow-hidden border border-black/10 dark:border-white/10 h-[200px] sm:h-[250px] md:h-[300px]">
                                 <iframe
                                     src={mapEmbedUrl}
                                     width="100%"

@@ -31,7 +31,7 @@ export default function ExploreEventGrid({ events = [] }) {
         }}
         computeItemKey={(index, event) => event.id || `event-${index}`}
         itemContent={(index, event) => (
-          <EventCard event={event} index={index} height="h-[280px] sm:h-[500px]" />
+          <EventCard event={event} index={index} height="h-[200px] sm:h-[280px] md:h-[500px]" />
         )}
       />
     </ErrorBoundary>

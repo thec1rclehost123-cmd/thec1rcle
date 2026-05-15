@@ -5,6 +5,7 @@ import {
     getPromoterByUsername,
     getPromoterActiveEvents,
     getPromoterLinkByVanityAlias,
+    trackPromoterLinkClick,
 } from '@c1rcle/core/promoter-engine';
 
 const PromoterUsernameParam = z.object({
@@ -59,6 +60,11 @@ export default async function guestPromoterRoutes(fastify: FastifyInstance) {
             const link = await getPromoterLinkByVanityAlias(username, alias);
             if (!link) {
                 return reply.status(404).send({ error: 'Vanity link not found' });
+            }
+
+            // Fire-and-forget: track the click without blocking the redirect
+            if (link.code) {
+                trackPromoterLinkClick(link.code, { source: 'vanity-link' }).catch(() => {});
             }
 
             return {

@@ -16,7 +16,7 @@ import { buildLoginUrl } from "../../../lib/auth/guestRouteAccess";
 const AuroraBackground = () => (
     <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
         <div className="absolute -top-[30%] left-0 h-[80vh] w-full bg-gradient-to-b from-orange/10 dark:from-iris/10 via-transparent to-transparent blur-[120px] opacity-60 transition-colors duration-500" />
-        <div className="absolute top-[20%] right-[-20%] h-[600px] w-[600px] rounded-full bg-orange/5 dark:bg-gold/5 blur-[100px] opacity-40 mix-blend-multiply dark:mix-blend-screen animate-pulse" />
+        <div className="absolute top-[20%] right-[-20%] h-[300px] w-[300px] sm:h-[500px] sm:w-[500px] md:h-[600px] md:w-[600px] rounded-full bg-orange/5 dark:bg-gold/5 blur-[100px] opacity-40 mix-blend-multiply dark:mix-blend-screen animate-pulse" />
     </div>
 );
 
@@ -312,7 +312,7 @@ export default function PublicProfilePage() {
                 <div className="mt-20">
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-12">
                         <div className="space-y-4">
-                            <h2 className="text-4xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
+                            <h2 className="text-4xl sm:text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white">
                                 Events
                             </h2>
                             <div className="flex gap-8">

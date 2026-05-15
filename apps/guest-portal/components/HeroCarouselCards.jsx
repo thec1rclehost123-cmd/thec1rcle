@@ -69,7 +69,8 @@ export function CardItem({ card, index, progress, isTablet, onClick, cardsCount 
 }
 
 export function CardContent({ card, progress, index, cardsCount, priority = false }) {
-    const overlayTransform = useTransform(progress || useMotionValue(0), (p) => {
+    const fallbackMotionValue = useMotionValue(0);
+    const overlayTransform = useTransform(progress || fallbackMotionValue, (p) => {
         // Sanity check for NaN
         const safeProgress = Number.isFinite(p) ? p : 0;
 
@@ -113,7 +114,7 @@ export function CardContent({ card, progress, index, cardsCount, priority = fals
             <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent opacity-80" />
 
             <motion.div
-                className="absolute bottom-0 left-0 right-0 p-6 md:p-8 z-30"
+                className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 md:p-8 z-30"
                 style={{ opacity, y }}
             >
                 <div className="flex items-center gap-3 mb-4">

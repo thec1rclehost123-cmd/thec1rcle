@@ -94,7 +94,7 @@ export default function QRTicket({
     };
 
     return (
-        <div className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 max-w-sm mx-auto">
+        <div className="bg-white rounded-3xl overflow-hidden shadow-xl border border-slate-200 w-full sm:max-w-sm mx-auto">
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-900 to-slate-800 px-6 py-4 text-white">
                 <div className="flex items-center gap-3">
@@ -153,7 +153,7 @@ export default function QRTicket({
 
             {/* Actions */}
             {showActions && (
-                <div className="px-6 pb-6 flex gap-3">
+                <div className="px-6 pb-6 flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button
                         onClick={handleDownload}
                         className="flex-1 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-slate-800 transition-colors"

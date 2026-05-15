@@ -17,7 +17,7 @@ const HeroCarousel3D = dynamic(() => import("./HeroCarousel3D"), {
  */
 export default function HeroCarousel({ cards = [] }) {
     return (
-        <section className="relative w-full min-h-[420px] md:min-h-[620px] lg:min-h-[720px] bg-[#FAFAF9] dark:bg-[#050505] flex flex-col items-center pt-6 pb-8 md:pt-10 md:pb-12 overflow-hidden">
+        <section className="relative w-full min-h-[300px] sm:min-h-[420px] md:min-h-[620px] lg:min-h-[720px] bg-[#FAFAF9] dark:bg-[#050505] flex flex-col items-center pt-6 pb-8 md:pt-10 md:pb-12 overflow-hidden">
             {/* Ambient Background Glows */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#ff4b1f]/5 blur-[140px] rounded-full mix-blend-plus-lighter" />
@@ -29,7 +29,7 @@ export default function HeroCarousel({ cards = [] }) {
                     <span className="w-1.5 h-1.5 rounded-full bg-[#ff4b1f] animate-ping" />
                     Now Dropping
                 </span>
-                <h1 className="text-[34px] md:text-[56px] lg:text-[76px] leading-[0.9] font-black uppercase tracking-tighter text-black dark:text-white mb-2">
+                <h1 className="text-[26px] sm:text-[34px] md:text-[56px] lg:text-[76px] leading-[0.9] font-black uppercase tracking-tighter text-black dark:text-white mb-2">
                     Featured <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff4b1f] via-[#ff9068] to-[#ff4b1f] bg-[length:200%_auto] animate-gradient-x">Drops</span>
                 </h1>
                 <div className="w-32 h-1 bg-gradient-to-r from-transparent via-[#ff4b1f] to-transparent opacity-40" />

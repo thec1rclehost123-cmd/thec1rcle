@@ -36,7 +36,7 @@ export default function VenueRestaurantSection({
                 <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-gradient-to-br from-amber-500/5 via-transparent to-transparent rounded-full blur-[100px]" />
                 <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-gradient-to-tl from-[#F44A22]/5 via-transparent to-transparent rounded-full blur-[80px]" />
 
-                <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 relative z-10">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 lg:px-24 relative z-10">
                     {/* Section Header */}
                     <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-20">
                         <div className="space-y-6">
@@ -46,7 +46,7 @@ export default function VenueRestaurantSection({
                                 </div>
                                 <span className="text-[10px] font-black uppercase tracking-[0.5em] text-amber-600 dark:text-amber-400">Culinary Experience</span>
                             </div>
-                            <h2 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-black dark:text-white">
+                            <h2 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-black dark:text-white">
                                 Taste<br />
                                 <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-orange-500">Excellence.</span>
                             </h2>
@@ -114,7 +114,7 @@ export default function VenueRestaurantSection({
 
                         {/* Menu CTA Card */}
                         <div className="lg:col-span-4">
-                            <div className="sticky top-32 p-10 rounded-[3rem] bg-gradient-to-br from-black to-black/90 dark:from-white/5 dark:to-white/[0.02] border border-white/10 space-y-8 overflow-hidden relative">
+                            <div className="sticky top-32 p-6 sm:p-8 md:p-10 rounded-[2rem] sm:rounded-[3rem] bg-gradient-to-br from-black to-black/90 dark:from-white/5 dark:to-white/[0.02] border border-white/10 space-y-8 overflow-hidden relative">
                                 {/* Decorative */}
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-amber-500/20 rounded-full blur-[60px] -translate-y-12 translate-x-12" />
 

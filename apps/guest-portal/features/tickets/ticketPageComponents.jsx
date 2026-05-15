@@ -483,7 +483,7 @@ const QRModal = ({ ticket, onClose, onPartner, onTransfer }) => {
                     style={{ background: `linear-gradient(135deg, ${color}, transparent, ${color})` }}
                 />
 
-                <div className="rounded-none md:rounded-[44px] h-full w-full p-6 md:p-8 pt-20 md:pt-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20">
+                <div className="rounded-none md:rounded-[44px] h-full w-full p-6 md:p-8 pt-12 sm:pt-20 md:pt-8 flex flex-col items-center bg-white/40 dark:bg-black/40 backdrop-blur-3xl border-none md:border md:border-white/60 dark:md:border-white/20">
 
                     {/* Header */}
                     <div className="mb-4 w-full text-center">

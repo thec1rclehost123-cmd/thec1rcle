@@ -55,7 +55,7 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 pt-16 backdrop-blur-2xl sm:items-center"
+                    className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 px-4 pb-8 pt-8 sm:pt-16 backdrop-blur-2xl sm:items-center"
                     onClick={onClose}
                     role="dialog"
                     aria-modal="true"
@@ -70,7 +70,7 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                     >
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs uppercase tracking-[0.5em] text-black/40 dark:text-white/40">{title}</p>
+                                <p className="text-xs uppercase tracking-[0.3em] sm:tracking-[0.5em] text-black/40 dark:text-white/40">{title}</p>
                                 <h3 className="mt-2 text-2xl font-display">
                                     {title === "Interested List" ? "Who's Interested" : "Community Going"}
                                 </h3>
@@ -113,7 +113,7 @@ export default function GuestlistModal({ guests = [], open, onClose, title = "Gu
                                     </div>
                                     <button
                                         type="button"
-                                        className="rounded-full border border-black/[0.10] dark:border-white/20 px-4 py-1.5 text-[11px] uppercase tracking-[0.35em] text-black/80 dark:text-white/80 transition hover:border-black/30 dark:hover:border-white/50"
+                                        className="rounded-full border border-black/[0.10] dark:border-white/20 px-4 py-2 min-h-[44px] text-[11px] uppercase tracking-[0.35em] text-black/80 dark:text-white/80 transition hover:border-black/30 dark:hover:border-white/50"
                                     >
                                         Follow
                                     </button>

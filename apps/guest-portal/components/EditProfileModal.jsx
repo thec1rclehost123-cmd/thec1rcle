@@ -108,7 +108,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                 <label className="mb-4 block text-[9px] font-black uppercase tracking-[0.2em] text-black/60 dark:text-white/60">
                                                     Avatar Configuration
                                                 </label>
-                                                <div className="flex flex-col sm:flex-row items-center gap-8">
+                                                <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8">
                                                     {/* Preview */}
                                                     <div className="relative h-28 w-28 shrink-0">
                                                         <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange/20 to-iris/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
@@ -141,7 +141,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                             type="button"
                                                             onClick={handleFileClick}
                                                             disabled={uploadingImage}
-                                                            className="w-full sm:w-auto rounded-full bg-white text-black px-8 py-4 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-orange hover:text-white hover:scale-105 active:scale-95 disabled:opacity-50 shadow-glow"
+                                                            className="w-full sm:w-auto rounded-full bg-white text-black px-6 sm:px-8 py-3 sm:py-4 text-[11px] font-black uppercase tracking-widest transition-all hover:bg-orange hover:text-white hover:scale-105 active:scale-95 disabled:opacity-50 shadow-glow"
                                                         >
                                                             {uploadingImage ? "Processing..." : "Change Image"}
                                                         </button>
@@ -198,7 +198,7 @@ export default function EditProfileModal({ open, onClose }) {
                                                                 name="instagram"
                                                                 value={formData.instagram}
                                                                 onChange={handleChange}
-                                                                className="h-14 w-full rounded-2xl border border-white/10 bg-white/[0.05] pl-12 pr-6 text-sm font-bold tracking-wide text-white transition-all focus:border-orange/30 focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5"
+                                                                className="h-14 w-full rounded-2xl border border-black/[0.08] dark:border-white/10 bg-black/[0.03] dark:bg-white/[0.05] pl-12 pr-6 text-sm font-bold tracking-wide text-black dark:text-white transition-all focus:border-orange/40 focus:bg-black/[0.05] dark:focus:bg-white/[0.08] focus:outline-none focus:ring-4 focus:ring-orange/5 placeholder:text-black/30 dark:placeholder:text-white/30"
                                                                 placeholder="username"
                                                                 autoCapitalize="none"
                                                             />

@@ -10,7 +10,7 @@ export function TicketCarouselShowcase({ tickets }) {
   const prev = () => setActiveIndex((prev) => (prev - 1 + tickets.length) % tickets.length);
 
   return (
-    <div className="relative w-full h-[600px] flex flex-col items-center justify-center perspective-2000">
+    <div className="relative w-full h-[400px] sm:h-[500px] md:h-[600px] flex flex-col items-center justify-center perspective-2000">
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-orange/5 rounded-full blur-[150px] pointer-events-none" />
 
       <div className="relative h-[480px] w-full flex justify-center items-center">
@@ -71,7 +71,7 @@ export function TicketCarouselShowcase({ tickets }) {
                 {/* Vertical Title background text */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none">
                     <span className={clsx(
-                        "text-[140px] font-black uppercase tracking-tighter leading-none transition-all duration-700",
+                        "text-[80px] md:text-[140px] font-black uppercase tracking-tighter leading-none transition-all duration-700",
                         "rotate-90 origin-center whitespace-nowrap",
                         isActive ? "text-white opacity-20" : "text-white/10 opacity-5"
                     )}>

@@ -71,7 +71,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIzMDAiIGhlaWdodD0iMzAwIj48ZmlsdGVyIGlkPSJhIiB4PSIwIiB5PSIwIj48ZmVUdXJidWxlbmNlIGJhc2VGcmVxdWVuY3k9Ii43NSIgc3RpdGNoVGlsZXM9InN0aXRjaCIgdHlwZT0iZnJhY3RhbE5vaXNlIi8+PGZlQ29sb3JNYXRyaXggdHlwZT0ic2F0dXJhdGUiIHZhbHVlcz0iMCIvPjwvZmlsdGVyPjxwYXRoIGQ9Ik0wIDBoMzAwdjMwMEgweiIgZmlsdGVyPSJ1cmwoI2EpIiBvcGFjaXR5PSIuMDUiLz48L3N2Zz4=')]" />
       </div>
 
-      <div className="relative z-10 w-full px-6 lg:px-20 py-4 lg:py-8">
+      <div className="relative z-10 w-full px-4 sm:px-6 md:px-12 lg:px-20 py-4 lg:py-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left: Content */}
           <motion.div
@@ -136,7 +136,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             >
               <Link
                 href={`/event/${activeEvent.id || activeEvent.slug}`}
-                className="group relative px-8 py-3 lg:px-12 lg:py-6 bg-white text-black font-black uppercase tracking-[0.2em] text-sm lg:text-lg rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]"
+                className="group relative px-6 py-3.5 sm:px-8 lg:px-12 lg:py-6 bg-white text-black font-black uppercase tracking-[0.2em] text-sm lg:text-lg rounded-full overflow-hidden transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(255,255,255,0.5)]"
               >
                 <span className="relative z-10">Get Tickets</span>
                 <div className="absolute inset-0 bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -165,7 +165,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
-            className="relative order-1 lg:order-2 group perspective-1000 w-full max-w-[180px] lg:max-w-[420px] mx-auto mb-8 lg:mb-0"
+            className="relative order-1 lg:order-2 group perspective-1000 w-full max-w-[240px] sm:max-w-[320px] lg:max-w-[420px] mx-auto mb-8 lg:mb-0"
           >
             <div className="relative aspect-[3/4] w-full max-w-[420px] mx-auto rounded-[32px] overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-white/20 transform transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-[0_30px_100px_rgba(244,74,34,0.4)]">
               <Image
@@ -201,7 +201,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           <div className="flex gap-3">
             <button
               onClick={prevSlide}
-              className="p-4 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
+              className="p-4 min-h-[44px] min-w-[44px] rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Previous slide"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
@@ -210,7 +210,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             </button>
             <button
               onClick={nextSlide}
-              className="p-4 rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
+              className="p-4 min-h-[44px] min-w-[44px] rounded-full bg-black/10 dark:bg-white/10 backdrop-blur-md border border-black/20 dark:border-white/20 text-black dark:text-white hover:bg-black/20 dark:hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Next slide"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">

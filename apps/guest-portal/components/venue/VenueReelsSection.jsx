@@ -37,12 +37,12 @@ export default function VenueReelsSection({ videos = [], venueName = "Venue" }) 
             {/* Background Glow */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-[#F44A22]/10 rounded-full blur-[200px]" />
 
-            <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 relative z-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 lg:px-24 relative z-10">
                 {/* Section Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] mb-4 block">Behind The Scenes</span>
-                        <h2 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-white">
+                        <h2 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-white">
                             The<br />
                             <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-[#F44A22] to-[#FF6B4A]">Vibe Check.</span>
                         </h2>

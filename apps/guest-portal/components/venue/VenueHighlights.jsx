@@ -110,7 +110,7 @@ export default function VenueHighlights({ highlights = [], venueName = "Venue" }
         <>
             {/* Highlights Row */}
             <section className="py-4">
-                <div className="flex gap-5 overflow-x-auto no-scrollbar px-6 sm:px-12 lg:px-24">
+                <div className="flex gap-5 overflow-x-auto no-scrollbar px-4 sm:px-6 md:px-12 lg:px-24">
                     {validHighlights.map((highlight, idx) => (
                         <button
                             key={highlight.id || idx}

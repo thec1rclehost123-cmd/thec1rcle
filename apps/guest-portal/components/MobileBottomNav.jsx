@@ -11,7 +11,7 @@ import { motion } from "framer-motion";
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  if (pathname?.startsWith("/host") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/signup" || pathname === "/auth") return null;
+  if (pathname?.startsWith("/host") || pathname?.startsWith("/venue") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/signup" || pathname === "/auth") return null;
 
   const navItems = [
     { label: "Explore", href: "/explore", icon: Compass },
@@ -35,7 +35,7 @@ export default function MobileBottomNav() {
       className="fixed bottom-0 left-0 right-0 z-50 md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="mx-4 mb-4 max-w-[400px] mx-auto rounded-[2rem] border border-white/10 bg-black/85 backdrop-blur-2xl px-6 py-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)]">
+      <div className="mx-4 mb-4 rounded-[2rem] border border-white/10 bg-black/85 backdrop-blur-2xl px-6 py-4 shadow-[0_20px_40px_-10px_rgba(0,0,0,0.5)]">
         <ul className="flex items-center justify-between">
           {navItems.map((item) => {
             const active = pathname === item.href;

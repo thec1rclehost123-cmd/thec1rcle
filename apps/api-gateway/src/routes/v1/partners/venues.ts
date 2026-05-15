@@ -735,10 +735,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'profile' && request.method === 'PATCH') {
-          const allowedFields = ['name', 'description', 'bio', 'tagline', 'address', 'city', 'state', 'capacity', 'amenities', 'photos', 'coverImage', 'profileImage', 'contactEmail', 'contactPhone', 'socialLinks', 'operatingHours', 'dressCode', 'ageRestriction', 'instagramHandle', 'youtubeHandle', 'spotifyHandle'];
+          const allowedFields = ['name', 'description', 'bio', 'tagline', 'address', 'city', 'state', 'capacity', 'amenities', 'photos', 'coverImage', 'profileImage', 'photoURL', 'logo', 'coverURL', 'contactEmail', 'contactPhone', 'socialLinks', 'operatingHours', 'dressCode', 'ageRestriction', 'instagramHandle', 'youtubeHandle', 'spotifyHandle'];
           const patch = asRecord(body.patch);
           const safe: PlainRecord = {};
           for (const key of allowedFields) if (patch[key] !== undefined) safe[key] = patch[key];
+          // Normalize image fields so discovery engine reads them correctly
+          if (safe.profileImage) { safe.photoURL = safe.profileImage; safe.logo = safe.profileImage; }
+          if (safe.coverImage) { safe.coverURL = safe.coverImage; }
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});

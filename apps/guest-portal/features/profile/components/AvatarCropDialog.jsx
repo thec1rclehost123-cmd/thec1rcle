@@ -24,7 +24,7 @@ export function AvatarCropDialog({
         <div className="p-6 border-b border-black/[0.06] dark:border-white/10">
           <h3 className="text-xl font-bold text-black dark:text-white uppercase tracking-widest">Crop Profile Picture</h3>
         </div>
-        <div className="relative h-[500px] bg-[#FAFAF9] dark:bg-black">
+        <div className="relative h-[300px] sm:h-[400px] md:h-[500px] bg-[#FAFAF9] dark:bg-black">
           <Cropper
             image={imageSrc}
             crop={crop}

@@ -25,7 +25,7 @@ export default function VenueActionCards({
 
     return (
         <>
-            <section className="px-6 sm:px-12 lg:px-24 py-8">
+            <section className="px-4 sm:px-6 md:px-12 lg:px-24 py-8">
                 <div className="grid grid-cols-2 gap-4 max-w-2xl mx-auto">
                     {/* CARD 1: Upcoming Events */}
                     {hasEvents && (

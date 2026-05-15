@@ -73,7 +73,15 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   const schedulingService = new SchedulingService(svcCtx);
   const financeService = new FinanceService(svcCtx);
 
-  const hostProfileFields = ['displayName', 'bio', 'tagline', 'profileImage', 'coverImage', 'socialLinks', 'contactEmail', 'contactPhone', 'genre', 'city', 'instagramHandle', 'youtubeHandle', 'spotifyHandle'];
+  const hostProfileFields = [
+    'displayName', 'bio', 'tagline',
+    'profileImage', 'coverImage', 'avatar', 'photoURL', 'cover', 'coverURL',
+    'socialLinks', 'contactEmail', 'contactPhone',
+    'genre', 'genres', 'styleTags', 'videos', 'photos',
+    'role', 'city', 'neighborhood', 'website', 'primaryCta',
+    'instagramHandle', 'youtubeHandle', 'spotifyHandle',
+    'publicProfileEnabled', 'presenceConfig',
+  ];
 
 
   const patchTeamMember = async (hostId: string, memberId: string, patch: PlainRecord) => {
@@ -151,6 +159,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     for (const key of hostProfileFields) {
       if (patch[key] !== undefined) safe[key] = patch[key];
     }
+    // Normalize image fields so the discovery engine can find them
+    if (safe.profileImage) { safe.avatar = safe.profileImage; safe.photoURL = safe.profileImage; }
+    if (safe.coverImage) { safe.coverURL = safe.coverImage; safe.cover = safe.coverImage; }
     safe.updatedAt = new Date().toISOString();
     await fastify.db.collection('hosts').doc(hostId).set(safe, { merge: true });
     await fastify.publicDiscoveryService.syncHostReadModels(hostId).catch(() => {});
@@ -1407,10 +1418,16 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const limit = parseInt(String(query.limit || '100'));
           const snap = await fastify.db.collection('orders')
             .where('eventId', '==', guestlistMatch[1])
-            .where('status', 'in', ['paid', 'checked_in'])
+            .where('status', 'in', ['confirmed', 'checked_in'])
             .limit(limit)
             .get();
-          return reply.send({ guests: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+          const guests = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          return reply.send({
+            guests,
+            totalCount: guests.length,
+            enteredCount: guests.filter((g: any) => g.status === 'checked_in').length,
+            pendingCount: guests.filter((g: any) => g.status === 'confirmed').length,
+          });
         }
 
         if (rest === 'ops/tonight' && request.method === 'GET') {

@@ -127,7 +127,7 @@ export default function EventDetailPageClient({ initialDetail = null, initialEve
               </svg>
             </div>
           </div>
-          <h1 className="font-heading text-4xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-6xl">
+          <h1 className="font-heading text-2xl sm:text-4xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-6xl">
             Event unavailable
           </h1>
           <p className="mx-auto mt-6 max-w-sm text-sm font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">
@@ -136,7 +136,7 @@ export default function EventDetailPageClient({ initialDetail = null, initialEve
           <div className="mt-12">
             <Link
               href="/explore"
-              className="inline-flex items-center gap-3 rounded-full bg-orange px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-lg shadow-orange/20 transition-transform hover:scale-105 dark:bg-white dark:text-black dark:shadow-none"
+              className="inline-flex items-center gap-3 rounded-full bg-orange px-6 sm:px-10 py-4 sm:py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white shadow-lg shadow-orange/20 transition-transform hover:scale-105 dark:bg-white dark:text-black dark:shadow-none"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -159,7 +159,7 @@ export default function EventDetailPageClient({ initialDetail = null, initialEve
       <div className="relative flex min-h-[80vh] items-center justify-center bg-[var(--bg-color)] px-4">
         <AuroraBackground />
         <div className="text-center">
-          <h1 className="font-heading text-4xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-6xl">
+          <h1 className="font-heading text-2xl sm:text-4xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-6xl">
             Event unavailable
           </h1>
           <p className="mx-auto mt-6 max-w-sm text-sm font-bold uppercase tracking-[0.2em] text-[var(--text-muted)]">

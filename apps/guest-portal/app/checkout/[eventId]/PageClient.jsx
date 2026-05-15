@@ -121,7 +121,7 @@ export default function CheckoutPageClient({
   if (status === "missing" || !event) {
     return (
       <FunnelShell title="Checkout" showLogo backHref="/explore">
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Checkout unavailable</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">That event could not be found.</h1>
           <p className="text-sm text-white/60">The event may have moved, expired, or no longer be available for guests.</p>
@@ -133,7 +133,7 @@ export default function CheckoutPageClient({
   if (status === "error") {
     return (
       <FunnelShell title="Checkout" showLogo backHref={`/event/${event.id || eventId}`}>
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Gateway sync error</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">We could not load checkout right now.</h1>
           <p className="text-sm text-white/60">Please refresh and try again in a moment.</p>

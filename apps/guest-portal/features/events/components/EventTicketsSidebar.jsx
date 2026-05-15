@@ -146,7 +146,7 @@ export function EventTicketsSidebar({
                         type="button"
                         onClick={() => setQuantity(ticket, quantity - 1)}
                         disabled={quantity <= 0}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
+                        className="inline-flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white/[0.06] text-white transition hover:bg-white/20 disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
@@ -155,7 +155,7 @@ export function EventTicketsSidebar({
                         type="button"
                         onClick={() => setQuantity(ticket, quantity + 1)}
                         disabled={quantity >= limit}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
+                        className="inline-flex h-10 w-10 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white text-black transition hover:scale-105 hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-30"
                       >
                         <Plus className="h-3.5 w-3.5" />
                       </button>

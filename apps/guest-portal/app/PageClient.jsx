@@ -78,7 +78,7 @@ export default function HomePageClient({ initialData = null, initialErrors = [] 
         <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6">
           <div className="mb-8 flex flex-col justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <h2 className="text-4xl font-black uppercase tracking-[0.1em] text-black dark:text-white md:text-6xl">
+              <h2 className="text-3xl sm:text-4xl font-black uppercase tracking-[0.1em] text-black dark:text-white md:text-6xl">
                 Discover <span className="bg-gradient-to-r from-[#ff4b1f] to-[#ff9068] bg-clip-text text-transparent">Offline</span>
               </h2>
               <p className="mt-4 max-w-md text-sm font-medium leading-relaxed text-black/70 dark:text-white/80 md:text-base">

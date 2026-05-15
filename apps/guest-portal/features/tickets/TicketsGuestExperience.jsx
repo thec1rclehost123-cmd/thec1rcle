@@ -72,7 +72,7 @@ function TicketCarousel() {
   };
 
   return (
-    <div className="relative w-full h-[500px] flex flex-col items-center justify-center" style={{ perspective: "1000px" }}>
+    <div className="relative w-full h-[400px] sm:h-[500px] flex flex-col items-center justify-center" style={{ perspective: "1000px" }}>
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative h-[450px] w-full flex justify-center items-center">
@@ -268,7 +268,7 @@ export function TicketsGuestView() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h2 className="text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.85]">
+            <h2 className="text-3xl sm:text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.85]">
               Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Pass</span> <br />
               To The Circle
             </h2>

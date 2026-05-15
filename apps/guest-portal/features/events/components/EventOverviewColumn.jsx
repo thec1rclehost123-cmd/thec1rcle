@@ -239,7 +239,7 @@ export function EventOverviewColumn({
             </a>
           </div>
 
-          <div className="relative h-[320px] w-full">
+          <div className="relative h-[200px] sm:h-[280px] md:h-[320px] w-full">
             <iframe
               title={`${event?.title || "Event"} location`}
               src={mapEmbed}

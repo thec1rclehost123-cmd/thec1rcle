@@ -88,7 +88,7 @@ export default function GateSecurityPage({ setActions }: PageClientProps) {
             const res = await fetch(`/api/events/${eventId}/guestlist`);
             if (res.ok) {
                 const data = await res.json();
-                setGuestList(data.guestlist);
+                setGuestList(data.guests || data.guestlist || []);
             }
         } catch (err) {
             console.error("Guestlist fetch error:", err);

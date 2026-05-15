@@ -61,7 +61,7 @@ export default function VenueGallery({
 
     return (
         <>
-            <section className="px-6 sm:px-12 lg:px-24 py-12">
+            <section className="px-4 sm:px-6 md:px-12 lg:px-24 py-8 sm:py-12">
                 <div className="max-w-4xl mx-auto">
                     {/* Section Header */}
                     <div className="flex items-center justify-between mb-8">
@@ -77,7 +77,7 @@ export default function VenueGallery({
                     </div>
 
                     {/* 3x3 Grid */}
-                    <div className="grid grid-cols-3 gap-1 sm:gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1 sm:gap-2">
                         {displayedPhotos.map((photo, idx) => (
                             <button
                                 key={idx}
@@ -89,7 +89,7 @@ export default function VenueGallery({
                                     fill
                                     className="object-cover transition-transform duration-500 group-hover:scale-110"
                                     alt={`${venueName} photo ${idx + 1}`}
-                                    sizes="(max-width: 768px) 33vw, 25vw"
+                                    sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, 25vw"
                                 />
                                 {/* Hover Overlay */}
                                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">

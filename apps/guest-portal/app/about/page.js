@@ -577,7 +577,7 @@ function NetworkSection() {
         </p>
       </div>
 
-      <div className="relative h-[600px] max-w-6xl mx-auto rounded-[48px] border border-white/10 bg-[#030303] overflow-hidden shadow-2xl">
+      <div className="relative h-[300px] sm:h-[400px] md:h-[500px] lg:h-[600px] max-w-6xl mx-auto rounded-[32px] sm:rounded-[48px] border border-white/10 bg-[#030303] overflow-hidden shadow-2xl">
         {/* Subtle Grid Background */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:40px_40px] [mask-image:radial-gradient(ellipse_at_center,black_40%,transparent_80%)]" />
 

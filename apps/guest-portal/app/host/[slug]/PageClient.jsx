@@ -119,7 +119,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
         />
 
         <div className="relative z-10 flex h-full items-end pb-16 pt-32">
-          <div className="mx-auto w-full max-w-7xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto w-full max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
             <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:gap-12">
               <div className="relative flex-shrink-0">
                 <div className="relative h-36 w-36 overflow-hidden rounded-3xl border-2 border-white/20 bg-black/40 shadow-2xl backdrop-blur-xl lg:h-48 lg:w-48">
@@ -144,7 +144,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
                       {hostProfile.role}
                     </span>
                   ) : null}
-                  {hostProfile.genres?.slice(0, 3).map((genre, index) => (
+                  {hostProfile.genres?.slice(0, 3)?.map((genre, index) => (
                     <span key={index} className="rounded-full bg-orange/20 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-orange">
                       {genre}
                     </span>
@@ -183,7 +183,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
 
       {hostProfile.bio ? (
         <section className="border-t border-white/5 py-16">
-          <div className="mx-auto max-w-4xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto max-w-4xl px-4 sm:px-6 md:px-12 lg:px-24">
             <p className="text-lg font-medium leading-relaxed text-white/70 md:text-xl">{hostProfile.bio}</p>
           </div>
         </section>
@@ -191,7 +191,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
 
       {hostProfile.styleTags?.length > 0 ? (
         <section className="pb-12">
-          <div className="mx-auto max-w-7xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
             <div className="flex flex-wrap gap-3">
               {hostProfile.styleTags.map((tag, index) => (
                 <span key={index} className="rounded-full border border-white/10 bg-white/5 px-5 py-2 text-sm font-medium text-white/60">
@@ -205,7 +205,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
 
       {upcomingEvents.length > 0 ? (
         <section className="border-t border-white/5 py-16">
-          <div className="mx-auto max-w-7xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
             <div className="mb-10 flex items-center justify-between">
               <div>
                 <h2 className="text-3xl font-black uppercase tracking-tight md:text-4xl">Upcoming Events</h2>
@@ -247,7 +247,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
 
       {hostProfile.videos?.length > 0 ? (
         <section className="border-t border-white/5 bg-white/[0.02] py-16">
-          <div className="mx-auto max-w-7xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
             <div className="mb-10">
               <h2 className="text-3xl font-black uppercase tracking-tight md:text-4xl">Videos & Recaps</h2>
               <p className="mt-2 text-sm font-medium text-white/40">Aftermovies and performances</p>
@@ -280,7 +280,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
 
       {pastEvents.length > 0 ? (
         <section className="border-t border-white/5 py-16">
-          <div className="mx-auto max-w-7xl px-6 sm:px-12 lg:px-24">
+          <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
             <div className="mb-10">
               <h2 className="text-3xl font-black uppercase tracking-tight md:text-4xl">Past Events</h2>
               <p className="mt-2 text-sm font-medium text-white/40">A look back at previous experiences</p>
@@ -306,7 +306,7 @@ export default function HostPublicPageClient({ initialData = null, initialSlug =
       ) : null}
 
       <section className="border-t border-white/5 py-16">
-        <div className="mx-auto max-w-7xl px-6 sm:px-12 lg:px-24">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 md:px-12 lg:px-24">
           <div className="flex flex-wrap items-center justify-center gap-4">
             {hostProfile.socialLinks?.instagram ? (
               <a
