@@ -325,3 +325,5 @@ Updated Firebase Console Authentication → Templates → Password reset with br
 ## Contributors
 
 - **Shriyash Sawant** — onboarding overhaul, banking payout flow, login flow fixes, DB schema audit, KYC document naming, error handling, security hardening, UI/UX alignment, test fixes, merge coordination
+ 
+ 
