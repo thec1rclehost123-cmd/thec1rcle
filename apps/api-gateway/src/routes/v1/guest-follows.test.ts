@@ -27,6 +27,9 @@ import validatePlugin from '../../plugins/validate';
 
 async function buildServer() {
     const server = Fastify({ logger: false });
+    server.decorate('requireAuth', async (_request: any, reply: any) => {
+        if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+    });
     server.addHook('onRequest', async (request: any) => {
         if (request.headers.authorization) {
             request.user = { uid: 'user_1' };
@@ -52,7 +55,7 @@ describe('guest follow routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual({ following: true });
+        expect(response.json()).toMatchObject({ success: true, data: { following: true, isFollowing: true }, following: true });
         expect(isFollowingMock).toHaveBeenCalledWith('user_1', 'host_1');
 
         await server.close();
@@ -67,7 +70,7 @@ describe('guest follow routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual({ following: false });
+        expect(response.json()).toMatchObject({ success: true, data: { following: false, isFollowing: false }, following: false });
         expect(isFollowingMock).not.toHaveBeenCalled();
 
         await server.close();
@@ -122,7 +125,7 @@ describe('guest follow routes', () => {
         });
 
         expect(response.statusCode).toBe(200);
-        expect(response.json()).toEqual({ isFollowing: false });
+        expect(response.json()).toMatchObject({ success: true, data: { isFollowing: false }, isFollowing: false });
         expect(isFollowingMock).not.toHaveBeenCalled();
 
         await server.close();

@@ -23,6 +23,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { BankingBanner } from "@/components/shared/BankingBanner";
 import { usePathname, useRouter } from "next/navigation";
 import type { VenueTab } from "@/lib/types/staffProfile";
 
@@ -35,7 +36,13 @@ const MENU_SECTIONS = [
             { icon: Calendar,        label: "Calendar",  href: "/venue/calendar" },
             { icon: Handshake,       label: "Partners",  href: "/venue/partners" },
             { icon: BarChart3,       label: "Analytics", href: "/venue/analytics" },
-            { icon: Banknote,        label: "Finance",   href: "/venue/finance" },
+            {
+                icon: Banknote, label: "Finance", href: "/venue/finance",
+                children: [
+                    { label: "Overview",      href: "/venue/finance" },
+                    { label: "Payout Settings", href: "/venue/finance/payouts" },
+                ],
+            },
             { icon: Globe,           label: "Presence",  href: "/venue/presence" },
             { icon: Users,           label: "Marketing", href: "/venue/crm" },
             { icon: UserCog,         label: "Team",      href: "/venue/staff" },
@@ -52,6 +59,7 @@ const HREF_TO_TAB: Record<string, VenueTab> = {
     "/venue/partners":    "partners",
     "/venue/analytics":   "analytics",
     "/venue/finance":     "finance",
+    "/venue/finance/payouts": "finance",
     "/venue/presence":    "presence",
     "/venue/crm":         "crm",
     "/venue/settings":    "settings",
@@ -218,14 +226,15 @@ export function VenueClientWrapper({ children }: VenueClientWrapperProps) {
                             <AppleTopBar primaryAction={venuePrimaryAction} />
                         </div>
                         <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3 }}
-                                className="max-w-[1600px] mx-auto min-w-0"
-                            >
-                                {children}
-                            </motion.div>
+                    <BankingBanner />
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="max-w-[1600px] mx-auto min-w-0"
+                    >
+                        {children}
+                    </motion.div>
                         </main>
                     </div>
                     <AssistantButton />

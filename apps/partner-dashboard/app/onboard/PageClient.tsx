@@ -31,7 +31,7 @@ import {
     ArrowRight,
 } from "lucide-react";
 import { getFirebaseAuth } from "@/lib/firebase/client";
-import { signInWithCustomToken } from "firebase/auth";
+import { signInWithCustomToken, signInWithEmailAndPassword } from "firebase/auth";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 
 // ── Step type ─────────────────────────────────────────────────────────────────
@@ -44,7 +44,6 @@ type OnboardingStep =
     | "kyc_identity"
     | "kyc_business"
     | "kyc_signatory"
-    | "bank_setup"
     | "success";
 
 type PartnerType = "venue" | "host" | "promoter";
@@ -53,8 +52,8 @@ type EntityType = "individual" | "business";
 // Dynamic sequence based on entity type (KYC steps vary)
 function getStepSequence(et: EntityType): OnboardingStep[] {
     const kycSteps: OnboardingStep[] = et === "business"
-        ? ["kyc_business", "kyc_signatory", "bank_setup"]
-        : ["kyc_identity", "bank_setup"];
+        ? ["kyc_business", "kyc_signatory"]
+        : ["kyc_identity"];
     return ["role", "email_verify", "phone_verify", "entity_type", "details", ...kycSteps, "success"];
 }
 
@@ -67,9 +66,19 @@ const STEP_LABELS: Record<OnboardingStep, string> = {
     kyc_identity: "Identity",
     kyc_business: "Business",
     kyc_signatory: "Signatory",
-    bank_setup: "Banking",
     success: "Done",
 };
+
+// ── Error extractor — gateway returns { success: false, error: { message } } ──
+function extractError(data: unknown, fallback: string): string {
+    if (!data || typeof data !== "object") return fallback;
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.error === "object" && obj.error && typeof (obj.error as Record<string, unknown>).message === "string")
+        return (obj.error as Record<string, unknown>).message as string;
+    if (typeof obj.message === "string") return obj.message;
+    if (typeof obj.error === "string") return obj.error;
+    return fallback;
+}
 
 // ── OTP API helpers ───────────────────────────────────────────────────────────
 async function apiSendOtp(type: "email" | "phone", recipient: string) {
@@ -80,7 +89,7 @@ async function apiSendOtp(type: "email" | "phone", recipient: string) {
     });
     if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || data.error || "Failed to send code.");
+        throw new Error(extractError(data, "Failed to send code."));
     }
 }
 
@@ -92,7 +101,7 @@ async function apiVerifyOtp(type: "email" | "phone", recipient: string, code: st
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || "Incorrect code.");
+        throw new Error(extractError(data, "Incorrect code."));
     }
     return true;
 }
@@ -101,7 +110,7 @@ async function apiVerifyOtp(type: "email" | "phone", recipient: string, code: st
 function OnboardingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
-    const { user: authUser, signOut } = useDashboardAuth();
+    const { user: authUser, profile: authProfile, signOut } = useDashboardAuth();
 
     const [step, setStep] = useState<OnboardingStep>("role");
     const [partnerType, setPartnerType] = useState<PartnerType>("venue");
@@ -118,8 +127,49 @@ function OnboardingContent() {
     const [kycSubmitting, setKycSubmitting] = useState(false);
     const [kycError, setKycError] = useState("");
 
+    // ── Save onboarding progress so the user can resume mid-form ─────────
+    const saveProgress = useCallback(async (currentStep: OnboardingStep) => {
+        const auth = getFirebaseAuth();
+        if (!auth.currentUser) return;
+        try {
+            const token = await auth.currentUser.getIdToken();
+            await fetch("/api/auth/onboarding-progress", {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    onboardingStep: currentStep,
+                    entityType: entityType || undefined,
+                }),
+            });
+        } catch { /* silent — non-critical */ }
+    }, [entityType]);
+
     // Dynamic sequence depends on entity type chosen at step 4
     const stepSequence = getStepSequence(entityType);
+
+    // ── Resume from saved onboarding step if user is returning ───────────
+    const initialised = useRef(false);
+    useEffect(() => {
+        if (!authUser) return;
+        const savedStep = (authProfile as any)?.onboardingStep;
+        const savedEntity = (authProfile as any)?.entityType;
+        if (savedStep && !initialised.current && stepSequence.includes(savedStep)) {
+            initialised.current = true;
+            if (savedEntity === "business" || savedEntity === "individual") {
+                setEntityType(savedEntity);
+            }
+            setCreatedUid(authUser.uid);
+            // Jump ahead if the saved step is past the early steps
+            if (["kyc_identity", "kyc_business", "kyc_signatory"].includes(savedStep)) {
+                setStep(savedStep);
+            } else if (savedStep === "details") {
+                setStep(savedStep);
+            }
+        }
+    }, [authUser, authProfile, stepSequence]);
 
     // OTP state — provider-agnostic; only verification.js changes per provider
     const [otpEmail, setOtpEmail] = useState("");
@@ -254,8 +304,21 @@ function OnboardingContent() {
     const handleSendPhoneOtp = async () => {
         setError("");
         const cleanPhone = otpPhone.replace(/\s/g, "");
-        if (!cleanPhone || cleanPhone.length < 10) {
-            setError("Please enter a valid phone number with country code.");
+        if (cleanPhone) {
+            const digitsOnly = cleanPhone.replace(/[^\d]/g, "");
+            if (cleanPhone.startsWith("+")) {
+                if (digitsOnly.length < 8) {
+                    setError("Phone number too short. Include your country code (e.g., +919876543210).");
+                    return;
+                }
+            } else {
+                if (digitsOnly.length !== 10) {
+                    setError("Please enter a valid 10-digit Indian mobile number.");
+                    return;
+                }
+            }
+        } else {
+            setError("Please enter a phone number.");
             return;
         }
         setLoading(true);
@@ -298,6 +361,45 @@ function OnboardingContent() {
                     setLoading(false);
                     return;
                 }
+                const createPhone = formData.phone || otpPhone.replace(/\s/g, "");
+                if (createPhone) {
+                    const digitsOnly = createPhone.replace(/[^\d]/g, "");
+                    if (createPhone.startsWith("+")) {
+                        // International format — expect country code + local number (at least 8 digits after +)
+                        if (digitsOnly.length < 8) {
+                            setError("Phone number too short. Include your country code (e.g., +919876543210).");
+                            setLoading(false);
+                            return;
+                        }
+                    } else {
+                        // Plain digits — expect exactly 10 (Indian mobile without +91)
+                        if (digitsOnly.length !== 10) {
+                            setError("Please enter a valid 10-digit Indian mobile number.");
+                            setLoading(false);
+                            return;
+                        }
+                    }
+                }
+                // Check if email or phone is already registered before creating
+                const checkRes = await fetch("/api/auth/check-availability", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        email: formData.email,
+                        phone: createPhone || undefined,
+                    }),
+                });
+                if (checkRes.ok) {
+                    const checkData = await checkRes.json();
+                    if (!checkData.available && checkData.taken?.length > 0) {
+                        const msgs: string[] = [];
+                        if (checkData.taken.includes("email")) msgs.push("This email is already registered.");
+                        if (checkData.taken.includes("phone")) msgs.push("This phone number is already registered.");
+                        setError(msgs.join("\n"));
+                        setLoading(false);
+                        return;
+                    }
+                }
                 // Create account server-side (Admin SDK) — avoids client Firebase Auth connectivity issues
                 const res = await fetch("/api/auth/create-account", {
                     method: "POST",
@@ -305,25 +407,32 @@ function OnboardingContent() {
                     body: JSON.stringify({
                         email: formData.email,
                         password: formData.password,
-                        phone: formData.phone || otpPhone.replace(/\s/g, ""),
+                        phone: createPhone || undefined,
                     }),
                 });
                 const data = await res.json();
                 if (!res.ok) {
                     if (res.status === 409) {
-                        setError("This email is already registered. Please log in first, then return to complete your application.");
+                        const loginUrl = `/login?email=${encodeURIComponent(formData.email)}&type=${encodeURIComponent(partnerType)}`;
+                        setError("This email is already registered.");
                         setLoading(false);
+                        router.push(loginUrl);
                         return;
                     }
-                    throw new Error(data.error || "Failed to create account.");
+                    throw new Error(data.error?.message || data.error || "Failed to create account.");
                 }
                 // Sign the client in using the custom token returned by the server
                 const { customToken, uid: newUid } = data;
                 try {
                     await signInWithCustomToken(auth, customToken);
                 } catch {
-                    // signInWithCustomToken failed (rare — client can't reach Firebase)
-                    // Still store the uid so KYC uploads can proceed via server route
+                    // Custom token sign-in failed — fall back to email/password so
+                    // subsequent API calls (KYC upload, onboard submission) have auth.
+                    try {
+                        await signInWithEmailAndPassword(auth, formData.email, formData.password);
+                    } catch (e2: any) {
+                        console.error("Fallback sign-in also failed:", e2?.message);
+                    }
                 }
                 uid = newUid;
             }
@@ -332,7 +441,9 @@ function OnboardingContent() {
             // Advance to the first KYC step in the sequence
             const seq = getStepSequence(entityType);
             const detailsIdx = seq.indexOf("details");
-            setStep(seq[detailsIdx + 1]);
+            const nextStep = seq[detailsIdx + 1];
+            setStep(nextStep);
+            saveProgress(nextStep);
         } catch (err: any) {
             console.error("Account creation error:", err);
             setError(err.message || "Failed to create account. Please try again.");
@@ -341,24 +452,22 @@ function OnboardingContent() {
         }
     };
 
-    // ── Intermediate KYC step: save data locally and advance ─────────────────
-    const handleKycStep = useCallback((stepId: string, data: Record<string, unknown>) => {
-        setKycStepData(prev => ({ ...prev, [stepId]: data }));
-        const seq = getStepSequence(entityType);
-        const idx = seq.indexOf(stepId as OnboardingStep);
-        if (idx !== -1 && idx < seq.length - 1) {
-            setStep(seq[idx + 1]);
-        }
-    }, [entityType]);
-
-    // ── Final step (bank_setup): submit everything to the onboard API ─────────
-    const handleBankSubmit = useCallback(async (bankData: Record<string, unknown>) => {
-        const allKycData = { ...kycStepData, bank_setup: bankData };
+    // ── KYC step: save data and submit when it's the last step ─────────────
+    const submitApplication = useCallback(async (stepId: string, data: Record<string, unknown>) => {
+        const updatedKycData = { ...kycStepData, [stepId]: data };
+        setKycStepData(updatedKycData);
         setKycSubmitting(true);
         setKycError("");
         try {
             const auth = getFirebaseAuth();
-            const token = await auth.currentUser?.getIdToken();
+            let token = await auth.currentUser?.getIdToken();
+            if (!token) {
+                // Session may have been lost — try re-signing in
+                try {
+                    await signInWithEmailAndPassword(auth, authUser?.email || formData.email, formData.password);
+                    token = await auth.currentUser?.getIdToken();
+                } catch { /* silent — will fail with 401 below */ }
+            }
             const effectiveEmail = authUser?.email || formData.email;
             const res = await fetch("/api/auth/onboard", {
                 method: "POST",
@@ -369,26 +478,69 @@ function OnboardingContent() {
                 body: JSON.stringify({
                     type: partnerType,
                     entityType,
-                    ...formData,
+                    name: formData.name,
                     email: effectiveEmail,
                     phone: formData.phone || otpPhone.replace(/\s/g, ""),
-                    kycStepData: allKycData,
+                    contactPerson: formData.contactPerson,
+                    city: formData.city,
+                    area: formData.area,
+                    website: formData.website,
+                    capacity: formData.capacity,
+                    plan: formData.plan,
+                    role: formData.role,
+                    association: formData.association,
+                    associatedHostId: formData.associatedHostId,
+                    instagram: formData.instagram,
+                    bio: formData.bio,
+                    upcomingEventsText: formData.upcomingEventsText,
+                    pastEventsText: formData.pastEventsText,
+                    businessType: formData.businessType,
+                    registrationNumber: formData.registrationNumber,
+                    kycStepData: updatedKycData,
                 }),
             });
             if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.error || "Failed to submit application.");
+                let errMsg = "Failed to submit application.";
+                try {
+                    const data = await res.clone().json();
+                    errMsg = typeof data.error === "string" ? data.error
+                        : data.error?.message || data.message || errMsg;
+                } catch { /* non-JSON response */ }
+                throw new Error(errMsg);
             }
             const responseData = await res.json();
             if (responseData.requestId) setSubmittedRequestId(responseData.requestId);
             setStep("success");
         } catch (err: any) {
             console.error("Final submit error:", err);
-            setKycError(err.message || "Failed to submit. Please try again.");
+            const msg = err?.message || "";
+            // Zod internal errors — show a clean message instead of raw "_zod"
+            if (msg.includes("_zod") || msg.includes("undefined")) {
+                setKycError("Validation failed. Please check your details and try again.");
+            } else {
+                setKycError(msg || "Failed to submit. Please try again.");
+            }
         } finally {
             setKycSubmitting(false);
         }
     }, [kycStepData, authUser, formData, partnerType, entityType, otpPhone]);
+
+    // ── Intermediate KYC step: save data locally and advance or submit ─────
+    const handleKycStep = useCallback((stepId: string, data: Record<string, unknown>) => {
+        const seq = getStepSequence(entityType);
+        const idx = seq.indexOf(stepId as OnboardingStep);
+        const isLastStep = idx === seq.length - 2; // second-to-last (before "success")
+        if (isLastStep) {
+            submitApplication(stepId, data);
+        } else {
+            setKycStepData(prev => ({ ...prev, [stepId]: data }));
+            if (idx !== -1 && idx < seq.length - 1) {
+                const next = seq[idx + 1];
+                setStep(next);
+                saveProgress(next);
+            }
+        }
+    }, [entityType, submitApplication, saveProgress]);
 
     const currentStepIndex = stepSequence.indexOf(step);
     // Effective UID for Firebase Storage uploads during KYC
@@ -472,6 +624,10 @@ function OnboardingContent() {
                                         <OtpInput label="Enter the 6-digit code sent to your email" value={otpEmailCode} onChange={setOtpEmailCode} />
                                         <ActionButton onClick={handleVerifyEmailOtp} loading={loading}>Verify Email <ChevronRight className="h-5 w-5" /></ActionButton>
                                         <ResendButton cooldown={emailCooldown} onClick={handleSendEmailOtp} loading={loading} />
+                                        <button type="button" onClick={() => { setOtpEmailSent(false); setError(""); setOtpEmailCode(""); }}
+                                            className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--accent-primary)] transition-colors">
+                                            Use a different email
+                                        </button>
                                     </>
                                 )}
                             </div>
@@ -492,6 +648,10 @@ function OnboardingContent() {
                                         <OtpInput label="Enter the 6-digit SMS code" value={otpPhoneCode} onChange={setOtpPhoneCode} />
                                         <ActionButton onClick={handleVerifyPhoneOtp} loading={loading}>Verify Phone <ChevronRight className="h-5 w-5" /></ActionButton>
                                         <ResendButton cooldown={phoneCooldown} onClick={handleSendPhoneOtp} loading={loading} />
+                                        <button type="button" onClick={() => { setOtpPhoneSent(false); setError(""); setOtpPhoneCode(""); }}
+                                            className="w-full flex items-center justify-center gap-1.5 text-[12px] font-semibold text-[var(--text-tertiary)] hover:text-[var(--accent-primary)] transition-colors">
+                                            Use a different number
+                                        </button>
                                     </>
                                 )}
                             </div>
@@ -774,26 +934,6 @@ function OnboardingContent() {
                         </motion.div>
                     )}
 
-                    {/* ── KYC: Bank Account (All) ── */}
-                    {step === "bank_setup" && (
-                        <motion.div key="bank_setup" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
-                            <StepHeader
-                                step={String(stepSequence.indexOf("bank_setup") + 1).padStart(2, "0")}
-                                label="Bank Account"
-                                title="Payout Bank Account"
-                                description="Bank account details for receiving payouts once approved."
-                            />
-                            {kycError && <ErrorBanner error={kycError} />}
-                            <BankSetupForm
-                                uid={effectiveUid}
-                                initialData={{}}
-                                onSubmit={handleBankSubmit}
-                                submitting={kycSubmitting}
-                                submitLabel="Submit Application"
-                            />
-                        </motion.div>
-                    )}
-
                     {/* ── Success ── */}
                     {step === "success" && (
                         <motion.div key="success" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.4 }} className="text-center pt-8">
@@ -969,14 +1109,23 @@ function ResendButton({ cooldown, onClick, loading }: { cooldown: number; onClic
 
 function ErrorBanner({ error, onLoginClick }: { error: string; onLoginClick?: () => void }) {
     if (!error) return null;
+    const lines = error.split("\n").filter(Boolean);
     return (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8 p-5 bg-[var(--state-error-bg)] border border-[var(--state-error)]/20 rounded-2xl">
             <div className="flex items-start gap-4">
                 <AlertCircle className="h-5 w-5 text-[var(--state-error)] flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                    <p className="text-[14px] font-semibold text-[var(--state-error)] mb-2">{error}</p>
+                <div className="flex-1 min-w-0">
+                    {lines.length === 1 ? (
+                        <p className="text-[14px] font-semibold text-[var(--state-error)]">{error}</p>
+                    ) : (
+                        <ul className="list-disc list-inside space-y-1">
+                            {lines.map((line, i) => (
+                                <li key={i} className="text-[14px] font-semibold text-[var(--state-error)]">{line}</li>
+                            ))}
+                        </ul>
+                    )}
                     {onLoginClick && error.includes("log in") && (
-                        <button onClick={onLoginClick} className="text-[12px] font-semibold text-[var(--state-error)] underline hover:no-underline">Go to Login →</button>
+                        <button onClick={onLoginClick} className="text-[12px] font-semibold text-[var(--state-error)] underline hover:no-underline mt-2 inline-block">Go to Login →</button>
                     )}
                 </div>
             </div>
@@ -996,16 +1145,33 @@ function KycFileZone({
 }) {
     const [uploading, setUploading] = useState(false);
     const [progress, setProgress] = useState(0);
+    const [uploadError, setUploadError] = useState("");
     const inputRef = useRef<HTMLInputElement>(null);
+
+    async function getToken(): Promise<string> {
+        const auth = getFirebaseAuth();
+        if (auth.currentUser) return auth.currentUser.getIdToken();
+        // Auth not ready yet — wait briefly for onAuthStateChanged to resolve
+        await new Promise(r => setTimeout(r, 500));
+        if (auth.currentUser) return auth.currentUser.getIdToken();
+        // Try force-refresh a second later
+        await new Promise(r => setTimeout(r, 1500));
+        if (auth.currentUser) return auth.currentUser.getIdToken(true);
+        throw new Error("Session not ready. Please refresh the page and try again.");
+    }
 
     const handleFile = async (file: File) => {
         if (!file) return;
-        if (file.size > 5 * 1024 * 1024) { alert("File must be under 5MB."); return; }
+        setUploadError("");
+        if (file.size > 5 * 1024 * 1024) { setUploadError("File must be under 5MB."); return; }
 
-        // Get Firebase auth token — server route uses Admin SDK, bypassing Storage rules
-        const auth = getFirebaseAuth();
-        if (!auth.currentUser) { alert("You must be signed in to upload documents."); return; }
-        const token = await auth.currentUser.getIdToken();
+        let token: string;
+        try {
+            token = await getToken();
+        } catch (e: any) {
+            setUploadError(e.message);
+            return;
+        }
 
         setUploading(true);
         setProgress(0);
@@ -1025,14 +1191,14 @@ function KycFileZone({
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error((data as any).error || "Upload failed.");
+                throw new Error(extractError(data, "Upload failed."));
             }
 
             const { url } = await res.json();
             onChange(url);
         } catch (e: any) {
             console.error("Upload error:", e);
-            alert(e.message || "Upload failed. Please try again.");
+            setUploadError(e.message || "Upload failed. Please try again.");
         } finally {
             setUploading(false);
         }
@@ -1061,13 +1227,21 @@ function KycFileZone({
                     </div>
                 </div>
             ) : (
-                <button type="button" onClick={() => inputRef.current?.click()}
-                    className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] transition-all text-center group">
-                    <Upload className="h-5 w-5 text-[var(--text-tertiary)] group-hover:text-[var(--accent-primary)] mx-auto mb-1.5 transition-colors" />
-                    <p className="text-[11px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
-                        Click to upload · JPG, PNG or PDF · Max 5MB
-                    </p>
-                </button>
+                <div>
+                    <button type="button" onClick={() => inputRef.current?.click()}
+                        className="w-full p-5 rounded-xl border-2 border-dashed border-[var(--border-subtle)] hover:border-[var(--accent-primary)]/40 bg-[var(--surface-secondary)] hover:bg-[var(--surface-tertiary)] transition-all text-center group">
+                        <Upload className="h-5 w-5 text-[var(--text-tertiary)] group-hover:text-[var(--accent-primary)] mx-auto mb-1.5 transition-colors" />
+                        <p className="text-[11px] text-[var(--text-tertiary)] group-hover:text-[var(--text-secondary)] transition-colors">
+                            Click to upload · JPG, PNG or PDF · Max 5MB
+                        </p>
+                    </button>
+                    {uploadError && (
+                        <p className="text-[11px] font-medium text-red-400 flex items-center gap-1.5 mt-2">
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            {uploadError}
+                        </p>
+                    )}
+                </div>
             )}
             <input ref={inputRef} type="file" accept="image/jpeg,image/png,application/pdf" className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])} />
@@ -1116,13 +1290,58 @@ function KycIdentityForm({ uid, initialData, onSubmit, submitting, submitLabel =
     const [docFront, setDocFront] = useState<string | null>((initialData.docFrontUrl as string) || null);
     const [docBack, setDocBack]   = useState<string | null>((initialData.docBackUrl as string) || null);
     const [selfie, setSelfie]     = useState<string | null>((initialData.selfieUrl as string) || null);
+
+    // New state for Aadhaar verification
+    const [verifying, setVerifying] = useState(false);
+    const [isVerified, setIsVerified] = useState(!!initialData.isVerified);
+    const [verificationError, setVerificationError] = useState("");
+
     const needsBack = ["aadhaar", "driving_licence", "voter_id"].includes(idType);
+
+    const handleVerifyAadhaar = async () => {
+        if (!idNumber || idNumber.length !== 12) {
+            setVerificationError("Aadhaar number must be 12 digits.");
+            return;
+        }
+        setVerifying(true);
+        setVerificationError("");
+        try {
+            const auth = getFirebaseAuth();
+            const token = await auth.currentUser?.getIdToken();
+            const res = await fetch("/api/kyc/verify-aadhaar", {
+                method: "POST",
+                headers: { 
+                    "Content-Type": "application/json",
+                    ...(token && { Authorization: `Bearer ${token}` }),
+                },
+                body: JSON.stringify({ aadhaarId: idNumber }),
+            });
+            
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(extractError(data, "Verification failed."));
+            }
+            setIsVerified(true);
+        } catch (err: any) {
+            setVerificationError(err.message);
+            setIsVerified(false);
+        } finally {
+            setVerifying(false);
+        }
+    };
+
+    // Reset verification when ID number or type changes
+    useEffect(() => {
+        setIsVerified(false);
+        setVerificationError("");
+    }, [idNumber, idType]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!idType || !idNumber || !docFront || !selfie) return;
         if (needsBack && !docBack) return;
-        onSubmit({ idType, idNumber, docFrontUrl: docFront, docBackUrl: docBack, selfieUrl: selfie });
+        if (idType === "aadhaar" && !isVerified) return;
+        onSubmit({ idType, idNumber, docFrontUrl: docFront, docBackUrl: docBack, selfieUrl: selfie, isVerified });
     };
 
     return (
@@ -1134,14 +1353,45 @@ function KycIdentityForm({ uid, initialData, onSubmit, submitting, submitLabel =
                     { value: "driving_licence", label: "Driving Licence" },
                     { value: "voter_id", label: "Voter ID" },
                 ]} />
-            <KycInputField label="ID Number" value={idNumber} onChange={setIdNumber} placeholder="Enter your ID number" />
+
+            <div className="space-y-2">
+                <div className="flex items-end gap-3">
+                    <div className="flex-1">
+                        <KycInputField label="ID Number" value={idNumber} onChange={setIdNumber} placeholder="Enter your ID number" />
+                    </div>
+                    {idType === "aadhaar" && (
+                        <button
+                            type="button"
+                            onClick={handleVerifyAadhaar}
+                            disabled={verifying || isVerified || idNumber.length !== 12}
+                            className={`h-12 px-6 rounded-xl font-bold text-[11px] uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${isVerified ? "bg-emerald-500/20 text-emerald-500 cursor-default" : "bg-[var(--accent-primary)] text-white hover:brightness-110 disabled:opacity-40"}`}
+                        >
+                            {verifying ? <Loader2 className="h-4 w-4 animate-spin" /> : isVerified ? <CheckCircle2 className="h-4 w-4" /> : null}
+                            {verifying ? "Verifying..." : isVerified ? "Verified" : "Verify ID"}
+                        </button>
+                    )}
+                </div>
+                {verificationError && (
+                    <p className="text-[11px] font-medium text-red-400 flex items-center gap-1.5 ml-1">
+                        <AlertCircle className="h-3.5 w-3.5" />
+                        {verificationError}
+                    </p>
+                )}
+                {isVerified && idType === "aadhaar" && (
+                    <p className="text-[11px] font-medium text-emerald-400 flex items-center gap-1.5 ml-1">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Aadhaar structurally verified.
+                    </p>
+                )}
+            </div>
+
             <div className={`grid gap-4 ${needsBack ? "sm:grid-cols-2" : "grid-cols-1"}`}>
                 <KycFileZone label="Document Front" fieldName="doc_front" value={docFront} onChange={setDocFront} uid={uid} stepId="kyc_identity" />
                 {needsBack && <KycFileZone label="Document Back" fieldName="doc_back" value={docBack} onChange={setDocBack} uid={uid} stepId="kyc_identity" />}
             </div>
             <KycFileZone label="Selfie Photo" fieldName="selfie" value={selfie} onChange={setSelfie} uid={uid} stepId="kyc_identity" />
             <button type="submit"
-                disabled={submitting || !idType || !idNumber || !docFront || !selfie || (needsBack && !docBack)}
+                disabled={submitting || !idType || !idNumber || !docFront || !selfie || (needsBack && !docBack) || (idType === "aadhaar" && !isVerified)}
                 className="w-full h-12 rounded-xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
                 {submitting ? "Saving…" : submitLabel}
@@ -1149,6 +1399,7 @@ function KycIdentityForm({ uid, initialData, onSubmit, submitting, submitLabel =
         </form>
     );
 }
+
 
 function KycBusinessForm({ uid, initialData, onSubmit, submitting, submitLabel = "Continue" }: {
     uid: string; initialData: Record<string, unknown>;
@@ -1285,81 +1536,5 @@ function KycSignatoryForm({ uid, initialData, onSubmit, submitting, submitLabel 
     );
 }
 
-function BankSetupForm({ uid, initialData, onSubmit, submitting, submitLabel = "Submit Application" }: {
-    uid: string; initialData: Record<string, unknown>;
-    onSubmit: (data: Record<string, unknown>) => void;
-    submitting: boolean; submitLabel?: string;
-}) {
-    const [accountHolder, setAccountHolder] = useState((initialData.accountHolder as string) || "");
-    const [accountNumber, setAccountNumber] = useState("");
-    const [confirmNumber, setConfirmNumber] = useState("");
-    const [ifsc, setIfsc]                   = useState((initialData.ifsc as string) || "");
-    const [bankName, setBankName]           = useState((initialData.bankName as string) || "");
-    const [branch, setBranch]               = useState((initialData.branch as string) || "");
-    const [accountType, setAccountType]     = useState((initialData.accountType as string) || "");
-    const [chequeDoc, setChequeDoc]         = useState<string | null>((initialData.chequeDocUrl as string) || null);
 
-    const lookupIfsc = useCallback(async () => {
-        if (ifsc.length !== 11) return;
-        try {
-            const res = await fetch(`https://ifsc.razorpay.com/${ifsc.toUpperCase()}`);
-            if (res.ok) {
-                const data = await res.json();
-                setBankName(data.BANK || "");
-                setBranch(data.BRANCH || "");
-            }
-        } catch { /* silent */ }
-    }, [ifsc]);
-
-    useEffect(() => { if (ifsc.length === 11) lookupIfsc(); }, [ifsc, lookupIfsc]);
-
-    const numbersMismatch = confirmNumber.length > 0 && accountNumber !== confirmNumber;
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!accountHolder || !accountNumber || accountNumber !== confirmNumber || !ifsc || !accountType || !chequeDoc) return;
-        onSubmit({
-            accountHolder,
-            accountNumberLast4: accountNumber.slice(-4),
-            accountNumberMasked: "*".repeat(accountNumber.length - 4) + accountNumber.slice(-4),
-            ifsc: ifsc.toUpperCase(),
-            bankName, branch, accountType,
-            chequeDocUrl: chequeDoc,
-        });
-    };
-
-    return (
-        <form onSubmit={handleSubmit} className="space-y-5">
-            <KycInputField label="Account Holder Name" value={accountHolder} onChange={setAccountHolder} placeholder="Exactly as on passbook" />
-            <div className="grid sm:grid-cols-2 gap-4">
-                <KycInputField label="Account Number" value={accountNumber} onChange={setAccountNumber} type="password" placeholder="Enter account number" />
-                <div className="space-y-1.5">
-                    <label className="text-[11px] font-black uppercase tracking-widest text-[var(--text-tertiary)]">Confirm Account Number</label>
-                    <input type="text" value={confirmNumber} onChange={(e) => setConfirmNumber(e.target.value)}
-                        placeholder="Re-enter account number"
-                        className={`w-full h-12 px-4 rounded-xl bg-[var(--surface-secondary)] border text-[var(--text-primary)] text-[14px] placeholder:text-[var(--text-tertiary)] focus:outline-none focus:ring-2 transition-all ${numbersMismatch ? "border-red-500/50 focus:ring-red-500/20" : "border-[var(--border-subtle)] focus:ring-[var(--accent-primary)]/30 focus:border-[var(--accent-primary)]/50"}`} />
-                    {numbersMismatch && <p className="text-[11px] text-red-400">Account numbers don't match</p>}
-                </div>
-            </div>
-            <div className="grid sm:grid-cols-2 gap-4">
-                <KycInputField label="IFSC Code" value={ifsc} onChange={setIfsc} placeholder="SBIN0001234" />
-                <KycSelectField label="Account Type" value={accountType} onChange={setAccountType}
-                    options={[{ value: "savings", label: "Savings" }, { value: "current", label: "Current" }]} />
-            </div>
-            {bankName && (
-                <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    <span className="text-[12px] text-emerald-400 font-medium">{bankName} — {branch}</span>
-                </div>
-            )}
-            <KycFileZone label="Cancelled Cheque or Passbook Front" fieldName="cheque_doc" value={chequeDoc} onChange={setChequeDoc} uid={uid} stepId="bank_setup" />
-            <button type="submit"
-                disabled={submitting || !accountHolder || !accountNumber || accountNumber !== confirmNumber || !ifsc || !accountType || !chequeDoc}
-                className="w-full h-14 rounded-2xl bg-[var(--accent-primary)] text-white font-black uppercase tracking-widest text-[11px] hover:brightness-110 disabled:opacity-40 transition-all flex items-center justify-center gap-2 shadow-lg shadow-[var(--accent-primary)]/20">
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                {submitting ? "Submitting…" : submitLabel}
-            </button>
-        </form>
-    );
-}
 

@@ -89,20 +89,28 @@ export function normalizePromoterCommissionRate(value: unknown): number {
   return normalized;
 }
 
+const STRIP_TAGS = /<[^>]*>/g;
+
+function sanitize(val: string): string {
+  return String(val || '').replace(STRIP_TAGS, '').trim().slice(0, 200);
+}
+
 export function buildPayoutAccountRecord(
   body: Record<string, any>,
   owner: { partnerId: string; ownerType: BankAccountOwnerType }
 ) {
   const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
   const rawNumber = paymentType === 'debit_card'
-    ? String(body.cardNumber || '').trim()
-    : String(body.accountNumber || '').trim();
+    ? String(body.cardNumber || '').replace(/[^\d]/g, '').trim()
+    : String(body.accountNumber || '').replace(/[^\d]/g, '').trim();
 
   if (!rawNumber) throw makeBadRequest('Account number or card number required');
+  if (rawNumber.length < 9) throw makeBadRequest('Account number must be at least 9 digits');
 
   const last4 = rawNumber.slice(-4);
-  const bankName = body.bankName || body.cardBrand || 'Bank Account';
-  const accountHolderName = body.accountHolderName || body.cardHolderName || '';
+  const bankName = sanitize(body.bankName || body.cardBrand || 'Bank Account');
+  const accountHolderName = sanitize(body.accountHolderName || body.cardHolderName || '');
+  const ifscCode = String(body.ifscCode || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11);
   const isDefault = body.isDefault !== false;
   const now = new Date().toISOString();
 
@@ -118,7 +126,7 @@ export function buildPayoutAccountRecord(
       paymentType,
       accountHolderName,
       bankName,
-      ifscCode: body.ifscCode || null,
+      ifscCode: ifscCode || null,
       cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
       cardLast4: paymentType === 'debit_card' ? last4 : null,
       last4,

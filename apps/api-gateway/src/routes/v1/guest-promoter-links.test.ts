@@ -28,6 +28,9 @@ import validatePlugin from '../../plugins/validate';
 
 async function buildServer() {
     const server = Fastify({ logger: false });
+    server.decorate('requireAuth', async (_request: any, reply: any) => {
+        if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+    });
     await server.register(validatePlugin);
     await server.register(promoterRoutes, { prefix: '/api/v1' });
     return server;

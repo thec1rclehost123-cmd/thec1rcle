@@ -23,6 +23,7 @@ import { RoleGuard } from "@/components/auth/RoleGuard";
 import { AssistantButton } from "@/components/assistant/AssistantButton";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { ThemeToggleCompact } from "@/components/ThemeToggle";
+import { BankingBanner } from "@/components/shared/BankingBanner";
 import { usePathname } from "next/navigation";
 
 const MENU_SECTIONS = [
@@ -35,7 +36,13 @@ const MENU_SECTIONS = [
             { icon: Network,         label: "Partners",  href: "/host/network" },
             { icon: Users,           label: "Audience",  href: "/host/audience" },
             { icon: BarChart2,       label: "Analytics", href: "/host/analytics" },
-            { icon: Banknote,        label: "Finance",   href: "/host/finance" },
+            {
+                icon: Banknote, label: "Finance", href: "/host/finance",
+                children: [
+                    { label: "Overview",      href: "/host/finance" },
+                    { label: "Payout Settings", href: "/host/finance/payouts" },
+                ],
+            },
             { icon: UserCog,         label: "Team",      href: "/host/team" },
             { icon: Layout,          label: "Presence",  href: "/host/presence" },
         ],
@@ -55,6 +62,8 @@ const HOST_HREF_TO_TAB: Record<string, string> = {
     "/host/audience":          "audience",
     "/host/analytics":         "analytics",
     "/host/finance":           "finance",
+    "/host/finance/payouts":   "finance",
+    "/host/payouts":           "finance",
     "/host/team":              "team",
     "/host/presence":          "presence",
     "/host/page-management":   "presence",
@@ -189,14 +198,15 @@ export function HostClientWrapper({ children }: HostClientWrapperProps) {
                             <AppleTopBar primaryAction={hostPrimaryAction} />
                         </div>
                         <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">
-                            <motion.div
-                                initial={{ opacity: 0, y: 10 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.3 }}
-                                className="max-w-[1600px] mx-auto min-w-0"
-                            >
-                                {children}
-                            </motion.div>
+                    <BankingBanner />
+                    <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3 }}
+                        className="max-w-[1600px] mx-auto min-w-0"
+                    >
+                        {children}
+                    </motion.div>
                         </main>
                     </div>
                     <AssistantButton />

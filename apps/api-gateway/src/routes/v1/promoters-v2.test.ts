@@ -60,11 +60,11 @@ describe('promoters-v2 routes', () => {
         vi.clearAllMocks();
     });
 
-    it('returns 404 when the v2 route flag is disabled', async () => {
+    it('returns the overview when accessed with auth context', async () => {
         const server = await buildServer({
-            enabled: false,
             user: {
                 uid: 'user_1',
+                email: 'promoter@example.com',
                 activeMembership: { partnerId: 'promoter_1', partnerType: 'promoter', role: 'PROMOTER' },
             },
         });
@@ -72,9 +72,11 @@ describe('promoters-v2 routes', () => {
         const response = await server.inject({
             method: 'GET',
             url: '/api/v1/promoters/me/overview',
+            headers: { authorization: 'Bearer test-token' },
         });
 
-        expect(response.statusCode).toBe(404);
+        expect(response.statusCode).toBe(200);
+        expect(response.json()).toEqual({ ok: true, promoterId: 'promoter_1' });
         await server.close();
     });
 

@@ -250,6 +250,9 @@ async function buildServer() {
   server.decorate('verifyPartnerAccess', vi.fn(async () => true) as any);
   server.decorate('writeAuditLog', vi.fn(async () => undefined) as any);
   server.decorate('auth', {} as any);
+  server.decorate('requireAuth', async (_request: any, reply: any) => {
+      if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+  });
   server.decorateRequest('user', null);
   server.addHook('onRequest', async (request: any, reply) => {
     const cookies = parseCookieHeader(request.headers.cookie);

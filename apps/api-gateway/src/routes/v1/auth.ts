@@ -72,27 +72,32 @@ const GoogleCallbackQuerySchema = z.object({
 
 const OnboardSchema = z.object({
     type: z.string(),
-    email: z.string().email(),
+    entityType: z.string().optional(),
     name: z.string(),
-    company: z.string().optional(),
-    website: z.string().optional(),
+    email: z.string().email(),
     phone: z.string().optional(),
-    instagram: z.string().optional(),
     contactPerson: z.string().optional(),
     city: z.string().optional(),
     area: z.string().optional(),
+    website: z.string().optional(),
     capacity: z.string().optional(),
     plan: z.string().optional(),
     role: z.string().optional(),
     association: z.string().optional(),
     associatedHostId: z.string().optional(),
-    bio: z.string().optional()
+    instagram: z.string().optional(),
+    bio: z.string().optional(),
+    upcomingEventsText: z.string().optional(),
+    pastEventsText: z.string().optional(),
+    businessType: z.string().optional(),
+    registrationNumber: z.string().optional(),
+    kycStepData: z.any().optional(),
 });
 
 const CreateAccountSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
-    phone: z.string().optional(),
+    phone: z.string().min(10).optional(),
 });
 
 const HostVerificationSchema = z.object({
@@ -103,23 +108,30 @@ const HostVerificationSchema = z.object({
     country: z.string().optional()
 }).catchall(z.any()); // Allowed catchall just for host-verification because frontend fields vary, but will use .strict() in standard entities.
 async function getGuestOnboardingRequest(fastify: FastifyInstance, userId: string) {
-    const reqSnapshot = await fastify.db.collection('onboarding_requests')
-        .where('uid', '==', userId)
-        .limit(1)
-        .get();
+    // 1. Direct lookup via onboardingRequestId stored on the user doc
+    try {
+        const userDoc = await fastify.db.collection('users').doc(userId).get();
+        const userData = userDoc.data() || {};
+        const requestId = userData.onboardingRequestId;
+        if (requestId) {
+            const reqDoc = await fastify.db.collection('onboarding_requests').doc(requestId).get();
+            if (reqDoc.exists) {
+                const d = reqDoc.data() || {};
+                return { id: reqDoc.id, status: d.status, type: d.type, submittedAt: d.submittedAt ?? d.createdAt ?? null, reviewedAt: d.reviewedAt ?? null, rejectionReason: d.rejectionReason ?? null };
+            }
+        }
+    } catch (_e) { /* fall through */ }
 
-    if (reqSnapshot.empty) return null;
+    // 2. Fallback query by uid (requires Firestore index on onboarding_requests.uid)
+    try {
+        const snap = await fastify.db.collection('onboarding_requests').where('uid', '==', userId).limit(1).get();
+        if (!snap.empty) {
+            const d = snap.docs[0].data();
+            return { id: snap.docs[0].id, status: d.status, type: d.type, submittedAt: d.submittedAt ?? d.createdAt ?? null, reviewedAt: d.reviewedAt ?? null, rejectionReason: d.rejectionReason ?? null };
+        }
+    } catch (_e) { /* fallback failed — missing index */ }
 
-    const doc = reqSnapshot.docs[0];
-    const raw = doc.data();
-    return {
-        id: doc.id,
-        status: raw.status,
-        type: raw.type,
-        submittedAt: raw.submittedAt ?? raw.createdAt ?? null,
-        reviewedAt: raw.reviewedAt ?? null,
-        rejectionReason: raw.rejectionReason ?? null,
-    };
+    return null;
 }
 
 async function getUnreadNotificationCount(fastify: FastifyInstance, userId: string) {
@@ -551,7 +563,24 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 ...(phone && { phoneNumber: phone.startsWith('+') ? phone : `+${phone}` }),
             });
 
-            // 2. Generate a custom token so the client can sign in immediately
+            // 2. Seed a Firestore user doc immediately so partial registrations
+            //    have a proper record (role: 'pending', isApproved: false).
+            //    Without this, users who abandon onboarding have no Firestore doc
+            //    and can neither log in nor re-onboard.
+            const cleanPhone = phone ? (phone.startsWith('+') ? phone : `+${phone}`) : null;
+            await fastify.db.collection('users').doc(userRecord.uid).set({
+                uid: userRecord.uid,
+                email,
+                displayName: email.split('@')[0] || 'Member',
+                phone: cleanPhone,
+                role: 'pending',
+                isApproved: false,
+                onboardingComplete: false,
+                createdAt: FieldValue.serverTimestamp(),
+                updatedAt: FieldValue.serverTimestamp(),
+            });
+
+            // 3. Generate a custom token so the client can sign in immediately
             const customToken = await fastify.auth.createCustomToken(userRecord.uid);
 
             return buildSuccessResponse({ uid: userRecord.uid, customToken });
@@ -572,6 +601,59 @@ export default async function authRoutes(fastify: FastifyInstance) {
         }
     });
 
+    /**
+     * POST /api/v1/auth/check-availability
+     * Check if an email or phone number is already registered.
+     * Returns which fields are taken so the frontend can show field-level errors.
+     */
+    const CheckAvailabilitySchema = z.object({
+        email: z.string().email().optional(),
+        phone: z.string().optional(),
+    });
+
+    fastify.post('/check-availability', {
+        preHandler: [fastify.validate({ body: CheckAvailabilitySchema })],
+    }, async (request: any, reply) => {
+        const { email, phone } = request.body;
+        const taken: string[] = [];
+
+        try {
+            if (email) {
+                try {
+                    await fastify.auth.getUserByEmail(email);
+                    taken.push('email');
+                } catch (e: any) {
+                    if (e.code !== 'auth/user-not-found') throw e;
+                }
+            }
+            if (phone) {
+                const cleanPhone = phone.startsWith('+') ? phone : `+${phone}`;
+                try {
+                    await fastify.auth.getUserByPhoneNumber(cleanPhone);
+                    taken.push('phone');
+                } catch (e: any) {
+                    if (e.code !== 'auth/user-not-found') throw e;
+                }
+            }
+        } catch (error: any) {
+            fastify.log.error({ error: error.message }, 'Check-availability failed');
+            return reply.status(500).send(buildErrorResponse({
+                code: 'CHECK_FAILED',
+                message: 'Availability check failed',
+                requestId: request.id,
+            }));
+        }
+
+        return {
+            success: true,
+            available: taken.length === 0,
+            taken,
+            errors: {
+                ...(taken.includes('email') ? { email: 'This email is already registered.' } : {}),
+                ...(taken.includes('phone') ? { phone: 'This phone number is already registered.' } : {}),
+            },
+        };
+    });
 
     fastify.get('/google/start', {
         preHandler: [fastify.validate({ querystring: GoogleStartQuerySchema })],
@@ -699,6 +781,32 @@ export default async function authRoutes(fastify: FastifyInstance) {
         return { success: true, message: 'Session cleared' };
     });
 
+    /**
+     * PATCH /api/v1/auth/onboarding-progress
+     * Save the user's current onboarding step + entityType so they can resume
+     * if they leave mid-form. Called after each step transition.
+     */
+    const OnboardingProgressSchema = z.object({
+        onboardingStep: z.string(),
+        entityType: z.string().optional(),
+    });
+
+    fastify.patch('/onboarding-progress', {
+        preHandler: [fastify.requireAuth, fastify.validate({ body: OnboardingProgressSchema })],
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        if (!userId) {
+            return reply.status(401).send(buildErrorResponse({
+                code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id,
+            }));
+        }
+        const { onboardingStep, entityType } = request.body;
+        const update: Record<string, any> = { onboardingStep, updatedAt: FieldValue.serverTimestamp() };
+        if (entityType) update.entityType = entityType;
+        await fastify.db.collection('users').doc(userId).set(update, { merge: true });
+        return { success: true };
+    });
+
     // 🛡️ Security: Removed /auth/check to prevent account enumeration. 
     // Registration should handle "Email already exists" errors within the secure /auth/register flow.
 
@@ -761,16 +869,42 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         try {
             const userRef = fastify.db.collection('users').doc(userId);
-            await userRef.set({
+            const updateData: Record<string, any> = {
                 uid: userId,
                 email,
                 displayName: name,
                 role: 'onboarding',
                 isApproved: false,
-                updatedAt: FieldValue.serverTimestamp()
-            }, { merge: true });
+                onboardingComplete: true,
+                updatedAt: FieldValue.serverTimestamp(),
+            };
+            // Persist phone from the onboarding data so the users collection
+            // has it for recovery/login flows — it was missing before.
+            if (body.phone) {
+                updateData.phone = body.phone.startsWith('+') ? body.phone : `+${body.phone}`;
+            }
+            // Persist business-specific fields from the details form so they're
+            // available on the user profile even before admin approval.
+            if (body.entityType === 'business') {
+                if (body.businessType) updateData.businessType = body.businessType;
+                if (body.registrationNumber) updateData.registrationNumber = body.registrationNumber;
+            }
+            if (body.contactPerson) updateData.contactPerson = body.contactPerson;
+            if (body.city) updateData.city = body.city;
+            if (body.area) updateData.area = body.area;
+            if (body.website) updateData.website = body.website;
+            if (body.capacity) updateData.capacity = body.capacity;
+            if (body.plan) updateData.plan = body.plan;
+            if (body.entityType) updateData.entityType = body.entityType;
+            if (body.instagram) updateData.instagram = body.instagram;
+            if (body.bio) updateData.bio = body.bio;
+            if (body.role) updateData.onboardingRole = body.role;
+            await userRef.set(updateData, { merge: true });
 
             const requestId = `req_${Date.now()}_${userId.substring(0, 5)}`;
+            // Store the requestId on the user doc so getGuestOnboardingRequest
+            // can do a direct lookup instead of a Firestore query (which needs an index).
+            await userRef.set({ onboardingRequestId: requestId }, { merge: true });
             await fastify.db.collection('onboarding_requests').doc(requestId).set({
                 id: requestId,
                 uid: userId,

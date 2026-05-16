@@ -8,6 +8,7 @@ describe('api-contracts', () => {
             message: 'Insufficient permissions',
             requestId: 'req_123',
         })).toEqual({
+            success: false,
             error: {
                 code: 'FORBIDDEN',
                 message: 'Insufficient permissions',

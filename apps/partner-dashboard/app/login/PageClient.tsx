@@ -102,8 +102,12 @@ function LoginForm() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
-    const [step, setStep] = useState<"select" | "credentials">("select");
-    const [userType, setUserType] = useState<UserType | null>(null);
+    const [step, setStep] = useState<"select" | "credentials">(
+        searchParams.get("type") ? "credentials" : "select"
+    );
+    const [userType, setUserType] = useState<UserType | null>(
+        (searchParams.get("type") as UserType) || null
+    );
 
     // Clear any stale session on mount so a different account can log in cleanly.
     // Without this, a persistent Firebase session (Account A) auto-redirects to
@@ -123,7 +127,7 @@ function LoginForm() {
         userType === "host" ? "rgba(255,255,255,VAL)" : userType === "promoter" ? "rgba(34,197,94,VAL)" : "rgba(244,74,34,VAL)",
         userType === "venue" ? "rgba(244,74,34,VAL)"  : userType === "host"     ? "rgba(255,255,255,VAL)": "rgba(34,197,94,VAL)",
     ];
-    const [email, setEmail] = useState("");
+    const [email, setEmail] = useState(searchParams.get("email") || "");
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -188,7 +192,7 @@ function LoginForm() {
 
                 const data = await res.json();
                 const userData = data.user || {};
-                const onboardingRequest = data.onboardingRequest || null;
+                const onboardingRequest = data.onboarding?.onboardingRequest || null;
 
                 let assignedType: string | null = null;
 
@@ -206,13 +210,28 @@ function LoginForm() {
                 // only users with an active approved account (role/venueId/activeMembership) pass.
                 if (!assignedType) {
                     if (onboardingRequest) {
-                        setError("You don't have partner access yet. Your application is pending review.");
+                        if (onboardingRequest.status === 'verified' || onboardingRequest.status === 'approved') {
+                            // Approved but missing role/activeMembership — rare edge.
+                            // Let the user through so they land on their partner dashboard.
+                            assignedType = onboardingRequest.type || null;
+                            if (!assignedType) {
+                                setError("Application approved, but workspace type unknown. Contact support.");
+                                await auth.signOut();
+                                setLoading(false);
+                                return;
+                            }
+                        } else {
+                            setError("You don't have partner access yet. Your application is pending review.");
+                            await auth.signOut();
+                            setLoading(false);
+                            return;
+                        }
                     } else {
                         setError("This account is not registered. Please apply for access.");
+                        await auth.signOut();
+                        setLoading(false);
+                        return;
                     }
-                    await auth.signOut();
-                    setLoading(false);
-                    return;
                 }
 
                 if (userType && assignedType !== userType) {
@@ -262,7 +281,7 @@ function LoginForm() {
 
                 const data = await res.json();
                 const userData = data.user || {};
-                const onboardingRequest = data.onboardingRequest || null;
+                const onboardingRequest = data.onboarding?.onboardingRequest || null;
 
                 let assignedType: string | null = null;
 
@@ -277,13 +296,26 @@ function LoginForm() {
 
                 if (!assignedType) {
                     if (onboardingRequest) {
-                        setError("You don't have partner access yet. Your application is pending review.");
+                        if (onboardingRequest.status === 'verified' || onboardingRequest.status === 'approved') {
+                            assignedType = onboardingRequest.type || null;
+                            if (!assignedType) {
+                                setError("Application approved, but workspace type unknown. Contact support.");
+                                await auth.signOut();
+                                setLoading(false);
+                                return;
+                            }
+                        } else {
+                            setError("You don't have partner access yet. Your application is pending review.");
+                            await auth.signOut();
+                            setLoading(false);
+                            return;
+                        }
                     } else {
                         setError("This account is not registered. Please apply for access.");
+                        await auth.signOut();
+                        setLoading(false);
+                        return;
                     }
-                    await auth.signOut();
-                    setLoading(false);
-                    return;
                 }
 
                 router.push(`/${assignedType}`);

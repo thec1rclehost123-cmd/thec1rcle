@@ -15,12 +15,12 @@ describe('PublicDiscoveryService', () => {
         const service = buildService();
         service.events = {
             queryList: vi.fn(async () => ([
-                { id: 'event_live', visibility: 'public', lifecycle: 'live', statusKey: 'live', startAt: '2099-04-20T20:00:00.000Z' },
-                { id: 'event_upcoming', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', startAt: '2099-04-21T20:00:00.000Z' },
-                { id: 'event_upcoming', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', startAt: '2099-04-21T20:00:00.000Z' },
-                { id: 'event_ended', visibility: 'public', lifecycle: 'scheduled', statusKey: 'ended', startAt: '2020-04-10T20:00:00.000Z' },
-                { id: 'event_cancelled', visibility: 'public', lifecycle: 'cancelled', statusKey: 'canceled', startAt: '2099-04-22T20:00:00.000Z' },
-                { id: 'event_approved', visibility: 'public', lifecycle: 'approved', statusKey: 'upcoming', startAt: '2099-04-23T20:00:00.000Z' },
+                { id: 'event_live', visibility: 'public', lifecycle: 'live', statusKey: 'live', startAt: '2099-04-20T20:00:00.000Z', endAt: '2099-04-21T04:00:00.000Z' },
+                { id: 'event_upcoming', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', startAt: '2099-04-21T20:00:00.000Z', endAt: '2099-04-22T04:00:00.000Z' },
+                { id: 'event_upcoming', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', startAt: '2099-04-21T20:00:00.000Z', endAt: '2099-04-22T04:00:00.000Z' },
+                { id: 'event_ended', visibility: 'public', lifecycle: 'scheduled', statusKey: 'ended', startAt: '2020-04-10T20:00:00.000Z', endAt: '2020-04-11T04:00:00.000Z' },
+                { id: 'event_cancelled', visibility: 'public', lifecycle: 'cancelled', statusKey: 'canceled', startAt: '2099-04-22T20:00:00.000Z', endAt: '2099-04-23T04:00:00.000Z' },
+                { id: 'event_approved', visibility: 'public', lifecycle: 'approved', statusKey: 'upcoming', startAt: '2099-04-23T20:00:00.000Z', endAt: '2099-04-24T04:00:00.000Z' },
             ])),
         };
 
@@ -33,8 +33,8 @@ describe('PublicDiscoveryService', () => {
         const service = buildService();
         service.events = {
             queryList: vi.fn(async () => ([
-                { id: 'event_pune', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-21T20:00:00.000Z' },
-                { id: 'event_mumbai', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'mumbai-in', startAt: '2099-04-22T20:00:00.000Z' },
+                { id: 'event_pune', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-21T20:00:00.000Z', endAt: '2099-04-22T04:00:00.000Z' },
+                { id: 'event_mumbai', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'mumbai-in', startAt: '2099-04-22T20:00:00.000Z', endAt: '2099-04-23T04:00:00.000Z' },
             ])),
         };
 
@@ -48,7 +48,7 @@ describe('PublicDiscoveryService', () => {
         const service = buildService();
         service.events = {
             queryList: vi.fn(async () => ([
-                { id: 'event_pune', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-21T20:00:00.000Z' },
+                { id: 'event_pune', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-21T20:00:00.000Z', endAt: '2099-04-22T04:00:00.000Z' },
             ])),
             listAll: vi.fn(async () => {
                 throw new Error('should not full-scan');
@@ -86,9 +86,10 @@ describe('PublicDiscoveryService', () => {
                 statusKey: 'upcoming',
                 cityKey: 'pune-in',
                 startAt: '2099-04-21T20:00:00.000Z',
+                endAt: '2099-04-22T04:00:00.000Z',
             })),
             queryList: vi.fn(async () => ([
-                { id: 'event_heat', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-22T20:00:00.000Z' },
+                { id: 'event_heat', visibility: 'public', lifecycle: 'scheduled', statusKey: 'upcoming', cityKey: 'pune-in', startAt: '2099-04-22T20:00:00.000Z', endAt: '2099-04-23T04:00:00.000Z' },
             ])),
         };
         const listEventsSpy = vi.spyOn(service, 'listEvents');

@@ -90,6 +90,9 @@ async function buildServer({
         },
     } as any);
     server.decorate('profileService', { updateProfile: async () => undefined });
+    server.decorate('requireAuth', async (_request: any, reply: any) => {
+        if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+    });
     server.decorateRequest('user', null);
     server.decorateRequest('authContext', null);
     server.decorateRequest('authVerification', null);

@@ -14,6 +14,7 @@ import {
     ShieldCheck,
     Layout,
     Banknote,
+    CreditCard,
 } from "lucide-react";
 import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
 import { cleanJargon } from "@/lib/utils/jargon";
@@ -49,6 +50,7 @@ export default function HostSidebar() {
             category: "finance",
             items: [
                 { icon: Banknote, label: "finance", href: "/host/finance" },
+                { icon: CreditCard, label: "payout_settings", href: "/host/finance/payouts" },
             ]
         },
         {

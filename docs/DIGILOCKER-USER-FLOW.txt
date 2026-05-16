@@ -1,0 +1,345 @@
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃           DIGILOCKER USER FLOW - PRIMARY AUTHENTICATION WIREFRAME           ┃
+┃                                                                              ┃
+┃              AGE VERIFICATION FOR ALCOHOL ACCESS + PARTNER KYC              ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                SCREEN 1: LANDING - PRIMARY AUTHENTICATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                                                                         ║
+  ║                              🏠 THE C1RCLE                              ║
+  ║                                                                         ║
+  ║                   Discover. Connect. Celebrate.                         ║
+  ║                                                                         ║
+  ║  ╔═════════════════════════════════════════════════════════════════╗  ║
+  ║  ║                                                                     ║  ║
+  ║  ║          🔐 LOGIN WITH DIGILOCKER (PRIMARY AUTH)                  ║  ║
+  ║  ║                                                                     ║  ║
+  ║  ║     ─────────────────────────────────────────────────────────     ║  ║
+  ║  ║     MANDATORY: Partners, Hosts, Alcohol Venue Access              ║  ║
+  ║  ║     ─────────────────────────────────────────────────────────     ║  ║
+  ║  ║                                                                     ║  ║
+  ║  ║         ✅ Government-verified identity                           ║  ║
+  ║  ║         ✅ Age verification (21+/25+ for alcohol venues)         ║  ║
+  ║  ║         ✅ KYC compliance for business                            ║  ║
+  ║  ║                                                                     ║  ║
+  ║  ╚═════════════════════════════════════════════════════════════════╝  ║
+  ║                                                                         ║
+  ║   Why DigiLocker?                                                       ║
+  ║   ─────────────────                                                      ║
+  ║   • Required for venue partners & hosts (Legal requirement)           ║
+  ║   • Required for 21+/25+ alcohol venue access (Age verification)     ║
+  ║   • Instant KYC for payment processing                                 ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    SCREEN 2: ROLE SELECTION - VERIFIED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                       SELECT YOUR ROLE                                   ║
+  ║                                                                         ║
+  ║  All users must verify via DigiLocker for identity + age                ║
+  ║                                                                         ║
+  ║  ┌─────────────────────────────┐  ┌─────────────────────────────┐      ║
+  ║  │                             │  │                             │      ║
+  ║  │      🏢                     │  │      🎤                     │      ║
+  ║  │                             │  │                             │      ║
+  ║  │   VENUE PARTNER            │  │       HOST                 │      ║
+  ║  │   ───────────────          │  │   ───────────              │      ║
+  ║  │   [MANDATORY KYC]          │  │   [MANDATORY KYC]          │      ║
+  ║  │                             │  │                             │      ║
+  ║  │   List & manage venues     │  │   Host events & manage    │      ║
+  ║  │   Business verification    │  │   Age verified (21+/25+)  │      ║
+  ║  │   Legal signatory proof    │  │   KYC for payments         │      ║
+  ║  │                             │  │                             │      ║
+  ║  │   ⚠️ Requires:             │  │   ⚠️ Requires:            │      ║
+  ║  │   Aadhaar + PAN + Business │  │   Aadhaar + PAN            │      ║
+  ║  └─────────────────────────────┘  └─────────────────────────────┘      ║
+  ║                                                                         ║
+  ║  ┌─────────────────────────────┐  ┌─────────────────────────────┐      ║
+  ║  │                             │  │                             │      ║
+  ║  │      📢                     │  │      🎫                     │      ║
+  ║  │                             │  │                             │      ║
+  ║  │     PROMOTER               │  │      GUEST                 │      ║
+  ║  │   ───────────────           │  │   ───────────              │      ║
+  ║  │   [MANDATORY KYC]          │  │   [AGE VERIFICATION]       │      ║
+  ║  │                             │  │                             │      ║
+  ║  │   Promote events           │  │   Discover & book events  │      ║
+  ║  │   Identity verification   │  │   Age verified for         │      ║
+  ║  │                             │  │   alcohol venues           │      ║
+  ║  │   ⚠️ Requires:             │  │   ⚠️ Requires:            │      ║
+  ║  │   Aadhaar + PAN            │  │   Aadhaar (DOB for age)   │      ║
+  ║  └─────────────────────────────┘  └─────────────────────────────┘      ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+              SCREEN 3: DIGILOCKER CONSENT (EXTERNAL - GOVERNMENT)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                            🔐 DigiLocker                                   ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║   THE C1RCLE - Identity & Age Verification                              ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║   Documents Required:                                                  ║
+  ║                                                                         ║
+  ║   ☑ Aadhaar - Required for:                                           ║
+  ║      • Identity verification                                           ║
+  ║      • Date of Birth (Age verification for alcohol access)            ║
+  ║      • Address verification                                            ║
+  ║                                                                         ║
+  ║   ☑ PAN - Required for:                                               ║
+  ║      • Financial compliance (KYC)                                      ║
+  ║      • Business verification (for partners)                          ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║   🔒 Data Usage:                                                        ║
+  ║                                                                         ║
+  ║   1. IDENTITY VERIFICATION                                             ║
+  ║      Confirm you are a real, verified person                          ║
+  ║                                                                         ║
+  ║   2. AGE VERIFICATION (Critical for Alcohol Access)                   ║
+  ║      Your DOB confirms 21+/25+ status for:                           ║
+  ║      • Purchasing alcohol-inclusive tickets                          ║
+  ║      • Entering 21+/25+ age-restricted venues                         ║
+  ║      • Premium venue access                                            ║
+  ║                                                                         ║
+  ║   3. LEGAL COMPLIANCE (KYC)                                            ║
+  ║      • Partner/Host business onboarding                                ║
+  ║      • Payment processing capability                                  ║
+  ║      • Government API requirements                                     ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║        [Cancel]                              [Allow Access]             ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                SCREEN 4: VERIFICATION - IDENTITY + AGE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                    ⏳ Verifying Identity & Age                             ║
+  ║                                                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐   ║
+  ║  │                                                                   │   ║
+  ║  │                    🔄 Processing...                              │   ║
+  ║  │                                                                   │   ║
+  ║  │                                                                   │   ║
+  ║  │   Aadhaar (Identity)    ████████████████████  100%  ✅          │   ║
+  ║  │   PAN (KYC)             ████████████████████  100%  ✅          │   ║
+  ║  │   DOB (Age)             ████████████████████  100%  ✅          │   ║
+  ║  │                                                                   │   ║
+  ║  └───────────────────────────────────────────────────────────────────┘   ║
+  ║                                                                         ║
+  ║  ✅ Identity Verified Successfully                                     ║
+  ║  ✅ Age Verified for Alcohol Access                                    ║
+  ║  ✅ KYC Status: Verified                                               ║
+  ║                                                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐   ║
+  ║  │  Profile Details                                                 │   ║
+  ║  │  ─────────────────────────────────────────────────────────────   │   ║
+  ║  │  👤 Name:     John Doe                                           │   ║
+  ║  │  📅 DOB:     15 August 1990                                      │   ║
+  ║  │  🎂 Age:     25+ (Eligible for 25+ venues)                     │   ║
+  ║  │  📍 Address: Mumbai, Maharashtra                                 │   ║
+  ║  │  🆔 PAN:     ABCDE1234F                                          │   ║
+  ║  │  ✅ KYC:     Complete                                            │   ║
+  ║  └───────────────────────────────────────────────────────────────────┘   ║
+  ║                                                                         ║
+  ║    Your age verification allows access to:                             ║
+  ║    ────────────────────────────────                                   ║
+  ║    ✅ 18+ venues (Beer gardens)                                       ║
+  ║    ✅ 21+ venues (Standard bars)                                     ║
+  ║    ✅ 25+ venues (Premium clubs) ← YOU ARE VERIFIED                   ║
+  ║                                                                         ║
+  ║                      [Continue to Dashboard]                          ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                 SCREEN 5: AGE RESTRICTION FOR ALCOHOL VENUES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                  ⚠️ AGE RESTRICTED VENUE ALERT                             ║
+  ║                                                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐   ║
+  ║  │                                                                   │   ║
+  ║  │              🚫 UNDERAGE ACCESS DENIED                          │   ║
+  ║  │                                                                   │   ║
+  ║  │                                                                   │   ║
+  ║  │    This venue requires 25+ age for entry.                      │   ║
+  ║  │    Your current age: 22                                         │   ║
+  ║  │                                                                   │   ║
+  ║  │    ─────────────────────────────────────────────────────────   │   ║
+  ║  │                                                                   │   ║
+  ║  │    To access this venue, you need:                            │   ║
+  ║  │                                                                   │   ║
+  ║  │    1. Verify your age via DigiLocker                           │   ║
+  ║  │    2. Update your DOB if incorrect                             │   ║
+  ║  │    3. Wait until you reach the required age                   │   ║
+  ║  │                                                                   │   ║
+  ║  └───────────────────────────────────────────────────────────────────┘   ║
+  ║                                                                         ║
+  ║                      [Verify with DigiLocker]                          ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                    SCREEN 6: PRIVACY & AGE CONSENT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  ╔═════════════════════════════════════════════════════════════════════════╗
+  ║                      🔒 Your Data is Secure                                ║
+  ║                                                                         ║
+  ║  ┌───────────────────────────────────────────────────────────────────┐   ║
+  ║  │                                                                   │   ║
+  ║  │  HOW WE USE YOUR DATA:                                          │   ║
+  ║  │                                                                   │   ║
+  ║  │  ✅ IDENTITY VERIFICATION                                       │   ║
+  ║  │     Confirm you are a real person for account creation         │   ║
+  ║  │                                                                   │   ║
+  ║  │  ✅ AGE VERIFICATION (CRITICAL)                                  │   ║
+  ║  │     Your DOB is verified to confirm:                           │   ║
+  ║  │     • 21+ for standard alcohol venues                          │   ║
+  ║  │     • 25+ for premium/lounge venues                            │   ║
+  ║  │     • Prevents underage access to alcohol                       │   ║
+  ║  │                                                                   │   ║
+  ║  │  ✅ KYC COMPLIANCE                                              │   ║
+  ║  │     Required for partner/host business onboarding              │   ║
+  ║  │                                                                   │   ║
+  ║  │  ✅ PAYMENT PROCESSING                                          │   ║
+  ║  │     KYC-verified accounts can receive payments                │   ║
+  ║  │                                                                   │   ║
+  ║  └───────────────────────────────────────────────────────────────────┘   ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║  WE DO NOT:                                                            ║
+  ║  ❌ Share documents with third parties                                ║
+  ║  ❌ Use for marketing or advertising                                   ║
+  ║  ❌ Store documents beyond retention period                          ║
+  ║  ❌ Share age data with venue owners (only access yes/no)            ║
+  ║                                                                         ║
+  ║  ─────────────────────────────────────────────────────────────────────   ║
+  ║                                                                         ║
+  ║  YOUR RIGHTS:                                                          ║
+  ║  📥 Request data export                                               ║
+  ║  🗑 Request data deletion                                             ║
+  ║  📋 View access logs                                                  ║
+  ║  ℹ️ View age verification status                                       ║
+  ║                                                                         ║
+  ║         [I Understand & Agree]     [View Full Privacy Policy]          ║
+  ║                                                                         ║
+  ╚═════════════════════════════════════════════════════════════════════════╝
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                         TECHNICAL FLOW DIAGRAM
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+     USER                  BROWSER                SERVER              DIGILOCKER
+      │                      │                      │                      │
+      │  1. Click "Login    │                      │                      │
+      │     with DigiLocker"│                      │                      │
+      │     (Primary Auth) │                      │                      │
+      │────────────────────>│                      │                      │
+      │                      │                      │                      │
+      │  2. Select Role     │                      │                      │
+      │     (Partner/       │                      │                      │
+      │      Host/Guest)    │                      │                      │
+      │────────────────────>│                      │                      │
+      │                      │  3. OAuth Request   │                      │
+      │                      │     + Role context   │                      │
+      │                      │─────────────────────>│                      │
+      │                      │                      │                      │
+      │                      │                      │  4. Show Consent    │
+      │                      │                      │     with Age purpose │
+      │                      │                      │<─────────────────────│
+      │                      │                      │                      │
+      │  5. User Logs In   │                      │                      │
+      │     & Grants       │                      │                      │
+      │     Consent        │                      │                      │
+      │     (Aadhaar+PAN)  │                      │                      │
+      │────────────────────>│                      │                      │
+      │                      │                      │                      │
+      │  6. Auth Code      │  7. Return Code      │                      │
+      │     Received       │<─────────────────────│                      │
+      │<────────────────────│                      │                      │
+      │                      │                      │                      │
+      │  8. Send to         │  9. Exchange Code   │                      │
+      │     Callback        │     for Token        │                      │
+      │     + Role          │─────────────────────>│                      │
+      │────────────────────>│                      │                      │
+      │                      │                      │                      │
+      │                      │                      │ 10. Return Access   │
+      │                      │                      │     Token            │
+      │                      │                      │<─────────────────────│
+      │                      │                      │                      │
+      │                      │ 11. Fetch Documents│                      │
+      │                      │     + DOB (Age)     │                      │
+      │                      │─────────────────────>│                      │
+      │                      │                      │                      │
+      │                      │                      │ 12. Return Docs     │
+      │                      │                      │     + DOB           │
+      │                      │                      │<─────────────────────│
+      │                      │                      │                      │
+      │                      │ 13. Calculate Age   │                      │
+      │                      │     from DOB        │                      │
+      │                      │     Store Age Flag  │                      │
+      │                      │     (21+/25+/18+)   │                      │
+      │                      │─────────────────────>│                      │
+      │                      │                      │                      │
+      │ 14. Identity ✅     │ 15. Age Verified ✅ │                      │
+      │     Age ✅         │<─────────────────────│                      │
+      │<────────────────────│                      │                      │
+
+
+══════════════════════════════════════════════════════════════════════════════
+                    AGE CHECK FLOW AT VENUE ENTRY
+══════════════════════════════════════════════════════════════════════════════
+
+     TICKET SCAN                  SERVER CHECK                   RESULT
+         │                           │                            │
+         │  1. Scan ticket          │                            │
+         │─────────────────────────>│                            │
+         │                           │                            │
+         │                     2. Get user age flag            │
+         │                     3. Get venue age req             │
+         │                     4. Compare ages                  │
+         │                           │                            │
+         │                           │                            │
+         ▼                    ┌──────┴──────┐                     ▼
+                     ┌───────────────┐     ┌───────────────┐
+                     │ user.age      │     │ user.age      │
+                     │ >= venue.age  │     │ < venue.age   │
+                     └───────┬───────┘     └───────┬───────┘
+                             │                     │
+                             ▼                     ▼
+                     ┌───────────────┐     ┌───────────────┐
+                     │ ✅ ALLOW      │     │ ❌ DENY       │
+                     │ Entry         │     │ Underage      │
+                     └───────────────┘     └───────────────┘
+
+
+══════════════════════════════════════════════════════════════════════════════
+                              END OF DOCUMENT
+══════════════════════════════════════════════════════════════════════════════

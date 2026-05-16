@@ -37,6 +37,10 @@ describe('guest-auth contracts', () => {
             attendedEvents: ['event_1'],
             createdAt: null,
             updatedAt: null,
+            role: null,
+            venueId: null,
+            partnerId: null,
+            onboardingStatus: null,
         });
     });
 

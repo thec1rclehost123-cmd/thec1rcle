@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
     Wallet,
     TrendingUp,
@@ -10,6 +10,7 @@ import {
     ArrowRight,
     IndianRupee,
     AlertCircle,
+    Landmark,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
@@ -17,6 +18,7 @@ import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/Ven
 import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { formatINR, formatDate } from "@/lib/utils/format";
 import { PayoutRequestModal } from "@/components/promoter/PayoutRequestModal";
+import { BankSetupForm, type BankSetupData } from "@/components/finance/BankSetupForm";
 
 interface PayoutBalance {
     totalEarned: number;
@@ -66,6 +68,9 @@ export default function PayoutsPage() {
     const [payouts, setPayouts] = useState<Payout[]>([]);
     const [loading, setLoading] = useState(true);
     const [showRequestModal, setShowRequestModal] = useState(false);
+    const [showSetup, setShowSetup] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [setupError, setSetupError] = useState("");
 
     const promoterId = profile?.activeMembership?.partnerId;
 
@@ -87,6 +92,32 @@ export default function PayoutsPage() {
             setLoading(false);
         }
     };
+
+    const handleBankSetup = useCallback(async (data: BankSetupData) => {
+        if (!promoterId) return;
+        setSubmitting(true);
+        setSetupError("");
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const res = await fetch("/api/promoter/finance/bank-accounts", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as any).error || "Failed to save bank account.");
+            }
+            setShowSetup(false);
+        } catch (err: any) {
+            setSetupError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    }, [promoterId, getIdToken]);
 
     const canRequest = balance && balance.available >= 100;
 
@@ -164,6 +195,47 @@ export default function PayoutsPage() {
                     color="#6366f1"
                     icon={<CheckCircle2 className="w-4 h-4" />}
                 />
+            </motion.div>
+
+            {/* Bank Account Setup */}
+            <motion.div {...mp(0.12)}>
+                {showSetup ? (
+                    <div className="rounded-[32px] bg-surface-elevated border border-border-default p-8 mb-6">
+                        <div className="flex items-center justify-between mb-6">
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">Bank Account</p>
+                                <p className="text-lg font-bold text-text-primary mt-0.5">Set Up Payout Bank Account</p>
+                            </div>
+                            <button
+                                onClick={() => setShowSetup(false)}
+                                className="text-xs font-semibold text-text-tertiary hover:text-text-primary transition-colors"
+                            >
+                                Hide
+                            </button>
+                        </div>
+                        <BankSetupForm
+                            onSubmit={handleBankSetup}
+                            submitting={submitting}
+                            error={setupError}
+                            submitLabel="Save Bank Account"
+                            getAuthToken={getIdToken as () => Promise<string>}
+                        />
+                    </div>
+                ) : (
+                    <button
+                        onClick={() => setShowSetup(true)}
+                        className="w-full rounded-[32px] bg-surface-elevated border border-border-default p-5 mb-6 flex items-center gap-4 hover:bg-surface-secondary/50 transition-colors group"
+                    >
+                        <div className="w-12 h-12 rounded-2xl bg-surface-tertiary flex items-center justify-center group-hover:bg-surface-secondary transition-colors">
+                            <Landmark className="w-5 h-5 text-text-tertiary" />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-sm font-bold text-text-primary">Configure Bank Account</p>
+                            <p className="text-xs text-text-tertiary">Set up payouts to receive your earnings directly to your bank</p>
+                        </div>
+                        <ArrowRight className="w-4 h-4 text-text-tertiary ml-auto group-hover:text-text-primary transition-colors" />
+                    </button>
+                )}
             </motion.div>
 
             {/* Payout History */}

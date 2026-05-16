@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import {
     CheckCircle2, Clock, AlertCircle, XCircle, ArrowRight,
     Building2, CreditCard, ShieldCheck, Download, RefreshCw,
-    Banknote, Plus, Info,
+    Banknote, Plus, Info, ArrowLeft,
 } from "lucide-react";
 import Link from "next/link";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
@@ -12,6 +12,7 @@ import { AppleHeroStat } from "@/components/ui/AppleHeroStat";
 import { VenueStatStrip } from "@/components/ui/VenueStatStrip";
 import { BentoCard } from "@/components/ui/BentoCard";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { BankSetupForm, type BankSetupData } from "@/components/finance/BankSetupForm";
 import {
     formatINR,
     formatINRCompact,
@@ -32,6 +33,9 @@ export default function VenuePayoutsSettingsClient() {
     const [loading, setLoading] = useState(true);
     const [totalSettled, setTotalSettled] = useState(0);
     const [availableBalance, setAvailableBalance] = useState(0);
+    const [showSetup, setShowSetup] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState("");
 
     const fetchPayouts = useCallback(async () => {
         if (!venueId) return;
@@ -45,7 +49,6 @@ export default function VenuePayoutsSettingsClient() {
                 const data = await res.json();
                 setAvailableBalance(data.metrics?.availableBalance || 0);
                 setTotalSettled(data.metrics?.settledPayouts || 0);
-                // payoutState is returned by the gateway's finance/summary as part of metrics
                 const rawPayoutState = (data.metrics as any)?.payoutState as PayoutSettingsState | undefined;
                 if (rawPayoutState) setSettingsState(rawPayoutState);
             }
@@ -55,6 +58,33 @@ export default function VenuePayoutsSettingsClient() {
             setLoading(false);
         }
     }, [venueId, getIdToken]);
+
+    const handleBankSetup = useCallback(async (data: BankSetupData) => {
+        if (!venueId) return;
+        setSubmitting(true);
+        setSubmitError("");
+        try {
+            const token = typeof getIdToken === "function" ? await getIdToken() : "";
+            const res = await fetch("/api/venue/finance/bank-accounts", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                throw new Error((err as any).error || "Failed to save bank account.");
+            }
+            setShowSetup(false);
+            fetchPayouts();
+        } catch (err: any) {
+            setSubmitError(err.message);
+        } finally {
+            setSubmitting(false);
+        }
+    }, [venueId, getIdToken, fetchPayouts]);
 
     useEffect(() => {
         fetchPayouts();
@@ -72,8 +102,35 @@ export default function VenuePayoutsSettingsClient() {
             }
         >
             {/* Payout status card */}
-            {settingsState === "unconnected" ? (
-                <UnconnectedPayoutState venueId={venueId} />
+            {settingsState === "unconnected" && !showSetup ? (
+                <UnconnectedPayoutState venueId={venueId} onStartSetup={() => setShowSetup(true)} />
+            ) : settingsState === "unconnected" && showSetup ? (
+                <div
+                    className="rounded-[var(--v-r-xl)] overflow-hidden p-8"
+                    style={{ background: "var(--v-card)", border: "1px solid var(--v-border)" }}
+                >
+                    <button
+                        onClick={() => setShowSetup(false)}
+                        className="flex items-center gap-1.5 text-[12px] font-semibold mb-6"
+                        style={{ color: "var(--v-text-muted)" }}
+                    >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        Back
+                    </button>
+                    <h2 className="text-[20px] font-bold mb-1" style={{ color: "var(--v-text-primary)" }}>
+                        Set Up Payout Bank Account
+                    </h2>
+                    <p className="text-[13px] mb-6" style={{ color: "var(--v-text-secondary)" }}>
+                        Enter your bank details to start receiving payouts from events.
+                    </p>
+                    <BankSetupForm
+                        onSubmit={handleBankSetup}
+                        submitting={submitting}
+                        error={submitError}
+                        submitLabel="Save & Continue"
+                        getAuthToken={getIdToken as () => Promise<string>}
+                    />
+                </div>
             ) : (
                 <>
                     {/* Hero available balance */}
@@ -112,7 +169,7 @@ export default function VenuePayoutsSettingsClient() {
 
 // ── Unconnected State ─────────────────────────────────────────────────────────
 
-function UnconnectedPayoutState({ venueId }: { venueId: string }) {
+function UnconnectedPayoutState({ venueId, onStartSetup }: { venueId: string; onStartSetup?: () => void }) {
     return (
         <div
             className="rounded-[var(--v-r-xl)] overflow-hidden"
@@ -174,6 +231,7 @@ function UnconnectedPayoutState({ venueId }: { venueId: string }) {
             {/* CTA */}
             <div className="px-8 py-6 flex items-center gap-3">
                 <button
+                    onClick={onStartSetup}
                     className="flex-1 py-3.5 rounded-xl text-[14px] font-bold transition-all hover:brightness-110 active:scale-[0.98]"
                     style={{ background: "var(--v-orange)", color: "#fff" }}
                 >

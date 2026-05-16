@@ -32,7 +32,13 @@ const MENU_SECTIONS = [
     },
     {
         items: [
-            { icon: Wallet,   label: "Finance",  href: "/promoter/finance" },
+            {
+                icon: Wallet, label: "Finance", href: "/promoter/finance",
+                children: [
+                    { label: "Overview",      href: "/promoter/finance" },
+                    { label: "Payout Settings", href: "/promoter/finance/payouts" },
+                ],
+            },
             { icon: Settings, label: "Settings", href: "/promoter/settings" },
         ],
     },
