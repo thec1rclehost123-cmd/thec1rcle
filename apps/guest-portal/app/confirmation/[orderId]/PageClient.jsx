@@ -123,7 +123,7 @@ export default function ConfirmationPageClient({
   if (status === "unauthorized") {
     return (
       <FunnelShell title="Booking Confirmed" showLogo backHref="/tickets">
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Sign in required</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">Open your confirmation from your account.</h1>
           <p className="text-sm text-white/60">We need to verify that this order belongs to you before showing the confirmation.</p>
@@ -135,7 +135,7 @@ export default function ConfirmationPageClient({
   if (status === "missing" || !order) {
     return (
       <FunnelShell title="Booking Confirmed" showLogo backHref="/tickets">
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Confirmation unavailable</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">We could not find that order.</h1>
           <p className="text-sm text-white/60">If you just checked out, give it a moment and then open your ticket vault again.</p>
@@ -147,7 +147,7 @@ export default function ConfirmationPageClient({
   if (status === "error") {
     return (
       <FunnelShell title="Booking Confirmed" showLogo backHref="/tickets">
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Gateway sync error</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">We could not load your confirmation yet.</h1>
           <p className="text-sm text-white/60">Please refresh in a moment. Your order record is still owned by the gateway.</p>
@@ -159,7 +159,7 @@ export default function ConfirmationPageClient({
   if (order.status !== "confirmed") {
     return (
       <FunnelShell title="Payment Pending" showLogo backHref="/tickets">
-        <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] w-full max-w-2xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Confirmation Pending</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your payment is still settling.</h1>
           <p className="max-w-xl text-sm text-white/60">
@@ -174,7 +174,7 @@ export default function ConfirmationPageClient({
   if (!event) {
     return (
       <FunnelShell title="Booking Confirmed" showLogo backHref="/tickets">
-        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-6 text-center">
+        <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Event unavailable</p>
           <h1 className="text-3xl font-black uppercase tracking-tight text-white">Your order is confirmed.</h1>
           <p className="text-sm text-white/60">We could not load the event details, but your tickets should still appear in your vault.</p>

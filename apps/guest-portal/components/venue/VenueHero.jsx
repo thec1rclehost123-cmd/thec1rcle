@@ -76,7 +76,7 @@ export default function VenueHero({
                 </div>
 
                 {/* Bottom Content */}
-                <div className="absolute bottom-0 left-0 right-0 z-30 px-6 sm:px-12 pb-6 sm:pb-10">
+                <div className="absolute bottom-0 left-0 right-0 z-30 px-4 sm:px-6 md:px-12 pb-4 sm:pb-6 md:pb-10">
                     <div className="flex flex-col sm:flex-row sm:items-end gap-4 sm:gap-6">
                         {/* Logo */}
                         {logo && (

@@ -18,7 +18,7 @@ const EventFiltersSchema = z.object({
 const CalendarQuerySchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-}).strict();
+}).passthrough();
 
 const CreateSlotSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -735,10 +735,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'profile' && request.method === 'PATCH') {
-          const allowedFields = ['name', 'description', 'bio', 'tagline', 'address', 'city', 'state', 'capacity', 'amenities', 'photos', 'coverImage', 'profileImage', 'contactEmail', 'contactPhone', 'socialLinks', 'operatingHours', 'dressCode', 'ageRestriction', 'instagramHandle', 'youtubeHandle', 'spotifyHandle'];
+          const allowedFields = ['name', 'description', 'bio', 'tagline', 'address', 'city', 'state', 'capacity', 'amenities', 'photos', 'coverImage', 'profileImage', 'photoURL', 'logo', 'coverURL', 'contactEmail', 'contactPhone', 'socialLinks', 'operatingHours', 'dressCode', 'ageRestriction', 'instagramHandle', 'youtubeHandle', 'spotifyHandle'];
           const patch = asRecord(body.patch);
           const safe: PlainRecord = {};
           for (const key of allowedFields) if (patch[key] !== undefined) safe[key] = patch[key];
+          // Normalize image fields so discovery engine reads them correctly
+          if (safe.profileImage) { safe.photoURL = safe.profileImage; safe.logo = safe.profileImage; }
+          if (safe.coverImage) { safe.coverURL = safe.coverImage; }
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});
@@ -865,6 +868,38 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const revenue = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || 0), 0);
           const ticketsSold = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().ticketCount || 0), 0);
           return reply.send({ id: eventId, revenue: revenue / 100, checkedIn: (checkinsSnap as any).size || 0, expected: ticketsSold, ticketsSold, entryVelocity: 0, entryRate: 0, entryHistory: [] });
+        }
+
+        if (rest === 'overview/alerts' && request.method === 'GET') {
+          const now = new Date();
+          const todayStr = now.toISOString().split('T')[0];
+          const tomorrowStr = new Date(now.getTime() + 86400000).toISOString().split('T')[0];
+          const alerts: any[] = [];
+
+          const [upcomingSnap, pendingSlotsSnap] = await Promise.all([
+            fastify.db.collection('events')
+              .where('venueId', '==', ctx.partnerId)
+              .where('startDate', '>=', todayStr)
+              .where('startDate', '<=', tomorrowStr)
+              .get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('availability_slots')
+              .where('venueId', '==', ctx.partnerId)
+              .where('status', '==', 'pending')
+              .limit(5)
+              .get().catch(() => ({ docs: [] as any[] })),
+          ]);
+
+          const upcomingEvents = ((upcomingSnap as any).docs || []).map((d: any) => ({ id: d.id, ...(d.data() || {}) }));
+          const pendingCount = ((pendingSlotsSnap as any).docs || []).length;
+
+          if (upcomingEvents.length > 0) {
+            alerts.push({ type: 'info', title: `${upcomingEvents.length} event(s) today or tomorrow`, severity: 'low' });
+          }
+          if (pendingCount > 0) {
+            alerts.push({ type: 'action', title: `${pendingCount} pending slot request(s) need review`, severity: 'medium', action: '/venue/calendar' });
+          }
+
+          return reply.send({ alerts });
         }
 
         if (rest === 'page' && request.method === 'GET') {

@@ -107,11 +107,11 @@ function LoginForm() {
                 <div className="mx-auto flex w-full max-w-[380px] flex-col gap-8 pt-32 pb-10 md:py-12">
                     {/* Mobile Branding Header */}
                     <div className="md:hidden w-full flex flex-col items-center mb-4">
-                        <div className="bg-[#FF4400] w-screen py-12 px-6 flex flex-col items-center justify-center -mx-4 mb-8">
+                        <div className="bg-[#FF4400] w-full py-8 sm:py-12 px-4 flex flex-col items-center justify-center mb-8">
                             <motion.h2 
                                 initial={{ opacity: 0, y: -20 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                className="text-6xl font-black uppercase tracking-tighter leading-[0.8] text-black text-center"
+                                className="text-4xl sm:text-6xl font-black uppercase tracking-tighter leading-[0.8] text-black text-center"
                             >
                                 GET IN <br /> THE <br /> C1RCLE
                             </motion.h2>
@@ -140,7 +140,7 @@ function LoginForm() {
                                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange mb-3">
                                     {headingEyebrow}
                                 </p>
-                                <h1 className="text-4xl md:text-5xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9] text-white">
+                                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl font-black uppercase tracking-tighter leading-[0.9] text-white">
                                     {stepHeading()}
                                 </h1>
                             </motion.div>
@@ -156,7 +156,7 @@ function LoginForm() {
                                         animate={{ opacity: 1, scale: 1, y: 0 }}
                                         exit={{ opacity: 0, scale: 0.95, y: -10 }}
                                         transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                                        className="relative flex min-h-[460px] w-full flex-col overflow-hidden rounded-[40px] border border-white/10 bg-black/40 dark:bg-black/60 px-8 pt-10 pb-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] backdrop-blur-3xl glass-panel"
+                                        className="relative flex min-h-[460px] w-full flex-col overflow-hidden rounded-[32px] sm:rounded-[40px] border border-white/10 bg-black/40 dark:bg-black/60 px-5 sm:px-8 pt-8 sm:pt-10 pb-10 sm:pb-12 shadow-[0_32px_64px_-16px_rgba(0,0,0,0.8)] backdrop-blur-3xl glass-panel"
                                     >
                                     <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent" />
 

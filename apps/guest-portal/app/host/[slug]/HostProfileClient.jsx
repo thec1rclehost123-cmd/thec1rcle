@@ -86,11 +86,11 @@ export default function HostProfileClient({ host }) {
         <div className="bg-white dark:bg-[#0A0A0A] min-h-screen">
 
             {/* ─── Hero ────────────────────────────────────────────────── */}
-            <div className="relative h-[62vh] min-h-[400px] max-h-[680px] w-full overflow-hidden">
+            <div className="relative h-[62vh] min-h-[320px] sm:min-h-[400px] max-h-[680px] w-full overflow-hidden">
                 {/* Static radial blobs (no animation, matching site's ArtistsSection pattern) */}
                 <div className="pointer-events-none absolute inset-0 z-[1]">
-                    <div className="absolute left-[14%] top-[18%] h-[20rem] w-[20rem] rounded-full bg-[radial-gradient(circle,rgba(244,74,34,0.18),transparent_72%)] blur-3xl" />
-                    <div className="absolute right-[12%] bottom-[10%] h-[18rem] w-[18rem] rounded-full bg-[radial-gradient(circle,rgba(110,140,255,0.14),transparent_72%)] blur-3xl" />
+                    <div className="absolute left-[14%] top-[18%] h-[10rem] w-[10rem] sm:h-[20rem] sm:w-[20rem] rounded-full bg-[radial-gradient(circle,rgba(244,74,34,0.18),transparent_72%)] blur-3xl" />
+                    <div className="absolute right-[12%] bottom-[10%] h-[10rem] w-[10rem] sm:h-[18rem] sm:w-[18rem] rounded-full bg-[radial-gradient(circle,rgba(110,140,255,0.14),transparent_72%)] blur-3xl" />
                 </div>
 
                 {host.cover || host.coverURL ? (

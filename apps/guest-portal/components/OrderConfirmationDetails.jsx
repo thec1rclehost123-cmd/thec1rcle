@@ -65,7 +65,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1], delay: 0.4 }}
-                            className="text-6xl md:text-8xl font-black uppercase tracking-tighter text-white leading-[0.75]"
+                            className="text-4xl sm:text-6xl md:text-8xl font-black uppercase tracking-tighter text-white leading-[0.75]"
                         >
                             You&apos;re <span className="text-orange shadow-orange/30 shadow-2xl">In.</span>
                         </motion.h1>
@@ -73,7 +73,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             transition={{ delay: 0.8 }}
-                            className="text-[10px] md:text-xs font-black uppercase tracking-[0.5em] text-white/40 max-w-md mx-auto"
+                            className="text-[10px] md:text-xs font-black uppercase tracking-[0.3em] sm:tracking-[0.5em] text-white/40 max-w-md mx-auto"
                         >
                             Your tickets have been confirmed.
                         </motion.p>
@@ -88,7 +88,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                     className="relative group w-full max-w-[500px]"
                 >
                     <div className="absolute -inset-0.5 bg-gradient-to-r from-orange/20 to-gold/20 rounded-[40px] blur-xl opacity-0 group-hover:opacity-100 transition duration-1000" />
-                    <div className="relative glass-panel bg-white/[0.03] border border-white/10 backdrop-blur-2xl rounded-[40px] p-8 md:p-10 shadow-3xl overflow-hidden text-center">
+                    <div className="relative glass-panel bg-white/[0.03] border border-white/10 backdrop-blur-2xl rounded-[32px] sm:rounded-[40px] p-5 sm:p-8 md:p-10 shadow-3xl overflow-hidden text-center">
                         <div className="space-y-8">
                             <div className="space-y-2">
                                 <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Event Details</h3>
@@ -138,7 +138,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                     <div className="flex flex-col gap-2 mb-2">
                         <Link
                             href="/tickets"
-                            className="w-full h-20 rounded-full bg-orange text-white font-black uppercase tracking-[0.4em] text-[11px] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-[0_20px_40px_rgba(255,165,0,0.3)] relative group overflow-hidden"
+                            className="w-full h-14 sm:h-16 md:h-20 rounded-full bg-orange text-white font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] text-[11px] transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center shadow-[0_20px_40px_rgba(255,165,0,0.3)] relative group overflow-hidden"
                         >
                             <div className="absolute inset-0 bg-gradient-to-r from-orange via-iris to-orange opacity-0 group-hover:opacity-100 transition-opacity duration-1000 -z-10" />
                             Access My Digital Tickets
@@ -150,7 +150,7 @@ export default function OrderConfirmationDetails({ order, event }) {
                     <div className="flex gap-4">
                         <button
                             onClick={shareOrder}
-                            className="flex-1 h-16 rounded-full border border-white/10 bg-white/5 text-white/40 font-black uppercase tracking-[0.4em] text-[10px] transition-all hover:bg-white hover:text-black flex items-center justify-center gap-3"
+                            className="flex-1 h-12 sm:h-14 md:h-16 rounded-full border border-white/10 bg-white/5 text-white/40 font-black uppercase tracking-[0.3em] sm:tracking-[0.4em] text-[10px] transition-all hover:bg-white hover:text-black flex items-center justify-center gap-3"
                         >
                             <Share2 className="h-4 w-4" />
                             Share

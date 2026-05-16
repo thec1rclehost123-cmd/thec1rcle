@@ -103,7 +103,7 @@ function VerificationCard({ title, identifier, icon, verified, loading, value, o
                     </div>
                     <div>
                         <p className="text-[9px] font-black uppercase tracking-[0.3em] text-white/40">{title}</p>
-                        <p className="text-xs font-bold text-white tracking-widest truncate max-w-[180px]">{identifier}</p>
+                        <p className="text-xs font-bold text-white tracking-widest truncate max-w-[180px] sm:max-w-xs">{identifier}</p>
                     </div>
                 </div>
                 <AnimatePresence mode="wait">

@@ -179,7 +179,7 @@ export default function ArtistsSection() {
             <span className="h-1.5 w-1.5 rounded-full bg-[#ff7d55]" />
             In Rotation
           </span>
-          <h2 className="mt-7 text-4xl font-black tracking-tight text-white sm:text-5xl lg:text-[5.25rem] lg:leading-[0.95]">
+          <h2 className="mt-7 text-3xl font-black tracking-tight text-white sm:text-4xl md:text-5xl lg:text-[5.25rem] lg:leading-[0.95]">
             Artists shaping the week.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-sm font-medium leading-7 text-white/48 sm:text-base">
@@ -187,7 +187,7 @@ export default function ArtistsSection() {
           </p>
         </motion.div>
 
-        <div className="relative mx-auto mt-10 h-[24rem] max-w-[1160px] sm:mt-14 sm:h-[34rem] lg:h-[46rem]">
+        <div className="relative mx-auto mt-10 h-[16rem] max-w-[1160px] sm:mt-14 sm:h-[24rem] md:h-[34rem] lg:h-[46rem]">
           <div className="pointer-events-none absolute inset-x-[18%] top-[8%] h-[18%] rounded-full bg-[radial-gradient(circle,rgba(255,255,255,0.2),transparent_68%)] blur-3xl" />
           <div className="pointer-events-none absolute left-1/2 top-[14%] h-[46%] w-[68%] -translate-x-1/2 rounded-[50%] border border-white/[0.06]" />
           <div className="pointer-events-none absolute left-1/2 top-[18%] h-[38%] w-[54%] -translate-x-1/2 rounded-[50%] border border-white/[0.05]" />

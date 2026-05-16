@@ -526,28 +526,6 @@ export default function HostDashboardStreaming() {
         refetchOnMount: false,
     });
 
-    useEffect(() => {
-        if (!ENABLE_HOST_OVERVIEW_COMPARE || !unifiedOverviewQuery.data) return;
-        if (!recentOrdersQuery.data || !timeSeriesQuery.data || !upcomingEventsQuery.data) return;
-
-        console.log("OLD vs NEW", {
-            range: selectedRange,
-            metric: selectedMetric,
-            oldData: {
-                latestOrders: recentOrdersQuery.data,
-                performance: timeSeriesQuery.data,
-                upcomingEvents: upcomingEventsQuery.data?.events || [],
-            },
-            newData: unifiedOverviewQuery.data,
-        });
-    }, [
-        recentOrdersQuery.data,
-        selectedMetric,
-        selectedRange,
-        timeSeriesQuery.data,
-        unifiedOverviewQuery.data,
-        upcomingEventsQuery.data,
-    ]);
 
     const latestOrders = useMemo(
         () => preferUnifiedOverview

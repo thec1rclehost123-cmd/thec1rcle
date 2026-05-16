@@ -78,8 +78,8 @@ export function isCurrentOrUpcomingGuestEvent(event) {
     // exactly at their end time, accounting for indexing lag and user session drift.
     const GRACE_PERIOD_MS = 30 * 60 * 1000;
     const now = Date.now();
-    const startAt = event.startAt ? new Date(event.startAt).getTime() : 0;
-    const endAt = event.endAt ? new Date(event.endAt).getTime() : 0;
+    const startAt = toEventBoundaryTime(event.startAt || event.startDate, "start");
+    const endAt = toEventBoundaryTime(event.endAt || event.endDate || event.startAt || event.startDate, "end");
 
     if (!startAt || !endAt) return false;
 

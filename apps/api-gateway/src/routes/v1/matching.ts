@@ -73,12 +73,6 @@ export default async function matchingRoutes(fastify: FastifyInstance) {
 
             await fastify.matchingService.handleSwipe(userId, targetId, targetType, direction, workspaceId);
 
-            // Analytics instrumentation (Step 4 preview)
-            // @ts-ignore
-            if (fastify.analyticsService) {
-                // await fastify.analyticsService.trackInteraction(userId, 'swipe', { targetId, direction });
-            }
-
             return { success: true };
         } catch (error: any) {
             fastify.log.error(`Error in POST /matching/swipe: ${error.message}`);

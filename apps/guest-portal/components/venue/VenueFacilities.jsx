@@ -95,7 +95,7 @@ export default function VenueFacilities({ facilities = [], amenities = [] }) {
     if (allFacilities.length === 0) return null;
 
     return (
-        <section className="px-6 sm:px-12 lg:px-24 py-12">
+        <section className="px-4 sm:px-6 md:px-12 lg:px-24 py-6 sm:py-8 md:py-12">
             <div className="max-w-4xl mx-auto">
                 {/* Section Header */}
                 <div className="flex items-center gap-4 mb-8">
@@ -107,7 +107,7 @@ export default function VenueFacilities({ facilities = [], amenities = [] }) {
                 </div>
 
                 {/* Facilities Grid */}
-                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                     {allFacilities.map((facility, idx) => {
                         const facilityKey = facility.toLowerCase().replace(/\s+/g, '_');
                         const IconComponent = FACILITY_ICONS[facilityKey] || Building2;

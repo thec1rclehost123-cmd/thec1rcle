@@ -601,7 +601,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/venue/finance/payouts', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: PayoutHistoryQuery })]
-    }, async (request, reply) => {
+    }, async (request) => {
         const { entityId, limit: limitStr } = request.query as any;
         const limit = Math.min(parseInt(limitStr || '10'), 50);
 
@@ -768,10 +768,6 @@ export default async function financeRoutes(fastify: FastifyInstance) {
         try {
             await fastify.verifyPartnerAccess(request, entityId);
 
-            // Future: query subscriptions collection
-            // const doc = await fastify.db.collection('subscriptions').doc(entityId).get();
-            // if (doc.exists) return { subscription: doc.data() };
-
             return { subscription: null };
         } catch (error: any) {
             fastify.log.error(`Subscription fetch failed for entityId=${entityId}: ${error.message}`);
@@ -860,7 +856,7 @@ export default async function financeRoutes(fastify: FastifyInstance) {
      */
     fastify.get('/venue/finance/disputes', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: EntityQuery })]
-    }, async (request, reply) => {
+    }, async (request) => {
         const { entityId, entityType } = request.query as any;
         try {
             await fastify.verifyPartnerAccess(request, entityId);

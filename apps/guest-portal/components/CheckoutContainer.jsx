@@ -88,7 +88,7 @@ export default function CheckoutContainer({ event, initialSummary = null, initia
 
     return (
         <div className="flex-1 flex items-center justify-center w-full pb-6 md:pb-10">
-            <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-3 sm:px-6">
+            <div className="w-full max-w-[1200px] grid grid-cols-1 md:grid-cols-[1fr_380px] gap-8 lg:gap-16 items-center px-4 sm:px-6">
 
                 {/* Main Action Area */}
                 <div className="relative flex flex-col h-full overflow-hidden">
@@ -125,7 +125,7 @@ export default function CheckoutContainer({ event, initialSummary = null, initia
                                     <h2 className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Step 01</h2>
                                     <h1 className="text-3xl sm:text-4xl font-black uppercase tracking-tight text-white leading-[0.9]">Select your <br />Tickets</h1>
                                 </div>
-                                <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 py-1">
+                                <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 py-1 max-h-[400px] sm:max-h-[60vh]">
                                     {displayTiers.map((ticket) => {
                                         const sel = selectedTickets.find(st => st.id === ticket.id);
                                         const qty = sel ? sel.quantity : 0;
@@ -180,7 +180,7 @@ export default function CheckoutContainer({ event, initialSummary = null, initia
                                             setStep(2);
                                         }} 
                                         disabled={!canProceedStep1} 
-                                        className="w-full h-[64px] flex items-center justify-center rounded-full bg-[#CA3E22] text-white font-black uppercase tracking-[0.3em] transition-all hover:bg-[#D44426] hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:hover:scale-100 disabled:hover:bg-[#CA3E22] shadow-[0_4px_30px_rgba(202,62,34,0.3)] text-[12px]"
+                                        className="w-full h-14 sm:h-16 flex items-center justify-center rounded-full bg-[#CA3E22] text-white font-black uppercase tracking-[0.3em] transition-all hover:bg-[#D44426] hover:scale-[1.02] active:scale-95 disabled:opacity-30 disabled:hover:scale-100 disabled:hover:bg-[#CA3E22] shadow-[0_4px_30px_rgba(202,62,34,0.3)] text-[12px]"
                                     >
                                         CONTINUE • ₹{displaySubtotal.toLocaleString('en-IN')}
                                     </button>

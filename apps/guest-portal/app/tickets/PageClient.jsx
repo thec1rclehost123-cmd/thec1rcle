@@ -109,7 +109,7 @@ function TicketsContent() {
 
             {!user ? (
                 <div className="relative z-10 mx-auto max-w-5xl px-4 pt-32 pb-20 sm:px-6 lg:px-8 flex-1 flex flex-col">
-                    <h1 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-12">
+                    <h1 className="text-3xl sm:text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-12">
                         Tickets
                     </h1>
                     <TicketsGuestView />
@@ -127,7 +127,7 @@ function TicketsContent() {
                                 <span className="text-[10px] font-black uppercase tracking-[0.4em] text-black/30 dark:text-white/30">Your Collection</span>
                             </div>
                             <h1 
-                                className="text-6xl md:text-9xl font-heading font-black uppercase tracking-tighter text-black dark:text-white leading-[0.8] transition-all duration-1000"
+                                className="text-4xl sm:text-6xl md:text-9xl font-heading font-black uppercase tracking-tighter text-black dark:text-white leading-[0.8] transition-all duration-1000"
                                 style={{
                                     textShadow: `0 0 80px rgba(${atmosphereRgb}, 0.3)`
                                 }}
@@ -139,13 +139,13 @@ function TicketsContent() {
                         <div className="flex gap-4 p-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-2xl">
                             <button
                                 onClick={() => setActiveTab("upcoming")}
-                                className={`px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeTab === "upcoming" ? "bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.3)]" : "text-white/40 hover:text-white"}`}
+                                className={`px-4 sm:px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeTab === "upcoming" ? "bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.3)]" : "text-white/40 hover:text-white"}`}
                             >
                                 Current Passes
                             </button>
                             <button
                                 onClick={() => setActiveTab("past")}
-                                className={`px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeTab === "past" ? "bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.3)]" : "text-white/40 hover:text-white"}`}
+                                className={`px-4 sm:px-8 py-3 rounded-full text-[11px] font-black uppercase tracking-[0.2em] transition-all duration-500 ${activeTab === "past" ? "bg-white text-black shadow-[0_0_40px_rgba(255,255,255,0.3)]" : "text-white/40 hover:text-white"}`}
                             >
                                 History
                             </button>
@@ -196,7 +196,7 @@ function TicketsContent() {
                                 transition={{ duration: 0.3 }}
                             >
                                 {loading ? (
-                                    <div className="grid gap-10 sm:grid-cols-2">
+                                    <div className="grid gap-4 sm:gap-10 sm:grid-cols-2">
                                         <TicketSkeleton />
                                         <TicketSkeleton />
                                     </div>

@@ -69,6 +69,7 @@ export function AuthProvider({ children }) {
   const hadAuthenticatedSessionRef = useRef(false);
   const lastSyncedAtRef = useRef(0);
   const retryTimeoutRef = useRef(null);
+  const retryCountRef = useRef(0);
 
   const userRef = useRef(user);
   const profileRef = useRef(profile);
@@ -144,12 +145,14 @@ export function AuthProvider({ children }) {
     return applyBootstrap(data);
   }, [applyBootstrap, clearAuthState]);
 
-  const syncBootstrap = useCallback(async ({ withLoading = false } = {}) => {
+  const syncBootstrap = useCallback(async ({ withLoading = false, fromRetry = false } = {}) => {
+    if (!fromRetry) retryCountRef.current = 0;
     if (syncInFlightRef.current) return null;
     syncInFlightRef.current = true;
     if (withLoading) setLoading(true);
     try {
       const refreshed = await loadBootstrap();
+      retryCountRef.current = 0;
       clearRetryTimer();
       setError("");
       lastSyncedAtRef.current = Date.now();
@@ -157,18 +160,21 @@ export function AuthProvider({ children }) {
     } catch (authError) {
       console.error("Guest auth bootstrap failed", authError);
       const transientFailure = isTransientBootstrapError(authError);
-      if (transientFailure) {
+      if (transientFailure && retryCountRef.current < 3) {
+        retryCountRef.current += 1;
         setSyncStatus("transient_error");
         clearRetryTimer();
         if (typeof window !== "undefined") {
           retryTimeoutRef.current = window.setTimeout(() => {
             retryTimeoutRef.current = null;
-            void syncBootstrap();
+            void syncBootstrap({ fromRetry: true });
           }, 1500);
         }
-      } else if (!hadAuthenticatedSessionRef.current) {
-        clearAuthState();
-        setSyncStatus("signed_out");
+      } else {
+        if (!hadAuthenticatedSessionRef.current) {
+          clearAuthState();
+          setSyncStatus("signed_out");
+        }
       }
       setError(authError.message || "Unable to restore your session.");
       return null;

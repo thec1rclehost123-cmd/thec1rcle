@@ -83,7 +83,7 @@ export default function ForgotPasswordPage() {
                                 </div>
                             </motion.div>
                         ) : (
-                            <div className="glass-panel p-10 rounded-[48px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl shadow-3xl space-y-8">
+                            <div className="glass-panel p-6 sm:p-10 rounded-[40px] sm:rounded-[48px] border border-white/10 bg-white/[0.03] backdrop-blur-3xl shadow-3xl space-y-8">
                                 <div className="text-center space-y-4">
                                     <h2 className="text-4xl font-black uppercase tracking-tighter leading-none">Recover <span className="text-orange shadow-orange/30 shadow-2xl">Access.</span></h2>
                                     <p className="text-[10px] text-white/40 font-black uppercase tracking-[0.4em]">Establish link to credentials.</p>

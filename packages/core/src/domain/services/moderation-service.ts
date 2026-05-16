@@ -12,13 +12,6 @@ export class ModerationService {
 
         const reportId = await this.reportRepo.save(fullReport);
 
-        // Check for threshold-based auto-moderation (Step 1 Safety)
-        const recentReports = await this.reportRepo.listByTarget(report.targetId);
-        if (recentReports.length >= 5) {
-            // Placeholder: Auto-flag or notify moderators
-            console.log(`[MODERATION] Item ${report.targetId} has reached report threshold (${recentReports.length})`);
-        }
-
         return reportId;
     }
 

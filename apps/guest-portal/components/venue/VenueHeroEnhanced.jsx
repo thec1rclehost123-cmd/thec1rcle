@@ -118,7 +118,7 @@ export default function VenueHeroEnhanced({
     const venueVideo = video || venue.videoURL || venue.coverVideoURL;
 
     return (
-        <section className="relative h-[100svh] w-full overflow-hidden">
+        <section className="relative h-[60svh] sm:h-[100svh] w-full overflow-hidden">
             {/* Video or Image Background */}
             <div className="absolute inset-0 z-0">
                 {venueVideo ? (
@@ -177,7 +177,7 @@ export default function VenueHeroEnhanced({
             </div>
 
             {/* Hero Content */}
-            <div className="relative z-10 h-full flex flex-col justify-end pb-24 md:pb-32 px-6 sm:px-12 lg:px-24">
+            <div className="relative z-10 h-full flex flex-col justify-end pb-16 md:pb-24 lg:pb-32 px-4 sm:px-6 md:px-12 lg:px-24">
                 {/* Dynamic Badges */}
                 <div className="flex flex-wrap items-center gap-3 mb-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
                     {/* Venue Type Badge */}

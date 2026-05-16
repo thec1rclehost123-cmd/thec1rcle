@@ -26,12 +26,12 @@ export default function VenuePastEvents({ events = [], venueName = "Venue" }) {
                 <div className="absolute bottom-1/4 left-0 w-96 h-96 bg-purple-500/5 rounded-full blur-[150px]" />
             </div>
 
-            <div className="max-w-7xl mx-auto px-6 sm:px-12 lg:px-24 relative z-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-12 lg:px-24 relative z-10">
                 {/* Section Header */}
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-8 mb-16">
                     <div>
                         <span className="text-[10px] font-black uppercase tracking-[0.5em] text-[#F44A22] mb-4 block">Archive</span>
-                        <h2 className="text-5xl md:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-black dark:text-white">
+                        <h2 className="text-3xl sm:text-4xl md:text-6xl lg:text-8xl font-heading font-black uppercase tracking-tighter leading-none text-black dark:text-white">
                             Past<br />
                             <span className="italic text-transparent bg-clip-text bg-gradient-to-r from-black/40 dark:from-white/40 to-black/20 dark:to-white/20">Memories.</span>
                         </h2>
@@ -61,7 +61,7 @@ export default function VenuePastEvents({ events = [], venueName = "Venue" }) {
                         <Link
                             key={event.id}
                             href={`/event/${event.id}`}
-                            className="group flex-shrink-0 w-[320px] md:w-[400px] relative"
+                            className="group flex-shrink-0 w-[280px] sm:w-[320px] md:w-[400px] relative"
                         >
                             {/* Card */}
                             <div className="relative aspect-[3/4] rounded-[2.5rem] overflow-hidden border border-black/5 dark:border-white/5 shadow-xl">

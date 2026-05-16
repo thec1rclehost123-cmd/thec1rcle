@@ -94,7 +94,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                 initial={{ scale: 0.9, opacity: 0, y: 20 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-white/10 bg-black/40 p-8 shadow-2xl backdrop-blur-xl"
+                className="relative w-full max-w-md overflow-hidden rounded-[24px] sm:rounded-[32px] border border-white/10 bg-black/40 p-5 sm:p-8 shadow-2xl backdrop-blur-xl"
             >
                 {/* Glow effect */}
                 <div className="absolute -top-24 -left-24 h-48 w-48 rounded-full bg-purple-500/20 blur-[80px]" />
