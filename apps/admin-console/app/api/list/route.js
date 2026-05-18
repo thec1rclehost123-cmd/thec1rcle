@@ -7,7 +7,8 @@ export const dynamic = 'force-dynamic';
 const ALLOWED_COLLECTIONS = [
     'users', 'venues', 'hosts', 'promoters', 'admins', 'events', 'orders',
     'onboarding_requests', 'host_applications', 'admin_audit_logs', 'proposed_actions',
-    'support_tickets', 'platform_config', 'platform_settings', 'app_config', 'safety_reports', 'failed_webhooks', 'retry_jobs'
+    'support_tickets', 'platform_config', 'platform_settings', 'app_config', 'safety_reports',
+    'failed_webhooks', 'retry_jobs', 'promotions', 'media_reports', 'tickets'
 ];
 
 const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'status', 'amount', 'name', 'email'];
@@ -41,9 +42,9 @@ async function handler(req) {
         'super': ['*'],
         'admin': ['*'],
         'finance': ['users', 'orders', 'payments', 'onboarding_requests', 'host_applications', 'admin_audit_logs', 'retry_jobs'],
-        'ops': ['users', 'venues', 'hosts', 'promoters', 'events', 'proposed_actions', 'admin_audit_logs', 'safety_reports', 'retry_jobs', 'failed_webhooks', 'onboarding_requests', 'host_applications', 'support_tickets', 'platform_settings', 'app_config'],
+        'ops': ['users', 'venues', 'hosts', 'promoters', 'events', 'proposed_actions', 'admin_audit_logs', 'safety_reports', 'retry_jobs', 'failed_webhooks', 'onboarding_requests', 'host_applications', 'support_tickets', 'platform_settings', 'app_config', 'promotions', 'tickets'],
         'support': ['users', 'venues', 'hosts', 'promoters', 'events', 'safety_reports', 'support_tickets', 'onboarding_requests'],
-        'content': ['venues', 'events'],
+        'content': ['venues', 'events', 'media_reports'],
         'readonly': ['users', 'venues', 'hosts', 'promoters', 'events']
     };
 
@@ -53,7 +54,7 @@ async function handler(req) {
     }
 
     try {
-        let results = await adminStore.listCollection(collection, { status, limit, adminRole, sortBy, cursor });
+        let results = await adminStore.listCollection(collection, { status, limit, adminRole, sortBy: sortBy !== 'createdAt' ? sortBy : undefined, cursor });
 
         // Specialized Mapping for Events
         if (collection === 'events') {

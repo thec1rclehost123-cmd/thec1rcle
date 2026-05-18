@@ -72,7 +72,10 @@ export default function AdminApprovals() {
                     reason,
                     evidence,
                     params: {
-                        type: 'onboarding_request'
+                        type: selectedReq.type || 'onboarding_request',
+                        plan: selectedReq.data?.plan,
+                        isVerified: selectedReq.data?.isVerified,
+                        changesMessage: inputValue || undefined,
                     }
                 })
             });
@@ -96,7 +99,7 @@ export default function AdminApprovals() {
             r.id?.toLowerCase().includes(searchTerm.toLowerCase())
         );
         const matchesFilter = filter === "all" || r.type === filter;
-        const matchesEntity = entityFilter === "all" || (r.entityType || "individual") === entityFilter;
+        const matchesEntity = entityFilter === "all" || r.entityType === entityFilter;
         return matchesSearch && matchesFilter && matchesEntity;
     });
 

@@ -30,11 +30,11 @@ export default function AdminProposals() {
     const fetchProposals = async () => {
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/list?collection=admin_proposed_actions', {
+            const res = await fetch('/api/list?collection=proposed_actions', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
-            const sorted = (json.data || []).sort((a, b) => b.createdAt?._seconds - a.createdAt?._seconds);
+            const sorted = (json.data || []).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setProposals(sorted);
         } catch (err) {
             console.error("Failed to fetch proposals", err);
@@ -77,9 +77,9 @@ export default function AdminProposals() {
     };
 
     const filtered = proposals.filter(p =>
-        p.action.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.targetId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.status.toLowerCase().includes(searchTerm.toLowerCase())
+        (p.action?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (p.targetId?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (p.status?.toLowerCase() || '').includes(searchTerm.toLowerCase())
     );
 
     return (

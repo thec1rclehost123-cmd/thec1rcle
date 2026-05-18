@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState } from "react";
-import { BarChart3, TrendingUp, Users, Ticket, ArrowUpRight, ArrowDownRight, Download } from "lucide-react";
+import { BarChart3, TrendingUp, Users, Ticket, Download } from "lucide-react";
 
 export default function AdminAnalytics() {
     const { user } = useAuth();
@@ -45,10 +45,10 @@ export default function AdminAnalytics() {
     };
 
     const metrics = [
-        { label: "Total Revenue", value: `₹${(stats?.revenue?.total || 0).toLocaleString()}`, trend: "+12.5%", isUp: true, icon: TrendingUp },
-        { label: "Total Users", value: stats?.users_total || 0, trend: "+8.2%", isUp: true, icon: Users },
-        { label: "Tickets Sold", value: stats?.tickets_sold_total || 0, trend: "-2.4%", isUp: false, icon: Ticket },
-        { label: "Active Venues", value: stats?.venues_total?.active || 0, trend: "+4.1%", isUp: true, icon: BarChart3 }
+        { label: "Total Revenue", value: `₹${(stats?.revenue?.total || 0).toLocaleString()}`, icon: TrendingUp },
+        { label: "Total Users", value: stats?.users_total || 0, icon: Users },
+        { label: "Tickets Sold", value: stats?.tickets_sold_total || 0, icon: Ticket },
+        { label: "Active Venues", value: stats?.venues_total?.active || 0, icon: BarChart3 }
     ];
 
     return (
@@ -83,14 +83,6 @@ export default function AdminAnalytics() {
                             <div className="h-12 w-12 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center group-hover:bg-zinc-800 transition-colors">
                                 <m.icon className="h-5 w-5 text-zinc-500 group-hover:text-emerald-500 transition-colors" strokeWidth={1.5} />
                             </div>
-                            {loading ? (
-                                <div className="h-6 w-12 bg-white/5 animate-pulse rounded" />
-                            ) : (
-                                <div className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold tracking-widest uppercase ${m.isUp ? 'bg-emerald-500/10 text-emerald-500' : 'bg-iris/10 text-iris'}`}>
-                                    {m.isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                                    {m.trend}
-                                </div>
-                            )}
                         </div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 mb-2">{m.label}</p>
                         <p className="text-4xl font-light text-white tracking-tight font-mono-numbers">{loading ? '---' : m.value}</p>
@@ -103,7 +95,7 @@ export default function AdminAnalytics() {
                 <div className="p-10 rounded-xl bg-obsidian-surface border border-[#ffffff08] shadow-sm space-y-10">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Revenue Growth</h3>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 bg-white/5 px-2 py-1 rounded">30 Day Feed</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">Illustrative Data</span>
                     </div>
                     <div className="h-64 bg-zinc-900/50 rounded-xl flex items-end justify-between p-8 gap-3 border border-white/[0.02]">
                         {[40, 70, 45, 90, 65, 85, 55, 75, 50, 80].map((h, i) => (
@@ -117,7 +109,7 @@ export default function AdminAnalytics() {
                 <div className="p-10 rounded-xl bg-obsidian-surface border border-[#ffffff08] shadow-sm space-y-10">
                     <div className="flex items-center justify-between px-2">
                         <h3 className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Sales Funnel</h3>
-                        <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-700 bg-white/5 px-2 py-1 rounded">Platform Flow</span>
+                        <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 bg-amber-500/10 border border-amber-500/20 px-2 py-1 rounded">Sample Data</span>
                     </div>
                     <div className="space-y-8 px-2">
                         {[

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/components/providers/AuthProvider";
-import { Search, Filter, ShieldAlert, MessageSquare, Image as ImageIcon, Trash2, CheckCircle, ShieldCheck, ChevronRight } from "lucide-react";
+import { Search, Filter, ShieldAlert, MessageSquare, Image as ImageIcon, Trash2, CheckCircle, ShieldCheck, ChevronRight, User, Flag } from "lucide-react";
+import { ActionDrawer } from "@/components/ui/ActionDrawer";
+import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
 
 export default function AdminContent() {
     const { user } = useAuth();
@@ -10,6 +12,9 @@ export default function AdminContent() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
     const [filterReported, setFilterReported] = useState(false);
+    const [selectedReport, setSelectedReport] = useState(null);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [modalConfig, setModalConfig] = useState(null);
 
     const fetchContent = async () => {
         try {
@@ -38,6 +43,32 @@ export default function AdminContent() {
         const matchesFilter = filterReported ? r.status === 'reported' : true;
         return matchesSearch && matchesFilter;
     });
+
+    const handleAction = async (reason, targetId, inputValue, evidence) => {
+        if (!modalConfig) return;
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/actions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: modalConfig.action,
+                    targetId: selectedReport.id,
+                    reason,
+                    evidence,
+                    params: { type: 'media_report', entityType: selectedReport.type || 'image' }
+                })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'Action failed');
+            setModalConfig(null);
+            setIsDrawerOpen(false);
+            await fetchContent();
+        } catch (err) {
+            alert(`Error: ${err.message}`);
+            throw err;
+        }
+    };
 
     const handleExport = () => {
         const headers = ["ID", "Type", "Reporter", "Reason", "Status", "Timestamp"];
@@ -142,7 +173,10 @@ export default function AdminContent() {
                             </p>
                             <div className="flex items-center justify-between pt-6 border-t border-[#ffffff05]">
                                 <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Reporter: {report.reporterEmail?.split('@')[0] ?? 'Anonymous'}</span>
-                                <button className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors">
+                                <button
+                                    onClick={() => { setSelectedReport(report); setIsDrawerOpen(true); }}
+                                    className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-zinc-400 hover:text-white transition-colors"
+                                >
                                     Review Media
                                     <ChevronRight className="h-3.5 w-3.5" strokeWidth={2} />
                                 </button>
@@ -150,6 +184,96 @@ export default function AdminContent() {
                         </div>
                     ))}
                 </div>
+            )}
+
+            <ActionDrawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                title={`Report: ${selectedReport?.type ?? 'Media'}`}
+                subtitle={`Ref: ${selectedReport?.id?.slice(0, 8)}`}
+                footer={
+                    <div className="space-y-3">
+                        <button
+                            onClick={() => setModalConfig({
+                                action: 'CONTENT_REMOVE',
+                                title: 'Remove Content',
+                                message: 'Permanently remove this content from the platform. This action is irreversible and will be logged.',
+                                label: 'Remove Content',
+                                type: 'danger',
+                                isTier3: true
+                            })}
+                            className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-iris/10 border border-iris/20 text-white hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest"
+                        >
+                            <Trash2 className="h-4 w-4" strokeWidth={1.5} />
+                            Remove Content
+                        </button>
+                        <button
+                            onClick={() => setModalConfig({
+                                action: 'MEDIA_REPORT_DISMISS',
+                                title: 'Dismiss Report',
+                                message: 'Mark this report as reviewed and dismissed. No action will be taken on the content.',
+                                label: 'Dismiss Report',
+                                type: 'info',
+                                isTier3: false
+                            })}
+                            className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest"
+                        >
+                            <CheckCircle className="h-4 w-4" strokeWidth={1.5} />
+                            Dismiss Report
+                        </button>
+                    </div>
+                }
+            >
+                <div className="space-y-6">
+                    <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 space-y-4">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Report Details</p>
+                        <div className="space-y-3">
+                            <div className="flex items-start gap-3">
+                                <Flag className="h-4 w-4 text-iris mt-0.5 flex-shrink-0" strokeWidth={1.5} />
+                                <div>
+                                    <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest mb-0.5">Reason</p>
+                                    <p className="text-sm text-zinc-300 leading-relaxed">{selectedReport?.reason ?? 'No description provided.'}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <User className="h-4 w-4 text-zinc-500 flex-shrink-0" strokeWidth={1.5} />
+                                <div>
+                                    <p className="text-[9px] font-bold text-zinc-700 uppercase tracking-widest mb-0.5">Reporter</p>
+                                    <p className="text-sm text-zinc-300">{selectedReport?.reporterEmail ?? 'Anonymous'}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Content Type</p>
+                            <p className="text-sm font-semibold text-white capitalize">{selectedReport?.type ?? 'Media'}</p>
+                        </div>
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Status</p>
+                            <p className={`text-sm font-semibold capitalize ${selectedReport?.status === 'reported' ? 'text-iris' : 'text-emerald-500'}`}>{selectedReport?.status ?? 'pending'}</p>
+                        </div>
+                    </div>
+                    {selectedReport?.timestamp && (
+                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Reported At</p>
+                            <p className="text-sm font-semibold text-white">{new Date(selectedReport.timestamp).toLocaleString()}</p>
+                        </div>
+                    )}
+                </div>
+            </ActionDrawer>
+
+            {modalConfig && (
+                <AdminConfirmModal
+                    isOpen={!!modalConfig}
+                    onClose={() => setModalConfig(null)}
+                    onConfirm={handleAction}
+                    title={modalConfig.title}
+                    message={modalConfig.message}
+                    actionLabel={modalConfig.label}
+                    type={modalConfig.type}
+                    isTier3={modalConfig.isTier3}
+                />
             )}
 
             {/* Sub-Systems Summary */}

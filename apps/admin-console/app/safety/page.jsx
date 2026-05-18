@@ -5,6 +5,7 @@ import { useEffect, useState, useMemo } from "react";
 import { ShieldAlert, ShieldCheck, AlertCircle, Ban, ChevronRight, Activity, Flame, User, Search, Filter } from "lucide-react";
 import { DataTable } from "@/components/ui/DataTable";
 import { ActionDrawer } from "@/components/ui/ActionDrawer";
+import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
 
 export default function AdminSafety() {
     const { user } = useAuth();
@@ -13,6 +14,7 @@ export default function AdminSafety() {
     const [selectedReport, setSelectedReport] = useState(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [searchTerm, setSearchTerm] = useState("");
+    const [modalConfig, setModalConfig] = useState(null);
 
     const fetchSafety = async () => {
         try {
@@ -33,6 +35,30 @@ export default function AdminSafety() {
     useEffect(() => {
         if (user) fetchSafety();
     }, [user]);
+
+    const handleSafetyAction = async (reason) => {
+        if (!modalConfig || !selectedReport) return;
+        try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/actions', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    action: modalConfig.action,
+                    targetId: modalConfig.targetId,
+                    reason,
+                    params: { type: modalConfig.type }
+                })
+            });
+            const json = await res.json();
+            if (!res.ok) throw new Error(json.error || 'Action failed');
+            await fetchSafety();
+            setModalConfig(null);
+            if (modalConfig.action === 'SAFETY_REPORT_DISMISS') setIsDrawerOpen(false);
+        } catch (err) {
+            alert(err.message);
+        }
+    };
 
     const columns = useMemo(() => [
         {
@@ -117,7 +143,7 @@ export default function AdminSafety() {
                     <div className="h-12 w-12 rounded-lg bg-iris/10 flex items-center justify-center border border-iris/20 shadow-inner"><ShieldAlert className="h-5 w-5 text-iris" strokeWidth={1.5} /></div>
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-zinc-500 mb-0.5">Critical Incidents</p>
-                        <p className="text-3xl font-light text-white tracking-tighter font-mono-numbers">0</p>
+                        <p className="text-3xl font-light text-white tracking-tighter font-mono-numbers">{reports.filter(r => r.priority === 'CRITICAL').length}</p>
                     </div>
                 </div>
                 <div className="p-8 rounded-xl bg-obsidian-surface border border-[#ffffff08] flex items-center gap-6 shadow-sm overflow-hidden relative group hover:border-amber-500/20 transition-all">
@@ -197,14 +223,36 @@ export default function AdminSafety() {
                         <div className="space-y-4 pt-4">
                             <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 px-1">Authority Primitives</h4>
                             <div className="grid grid-cols-1 gap-2">
-                                <button className="w-full flex items-center justify-between p-4 rounded-xl bg-iris/10 border border-iris/20 text-iris hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest font-mono shadow-lg shadow-iris/5">
+                                <button
+                                    onClick={() => setModalConfig({
+                                        action: 'USER_BAN',
+                                        targetId: selectedReport.reportedUserId || selectedReport.targetId || selectedReport.id,
+                                        type: 'user',
+                                        title: 'Restrict User Access',
+                                        message: 'Ban the reported user from the platform. This action will be logged and requires justification.',
+                                        label: 'Confirm Restrict',
+                                        variant: 'danger'
+                                    })}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl bg-iris/10 border border-iris/20 text-iris hover:bg-iris/20 transition-all font-bold text-[11px] uppercase tracking-widest font-mono shadow-lg shadow-iris/5"
+                                >
                                     <div className="flex items-center gap-3">
                                         <Ban className="h-4 w-4" />
                                         <span>Restrict Access</span>
                                     </div>
                                     <ChevronRight className="h-4 w-4" />
                                 </button>
-                                <button className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:bg-white/10 hover:text-white transition-all font-bold text-[11px] uppercase tracking-widest font-mono">
+                                <button
+                                    onClick={() => setModalConfig({
+                                        action: 'SAFETY_REPORT_DISMISS',
+                                        targetId: selectedReport.id,
+                                        type: 'safety_report',
+                                        title: 'Dismiss Report',
+                                        message: 'Mark this safety report as dismissed. Provide a reason for audit trail.',
+                                        label: 'Confirm Dismiss',
+                                        variant: 'info'
+                                    })}
+                                    className="w-full flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5 text-zinc-400 hover:bg-white/10 hover:text-white transition-all font-bold text-[11px] uppercase tracking-widest font-mono"
+                                >
                                     <div className="flex items-center gap-3">
                                         <ShieldCheck className="h-4 w-4" />
                                         <span>Dismiss Report</span>
@@ -216,6 +264,18 @@ export default function AdminSafety() {
                     </div>
                 )}
             </ActionDrawer>
+
+            {modalConfig && (
+                <AdminConfirmModal
+                    isOpen={!!modalConfig}
+                    onClose={() => setModalConfig(null)}
+                    onConfirm={handleSafetyAction}
+                    title={modalConfig.title}
+                    message={modalConfig.message}
+                    actionLabel={modalConfig.label}
+                    type={modalConfig.variant}
+                />
+            )}
         </div>
     );
 }

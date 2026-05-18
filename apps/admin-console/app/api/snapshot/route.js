@@ -10,7 +10,14 @@ export const dynamic = 'force-dynamic';
  */
 async function handler(req) {
     try {
+        const db = (await import("@/lib/firebase/admin")).getAdminDb();
         const { stats, pendingReviewsCount, activeIncidentsCount, liveEvents, liveUsers, liveHosts, liveVenues, recentLogs } = await adminStore.getPlatformSnapshot();
+
+        const [refundsSnap, webhooksSnap, payoutsSnap] = await Promise.all([
+            db.collection('refund_requests').where('status', '==', 'pending').count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+            db.collection('failed_webhooks').where('status', '==', 'failed').count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+            db.collection('proposed_actions').where('status', '==', 'pending').count().get().catch(() => ({ data: () => ({ count: 0 }) })),
+        ]);
 
         return NextResponse.json({
             snapshot: {
@@ -30,10 +37,10 @@ async function handler(req) {
                 queues: {
                     venues: stats.venues_total?.pending || 0,
                     hosts: stats.hosts_total?.pending || 0,
-                    refunds: 0,
+                    refunds: refundsSnap.data().count,
                     incidents: activeIncidentsCount,
-                    webhooks: 0,
-                    payouts: 0
+                    webhooks: webhooksSnap.data().count,
+                    payouts: payoutsSnap.data().count
                 }
             },
             alertsCount: pendingReviewsCount,

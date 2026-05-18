@@ -27,7 +27,9 @@ export const ALLOWLIST_ACTIONS = [
     'PAYOUT_FREEZE', 'PAYOUT_RELEASE', 'PAYOUT_BATCH_RUN',
     'PROMOTER_SUSPEND', 'PROMOTER_ACTIVATE', 'PROMOTER_DISABLE',
     'WEBHOOK_RETRY',
-    'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION'
+    'SUPPORT_RESOLVE', 'SAFETY_REPORT_DISMISS', 'MEDIA_REPORT_DISMISS',
+    'CONTENT_REMOVE',
+    'ADMIN_PROVISION', 'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION'
 ];
 
 export const TIER2_ACTIONS = [
@@ -791,6 +793,68 @@ export const adminStore = {
         });
     },
 
+    async resolveSupportTicket(ticketId, adminId, reason) {
+        const db = getAdminDb();
+        const ref = db.collection('support_tickets').doc(ticketId);
+        const snap = await ref.get();
+        if (!snap.exists) throw Object.assign(new Error('Ticket not found'), { statusCode: 404 });
+        await ref.update({
+            status: 'resolved',
+            resolvedAt: FieldValue.serverTimestamp(),
+            resolvedBy: adminId,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'SUPPORT_RESOLVE',
+            targetId: ticketId,
+            targetType: 'support_ticket',
+            reason,
+        });
+    },
+
+    async dismissSafetyReport(reportId, adminId, reason) {
+        const db = getAdminDb();
+        const ref = db.collection('safety_reports').doc(reportId);
+        const snap = await ref.get();
+        if (!snap.exists) throw Object.assign(new Error('Report not found'), { statusCode: 404 });
+        await ref.update({
+            status: 'dismissed',
+            dismissedAt: FieldValue.serverTimestamp(),
+            dismissedBy: adminId,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'SAFETY_REPORT_DISMISS',
+            targetId: reportId,
+            targetType: 'safety_report',
+            reason,
+        });
+    },
+
+    async adminRoleUpdate(adminId, newRole, actingAdminId, reason) {
+        const db = getAdminDb();
+        const auth = getAdminAuth();
+        const ref = db.collection('admins').doc(adminId);
+        const snap = await ref.get();
+        if (!snap.exists) throw Object.assign(new Error('Admin not found'), { statusCode: 404 });
+        await ref.update({
+            admin_role: newRole,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        try {
+            await auth.setCustomUserClaims(adminId, { admin_role: newRole });
+        } catch (_) { /* non-critical — DB updated, claims refresh on next login */ }
+        await this.logAdminAction({
+            adminId: actingAdminId,
+            action: 'ADMIN_ROLE_UPDATE',
+            targetId: adminId,
+            targetType: 'admin',
+            reason,
+        });
+    },
+
     async updateVenueStatus(venueId, status, adminId, reason, evidence, context) {
         const db = getAdminDb();
         await db.collection('venues').doc(venueId).update({
@@ -920,7 +984,76 @@ export const adminStore = {
         return stats;
     },
 
-    async listCollection(collection, { status, limit, adminRole, cursor } = {}) {
+    async getEntitySnapshot(targetId, entityType) {
+        if (!targetId) return null;
+        const db = getAdminDb();
+        const COLLECTION_MAP = {
+            user: 'users', host: 'hosts', venue: 'venues',
+            promoter: 'promoters', event: 'events', order: 'orders',
+            admin: 'admins', ticket: 'tickets', webhook: 'failed_webhooks',
+            support_ticket: 'support_tickets', safety_report: 'safety_reports',
+        };
+        const col = COLLECTION_MAP[entityType];
+        if (!col) return null;
+        const snap = await db.collection(col).doc(targetId).get();
+        if (!snap.exists) return null;
+        const d = snap.data();
+        return { id: snap.id, ...d };
+    },
+
+    async appendAuditDelta(targetId, action, adminId, { before, after }, context) {
+        await this.logAdminAction({
+            adminId,
+            action: `${action}:DELTA`,
+            targetId,
+            targetType: 'audit_delta',
+            reason: 'State delta captured for audit trail',
+            before,
+            after,
+            context,
+        });
+    },
+
+    async dismissMediaReport(reportId, adminId, reason) {
+        const db = getAdminDb();
+        const ref = db.collection('media_reports').doc(reportId);
+        const snap = await ref.get();
+        if (!snap.exists) throw Object.assign(new Error('Report not found'), { statusCode: 404 });
+        await ref.update({
+            status: 'dismissed',
+            dismissedAt: FieldValue.serverTimestamp(),
+            dismissedBy: adminId,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'MEDIA_REPORT_DISMISS',
+            targetId: reportId,
+            targetType: 'media_report',
+            reason,
+        });
+    },
+
+    async removeContent(targetId, entityType, adminId, reason) {
+        const db = getAdminDb();
+        const COLLECTION_MAP = { post: 'posts', comment: 'comments', media: 'media_reports' };
+        const col = COLLECTION_MAP[entityType] || 'media_reports';
+        await db.collection(col).doc(targetId).update({
+            status: 'removed',
+            removedAt: FieldValue.serverTimestamp(),
+            removedBy: adminId,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'CONTENT_REMOVE',
+            targetId,
+            targetType: entityType || 'content',
+            reason,
+        });
+    },
+
+    async listCollection(collection, { status, limit, adminRole, cursor, sortBy } = {}) {
         const db = getAdminDb();
         let query = db.collection(collection);
         if (status) query = query.where('status', '==', status);
@@ -930,7 +1063,7 @@ export const adminStore = {
             'onboarding_requests': ['submittedAt', 'desc'],
         };
         const defaultOrder = ['createdAt', 'desc'];
-        const [field, dir] = ORDER_MAP[collection] || defaultOrder;
+        const [field, dir] = sortBy ? [sortBy, 'desc'] : (ORDER_MAP[collection] || defaultOrder);
         try { query = query.orderBy(field, dir); } catch (_) { /* no orderBy if field missing */ }
         if (cursor) {
             const cursorDoc = await db.collection(collection).doc(cursor).get();

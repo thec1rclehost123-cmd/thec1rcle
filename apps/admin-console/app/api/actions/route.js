@@ -201,6 +201,21 @@ async function handler(req) {
             case 'WEBHOOK_RETRY':
                 await adminStore.retryWebhook(targetId, adminId, reason);
                 break;
+            case 'SUPPORT_RESOLVE':
+                await adminStore.resolveSupportTicket(targetId, adminId, reason);
+                break;
+            case 'SAFETY_REPORT_DISMISS':
+                await adminStore.dismissSafetyReport(targetId, adminId, reason);
+                break;
+            case 'ADMIN_ROLE_UPDATE':
+                await adminStore.adminRoleUpdate(targetId, params?.admin_role, adminId, reason);
+                break;
+            case 'MEDIA_REPORT_DISMISS':
+                await adminStore.dismissMediaReport(targetId, adminId, reason);
+                break;
+            case 'CONTENT_REMOVE':
+                await adminStore.removeContent(targetId, params?.type, adminId, reason);
+                break;
             case 'DATABASE_CORRECTION': {
                 if (adminRole !== 'super') {
                     return NextResponse.json({ error: "Not Found" }, { status: 404 });

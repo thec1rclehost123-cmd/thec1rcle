@@ -292,7 +292,7 @@ export default function AdminsManagement() {
                                     <div className="pt-6 border-t border-[#ffffff05]">
                                         <button
                                             onClick={() => setModalConfig({
-                                                action: 'USER_REVOKE_ACCESS',
+                                                action: 'ADMIN_ACCESS_REVOKE',
                                                 title: 'Revoke Permissions',
                                                 message: 'Immediately terminate all administrative access for this staff member.',
                                                 label: 'Confirm Revocation',

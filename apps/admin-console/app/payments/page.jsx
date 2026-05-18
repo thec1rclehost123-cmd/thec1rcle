@@ -254,7 +254,7 @@ export default function AdminPayments() {
                         </div>
                         <div className="p-4 rounded-xl bg-white/[0.02] border border-[#ffffff05] space-y-1">
                             <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600">Timestamp</p>
-                            <p className="text-sm font-semibold text-white">{selectedTxn ? new Date(selectedTxn.createdAt?._seconds * 1000 || selectedTxn.createdAt).toLocaleString() : 'N/A'}</p>
+                            <p className="text-sm font-semibold text-white">{selectedTxn ? new Date(selectedTxn.createdAt?._seconds ? selectedTxn.createdAt._seconds * 1000 : selectedTxn.createdAt).toLocaleString() : 'N/A'}</p>
                         </div>
                     </div>
 

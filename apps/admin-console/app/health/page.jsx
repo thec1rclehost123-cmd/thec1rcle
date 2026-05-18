@@ -21,15 +21,31 @@ export default function AdminHealth() {
     const [webhooks, setWebhooks] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
+    const [serviceStatus, setServiceStatus] = useState({
+        database: 'checking',
+        payment: 'checking',
+        auth: 'checking',
+        api: 'checking',
+    });
 
     const fetchHealthData = async () => {
         try {
             const token = await user.getIdToken();
-            const res = await fetch('/api/list?collection=failed_webhooks', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const json = await res.json();
-            setWebhooks(json.data || []);
+            const [webhookRes, healthRes] = await Promise.all([
+                fetch('/api/list?collection=failed_webhooks', { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch('/api/health', { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+            const [webhookJson, healthJson] = await Promise.all([webhookRes.json(), healthRes.json()]);
+            setWebhooks(webhookJson.data || []);
+            if (healthJson.services) {
+                const s = healthJson.services;
+                setServiceStatus({
+                    database: s.database === 'Healthy' ? 'Operational' : 'Degraded',
+                    payment: 'Connected',
+                    auth: s.auth === 'Healthy' ? 'Active' : 'Degraded',
+                    api: s.audit_pipeline === 'Healthy' ? 'Optimal' : (s.audit_pipeline === 'Empty' ? 'No Logs' : 'Degraded'),
+                });
+            }
         } catch (err) {
             console.error("Failed to fetch health data", err);
         } finally {
@@ -89,10 +105,10 @@ export default function AdminHealth() {
             {/* System Status Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {[
-                    { label: "Core Database", status: "Operational", icon: Database, color: "text-emerald-500" },
-                    { label: "Payment Gateway", status: "Connected", icon: Zap, color: "text-emerald-500" },
-                    { label: "Account Services", status: "Active", icon: ShieldCheck, color: "text-emerald-500" },
-                    { label: "Platform API", status: "Optimal", icon: Globe, color: "text-emerald-500" }
+                    { label: "Core Database", status: serviceStatus.database, icon: Database, color: serviceStatus.database === 'Degraded' ? 'text-amber-500' : 'text-emerald-500' },
+                    { label: "Payment Gateway", status: serviceStatus.payment, icon: Zap, color: serviceStatus.payment === 'Degraded' ? 'text-amber-500' : 'text-emerald-500' },
+                    { label: "Account Services", status: serviceStatus.auth, icon: ShieldCheck, color: serviceStatus.auth === 'Degraded' ? 'text-amber-500' : 'text-emerald-500' },
+                    { label: "Platform API", status: serviceStatus.api, icon: Globe, color: serviceStatus.api === 'Degraded' ? 'text-amber-500' : 'text-emerald-500' }
                 ].map((node) => (
                     <div key={node.label} className="p-6 rounded-xl bg-obsidian-surface border border-[#ffffff08] flex items-center gap-4 group hover:border-[#ffffff15] transition-all shadow-sm">
                         <div className="h-12 w-12 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform">

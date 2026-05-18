@@ -35,6 +35,7 @@ export default function AdminSettings() {
     });
     const [loading, setLoading] = useState(true);
     const [modalConfig, setModalConfig] = useState(null);
+    const [serviceStatus, setServiceStatus] = useState({ storage: null, security: null, sync: null });
 
     const fetchConfig = async () => {
         try {
@@ -45,10 +46,10 @@ export default function AdminSettings() {
             const json = await res.json();
             if (json.data && json.data.length > 0) {
                 const globalConfig = json.data.find(c => c.id === 'global') || json.data[0];
-                setConfig({
-                    ...config,
+                setConfig(prev => ({
+                    ...prev,
                     ...globalConfig
-                });
+                }));
             }
         } catch (err) {
             console.error("Failed to fetch config", err);
@@ -59,6 +60,31 @@ export default function AdminSettings() {
 
     useEffect(() => {
         if (user) fetchConfig();
+    }, [user]);
+
+    useEffect(() => {
+        async function fetchHealth() {
+            try {
+                const token = await user.getIdToken();
+                const res = await fetch('/api/health', { headers: { 'Authorization': `Bearer ${token}` } });
+                const json = await res.json();
+                const normalize = (val) => {
+                    if (!val) return null;
+                    const v = val.toLowerCase();
+                    if (v === 'healthy' || v === 'operational') return 'Operational';
+                    if (v === 'degraded') return 'Degraded';
+                    return 'Offline';
+                };
+                setServiceStatus({
+                    storage: normalize(json.services?.database || json.database),
+                    security: normalize(json.services?.auth || json.auth),
+                    sync: normalize(json.services?.api || json.api || json.services?.cache),
+                });
+            } catch (err) {
+                console.error("Failed to fetch health", err);
+            }
+        }
+        if (user) fetchHealth();
     }, [user]);
 
     const handleSave = async (reason) => {
@@ -268,22 +294,26 @@ export default function AdminSettings() {
                             </div>
                             <div className="space-y-3">
                                 {[
-                                    { label: 'Cloud Storage', status: 'Optimal', icon: Database, color: 'text-emerald-500' },
-                                    { label: 'Security Layer', status: 'Verified', icon: Lock, color: 'text-emerald-500' },
-                                    { label: 'Data Sync', status: 'Active', icon: CloudIcon, color: 'text-emerald-500' }
-                                ].map((s, i) => (
-                                    <div key={i} className="flex items-center gap-4 p-5 rounded-xl bg-obsidian-surface border border-[#ffffff08] shadow-sm">
-                                        <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center">
-                                            <s.icon className={`h-4.5 w-4.5 ${s.color}`} strokeWidth={1.5} />
+                                    { label: 'Cloud Storage', status: serviceStatus.storage, icon: Database },
+                                    { label: 'Security Layer', status: serviceStatus.security, icon: Lock },
+                                    { label: 'Data Sync', status: serviceStatus.sync, icon: CloudIcon }
+                                ].map((s, i) => {
+                                    const color = s.status === 'Operational' ? 'text-emerald-500' : s.status === 'Degraded' ? 'text-amber-500' : s.status ? 'text-iris' : 'text-zinc-600';
+                                    const label = s.status || '—';
+                                    return (
+                                        <div key={i} className="flex items-center gap-4 p-5 rounded-xl bg-obsidian-surface border border-[#ffffff08] shadow-sm">
+                                            <div className="h-10 w-10 rounded-lg bg-zinc-900 border border-white/5 flex items-center justify-center">
+                                                <s.icon className={`h-4.5 w-4.5 ${color}`} strokeWidth={1.5} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">{s.label}</p>
+                                                <p className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${color}`}>
+                                                    <Zap className={`h-3 w-3 fill-current`} /> {label}
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">{s.label}</p>
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-white flex items-center gap-1.5">
-                                                <Zap className={`h-3 w-3 fill-current ${s.color}`} /> {s.status}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         </section>
 

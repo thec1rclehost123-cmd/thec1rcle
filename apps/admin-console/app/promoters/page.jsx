@@ -40,9 +40,12 @@ export default function AdminPromoters() {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const json = await res.json();
-            setPromoters(json.data || []);
+            const fresh = json.data || [];
+            setPromoters(fresh);
+            return fresh;
         } catch (err) {
             console.error("Failed to fetch promoters", err);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -83,9 +86,9 @@ export default function AdminPromoters() {
 
             if (json.message) alert(json.message);
 
-            await fetchPromoters();
-            if (selectedPromoter) {
-                const updated = json.data || promoters.find(p => p.id === selectedPromoter.id);
+            const freshPromoters = await fetchPromoters();
+            if (selectedPromoter && freshPromoters) {
+                const updated = freshPromoters.find(p => p.id === selectedPromoter.id);
                 if (updated) setSelectedPromoter(updated);
             }
 

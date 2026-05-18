@@ -224,7 +224,7 @@ export default function AdminHosts() {
                                 message: 'Restore standard payment processing for this organizer profile.',
                                 label: 'Authorize Resume',
                                 type: 'info',
-                                isTier3: true
+                                isTier3: false
                             })}
                             className="w-full flex items-center justify-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10 text-zinc-600 hover:text-white hover:bg-white/10 transition-all font-bold text-[10px] uppercase tracking-widest"
                         >

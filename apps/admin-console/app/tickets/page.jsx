@@ -114,7 +114,9 @@ export default function AdminTickets() {
                     </div>
                     <div>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600 mb-1">Payment Status</p>
-                        <p className="text-2xl font-light text-white tracking-tight font-mono-numbers">Verified</p>
+                        <p className="text-2xl font-light text-white tracking-tight font-mono-numbers">
+                            {tickets.length === 0 ? '--' : `${Math.round((tickets.filter(t => t.paymentStatus === 'paid' || t.status === 'valid').length / tickets.length) * 100)}%`}
+                        </p>
                     </div>
                 </div>
             </div>
