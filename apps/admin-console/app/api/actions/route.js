@@ -186,6 +186,21 @@ async function handler(req) {
             case 'PAYOUT_BATCH_RUN':
                 await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
                 break;
+            case 'PAYOUT_RELEASE':
+                await adminStore.payoutIntervention(targetId, params?.type || 'host', false, adminId, reason, evidence);
+                break;
+            case 'PROMOTER_SUSPEND':
+                await adminStore.updatePromoterStatus(targetId, 'suspended', adminId, reason);
+                break;
+            case 'PROMOTER_ACTIVATE':
+                await adminStore.updatePromoterStatus(targetId, 'active', adminId, reason);
+                break;
+            case 'PROMOTER_DISABLE':
+                await adminStore.updatePromoterStatus(targetId, 'disabled', adminId, reason);
+                break;
+            case 'WEBHOOK_RETRY':
+                await adminStore.retryWebhook(targetId, adminId, reason);
+                break;
             case 'DATABASE_CORRECTION': {
                 if (adminRole !== 'super') {
                     return NextResponse.json({ error: "Not Found" }, { status: 404 });

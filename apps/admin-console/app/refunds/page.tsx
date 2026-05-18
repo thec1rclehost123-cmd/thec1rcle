@@ -46,7 +46,8 @@ export default function RefundsPage() {
     const [processing, setProcessing] = useState<string | null>(null);
     const [cursor, setCursor] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(false);
-    const [cursorStack, setCursorStack] = useState<string[]>([]); // for prev navigation
+    const [cursorStack, setCursorStack] = useState<Array<string | null>>([]); // stack of start cursors for each visited page
+    const [currentPageCursor, setCurrentPageCursor] = useState<string | null>(null);
 
     useEffect(() => {
         // Reset pagination when filter changes
@@ -56,6 +57,7 @@ export default function RefundsPage() {
     }, [user, filter]);
 
     const fetchRefundRequests = useCallback(async (pageCursor: string | null) => {
+        setCurrentPageCursor(pageCursor);
         setLoading(true);
         try {
             const token = await user.getIdToken();
@@ -114,14 +116,15 @@ export default function RefundsPage() {
 
     const handleNextPage = () => {
         if (!hasMore || !cursor) return;
-        setCursorStack(prev => [...prev, cursor]);
+        // push the start cursor of the current page so we can return to it
+        setCursorStack(prev => [...prev, currentPageCursor]);
         fetchRefundRequests(cursor);
     };
 
     const handlePrevPage = () => {
         if (cursorStack.length === 0) return;
         const newStack = [...cursorStack];
-        const prevCursor = newStack.pop() || null;
+        const prevCursor = newStack.pop() ?? null;
         setCursorStack(newStack);
         fetchRefundRequests(prevCursor);
     };
@@ -139,7 +142,7 @@ export default function RefundsPage() {
             });
 
             if (res.ok) {
-                fetchRefundRequests(cursorStack[cursorStack.length - 1] || null);
+                fetchRefundRequests(currentPageCursor);
             }
         } catch (error) {
             console.error('Failed to approve refund:', error);
@@ -162,7 +165,7 @@ export default function RefundsPage() {
             });
 
             if (res.ok) {
-                fetchRefundRequests(cursorStack[cursorStack.length - 1] || null);
+                fetchRefundRequests(currentPageCursor);
             }
         } catch (error) {
             console.error('Failed to reject refund:', error);

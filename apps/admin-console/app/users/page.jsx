@@ -58,13 +58,11 @@ export default function AdminUsers() {
                 })
             });
 
+            const json = await res.json();
             if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Action failed");
+                throw new Error(json.error || "Action failed");
             }
-
-            const successJson = await res.json();
-            if (successJson.message) alert(successJson.message);
+            if (json.message) alert(json.message);
 
             await fetchUsers();
             setModalConfig(null);

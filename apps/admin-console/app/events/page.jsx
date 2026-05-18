@@ -45,9 +45,11 @@ export default function AdminEvents() {
             const json = await res.json();
             const mapped = (json.data || []).map((e) => mapEventForClient(e, e.id));
             setEvents(mapped);
+            return mapped;
         } catch (err) {
             console.error("Failed to fetch events", err);
             setError(true);
+            return null;
         } finally {
             setLoading(false);
         }
@@ -87,14 +89,14 @@ export default function AdminEvents() {
             const json = await res.json();
             if (!res.ok) throw new Error(json.error || "Action failed");
 
-            await fetchEvents();
+            const freshEvents = await fetchEvents();
             if (modalConfig.action === 'FEATURE_EVENT_PIN' || modalConfig.action === 'FEATURE_EVENT_UNPIN') {
                 await fetchSpotlights();
             }
 
-            // Re-select to update drawer data
+            // Re-select using freshly fetched data to avoid stale state reference
             if (selectedEvent) {
-                const updated = events.find(e => e.id === selectedEvent.id);
+                const updated = (freshEvents || []).find(e => e.id === selectedEvent.id);
                 if (updated) setSelectedEvent(updated);
             }
         } catch (err) {

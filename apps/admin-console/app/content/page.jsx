@@ -30,6 +30,15 @@ export default function AdminContent() {
         if (user) fetchContent();
     }, [user]);
 
+    const filtered = reports.filter(r => {
+        const matchesSearch =
+            r.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.reporterEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            r.reason?.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesFilter = filterReported ? r.status === 'reported' : true;
+        return matchesSearch && matchesFilter;
+    });
+
     const handleExport = () => {
         const headers = ["ID", "Type", "Reporter", "Reason", "Status", "Timestamp"];
         const rows = filtered.map(r => [
@@ -51,15 +60,6 @@ export default function AdminContent() {
         link.click();
         document.body.removeChild(link);
     };
-
-    const filtered = reports.filter(r => {
-        const matchesSearch =
-            r.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.reporterEmail?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            r.reason?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filterReported ? r.status === 'reported' : true;
-        return matchesSearch && matchesFilter;
-    });
 
     return (
         <div className="space-y-12 pb-24">

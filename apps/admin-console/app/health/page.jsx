@@ -176,7 +176,7 @@ export default function AdminHealth() {
                                         </td>
                                         <td className="px-8 py-6">
                                             <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-widest">
-                                                {new Date(hook.timestamp?._seconds * 1000 || Date.now()).toLocaleString()}
+                                                {new Date(hook.timestamp?._seconds ? hook.timestamp._seconds * 1000 : (hook.timestamp || Date.now())).toLocaleString()}
                                             </p>
                                         </td>
                                         <td className="px-8 py-6">

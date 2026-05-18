@@ -27,6 +27,23 @@ export default function AdminAnalytics() {
         if (user) fetchAnalytics();
     }, [user]);
 
+    const exportReport = () => {
+        const headers = ["Metric", "Value"];
+        const rows = [
+            ["Total Revenue", stats?.revenue?.total || 0],
+            ["Total Users", stats?.users_total || 0],
+            ["Tickets Sold", stats?.tickets_sold_total || 0],
+            ["Active Venues", stats?.venues_total?.active || 0],
+        ];
+        const csvContent = [headers, ...rows].map(r => r.join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `platform_report_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.click();
+    };
+
     const metrics = [
         { label: "Total Revenue", value: `₹${(stats?.revenue?.total || 0).toLocaleString()}`, trend: "+12.5%", isUp: true, icon: TrendingUp },
         { label: "Total Users", value: stats?.users_total || 0, trend: "+8.2%", isUp: true, icon: Users },
@@ -49,7 +66,10 @@ export default function AdminAnalytics() {
                     </p>
                 </div>
 
-                <button className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/5 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all">
+                <button
+                    onClick={exportReport}
+                    className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-white/5 border border-white/5 text-zinc-400 text-[11px] font-bold uppercase tracking-widest hover:text-white hover:bg-white/10 transition-all"
+                >
                     <Download className="h-4 w-4" />
                     Download Report
                 </button>

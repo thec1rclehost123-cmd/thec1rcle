@@ -105,7 +105,7 @@ export default function AdminPayments() {
             label: 'Timeline', 
             sortable: true,
             render: (val) => {
-                const date = new Date(val?._seconds * 1000 || val);
+                const date = val?._seconds ? new Date(val._seconds * 1000) : new Date(val);
                 return (
                     <div>
                         <p className="text-sm font-semibold text-white truncate">{date.toLocaleDateString()}</p>

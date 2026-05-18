@@ -25,6 +25,8 @@ export const ALLOWLIST_ACTIONS = [
     'FINANCIAL_REFUND', 'PARTIAL_REFUND',
     'COMMISSION_ADJUST', 'FEE_RULE_UPDATE',
     'PAYOUT_FREEZE', 'PAYOUT_RELEASE', 'PAYOUT_BATCH_RUN',
+    'PROMOTER_SUSPEND', 'PROMOTER_ACTIVATE', 'PROMOTER_DISABLE',
+    'WEBHOOK_RETRY',
     'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION'
 ];
 
@@ -143,7 +145,19 @@ export const adminStore = {
                 await this.commissionAdjust(targetId, params.type, params.rate, adminId, reason, evidence);
                 break;
             case 'PAYOUT_FREEZE':
-                await this.payoutIntervention(targetId, params.type, true, adminId, reason, evidence);
+                await this.payoutIntervention(targetId, params?.type || 'host', true, adminId, reason, evidence);
+                break;
+            case 'PAYOUT_RELEASE':
+                await this.payoutIntervention(targetId, params?.type || 'host', false, adminId, reason, evidence);
+                break;
+            case 'PROMOTER_SUSPEND':
+                await this.updatePromoterStatus(targetId, 'suspended', adminId, reason);
+                break;
+            case 'PROMOTER_ACTIVATE':
+                await this.updatePromoterStatus(targetId, 'active', adminId, reason);
+                break;
+            case 'PROMOTER_DISABLE':
+                await this.updatePromoterStatus(targetId, 'disabled', adminId, reason);
                 break;
             case 'VENUE_SUSPEND':
                 await this.updateVenueStatus(targetId, 'suspended', adminId, reason, evidence, context);
@@ -720,6 +734,61 @@ export const adminStore = {
         };
 
         await db.collection('admin_audit_logs').add(log);
+    },
+
+    async payoutIntervention(entityId, entityType = 'host', freeze = true, adminId, reason, evidence) {
+        const db = getAdminDb();
+        const collection = entityType === 'venue' ? 'venues' : entityType === 'promoter' ? 'promoters' : 'hosts';
+        await db.collection(collection).doc(entityId).update({
+            payoutFrozen: freeze,
+            payoutFrozenAt: freeze ? FieldValue.serverTimestamp() : null,
+            payoutFrozenBy: freeze ? adminId : null,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: freeze ? 'PAYOUT_FREEZE' : 'PAYOUT_RELEASE',
+            targetId: entityId,
+            targetType: entityType,
+            reason,
+            evidence,
+        });
+    },
+
+    async updatePromoterStatus(promoterId, status, adminId, reason) {
+        const db = getAdminDb();
+        await db.collection('promoters').doc(promoterId).update({
+            status,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        const actionMap = { suspended: 'PROMOTER_SUSPEND', active: 'PROMOTER_ACTIVATE', disabled: 'PROMOTER_DISABLE' };
+        await this.logAdminAction({
+            adminId,
+            action: actionMap[status] || 'PROMOTER_STATUS_UPDATE',
+            targetId: promoterId,
+            targetType: 'promoter',
+            reason,
+        });
+    },
+
+    async retryWebhook(webhookId, adminId, reason) {
+        const db = getAdminDb();
+        const webhookRef = db.collection('failed_webhooks').doc(webhookId);
+        const snap = await webhookRef.get();
+        if (!snap.exists) throw Object.assign(new Error('Webhook not found'), { statusCode: 404 });
+        await webhookRef.update({
+            status: 'pending_retry',
+            retryRequestedAt: FieldValue.serverTimestamp(),
+            retryRequestedBy: adminId,
+            updatedAt: FieldValue.serverTimestamp(),
+        });
+        await this.logAdminAction({
+            adminId,
+            action: 'WEBHOOK_RETRY',
+            targetId: webhookId,
+            targetType: 'webhook',
+            reason,
+        });
     },
 
     async updateVenueStatus(venueId, status, adminId, reason, evidence, context) {
