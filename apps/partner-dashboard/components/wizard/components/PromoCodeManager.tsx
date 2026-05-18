@@ -317,7 +317,7 @@ export function PromoCodeManager({
                                             value={newCode.maxPerUser || ""}
                                             onChange={(e) => setNewCode(prev => ({
                                                 ...prev,
-                                                maxPerUser: e.target.value ? parseInt(e.target.value) : null
+                                                maxPerUser: e.target.value ? parseInt(e.target.value) : 0
                                             }))}
                                             placeholder="1"
                                             className="w-full px-3 py-2 rounded-lg bg-[#f5f5f7] text-[14px] focus:outline-none"

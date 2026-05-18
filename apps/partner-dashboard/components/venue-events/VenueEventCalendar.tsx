@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
     ChevronLeft, ChevronRight, ChevronDown, Calendar, Clock, Lock,
@@ -963,7 +963,7 @@ function TimePicker({ label, value, onChange, disabledTimes = new Set() }: {
     );
 }
 
-function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr }: {
+const NightScheduleTimeline = memo(function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr }: {
     events: any[];
     blockData: any;
     isActive: boolean;
@@ -1026,4 +1026,4 @@ function NightScheduleTimeline({ events, blockData, isActive, nowPct, nowTimeStr
             </div>
         </div>
     );
-}
+});

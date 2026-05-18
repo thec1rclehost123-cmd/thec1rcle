@@ -18,16 +18,18 @@ export default function MagneticButton({ children, className = "", href, onClick
         const button = buttonRef.current;
         if (!button) return;
 
-        const handleMouseMove = (e: MouseEvent) => {
+        const handleMouseMove = (e: Event) => {
+            const me = e as MouseEvent;
             const rect = button.getBoundingClientRect();
-            const x = e.clientX - rect.left - rect.width / 2;
-            const y = e.clientY - rect.top - rect.height / 2;
+            const x = me.clientX - rect.left - rect.width / 2;
+            const y = me.clientY - rect.top - rect.height / 2;
 
             // Only apply magnetic effect if cursor is within 100px
             const distance = Math.sqrt(x * x + y * y);
             if (distance < 100) {
                 setPosition({ x: x * 0.3, y: y * 0.3 });
             }
+
         };
 
         const handleMouseLeave = () => {

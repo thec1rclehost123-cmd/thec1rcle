@@ -187,16 +187,16 @@ async function getPartnerPayoutsData(
             .limit(25)
             .get();
 
-        const pending = pendingSnap.docs.map((d) => ({ id: d.id, ...d.data() } as PartnerSettlement));
-        const history = historySnap.docs.map((d) => ({ id: d.id, ...d.data() } as PartnerSettlement));
+        const pending = pendingSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as PartnerSettlement));
+        const history = historySnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as PartnerSettlement));
 
         const totalOwedPaise = pending
-            .filter((s) => s.status === "pending")
-            .reduce((sum, s) => sum + s.netPaise, 0);
+            .filter((s: any) => s.status === "pending")
+            .reduce((sum: any, s: any) => sum + s.netPaise, 0);
 
         const totalHeldPaise = pending
-            .filter((s) => s.status === "held")
-            .reduce((sum, s) => sum + s.netPaise, 0);
+            .filter((s: any) => s.status === "held")
+            .reduce((sum: any, s: any) => sum + s.netPaise, 0);
 
         return {
             pendingSettlements: pending,

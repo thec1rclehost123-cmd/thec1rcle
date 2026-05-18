@@ -149,7 +149,7 @@ export default function ProfilePage() {
                                     label="Contact Number"
                                     value={formData.phone}
                                     editing={editMode}
-                                    onChange={(val) => setFormData({ ...formData, phone: val })}
+                                    onChange={(val: any) => setFormData({ ...formData, phone: val })}
                                     placeholder="+91 00000 00000"
                                 />
                                 <ProfileItem
@@ -157,7 +157,7 @@ export default function ProfilePage() {
                                     label="Instagram Handle"
                                     value={formData.instagram}
                                     editing={editMode}
-                                    onChange={(val) => setFormData({ ...formData, instagram: val })}
+                                    onChange={(val: any) => setFormData({ ...formData, instagram: val })}
                                     placeholder="@username"
                                 />
                                 <ProfileItem
@@ -165,7 +165,7 @@ export default function ProfilePage() {
                                     label="Primary City"
                                     value={formData.city}
                                     editing={editMode}
-                                    onChange={(val) => setFormData({ ...formData, city: val })}
+                                    onChange={(val: any) => setFormData({ ...formData, city: val })}
                                 />
                             </div>
                         </div>

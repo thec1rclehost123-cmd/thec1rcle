@@ -115,8 +115,9 @@ export async function writeSecurityAuditLog({ venueId, actorUid, actorRole, acti
             timestamp: new Date().toISOString(),
             metadata,
         });
-    } catch (_) {
-        // Audit log failure must not block the main operation
+    } catch (err) {
+        // Audit log failure must not block the main operation, but should be visible
+        console.error("[GuestOpsMiddleware] Security audit log write failed:", err?.message || err);
     }
 }
 

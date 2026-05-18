@@ -82,7 +82,7 @@ export default function PromoterFinancePageClient() {
         setLoading(true);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
 
             const [financeRes, accountsRes] = await Promise.all([
                 fetch(`/api/partners/promoters/finance`, { headers }),
@@ -230,10 +230,9 @@ export default function PromoterFinancePageClient() {
                     endpoint="/api/partners/promoters/finance/bank-accounts"
                     getHeaders={async () => {
                         const token = typeof getIdToken === "function" ? await getIdToken() : "";
-                        return {
-                            "Content-Type": "application/json",
-                            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-                        };
+                        const headers: Record<string, string> = { "Content-Type": "application/json" };
+                        if (token) headers["Authorization"] = `Bearer ${token}`;
+                        return headers;
                     }}
                     onClose={() => setShowAddBankModal(false)}
                     onAdded={fetchData}

@@ -260,7 +260,9 @@ function DisputesView({ venueId, onBack, getToken }: { venueId: string; onBack: 
                 });
                 const d = await res.json();
                 setDisputes(d.disputes || []);
-            } catch {}
+            } catch (err) {
+                console.error("[Finance] Failed to load disputes:", err);
+            }
             setLoading(false);
         })();
     }, [venueId]);
@@ -406,7 +408,9 @@ export default function VenueFinancePageClient() {
                 pending:          m?.pendingPayouts || 0,
                 instantAvailable: m?.availableBalance || 0,
             });
-        } catch {}
+        } catch (err) {
+            console.error("[Finance] Failed to load balance:", err);
+        }
         setBalanceLoading(false);
     }, [venueId, getToken]);
 
@@ -421,7 +425,9 @@ export default function VenueFinancePageClient() {
             const d = await res.json();
             setPayouts(d.payouts || []);
             setHasMore(d.hasMore || false);
-        } catch {}
+        } catch (err) {
+            console.error("[Finance] Failed to load payouts:", err);
+        }
         setPayoutsLoading(false);
     }, [venueId, getToken]);
 
@@ -435,7 +441,9 @@ export default function VenueFinancePageClient() {
             });
             const d = await res.json();
             setAccounts(d.accounts || []);
-        } catch {}
+        } catch (err) {
+            console.error("[Finance] Failed to load bank accounts:", err);
+        }
         setAccountsLoading(false);
     }, [venueId, getToken]);
 
@@ -454,7 +462,9 @@ export default function VenueFinancePageClient() {
                 });
                 const data = await res.json();
                 if (data?.instantFeeRate != null) setInstantFeeRate(data.instantFeeRate);
-            } catch (err) {}
+            } catch (err) {
+                console.error("[Finance] Failed to load payout config:", err);
+            }
         })();
     }, [getToken]);
 

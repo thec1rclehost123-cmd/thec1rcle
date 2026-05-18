@@ -48,7 +48,7 @@ export function buildPartnerAuthError(req: Request, status: number, message: str
 
 function extractPartnerId(req: NextRequest, claims: any, type: PartnerType): string | null {
     const { searchParams } = new URL(req.url);
-    return (
+    const fromRequest =
         req.headers.get("x-partner-id") ||
         req.headers.get("x-venue-id") ||
         req.headers.get("x-host-id") ||
@@ -57,9 +57,21 @@ function extractPartnerId(req: NextRequest, claims: any, type: PartnerType): str
         searchParams.get("hostId") ||
         searchParams.get("promoterId") ||
         searchParams.get("partnerId") ||
-        // Fallback: derive from JWT claims when not in URL (host routes rely on this)
-        ((claims.partnerType === type || claims.partnerRole === type) ? (claims.partnerId || null) : null)
-    );
+        null;
+
+    const fromClaims =
+        (claims.partnerType === type || claims.partnerRole === type)
+            ? (claims.partnerId || null)
+            : null;
+
+    // Cross-validate: if both the request and JWT supply a partner ID, they must agree.
+    // A mismatch indicates a spoofed header and should be rejected by the caller.
+    if (fromRequest && fromClaims && fromRequest !== fromClaims) {
+        console.warn("[partnerAuth] Partner ID mismatch — header:", fromRequest, "JWT:", fromClaims);
+        return null;
+    }
+
+    return fromRequest || fromClaims;
 }
 
 /**

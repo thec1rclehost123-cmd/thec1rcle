@@ -315,16 +315,16 @@ export function VenueCalendarPreview({
                                         className={`
                                             aspect-square rounded-xl flex flex-col items-center justify-center relative
                                             text-sm font-medium transition-all border
-                                            ${day.empty ? "bg-transparent border-transparent" : getStatusStyle(day.status)}
+                                            ${day.empty ? "bg-transparent border-transparent" : getStatusStyle(day.status ?? "")}
                                             ${selectedDate === day.date ? "ring-2 ring-indigo-500 ring-offset-2" : ""}
                                         `}
                                     >
                                         {!day.empty && (
                                             <>
                                                 <span>{day.day}</span>
-                                                {getStatusIcon(day.status) && (
+                                                {getStatusIcon(day.status ?? "") && (
                                                     <span className="absolute bottom-1">
-                                                        {getStatusIcon(day.status)}
+                                                        {getStatusIcon(day.status ?? "")}
                                                     </span>
                                                 )}
                                                 {day.myRequest && (

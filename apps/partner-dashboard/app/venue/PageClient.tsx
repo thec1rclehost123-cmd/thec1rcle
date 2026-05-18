@@ -53,7 +53,7 @@ export default function VenueDashboardHome() {
         queryKey: ['venue', venueId, 'alerts'],
         queryFn: async () => {
             const token = await getIdToken();
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetch(`/api/partners/venues/notifications?venueId=${venueId}&limit=3`, { headers });
             return res.json();
         },
@@ -67,7 +67,7 @@ export default function VenueDashboardHome() {
         queryKey: ['venue', venueId, 'summary'],
         queryFn: async () => {
             const token = await getIdToken();
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetch(`/api/partners/venues/overview/summary?venueId=${venueId}`, { headers });
             return res.json();
         },
@@ -81,7 +81,7 @@ export default function VenueDashboardHome() {
         queryKey: ['venue', venueId, 'events'],
         queryFn: async () => {
             const token = await getIdToken();
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetch(`/api/partners/venues/events?venueId=${venueId}`, { headers });
             const data = await res.json();
             return (data.events || []).map((e: any) => ({
@@ -105,7 +105,7 @@ export default function VenueDashboardHome() {
         queryKey: ['venue', venueId, 'tonight', tonightEvent?.id],
         queryFn: async () => {
             const token = await getIdToken();
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const res = await fetch(`/api/partners/venues/overview/tonight?eventId=${tonightEvent?.id}`, { headers });
             return res.json();
         },
@@ -152,7 +152,7 @@ export default function VenueDashboardHome() {
                     <VenueActionButton variant="secondary">
                         <Bell className="w-4 h-4" />
                         <span className="hidden sm:inline">Alerts</span>
-                        {alerts.filter((a) => !a.isRead).length > 0 && (
+                        {alerts.filter((a: any) => !a.isRead).length > 0 && (
                             <span className="w-1.5 h-1.5 rounded-full" style={{ background: "var(--v-orange)" }} />
                         )}
                     </VenueActionButton>

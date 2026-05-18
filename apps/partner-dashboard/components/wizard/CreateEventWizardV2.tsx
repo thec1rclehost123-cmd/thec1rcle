@@ -383,7 +383,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (role === 'host' && profile?.activeMembership?.partnerId) {
             const fetchPartnerships = async () => {
                 try {
-                    const res = await authedFetch(`/api/partners/hosts/partnerships?hostId=${profile.activeMembership.partnerId}&status=active`);
+                    const res = await authedFetch(`/api/partners/hosts/partnerships?hostId=${profile!.activeMembership!.partnerId}&status=active`);
                     const data = await res.json();
                     setPartnerships(data.partnerships || []);
                 } catch (err) {
@@ -486,7 +486,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 setIsLoadingDraft(true);
                 setLoadError(null);
                 try {
-                    console.log("[WizardV2] Fetching draft:", eventId);
+                    if (process.env.NODE_ENV === "development") console.log("[WizardV2] Fetching draft:", eventId);
                     const res = await authedFetch(`/api/events/${eventId}`);
                     if (!res.ok) throw new Error("Failed to load event draft.");
                     const data = await res.json();
@@ -498,13 +498,13 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                         // Compare with local recovery data if available
                         if (localRecoveryData && localRecoveryData.draftMeta?.clientUpdatedAt > remoteUpdated) {
                             // Local is newer! Show recovery option
-                            console.log("[WizardV2] Local recovery data is newer");
+                            if (process.env.NODE_ENV === "development") console.log("[WizardV2] Local recovery data is newer");
                             setFormData(remote);
                             setSavedDraftId(remote.id);
                             setShowRecoveryBanner(true);
                         } else {
                             // Remote is newer or no local data
-                            console.log("[WizardV2] Loading remote draft data");
+                            if (process.env.NODE_ENV === "development") console.log("[WizardV2] Loading remote draft data");
                             setFormData(remote);
                             setSavedDraftId(remote.id);
 
@@ -530,7 +530,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         if (!searchParams.get('id') && profile?.activeMembership?.partnerId) {
             const fetchDrafts = async () => {
                 try {
-                    const res = await authedFetch(`/api/events?lifecycle=draft&creatorId=${profile.activeMembership.partnerId}`);
+                    const res = await authedFetch(`/api/events?lifecycle=draft&creatorId=${profile!.activeMembership!.partnerId}`);
                     if (res.ok) {
                         const data = await res.json();
                         setDrafts(data.events || []);

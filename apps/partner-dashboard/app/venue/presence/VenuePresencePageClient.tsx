@@ -777,7 +777,7 @@ export default function VenuePresencePageClient() {
                                             placeholder="City, Country"
                                             icon={MapPinIcon}
                                             defaultValue={data?.profile?.city}
-                                            onSave={(v) => handleUpdateProfile({ city: v })}
+                                            onSave={(v: any) => handleUpdateProfile({ city: v })}
                                         />
                                     </div>
                                 </section>

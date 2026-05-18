@@ -539,7 +539,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
             const fetchDrafts = async () => {
                 setIsLoadingDrafts(true);
                 try {
-                    const res = await fetch(`/api/events?lifecycle=draft&creatorId=${profile.activeMembership.partnerId}`);
+                    const res = await fetch(`/api/events?lifecycle=draft&creatorId=${profile!.activeMembership!.partnerId}`);
                     if (res.ok) {
                         const data = await res.json();
                         setDrafts(data.events || []);

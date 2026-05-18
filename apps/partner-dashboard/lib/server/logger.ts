@@ -58,9 +58,9 @@ function emit(level: LogLevel, route: string, message: string, context: Record<s
         message,
         ts: new Date().toISOString(),
         env: process.env.NODE_ENV ?? "development",
-        ...(context.requestId && { requestId: context.requestId as string }),
-        ...(context.uid       && { uid: context.uid as string }),
-        ...(context.ip        && { ip: context.ip as string }),
+        ...(context.requestId ? { requestId: context.requestId as string } : {}),
+        ...(context.uid       ? { uid: context.uid as string } : {}),
+        ...(context.ip        ? { ip: context.ip as string } : {}),
         ...context,
     };
 

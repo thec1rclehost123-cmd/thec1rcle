@@ -54,13 +54,11 @@ export default function EnhancedVenueEditor({
     // Helper to get auth token for authenticated API calls
     const getAuthToken = async (): Promise<string | null> => {
         if (!user) {
-            console.log("[getAuthToken] No user available");
+            console.warn("[getAuthToken] No user available");
             return null;
         }
         try {
-            // Force refresh the token to ensure it's valid
             const token = await user.getIdToken(true);
-            console.log("[getAuthToken] Got token, length:", token?.length);
             return token;
         } catch (err) {
             console.error("[getAuthToken] Failed to get auth token:", err);
@@ -691,17 +689,13 @@ function GalleryEditor({
 
         setUploading(true);
         try {
-            console.log("[GalleryEditor] Starting upload for venueId:", venueId);
             const token = await getAuthToken();
-            console.log("[GalleryEditor] Got auth token:", token ? `length ${token.length}` : "NULL");
 
             if (!token) {
                 onError?.("Authentication required. Please log in again.");
                 return;
             }
 
-            // First, upload the image to storage
-            console.log("[GalleryEditor] Step 1: Uploading file to storage...");
             const formData = new FormData();
             formData.append("file", file);
             formData.append("venueId", venueId);
@@ -715,15 +709,11 @@ function GalleryEditor({
                 }
             });
 
-            console.log("[GalleryEditor] Upload response status:", uploadRes.status);
             const uploadData = await uploadRes.json();
-            console.log("[GalleryEditor] Upload response data:", uploadData);
 
             if (!uploadRes.ok) {
                 throw new Error(uploadData.error || "Upload failed");
             }
-
-            console.log("[GalleryEditor] Step 2: Adding to gallery collection...");
 
             const galleryRes = await fetch("/api/partners/venues/gallery", {
                 method: "POST",
@@ -738,17 +728,13 @@ function GalleryEditor({
                 })
             });
 
-            console.log("[GalleryEditor] Gallery API response status:", galleryRes.status);
             const galleryData = await galleryRes.json();
-            console.log("[GalleryEditor] Gallery API response data:", galleryData);
 
             if (!galleryRes.ok) {
                 throw new Error(galleryData.error || "Failed to add to gallery");
             }
 
-            // Update local state with new photo
             const newPhoto = galleryData.result || { id: Date.now().toString(), imageUrl: uploadData.url };
-            console.log("[GalleryEditor] Success! New photo:", newPhoto);
             onGalleryUpdate([...gallery, newPhoto]);
             onSuccess?.("Photo added to gallery");
 

@@ -255,7 +255,7 @@ export async function getAuditLog(
     }
 
     const snap = await q.get();
-    const entries = snap.docs.slice(0, limit).map(d => d.data() as AuditLogEntry);
+    const entries = snap.docs.slice(0, limit).map((d: any) => d.data() as AuditLogEntry);
     const hasMore = snap.docs.length > limit;
     const nextCursor = hasMore ? snap.docs[limit - 1].id : null;
     return { entries, hasMore, nextCursor };
@@ -318,7 +318,7 @@ export async function getLoginSessions(
         .limit(20)
         .get();
 
-    return snap.docs.map(d => d.data() as LoginSession);
+    return snap.docs.map((d: any) => d.data() as LoginSession);
 }
 
 // ── revokeLoginSession ─────────────────────────────────────────────────────────

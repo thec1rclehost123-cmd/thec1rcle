@@ -9,7 +9,6 @@ import { ChartSkeleton } from "@/components/ui/VenueChart";
 
 // Disable SSR for recharts to prevent useContext/DOM errors during Next.js generation
 const RechartsComposed = dynamic(() =>
-    // @ts-ignore
     import("recharts").then((m: any) => {
         return function CashflowInner({
             data,
@@ -85,7 +84,7 @@ const RechartsComposed = dynamic(() =>
                         />
                         <Legend
                             wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
-                            formatter={(label) => (
+                            formatter={(label: any) => (
                                 <span style={{ color: "var(--v-text-secondary)", fontWeight: 600, letterSpacing: "0.04em" }}>
                                     {label}
                                 </span>

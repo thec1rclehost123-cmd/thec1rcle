@@ -66,7 +66,6 @@ export default function LivePreviewEditor({
             return;
         }
 
-        console.log(`[LivePreviewEditor] Starting server-side ${type} upload for:`, file.name);
         setUploadingField(type);
 
         try {
@@ -78,7 +77,6 @@ export default function LivePreviewEditor({
 
             // Get Auth Token for the API call - force refresh to ensure token is valid
             const token = await user.getIdToken(true);
-            console.log(`[LivePreviewEditor] Got auth token, length:`, token?.length);
 
             // Call our new backend upload API
             const response = await fetch("/api/partners/venues/upload", {
@@ -96,7 +94,6 @@ export default function LivePreviewEditor({
             }
 
             const { url: downloadURL } = await response.json();
-            console.log(`[LivePreviewEditor] Server-side upload successful! URL:`, downloadURL);
 
             // Update local preview state immediately for instant feedback
             if (type === "cover") {
@@ -122,7 +119,6 @@ export default function LivePreviewEditor({
             // Update Firestore via our existing update venue API
             await onUpdate(updates);
 
-            console.log(`[LivePreviewEditor] Updates saved. Refreshing...`);
             // We still call onRefresh but the local overrides will stay until prop changes
             onRefresh();
 

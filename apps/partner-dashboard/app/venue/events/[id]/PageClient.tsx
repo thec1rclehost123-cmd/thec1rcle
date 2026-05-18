@@ -919,7 +919,7 @@ export default function VenueEventWorkspacePage() {
         const allowedTabs = isHostManagedEvent
             ? SECTION_TABS.filter((tab) => RESTRICTED_SECTION_VALUES.has(tab.value))
             : SECTION_TABS;
-        const normalizedSection = allowedTabs.some((tab) => tab.value === section) ? section : defaultSection;
+        const normalizedSection = (section && allowedTabs.some((tab) => tab.value === section)) ? section : defaultSection;
         const normalizedSettingsBlock = SETTINGS_BLOCK_IDS.includes(settings as SettingsBlockId)
             ? (settings as SettingsBlockId)
             : null;

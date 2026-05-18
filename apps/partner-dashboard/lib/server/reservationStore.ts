@@ -112,7 +112,7 @@ export async function createReservation(
 
     let reservationData: ReservationDoc;
 
-    await db.runTransaction(async (tx) => {
+    await db.runTransaction(async (tx: any) => {
         // ── READ 1: Idempotency check ─────────────────────────────────────────
         // Query for an existing active reservation. Firestore version-tracks
         // this query result, so concurrent duplicate requests are caught on retry.

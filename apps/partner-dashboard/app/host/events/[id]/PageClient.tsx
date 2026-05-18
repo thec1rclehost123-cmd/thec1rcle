@@ -906,7 +906,7 @@ export default function HostEventWorkspacePage() {
         const settings = searchParams.get("settings");
         const attendeeId = searchParams.get("attendeeId");
         const orderId = searchParams.get("orderId");
-        const normalizedSection = SECTION_TABS.some((tab) => tab.value === section) ? section : "analytics";
+        const normalizedSection = (section && SECTION_TABS.some((tab) => tab.value === section)) ? section : "analytics";
         const normalizedSettingsBlock = SETTINGS_BLOCK_IDS.includes(settings as SettingsBlockId)
             ? (settings as SettingsBlockId)
             : null;

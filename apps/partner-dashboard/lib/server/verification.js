@@ -147,7 +147,13 @@ export async function sendSmsOtp(phone) {
         if (process.env.NODE_ENV !== "development") {
             throw new Error("SMS provider not configured");
         }
-        console.log(`\n=== MOCK SMS OTP ===\nTo: ${phone}\nCode: 123456\n====================\n`);
+        // Dev mock: generate a real random code and store it in Firestore so
+        // verifySmsOtp goes through the same path as production (no hardcoded bypass).
+        const code = Math.floor(100000 + require("node:crypto").randomInt(900000)).toString();
+        const expiresAt = new Date(Date.now() + SECURITY_CONFIG.OTP_EXPIRY_MINUTES * 60 * 1000);
+        const db = getAdminDb();
+        await db.collection("otps").doc(`signup_phone_${phone}`).set({ code, expiresAt, lastSent: new Date(), attempts: 0 });
+        console.warn(`\n=== DEV SMS OTP ===\nTo: ${phone}\nCode: ${code}\n===================\n`);
         return true;
     }
 
@@ -172,11 +178,27 @@ export async function verifySmsOtp(phone, code) {
     const cleanPhone = phone.replace("+", "");
 
     if (!MSG91_AUTH_KEY) {
-        if (process.env.NODE_ENV === "development" && code === "123456") {
-            await writeCompletionRecord("phone", phone);
-            return true;
+        if (process.env.NODE_ENV !== "development") {
+            throw new Error("SMS provider not configured");
         }
-        throw new Error("SMS provider not configured");
+        // Dev mock: verify against Firestore record (same path as email OTP).
+        const db = getAdminDb();
+        const doc = await db.collection("otps").doc(`signup_phone_${phone}`).get();
+        if (!doc.exists) throw new Error("No verification request found for this phone.");
+        const data = doc.data();
+        if (new Date() > data.expiresAt.toDate()) {
+            throw new Error("Verification code has expired. Please request a new one.");
+        }
+        if (data.attempts >= SECURITY_CONFIG.MAX_OTP_ATTEMPTS) {
+            throw new Error("Too many incorrect attempts. Please request a new code.");
+        }
+        if (data.code !== code) {
+            await db.collection("otps").doc(`signup_phone_${phone}`).update({ attempts: (data.attempts || 0) + 1 });
+            throw new Error("Incorrect verification code.");
+        }
+        await db.collection("otps").doc(`signup_phone_${phone}`).delete();
+        await writeCompletionRecord("phone", phone);
+        return true;
     }
 
     try {

@@ -214,7 +214,7 @@ async function getLatestOnboarding(uid: string) {
     if (snapshot.empty) return null;
 
     const sorted = snapshot.docs
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .map((doc: any) => ({ id: doc.id, ...doc.data() }))
         .sort((left: any, right: any) => {
             const leftTime = toDate(left.updatedAt || left.submittedAt)?.getTime() || 0;
             const rightTime = toDate(right.updatedAt || right.submittedAt)?.getTime() || 0;
@@ -278,7 +278,7 @@ async function fetchEventsForPartner(partnerId: string, partnerType: PartnerEnti
             .limit(100)
             .get();
 
-        const assignments = assignmentsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const assignments = assignmentsSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
         const eventIds = Array.from(new Set(assignments.map((item: any) => item.eventId).filter(Boolean)));
 
         const eventDocs = await Promise.all(
@@ -294,7 +294,7 @@ async function fetchEventsForPartner(partnerId: string, partnerType: PartnerEnti
 
     const field = partnerType === "venue" ? "venueId" : "hostId";
     const snapshot = await db.collection("events").where(field, "==", partnerId).limit(100).get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
 }
 
 export async function getConnectionForViewer(params: {
@@ -369,8 +369,8 @@ export async function getPartnerProfileSummary(id: string): Promise<PartnerProfi
 
     const normalizedEvents = eventDocs
         .map(normalizeEvent)
-        .filter((event) => event.id && event.title)
-        .sort((left, right) => {
+        .filter((event: any) => event.id && event.title)
+        .sort((left: any, right: any) => {
             const leftTime = left.dateIso ? new Date(left.dateIso).getTime() : 0;
             const rightTime = right.dateIso ? new Date(right.dateIso).getTime() : 0;
             return leftTime - rightTime;
@@ -387,10 +387,10 @@ export async function getPartnerProfileSummary(id: string): Promise<PartnerProfi
     );
 
     const liveUpcomingEvents = normalizedEvents
-        .filter((event) => !event.dateIso || new Date(event.dateIso).getTime() >= now)
+        .filter((event: any) => !event.dateIso || new Date(event.dateIso).getTime() >= now)
         .slice(0, 6);
     const livePastEvents = normalizedEvents
-        .filter((event) => event.dateIso && new Date(event.dateIso).getTime() < now)
+        .filter((event: any) => event.dateIso && new Date(event.dateIso).getTime() < now)
         .reverse()
         .slice(0, 8);
 

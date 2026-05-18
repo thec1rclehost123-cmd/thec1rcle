@@ -294,7 +294,7 @@ export async function getWalkInEventSummary(eventId: string): Promise<{
         .where("status", "==", "active")
         .get();
 
-    const entries = snap.docs.map((d) => d.data() as WalkInEntry);
+    const entries = snap.docs.map((d: any) => d.data() as WalkInEntry);
 
     const byPaymentMode: Record<string, number> = {};
     for (const e of entries) {
@@ -303,8 +303,8 @@ export async function getWalkInEventSummary(eventId: string): Promise<{
 
     return {
         totalEntries: entries.length,
-        totalPaise: entries.reduce((s, e) => s + e.amountPaise, 0),
-        totalPartySize: entries.reduce((s, e) => s + e.partySize, 0),
+        totalPaise: entries.reduce((s: number, e: WalkInEntry) => s + e.amountPaise, 0),
+        totalPartySize: entries.reduce((s: number, e: WalkInEntry) => s + e.partySize, 0),
         byPaymentMode,
     };
 }

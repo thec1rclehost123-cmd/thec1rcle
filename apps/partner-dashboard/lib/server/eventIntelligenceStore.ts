@@ -73,12 +73,12 @@ export async function getNextEventIntelligence(
         .collection("guests")
         .get();
 
-    const guests = guestSnap.docs.map((d) => d.data());
+    const guests = guestSnap.docs.map((d: any) => d.data());
 
-    const booked = guests.filter((g) => g.bookingType === "ticket" || g.source === "ticket");
-    const interested = guests.filter((g) => g.bookingType === "rsvp" || g.source === "rsvp");
-    const tables = guests.filter((g) => g.bookingType === "table" || g.guestType === "table");
-    const couples = guests.filter((g) => g.category === "couple" || g.guestType === "couple");
+    const booked = guests.filter((g: any) => g.bookingType === "ticket" || g.source === "ticket");
+    const interested = guests.filter((g: any) => g.bookingType === "rsvp" || g.source === "rsvp");
+    const tables = guests.filter((g: any) => g.bookingType === "table" || g.guestType === "table");
+    const couples = guests.filter((g: any) => g.category === "couple" || g.guestType === "couple");
 
     // Gender breakdown from ticket metadata
     const genders = { male: 0, female: 0, other: 0 };
@@ -112,7 +112,7 @@ export async function getNextEventIntelligence(
     const walkInsToday = walkInSnap.size;
 
     // Check-in rate
-    const checkedIn = guests.filter((g) => g.checkedIn === true).length;
+    const checkedIn = guests.filter((g: any) => g.checkedIn === true).length;
     const checkInRate =
         booked.length > 0 ? Math.round((checkedIn / booked.length) * 100) : 0;
 

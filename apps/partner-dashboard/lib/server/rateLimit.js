@@ -14,11 +14,17 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60) {
  */
 export async function rateLimit(request, limit = 20, windowSeconds = 60) {
     const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
-    // unique key for this app's rate limiting
     const key = `partner-dashboard:${ip}`;
 
-    const result = await coreCheckRateLimit(key, limit, windowSeconds);
-    return result.success;
+    try {
+        const result = await coreCheckRateLimit(key, limit, windowSeconds);
+        return result.success;
+    } catch (err) {
+        // Fail open: if Redis is unavailable, allow the request rather than
+        // returning 500 to every caller. Log so ops can detect the outage.
+        console.warn("[rateLimit] Redis unavailable — failing open:", err?.message || err);
+        return true;
+    }
 }
 
 /**

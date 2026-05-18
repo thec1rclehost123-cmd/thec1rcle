@@ -194,7 +194,7 @@ export async function updateIdentity(
             .where("brandName", "==", fields.brandName)
             .limit(2)
             .get();
-        const conflict = existing.docs.find((d) => d.id !== promoterId);
+        const conflict = existing.docs.find((d: any) => d.id !== promoterId);
         if (conflict) {
             throw new Error("BRAND_NAME_TAKEN");
         }

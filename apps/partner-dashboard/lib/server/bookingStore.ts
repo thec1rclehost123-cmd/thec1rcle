@@ -42,7 +42,7 @@ export async function confirmBooking(
 ): Promise<"confirmed" | "already_processed" | "expired_refund_needed"> {
     const db = getAdminDb();
 
-    console.log("WEBHOOK_RECEIVED", { razorpayOrderId, razorpayPaymentId, paidAmount });
+    logger.info("bookingStore", "Webhook received", { razorpayOrderId, razorpayPaymentId, paidAmount });
 
     // ── Fast-path idempotency check ───────────────────────────────────────────
     const existingSnap = await db.collection("bookings")
@@ -107,7 +107,7 @@ export async function confirmBooking(
 
     let outcome: "confirmed" | "already_processed" | "expired_refund_needed" = "confirmed";
 
-    await db.runTransaction(async (tx) => {
+    await db.runTransaction(async (tx: any) => {
         // ── ALL READS first (Firestore transaction requirement) ───────────────
         const resSnap   = await tx.get(reservationRef);
         const eventSnap = await tx.get(eventRef);
@@ -205,7 +205,7 @@ export async function confirmBooking(
 
     // ── Post-transaction: logging and audit ───────────────────────────────────
     if (outcome === "confirmed") {
-        console.log("BOOKING_CREATED", {
+        logger.info("bookingStore", "Booking created", {
             bookingId,
             bookingRef,
             reservationId: reservation.id,
@@ -225,7 +225,7 @@ export async function confirmBooking(
             metadata: { bookingRef, razorpayPaymentId, totalAmount: reservation.totalAmount },
         });
     } else if (outcome === "expired_refund_needed") {
-        console.log("EXPIRED_REFUND_CASE", {
+        logger.warn("bookingStore", "Expired reservation — refund required", {
             reservationId: reservation.id,
             razorpayOrderId,
             razorpayPaymentId,

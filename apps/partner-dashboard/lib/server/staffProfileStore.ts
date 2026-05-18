@@ -129,7 +129,7 @@ export async function listStaffProfiles(venueId: string): Promise<StaffProfile[]
     }
 
     const snap = await profilesRef(venueId).where("isActive", "==", true).get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as StaffProfile));
+    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as StaffProfile));
 }
 
 export async function updateStaffProfile(
@@ -353,5 +353,5 @@ export async function listProfileAudit(
     }
 
     const snap = await q.get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() } as StaffProfileAuditEntry));
+    return snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as StaffProfileAuditEntry));
 }

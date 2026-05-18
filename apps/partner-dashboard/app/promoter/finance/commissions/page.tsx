@@ -45,7 +45,7 @@ export default function PromoterCommissionsPage() {
         setError(null);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const params = new URLSearchParams({ promoterId, limit: "100" });
             if (statusFilter !== "all") params.set("status", statusFilter);
             const res = await fetch(`/api/partners/promoters/commissions?${params}`, { headers });

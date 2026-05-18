@@ -41,6 +41,8 @@ const getDateParts = (dateValue) => {
 /**
  * DashboardEventCard v2 — Premium dark-mode event card
  * for THE C1RCLE partner dashboard.
+ *
+ * @param {{ secondaryActions?: Array<{label: string, icon?: any, href?: string, onClick?: (() => void) | null, color?: string}>, [key: string]: any }} props
  */
 const DashboardEventCard = ({
     event,

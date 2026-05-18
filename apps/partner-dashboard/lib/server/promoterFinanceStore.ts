@@ -139,7 +139,7 @@ async function getLedgerCommissionRows(promoterId: string) {
 
     if (ledgerSnap.empty) return [];
 
-    const ledgerEntries = ledgerSnap.docs.map((doc) => ({ id: doc.id, ...(doc.data() || {}) })) as Array<Record<string, any>>;
+    const ledgerEntries = ledgerSnap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })) as Array<Record<string, any>>;
     const orderMap = await getDocsByIds("orders", ledgerEntries.map((entry) => String(entry.orderId || "")));
     const eventMap = await getDocsByIds(
         "events",
@@ -186,7 +186,7 @@ async function getAssignmentFallbackRows(promoterId: string) {
         .limit(200)
         .get();
 
-    return assignmentSnap.docs.map((doc) => {
+    return assignmentSnap.docs.map((doc: any) => {
         const data = doc.data();
         const amount = Number(data.totalCommission || data.commissionEarned || 0);
         const status = normalizeCommissionStatus(data.commissionStatus || data.status, data);
@@ -251,7 +251,7 @@ export async function getPromoterFinanceSnapshot(promoterId: string): Promise<Pr
 
     const commissionDetails = (ledgerRows.length > 0 ? ledgerRows : fallbackAssignmentRows).slice(0, 200);
 
-    const totals = commissionDetails.reduce((acc, row) => {
+    const totals = commissionDetails.reduce((acc: any, row: any) => {
         acc.totalEarned += row.amount;
         if (row.status === "pending" || row.status === "clearing") {
             acc.pending += row.amount;

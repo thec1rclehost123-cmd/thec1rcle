@@ -60,7 +60,7 @@ export default function PromoterPayoutsPage() {
         setError(null);
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const headers = token ? { Authorization: `Bearer ${token}` } : {};
+            const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
             const payoutRes = await fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers });
             if (!payoutRes.ok) throw new Error("Failed to load payouts");
             const payoutData = await payoutRes.json();
@@ -89,7 +89,7 @@ export default function PromoterPayoutsPage() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                    ...(token ? { Authorization: `Bearer ${token}` } : {} as Record<string, string>),
                 },
                 body: JSON.stringify({
                     promoterId,
@@ -120,7 +120,7 @@ export default function PromoterPayoutsPage() {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             await fetch(`/api/partners/promoters/payouts?payoutId=${payoutId}`, {
                 method: "DELETE",
-                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                headers: (token ? { Authorization: `Bearer ${token}` } : {}) as HeadersInit,
             });
             await fetchData();
         } catch {
@@ -289,7 +289,7 @@ export default function PromoterPayoutsPage() {
                             </thead>
                             <tbody className="divide-y divide-border-subtle">
                                 {payouts.map((p) => {
-                                    const normalizedStatus = p.status === "cleared" ? "completed" : p.status;
+                                    const normalizedStatus = (p.status === "cleared" ? "completed" : p.status) as PayoutStatus;
                                     const sc = STATUS_CONFIG[normalizedStatus] ?? STATUS_CONFIG.pending;
                                     return (
                                         <tr key={p.id} className="hover:bg-surface-hover/30 transition-colors">

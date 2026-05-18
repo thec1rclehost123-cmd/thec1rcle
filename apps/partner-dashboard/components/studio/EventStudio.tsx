@@ -16,7 +16,7 @@ import { StudioCard } from './StudioComponents';
  * YouTube Studio-style Event Timeline
  * Visualizes the heartbeat of the night.
  */
-export function EventTimeline({ data = [], events = [] }) {
+export function EventTimeline({ data = [], events = [] }: { data: any[]; events: any[] }) {
     // Normalized series for SVG (0-100)
     const maxVal = useMemo(() => {
         if (!data || data.length === 0) return 10;
@@ -127,7 +127,7 @@ export function EventTimeline({ data = [], events = [] }) {
 /**
  * Diagnostic Insights Panel
  */
-export function InsightsPanel({ insights = [] }) {
+export function InsightsPanel({ insights = [] }: { insights: any[] }) {
     if (!insights || insights.length === 0) return null;
 
     return (

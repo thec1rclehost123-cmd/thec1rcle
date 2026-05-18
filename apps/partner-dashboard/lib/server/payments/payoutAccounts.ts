@@ -59,7 +59,7 @@ export async function listPayoutMethods(
         .get();
 
     return snap.docs
-        .map((doc) => mapDocToResponse(doc))
+        .map((doc: any) => mapDocToResponse(doc))
         .filter(Boolean);
 }
 

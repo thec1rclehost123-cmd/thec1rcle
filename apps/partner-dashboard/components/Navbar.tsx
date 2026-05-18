@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useRef } from "react";
 import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
-import { useAuth } from "./providers/AuthProvider";
+import { useDashboardAuth } from "./providers/DashboardAuthProvider";
 import ThemeToggle from "./ThemeToggle";
 
 const navLinks = [
@@ -17,7 +17,7 @@ export default function Navbar() {
   const { scrollY } = useScroll();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const { user, profile, logout, loading } = useAuth();
+  const { user, profile, signOut: logout, loading } = useDashboardAuth();
 
   const navWidth = useTransform(scrollY, [0, 100], ["100%", "90%"]);
   const navY = useTransform(scrollY, [0, 100], [0, 20]);
@@ -58,7 +58,7 @@ export default function Navbar() {
           <div className="hidden items-center gap-1 lg:flex bg-black/5 dark:bg-surface-elevated/5 rounded-full p-1 border border-black/5 dark:border-white/5 backdrop-blur-md">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
-              const prefetchTimeout = useRef(null);
+              const prefetchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
               const handleMouseEnter = () => {
                 if (link.prefetchQuery) {

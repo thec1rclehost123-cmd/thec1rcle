@@ -295,8 +295,8 @@ export default function HostCalendarPage() {
                                 if (!cell) return <div key={i} />;
                                 const isSel = cell.dateStr === selectedDate;
                                 const isToday = cell.dateStr === toISODateIST(parseAsIST(null));
-                                const hasEvents = cell.slots.some(s => ["approved_mine", "pending_mine", "occupied_other"].includes(s.state));
-                                const isBlocked = cell.slots.some(s => s.state === "blocked");
+                                const hasEvents = cell.slots.some((s: any) => ["approved_mine", "pending_mine", "occupied_other"].includes(s.state));
+                                const isBlocked = cell.slots.some((s: any) => s.state === "blocked");
                                 
                                 let bg = cell.isPast ? C.surfacePast : cell.isWeekend ? C.surfaceWeekend : C.surface;
                                 let border = `1px solid ${C.borderDefault}`;

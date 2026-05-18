@@ -4,7 +4,7 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import Link from "next/link";
 
-export default function HeroVideo({ src }) {
+export default function HeroVideo({ src }: { src: string }) {
   const ref = useRef(null);
   const { scrollY } = useScroll();
 

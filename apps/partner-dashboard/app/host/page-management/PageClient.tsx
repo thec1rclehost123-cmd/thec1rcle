@@ -572,7 +572,7 @@ export default function HostPageManagement() {
                                             placeholder="City, Country"
                                             icon={MapPinIcon}
                                             defaultValue={data?.profile?.city}
-                                            onSave={(v) => handleUpdateProfile({ city: v })}
+                                            onSave={(v: any) => handleUpdateProfile({ city: v })}
                                         />
                                     </div>
                                 </section>
@@ -1039,8 +1039,8 @@ export default function HostPageManagement() {
                             </p>
 
                             <div className="space-y-4">
-                                <FormField label="Video Title" placeholder="e.g. Summer 2024 Aftermovie" value={newVideo.title} onChange={(v) => setNewVideo({ ...newVideo, title: v })} inline />
-                                <FormField label="Video URL" placeholder="https://youtube.com/..." value={newVideo.url} onChange={(v) => setNewVideo({ ...newVideo, url: v })} inline />
+                                <FormField label="Video Title" placeholder="e.g. Summer 2024 Aftermovie" value={newVideo.title} onChange={(v: any) => setNewVideo({ ...newVideo, title: v })} inline />
+                                <FormField label="Video URL" placeholder="https://youtube.com/..." value={newVideo.url} onChange={(v: any) => setNewVideo({ ...newVideo, url: v })} inline />
 
                                 <div className="space-y-2">
                                     <label className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Type</label>

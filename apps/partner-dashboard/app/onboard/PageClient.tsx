@@ -1150,13 +1150,16 @@ function KycFileZone({
 
     async function getToken(): Promise<string> {
         const auth = getFirebaseAuth();
-        if (auth.currentUser) return auth.currentUser.getIdToken();
+        let currentUser = auth.currentUser;
+        if (currentUser) return currentUser.getIdToken();
         // Auth not ready yet — wait briefly for onAuthStateChanged to resolve
         await new Promise(r => setTimeout(r, 500));
-        if (auth.currentUser) return auth.currentUser.getIdToken();
+        currentUser = auth.currentUser;
+        if (currentUser) return currentUser.getIdToken();
         // Try force-refresh a second later
         await new Promise(r => setTimeout(r, 1500));
-        if (auth.currentUser) return auth.currentUser.getIdToken(true);
+        currentUser = auth.currentUser;
+        if (currentUser) return currentUser.getIdToken(true);
         throw new Error("Session not ready. Please refresh the page and try again.");
     }
 

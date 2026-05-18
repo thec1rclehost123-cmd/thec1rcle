@@ -204,7 +204,7 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                             label="Phone Number"
                             value={formData.phone}
                             editing={editMode}
-                            onChange={(val) => setFormData({ ...formData, phone: val })}
+                            onChange={(val: any) => setFormData({ ...formData, phone: val })}
                             placeholder="+91 00000 00000"
                         />
                         <ProfileItem
@@ -212,7 +212,7 @@ export default function ProfilePage({ setActions }: { setActions?: (node: React.
                             label="Instagram Handle"
                             value={formData.instagram}
                             editing={editMode}
-                            onChange={(val) => setFormData({ ...formData, instagram: val })}
+                            onChange={(val: any) => setFormData({ ...formData, instagram: val })}
                             placeholder="@username"
                         />
                     </div>

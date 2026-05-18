@@ -79,7 +79,7 @@ export default function VenueEventRequestsPage() {
         if (venueId) fetchRequests();
     }, [venueId, activeTab]);
 
-    const getHeaders = async () => {
+    const getHeaders = async (): Promise<Record<string, string>> => {
         const token = user ? await user.getIdToken() : "";
         return token ? { Authorization: `Bearer ${token}` } : {};
     };
@@ -170,7 +170,7 @@ export default function VenueEventRequestsPage() {
                     method: "PATCH",
                     headers: {
                         "Content-Type": "application/json",
-                        ...headers,
+                        ...(headers as Record<string, string>),
                     },
                     body: JSON.stringify({
                         action,

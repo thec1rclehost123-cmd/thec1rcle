@@ -9,6 +9,7 @@
 import { getAdminDb } from "../firebase/admin";
 import { buildEvent, filterAndSortEvents } from "@c1rcle/core/event-engine";
 import { mapEventForClient, buildPartnerSnapshot, resolvePartnerSnapshots } from "@c1rcle/core/events";
+import { logger } from "./logger";
 
 export const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
 
@@ -215,7 +216,7 @@ export async function createEvent(payload, token) {
             : built.endDate,
     };
 
-    console.log("[debug] createEvent event.id:", event.id);
+    logger.info("eventStore", "createEvent", { eventId: event.id });
     if (!event.id || typeof event.id !== "string") {
         console.error("[Firestore] Invalid event.id in createEvent — using addDoc:", event.id);
         const docRef = await db.collection(EVENT_COLLECTION).add(event);
@@ -232,7 +233,7 @@ export async function createEvent(payload, token) {
  * Update an existing event.
  */
 export async function updateEvent(eventId, payload, token) {
-    console.log("[debug] updateEvent eventId:", eventId);
+    logger.info("eventStore", "updateEvent", { eventId });
     if (!eventId || typeof eventId !== "string") {
         console.error("[Firestore] Invalid eventId in updateEvent:", eventId);
         throw new Error("Invalid event ID — documentPath must be a non-empty string");
@@ -277,7 +278,7 @@ export async function updateEvent(eventId, payload, token) {
  * Soft delete an event.
  */
 export async function deleteEvent(eventId, token) {
-    console.log("[debug] deleteEvent eventId:", eventId);
+    logger.info("eventStore", "deleteEvent", { eventId });
     if (!eventId || typeof eventId !== "string") {
         console.error("[Firestore] Invalid eventId in deleteEvent:", eventId);
         throw new Error("Invalid event ID — documentPath must be a non-empty string");
@@ -296,7 +297,7 @@ export async function deleteEvent(eventId, token) {
  * Transition an event lifecycle (publish, unpublish, cancel, etc.)
  */
 export async function updateEventLifecycle(eventId, status, context = {}, notes = "") {
-    console.log("[debug] updateEventLifecycle eventId:", eventId);
+    logger.info("eventStore", "updateEventLifecycle", { eventId, status });
     if (!eventId || typeof eventId !== "string") {
         console.error("[Firestore] Invalid eventId in updateEventLifecycle:", eventId);
         throw new Error("Invalid event ID — documentPath must be a non-empty string");

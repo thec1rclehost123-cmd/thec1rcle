@@ -27,7 +27,7 @@ export function PremiumGate({
 }: PremiumGateProps) {
     const { subscriptionPlan } = useDashboardAuth();
     
-    const userPlanLevel = PLAN_HIERARCHY[subscriptionPlan || "basic"] ?? 0;
+    const userPlanLevel = PLAN_HIERARCHY[(subscriptionPlan || "basic") as keyof typeof PLAN_HIERARCHY] ?? 0;
     const requiredLevel = PLAN_HIERARCHY[minPlan] ?? 1;
     
     const hasAccess = userPlanLevel >= requiredLevel;

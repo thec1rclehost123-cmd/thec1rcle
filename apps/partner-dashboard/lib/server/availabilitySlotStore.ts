@@ -80,7 +80,7 @@ export async function getHostVisibleSlots(
         const snap = await slotsRef(venueId)
             .where("date", "==", date)
             .get();
-        slots = snap.docs.map((d) => ({ id: d.id, ...d.data() } as AvailabilitySlot));
+        slots = snap.docs.map((d: any) => ({ id: d.id, ...d.data() } as AvailabilitySlot));
     }
 
     // Full day block → no windows available

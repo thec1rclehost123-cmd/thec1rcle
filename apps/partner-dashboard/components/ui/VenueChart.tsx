@@ -50,7 +50,6 @@ function ChartTooltip({
 
 // ── Lazy-load recharts to keep it out of non-analytics bundles ──
 const RechartsArea = lazy(() =>
-    // @ts-ignore
     (import("recharts") as any).then((m: any) => ({
         default: function AreaChartWrapper({
             data,
@@ -132,7 +131,6 @@ const RechartsArea = lazy(() =>
 );
 
 const RechartsBar = lazy(() =>
-    // @ts-ignore
     (import("recharts") as any).then((m: any) => ({
         default: function BarChartWrapper({
             data,
@@ -189,7 +187,6 @@ const RechartsBar = lazy(() =>
 );
 
 const RechartsLine = lazy(() =>
-    // @ts-ignore
     (import("recharts") as any).then((m: any) => ({
         default: function LineChartWrapper({
             data,

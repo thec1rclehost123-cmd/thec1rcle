@@ -286,7 +286,7 @@ export function VenueSidebar({
                         <div className="absolute inset-0 bg-gradient-to-br from-orange-500/30 to-rose-600/20 rounded-xl blur-lg" />
                         <div className="relative h-12 w-12 rounded-xl bg-gradient-to-br from-[#1a1a1f] to-[#0f0f12] flex items-center justify-center border border-white/10 shadow-xl overflow-hidden">
                             {(profile?.activeMembership as any)?.partnerLogo ? (
-                                <img src={(profile.activeMembership as any).partnerLogo} alt="Logo" className="h-full w-full object-cover" />
+                                <img src={(profile!.activeMembership as any).partnerLogo} alt="Logo" className="h-full w-full object-cover" />
                             ) : (
                                 <span className="text-xl font-black bg-gradient-to-br from-white to-white/60 bg-clip-text text-transparent">
                                     {(profile?.activeMembership as any)?.partnerName?.[0] || "C"}

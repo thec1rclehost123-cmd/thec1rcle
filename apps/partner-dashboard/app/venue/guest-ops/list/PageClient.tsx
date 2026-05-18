@@ -81,7 +81,9 @@ export default function GuestListPageClient() {
             setNextCursor(data.nextCursor ?? null);
             setHasMore(data.hasMore ?? false);
             setTotal(data.total ?? 0);
-        } catch (_) {} finally {
+        } catch (err) {
+            console.error("[GuestOps] fetchGuests failed:", err);
+        } finally {
             cursor ? setIsLoadingMore(false) : setIsLoading(false);
         }
     }, [eventId, venueId, filter, sortField, sortDir, authHeaders]);
@@ -99,7 +101,9 @@ export default function GuestListPageClient() {
             try {
                 const res = await fetch(`/api/partners/venues/guest-ops/${eventId}/guests/search?venueId=${venueId}&q=${encodeURIComponent(q)}&field=name`, { headers: authHeaders() });
                 if (res.ok) { const d = await res.json(); setGuests(d.results ?? []); setHasMore(false); }
-            } catch (_) {} finally { setIsLoading(false); }
+            } catch (err) {
+                console.error("[GuestOps] search failed:", err);
+            } finally { setIsLoading(false); }
         }, 200);
     }, [eventId, venueId, fetchGuests, authHeaders]);
 

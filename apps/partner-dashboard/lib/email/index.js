@@ -154,7 +154,6 @@ export async function sendTicketEmail({
 }) {
     if (!resend) {
         console.warn('[Email] Resend API key not found. Skipping email send.');
-        console.log('[Email] Would have sent ticket email to:', to, 'for order:', orderId);
         return { success: false, error: 'Missing API key' };
     }
 
@@ -266,7 +265,7 @@ export async function sendTicketEmail({
             },
         });
 
-        console.log(`[Email] ✅ Confirmation sent to ${to} for order ${orderId}`, data);
+        console.info(`[Email] ✅ Confirmation sent to ${to} for order ${orderId}`);
         return { success: true, data };
     } catch (error) {
         console.error(`[Email] ❌ Failed to send to ${to} for order ${orderId}:`, error);
@@ -292,7 +291,6 @@ export async function sendVenueSlotRequestEmail({
 
     if (!resend) {
         console.warn('[Email] Resend API key not found. Skipping slot request email send.');
-        console.log('[Email] Would have sent slot request email to:', to, 'for slot request:', slotRequestId);
         return { success: false, error: 'Missing API key' };
     }
 
@@ -362,7 +360,7 @@ export async function sendVenueSlotRequestEmail({
             },
         });
 
-        console.log(`[Email] ✅ Slot request notification sent for ${slotRequestId}`, data);
+        console.info(`[Email] ✅ Slot request notification sent for ${slotRequestId}`);
         return { success: true, data };
     } catch (error) {
         console.error(`[Email] ❌ Failed to send slot request notification ${slotRequestId}:`, error);

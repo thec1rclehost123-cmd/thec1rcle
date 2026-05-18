@@ -155,12 +155,12 @@ export function PromoterAnalyticsClient() {
                 <div className="flex items-center gap-2">
                     <select
                         value={selectedEventId}
-                        onChange={(event) => handleEventFilterChange(event.target.value)}
+                        onChange={(event: React.ChangeEvent<HTMLSelectElement>) => handleEventFilterChange(event.target.value)}
                         className="rounded-xl px-4 py-2 text-[11px] font-black uppercase tracking-[0.14em] outline-none"
                         style={{ background: "var(--v-elevated)", border: "1px solid var(--v-border)", color: "var(--v-text-primary)" }}
                     >
                         <option value="">All Events</option>
-                        {eventOptions.map((event) => (
+                        {eventOptions.map((event: any) => (
                             <option key={event.id} value={event.id}>
                                 {event.title}
                             </option>
