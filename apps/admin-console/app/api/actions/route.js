@@ -227,6 +227,12 @@ async function handler(req) {
                 await adminStore.databaseCorrection(targetId, parsedParams.data.id || 'global', parsedParams.data.after, adminId, reason, context);
                 break;
             }
+            case 'PARTNER_REPROVISION':
+                await adminStore.partnerReprovision(
+                    { uid: targetId, partnerType: params?.partnerType, partnerName: params?.partnerName },
+                    adminId, adminRole, reason
+                );
+                break;
             default:
                 return NextResponse.json({ error: "Unknown action" }, { status: 400 });
         }

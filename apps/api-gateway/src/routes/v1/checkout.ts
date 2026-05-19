@@ -33,6 +33,7 @@ const CheckoutCalculateBody = z.object({
     items: z.array(CheckoutItem).max(20).optional(),
     promoCode: z.string().min(2).max(50).optional().nullable(),
     promoterCode: z.string().min(2).max(50).optional().nullable(),
+    linkId: z.string().min(1).max(128).optional().nullable(),
 });
 
 const CheckoutValidateBody = z.object({
@@ -59,6 +60,7 @@ const CheckoutInitiateBody = z.object({
     reservationId: z.string().min(1).max(128).optional(),
     promoCode: z.string().min(2).max(50).optional(),
     promoterCode: z.string().min(2).max(50).optional(),
+    linkId: z.string().min(1).max(128).optional().nullable(),
     deviceId: z.string().max(128).optional(),
     guestInputs: z.array(GuestInput).max(20).optional(),
     userId: z.string().max(128).optional(),
@@ -190,10 +192,30 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             if (!eventDoc.exists) return reply.status(404).send({ success: false, error: 'Event not found' });
             const event = { id: eventDoc.id, ...eventDoc.data() };
 
+            // Validate and resolve promoterCode against active links
+            let resolvedLinkId: string | null = (request.body as any).linkId || null;
+            if (promoterCode) {
+                const linkSnap = await fastify.db.collection('promoter_links')
+                    .where('code', '==', promoterCode)
+                    .where('eventId', '==', eventId)
+                    .where('isActive', '==', true)
+                    .limit(1)
+                    .get()
+                    .catch(() => null);
+                if (!linkSnap || linkSnap.empty) {
+                    // Invalid or inactive code — strip it silently, don't block checkout
+                    promoterCode = null;
+                    resolvedLinkId = null;
+                    fastify.log.info({ eventId, promoterCode: request.body.promoterCode }, 'Promoter code invalid/inactive — stripped from checkout');
+                } else {
+                    resolvedLinkId = resolvedLinkId || linkSnap.docs[0].id;
+                }
+            }
+
             const pricingResult = await calculatePricing({ event, items, promoCode, promoterCode });
             const pricing = pricingResult?.pricing || pricingResult;
             const quote = await buildCheckoutQuote(event, items, pricing, fastify.db, fastify.redis);
-            return { success: true, pricing, quote, reservation: reservationSnapshot };
+            return { success: true, pricing, quote, reservation: reservationSnapshot, linkId: resolvedLinkId };
         } catch (error: any) {
             if (isInventoryError(error)) {
                 fastify.log.warn(`Inventory service unavailable during calculate: ${error.message}`);
@@ -380,6 +402,28 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
                 if (finalResult.cached) return finalResult.body;
             } else {
                 finalResult = await work();
+            }
+
+            // Denormalize hostId/venueId from event into order for finance queries
+            if (finalResult?.order?.id) {
+                const orderEventId = finalResult.order.eventId || request.body?.eventId;
+                const orderLinkId = (request.body as any).linkId || null;
+                if (orderEventId) {
+                    fastify.db.collection('events').doc(orderEventId).get()
+                        .then(async (evDoc: any) => {
+                            if (!evDoc.exists) return;
+                            const ev = evDoc.data() as any;
+                            const updates: Record<string, any> = {};
+                            if (ev.hostId) updates.hostId = ev.hostId;
+                            if (ev.venueId) updates.venueId = ev.venueId;
+                            if (orderLinkId) updates.promoterLinkId = orderLinkId;
+                            if (Object.keys(updates).length > 0) {
+                                await fastify.db.collection('orders').doc(finalResult.order.id).update(updates)
+                                    .catch((e: any) => fastify.log.warn({ orderId: finalResult.order.id, error: e.message }, 'Failed to denormalize order fields'));
+                            }
+                        })
+                        .catch(() => null); // non-critical, fire-and-forget
+                }
             }
 
             request.log.info({

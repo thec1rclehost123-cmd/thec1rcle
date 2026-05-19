@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/components/providers/AuthProvider";
 import { useEffect, useState, useMemo } from "react";
-import { User as UserIcon, TrendingUp, Filter, Lock, ShieldCheck, Ban, Unlock, ShieldAlert, X } from "lucide-react";
+import { User as UserIcon, TrendingUp, Filter, Lock, ShieldCheck, Ban, Unlock, ShieldAlert, X, RefreshCw } from "lucide-react";
 import { DataTable } from "@/components/ui/DataTable";
 import { ActionDrawer } from "@/components/ui/ActionDrawer";
 import AdminConfirmModal from "@/components/admin/AdminConfirmModal";
@@ -14,6 +14,7 @@ export default function AdminUsers() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [modalConfig, setModalConfig] = useState(null);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [reprovisionType, setReprovisionType] = useState("host");
 
     const fetchUsers = async () => {
         try {
@@ -256,6 +257,56 @@ export default function AdminUsers() {
                             All administrative actions taken against this identity are recorded in the global audit ledger with a high-priority priority.
                         </div>
                     </div>
+
+                    {selectedUser?.isApproved && (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 px-1">
+                                <RefreshCw className="h-4 w-4 text-amber-500" strokeWidth={1.5} />
+                                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-500">Re-provision Partner Type</p>
+                            </div>
+                            <div className="p-5 rounded-2xl bg-amber-500/5 border border-amber-500/10 space-y-4">
+                                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                                    Use this if the account was approved with the wrong workspace type. This will update Firebase claims, deactivate the old membership, and create the correct one.
+                                </p>
+                                <div className="space-y-2">
+                                    <p className="text-[9px] font-bold uppercase tracking-widest text-zinc-500">Correct Type</p>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {['host', 'venue', 'promoter'].map(t => (
+                                            <button
+                                                key={t}
+                                                type="button"
+                                                onClick={() => setReprovisionType(t)}
+                                                className={`h-9 rounded-lg text-[10px] font-bold uppercase tracking-widest border transition-all ${
+                                                    reprovisionType === t
+                                                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-400'
+                                                        : 'bg-white/5 border-white/5 text-zinc-500 hover:text-zinc-300'
+                                                }`}
+                                            >
+                                                {t}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setModalConfig({
+                                        action: 'PARTNER_REPROVISION',
+                                        title: 'RE-PROVISION PARTNER',
+                                        message: `Change ${selectedUser?.displayName || selectedUser?.email} from their current type to "${reprovisionType}". This will reset Firebase claims and memberships.`,
+                                        label: 'CONFIRM REPROVISION',
+                                        type: 'warning',
+                                        params: {
+                                            partnerType: reprovisionType,
+                                            partnerName: selectedUser?.displayName || selectedUser?.email || 'Unknown',
+                                        }
+                                    })}
+                                    className="w-full flex items-center justify-center gap-2 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 hover:bg-amber-500/20 transition-all font-bold text-[10px] uppercase tracking-widest"
+                                >
+                                    <RefreshCw className="h-3.5 w-3.5" />
+                                    Re-provision as {reprovisionType}
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </ActionDrawer>
 

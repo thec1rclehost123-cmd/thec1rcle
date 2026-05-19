@@ -159,7 +159,22 @@ export default fp(async (fastify) => {
                 .get()
         );
 
-        const memberships = snapshot.docs.map((doc) => doc.data());
+        // Backward compat: if isActive query returns nothing, fall back to status-based
+        // query for older docs that were created before the isActive field was added.
+        let finalSnapshot = snapshot;
+        if (snapshot.empty) {
+            const legacySnapshot = await db.collection('partner_memberships')
+                .where('uid', '==', uid)
+                .where('status', '==', 'active')
+                .limit(25)
+                .get()
+                .catch(() => null);
+            if (legacySnapshot && !legacySnapshot.empty) {
+                finalSnapshot = legacySnapshot;
+            }
+        }
+
+        const memberships = finalSnapshot.docs.map((doc) => doc.data());
         const durationMs = Number((Date.now() - startedAt).toFixed(2));
         if (durationMs >= 150) {
             fastify.log.info({ uid, durationMs, count: memberships.length }, 'Partner memberships loaded');

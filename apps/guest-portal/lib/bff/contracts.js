@@ -88,6 +88,7 @@ export const notificationsSummaryQuerySchema = z.object({
 
 export const checkoutSummaryQuerySchema = z.object({
   eventId: z.string().min(1),
+  linkId: z.string().optional(),
   promoCode: z.string().optional(),
   ref: z.string().optional(),
 }).catchall(z.string());
@@ -96,6 +97,7 @@ export const checkoutSummaryBodySchema = z.object({
   appliedPromoCode: z.string().nullable().optional(),
   cartReservation: z.any().nullable().optional(),
   eventId: z.string().nullable().optional(),
+  linkId: z.string().nullable().optional(),
   promoterCode: z.string().nullable().optional(),
   quoteInput: z.any().nullable().optional(),
   selectedTickets: z.array(selectedTicketSchema).optional(),
@@ -104,6 +106,7 @@ export const checkoutSummaryBodySchema = z.object({
 export const checkoutQuoteBodySchema = z.object({
   eventId: z.string().optional(),
   items: z.array(reservationItemSchema).optional(),
+  linkId: z.string().nullable().optional(),
   promoCode: z.string().nullable().optional(),
   promoterCode: z.string().nullable().optional(),
   reservationId: z.string().nullable().optional(),
@@ -117,6 +120,7 @@ export const checkoutReserveBodySchema = z.object({
 }).strict();
 
 export const checkoutInitiateBodySchema = z.object({
+  linkId: z.string().nullable().optional(),
   promoCode: z.string().nullable().optional(),
   promoterCode: z.string().nullable().optional(),
   reservationId: z.string().min(1),

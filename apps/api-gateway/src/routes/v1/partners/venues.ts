@@ -1641,7 +1641,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
           if (gopsPath === 'guests' && request.method === 'GET') {
             const pageSize = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 200);
-            const snap = await fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', '==', 'paid').limit(pageSize + 1).get().catch(() => ({ docs: [] as any[] }));
+            const snap = await fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', 'in', ['paid', 'checked_in']).limit(pageSize + 1).get().catch(() => ({ docs: [] as any[] }));
             const docs = (snap as any).docs || [];
             return reply.send({ guests: docs.slice(0, pageSize).map(mapGuestRecord), hasMore: docs.length > pageSize });
           }
@@ -1649,7 +1649,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (gopsPath === 'guests/search' && request.method === 'GET') {
             const searchTerm = String(query.q || '').toLowerCase().trim();
             if (!searchTerm) return reply.send({ guests: [] });
-            const snap = await fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', '==', 'paid').limit(500).get().catch(() => ({ docs: [] as any[] }));
+            const snap = await fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', 'in', ['paid', 'checked_in']).limit(500).get().catch(() => ({ docs: [] as any[] }));
             const mapped = ((snap as any).docs || []).map(mapGuestRecord);
             const filtered = mapped.filter((g: any) => g.displayName.toLowerCase().replace(/\*/g, '').includes(searchTerm) || g.maskedPhone.includes(searchTerm));
             return reply.send({ guests: filtered.slice(0, 50) });

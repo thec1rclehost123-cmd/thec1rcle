@@ -112,7 +112,11 @@ function LoginForm() {
     // Clear any stale session on mount so a different account can log in cleanly.
     // Without this, a persistent Firebase session (Account A) auto-redirects to
     // Account A's dashboard before the user can enter Account B's credentials.
+    // Skip the sign-out if a callbackUrl is present — that means a guard redirected
+    // here mid-authentication, and we must not clobber the session being established.
     useEffect(() => {
+        const callbackUrl = searchParams.get("callbackUrl");
+        if (callbackUrl) return;
         const auth = getFirebaseAuth();
         if (auth.currentUser) {
             auth.signOut();
@@ -154,9 +158,11 @@ function LoginForm() {
             // We check profile !== null to avoid acting on the initial null state.
             const auth = getFirebaseAuth();
             auth.signOut();
-            if (onboardingStatus) {
-                setError("You don't have partner access yet. Your application is pending review.");
-            }
+            setError(
+                onboardingStatus
+                    ? "You don't have partner access yet. Your application is pending review."
+                    : "This account doesn't have partner access. Please apply or contact support."
+            );
         }
         // If isApproved=true but activeMembership is null, do nothing — handleLogin
         // will navigate directly via router.push once its own fetch completes.
@@ -179,6 +185,13 @@ function LoginForm() {
                 // (partnerId, partnerType, partnerRole) are included immediately
                 // after the first login following admin approval.
                 const token = await currentUser.getIdToken(true);
+
+                // Read claims from the freshly-minted token — this is the most
+                // authoritative source and works even if the gateway membership
+                // query hasn't picked up the Firestore doc yet.
+                const tokenResult = await currentUser.getIdTokenResult();
+                const claims = tokenResult.claims as Record<string, any>;
+
                 const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -196,18 +209,30 @@ function LoginForm() {
 
                 let assignedType: string | null = null;
 
-                if (userData.role === 'host') assignedType = 'host';
-                else if (userData.role === 'promoter') assignedType = 'promoter';
-                else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+                // Priority 1: JWT custom claims set by admin approval — available immediately
+                // after admin sets them, no Firestore membership query needed.
+                if (claims.partnerType) {
+                    const pt = String(claims.partnerType);
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                }
 
-                // Staff users have no role/venueId — /api/auth/me synthesizes activeMembership for them
+                // Priority 2: activeMembership.partnerType from the /me response — comes from
+                // the partner_memberships collection, more reliable than the users.role field.
                 if (!assignedType && userData.activeMembership?.partnerType) {
                     const pt = userData.activeMembership.partnerType;
                     assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
                 }
 
+                // Priority 3: legacy role/venueId fields on the users doc — kept as fallback
+                // but may be stale (e.g. role='partner' for a host approved on an older path).
+                if (!assignedType) {
+                    if (userData.role === 'host') assignedType = 'host';
+                    else if (userData.role === 'promoter') assignedType = 'promoter';
+                    else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+                }
+
                 // Do NOT grant access based solely on a pending onboarding request —
-                // only users with an active approved account (role/venueId/activeMembership) pass.
+                // only users with an active approved account (activeMembership/role/venueId) pass.
                 if (!assignedType) {
                     if (onboardingRequest) {
                         if (onboardingRequest.status === 'verified' || onboardingRequest.status === 'approved') {
@@ -268,6 +293,9 @@ function LoginForm() {
 
             if (currentUser) {
                 const token = await currentUser.getIdToken(true);
+                const tokenResult = await currentUser.getIdTokenResult();
+                const claims = tokenResult.claims as Record<string, any>;
+
                 const res = await fetch('/api/auth/me', {
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
@@ -285,13 +313,20 @@ function LoginForm() {
 
                 let assignedType: string | null = null;
 
-                if (userData.role === 'host') assignedType = 'host';
-                else if (userData.role === 'promoter') assignedType = 'promoter';
-                else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
+                if (claims.partnerType) {
+                    const pt = String(claims.partnerType);
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                }
 
                 if (!assignedType && userData.activeMembership?.partnerType) {
                     const pt = userData.activeMembership.partnerType;
                     assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                }
+
+                if (!assignedType) {
+                    if (userData.role === 'host') assignedType = 'host';
+                    else if (userData.role === 'promoter') assignedType = 'promoter';
+                    else if (userData.role === 'partner' || userData.venueId) assignedType = 'venue';
                 }
 
                 if (!assignedType) {

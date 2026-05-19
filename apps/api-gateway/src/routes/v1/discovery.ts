@@ -39,26 +39,34 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
         try {
             if (action === 'list' && partnerId) {
-                // Fetch connections for this partner
-                let q: any = fastify.db.collection('partnerships');
-                if (role === 'venue') q = q.where('venueId', '==', partnerId);
-                else if (role === 'host') q = q.where('hostId', '==', partnerId);
-                else if (role === 'promoter') q = q.where('promoterId', '==', partnerId);
-                
-                const snap = await q.get();
-                const connections = snap.docs.map((doc: any) => {
-                    const data = doc.data();
-                    const isVenue = role === 'venue';
-                    return {
-                        id: doc.id,
-                        status: data.status,
-                        initiatedBy: data.initiatedBy || (isVenue ? 'host' : 'venue'),
-                        otherId: isVenue ? (data.hostId || data.promoterId) : data.venueId,
-                        otherName: isVenue ? (data.hostName || data.promoterName) : data.venueName,
-                        otherType: isVenue ? (data.hostId ? 'host' : 'promoter') : 'venue',
-                        createdAt: data.createdAt,
-                    };
-                });
+                const connections: any[] = [];
+
+                if (role === 'host') {
+                    const [partnerSnap, promoterSnap] = await Promise.all([
+                        fastify.db.collection('partnerships').where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
+                        fastify.db.collection('promoter_connections').where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
+                    ]);
+                    for (const doc of (partnerSnap as any).docs) {
+                        const data = doc.data();
+                        connections.push({ id: doc.id, type: 'partnership', status: data.status, initiatedBy: data.initiatedBy || 'host', otherId: data.venueId, otherName: data.venueName || '', city: data.venueCity || data.city || '', photoURL: data.venuePhotoURL || null, createdAt: data.createdAt });
+                    }
+                    for (const doc of (promoterSnap as any).docs) {
+                        const data = doc.data();
+                        connections.push({ id: doc.id, type: 'promoter_connection', status: data.status, initiatedBy: data.initiatedBy || 'promoter', otherId: data.promoterId, otherName: data.promoterName || '', city: data.city || '', photoURL: data.promoterPhotoURL || null, createdAt: data.createdAt });
+                    }
+                } else if (role === 'venue') {
+                    const snap = await fastify.db.collection('partnerships').where('venueId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
+                    for (const doc of (snap as any).docs) {
+                        const data = doc.data();
+                        connections.push({ id: doc.id, type: 'partnership', status: data.status, initiatedBy: data.initiatedBy || 'host', otherId: data.hostId, otherName: data.hostName || '', city: data.hostCity || data.city || '', photoURL: data.hostPhotoURL || null, createdAt: data.createdAt });
+                    }
+                } else if (role === 'promoter') {
+                    const snap = await fastify.db.collection('promoter_connections').where('promoterId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
+                    for (const doc of (snap as any).docs) {
+                        const data = doc.data();
+                        connections.push({ id: doc.id, type: 'promoter_connection', status: data.status, initiatedBy: data.initiatedBy || 'host', otherId: data.hostId, otherName: data.hostName || '', city: data.city || '', photoURL: data.hostPhotoURL || null, createdAt: data.createdAt });
+                    }
+                }
 
                 return { connections };
             }

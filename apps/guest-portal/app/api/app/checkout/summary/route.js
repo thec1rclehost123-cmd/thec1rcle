@@ -26,6 +26,7 @@ function parseCheckoutGetRequest(request) {
     data: {
       appliedPromoCode: parsed.data.promoCode || null,
       eventId: parsed.data.eventId,
+      linkId: parsed.data.linkId || null,
       promoterCode: parsed.data.ref || null,
       selectedTickets: readSelectedTicketsFromSearchParams(searchParams),
     },

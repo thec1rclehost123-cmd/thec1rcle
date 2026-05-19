@@ -100,6 +100,13 @@ const CreateAccountSchema = z.object({
     phone: z.string().min(10).optional(),
 });
 
+// Normalize to E.164: plain 10-digit numbers are assumed Indian (+91).
+function toE164(phone: string): string {
+    if (phone.startsWith('+')) return phone;
+    const digits = phone.replace(/\D/g, '');
+    return digits.length === 10 ? `+91${digits}` : `+${digits}`;
+}
+
 const HostVerificationSchema = z.object({
     documentType: z.string().optional(),
     documentId: z.string().optional(),
@@ -373,10 +380,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
             try {
                 const bootstrap = await buildBootstrapForUid(fastify, request.user) as any;
+                const activeMembership = (request.user as any)?.activeMembership || null;
                 return {
                     authenticated: true,
                     ...bootstrap,
-                    activeMembership: (request.user as any)?.activeMembership || bootstrap.user.activeMembership || null,
+                    // Inject activeMembership into user so data.user.activeMembership is
+                    // accessible to clients that read it from the user object directly.
+                    user: activeMembership
+                        ? { ...bootstrap.user, activeMembership }
+                        : bootstrap.user,
+                    activeMembership,
                     csrfToken,
                 };
             } catch (bootstrapError: any) {
@@ -386,6 +399,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                     error: bootstrapError?.message || String(bootstrapError),
                 }, 'GET /auth/me bootstrap degraded to identity-only fallback');
 
+                const activeMembership = (request.user as any)?.activeMembership || null;
                 return {
                     authenticated: true,
                     ...buildGuestAuthBootstrap({
@@ -394,7 +408,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                         onboardingRequest: null,
                         unreadNotificationCount: 0,
                     }),
-                    activeMembership: (request.user as any)?.activeMembership || null,
+                    activeMembership,
                     csrfToken,
                 };
             }
@@ -557,17 +571,18 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         try {
             // 1. Create the user in Firebase Auth
+            const e164Phone = phone ? toE164(phone) : null;
             const userRecord = await fastify.auth.createUser({
                 email,
                 password,
-                ...(phone && { phoneNumber: phone.startsWith('+') ? phone : `+${phone}` }),
+                ...(e164Phone && { phoneNumber: e164Phone }),
             });
 
             // 2. Seed a Firestore user doc immediately so partial registrations
             //    have a proper record (role: 'pending', isApproved: false).
             //    Without this, users who abandon onboarding have no Firestore doc
             //    and can neither log in nor re-onboard.
-            const cleanPhone = phone ? (phone.startsWith('+') ? phone : `+${phone}`) : null;
+            const cleanPhone = e164Phone;
             await fastify.db.collection('users').doc(userRecord.uid).set({
                 uid: userRecord.uid,
                 email,
@@ -589,6 +604,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 return reply.status(409).send(buildErrorResponse({
                     code: 'EMAIL_ALREADY_EXISTS',
                     message: 'This email is already registered.',
+                    requestId: request.id,
+                }));
+            }
+            if (error.code === 'auth/invalid-phone-number' || error.message === 'INVALID_LENGTH') {
+                return reply.status(400).send(buildErrorResponse({
+                    code: 'INVALID_PHONE_NUMBER',
+                    message: 'Invalid phone number. Please include your country code (e.g. +91 9876543210).',
                     requestId: request.id,
                 }));
             }
@@ -627,7 +649,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
                 }
             }
             if (phone) {
-                const cleanPhone = phone.startsWith('+') ? phone : `+${phone}`;
+                const cleanPhone = toE164(phone);
                 try {
                     await fastify.auth.getUserByPhoneNumber(cleanPhone);
                     taken.push('phone');

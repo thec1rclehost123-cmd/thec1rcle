@@ -46,6 +46,7 @@ export async function buildCheckoutSummaryView({
   appliedPromoCode = null,
   cartReservation = null,
   eventId,
+  linkId = null,
   promoterCode = null,
   quoteInput = null,
   requestHeaders = {},
@@ -153,6 +154,7 @@ export async function buildCheckoutSummaryView({
     data: {
       success: Boolean(quoteResult.response.ok && quoteResult.data?.success),
       event,
+      linkId: linkId || null,
       viewer: auth.user,
       viewerProfile: auth.profile,
       pricing: quoteResult.response.ok ? quoteResult.data?.pricing || null : null,
@@ -182,23 +184,24 @@ export async function buildCheckoutSummaryView({
 }
 
 export async function runCheckoutQuote(body = {}, requestHeaders = {}) {
+  const { linkId = null, ...restBody } = body;
   const nextHeaders = new Headers(requestHeaders || {});
   if (!nextHeaders.has("x-idempotency-key")) {
     nextHeaders.set(
       "x-idempotency-key",
       buildCheckoutRequestIdempotencyKey({
-        code: body?.promoCode,
-        eventId: body?.eventId || "unknown-event",
+        code: restBody?.promoCode,
+        eventId: restBody?.eventId || "unknown-event",
         prefix: "quote",
-        promoterCode: body?.promoterCode || null,
-        reservationId: body?.reservationId || null,
-        selectedTickets: body?.items || [],
+        promoterCode: restBody?.promoterCode || null,
+        reservationId: restBody?.reservationId || null,
+        selectedTickets: restBody?.items || [],
       }),
     );
   }
 
   const quoteResult = await guestBffUpstreamJson("/checkout/calculate", {
-    body,
+    body: { ...restBody, ...(linkId ? { linkId } : {}) },
     headers: nextHeaders,
     method: "POST",
   });

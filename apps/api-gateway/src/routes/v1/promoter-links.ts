@@ -31,6 +31,22 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     const COMMISSIONS_COL = 'promoter_commissions';
 
     /**
+     * GET /api/v1/promoter-links/:id
+     * Resolve a promoter link by its Firestore document ID
+     */
+    fastify.get('/:id', {
+        schema: { params: z.object({ id: z.string().min(1) }) }
+    }, async (request: any, reply: any) => {
+        const { id } = request.params;
+        const doc = await fastify.db.collection(LINKS_COL).doc(id).get().catch(() => null);
+        if (!doc || !doc.exists) {
+            return reply.status(404).send({ success: false, error: 'Link not found' });
+        }
+        const link = { id: doc.id, ...doc.data() };
+        return reply.send({ success: true, link });
+    });
+
+    /**
      * POST /api/v1/promoter-links/create
      */
     fastify.post('/create', {

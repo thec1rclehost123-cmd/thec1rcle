@@ -29,7 +29,8 @@ export const ALLOWLIST_ACTIONS = [
     'WEBHOOK_RETRY',
     'SUPPORT_RESOLVE', 'SAFETY_REPORT_DISMISS', 'MEDIA_REPORT_DISMISS',
     'CONTENT_REMOVE',
-    'ADMIN_PROVISION', 'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION'
+    'ADMIN_PROVISION', 'ADMIN_ROLE_UPDATE', 'ADMIN_ACCESS_REVOKE', 'DATABASE_CORRECTION',
+    'PARTNER_REPROVISION'
 ];
 
 export const TIER2_ACTIONS = [
@@ -275,6 +276,7 @@ export const adminStore = {
                 partnerType,
                 role: partnerRole,
                 status: 'active',
+                isActive: true,
                 createdAt: now,
                 updatedAt: now
             });
@@ -633,6 +635,86 @@ export const adminStore = {
         });
 
         return { success: true };
+    },
+
+    // Re-provision a partner with a corrected type (host / venue / promoter).
+    // Deactivates all existing memberships, sets new claims, creates a new membership + entity.
+    async partnerReprovision({ uid, partnerType, partnerName }, adminId, adminRole, reason) {
+        if (!uid || !partnerType) throw Object.assign(new Error("uid and partnerType are required"), { statusCode: 400 });
+        if (!['host', 'venue', 'promoter'].includes(partnerType)) {
+            throw Object.assign(new Error(`Invalid partnerType '${partnerType}'. Must be host, venue, or promoter.`), { statusCode: 400 });
+        }
+
+        const auth = getAdminAuth();
+        const db = getAdminDb();
+        const now = FieldValue.serverTimestamp();
+
+        const partnerRole = partnerType === 'promoter' ? 'PROMOTER' : 'OWNER';
+        const partnerId = `${partnerType}_${uid.substring(0, 8)}`;
+        const name = partnerName || 'Unknown';
+
+        // 1. Deactivate all existing memberships for this uid
+        const existingSnap = await db.collection('partner_memberships')
+            .where('uid', '==', uid)
+            .get();
+        const batch = db.batch();
+        existingSnap.docs.forEach(doc => {
+            batch.update(doc.ref, { isActive: false, status: 'deactivated', updatedAt: now });
+        });
+        await batch.commit();
+
+        // 2. Create the correct entity document
+        const entityRef = db.collection(partnerType === 'venue' ? 'venues' : partnerType === 'host' ? 'hosts' : 'promoters').doc(partnerId);
+        await entityRef.set({
+            id: partnerId,
+            name,
+            ownerUid: uid,
+            status: 'active',
+            isVerified: true,
+            createdAt: now,
+            updatedAt: now,
+        }, { merge: true });
+
+        // 3. Create the new membership record
+        const membershipRef = db.collection('partner_memberships').doc(`${uid}_${partnerId}`);
+        await membershipRef.set({
+            uid,
+            partnerId,
+            partnerType,
+            role: partnerRole,
+            status: 'active',
+            isActive: true,
+            createdAt: now,
+            updatedAt: now,
+        });
+
+        // 4. Update the users doc with the corrected role and approval flag
+        await db.collection('users').doc(uid).set({
+            isApproved: true,
+            role: partnerType === 'venue' ? 'partner' : partnerType,
+            updatedAt: now,
+        }, { merge: true });
+
+        // 5. Set correct custom claims — replaces any previous partner claims
+        const existingClaims = (await auth.getUser(uid)).customClaims || {};
+        await auth.setCustomUserClaims(uid, {
+            ...existingClaims,
+            partnerId,
+            partnerType,
+            partnerRole,
+        });
+
+        await this.logAdminAction({
+            adminId,
+            adminRole,
+            action: 'PARTNER_REPROVISION',
+            targetId: uid,
+            targetType: 'user',
+            reason,
+            after: { partnerId, partnerType, partnerRole },
+        });
+
+        return { success: true, partnerId, partnerType };
     },
 
     // --- 🔁 Idempotency check (race-safe): returns true if this action was already submitted ---

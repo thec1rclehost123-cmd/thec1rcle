@@ -135,6 +135,7 @@ interface EventDetail {
     id: string;
     title: string;
     lifecycle: string;
+    slug?: string;
     creatorRole?: string | null;
     eventType?: string | null;
     startDate: string | null;
@@ -1229,6 +1230,15 @@ export default function VenueEventWorkspacePage() {
                                     >
                                         <ExternalLink className="h-4 w-4" />
                                         View
+                                    </a>
+                                    <a
+                                        href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/e/${event?.slug || eventId}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.02] px-5 py-3 text-[14px] font-semibold text-[var(--v-text-primary)] shadow-[0_0_0_1px_rgba(255,255,255,0.02),0_0_24px_rgba(244,74,34,0.08)] transition-all hover:border-white/18 hover:bg-white/[0.05] hover:shadow-[0_0_0_1px_rgba(255,255,255,0.03),0_0_32px_rgba(244,74,34,0.14)]"
+                                    >
+                                        <ExternalLink className="h-4 w-4" />
+                                        Preview
                                     </a>
                                 </div>
                             </div>

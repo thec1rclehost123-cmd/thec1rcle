@@ -27,6 +27,16 @@ const EMPTY_PERMISSIONS: PermissionsState = {
     piiPolicy: null,
 };
 
+interface MeActiveMembership {
+    partnerId: string;
+    partnerType: PartnerType;
+    role: StaffRole;
+    joinedAt: number;
+    isActive: boolean;
+    partnerName?: string;
+    membershipId?: string;
+}
+
 interface MeApiResponse {
     user: {
         uid: string;
@@ -38,21 +48,20 @@ interface MeApiResponse {
         onboardingEntityType?: string;
         subscriptionPlan?: string;
         tier?: string;
-        activeMembership?: {
-            partnerId: string;
-            partnerType: PartnerType;
-            role: StaffRole;
-            joinedAt: number;
-            isActive: boolean;
-            partnerName?: string;
-            membershipId?: string;
-        };
+        // May be present here (injected by gateway) OR at the top-level activeMembership field.
+        activeMembership?: MeActiveMembership;
         _staffTabVisibility?: Record<string, boolean>;
         _staffActionPermissions?: Record<string, boolean>;
         _staffPiiPolicy?: Record<string, boolean>;
     } | null;
-    onboardingRequest?: {
-        status: string;
+    // Gateway puts activeMembership here when loadMemberships succeeds.
+    activeMembership?: MeActiveMembership | null;
+    // buildGuestAuthBootstrap nests onboardingRequest inside onboarding.
+    onboarding?: {
+        onboardingRequest?: {
+            status: string;
+            type?: string;
+        } | null;
     } | null;
 }
 
@@ -172,7 +181,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 if (controller.signal.aborted) return;
 
                 const userData = data.user;
-                const onboardingRequest = data.onboardingRequest;
+                const onboardingRequest = data.onboarding?.onboardingRequest || null;
 
                 if (!userData) {
                     if (!controller.signal.aborted) setLoading(false);
@@ -205,6 +214,10 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                 let activeMembership: PartnerMembership | null = null;
                 let plan: string | null = null;
 
+                // activeMembership may live in data.user.activeMembership (injected by gateway)
+                // OR at data.activeMembership (top-level) — check both for resilience.
+                const rawMembership = userData.activeMembership || data.activeMembership || null;
+
                 if (claims.partnerId && claims.partnerType && claims.partnerRole) {
                     activeMembership = {
                         uid: user.uid,
@@ -213,17 +226,17 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
                         role: claims.partnerRole as StaffRole,
                         joinedAt: 0,
                         isActive: true,
-                        partnerName: userData.activeMembership?.partnerName || undefined
+                        partnerName: rawMembership?.partnerName || undefined
                     };
-                } else if (userData.activeMembership) {
+                } else if (rawMembership) {
                     activeMembership = {
                         uid: user.uid,
-                        partnerId: userData.activeMembership.partnerId,
-                        partnerType: userData.activeMembership.partnerType === 'club' ? 'venue' : userData.activeMembership.partnerType,
-                        role: userData.activeMembership.role,
-                        joinedAt: userData.activeMembership.joinedAt,
-                        isActive: userData.activeMembership.isActive,
-                        partnerName: userData.activeMembership.partnerName
+                        partnerId: rawMembership.partnerId,
+                        partnerType: rawMembership.partnerType === 'club' ? 'venue' : rawMembership.partnerType,
+                        role: rawMembership.role,
+                        joinedAt: rawMembership.joinedAt,
+                        isActive: rawMembership.isActive,
+                        partnerName: rawMembership.partnerName
                     };
                 }
 

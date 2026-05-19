@@ -22,11 +22,12 @@ export default function LandingPage() {
   const { user, loading, isApproved, profile } = useDashboardAuth();
   const [panDone, setPanDone] = useState(false);
 
-  // If already logged in and approved, go straight to dashboard — skip everything
+  // If already logged in and approved, go straight to their correct dashboard
   useEffect(() => {
     if (loading) return;
     if (user && isApproved && profile) {
-      router.replace("/venue");
+      const pt = profile.activeMembership?.partnerType;
+      router.replace(pt ? `/${pt}` : "/venue");
     }
   }, [loading, user, isApproved, profile, router]);
 

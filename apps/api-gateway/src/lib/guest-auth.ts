@@ -86,6 +86,7 @@ export function normalizeGuestProfile(raw: Record<string, any> | null | undefine
         venueId: asNullableString(merged.venueId),
         partnerId: asNullableString(merged.partnerId),
         onboardingStatus: asNullableString(merged.onboardingStatus),
+        isApproved: merged.isApproved === true,
     };
 }
 
