@@ -329,7 +329,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
             fastify.db.collection('events').where('venueId', '==', venueId).get().catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db.collection('orders').where('venueId', '==', venueId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('venueId', '==', venueId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('check_ins').where('venueId', '==', venueId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
         ]);
         const orderDocs = (ordersSnap as any).docs || [];

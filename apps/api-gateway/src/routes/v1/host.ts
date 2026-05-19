@@ -576,7 +576,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
             fastify.db.collection('events').where('creatorId', '==', hostId).get().catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db.collection('orders').where('hostId', '==', hostId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('hostId', '==', hostId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('check_ins').where('hostId', '==', hostId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
         ]);
         const totalRevenuePaise = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || Math.round((doc.data().amount || 0) * 100)), 0);

@@ -246,9 +246,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
     const prevWeekAgo = new Date(now); prevWeekAgo.setDate(now.getDate() - 14);
     const [eventsSnap, ordersThisWeek, ordersPrevWeek, profilesSnap] = await Promise.all([
       fastify.db.collection('events').where('venueId', '==', venueId).get().catch(() => ({ docs: [] as any[] })),
-      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', '==', 'paid').where('createdAt', '>=', weekAgo.toISOString()).get().catch(() => ({ docs: [] as any[] })),
-      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', '==', 'paid').where('createdAt', '>=', prevWeekAgo.toISOString()).where('createdAt', '<', weekAgo.toISOString()).get().catch(() => ({ docs: [] as any[] })),
-      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', '==', 'paid').count().get().catch(() => null),
+      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', weekAgo.toISOString()).get().catch(() => ({ docs: [] as any[] })),
+      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', prevWeekAgo.toISOString()).where('createdAt', '<', weekAgo.toISOString()).get().catch(() => ({ docs: [] as any[] })),
+      fastify.db.collection('orders').where('venueId', '==', venueId).where('status', 'in', ['confirmed', 'paid']).count().get().catch(() => null),
     ]);
     const recentEvents = ((eventsSnap as any).docs || [])
       .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
@@ -817,7 +817,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           windowStart.setHours(0, 0, 0, 0);
           const ordersSnap = await fastify.db.collection('orders')
             .where('venueId', '==', ctx.partnerId)
-            .where('status', '==', 'paid')
+            .where('status', 'in', ['confirmed', 'paid'])
             .where('createdAt', '>=', windowStart.toISOString())
             .get().catch(() => ({ docs: [] as any[] }));
           const buckets: Record<string, { revenue: number; ticketsSold: number }> = {};
@@ -862,7 +862,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const eventDoc = await fastify.db.collection('events').doc(eventId).get();
           if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
           const [ordersSnap, checkinsSnap] = await Promise.all([
-            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('check_ins').where('eventId', '==', eventId).get().catch(() => ({ docs: [] as any[] })),
           ]);
           const revenue = ((ordersSnap as any).docs || []).reduce((sum: number, doc: any) => sum + (doc.data().totalPaise || 0), 0);
@@ -974,7 +974,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
         if (rest === 'crm/online' && request.method === 'GET') {
           // Source from orders — the real guest data store
-          const snap = await fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').limit(1000).get().catch(() => ({ docs: [] as any[] }));
+          const snap = await fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).limit(1000).get().catch(() => ({ docs: [] as any[] }));
           return reply.send({
             customers: ((snap as any).docs || []).map((doc: any) => {
               const d = doc.data() || {};
@@ -1173,7 +1173,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const evtId = eventOverviewMatch[1];
           const [eventDoc, ordersSnap, checkinsSnap, viewsSnap] = await Promise.all([
             fastify.db.collection('events').doc(evtId).get(),
-            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('check_ins').where('eventId', '==', evtId).get().catch(() => ({ size: 0 })),
             fastify.db.collection('event_views').doc(evtId).get().catch(() => null),
           ]);
@@ -1221,7 +1221,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const evtId = eventFinanceMatch[1];
           const [eventDoc, ordersSnap, walkInsSnap] = await Promise.all([
             fastify.db.collection('events').doc(evtId).get(),
-            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('walk_in_entries').doc(evtId).collection('logs').get().catch(() => ({ docs: [] as any[] })),
           ]);
           if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
@@ -1263,14 +1263,14 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const [eventDoc, orderDoc, allOrdersSnap] = await Promise.all([
             fastify.db.collection('events').doc(evtId).get(),
             fastify.db.collection('orders').doc(attendeeId).get(),
-            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid').limit(500).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('eventId', '==', evtId).where('status', 'in', ['confirmed', 'paid']).limit(500).get().catch(() => ({ docs: [] as any[] })),
           ]);
           if (!eventDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
           const event = eventDoc.data() as PlainRecord;
           if (event.venueId !== ctx.partnerId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Not your event', requestId: request.id }));
           if (!orderDoc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Attendee not found', requestId: request.id }));
           const o = orderDoc.data() as PlainRecord;
-          const lifetimeSnap = await fastify.db.collection('orders').where('buyerPhone', '==', o.buyerPhone || '').where('status', '==', 'paid').limit(50).get().catch(() => ({ docs: [] as any[], size: 0 }));
+          const lifetimeSnap = await fastify.db.collection('orders').where('buyerPhone', '==', o.buyerPhone || '').where('status', 'in', ['confirmed', 'paid']).limit(50).get().catch(() => ({ docs: [] as any[], size: 0 }));
           const lifetimeOrders = ((lifetimeSnap as any).docs || []).map((d: any) => {
             const od = d.data() || {};
             return { id: d.id, orderIndex: null, orderNumber: d.id.slice(0, 8).toUpperCase(), eventId: od.eventId || evtId, eventName: od.eventTitle || od.eventName || 'Event', eventImage: od.eventImage || '', customerName: od.buyerName || 'Guest', email: od.buyerEmail || '', phone: od.buyerPhone || '', amount: toNumber(od.totalPaise || 0) / 100, ticketsCount: toNumber(od.ticketCount || 1), createdAt: od.createdAt || null, confirmedAt: od.confirmedAt || null, checkedInAt: od.checkedInAt || null, cancelledAt: od.cancelledAt || null, updatedAt: od.updatedAt || null, status: od.checkedInAt ? 'checked_in' : 'paid', source: od.source || 'ticket', tags: od.tags || [], promoterCode: od.promoterCode || null, note: od.note || null, items: [] };
@@ -1303,7 +1303,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (event.venueId !== ctx.partnerId) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Not your event', requestId: request.id }));
           const page = parseInt(String(query.page || '1'), 10) || 1;
           const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
-          let q: any = fastify.db.collection('orders').where('eventId', '==', evtId).where('status', '==', 'paid');
+          let q: any = fastify.db.collection('orders').where('eventId', '==', evtId).where('status', 'in', ['confirmed', 'paid']);
           if (query.tierId) q = q.where('tierId', '==', query.tierId);
           const snap = await q.limit(500).get().catch(() => ({ docs: [] as any[] }));
           let orderDocs = (snap as any).docs || [];
@@ -1607,7 +1607,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (gopsPath === 'summary' && request.method === 'GET') {
             const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
             const [ordersSnap, checkinsSnap, walkInsSnap, devicesSnap] = await Promise.all([
-              fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+              fastify.db.collection('orders').where('eventId', '==', gopsEventId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
               fastify.db.collection('check_ins').where('eventId', '==', gopsEventId).get().catch(() => ({ docs: [] as any[], size: 0 })),
               fastify.db.collection('walk_in_entries').doc(gopsEventId).collection('logs').limit(500).get().catch(() => ({ docs: [] as any[] })),
               fastify.db.collection('scanner_devices').where('venueId', '==', ctx.partnerId).where('eventId', '==', gopsEventId).where('lastSeenAt', '>=', fiveMinAgo).get().catch(() => ({ size: 0 })),
@@ -1857,7 +1857,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const [eventDoc, checkinsSnap, ordersSnap, walkInsSnap] = await Promise.all([
             fastify.db.collection('events').doc(eventId).get(),
             fastify.db.collection('check_ins').where('eventId', '==', eventId).get().catch(() => ({ size: 0 })),
-            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('eventId', '==', eventId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('walk_in_entries').doc(eventId).collection('logs').get().catch(() => ({ size: 0 })),
           ]);
           const total = toNumber((eventDoc.exists ? (eventDoc.data() as any).capacity : 0) || 0);
@@ -1920,7 +1920,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (eventId) {
             const [eventDoc, ordersSnap, walkInsSnap] = await Promise.all([
               fastify.db.collection('events').doc(eventId).get().catch(() => null),
-              fastify.db.collection('orders').where('eventId', '==', eventId).where('status', '==', 'paid').get().catch(() => ({ docs: [] as any[] })),
+              fastify.db.collection('orders').where('eventId', '==', eventId).where('status', 'in', ['confirmed', 'paid']).get().catch(() => ({ docs: [] as any[] })),
               fastify.db.collection('walk_in_entries').doc(eventId).collection('logs').get().catch(() => ({ size: 0 })),
             ]);
             const total = toNumber(eventDoc?.exists ? (eventDoc.data() as any)?.capacity : 0) || 0;
@@ -2102,7 +2102,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           const [eventsSnap, ordersSnap, checkinsSnap] = await Promise.all([
             fastify.db.collection('events').where('venueId', '==', ctx.partnerId).get().catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('check_ins').where('venueId', '==', ctx.partnerId).where('checkedInAt', '>=', thirtyDaysAgo).get().catch(() => ({ size: 0 })),
           ]);
           const orderDocs = (ordersSnap as any).docs || [];
@@ -2127,7 +2127,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'analytics/audience' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           const ordersSnap = await fastify.db.collection('orders')
-            .where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo)
+            .where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo)
             .limit(2000).get().catch(() => ({ docs: [] as any[] }));
           const orderDocs2 = (ordersSnap as any).docs || [];
           const genderSplit: Record<string, number> = { male: 0, female: 0, other: 0 };
@@ -2158,7 +2158,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const idArr = Array.from(buyerIds);
           if (idArr.length > 0) {
             const allOrdersSnap = await fastify.db.collection('orders')
-              .where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '<', thirtyDaysAgo)
+              .where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '<', thirtyDaysAgo)
               .limit(2000).get().catch(() => ({ docs: [] as any[] }));
             for (const d of (allOrdersSnap as any).docs || []) {
               const uid = d.data().userId;
@@ -2182,7 +2182,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'analytics/partners' && request.method === 'GET') {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           const [ordersSnap, eventsSnap] = await Promise.all([
-            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).limit(2000).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo).limit(2000).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('events').where('venueId', '==', ctx.partnerId).get().catch(() => ({ docs: [] as any[] })),
           ]);
           const eventMap3: Record<string, any> = {};
@@ -2217,7 +2217,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           const [scansSnap, ordersSnap, eventsSnap, walkinsSnap] = await Promise.all([
             fastify.db.collection('ticket_scans').where('venueId', '==', ctx.partnerId).where('scannedAt', '>=', thirtyDaysAgo).limit(5000).get().catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', '==', 'paid').where('createdAt', '>=', thirtyDaysAgo).limit(2000).get().catch(() => ({ docs: [] as any[] })),
+            fastify.db.collection('orders').where('venueId', '==', ctx.partnerId).where('status', 'in', ['confirmed', 'paid']).where('createdAt', '>=', thirtyDaysAgo).limit(2000).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('events').where('venueId', '==', ctx.partnerId).limit(100).get().catch(() => ({ docs: [] as any[] })),
             fastify.db.collection('door_sales').where('venueId', '==', ctx.partnerId).where('createdAt', '>=', thirtyDaysAgo).limit(1000).get().catch(() => ({ docs: [] as any[], size: 0 })),
           ]);
