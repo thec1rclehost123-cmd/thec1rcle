@@ -1418,7 +1418,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const limit = parseInt(String(query.limit || '100'));
           const snap = await fastify.db.collection('orders')
             .where('eventId', '==', guestlistMatch[1])
-            .where('status', 'in', ['paid', 'checked_in'])
+            .where('status', 'in', ['confirmed', 'checked_in'])
             .limit(limit)
             .get();
           const guests = snap.docs.map(d => {
