@@ -26,11 +26,15 @@ export default async function ReferPage({ params }) {
     redirect("/explore");
   }
 
-  // Build the redirect URL to the event with promoter code pre-filled
-  const eventTarget = link.eventSlug || link.eventId;
+  // Build the redirect URL to the event with promoter code pre-filled.
+  // Validate slug/id to prevent open-redirect via a tampered Firestore document.
+  const rawTarget = link.eventSlug || link.eventId;
+  const safeTarget = /^[a-zA-Z0-9_-]+$/.test(rawTarget || "") ? rawTarget : null;
+  if (!safeTarget) redirect("/explore");
+
   const params_str = new URLSearchParams();
   if (link.code) params_str.set("ref", link.code);
   params_str.set("lid", linkId);
 
-  redirect(`/e/${eventTarget}?${params_str.toString()}`);
+  redirect(`/e/${safeTarget}?${params_str.toString()}`);
 }

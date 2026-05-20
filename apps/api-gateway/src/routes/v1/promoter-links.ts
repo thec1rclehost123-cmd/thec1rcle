@@ -32,7 +32,9 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/promoter-links/:id
-     * Resolve a promoter link by its Firestore document ID
+     * Public endpoint — used by the guest-portal refer page (no auth token available).
+     * Returns only the minimal fields needed to resolve the referral redirect.
+     * Financial fields (commissionRate, revenue, commission, conversions, clicks) are intentionally excluded.
      */
     fastify.get('/:id', {
         schema: { params: z.object({ id: z.string().min(1) }) }
@@ -42,7 +44,16 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
         if (!doc || !doc.exists) {
             return reply.status(404).send({ success: false, error: 'Link not found' });
         }
-        const link = { id: doc.id, ...doc.data() };
+        const data = doc.data() as any;
+        // Public projection only — never expose financial or identity fields unauthenticated.
+        const link = {
+            id: doc.id,
+            code: data.code,
+            eventId: data.eventId,
+            eventSlug: data.eventSlug || null,
+            isActive: data.isActive,
+            expiresAt: data.expiresAt || null,
+        };
         return reply.send({ success: true, link });
     });
 
@@ -54,6 +65,18 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     }, async (request: any, reply) => {
         const body = request.body as any;
         const { promoterId, promoterName, eventId, eventTitle, commissionRate, commissionType = 'percentage', ticketTierIds = [], expiresAt = null } = body;
+
+        // Caller must be the promoter themselves or a manager of the event's host/venue.
+        const callerIsPromoter = request.user.uid === promoterId;
+        if (!callerIsPromoter) {
+            const eventDoc = await fastify.db.collection('events').doc(eventId).get().catch(() => null);
+            const partnerId = eventDoc?.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
+            if (!partnerId) {
+                return reply.status(403).send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
+            }
+            try { await fastify.verifyPartnerAccess(request, partnerId); }
+            catch { return reply.status(403).send({ error: 'Forbidden: cannot create a link on behalf of another promoter' }); }
+        }
 
         const existing = await fastify.db.collection(LINKS_COL)
             .where('promoterId', '==', promoterId)
@@ -75,11 +98,32 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
     /**
      * GET /api/v1/promoter-links
+     * Caller must be the promoter (filtering by their own promoterId) or manage the event.
      */
     fastify.get('/', {
         preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })]
     }, async (request: any, reply) => {
         const { promoterId, eventId, isActive, limit = 50 } = request.query;
+
+        // Require at least one scoping filter; enforce ownership of that scope.
+        if (!promoterId && !eventId) {
+            return reply.status(400).send({ error: 'promoterId or eventId filter is required' });
+        }
+
+        if (promoterId && promoterId !== request.user.uid) {
+            // Allow host/venue managers to list links for their events, not arbitrary promoters.
+            return reply.status(403).send({ error: 'Forbidden: can only list your own promoter links' });
+        }
+
+        if (eventId && !promoterId) {
+            // Caller must manage the event's owning partner.
+            const eventDoc = await fastify.db.collection('events').doc(eventId).get().catch(() => null);
+            const partnerId = eventDoc?.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
+            if (!partnerId) return reply.status(404).send({ error: 'Event not found' });
+            try { await fastify.verifyPartnerAccess(request, partnerId); }
+            catch { return reply.status(403).send({ error: 'Forbidden' }); }
+        }
+
         let q: any = fastify.db.collection(LINKS_COL);
         if (promoterId) q = q.where('promoterId', '==', promoterId);
         if (eventId) q = q.where('eventId', '==', eventId);
@@ -189,7 +233,6 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
 
         const isOwner = link.promoterId === request.user.uid;
         if (!isOwner && request.user.role !== 'admin') {
-            // Check if caller manages the event this link belongs to
             const eventDoc = await fastify.db.collection('events').doc(link.eventId).get();
             const partnerId = eventDoc.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
             if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });

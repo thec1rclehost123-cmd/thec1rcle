@@ -6,10 +6,10 @@ const DiscoveryQuerySchema = z.object({
     action: z.enum(['list', 'search', 'get', 'discover']),
     partnerId: z.string().optional(),
     role: z.enum(['venue', 'host', 'promoter']).optional(),
-    type: z.string().optional(), // For search/discover
+    type: z.string().optional(),
     city: z.string().optional(),
     query: z.string().optional(),
-    search: z.string().optional(), // Alias for query
+    search: z.string().optional(),
 });
 
 const DiscoveryPatchSchema = z.object({
@@ -39,6 +39,10 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
         try {
             if (action === 'list' && partnerId) {
+                // Verify the authenticated user actually belongs to the requested partner entity.
+                try { await fastify.verifyPartnerAccess(request, partnerId); }
+                catch { return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Access denied to this partner', requestId: request.id })); }
+
                 const connections: any[] = [];
 
                 if (role === 'host') {
@@ -72,17 +76,16 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             }
 
             if (action === 'search' || action === 'discover') {
-                // Search for potential partners
                 let q: any = fastify.db.collection('users');
                 const searchType = type || request.query.type;
                 const searchVal = query || request.query.search;
-                
+
                 if (searchType === 'host') q = q.where('role', '==', 'host');
                 else if (searchType === 'promoter') q = q.where('role', '==', 'promoter');
                 else if (searchType === 'venue') q = q.where('role', '==', 'venue');
-                
+
                 if (city) q = q.where('city', '==', city);
-                
+
                 const snap = await q.limit(50).get();
                 const partners = snap.docs.map((doc: any) => {
                     const data = doc.data();
@@ -100,12 +103,11 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                     };
                 });
 
-                // Simple in-memory search if query provided
                 let results = partners;
                 if (searchVal) {
                     const s = searchVal.toLowerCase();
-                    results = partners.filter((p: any) => 
-                        p.name.toLowerCase().includes(s) || 
+                    results = partners.filter((p: any) =>
+                        p.name.toLowerCase().includes(s) ||
                         p.city.toLowerCase().includes(s)
                     );
                 }
@@ -126,9 +128,23 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
     fastify.patch('/', {
         preHandler: [fastify.requireAuth, fastify.validate({ body: DiscoveryPatchSchema })],
     }, async (request: any, reply) => {
-        const { connectionId, action } = request.body;
+        const { connectionId, action, partnerId } = request.body;
 
         try {
+            // Read the connection document first and verify the caller owns one side of it.
+            const connDoc = await fastify.db.collection('partnerships').doc(connectionId).get();
+            if (!connDoc.exists) {
+                return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Connection not found', requestId: request.id }));
+            }
+            const conn = connDoc.data() as any;
+            const callerIsParty = conn.hostId === partnerId || conn.venueId === partnerId || conn.promoterId === partnerId;
+            if (!callerIsParty) {
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Not a party to this connection', requestId: request.id }));
+            }
+            // Verify the authenticated user actually belongs to the partnerId they claim.
+            try { await fastify.verifyPartnerAccess(request, partnerId); }
+            catch { return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Access denied to this partner', requestId: request.id })); }
+
             const statusMap: Record<string, string> = {
                 approve: 'active',
                 reject: 'rejected',
@@ -142,6 +158,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
             return { success: true };
         } catch (error: any) {
+            if ((error as any).statusCode) throw error;
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to update partnership', requestId: request.id }));
         }
     });
@@ -155,6 +172,10 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
         const data = request.body;
 
         try {
+            // Verify the caller actually belongs to the entity they claim to represent.
+            try { await fastify.verifyPartnerAccess(request, data.requesterId); }
+            catch { return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Cannot submit partnership request on behalf of another partner', requestId: request.id })); }
+
             const ref = await fastify.db.collection('partnerships').add({
                 ...data,
                 status: 'pending',
@@ -165,6 +186,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
             return { success: true, id: ref.id };
         } catch (error: any) {
+            if ((error as any).statusCode) throw error;
             return reply.status(500).send(buildErrorResponse({ code: 'INTERNAL_ERROR', message: 'Failed to request partnership', requestId: request.id }));
         }
     });
