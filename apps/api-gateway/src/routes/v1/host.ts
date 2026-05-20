@@ -63,7 +63,7 @@ export default async function hostRoutes(fastify: FastifyInstance) {
                 stats: {
                     revenue: overview.stats.totalRevenue,
                     ticketsSold: overview.stats.totalTicketsSold,
-                    activePromoters: (await fastify.db.collection("partnerships")
+                    activePromoters: (await fastify.db.collection("promoter_connections")
                         .where("hostId", "==", hostId)
                         .where("status", "==", "active")
                         .count().get()).data().count,

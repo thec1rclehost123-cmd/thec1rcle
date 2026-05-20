@@ -410,10 +410,10 @@ export default function HostPartnershipsPage() {
     };
 
     const filteredVenues = venues.filter(v =>
-        !search || v.name.toLowerCase().includes(search.toLowerCase()) || v.city.toLowerCase().includes(search.toLowerCase())
+        !search || (v.name ?? "").toLowerCase().includes(search.toLowerCase()) || (v.city ?? "").toLowerCase().includes(search.toLowerCase())
     );
     const filteredPromoters = promoters.filter(p =>
-        !search || p.displayName.toLowerCase().includes(search.toLowerCase())
+        !search || (p.displayName ?? "").toLowerCase().includes(search.toLowerCase())
     );
     const pendingRequestCount = requests.filter(r => r.status === "pending").length;
 

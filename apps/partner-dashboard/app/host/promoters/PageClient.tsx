@@ -132,7 +132,7 @@ export default function PromotersPage() {
     const handleConnectionAction = async (connectionId: string, action: "approve" | "reject") => {
         setProcessingRequest(connectionId);
         try {
-            const token = await (window as any).getAuthToken?.();
+            const token = await user?.getIdToken();
             const res = await fetch('/api/discovery', {
                 method: 'PATCH',
                 headers: {

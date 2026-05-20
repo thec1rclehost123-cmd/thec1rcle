@@ -198,7 +198,7 @@ export default function HostAudiencePage() {
 
     // Client-side filter for search and repeat
     const filtered = guests.filter(g => {
-        if (filters.search && !g.maskedName.toLowerCase().includes(filters.search.toLowerCase())) return false;
+        if (filters.search && !(g.maskedName ?? "").toLowerCase().includes(filters.search.toLowerCase())) return false;
         if (filters.repeat && !g.isRepeat) return false;
         return true;
     });
