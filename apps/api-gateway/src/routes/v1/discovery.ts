@@ -29,6 +29,9 @@ const DiscoveryPostSchema = z.object({
 });
 
 export default async function discoveryRoutes(fastify: FastifyInstance) {
+    const PARTNERSHIPS_COL = 'partnerships';
+    const PROMOTER_CONNECTIONS_COL = 'promoter_connections';
+
     /**
      * GET /api/v1/discovery
      */
@@ -47,8 +50,8 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
                 if (role === 'host') {
                     const [partnerSnap, promoterSnap] = await Promise.all([
-                        fastify.db.collection('partnerships').where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
-                        fastify.db.collection('promoter_connections').where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
+                        fastify.db.collection(PARTNERSHIPS_COL).where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
+                        fastify.db.collection(PROMOTER_CONNECTIONS_COL).where('hostId', '==', partnerId).get().catch(() => ({ docs: [] as any[] })),
                     ]);
                     for (const doc of (partnerSnap as any).docs) {
                         const data = doc.data();
@@ -59,13 +62,13 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                         connections.push({ id: doc.id, type: 'promoter_connection', status: data.status, initiatedBy: data.initiatedBy || 'promoter', otherId: data.promoterId, otherName: data.promoterName || '', city: data.city || '', photoURL: data.promoterPhotoURL || null, createdAt: data.createdAt });
                     }
                 } else if (role === 'venue') {
-                    const snap = await fastify.db.collection('partnerships').where('venueId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
+                    const snap = await fastify.db.collection(PARTNERSHIPS_COL).where('venueId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
                     for (const doc of (snap as any).docs) {
                         const data = doc.data();
                         connections.push({ id: doc.id, type: 'partnership', status: data.status, initiatedBy: data.initiatedBy || 'host', otherId: data.hostId, otherName: data.hostName || '', city: data.hostCity || data.city || '', photoURL: data.hostPhotoURL || null, createdAt: data.createdAt });
                     }
                 } else if (role === 'promoter') {
-                    const snap = await fastify.db.collection('promoter_connections').where('promoterId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
+                    const snap = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).where('promoterId', '==', partnerId).get().catch(() => ({ docs: [] as any[] }));
                     for (const doc of (snap as any).docs) {
                         const data = doc.data();
                         connections.push({ id: doc.id, type: 'promoter_connection', status: data.status, initiatedBy: data.initiatedBy || 'host', otherId: data.hostId, otherName: data.hostName || '', city: data.city || '', photoURL: data.hostPhotoURL || null, createdAt: data.createdAt });
@@ -77,12 +80,11 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
             if (action === 'search' || action === 'discover') {
                 let q: any = fastify.db.collection('users');
-                const searchType = type || request.query.type;
-                const searchVal = query || request.query.search;
+                const { search } = request.query;
 
-                if (searchType === 'host') q = q.where('role', '==', 'host');
-                else if (searchType === 'promoter') q = q.where('role', '==', 'promoter');
-                else if (searchType === 'venue') q = q.where('role', '==', 'venue');
+                if (type === 'host') q = q.where('role', '==', 'host');
+                else if (type === 'promoter') q = q.where('role', '==', 'promoter');
+                else if (type === 'venue') q = q.where('role', '==', 'venue');
 
                 if (city) q = q.where('city', '==', city);
 
@@ -104,6 +106,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 });
 
                 let results = partners;
+                const searchVal = query || search;
                 if (searchVal) {
                     const s = searchVal.toLowerCase();
                     results = partners.filter((p: any) =>
@@ -132,7 +135,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
         try {
             // Read the connection document first and verify the caller owns one side of it.
-            const connDoc = await fastify.db.collection('partnerships').doc(connectionId).get();
+            const connDoc = await fastify.db.collection(PARTNERSHIPS_COL).doc(connectionId).get();
             if (!connDoc.exists) {
                 return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Connection not found', requestId: request.id }));
             }
@@ -151,7 +154,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 remove: 'deleted'
             };
 
-            await fastify.db.collection('partnerships').doc(connectionId).update({
+            await fastify.db.collection(PARTNERSHIPS_COL).doc(connectionId).update({
                 status: statusMap[action],
                 updatedAt: new Date().toISOString()
             });
@@ -176,7 +179,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             try { await fastify.verifyPartnerAccess(request, data.requesterId); }
             catch { return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Cannot submit partnership request on behalf of another partner', requestId: request.id })); }
 
-            const ref = await fastify.db.collection('partnerships').add({
+            const ref = await fastify.db.collection(PARTNERSHIPS_COL).add({
                 ...data,
                 status: 'pending',
                 initiatedBy: data.requesterType,

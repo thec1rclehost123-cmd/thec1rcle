@@ -155,10 +155,12 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
         if (request.user.uid !== promoterId && request.user.role !== 'admin') {
             return reply.status(403).send({ error: 'Forbidden' });
         }
-        const linksSnap = await fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get();
+        const [linksSnap, pendingSnap, paidSnap] = await Promise.all([
+            fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get(),
+            fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'pending').get(),
+            fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'paid').get(),
+        ]);
         const links = linksSnap.docs.map((d: any) => d.data());
-        const pendingSnap = await fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'pending').get();
-        const paidSnap = await fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'paid').get();
         const totalClicks = links.reduce((s: number, l: any) => s + (l.clicks || 0), 0);
         const totalConversions = links.reduce((s: number, l: any) => s + (l.conversions || 0), 0);
         return {
@@ -180,15 +182,17 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
     fastify.get('/event-summary/:eventId', {
         preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })]
     }, async (request: any, reply) => {
-        const eventDoc = await fastify.db.collection('events').doc(request.params.eventId).get();
+        const { eventId } = request.params;
+        const eventDoc = await fastify.db.collection('events').doc(eventId).get();
         if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
         const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
-        if (partnerId) {
-            try { await fastify.verifyPartnerAccess(request, partnerId); }
-            catch { return reply.status(403).send({ error: 'Forbidden' }); }
-        }
-        const { eventId } = request.params;
-        const snap = await fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get();
+        const [snap, accessDenied] = await Promise.all([
+            fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get(),
+            partnerId
+                ? fastify.verifyPartnerAccess(request, partnerId).then(() => false).catch(() => true)
+                : Promise.resolve(false),
+        ]);
+        if (accessDenied) return reply.status(403).send({ error: 'Forbidden' });
         const links = snap.docs.map((d: any) => d.data());
         return {
             totalPromoters: new Set(links.map((l: any) => l.promoterId)).size,
