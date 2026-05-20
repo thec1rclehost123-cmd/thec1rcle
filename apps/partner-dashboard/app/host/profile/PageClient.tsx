@@ -766,7 +766,7 @@ export default function HostProfilePage() {
                             {/* Preview Section */}
                             <div className="w-full md:w-[320px] bg-surface-tertiary p-6 flex flex-col">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-text-tertiary mb-5">Page Preview</label>
-                                <div className="flex-1 flex flex-center items-center">
+                                <div className="flex-1 flex justify-center items-center">
                                     <div className="w-full bg-surface-elevated rounded-2xl shadow-xl border border-border-default overflow-hidden group">
                                         {composerImage ? (
                                             <div className="relative aspect-square w-full">

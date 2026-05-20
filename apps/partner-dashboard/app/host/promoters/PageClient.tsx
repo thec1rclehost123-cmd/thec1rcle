@@ -48,6 +48,7 @@ export default function PromotersPage() {
     const [inviteLink, setInviteLink] = useState("");
     const [copied, setCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<"network" | "requests">("network");
+    const [promoterSearch, setPromoterSearch] = useState("");
     const [processingRequest, setProcessingRequest] = useState<string | null>(null);
 
     const hostId = profile?.activeMembership?.partnerId;
@@ -229,8 +230,8 @@ export default function PromotersPage() {
                         <TrendingUp className="h-5 w-5" />
                     </div>
                     <div>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary">Total Sales</p>
-                        <p className="text-xl font-black text-text-primary">₹0</p>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-text-tertiary">Pending Requests</p>
+                        <p className="text-xl font-black text-text-primary">{connectionRequests.filter(c => c.status === "pending").length}</p>
                     </div>
                 </div>
             </div>
@@ -271,6 +272,8 @@ export default function PromotersPage() {
                             <input
                                 type="text"
                                 placeholder="Find promoter..."
+                                value={promoterSearch}
+                                onChange={e => setPromoterSearch(e.target.value)}
                                 className="w-full bg-surface-elevated border border-border-default rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
                             />
                         </div>
@@ -298,7 +301,9 @@ export default function PromotersPage() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    promoters.map(promoter => (
+                                    promoters
+                                    .filter(p => !promoterSearch || (p.name ?? "").toLowerCase().includes(promoterSearch.toLowerCase()) || (p.email ?? "").toLowerCase().includes(promoterSearch.toLowerCase()))
+                                    .map(promoter => (
                                         <tr key={promoter.id} className="hover:bg-surface-tertiary group transition-all">
                                             <td className="px-5 py-3">
                                                 <div className="flex items-center gap-3">
@@ -309,18 +314,13 @@ export default function PromotersPage() {
                                                         <p className="font-bold text-text-primary text-sm">{promoter.name}</p>
                                                         <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-1">
                                                             <Mail className="h-3 w-3" />
-                                                            {promoter.email}
+                                                            {promoter.email || "—"}
                                                         </p>
                                                     </div>
                                                 </div>
                                             </td>
                                             <td className="px-5 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="h-1.5 w-20 bg-surface-secondary rounded-full overflow-hidden">
-                                                        <div className="h-full bg-indigo-600 rounded-full" style={{ width: '0%' }}></div>
-                                                    </div>
-                                                    <span className="text-[11px] font-bold text-text-tertiary">0%</span>
-                                                </div>
+                                                <span className="text-[11px] font-bold text-text-tertiary">—</span>
                                             </td>
                                             <td className="px-5 py-3">
                                                 <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[9px] font-black uppercase tracking-widest">

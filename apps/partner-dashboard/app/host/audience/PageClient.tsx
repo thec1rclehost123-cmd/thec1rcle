@@ -90,7 +90,7 @@ function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (
                 </div>
                 <div className="min-w-0">
                     <div className="flex items-center gap-2">
-                        <p className="text-text-primary font-semibold text-sm truncate">{guest.maskedName}</p>
+                        <p className="text-text-primary font-semibold text-sm truncate">{guest.maskedName || "—"}</p>
                         {guest.isVip && <Star className="w-3 h-3 text-amber-400 shrink-0" />}
                         {guest.isRepeat && <Repeat2 className="w-3 h-3 text-indigo-400 shrink-0" />}
                     </div>
@@ -117,9 +117,11 @@ function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (
 
             {/* Last seen */}
             <p className="text-text-placeholder text-[11px] font-semibold hidden lg:block">
-                {guest.lastSeen
-                    ? new Date(guest.lastSeen).toLocaleDateString("en-IN", { month: "short", day: "numeric" })
-                    : "—"}
+                {(() => {
+                    if (!guest.lastSeen) return "—";
+                    const d = new Date(guest.lastSeen);
+                    return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-IN", { month: "short", day: "numeric" });
+                })()}
             </p>
 
             {/* Actions */}
