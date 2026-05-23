@@ -96,7 +96,8 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated,
         const link = data.link;
         const slug = link.eventSlug || link.eventId || "";
         const ref = link.code || link.shortId || link.token || link.id;
-        const url = link.fullUrl || `${GUEST_PORTAL_URL}/e/${slug}?ref=${ref}&s=${link.channel || ""}`;
+        const channel = link.channel ? `&s=${encodeURIComponent(link.channel)}` : "";
+        const url = link.fullUrl || `${GUEST_PORTAL_URL}/e/${slug}?ref=${encodeURIComponent(ref)}${channel}`;
         navigator.clipboard.writeText(url);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
@@ -153,7 +154,7 @@ export default function AnalyticsDrawer({ linkId, token, onClose, onDeactivated,
     const status = link?.status || "active";
     const isActive = status === "active";
     const linkUrl = link
-        ? (link.fullUrl || `${GUEST_PORTAL_URL}/e/${link.eventSlug || link.eventId || ""}?ref=${link.code || link.shortId || link.token || link.id}${link.channel ? `&s=${link.channel}` : ""}`)
+        ? (link.fullUrl || `${GUEST_PORTAL_URL}/e/${link.eventSlug || link.eventId || ""}?ref=${encodeURIComponent(link.code || link.shortId || link.token || link.id || "")}${link.channel ? `&s=${encodeURIComponent(link.channel)}` : ""}`)
         : "";
 
     const statusColor = isActive ? "#34d399" : "#71717a";

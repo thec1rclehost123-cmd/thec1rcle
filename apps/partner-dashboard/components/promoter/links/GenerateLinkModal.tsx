@@ -124,7 +124,8 @@ export default function GenerateLinkModal({
         const event = events.find(e => e.id === link.eventId);
         const slug = event?.slug || link.eventId;
         const ref = link.code || link.shortId || link.token || link.id;
-        return `${GUEST_PORTAL_URL}/e/${slug}?ref=${ref}&s=${link.channel || "organic"}`;
+        const channel = link.channel ? `&s=${encodeURIComponent(link.channel)}` : "";
+        return `${GUEST_PORTAL_URL}/e/${slug}?ref=${encodeURIComponent(ref)}${channel}`;
     };
 
     const handleCopy = () => {

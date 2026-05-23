@@ -37,7 +37,7 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
      * Financial fields (commissionRate, revenue, commission, conversions, clicks) are intentionally excluded.
      */
     fastify.get('/:id', {
-        schema: { params: z.object({ id: z.string().min(1) }) }
+        preHandler: [fastify.validate({ params: z.object({ id: z.string().min(1) }) })]
     }, async (request: any, reply: any) => {
         const { id } = request.params;
         const doc = await fastify.db.collection(LINKS_COL).doc(id).get().catch(() => null);

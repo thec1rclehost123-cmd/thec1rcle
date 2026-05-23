@@ -63,7 +63,7 @@ export function getDefaultTabVisibility(partnerType: string, role: string): Part
     }
     if (type === 'promoter') {
         if (r === 'TEAM_LEAD') return null;
-        return { overview: true, links: true, events: true, calendar: true, partners: true, analytics: true, finance: true, settings: false };
+        return { overview: true, links: true, events: true, calendar: true, partners: true, analytics: true, finance: true, guests: true, settings: false };
     }
     // venue: tab visibility controlled by server-side staff profiles
     return null;
