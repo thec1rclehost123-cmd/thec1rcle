@@ -616,8 +616,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (!isDraft) {
             if (body.creatorRole === 'host') {
                 body.lifecycle = 'submitted';
+                // visibility stays as-is (will be set to 'public' when venue approves)
             } else if (body.creatorRole === 'venue' || body.creatorRole === 'club') {
                 body.lifecycle = 'scheduled';
+                body.visibility = 'public'; // Venue events self-approve — stamp public immediately
             }
         }
 

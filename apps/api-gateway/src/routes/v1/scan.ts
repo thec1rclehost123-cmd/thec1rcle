@@ -856,7 +856,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     fastify.post('/door-entry', {
         preHandler: [fastify.validate({ body: DoorEntryBody })]
     }, async (request: any, reply) => {
-        const { eventCode, eventId, guestName, guestPhone, tierId, tierName, entryType, quantity = 1, unitPrice = 0, totalAmount = 0, paymentMethod = 'cash', gate, idempotencyKey } = request.body as any;
+        const { eventCode, eventId, guestName, guestPhone, tierId, tierName: clientTierName, entryType, quantity = 1, paymentMethod = 'cash', gate, idempotencyKey } = request.body as any;
         if (!eventCode || !eventId || !guestName || !tierId) return reply.status(400).send({ success: false, error: 'Missing required fields' });
 
         const auth = await validateScannerAccess(fastify, request);
@@ -869,10 +869,21 @@ export default async function scanRoutes(fastify: FastifyInstance) {
             if (!access.allowed) return reply.status(access.status).send({ success: false, error: access.error });
         }
 
-        const codeSnap = await fastify.db.collection('event_codes').where('code', '==', eventCode.toUpperCase()).limit(1).get();
+        const [codeSnap, eventDoc] = await Promise.all([
+            fastify.db.collection('event_codes').where('code', '==', eventCode.toUpperCase()).limit(1).get(),
+            fastify.db.collection('events').doc(eventId).get(),
+        ]);
         if (codeSnap.empty) return reply.status(403).send({ success: false, error: 'Invalid event code' });
         const codeData = codeSnap.docs[0].data();
         if (codeData.type !== 'full') return reply.status(403).send({ success: false, error: 'Door entry not permitted for this code' });
+
+        // SECURITY: Price is always recalculated server-side from the event's ticket catalog.
+        // unitPrice and totalAmount from the client are never trusted.
+        const eventTickets: any[] = (eventDoc.exists ? (eventDoc.data() as any)?.tickets : null) || [];
+        const tierConfig = eventTickets.find((t: any) => t.id === tierId || t.tierId === tierId);
+        const tierName = tierConfig?.name || clientTierName || tierId;
+        const unitPrice = Number(tierConfig?.price ?? tierConfig?.unitPrice ?? 0);
+        const totalAmount = unitPrice * quantity;
 
         const now = new Date().toISOString();
         // H1: Idempotency — deterministic orderId from client key

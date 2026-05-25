@@ -792,11 +792,22 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const now = new Date().toISOString();
-    await fastify.db.collection('events').doc(eventId).update({ lifecycle: 'submitted', status: 'submitted', updatedAt: now, submittedAt: now });
+
+    // Standalone host events (no venue) self-publish immediately to 'scheduled'.
+    // Events tied to a venue go to 'submitted' and wait for slot approval.
+    const isStandalone = !event.venueId;
+    const toState = isStandalone ? 'scheduled' : 'submitted';
+    const extraUpdates: PlainRecord = isStandalone
+      ? { visibility: 'public', publishedAt: now }
+      : {};
+
+    await fastify.db.collection('events').doc(eventId).update({
+      lifecycle: toState, status: toState, updatedAt: now, submittedAt: now, ...extraUpdates,
+    });
     await fastify.db.collection('submission_history').add({
       eventId,
       fromState: lifecycle,
-      toState: 'submitted',
+      toState,
       actorUid: request.user?.uid || hostId,
       actorRole: 'host',
       timestamp: now,
@@ -817,12 +828,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.writeAuditLog({
-      action: 'EVENT_SUBMITTED',
+      action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_SUBMITTED',
       actorUid: request.user?.uid || hostId,
       entityId: eventId,
-      payload: { hostId },
+      payload: { hostId, standalone: isStandalone },
     }).catch(() => {});
-    return { success: true };
+    return { success: true, lifecycle: toState };
   };
 
   const resubmitHostEvent = async (request: any, hostId: string, eventId: string, body: PlainRecord) => {
@@ -835,13 +846,18 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const now = new Date().toISOString();
-    const updates: PlainRecord = { lifecycle: 'submitted', status: 'submitted', updatedAt: now, resubmittedAt: now };
+    const isStandalone = !event.venueId;
+    const toState = isStandalone ? 'scheduled' : 'submitted';
+    const updates: PlainRecord = {
+      lifecycle: toState, status: toState, updatedAt: now, resubmittedAt: now,
+      ...(isStandalone ? { visibility: 'public', publishedAt: now } : {}),
+    };
     Object.assign(updates, sanitizeEventResubmissionPatch(body.patch));
     await fastify.db.collection('events').doc(eventId).update(updates);
     await fastify.db.collection('submission_history').add({
       eventId,
       fromState: lifecycle,
-      toState: 'submitted',
+      toState,
       actorUid: request.user?.uid || hostId,
       actorRole: 'host',
       note: body.note,
@@ -863,12 +879,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
     await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
     await fastify.writeAuditLog({
-      action: 'EVENT_RESUBMITTED',
+      action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_RESUBMITTED',
       actorUid: request.user?.uid || hostId,
       entityId: eventId,
-      payload: { hostId, note: body.note },
+      payload: { hostId, note: body.note, standalone: isStandalone },
     }).catch(() => {});
-    return { success: true };
+    return { success: true, lifecycle: toState };
   };
 
   const getHostAnalyticsTimeSeries = async (hostId: string, query: PlainRecord) => {

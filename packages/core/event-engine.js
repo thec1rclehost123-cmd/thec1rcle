@@ -116,6 +116,10 @@ export function buildEvent(payload = {}) {
         priceRange: payload.priceRange || { min: 0, max: 0, currency: "INR" },
         isRSVP: !!payload.isRSVP,
         promoterSettings: payload.promoterSettings || { enabled: true },
+        // Top-level visibility field for public discovery filtering.
+        // Explicitly stored so filtering code never relies on undefined-defaulting.
+        // Lifecycle-gating (isEventPublic) is the real access guard, not this field alone.
+        visibility: payload.visibility || 'public',
         settings: payload.settings || { showExplore: true, visibility: "public" },
         stats: payload.stats || { rsvps: 0, views: 0, saves: 0, shares: 0 },
         isDeleted: payload.isDeleted ?? false,
