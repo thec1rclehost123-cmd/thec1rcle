@@ -959,6 +959,11 @@ export default async function venueRoutes(fastify: FastifyInstance) {
                 read: false,
                 createdAt: now
             });
+            // Stamp visibility and sync public discovery index on approval
+            if (result.eventId) {
+                await fastify.db.collection('events').doc(result.eventId).update({ visibility: 'public', updatedAt: now }).catch(() => {});
+                fastify.publicDiscoveryService.syncEventReadModels(result.eventId).catch(() => {});
+            }
         }
 
         return { success: true, status: result.status };

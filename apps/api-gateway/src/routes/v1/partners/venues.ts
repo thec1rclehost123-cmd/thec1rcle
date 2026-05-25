@@ -1002,7 +1002,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const newStatus = statusMap[action];
           if (!newStatus) return reply.status(400).send(buildErrorResponse({ code: 'BAD_REQUEST', message: 'Invalid action', requestId: request.id }));
           const now = new Date().toISOString();
-          await fastify.db.collection('events').doc(eventId).update({ lifecycle: newStatus, updatedAt: now, ...(action === 'approve' ? { approvedAt: now } : {}) });
+          const eventUpdatePayload: Record<string, any> = { lifecycle: newStatus, updatedAt: now };
+          if (action === 'approve') {
+            eventUpdatePayload.approvedAt = now;
+            eventUpdatePayload.visibility = 'public';
+          }
+          await fastify.db.collection('events').doc(eventId).update(eventUpdatePayload);
+          // Keep event_card_index and search in sync whenever the event goes public/live/paused
+          if (['scheduled', 'live', 'paused'].includes(newStatus)) {
+            fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+          }
           return reply.send({ success: true, status: newStatus });
         }
 
@@ -1479,6 +1488,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           });
           if (result.shouldNotify) {
             await fastify.db.collection('notifications').add({ recipientId: result.hostId, recipientType: 'host', type: 'slot_approved', slotRequestId: id, eventId: result.eventId, venueId: result.venueId, title: 'Slot Approved', message: `Your slot request for ${result.venueName || 'the venue'} has been approved.`, read: false, createdAt: now });
+            // Slot approval moves event to 'scheduled' — stamp visibility and sync public index
+            if (result.eventId) {
+              await fastify.db.collection('events').doc(result.eventId).update({ visibility: 'public', updatedAt: now }).catch(() => {});
+              fastify.publicDiscoveryService.syncEventReadModels(result.eventId).catch(() => {});
+            }
           }
           return reply.send({ success: true, status: result.status });
         }

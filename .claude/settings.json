@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run type-check *)",
+      "Bash(npm run guardrails:check *)",
+      "Bash(npm run test:guardrails *)",
+      "Bash(npm test *)",
+      "Bash(lsof *)",
+      "Bash(ps *)",
+      "Bash(which *)"
+    ]
+  }
+}

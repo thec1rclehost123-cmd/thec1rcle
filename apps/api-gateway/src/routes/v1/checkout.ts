@@ -6,7 +6,7 @@ import { calculatePricing, getEffectivePrice } from '@c1rcle/core/pricing-engine
 // @ts-ignore
 import { flagPaymentFailure } from '@c1rcle/core/surge';
 // @ts-ignore
-import { calculateEffectiveInventory, InventoryReadError, InventoryUnavailableError, LockAcquisitionError, ReservationCommitError } from '@c1rcle/core/inventory-engine';
+import { calculateEffectiveInventory, releaseReservation, InventoryReadError, InventoryUnavailableError, LockAcquisitionError, ReservationCommitError } from '@c1rcle/core/inventory-engine';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
@@ -494,6 +494,8 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         const userId = request.user.uid;
 
         // Verify ownership before cancelling
+        let orderData: any = null;
+
         if (reservationId) {
             const resDoc = await fastify.db.collection('cart_reservations').doc(reservationId).get();
             if (!resDoc.exists) return reply.status(404).send({ success: false, error: 'Reservation not found' });
@@ -509,10 +511,28 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
                 fastify.log.warn({ uid: userId, orderId, ip: request.ip }, 'SECURITY: Unauthorized cancel attempt on order');
                 return reply.status(403).send({ success: false, error: 'Forbidden: Not your order' });
             }
+            orderData = { id: orderId, ...order };
         }
 
         try {
-            const result = await fastify.checkoutService.cancelCheckout(reservationId, orderId);
+            let result: any;
+            if (reservationId) {
+                // Release a cart reservation (user never paid — just free the held inventory)
+                await releaseReservation(reservationId);
+                result = { success: true, message: 'Reservation released' };
+            } else {
+                // Cancel a confirmed order — fetch event, delegate to checkout service
+                const eventDoc = await fastify.db.collection('events').doc(orderData.eventId).get();
+                const event = eventDoc.exists
+                    ? { id: orderData.eventId, ...(eventDoc.data() as any) }
+                    : { id: orderData.eventId };
+                result = await fastify.checkoutService.cancelOrder({
+                    order: orderData,
+                    event,
+                    cancelledBy: userId,
+                    cancelledByType: 'user',
+                });
+            }
             await fastify.writeAuditLog({
                 action: 'checkout.cancel',
                 actorUid: userId,
@@ -523,7 +543,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             });
             return result;
         } catch (error: any) {
-            fastify.log.error(`Release reservation failed: ${error.message}`);
+            fastify.log.error(`Checkout cancel failed: ${error.message}`);
             return reply.status(500).send({ success: false, error: 'Internal Server Error' });
         }
     });
