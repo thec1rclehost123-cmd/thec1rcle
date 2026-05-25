@@ -898,6 +898,56 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         return { guests, hasMore, nextCursor: hasMore ? guests[guests.length - 1]?.id ?? null : null };
     }
 
+    // ── Ticket lookup (preview before manual assignment) ─────────────────────
+    // GET /promoter/guests/lookup?orderId=&eventId=
+    // Returns order details without modifying anything.
+    // Used to show a confirm preview before the promoter calls /assign.
+    fastify.get('/promoter/guests/lookup', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { orderId, eventId } = request.query as any;
+        const promoterId: string = request.user?.uid;
+
+        if (!orderId || !eventId) {
+            return reply.status(400).send({ error: 'orderId and eventId required' });
+        }
+        await fastify.verifyPartnerAccess(request, promoterId)
+            .catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        try {
+            const orderDoc = await fastify.db.collection('orders').doc(orderId).get();
+            if (!orderDoc.exists) return reply.send({ case: 'invalid' });
+
+            const order = orderDoc.data() as any;
+            if (order.eventId !== eventId) return reply.send({ case: 'wrong_event' });
+            if (!['confirmed', 'checked_in'].includes(order.status)) return reply.send({ case: 'invalid' });
+
+            if (order.source === 'link' || order.source === 'promo_code' || order.promoterCode) {
+                return reply.send({
+                    case: 'already_assigned',
+                    existingCode: order.promoterCode,
+                    source: order.source || 'manual',
+                });
+            }
+
+            return reply.send({
+                case: 'can_assign',
+                order: {
+                    id: orderId,
+                    guestName: order.userName || order.guestName || 'Guest',
+                    userEmail: order.userEmail || '',
+                    eventName: order.eventTitle || order.eventName || '',
+                    totalAmount: order.totalAmount || 0,
+                    ticketCount: (order.tickets || []).reduce((s: number, t: any) => s + (Number(t.quantity) || 1), 0) || 1,
+                    checkedIn: order.status === 'checked_in' || !!order.checkedInAt,
+                },
+            });
+        } catch (error: any) {
+            fastify.log.error(`[Promoter] Guest lookup error: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
     fastify.get('/promoter/guests', {
         preHandler: [fastify.requireAuth]
     }, async (request: any, reply) => {
@@ -922,6 +972,125 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             return await resolvePromoterGuests(fastify, promoterId, Math.min(parseInt(limit), 100));
         } catch (error: any) {
             fastify.log.error(`Promoter guests (partner) error: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal server error' });
+        }
+    });
+
+    // ── Manual guest assignment ──────────────────────────────────────────────
+    // POST /api/v1/promoters/promoter/guests/assign
+    // Lets a promoter manually attribute a confirmed ticket to themselves by order ID.
+    // Attribution priority guard: link > promo_code > manual.
+    // Rate limited to 50 manual assignments per promoter per event.
+    // Every assignment is audit-logged to `promoter_manual_assignments`.
+    fastify.post('/promoter/guests/assign', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const { orderId, eventId } = (request.body || {}) as Record<string, any>;
+        const promoterId: string = request.user?.uid;
+
+        if (!orderId || !eventId) {
+            return reply.status(400).send({ error: 'orderId and eventId are required' });
+        }
+
+        await fastify.verifyPartnerAccess(request, promoterId)
+            .catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
+
+        try {
+            // 1. Fetch order
+            const orderDoc = await fastify.db.collection('orders').doc(orderId).get();
+            if (!orderDoc.exists) {
+                return reply.send({ case: 'invalid', message: 'No confirmed order found with this ID' });
+            }
+
+            const order = orderDoc.data() as Record<string, any>;
+
+            // 2. Validate event match
+            if (order.eventId !== eventId) {
+                return reply.send({ case: 'wrong_event', message: 'This ticket belongs to a different event' });
+            }
+
+            // 3. Validate order is confirmed / checked-in
+            if (!['confirmed', 'checked_in'].includes(order.status)) {
+                return reply.send({ case: 'invalid', message: 'Order is not in a confirmed state' });
+            }
+
+            // 4. Attribution priority guard — never override a tracked attribution
+            if (order.source === 'link' || order.source === 'promo_code') {
+                return reply.send({
+                    case: 'already_assigned',
+                    existingCode: order.promoterCode,
+                    source: order.source,
+                    message: 'This ticket is already attributed to a promoter via a tracking link',
+                });
+            }
+
+            // 5. Already manually assigned (to any promoter)
+            if (order.promoterCode) {
+                return reply.send({
+                    case: 'already_assigned',
+                    existingCode: order.promoterCode,
+                    source: order.source || 'manual',
+                    message: 'This ticket is already assigned to a promoter',
+                });
+            }
+
+            // 6. Rate limit — max 50 manual assignments per promoter per event
+            const countSnap = await fastify.db
+                .collection('promoter_manual_assignments')
+                .where('promoterId', '==', promoterId)
+                .where('eventId', '==', eventId)
+                .limit(51)
+                .get();
+            if (countSnap.size >= 50) {
+                return reply.status(429).send({
+                    error: 'Manual assignment limit reached (50 per event)',
+                });
+            }
+
+            // 7. Get promoter's active tracking link for this event
+            const linkSnap = await fastify.db
+                .collection('promoter_links')
+                .where('promoterId', '==', promoterId)
+                .where('eventId', '==', eventId)
+                .where('isActive', '==', true)
+                .limit(1)
+                .get();
+
+            if (linkSnap.empty) {
+                return reply.send({
+                    case: 'no_link',
+                    message: 'Create a tracking link for this event first, then retry',
+                });
+            }
+
+            const link = linkSnap.docs[0].data() as Record<string, any>;
+            const now = new Date().toISOString();
+            const assignmentId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+            // 8. Atomic write: update order + write audit log
+            await fastify.db.runTransaction(async (tx: any) => {
+                tx.update(fastify.db.collection('orders').doc(orderId), {
+                    promoterCode: link.code,
+                    promoterId,
+                    source: 'manual',
+                    updatedAt: now,
+                });
+                tx.set(fastify.db.collection('promoter_manual_assignments').doc(assignmentId), {
+                    id: assignmentId,
+                    promoterId,
+                    orderId,
+                    eventId,
+                    promoterCode: link.code,
+                    addedBy: request.user.uid,
+                    addedAt: now,
+                });
+            });
+
+            fastify.log.info(`[Promoter] Manual assignment: promoter=${promoterId} order=${orderId} event=${eventId}`);
+            return reply.send({ case: 'assigned', orderId, promoterId, promoterCode: link.code });
+
+        } catch (error: any) {
+            fastify.log.error(`[Promoter] Manual guest assign error: ${error.message}`);
             return reply.status(500).send({ error: 'Internal server error' });
         }
     });

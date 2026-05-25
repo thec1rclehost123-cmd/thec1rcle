@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import EventAnalyticsClient from "@/components/analytics/EventAnalyticsClient";
+import EventTeamTab from "./EventTeamTab";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { TextArea } from "@/components/ui/TextArea";
@@ -440,6 +441,7 @@ const SECTION_TABS = [
     { label: "Tickets", value: "tickets" },
     { label: "Revenue", value: "revenue" },
     { label: "Attendees", value: "attendees" },
+    { label: "Team", value: "team" },
     { label: "Settings", value: "settings" },
 ];
 
@@ -776,7 +778,8 @@ export default function HostEventWorkspacePage() {
         queryFn: async () => {
             return (await authedJson(`/api/partners/hosts/events/${eventId}/promoters`)) as EventPromotersResponse;
         },
-        enabled: Boolean(eventId && user && partnerId && activeSection === "settings" && activeSettingsBlock === "promoters"),
+        enabled: Boolean(eventId && user && partnerId &&
+            (activeSection === "team" || (activeSection === "settings" && activeSettingsBlock === "promoters"))),
         staleTime: 30_000,
     });
 
@@ -1985,6 +1988,16 @@ export default function HostEventWorkspacePage() {
                             />
                         )}
                     </section>
+                )}
+
+                {activeSection === "team" && eventId && (
+                    <EventTeamTab
+                        eventId={eventId}
+                        promoters={promotersData?.promoters || []}
+                        summary={promotersData?.summary}
+                        isLoading={promotersQuery.isLoading}
+                        onSave={savePromotersMutation.mutateAsync}
+                    />
                 )}
 
                 {activeSection === "settings" && !activeSettingsBlock && (

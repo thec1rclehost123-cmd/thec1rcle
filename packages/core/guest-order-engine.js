@@ -148,16 +148,32 @@ export async function createRSVPOrder(payload) {
 
     // Resolve promoter code if provided
     let promoterLinkId = null;
+    let promoterAttributionId = null;
+    let promoterSource = null;
     if (promoterCode) {
         try {
             const link = await getPromoterLinkByCode(promoterCode);
             if (link) {
                 promoterLinkId = link.id;
+                promoterAttributionId = link.promoterId || null;
+                promoterSource = 'link';
+            } else {
+                // Code exists but no active link found — treat as promo_code
+                promoterSource = 'promo_code';
+                try {
+                    const pSnap = await getAdminDb().collection('promoters')
+                        .where('promoCode', '==', promoterCode).limit(1).get();
+                    if (!pSnap.empty) promoterAttributionId = pSnap.docs[0].id;
+                } catch (_pErr) { /* promoterId stays null */ }
             }
         } catch (err) {
             console.error("[OrderStore] Failed to resolve promoter code for RSVP:", err);
         }
     }
+
+    // Stamp attribution fields onto the order
+    rsvpOrder.promoterId = promoterAttributionId;
+    rsvpOrder.source = promoterSource;
 
     if (!isFirebaseConfigured()) {
         rsvpOrder.orderIndex = fallbackRSVPs.length + 1;
@@ -315,12 +331,24 @@ export async function createOrder(payload) {
     // Resolve promoter code if provided
     let promoterLinkId = null;
     let promoterDiscount = 0; // Percentage discount for promoter-linked purchases
+    let promoterAttributionId = null;
+    let promoterSource = null;
     if (promoterCode) {
         try {
             const link = await getPromoterLinkByCode(promoterCode);
             if (link) {
                 promoterLinkId = link.id;
-                promoterDiscount = link.promoterDiscount || 0; // Get discount percentage
+                promoterDiscount = link.promoterDiscount || 0;
+                promoterAttributionId = link.promoterId || null;
+                promoterSource = 'link';
+            } else {
+                // Code exists but no active link — promo_code attribution
+                promoterSource = 'promo_code';
+                try {
+                    const pSnap = await getAdminDb().collection('promoters')
+                        .where('promoCode', '==', promoterCode).limit(1).get();
+                    if (!pSnap.empty) promoterAttributionId = pSnap.docs[0].id;
+                } catch (_pErr) { /* promoterId stays null */ }
             }
         } catch (err) {
             console.error("[OrderStore] Failed to resolve promoter code:", err);
@@ -365,6 +393,8 @@ export async function createOrder(payload) {
         userPhone: payload.userPhone || "",
         promoterCode: promoterCode || null,
         promoterLinkId: promoterLinkId || null,
+        promoterId: promoterAttributionId || null,
+        source: promoterSource || null,
         promoCodeId: payload.promoCodeId || null,
         promoterDiscount: promoterDiscount || 0,
         discountAmount: discountAmount || 0,

@@ -11,6 +11,9 @@ import {
     RefreshCw,
     TrendingUp,
     Link2,
+    Plus,
+    X,
+    Loader2,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
@@ -57,6 +60,21 @@ export default function GuestStreamPage() {
     const [filterStatus, setFilterStatus] = useState<"all" | "checked_in" | "pending">("all");
     const [autoRefresh, setAutoRefresh] = useState(true);
 
+    // ── Add Guest modal state ────────────────────────────────────────────────
+    const [assignOpen, setAssignOpen] = useState(false);
+    const [assignTicketId, setAssignTicketId] = useState("");
+    const [assignEventId, setAssignEventId] = useState("");
+    const [assignEvents, setAssignEvents] = useState<{ id: string; title: string }[]>([]);
+    const [assignEventsLoaded, setAssignEventsLoaded] = useState(false);
+    type AssignStep = "idle" | "looking_up" | "preview" | "confirming" | "assigned"
+                   | "already_assigned" | "wrong_event" | "invalid" | "no_link" | "error";
+    const [assignStep, setAssignStep] = useState<AssignStep>("idle");
+    const [assignMsg, setAssignMsg] = useState("");
+    const [assignPreview, setAssignPreview] = useState<{
+        guestName: string; userEmail: string; eventName: string;
+        totalAmount: number; ticketCount: number; checkedIn: boolean;
+    } | null>(null);
+
     const promoterId = profile?.activeMembership?.partnerId;
 
     const fetchGuests = useCallback(
@@ -96,6 +114,103 @@ export default function GuestStreamPage() {
         return () => clearInterval(interval);
     }, [autoRefresh, fetchGuests]);
 
+    // ── Add Guest handlers ───────────────────────────────────────────────────
+    const openAssignModal = async () => {
+        setAssignOpen(true);
+        setAssignTicketId("");
+        setAssignEventId("");
+        setAssignStep("idle");
+        setAssignMsg("");
+        setAssignPreview(null);
+
+        if (!assignEventsLoaded && promoterId) {
+            try {
+                const token = await user?.getIdToken();
+                const res = await fetch(`/api/partners/promoters/events?promoterId=${promoterId}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                const data = await res.json();
+                const evts = (data.events || data.assignments || []).map((e: any) => ({
+                    id: e.eventId || e.id,
+                    title: e.eventTitle || e.title || "Unnamed event",
+                }));
+                setAssignEvents(evts);
+                if (evts.length === 1) setAssignEventId(evts[0].id);
+            } catch { /* fail silently */ }
+            setAssignEventsLoaded(true);
+        }
+    };
+
+    // Step 1 — Look up the order, show preview
+    const lookupTicket = async () => {
+        if (!assignTicketId.trim() || !assignEventId) return;
+        setAssignStep("looking_up");
+        setAssignPreview(null);
+        try {
+            const token = await user?.getIdToken();
+            const res = await fetch(
+                `/api/promoter/guests/lookup?orderId=${encodeURIComponent(assignTicketId.trim())}&eventId=${encodeURIComponent(assignEventId)}`,
+                { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            );
+            const data = await res.json();
+            const c = data.case as string;
+            if (c === "can_assign") {
+                setAssignPreview(data.order);
+                setAssignStep("preview");
+            } else {
+                setAssignStep(c as AssignStep);
+                const msgs: Record<string, string> = {
+                    already_assigned: "This ticket is already attributed to a promoter.",
+                    wrong_event: "This ticket belongs to a different event.",
+                    invalid: "No confirmed order found with this ID.",
+                    error: "Something went wrong. Please try again.",
+                };
+                setAssignMsg(msgs[c] ?? "Unexpected response.");
+            }
+        } catch {
+            setAssignStep("error");
+            setAssignMsg("Something went wrong. Please try again.");
+        }
+    };
+
+    // Step 2 — Confirm and assign
+    const confirmAssign = async () => {
+        if (!assignTicketId.trim() || !assignEventId) return;
+        setAssignStep("confirming");
+        try {
+            const token = await user?.getIdToken();
+            const res = await fetch("/api/promoter/guests/assign", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+                },
+                body: JSON.stringify({ orderId: assignTicketId.trim(), eventId: assignEventId }),
+            });
+            const data = await res.json();
+            const c = (data.case ?? "error") as AssignStep;
+            if (c === "assigned") {
+                setAssignStep("assigned");
+                setAssignMsg("Guest added successfully!");
+                fetchGuests(true);
+                setTimeout(() => setAssignOpen(false), 1800);
+            } else {
+                setAssignStep(c);
+                const msgs: Record<string, string> = {
+                    already_assigned: "This ticket is already attributed to a promoter.",
+                    wrong_event: "This ticket belongs to a different event.",
+                    invalid: "No confirmed order found with this ID.",
+                    no_link: "Create a tracking link for this event first, then retry.",
+                    error: "Something went wrong. Please try again.",
+                };
+                setAssignMsg(msgs[c] ?? "Unexpected response.");
+            }
+        } catch {
+            setAssignStep("error");
+            setAssignMsg("Something went wrong. Please try again.");
+        }
+    };
+
     const filteredGuests = guests.filter((g) => {
         if (filterStatus === "checked_in") return g.checkedIn;
         if (filterStatus === "pending") return !g.checkedIn;
@@ -129,6 +244,13 @@ export default function GuestStreamPage() {
             title="Guest Stream"
             actions={
                 <div className="flex items-center gap-3">
+                    <VenueActionButton
+                        variant="primary"
+                        onClick={openAssignModal}
+                    >
+                        <Plus className="w-4 h-4" />
+                        Add Guest
+                    </VenueActionButton>
                     <button
                         onClick={() => setAutoRefresh(!autoRefresh)}
                         className="flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all"
@@ -499,6 +621,160 @@ export default function GuestStreamPage() {
                         color="#818cf8"
                     />
                 </motion.div>
+            )}
+            {/* ── Add Guest Modal (2-step: Look Up → Preview → Confirm) ── */}
+            {assignOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setAssignOpen(false)} />
+
+                    <div className="relative w-full max-w-md rounded-[24px] border border-white/10 p-6 shadow-2xl" style={{ background: "#0e0e12" }}>
+
+                        {/* Header */}
+                        <div className="mb-5 flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-white">Add Guest by Ticket ID</h3>
+                                <p className="mt-0.5 text-xs text-white/40">
+                                    {assignStep === "preview" ? "Confirm you want to add this guest" : "Look up a confirmed order to attribute it to you"}
+                                </p>
+                            </div>
+                            <button onClick={() => setAssignOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-white/40 transition-all hover:bg-white/10 hover:text-white">
+                                <X className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        {/* ── STEP 1: Entry form ── */}
+                        {(assignStep === "idle" || assignStep === "looking_up" || assignStep === "already_assigned" || assignStep === "wrong_event" || assignStep === "invalid" || assignStep === "no_link" || assignStep === "error") && (
+                            <>
+                                {/* Event selector */}
+                                <div className="mb-4">
+                                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-white/40">Event</label>
+                                    {assignEvents.length > 0 ? (
+                                        <select
+                                            value={assignEventId}
+                                            onChange={(e) => { setAssignEventId(e.target.value); setAssignStep("idle"); }}
+                                            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none focus:border-violet-500/50"
+                                        >
+                                            <option value="">Select an event…</option>
+                                            {assignEvents.map((ev) => (
+                                                <option key={ev.id} value={ev.id}>{ev.title}</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="text"
+                                            value={assignEventId}
+                                            onChange={(e) => { setAssignEventId(e.target.value); setAssignStep("idle"); }}
+                                            placeholder="Event ID"
+                                            className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-violet-500/50"
+                                        />
+                                    )}
+                                </div>
+
+                                {/* Ticket ID input */}
+                                <div className="mb-5">
+                                    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-widest text-white/40">Ticket / Order ID</label>
+                                    <input
+                                        type="text"
+                                        value={assignTicketId}
+                                        onChange={(e) => { setAssignTicketId(e.target.value); setAssignStep("idle"); }}
+                                        placeholder="e.g. ORD-abc123xyz"
+                                        className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white placeholder-white/25 outline-none focus:border-violet-500/50"
+                                        onKeyDown={(e) => e.key === "Enter" && lookupTicket()}
+                                    />
+                                </div>
+
+                                {/* Error feedback */}
+                                {["already_assigned", "wrong_event", "invalid", "no_link", "error"].includes(assignStep) && (
+                                    <div className="mb-4 rounded-xl px-4 py-3 text-sm font-medium" style={{ background: "rgba(239,68,68,0.10)", color: "#f87171", border: "1px solid rgba(239,68,68,0.20)" }}>
+                                        {assignMsg}
+                                    </div>
+                                )}
+
+                                {/* Look Up button */}
+                                <button
+                                    onClick={lookupTicket}
+                                    disabled={assignStep === "looking_up" || !assignTicketId.trim() || !assignEventId}
+                                    className="flex w-full items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                                    style={{ background: "rgba(139,92,246,0.15)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.25)" }}
+                                >
+                                    {assignStep === "looking_up" ? (
+                                        <><Loader2 className="h-4 w-4 animate-spin" />Looking up…</>
+                                    ) : (
+                                        <><Plus className="h-4 w-4" />Look Up Ticket</>
+                                    )}
+                                </button>
+                            </>
+                        )}
+
+                        {/* ── STEP 2: Preview + Confirm ── */}
+                        {(assignStep === "preview" || assignStep === "confirming" || assignStep === "assigned") && assignPreview && (
+                            <>
+                                {/* Order preview card */}
+                                <div className="mb-5 rounded-2xl border border-white/8 bg-white/[0.03] p-4">
+                                    <div className="flex items-center gap-3 mb-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-violet-500/15 text-sm font-bold text-violet-300">
+                                            {assignPreview.guestName.slice(0, 1).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-white">{assignPreview.guestName}</p>
+                                            <p className="text-xs text-white/40">{assignPreview.userEmail}</p>
+                                        </div>
+                                        {assignPreview.checkedIn && (
+                                            <span className="ml-auto rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-400">Checked In</span>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2 text-center">
+                                        {[
+                                            { label: "Event", value: assignPreview.eventName },
+                                            { label: "Amount", value: `₹${assignPreview.totalAmount.toLocaleString("en-IN")}` },
+                                            { label: "Tickets", value: String(assignPreview.ticketCount) },
+                                        ].map(({ label, value }) => (
+                                            <div key={label} className="rounded-xl bg-white/[0.04] p-2">
+                                                <p className="text-[9px] font-black uppercase tracking-widest text-white/35">{label}</p>
+                                                <p className="mt-0.5 text-xs font-bold text-white truncate">{value}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* Success message */}
+                                {assignStep === "assigned" && (
+                                    <div className="mb-4 rounded-xl px-4 py-3 text-sm font-medium" style={{ background: "rgba(52,211,153,0.10)", color: "#34d399", border: "1px solid rgba(52,211,153,0.20)" }}>
+                                        {assignMsg}
+                                    </div>
+                                )}
+
+                                {/* Action buttons */}
+                                {assignStep !== "assigned" && (
+                                    <div className="flex gap-3">
+                                        <button
+                                            onClick={() => { setAssignStep("idle"); setAssignPreview(null); }}
+                                            className="flex-1 rounded-xl border border-white/10 py-3 text-sm font-bold text-white/50 transition-all hover:border-white/20 hover:text-white/70"
+                                        >
+                                            Go Back
+                                        </button>
+                                        <button
+                                            onClick={confirmAssign}
+                                            disabled={assignStep === "confirming"}
+                                            className="flex flex-1 items-center justify-center gap-2 rounded-xl py-3 text-sm font-bold transition-all disabled:opacity-50"
+                                            style={{ background: "rgba(52,211,153,0.15)", color: "#34d399", border: "1px solid rgba(52,211,153,0.25)" }}
+                                        >
+                                            {assignStep === "confirming" ? (
+                                                <><Loader2 className="h-4 w-4 animate-spin" />Adding…</>
+                                            ) : (
+                                                <><CheckCircle2 className="h-4 w-4" />Confirm Add</>
+                                            )}
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        <p className="mt-4 text-center text-[10px] text-white/20">
+                            Only unattributed confirmed tickets · 50 per event limit
+                        </p>
+                    </div>
+                </div>
             )}
         </VenuePageShell>
     );

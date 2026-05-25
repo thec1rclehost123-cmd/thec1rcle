@@ -24,6 +24,8 @@ export interface Order {
     status: 'payment_pending' | 'confirmed' | 'cancelled';
     reservationId?: string;
     promoterCode?: string | null;
+    promoterId?: string | null;
+    source?: 'link' | 'promo_code' | 'manual' | null;
     createdAt: string;
     updatedAt?: string;
     confirmedAt?: string;

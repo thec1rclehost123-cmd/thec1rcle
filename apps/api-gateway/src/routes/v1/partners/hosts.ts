@@ -67,6 +67,38 @@ function buildHostKpis(stats: PlainRecord) {
   };
 }
 
+// ─── Push notification helper ────────────────────────────────────────────────
+// Sends an Expo push notification to a list of user IDs.
+// Looks up pushTokens from the `users` collection, batches at 30 for Firestore
+// `in` queries and 100 per Expo send request. Fire-and-forget safe.
+async function sendPushToUsers(
+  db: any,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>
+): Promise<void> {
+  if (!userIds.length) return;
+  const tokens: string[] = [];
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    const snap = await db.collection('users').where('__name__', 'in', batch).get().catch(() => ({ docs: [] as any[] }));
+    (snap as any).docs.forEach((d: any) => {
+      const ud = d.data() as Record<string, any> || {};
+      if (Array.isArray(ud.pushTokens)) tokens.push(...ud.pushTokens);
+    });
+  }
+  if (!tokens.length) return;
+  const messages = tokens.map((token) => ({ to: token, sound: 'default', title, body, data }));
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    }).catch(() => { /* fire-and-forget — never fail the request */ });
+  }
+}
+
 export default async function partnersHostRoutes(fastify: FastifyInstance) {
   const svcCtx = { db: fastify.db, log: fastify.log, redis: fastify.redis };
   const hostService = new HostService(svcCtx);
@@ -1406,7 +1438,91 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (hostEventPromotersMatch && request.method === 'PATCH') {
           const evtId = hostEventPromotersMatch[1];
           await getHostEventAndVerify(ctx.partnerId, evtId);
-          await fastify.db.collection('event_promoter_settings').doc(evtId).set({ ...body, eventId: evtId, hostId: ctx.partnerId, updatedAt: new Date().toISOString() }, { merge: true });
+
+          // Read previous state so we can diff newly added promoters for push
+          const prevDoc = await fastify.db.collection('event_promoter_settings').doc(evtId).get().catch(() => null);
+          const prevIds: string[] = ((prevDoc?.exists ? (prevDoc.data() as any)?.allowedPromoterIds : null) ?? []);
+
+          await fastify.db.collection('event_promoter_settings').doc(evtId).set(
+            { ...body, eventId: evtId, hostId: ctx.partnerId, updatedAt: new Date().toISOString() },
+            { merge: true }
+          );
+
+          // Diff newly added / removed promoters
+          const nextIds: string[] = Array.isArray(body?.allowedPromoterIds) ? body.allowedPromoterIds : [];
+          const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+          const removed = prevIds.filter((id: string) => !nextIds.includes(id));
+          const isEnabled: boolean = body?.enabled !== false;
+
+          // Create / update promoter_assignments for all enabled promoters (fire-and-forget)
+          ;(async () => {
+            try {
+              const eventDoc = await fastify.db.collection('events').doc(evtId).get().catch(() => null);
+              const eventData = (eventDoc?.exists ? eventDoc.data() as any : {}) ?? {};
+              const eventName: string = eventData.title ?? 'Untitled Event';
+              const venueName: string = eventData.venueName ?? '';
+              const commissionRate: number = body?.defaultCommission ?? eventData.promoterSettings?.commissionRate ?? 10;
+              const now = new Date().toISOString();
+
+              // Create assignment docs for newly added promoters
+              await Promise.all(newlyAdded.map(async (promoterId: string) => {
+                const assignId = `${promoterId}_${evtId}`;
+                await fastify.db.collection('promoter_assignments').doc(assignId).set({
+                  id: assignId,
+                  promoterId,
+                  eventId: evtId,
+                  eventName,
+                  venueName,
+                  status: 'active',
+                  commissionRate,
+                  linkCode: null,
+                  totalSales: 0,
+                  totalRevenue: 0,
+                  totalCommission: 0,
+                  guestlistAllowance: 0,
+                  guestlistUsed: 0,
+                  guests: [],
+                  assignedAt: now,
+                  createdAt: now,
+                  updatedAt: now,
+                }, { merge: true });
+              }));
+
+              // Mark removed promoters as inactive
+              await Promise.all(removed.map(async (promoterId: string) => {
+                const assignId = `${promoterId}_${evtId}`;
+                await fastify.db.collection('promoter_assignments').doc(assignId).set(
+                  { status: 'inactive', updatedAt: now },
+                  { merge: true }
+                );
+              }));
+
+              // If all disabled, mark all as inactive
+              if (!isEnabled && nextIds.length === 0 && prevIds.length > 0) {
+                await Promise.all(prevIds.map(async (promoterId: string) => {
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db.collection('promoter_assignments').doc(assignId).set(
+                    { status: 'inactive', updatedAt: now },
+                    { merge: true }
+                  );
+                }));
+              }
+
+              // Push notification for newly added promoters
+              if (newlyAdded.length > 0) {
+                await sendPushToUsers(
+                  fastify.db,
+                  newlyAdded,
+                  "You've been added to an event!",
+                  `${eventName} is live — start sharing your link`,
+                  { eventId: evtId, type: 'promoter_assignment' }
+                );
+              }
+            } catch (err: any) {
+              fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+            }
+          })();
+
           return reply.send({ success: true });
         }
 
