@@ -540,16 +540,22 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.verifyPartnerAccess(request, venueId).catch(() => { throw reply.status(403).send({ error: 'Forbidden' }); });
 
         try {
-            const snapshot = await fastify.db.collection('events')
-                .where('venueId', '==', venueId)
-                .limit(100)
-                .get();
-
-            const events = snapshot.docs.map((doc: any) => ({ id: doc.id, ...doc.data() }));
+            // Primary query by venueId; secondary by creatorId for events saved before venueId fallback fix
+            const [snap1, snap2] = await Promise.all([
+                fastify.db.collection('events').where('venueId', '==', venueId).limit(100).get(),
+                fastify.db.collection('events').where('creatorId', '==', venueId).limit(100).get(),
+            ]);
+            const seen = new Set<string>();
+            const events: any[] = [];
+            for (const snap of [snap1, snap2]) {
+                for (const doc of (snap.docs || [])) {
+                    if (!seen.has(doc.id)) { seen.add(doc.id); events.push({ id: doc.id, ...doc.data() }); }
+                }
+            }
             events.sort((a: any, b: any) => {
                 const dateA = new Date(a.startDate || 0).getTime();
                 const dateB = new Date(b.startDate || 0).getTime();
-                return dateA - dateB; // Ascending for events
+                return dateA - dateB;
             });
 
             return { events: events.slice(0, parseInt(limit)) };

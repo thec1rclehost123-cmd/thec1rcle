@@ -98,7 +98,7 @@ export function buildEvent(payload = {}) {
         hostId: payload.hostId || (payload.creatorRole === 'host' ? payload.creatorId : "") || "",
         location: (payload.location || payload.venueName || "").trim(),
         venue: (payload.venue || payload.venueName || "").trim(),
-        venueId: payload.venueId || "",
+        venueId: payload.venueId || ((payload.creatorRole === 'venue' || payload.creatorRole === 'club') ? payload.creatorId : "") || "",
         promotersEnabled: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true,
         city: cityLabel,
         cityKey,

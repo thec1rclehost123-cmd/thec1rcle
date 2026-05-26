@@ -310,8 +310,18 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
   const buildLegacyVenueEvents = async (venueId: string, query: Record<string, any>) => {
     const limit = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
-    const snapshot = await fastify.db.collection('events').where('venueId', '==', venueId).limit(100).get().catch(() => ({ docs: [] as any[] }));
-    let events = ((snapshot as any).docs || []).map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+    // Primary query by venueId; secondary by creatorId to catch events saved before venueId fallback fix
+    const [snap1, snap2] = await Promise.all([
+      fastify.db.collection('events').where('venueId', '==', venueId).limit(100).get().catch(() => ({ docs: [] as any[] })),
+      fastify.db.collection('events').where('creatorId', '==', venueId).limit(100).get().catch(() => ({ docs: [] as any[] })),
+    ]);
+    const seen = new Set<string>();
+    let events: any[] = [];
+    for (const snap of [snap1, snap2] as any[]) {
+      for (const doc of (snap.docs || [])) {
+        if (!seen.has(doc.id)) { seen.add(doc.id); events.push({ id: doc.id, ...(doc.data() || {}) }); }
+      }
+    }
     if (query.status && query.status !== 'all') {
       events = events.filter((event: any) => String(event.lifecycle || event.status || '').toLowerCase() === String(query.status).toLowerCase());
     }

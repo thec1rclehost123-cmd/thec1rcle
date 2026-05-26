@@ -496,11 +496,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         // workspaceId from x-workspace-id header or auth context activeMembership.
         // For solo owners (no partner_memberships doc), both may be null — derive from the event itself.
         let workspaceId: string | null = request.workspaceId || null;
+        let existingEventSnap: any = null;
         if (!workspaceId) {
             const snap = await fastify.db.collection('events').doc(id).get().catch(() => null);
             if (snap?.exists) {
-                const d = snap.data() as any;
-                const candidate: string = d.workspaceId || d.creatorId || d.hostId || '';
+                existingEventSnap = snap.data() as any;
+                const candidate: string = existingEventSnap.workspaceId || existingEventSnap.creatorId || existingEventSnap.hostId || '';
                 if (candidate) {
                     const ok = candidate === userId ||
                         await fastify.verifyPartnerAccess(request, candidate).catch(() => false);
@@ -512,7 +513,15 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         // Unwrap wizard auto-save envelope { actor, updates } → use updates as the patch body
         const rawBody: any = request.body;
-        const patchFields = rawBody?.updates && typeof rawBody.updates === 'object' ? rawBody.updates : rawBody;
+        const patchFields: any = rawBody?.updates && typeof rawBody.updates === 'object' ? rawBody.updates : rawBody;
+
+        // Self-heal: venue-creator events saved before venueId fallback fix had venueId=""
+        if (existingEventSnap &&
+            !existingEventSnap.venueId &&
+            (existingEventSnap.creatorRole === 'venue' || existingEventSnap.creatorRole === 'club') &&
+            existingEventSnap.creatorId) {
+            patchFields.venueId = patchFields.venueId || existingEventSnap.creatorId;
+        }
 
         try {
             const event = await fastify.eventService.updateEvent(id, patchFields, userId, workspaceId);
@@ -551,6 +560,41 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
             }));
         }
+    });
+
+    /**
+     * POST /api/v1/events/:id/repair
+     * Re-saves an event to fix data issues (e.g. missing venueId) and re-syncs discovery index.
+     */
+    fastify.post('/events/:id/repair', {
+        preHandler: [fastify.requireAuth, fastify.validate({ params: EventParamId })]
+    }, async (request: any, reply) => {
+        const userId = request.user?.uid;
+        const { id } = request.params;
+        if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
+
+        const snap = await fastify.db.collection('events').doc(id).get().catch(() => null);
+        if (!snap?.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Event not found', requestId: request.id }));
+
+        const d = snap.data() as any;
+        const candidate: string = d.workspaceId || d.creatorId || d.hostId || '';
+        if (!candidate) return reply.status(400).send(buildErrorResponse({ code: 'MISSING_SCOPE', message: 'Cannot determine event owner', requestId: request.id }));
+
+        const ok = candidate === userId || await fastify.verifyPartnerAccess(request, candidate).catch(() => false);
+        if (!ok) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Access denied', requestId: request.id }));
+
+        const repairs: Record<string, any> = {};
+        if (!d.venueId && (d.creatorRole === 'venue' || d.creatorRole === 'club') && d.creatorId) {
+            repairs.venueId = d.creatorId;
+        }
+
+        if (Object.keys(repairs).length > 0) {
+            await fastify.db.collection('events').doc(id).update({ ...repairs, updatedAt: new Date().toISOString() });
+        }
+        await fastify.publicDiscoveryService.syncEventReadModels(id).catch(() => undefined);
+        await fastify.invalidatePublicDiscovery('all').catch(() => undefined);
+
+        return reply.send({ success: true, repaired: repairs });
     });
 
     /**
