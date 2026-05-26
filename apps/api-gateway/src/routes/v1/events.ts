@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { resolvePartnerContext } from '../../lib/partner-context.js';
 import {
     getEventQueueStatus,
     getEventSurgeStatus,
@@ -584,8 +585,11 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (!ok) return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'Access denied', requestId: request.id }));
 
         const repairs: Record<string, any> = {};
-        if (!d.venueId && (d.creatorRole === 'venue' || d.creatorRole === 'club') && d.creatorId) {
-            repairs.venueId = d.creatorId;
+        if (!d.venueId && (d.creatorRole === 'venue' || d.creatorRole === 'club')) {
+            // Resolve the actual venue Firestore doc ID via partner context (uid may differ from venueDocId)
+            const partnerCtx = await resolvePartnerContext(fastify.db, request).catch(() => null);
+            const correctVenueId = partnerCtx?.type === 'venue' ? partnerCtx.partnerId : (d.creatorId || null);
+            if (correctVenueId) repairs.venueId = correctVenueId;
         }
 
         if (Object.keys(repairs).length > 0) {
@@ -641,6 +645,17 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             body.coverPhoto = body.coverPhoto || normalizedPoster;
             body.poster     = body.poster     || normalizedPoster;
             body.image      = body.image      || normalizedPoster;
+        }
+
+        // For venue/club creators, ensure venueId is the actual venue Firestore doc ID.
+        // When activeMembership is null on the client, the wizard sends creatorId=uid which
+        // can differ from the venue's Firestore document ID. resolvePartnerContext gives the truth.
+        if ((body.creatorRole === 'venue' || body.creatorRole === 'club') && !body.venueId) {
+            const partnerCtx = await resolvePartnerContext(fastify.db, request).catch(() => null);
+            if (partnerCtx?.type === 'venue' && partnerCtx.partnerId) {
+                body.venueId = partnerCtx.partnerId;
+                body.creatorId = partnerCtx.partnerId;
+            }
         }
 
         // --- Resolve host–venue selection ---

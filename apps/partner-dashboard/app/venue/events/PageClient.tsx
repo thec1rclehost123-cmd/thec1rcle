@@ -98,13 +98,14 @@ export default function EventsManagementPage() {
     const [fetchError, setFetchError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!profile?.activeMembership?.partnerId || !user) return;
-        const venueId = profile.activeMembership.partnerId;
+        if (!user) return;
+        // activeMembership may be null for direct venue owners — gateway resolves identity from auth token
+        const venueId = profile?.activeMembership?.partnerId ?? null;
 
         (async () => {
             try {
                 const token = await user.getIdToken();
-                const res = await fetch(`/api/partners/venues/events?venueId=${venueId}`, {
+                const res = await fetch(`/api/partners/venues/events`, {
                     headers: { Authorization: `Bearer ${token}` },
                 });
                 if (!res.ok) throw new Error("API Route failed");
@@ -128,7 +129,7 @@ export default function EventsManagementPage() {
                             revenue: m.stats?.revenue || 0,
                         };
                     })
-                    .filter((e: any) => !(e.eventType === "host" && e.creatorId !== venueId && e.lifecycle === "draft"))
+                    .filter((e: any) => !(e.eventType === "host" && venueId && e.creatorId !== venueId && e.lifecycle === "draft"))
                     .sort((a: any, b: any) => {
                         const now = new Date();
                         const dateA = a.date instanceof Date ? a.date : new Date(a.date);
