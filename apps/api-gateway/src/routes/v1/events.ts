@@ -622,7 +622,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         const body: Record<string, any> = { ...request.body };
 
-        const hostId: string = body.creatorId || body.hostId || userId;
+        let hostId: string = body.creatorId || body.hostId || userId;
         const isDraft: boolean = body.lifecycle === 'draft';
         if (body.creatorRole === 'host') {
             body.creatorId = hostId;
@@ -655,6 +655,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             if (partnerCtx?.type === 'venue' && partnerCtx.partnerId) {
                 body.venueId = partnerCtx.partnerId;
                 body.creatorId = partnerCtx.partnerId;
+                hostId = partnerCtx.partnerId; // update so buildEvent uses the venue doc ID, not uid
             }
         }
 
