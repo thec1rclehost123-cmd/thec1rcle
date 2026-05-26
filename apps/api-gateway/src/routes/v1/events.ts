@@ -44,6 +44,24 @@ const EventCreateBody = z.object({
 }).strict();
 
 const EventUpdateBody = EventCreateBody.partial();
+
+// Wizard auto-save sends { actor, updates } — accept both flat and wrapped forms.
+const PartnerEventUpdateBody = z.union([
+    z.object({ actor: z.unknown(), updates: z.record(z.string(), z.unknown()), action: z.string().optional() }),
+    z.record(z.string(), z.unknown()),
+]);
+
+// Partner wizard sends a rich payload — validate only the required fields
+// and use .passthrough() so extra fields (tickets, tables, promoterSettings, etc.)
+// flow through to buildEvent() without being stripped.
+const PartnerEventCreateBody = z.object({
+    title: z.string().min(1).max(200),
+    creatorRole: z.enum(['host', 'venue', 'club']),
+    creatorId: z.string().optional(),
+    hostId: z.string().optional(),
+    venueId: z.string().optional(),
+    lifecycle: z.enum(['draft', 'submitted', 'scheduled', 'live', 'completed', 'cancelled', 'paused', 'denied', 'changes_requested']).optional(),
+}).passthrough();
 const EventTrackBody = z.object({
     type: z.enum(['view', 'click', 'share', 'rsvp_intent']),
     ref: z.string().max(100).optional(),
@@ -469,7 +487,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
      * PATCH /api/v1/events/:id
      */
     fastify.patch('/events/:id', {
-        preHandler: [fastify.validate({ params: EventParamId, body: EventUpdateBody })]
+        preHandler: [fastify.validate({ params: EventParamId, body: PartnerEventUpdateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
         const workspaceId = request.workspaceId;
@@ -477,8 +495,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
         if (!workspaceId) return reply.status(400).send(buildErrorResponse({ code: 'MISSING_SCOPE', message: 'Missing x-workspace-id header', requestId: request.id }));
 
+        // Unwrap wizard auto-save envelope { actor, updates } → use updates as the patch body
+        const rawBody: any = request.body;
+        const patchFields = rawBody?.updates && typeof rawBody.updates === 'object' ? rawBody.updates : rawBody;
+
         try {
-            const event = await fastify.eventService.updateEvent(id, request.body, userId, workspaceId);
+            const event = await fastify.eventService.updateEvent(id, patchFields, userId, workspaceId);
             if (!event) return reply.status(404).send(buildErrorResponse({
                 code: 'NOT_FOUND',
                 message: 'Event not found in this workspace',
@@ -530,7 +552,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
      * Does NOT require x-workspace-id — derives actor from auth token.
      */
     fastify.post('/partner/events/create', {
-        preHandler: [fastify.validate({ body: EventCreateBody })]
+        preHandler: [fastify.validate({ body: PartnerEventCreateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
         if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
