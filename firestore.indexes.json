@@ -387,7 +387,22 @@
         { "fieldPath": "hostId",    "order": "ASCENDING" },
         { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
-    }
+    },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "publishedAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "searchText", "order": "ASCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "publishedAt", "order": "DESCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "hostId", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "hostId", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "startAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "event_card_index", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "venueId", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "host_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "host_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "venue_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] },
+    { "collectionGroup": "venue_summary", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "visibility", "order": "ASCENDING" }, { "fieldPath": "cityKey", "order": "ASCENDING" }, { "fieldPath": "heatScore", "order": "DESCENDING" }] }
   ],
   "fieldOverrides": []
 }
