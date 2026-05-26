@@ -490,10 +490,25 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         preHandler: [fastify.validate({ params: EventParamId, body: PartnerEventUpdateBody })]
     }, async (request: any, reply) => {
         const userId = request.user?.uid;
-        const workspaceId = request.workspaceId;
         const { id } = request.params;
         if (!userId) return reply.status(401).send(buildErrorResponse({ code: 'UNAUTHORIZED', message: 'Unauthorized', requestId: request.id }));
-        if (!workspaceId) return reply.status(400).send(buildErrorResponse({ code: 'MISSING_SCOPE', message: 'Missing x-workspace-id header', requestId: request.id }));
+
+        // workspaceId from x-workspace-id header or auth context activeMembership.
+        // For solo owners (no partner_memberships doc), both may be null — derive from the event itself.
+        let workspaceId: string | null = request.workspaceId || null;
+        if (!workspaceId) {
+            const snap = await fastify.db.collection('events').doc(id).get().catch(() => null);
+            if (snap?.exists) {
+                const d = snap.data() as any;
+                const candidate: string = d.workspaceId || d.creatorId || d.hostId || '';
+                if (candidate) {
+                    const ok = candidate === userId ||
+                        await fastify.verifyPartnerAccess(request, candidate).catch(() => false);
+                    if (ok) workspaceId = candidate;
+                }
+            }
+        }
+        if (!workspaceId) return reply.status(400).send(buildErrorResponse({ code: 'MISSING_SCOPE', message: 'Missing workspace scope', requestId: request.id }));
 
         // Unwrap wizard auto-save envelope { actor, updates } → use updates as the patch body
         const rawBody: any = request.body;
