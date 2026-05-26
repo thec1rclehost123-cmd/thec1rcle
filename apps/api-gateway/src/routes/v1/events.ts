@@ -566,10 +566,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             body.hostId = hostId;
         }
 
-        // Verify the authenticated user has access to the claimed host identity.
-        // Skip when hostId === userId (solo host whose Firebase UID is the host doc ID).
+        // Verify the authenticated user has access to the claimed partner identity.
+        // Skip when creatorId === userId (solo user whose Firebase UID is the partner doc ID).
         if (hostId !== userId) {
-            const [memberSnap, hostDoc] = await Promise.all([
+            const [memberSnap, hostDoc, venueDoc] = await Promise.all([
                 fastify.db.collection('partner_memberships')
                     .where('uid', '==', userId)
                     .where('partnerId', '==', hostId)
@@ -577,10 +577,14 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                     .limit(1)
                     .get(),
                 fastify.db.collection('hosts').doc(hostId).get(),
+                // Venue owners have their partner doc in 'venues', not 'hosts'
+                fastify.db.collection('venues').doc(hostId).get(),
             ]);
-            const isDirectOwner = hostDoc.exists && (hostDoc.data() as any)?.ownerId === userId;
+            const isDirectOwner =
+                (hostDoc.exists && (hostDoc.data() as any)?.ownerId === userId) ||
+                (venueDoc.exists && (venueDoc.data() as any)?.ownerId === userId);
             if (memberSnap.empty && !isDirectOwner) {
-                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You do not have access to this host', requestId: request.id }));
+                return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You do not have access to this partner account', requestId: request.id }));
             }
         }
 
