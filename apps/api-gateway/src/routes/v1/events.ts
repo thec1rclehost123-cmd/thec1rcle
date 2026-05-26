@@ -569,21 +569,8 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         // Verify the authenticated user has access to the claimed partner identity.
         // Skip when creatorId === userId (solo user whose Firebase UID is the partner doc ID).
         if (hostId !== userId) {
-            const [memberSnap, hostDoc, venueDoc] = await Promise.all([
-                fastify.db.collection('partner_memberships')
-                    .where('uid', '==', userId)
-                    .where('partnerId', '==', hostId)
-                    .where('isActive', '==', true)
-                    .limit(1)
-                    .get(),
-                fastify.db.collection('hosts').doc(hostId).get(),
-                // Venue owners have their partner doc in 'venues', not 'hosts'
-                fastify.db.collection('venues').doc(hostId).get(),
-            ]);
-            const isDirectOwner =
-                (hostDoc.exists && (hostDoc.data() as any)?.ownerId === userId) ||
-                (venueDoc.exists && (venueDoc.data() as any)?.ownerId === userId);
-            if (memberSnap.empty && !isDirectOwner) {
+            const hasAccess = await fastify.verifyPartnerAccess(request, hostId).catch(() => false);
+            if (!hasAccess) {
                 return reply.status(403).send(buildErrorResponse({ code: 'FORBIDDEN', message: 'You do not have access to this partner account', requestId: request.id }));
             }
         }
@@ -789,7 +776,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     });
 
     fastify.post('/events/wizard/preview-breakdown', {
-        preHandler: [fastify.requireAuth, fastify.validate({ body: WizardPreviewSchema })]
+        preHandler: [fastify.validate({ body: WizardPreviewSchema })]
     }, async (request: any, reply) => {
         const fd = request.body;
         const isRSVP = fd.isRSVP === true;
