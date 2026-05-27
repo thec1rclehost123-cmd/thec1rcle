@@ -826,7 +826,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       });
     }
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
-    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch((err: any) => {
+      fastify.log.error({ eventId, hostId, error: err?.message || String(err) }, '[syncEventReadModels] Failed to sync event card index after publish');
+    });
     await fastify.writeAuditLog({
       action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_SUBMITTED',
       actorUid: request.user?.uid || hostId,
@@ -877,7 +879,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       });
     }
     await fastify.cache.delete('events:detail', eventId).catch(() => {});
-    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+    await fastify.publicDiscoveryService.syncEventReadModels(eventId).catch((err: any) => {
+      fastify.log.error({ eventId, hostId, error: err?.message || String(err) }, '[syncEventReadModels] Failed to sync event card index after resubmit');
+    });
     await fastify.writeAuditLog({
       action: isStandalone ? 'EVENT_PUBLISHED' : 'EVENT_RESUBMITTED',
       actorUid: request.user?.uid || hostId,

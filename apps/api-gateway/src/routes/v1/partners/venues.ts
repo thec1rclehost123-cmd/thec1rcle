@@ -1050,7 +1050,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           await fastify.db.collection('events').doc(eventId).update(eventUpdatePayload);
           // Keep event_card_index and search in sync whenever the event goes public/live/paused
           if (['scheduled', 'live', 'paused'].includes(newStatus)) {
-            fastify.publicDiscoveryService.syncEventReadModels(eventId).catch(() => {});
+            fastify.publicDiscoveryService.syncEventReadModels(eventId).catch((err: any) => {
+              fastify.log.error({ eventId, error: err?.message || String(err) }, '[syncEventReadModels] Failed to sync event card index after venue status change');
+            });
           }
           return reply.send({ success: true, status: newStatus });
         }

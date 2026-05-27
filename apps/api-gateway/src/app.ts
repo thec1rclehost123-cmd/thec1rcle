@@ -399,6 +399,18 @@ async function main() {
         server.log.warn('RESEND_API_KEY not set — email OTP uses mock codes in development');
     }
 
+    // 🔍 Startup: Log which Firebase project and environment are active
+    const activeProject = process.env.FIREBASE_PROJECT_ID || '(not set)';
+    const activeEnv = process.env.NODE_ENV || 'development';
+    if (activeProject === 'c1rcle-prod' && activeEnv !== 'production') {
+        server.log.error(
+            `⛔  DANGER: Gateway connected to PRODUCTION Firebase (${activeProject}) in ${activeEnv} mode! ` +
+            `Run "npm run dev" from apps/api-gateway to load .env.development (thec1rcle-india).`
+        );
+        process.exit(1); // Refuse to start — prevent accidental production writes in dev
+    }
+    server.log.info(`🔥 Firebase project: ${activeProject} | NODE_ENV: ${activeEnv}`);
+
     // Start Listening
     try {
         await server.listen({ port: config.PORT, host: '0.0.0.0' });

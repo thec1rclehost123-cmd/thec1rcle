@@ -472,7 +472,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'event', id: event.id });
 
             await fastify.invalidatePublicDiscovery('all');
-            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch((err: any) => {
+                fastify.log.error({ eventId: event.id, error: err?.message || String(err) }, '[syncEventReadModels] Failed to sync event card index after create');
+            });
             return { success: true, id: event.id };
         } catch (error: any) {
             fastify.log.error(`Error in POST /events: ${error.message}`);
@@ -551,7 +553,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             await fastify.sendInngestEvent(fastify.InngestEvents.PUBLIC_DISCOVERY_SYNC, { type: 'event', id: event.id });
 
             await fastify.invalidatePublicDiscovery('all');
-            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+            await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch((err: any) => {
+                fastify.log.error({ eventId: event.id, error: err?.message || String(err) }, '[syncEventReadModels] Failed to sync event card index after update');
+            });
             return { success: true, id: event.id };
         } catch (error: any) {
             fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
