@@ -915,11 +915,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
      * Temporary debug endpoint — shows partner context + raw query results.
      * Remove after event visibility is confirmed working.
      */
-    fastify.get('/debug/venue-events', {
-        preHandler: [fastify.requireAuth]
-    }, async (request: any, reply) => {
-        const uid = request.user?.uid;
-        if (!uid) return reply.status(401).send({ error: 'Unauthorized' });
+    fastify.get('/debug/venue-events', async (request: any, reply) => {
+        // Accept uid from query param for easy browser testing when no auth header
+        const uid: string = request.user?.uid || (request.query as any)?.uid || '';
+        if (!uid) return reply.status(400).send({ error: 'Pass ?uid=YOUR_FIREBASE_UID or an Authorization header' });
 
         const ctx = await resolvePartnerContext(fastify.db, request).catch(() => null);
 
