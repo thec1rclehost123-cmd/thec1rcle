@@ -909,4 +909,36 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             promoterSharePct: revenueBase > 0 ? (grandTotal.commTotal / revenueBase) * 100 : 0,
         };
     });
+
+    /**
+     * GET /api/v1/debug/venue-events
+     * Temporary debug endpoint — shows partner context + raw query results.
+     * Remove after event visibility is confirmed working.
+     */
+    fastify.get('/debug/venue-events', {
+        preHandler: [fastify.requireAuth]
+    }, async (request: any, reply) => {
+        const uid = request.user?.uid;
+        if (!uid) return reply.status(401).send({ error: 'Unauthorized' });
+
+        const ctx = await resolvePartnerContext(fastify.db, request).catch(() => null);
+
+        const [byVenueId, byCreatorIdDoc, byCreatorIdUid, eventCardIndex] = await Promise.all([
+            ctx ? fastify.db.collection('events').where('venueId', '==', ctx.partnerId).limit(10).get().catch(() => null) : null,
+            ctx ? fastify.db.collection('events').where('creatorId', '==', ctx.partnerId).limit(10).get().catch(() => null) : null,
+            fastify.db.collection('events').where('creatorId', '==', uid).limit(10).get().catch(() => null),
+            fastify.db.collection('event_card_index').where('visibility', '==', 'public').limit(10).get().catch(() => null),
+        ]);
+
+        return reply.send({
+            uid,
+            partnerContext: ctx ? { partnerId: ctx.partnerId, uid: ctx.uid, type: ctx.type } : null,
+            queries: {
+                byVenueId: (byVenueId as any)?.docs?.map((d: any) => ({ id: d.id, venueId: d.data().venueId, creatorId: d.data().creatorId, lifecycle: d.data().lifecycle, workspaceId: d.data().workspaceId, title: d.data().title })) ?? [],
+                byCreatorIdDocId: (byCreatorIdDoc as any)?.docs?.map((d: any) => ({ id: d.id, venueId: d.data().venueId, creatorId: d.data().creatorId, lifecycle: d.data().lifecycle, title: d.data().title })) ?? [],
+                byCreatorIdUid: (byCreatorIdUid as any)?.docs?.map((d: any) => ({ id: d.id, venueId: d.data().venueId, creatorId: d.data().creatorId, lifecycle: d.data().lifecycle, title: d.data().title })) ?? [],
+            },
+            eventCardIndex: (eventCardIndex as any)?.docs?.map((d: any) => ({ id: d.id, visibility: d.data().visibility, startAt: d.data().startAt, title: d.data().title })) ?? [],
+        });
+    });
 }
