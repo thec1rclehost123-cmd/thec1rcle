@@ -1,0 +1,66 @@
+name: Firebase
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - functions/**
+      - firestore.rules
+      - storage.rules
+      - packages/types/**
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
+jobs:
+  rules-test:
+    name: Firestore & Storage rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - name: Install Firebase emulator
+        run: npx firebase-tools setup:emulators:firestore --project demo-test
+      - name: Run rules unit tests
+        run: |
+          npx firebase emulators:exec \
+            --only firestore,storage \
+            --project demo-test \
+            'npm run test:rules'
+
+  functions-typecheck:
+    name: Functions typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci && cd functions && npm ci
+      - run: cd functions && npx tsc --noEmit
+
+  deploy:
+    name: Deploy
+    needs: [rules-test, functions-typecheck]
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.FIREBASE_SA_EMAIL }}
+      - run: npm ci && cd functions && npm ci && npm run build
+      - name: Deploy functions + rules
+        run: |
+          npx firebase-tools deploy \
+            --only functions,firestore:rules,storage:rules \
+            --project ${{ vars.FIREBASE_PROJECT_ID }} \
+            --force

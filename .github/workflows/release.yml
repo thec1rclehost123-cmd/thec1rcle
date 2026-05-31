@@ -1,0 +1,83 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  GCP_REGION: us-central1
+  GCR_HOSTNAME: gcr.io
+
+jobs:
+  deploy-web:
+    name: Deploy Web (Vercel)
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app:
+          - guest-portal
+          - partner-dashboard
+          - admin-console
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npx turbo build --filter=@c1rcle/${{ matrix.app }}
+      - name: Set Vercel project ID
+        id: vars
+        run: |
+          case "${{ matrix.app }}" in
+            guest-portal)         echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST_PORTAL }}" >> $GITHUB_OUTPUT ;;
+            partner-dashboard)    echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER_DASHBOARD }}" >> $GITHUB_OUTPUT ;;
+            admin-console)        echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN_CONSOLE }}" >> $GITHUB_OUTPUT ;;
+          esac
+      - name: Deploy to Vercel
+        run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: apps/${{ matrix.app }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ steps.vars.outputs.pid }}
+
+  deploy-api-gateway:
+    name: Deploy API Gateway (GCR)
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
+      - name: Build & push to GCR
+        run: |
+          gcloud builds submit apps/api-gateway \
+            --tag ${{ env.GCR_HOSTNAME }}/${{ vars.GCP_PROJECT }}/api-gateway:${{ github.sha }}
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy api-gateway \
+            --image ${{ env.GCR_HOSTNAME }}/${{ vars.GCP_PROJECT }}/api-gateway:${{ github.sha }} \
+            --region ${{ env.GCP_REGION }} \
+            --platform managed
+
+  sentry-release:
+    name: Sentry Release
+    needs: [deploy-web, deploy-api-gateway]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: getsentry/action-release@v1
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+        with:
+          environment: production
+          sourcemaps: ./apps/guest-portal/.next
