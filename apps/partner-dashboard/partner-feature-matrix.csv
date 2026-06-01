@@ -1,0 +1,154 @@
+Feature Area,Sub-Feature,Route(s),Page Component(s),Status,Backing Store,Auth Status,Logic Issues / Gaps,Error Handling,Loading State,Types,Notes
+AUTH,Login,,app/login/PageClient.tsx,COMPLETE,firebase auth + custom backend,withAuth on discovery routes,N/A,setError for 8+ scenarios,Skeleton + spinner,Proper types,Multi-step: role selection email/password Google sign-in
+AUTH,Onboarding,,app/onboard/PageClient.tsx,COMPLETE,firebase auth + storage + firestore,withAuth,Hardcoded city "Pune" in profile step,setError per step,Step spinner,Proper types,Email verification phone verification document upload
+AUTH,Staff Invite,,app/auth/staff-invite/page.tsx,COMPLETE,firebase auth,withAuth,N/A,formError/success states,Skeleton,Proper types,Password validation inline error display
+AUTH,OTP Send,/api/auth/otp/send,app/api/auth/otp/send/route.ts,COMPLETE,firebase auth + twilio,withRateLimit,Rate-limited to 5 reqs,N/A,N/A,N/A,BFF proxy to gateway
+AUTH,Check Availability,/api/auth/check-availability,app/api/auth/check-availability/route.ts,COMPLETE,firebase auth,NO AUTH,Missing auth,None,N/A,N/A,Public endpoint intentional
+AUTH,Onboarding Progress,/api/auth/onboarding-progress,app/api/auth/onboarding-progress/route.ts,COMPLETE,firestore,NO AUTH,Missing auth,None,N/A,N/A,
+VENUE DASHBOARD,Overview,,app/venue/page.tsx + PageClient.tsx,COMPLETE,lib/server stores + firebase,withAuth,N/A,isError booleans,isLoading per query,Proper LIFECYCLE_CONFIG,react-query 3 queries alerts summary events
+VENUE DASHBOARD,Alerts,/api/venue/overview/alerts,app/venue/overview/alerts/route.ts,COMPLETE,lib/server stores,NO AUTH,Missing auth,None,N/A,N/A,
+VENUE DASHBOARD,Summary,/api/venue/overview/summary,app/venue/overview/summary/route.ts,COMPLETE,lib/server stores,NO AUTH,Missing auth,None,N/A,N/A,
+VENUE DASHBOARD,Tonight,/api/venue/overview/tonight,app/venue/overview/tonight/route.ts,PARTIAL,lib/server,NO AUTH,Missing auth uses mock data fallback,None,N/A,N/A,Has mock data fallback
+VENUE DASHBOARD,Next Event Intelligence,/api/venue/overview/next-event-intelligence,app/venue/overview/next-event-intelligence/route.ts,COMPLETE,lib/server,NO AUTH,Missing auth,None,N/A,N/A,
+VENUE EVENTS,List,,app/venue/events/page.tsx + PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,alert(e.message) - MINOR,isLoading,Filters,Has filters
+VENUE EVENTS,Detail,/api/events/[id],app/venue/events/[id]/page.tsx + PageClient.tsx (~4000 lines),COMPLETE,lib/server + firestore,verifyAuth,Heavy :any usage,heroError/isFetching,Skeleton + spinner,Heavy :any,Very large file should be refactored
+VENUE EVENTS,Ticket Types,,app/venue/events/[id]/ticket-types,COMPLETE,lib/server,withAuth,No error escape hatch,None,N/A,N/A,
+VENUE EVENTS,Team,,app/venue/events/[id]/team,COMPLETE,lib/server,withAuth,No error escape hatch,None,N/A,N/A,
+VENUE EVENTS,Settings,,app/venue/events/[id]/settings,COMPLETE,lib/server,withAuth,No error escape hatch,None,N/A,N/A,
+VENUE EVENTS,Attendees,,app/venue/events/[id]/attendees,COMPLETE,lib/server,withAuth,No error escape hatch,None,N/A,N/A,
+VENUE EVENTS,Analytics,,app/venue/events/[id]/analytics,COMPLETE,lib/server,withAuth,No error escape hatch,None,N/A,N/A,
+VENUE EVENTS,Requests,/api/venue/promoter-requests,/app/venue/events/requests/PageClient.tsx,COMPLETE,lib/server,withAuth on venue route NO AUTH on others,setError(true),Skeleton,N/A,
+VENUE EVENTS,Promoters,/api/venue/events/[id]/promoters,app/api/venue/events/[id]/promoters/route.ts,PARTIAL,lib/server + firestore,NO AUTH,Missing auth 4 handlers,None,N/A,N/A,GET POST PATCH DELETE all need auth
+VENUE EVENTS,Guestlist,/api/events/[id]/guestlist,app/api/events/[id]/guestlist/route.ts,PARTIAL,firestore,NO AUTH,Missing auth,None,N/A,N/A,
+VENUE FINANCE,Overview,,app/venue/finance/page.tsx + PageClient.tsx,COMPLETE,lib/server/financeStore.js,withAuth,console.error in catches,setError,spinner,N/A,Multiple API calls via useEffect
+VENUE FINANCE,Ledger,/api/finance/payout-config,app/venue/finance/ledger/PageClient.tsx,COMPLETE,lib/server/financeStore.js,verifyAuth,N/A,setError,Skeleton,N/A,Pagination filters search debounce CSV export
+VENUE FINANCE,Payout Settings,,app/venue/finance/payouts/PageClient.tsx,COMPLETE,lib/server/payments,withAuth,N/A,isLoading,Skeleton,N/A,Bank account management
+VENUE FINANCE,Reports,,app/venue/finance/reports/PageClient.tsx,PARTIAL - STUBBED,lib/server,fetch via effect,Line 94 PDF reports are stubbed via comment,isLoading,Skeleton,N/A,"PDF export explicitly commented as stubbed: implement via reporting service"
+VENUE FINANCE,Records (Ledger Section),,app/venue/finance/records/PageClient.tsx,COMPLETE,lib/server/financeStore.js,withAuth,N/A,setError(true),spinner,N/A,Used via FinanceHub tab
+VENUE FINANCE,Venue Payouts,,app/venue/finance/venue-payouts/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,Proper types,Payout requests list with status config
+VENUE FINANCE,Host Payouts,,app/venue/finance/host-payouts/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,N/A,Settlement tables
+VENUE FINANCE,Promoter Payouts,,app/venue/finance/promoter-payouts/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,N/A,Settlement tables
+VENUE FINANCE,Partner Payouts,,app/venue/finance/partner-payouts/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,N/A,Settlement tables
+VENUE FINANCE,Payments,,app/venue/finance/payments/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,isLoading,N/A,N/A,Payment methods management
+VENUE FINANCE,Cover Reconciliation,,app/venue/finance/cover/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,N/A,react-query based
+VENUE FINANCE,Subscription,,app/venue/finance/subscription/PageClient.tsx,PLACEHOLDER - COMING SOON,N/A,withAuth,No API integration hardcoded plan cards,N/A,N/A,N/A,"""Subscription billing is coming soon"" - hardcoded 'Coming Soon' as price"
+VENUE FINANCE,Marketing Spend,,app/venue/finance/marketing/PageClient.tsx,PLACEHOLDER - COMING SOON,N/A,withAuth,No API integration hardcoded metric zeros,N/A,N/A,N/A,"""CRM Marketing spend is coming soon"" - all metrics show 0"
+VENUE FINANCE,Revenue Splits,,app/venue/finance/revenue-splits/PageClient.tsx,PLACEHOLDER - COMING SOON,N/A,withAuth,No API integration hardcoded demo values "Rs.1,000",N/A,N/A,N/A,"""Revenue split automation is coming soon"""
+VENUE ANALYTICS,Main Dashboard,,app/venue/analytics/page.tsx + PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,Skeleton,N/A,Charts filters real data
+VENUE ANALYTICS,Overview,,app/venue/analytics/overview/page.tsx,REDIRECT - Forwards to /venue/analytics?tab=overview,N/A,N/A,N/A,N/A,N/A,N/A,
+VENUE ANALYTICS,Live,,app/venue/analytics/live/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+VENUE ANALYTICS,Advanced,,app/venue/analytics/advanced/page.tsx,REDIRECT - Forwards to /venue/analytics?tab=advanced,N/A,N/A,N/A,N/A,N/A,N/A,
+VENUE ANALYTICS,Category-based,,app/venue/analytics/[category]/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+VENUE ANALYTICS,Host Performance,,app/venue/analytics/hosts/page.tsx,PLACEHOLDER - CONSTRUCTION ICON,N/A,N/A,VenuePlaceholderPage component,N/A,N/A,N/A,Uses construction icon
+VENUE ANALYTICS,Event Insights,,app/venue/analytics/events/page.tsx,PLACEHOLDER - CONSTRUCTION ICON,N/A,N/A,VenuePlaceholderPage component,N/A,N/A,N/A,Uses construction icon
+VENUE ANALYTICS,Historical Analytics,,app/venue/analytics/history/page.tsx,PLACEHOLDER - CONSTRUCTION ICON,N/A,N/A,VenuePlaceholderPage component,N/A,N/A,N/A,"""Complete Historical Analytics"" is placeholder"
+VENUE OPERATIONS,Door Management,,app/venue/door/page.tsx + PageClient.tsx,COMPLETE,lib/server/doorSellStore,withAuth,N/A,N/A,N/A,N/A,Full door with scanning walk-ins registers
+VENUE OPERATIONS,Door Sell,,app/venue/door/sell/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx - used via tab routing
+VENUE OPERATIONS,Door Dine-in,,app/venue/door/dinein/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx
+VENUE OPERATIONS,Walk-ins,/api/venue/walk-ins + /api/venue/walk-ins/[eventId],app/venue/walk-ins/PageClient.tsx,COMPLETE,lib/server/walkInStore,NO AUTH,Missing auth on all walk-in routes,setError,Skeleton,N/A,GET POST PATCH DELETE all lack auth
+VENUE OPERATIONS,Tables,/api/venue/tables,app/venue/tables/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,setError,N/A,N/A,GET POST DELETE all lack auth
+VENUE OPERATIONS,Reservations,/api/venue/reservations + /api/venue/reservations/[id],app/venue/reservations/PageClient.tsx,COMPLETE,lib/server/reservationStore,NO AUTH,Missing auth reservationStore has empty catch at line 97-99 (intentional audit log),setError auto-clear,N/A,N/A,CRUD with auto-clear error messages
+VENUE OPERATIONS,Registers,/api/venue/registers,app/venue/registers/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,N/A,N/A,N/A,Page file redirects to /venue/door?tab=registers
+VENUE OPERATIONS,Orders,/api/venue/orders + latest + cancel + resend,app/venue/orders/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth on all order routes,N/A,N/A,N/A,
+VENUE OPERATIONS,Menu,/api/venue/menu,app/venue/menu/page.tsx,REDIRECT - Forwards to /venue/presence?tab=menu,lib/server,NO AUTH,N/A,N/A,N/A,N/A,
+VENUE GUEST OPS,Scanner,,app/venue/guest-ops/scanner/PageClient.tsx,REDIRECT,lib/server,withAuth,N/A,N/A,N/A,N/A,Page redirects to /venue/door
+VENUE GUEST OPS,List,,app/venue/guest-ops/list/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,GuestTableSkeleton,N/A,Infinite scroll isLoadingMore
+VENUE GUEST OPS,Rules,,app/venue/guest-ops/rules/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+VENUE GUEST OPS,Overview,,app/venue/guest-ops/overview/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx route
+VENUE GUEST OPS,Exceptions,,app/venue/guest-ops/exceptions/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx route
+VENUE GUEST OPS,Door View,,app/venue/guest-ops/door/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx route
+VENUE PARTNERS,Discover/Active/Pending,,app/venue/partners/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,isError/isLoading,N/A,N/A,
+VENUE PARTNERS,Partner Profile,/api/venue/partners/[id],app/venue/partners/[id]/page.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,N/A,N/A,N/A,
+VENUE PARTNERS,Partnerships,/api/venue/partnerships,app/venue/partnerships/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,setError,N/A,N/A,Page redirects to /venue/partners?tab=active
+VENUE PARTNERS,Connections,,app/venue/connections/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Page redirects to /venue/partners?tab=discover
+VENUE PARTNERS,Requests,/api/venue/promoter-requests/[id],app/venue/connections/requests/page.tsx,REDIRECT - Forwards to /venue/partners?tab=pending,lib/server,NO AUTH,N/A,N/A,N/A,N/A,
+VENUE PARTNERS,Active Partners,,app/venue/connections/partners/page.tsx,PLACEHOLDER - CONSTRUCTION ICON,N/A,N/A,VenuePlaceholderPage,N/A,N/A,N/A,"""Active Partners"" is construction icon"
+VENUE PARTNERS,Promoter Requests,/api/host/promoter-requests,app/api/host/promoter-requests/route.ts,PARTIAL,lib/server + firestore,NO AUTH,Missing auth,N/A,N/A,N/A,GET PATCH both lack auth
+VENUE STAFF,List,/api/venue/staff,app/venue/staff/PageClient.tsx,COMPLETE,lib/server/staffProfileStore,NO AUTH,Missing auth on all staff routes,setError/isLoading,N/A,N/A,
+VENUE STAFF,Accept Invite,/api/venue/staff/accept,app/api/venue/staff/accept/route.ts,PARTIAL,lib/server,NO AUTH,Missing auth,N/A,N/A,N/A,
+VENUE STAFF,Profiles,/api/venue/staff-profiles + assign + assignments,app/venue/staff/profiles/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth on all profile routes,N/A,N/A,N/A,
+VENUE STAFF,Profile Detail,/api/venue/staff-profiles/[profileId],app/venue/staff/profiles/[profileId]/page.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,N/A,N/A,N/A,
+VENUE SETTINGS,Settings Hub,,app/venue/settings/PageClient.tsx,COMPLETE,lib/server/venueSettingsStore,withAuth,N/A,N/A,N/A,N/A,Profile security billing tabs
+VENUE SETTINGS,Security Codes,/api/venue/security/sync + alerts,app/venue/security/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,N/A,Skeleton,N/A,Page file redirects to /venue/settings?tab=security
+VENUE PRESENCE,Profile Management,,app/venue/presence/PageClient.tsx (~1500 lines),COMPLETE,lib/server,withAuth,Heavy :any usage console.error in catches,isLoading,N/A,N/A,Profile gallery posts videos social links
+VENUE PRESENCE,Page Builder,,app/venue/page-management/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,Page file redirects to /venue/presence?tab=page
+VENUE MARKETING,CRM/Marketing,,app/venue/marketing/PageClient.tsx (440 lines),COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Real customer/order data filterable recipient list segment composer react-query
+VENUE CRM,Customer Management,,app/venue/crm/page.tsx (1249 lines),COMPLETE,lib/server,withAuth,Heavy :any usage 8 useQuery calls,isLoading,N/A,N/A,Customer list event filters calendar heatmap order history
+VENUE CALENDAR,Calendar View,/api/venue/slots + /api/venue/slots/[slotId],app/venue/calendar/page.tsx,COMPLETE,lib/server/slotStore,NO AUTH,Missing auth slotStore has generic error messages,N/A,N/A,N/A,Page delegates to CalendarClient
+VENUE CREATE EVENT,Event Creation Wizard,,app/venue/create/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,spinner,N/A,
+VENUE CREATE EVENT,Venue Selection,,app/venue/create/select-venue/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,spinner,N/A,
+VENUE CREATE EVENT,Event Calendar,,app/venue/create/select-venue/calendar/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,spinner,N/A,
+VENUE CREATE EVENT,Slots,/api/venue/slots,/api/venue/slots/route.ts,PARTIAL,lib/server/slotStore,NO AUTH,Missing auth slotStore has generic errors,None,N/A,N/A,
+HOST DASHBOARD,Home,,app/host/page.tsx + PageClient.tsx (1024 lines),COMPLETE,lib/server + react-query,withAuth,N/A,N/A,Chart skeleton,Proper typed interfaces,KPI stats event list orders list chart
+HOST EVENTS,List,,app/host/events/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,
+HOST EVENTS,Detail,,app/host/events/[id]/PageClient.tsx (~3800 lines),COMPLETE,lib/server,withAuth,Heavy :any usage alert() for errors line 177,heroError/isFetching,Skeleton,N/A,Should be refactored into smaller components alert() is production concern
+HOST EVENTS,Analytics,,app/host/events/[id]/analytics,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+HOST EVENTS,Requests,,app/host/events/requests/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx
+HOST FINANCE,Overview,,app/host/finance/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Balance payouts earnings
+HOST FINANCE,Payouts,,app/host/finance/payouts/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Bank account management payout requests
+HOST NETWORK,Network Management,,app/host/network/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,
+HOST PRESENCE,Profile Management,,app/host/presence/PageClient.tsx (~1500 lines),COMPLETE,lib/server,withAuth,Heavy :any usage console.error in catches,isLoading,N/A,N/A,
+HOST PRESENCE,Page Builder,,app/host/page-management/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,Page redirects to /host/presence
+HOST SETTINGS,Settings,,app/host/settings/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+HOST TEAM,Team Management,,app/host/team/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+HOST PROFILE,Profile,,app/host/profile/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Page redirects to /host/settings?tab=profile
+HOST REVIEWS,Reviews,,app/host/reviews/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Dynamic import of ReviewsClient
+HOST PROMOTERS,Promoter Management,,app/host/promoters/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,N/A,N/A,Page redirects to /host/network?tab=promoters
+HOST PARTNERS,Partner Detail,,app/host/partners/[id]/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Reuses venue ProfilePageClient
+HOST PARTNERSHIPS,Partnerships,,app/host/partnerships/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,Page redirects to /host/network?tab=venues
+HOST CALENDAR,Calendar,/api/venues/[id]/calendar,app/host/calendar/PageClient.tsx,COMPLETE,lib/server,NO AUTH,Missing auth,N/A,isLoading,N/A,
+HOST AUDIENCE,Audience Analytics,,app/host/audience/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,Skeleton,N/A,
+HOST WALLET,Wallet,,app/host/wallet/page.tsx,REDIRECT - Forwards to /host/finance,N/A,N/A,N/A,N/A,N/A,N/A,
+HOST NOTIFICATIONS,Notifications,,app/host/notifications/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,
+HOST OPS,Ops Dashboard,,app/host/ops/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+HOST DISCOVER,Discover,,app/host/discover/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx route
+HOST CREATE EVENT,Create Event Flow,,app/host/create/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,No page.tsx route
+PROMOTER DASHBOARD,Home,,app/promoter/page.tsx + PageClient.tsx (743 lines),COMPLETE,lib/server + react-query,withAuth,N/A,isLoading from queries,N/A,Proper typed interfaces,KPI cards assignment list chart clicks/revenue range tabs
+PROMOTER EVENTS,List,,app/promoter/events/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,
+PROMOTER EVENTS,Assignment Detail,,app/promoter/events/[assignmentId]/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER FINANCE,Overview,,app/promoter/finance/PageClient.tsx,COMPLETE,lib/server/promoterFinanceStore,withAuth,N/A,N/A,isLoading,N/A,
+PROMOTER FINANCE,Payouts,,app/promoter/finance/payouts/page.tsx (338 lines),COMPLETE,lib/server,withAuth,N/A,formError/formSuccess,spinner,N/A,Balance display payout request form status filtering
+PROMOTER FINANCE,Commissions,,app/promoter/finance/commissions/page.tsx (213 lines),COMPLETE,lib/server,withAuth,N/A,setError,Skeleton,N/A,Status filtering
+PROMOTER PARTNERS,Discover/Connected,,app/promoter/partners/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER PARTNERS,Profile,,app/promoter/partners/[id]/page.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER PARTNERSHIPS,Partnerships,,app/promoter/partnerships/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Page redirects to /promoter/partners
+PROMOTER SETTINGS,Settings,,app/promoter/settings/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER PERSONA,Persona/Brand Setup,,app/promoter/persona/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,Page redirects to /promoter/settings?tab=persona
+PROMOTER LINKS,Promo Links,,app/promoter/links/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER GUESTS,Guest Stream,,app/promoter/guests/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,isLoading,N/A,
+PROMOTER NOTIFICATIONS,Notifications,,app/promoter/notifications/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,setError,isLoading,N/A,
+PROMOTER PROFILE,Profile (inline),,app/promoter/profile/page.tsx (239 lines),COMPLETE,lib/server,withAuth,Hardcoded city "Pune" hardcoded "-- Since 2026" string in UI,alert() - MINOR,spinner,N/A,Inline page no PageClient
+PROMOTER ANALYTICS,Dashboard,,app/promoter/analytics/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER ANALYTICS,Category,,app/promoter/analytics/[category]/PageClient.tsx,COMPLETE,lib/server,withAuth,N/A,N/A,N/A,N/A,
+PROMOTER CONNECTIONS,Connections,,app/promoter/connections/page.tsx (209 lines),COMPLETE,lib/server,withAuth,N/A,console.error only,spinner,N/A,Discover/pending/connected/rejected tabs empty state per tab
+PROMOTER WALLET,Wallet,,app/promoter/wallet/page.tsx,REDIRECT - Forwards to /promoter/finance,N/A,N/A,N/A,N/A,N/A,N/A,
+SCAN,Ticket Scanning,/api/scan,app/api/scan/route.ts,PARTIAL,gateway proxy,NO AUTH (fixed - now withAuth),Missing auth before fix - unauthorized requests could reach gateway,N/A,N/A,N/A,Proxies to GATEWAY_URL/api/v1/scan
+SCAN,Scan History,/api/scan?eventId=XXX,app/api/scan/route.ts,PARTIAL,gateway proxy,NO AUTH (fixed - now withAuth),N/A,N/A,N/A,N/A,
+SCAN,Scanner Stats,/api/scan/stats,app/api/scan/stats/route.ts,PARTIAL,gateway proxy,NO AUTH (fixed - now withAuth),N/A,N/A,N/A,N/A,
+SCAN,Scanner Auth,/api/scan/auth,app/api/scan/auth/route.ts,COMPLETE,gateway proxy,withAuth on GET only (POST intentional public),POST is intentionally unauthenticated (Scanner App),N/A,N/A,N/A,POST is for event code validation from scanner app
+KYC,Verify Aadhaar,/api/kyc/verify-aadhaar,app/api/kyc/verify-aadhaar/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+KYC,Upload,/api/kyc/upload,app/api/kyc/upload/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+PAYMENT,Initiate,/api/payment/initiate,app/api/payment/initiate/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+DISCOVERY,Discovery CRUD,/api/discovery,app/api/discovery/route.ts,COMPLETE,firestore,verifyAuth,N/A,N/A,N/A,N/A,
+EVENT CODES,Event Codes CRUD,/api/event-codes,app/api/event-codes/route.ts,COMPLETE,firestore,withAuth,N/A,N/A,N/A,N/A,
+DOOR ENTRY,Door Entry,/api/door-entry,app/api/door-entry/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+POSTER,Poster Generation,/api/poster/generate,app/api/poster/generate/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+GUESTLIST,Guest List,/api/guestlist,app/api/guestlist/route.ts,COMPLETE,gateway proxy,withAuth,N/A,N/A,N/A,N/A,
+QR,QR Payload Generation,,lib/server/qrStore.js,COMPLETE (FIXED),node:crypto HMAC,N/A,Hardcoded HMAC secret fallback "c1rcle-qr-secret-2024" fixed to throw,N/A,N/A,N/A,"QR_SECRET_KEY env var required, throws if missing"
+QR,Ticket Scanning Verification,,lib/server/verification.js,COMPLETE (FIXED),firestore + crypto,N/A,Mock OTP bypass "123456" replaced with random-code path,N/A,N/A,N/A,OTP code written to Firestore and verified
+FINANCE STORE,Transaction History,,lib/server/financeStore.js,COMPLETE (FIXED),firestore,N/A,"Empty catch blocks fixed, getTransactionHistory had no try/catch",console.error,N/A,N/A,Returns [] on failure
+FINANCE STORE,Balance/Financial Summary,,lib/server/financeStore.js,PARTIAL,firestore,N/A,Catch returns zeroed data with auditStatus:error silently,N/A,N/A,N/A,Should propagate errors for retry
+BOOKING STORE,Booking Operations,,lib/server/bookingStore.ts,COMPLETE,firestore,N/A,Empty catch at lines 97-99 documented intentional,N/A,N/A,N/A,"Non-critical audit log write, documented by-design"
+ORDER TRACKING,Order Tracking,,lib/server/orderTracking.ts,COMPLETE,firestore,N/A,N/A,N/A,N/A,N/A,
+STAFF SERVICE,Invite Code Generation,,lib/server/staffService.js,COMPLETE (FIXED),firebase auth,N/A,Orphaned bare return code; at module scope fixed by wrapping in function,N/A,N/A,N/A,
+SECURITY STORE,Security Codes,,lib/server/securityStore.js,COMPLETE (FIXED),firestore,N/A,"getSyncCode empty catch fixed, now logs errors",console.error,N/A,N/A,
+SLOT STORE,Slot Availability,,lib/server/slotStore.js,COMPLETE (FIXED),firestore,N/A,Generic error messages fixed to include context,N/A,N/A,N/A,
+PARTNERSHIP STORE,Partnership CRUD,,lib/server/partnershipStore.js,COMPLETE (FIXED),firestore,N/A,Missing input validation for required IDs added,N/A,N/A,N/A,
+ORDER STORE,Order Operations,,lib/server/orderStore.js,COMPLETE (FIXED),gateway proxy,N/A,Missing getUserOrders function exported added,N/A,N/A,N/A,
+AUDIT LOG,Audit Logging,,lib/server/auditLog.ts + auditLogStore.ts,COMPLETE,firestore,N/A,Swallowed failures are documented by-design,N/A,N/A,N/A,"Non-critical, failures are silent"
+PAYMENTS,Bank Verification,,lib/server/payments/bankVerification.ts,COMPLETE,razorpay,N/A,N/A,N/A,N/A,N/A,
+PAYMENTS,Payout Accounts,,lib/server/payments/payoutAccounts.ts,COMPLETE,firestore,N/A,N/A,N/A,N/A,N/A,
+PAYMENTS,Payout Jobs,,lib/server/payments/payoutJobs.ts,COMPLETE,firestore + inngest,N/A,N/A,N/A,N/A,N/A,
+PAYMENTS,Provider Config,,lib/server/payments/providerConfig.ts,COMPLETE,env vars,N/A,N/A,N/A,N/A,N/A,
+PAYMENTS,Razorpay Payouts,,lib/server/payments/razorpayXPayouts.ts,PARTIAL - STUBBED,razorpay,N/A,"Payout execution is stubbed, HTTP helpers are wired but commented out",N/A,N/A,N/A,"Documented: final activation is un-commenting live API calls"
+PAYMENTS,Razorpay Client,,lib/server/razorpayClient.ts,COMPLETE,razorpay,N/A,Hardcoded Razorpay API URLs - correct by design (key determines env),N/A,N/A,N/A,

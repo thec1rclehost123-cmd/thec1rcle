@@ -254,7 +254,7 @@ function RequestRow({ req }: { req: PartnershipRequest }) {
 
 export default function HostPartnershipsPage() {
     const router = useRouter();
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const hostId = profile?.activeMembership?.partnerId;
 
     const [tab, setTab] = useState<NetworkTab>("venues");

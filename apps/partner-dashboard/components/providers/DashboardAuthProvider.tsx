@@ -66,7 +66,7 @@ interface MeApiResponse {
 }
 
 interface AuthContextValue {
-    user: User | null;
+    user: any | null;
     profile: DashboardProfile | null;
     loading: boolean;
     isApproved: boolean;
@@ -98,7 +98,7 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function DashboardAuthProvider({ children }: { children: ReactNode }) {
-    const [user, setUser] = useState<User | null>(null);
+    const [user, setUser] = useState<any | null>(null);
     const [profile, setProfile] = useState<DashboardProfile | null>(null);
     const [loading, setLoading] = useState(true);
     const [isApproved, setIsApproved] = useState(false);
@@ -116,7 +116,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
 
     useEffect(() => {
         const auth = getFirebaseAuth();
-        const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser: any) => {
             setUser(firebaseUser);
             if (!firebaseUser) {
                 setProfile(null);
@@ -142,7 +142,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
             }
         });
 
-        return () => unsubscribeAuth();
+        return () => unsubscribe();
     }, []);
 
     useEffect(() => {
@@ -297,7 +297,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
             if (document.visibilityState === "visible") {
                 const elapsed = Date.now() - lastProfileFetchRef.current;
                 if (elapsed > 60 * 1000) {
-                    user.getIdToken().then(token => {
+                    user.getIdToken().then((token: any) => {
                         fetch("/api/auth/me", { headers: { Authorization: `Bearer ${token}` } })
                             .then(r => r.ok ? r.json() : null)
                             .then(data => {
@@ -328,7 +328,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
 
         const syncPermissions = async () => {
             try {
-                const token = await user.getIdToken();
+                const token = await user.getIdToken().then((token: any) => token);
                 const res = await fetch("/api/auth/me", {
                     headers: { Authorization: `Bearer ${token}` },
                 });

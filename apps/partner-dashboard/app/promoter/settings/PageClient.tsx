@@ -32,7 +32,7 @@ const DEFAULT_NOTIF: NotificationPrefs = {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage({ setActions, activeTab }: { setActions?: (node: React.ReactNode) => void; activeTab?: string }) {
-    const { profile, user } = useDashboardAuth() as any;
+    const { profile, user } = useDashboardAuth();
     const promoterId: string = profile?.activeMembership?.partnerId ?? "";
 
     // ── Identity state

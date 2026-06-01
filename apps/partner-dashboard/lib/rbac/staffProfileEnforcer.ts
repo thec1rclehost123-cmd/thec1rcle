@@ -10,6 +10,7 @@
  *   if ("error" in ctx) return NextResponse.json({ error: ctx.error }, { status: ctx.status });
  */
 
+import { NextRequest } from "next/server";
 import { verifyAuth } from "../server/auth";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { requirePartnerAccess, buildPartnerAuthError } from "../server/partnerAuthMiddleware";
@@ -32,7 +33,7 @@ const LEGACY_STAFF_ACTION_ALIASES: Record<LegacyStaffAction, StaffAction[]> = {
     manage_events:    ["events:create", "events:edit", "events:cancel", "events:duplicate", "events:approve_requests"],
     view_analytics:   ["analytics:read"],
     view_financials:  ["finance:read_overview", "finance:read_ledger", "finance:read_payouts", "finance:read_host_payouts", "finance:read_promoter_payouts"],
-    manage_financials:["finance:initiate_payout", "settings:edit"],
+    manage_financials: ["finance:initiate_payout", "settings:edit"],
     manage_orders:    ["orders_resendReceipt", "orders_refund", "orders_refundResell"],
     manage_promoters: ["events:edit"],
     manage_staff:     ["staff:invite", "staff:edit_profiles", "staff:revoke"],
@@ -86,12 +87,12 @@ class BoundedCache<V> {
 const accessCache = new BoundedCache<{ ctx: VenueAuthContext; expiresAt: number }>(ACCESS_CACHE_MAX);
 
 export async function requireVenueAccess(
-    request: Request,
+    request: NextRequest,
     requiredAction?: StaffAction | LegacyStaffAction
 ): Promise<VenueAuthContext | VenueAuthError> {
     try {
         if (!isFirebaseConfigured()) {
-            return buildPartnerAuthError(request as any, 503,
+            return buildPartnerAuthError(request, 503,
                 process.env.NODE_ENV === "development"
                     ? "Service unavailable: Firebase Admin is in Toy Mode (missing credentials). Check your terminal console for details."
                     : "Service temporarily unavailable"
@@ -100,7 +101,7 @@ export async function requireVenueAccess(
 
         // Fast token decode (local, no network) — needed to build the cache key
         const user = await verifyAuth(request);
-        if (!user) return buildPartnerAuthError(request as any, 401, "Unauthorized");
+        if (!user) return buildPartnerAuthError(request, 401, "Unauthorized");
 
         const { searchParams } = new URL(request.url);
         const venueId =
@@ -113,7 +114,7 @@ export async function requireVenueAccess(
             null;
 
         if (!venueId || venueId === "null" || venueId === "undefined") {
-            return buildPartnerAuthError(request as any, 400, "partnerId (venue/host) required");
+            return buildPartnerAuthError(request, 400, "partnerId (venue/host) required");
         }
 
         // LRU cache short-circuit — skips all Firestore reads for repeat calls within 15s
@@ -123,14 +124,16 @@ export async function requireVenueAccess(
         }
 
         // Delegate base auth to the unified resolver (token + memberships + fallbacks)
-        const base = await requirePartnerAccess(request as any, { type: "venue", explicitPartnerId: venueId });
+        const base = await requirePartnerAccess(request, { type: "venue", explicitPartnerId: venueId });
         if ("error" in base) return base;
 
         // OWNER path — no profile resolution needed
         if (base.role === "OWNER") return ownerContext(base.uid, venueId, base.membershipId);
 
         // Staff path — resolve fine-grained effective profile
-        const effective = await resolveEffectiveProfile(venueId, base.membershipId);
+        const authHeader = request.headers.get("Authorization");
+        const token = authHeader && authHeader.startsWith("Bearer ") ? authHeader.slice(7) : undefined;
+        const effective = await resolveEffectiveProfile(venueId, base.membershipId, token);
 
         const rawCanDo = (action: StaffAction): boolean => {
             const normalizedRole = String(effective.baseRole || "").toUpperCase();
@@ -157,7 +160,7 @@ export async function requireVenueAccess(
                 (hostDoc.exists && hostDoc.data()?.ownerId === user.uid)) {
                 return ownerContext(user.uid, venueId, "owner-direct-fallback");
             }
-            return buildPartnerAuthError(request as any, 403, "Insufficient permissions");
+            return buildPartnerAuthError(request, 403, "Insufficient permissions");
         }
 
         const result: VenueAuthContext = {
@@ -175,7 +178,7 @@ export async function requireVenueAccess(
     } catch (err: any) {
         const msg = err?.message || "Unknown error";
         console.error("[RBAC Enforcer] Internal Access Check Error:", msg);
-        return buildPartnerAuthError(request as any, 500,
+        return buildPartnerAuthError(request, 500,
             process.env.NODE_ENV === "development"
                 ? `Internal authorization error: ${msg}`
                 : "Internal authorization error"
@@ -190,39 +193,39 @@ export function applyPIIMask<T>(record: T, policy: PIIPolicy): T {
         return (record as unknown[]).map(item => applyPIIMask(item, policy)) as unknown as T;
     }
 
-    const out: Record<string, unknown> = { ...(record as Record<string, unknown>) };
+    const out = { ...(record as Record<string, unknown>) };
 
     if (!policy.showPhone) {
-        if ("phoneFull" in out && typeof out.phoneFull === "string") (out as any).phoneFull = undefined;
+        if ("phoneFull" in out && typeof out.phoneFull === "string") out.phoneFull = undefined;
         if ("phone" in out && typeof out.phone === "string") {
-            const p = out.phone as string;
-            (out as any).phone = `****${p.slice(-4)}`;
+            const p = out.phone;
+            out.phone = `****${p.slice(-4)}`;
         }
     }
     if (!policy.showEmail && "email" in out && typeof out.email === "string") {
-        const parts = (out.email as string).split("@");
-        (out as any).email = `${parts[0].slice(0, 2)}****@${parts[1] ?? ""}`;
+        const parts = out.email.split("@");
+        out.email = `${parts[0].slice(0, 2)}****@${parts[1] ?? ""}`;
     }
     if (!policy.showLastName) {
         if ("guestName" in out && typeof out.guestName === "string") {
-            const parts = (out.guestName as string).split(" ");
-            if (parts.length > 1) (out as any).guestName = `${parts[0]} ${parts[1][0]}.`;
+            const parts = out.guestName.split(" ");
+            if (parts.length > 1) out.guestName = `${parts[0]} ${parts[1][0]}.`;
         }
         if ("lastName" in out && typeof out.lastName === "string") {
-            (out as any).lastName = `${out.lastName[0]}.`;
+            out.lastName = `${out.lastName[0]}.`;
         }
     }
     if (!policy.showOrderAmount) {
-        (out as any).amountPaise = undefined;
-        (out as any).amount = undefined;
-        (out as any).grossPaise = undefined;
-        (out as any).netPaise = undefined;
+        out.amountPaise = undefined;
+        out.amount = undefined;
+        out.grossPaise = undefined;
+        out.netPaise = undefined;
     }
     if (!policy.showPayoutAmounts) {
-        (out as any).payoutAmount = undefined;
-        (out as any).payoutAmountPaise = undefined;
-        (out as any).settledAmount = undefined;
-        (out as any).pendingAmount = undefined;
+        out.payoutAmount = undefined;
+        out.payoutAmountPaise = undefined;
+        out.settledAmount = undefined;
+        out.pendingAmount = undefined;
     }
     for (const key of Object.keys(out)) {
         const val = out[key];
@@ -233,12 +236,12 @@ export function applyPIIMask<T>(record: T, policy: PIIPolicy): T {
 
 /** Check if request is from an OWNER or MANAGER (for management-only endpoints) */
 export async function requireManagementRole(
-    request: Request
+    request: NextRequest
 ): Promise<{ uid: string; venueId: string } | VenueAuthError> {
     const ctx = await requireVenueAccess(request);
     if ("error" in ctx) return ctx;
     if (!["OWNER", "MANAGER"].includes((ctx.baseRole || "").toUpperCase())) {
-        return buildPartnerAuthError(request as any, 403, "Manager or Owner role required");
+        return buildPartnerAuthError(request, 403, "Manager or Owner role required");
     }
     return { uid: ctx.uid, venueId: ctx.venueId };
 }

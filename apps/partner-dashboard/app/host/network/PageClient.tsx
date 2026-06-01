@@ -44,7 +44,7 @@ const mp = (delay: number) => ({
 
 export default function HostNetworkPage() {
     const router = useRouter();
-    const { profile, user, getIdToken } = useDashboardAuth() as any;
+    const { profile, user, getIdToken } = useDashboardAuth();
     const hostId = profile?.activeMembership?.partnerId;
 
     const [activeTab, setActiveTab] = useState<Tab>("discover");
@@ -157,7 +157,7 @@ export default function HostNetworkPage() {
             await fetch("/api/discovery", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-                body: JSON.stringify({ requesterId: hostId, requesterType: "host", requesterName: profile?.name || "", targetId, targetType, targetName }),
+                body: JSON.stringify({ requesterId: hostId, requesterType: "host", requesterName: profile?.displayName || "", targetId, targetType, targetName }),
             });
             await fetchData();
         } catch { /* */ } finally { setProcessingId(null); }

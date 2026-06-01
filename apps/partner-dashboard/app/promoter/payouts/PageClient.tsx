@@ -63,7 +63,7 @@ const mp = (delay = 0) => ({
 });
 
 export default function PayoutsPage() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const [balance, setBalance] = useState<PayoutBalance | null>(null);
     const [payouts, setPayouts] = useState<Payout[]>([]);
     const [loading, setLoading] = useState(true);

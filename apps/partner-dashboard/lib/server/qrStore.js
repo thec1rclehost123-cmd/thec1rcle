@@ -5,8 +5,11 @@
 
 import { createHmac } from "node:crypto";
 
-// Secret key for HMAC signing (should be in env vars in production)
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+// Secret key for HMAC signing (must be set via env var)
+const QR_SECRET = process.env.QR_SECRET_KEY;
+if (!QR_SECRET) {
+  throw new Error("QR_SECRET_KEY environment variable is required for QR code HMAC signing");
+}
 
 /**
  * Generate QR code payload for a ticket

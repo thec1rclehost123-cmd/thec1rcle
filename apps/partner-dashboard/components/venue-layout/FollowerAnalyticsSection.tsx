@@ -109,7 +109,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
             <section className="space-y-4 pt-8 border-t border-border-subtle">
                 <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Growth Trend</h4>
                 <div className="p-8 bg-gradient-to-br from-violet-900/20 to-slate-900/40 rounded-3xl border border-violet-500/10 flex items-center justify-center h-48">
-                    <p className="text-[13px] text-text-tertiary">Growth data not yet available</p>
+                    <p className="text-[13px] text-text-tertiary">Insufficient historical data to calculate growth trend</p>
                 </div>
             </section>
 
@@ -122,7 +122,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Audience by City</h4>
                     </div>
                     <div className="space-y-3">
-                        {cityBreakdown.length === 0 && <p className="text-[13px] text-text-tertiary">City breakdown not yet available</p>}
+                        {cityBreakdown.length === 0 && <p className="text-[13px] text-text-tertiary">No geographic data available for followers</p>}
                         {cityBreakdown.map((city: any, idx: number) => (
                             <div key={city.city} className="space-y-2">
                                 <div className="flex items-center justify-between">
@@ -151,7 +151,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         <h4 className="text-[11px] font-bold text-text-tertiary uppercase tracking-widest">Top Attending Followers</h4>
                     </div>
                     <div className="space-y-3">
-                        {topFollowers.length === 0 && <p className="text-[13px] text-text-tertiary">Top followers not yet available</p>}
+                        {topFollowers.length === 0 && <p className="text-[13px] text-text-tertiary">No active followers found</p>}
                         {topFollowers.map((follower: any, idx: number) => (
                             <div key={idx} className="flex items-center gap-4 p-4 bg-surface-secondary rounded-2xl border border-border-subtle">
                                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-text-primary font-bold text-sm">
@@ -198,7 +198,7 @@ export default function FollowerAnalyticsSection({ stats, venue }: FollowerAnaly
                         />
                     </div>
                 ) : (
-                    <p className="text-[13px] text-text-tertiary">Conversion data not yet available</p>
+                    <p className="text-[13px] text-text-tertiary">No conversion events recorded</p>
                 )}
             </section>
 

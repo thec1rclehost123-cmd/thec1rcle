@@ -132,7 +132,7 @@ function FileZone({
             await new Promise<void>((resolve, reject) => {
                 task.on(
                     "state_changed",
-                    (snap) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
+                    (snap: any) => setProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
                     reject,
                     resolve
                 );

@@ -856,7 +856,8 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                 setIsSuccess(true);
             } else {
                 const data = await res.json();
-                alert(`Error: ${data.message || data.error || 'Failed to create event'}`);
+                const errMsg = typeof data.error === 'object' && data.error ? data.error.message : data.error;
+                alert(`Error: ${data.message || errMsg || 'Failed to create event'}`);
             }
         } catch (err) {
             console.error("Submission failed", err);
@@ -1462,6 +1463,7 @@ export function CreateEventWizard({ role }: { role: 'venue' | 'host' }) {
                                         <PromoterStep
                                             formData={formData}
                                             updateFormData={updateFormData}
+                                            role={role}
                                         />
                                     )}
 

@@ -43,7 +43,8 @@ export default async function calendarRoutes(fastify: FastifyInstance) {
         const { id } = request.params as { id: string };
         const { start, end } = request.query as { start: string, end: string };
         try {
-            return await getVenueAvailability(id, start, end);
+            const entries = await getVenueAvailability(id, start, end);
+            return { calendar: entries };
         } catch (error: any) {
             reply.status(500).send({ error: "Internal server error" });
         }

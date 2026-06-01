@@ -333,6 +333,7 @@ async function buildBootstrapForUid(fastify: FastifyInstance, userLike: Record<s
         rawProfile: profile.value,
         onboardingRequest: onboardingRequestResult.status === 'fulfilled' ? onboardingRequestResult.value : null,
         unreadNotificationCount: unreadCountResult.status === 'fulfilled' ? unreadCountResult.value : 0,
+        activeMembership: userLike.activeMembership || null,
     });
 }
 
@@ -379,6 +380,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
             }
 
             try {
+                await fastify.enrichAuthContext(request);
                 const bootstrap = await buildBootstrapForUid(fastify, request.user) as any;
                 const activeMembership = (request.user as any)?.activeMembership || null;
                 return {
@@ -440,7 +442,13 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
             const decoded = await createSessionFromIdToken(fastify, reply, signIn.idToken, rememberMe);
             const userRecord = await fastify.auth.getUser(decoded.uid);
-            const bootstrap = await buildBootstrapForUid(fastify, toBootstrapIdentity(userRecord));
+            const userLike = {
+                ...toBootstrapIdentity(userRecord),
+                ...decoded,
+            };
+            const dummyRequest = { user: userLike } as any;
+            await fastify.enrichAuthContext(dummyRequest);
+            const bootstrap = await buildBootstrapForUid(fastify, dummyRequest.user);
             return buildSuccessResponse({ bootstrap });
         } catch (error: any) {
             const message = mapAuthErrorMessage(error);

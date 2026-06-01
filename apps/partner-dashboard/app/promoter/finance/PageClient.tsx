@@ -63,7 +63,7 @@ interface PromoterFinanceResponse {
 }
 
 export default function PromoterFinancePageClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const router = useRouter();
     const promoterId = profile?.activeMembership?.partnerId;
 

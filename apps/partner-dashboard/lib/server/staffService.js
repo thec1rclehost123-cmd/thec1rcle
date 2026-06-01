@@ -590,6 +590,7 @@ async function updateDeviceLastActive(deviceRecordId) {
 
 // --- Helper Functions ---
 
+function generateInviteCode() {
     const { randomInt } = require("node:crypto");
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code = '';
@@ -597,7 +598,7 @@ async function updateDeviceLastActive(deviceRecordId) {
         code += chars[randomInt(chars.length)];
     }
     return code;
-
+}
 async function getStaffById(staffId) {
     if (!isFirebaseConfigured()) {
         return fallbackStaff.get(staffId) || null;

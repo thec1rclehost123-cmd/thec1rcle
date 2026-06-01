@@ -49,7 +49,7 @@ const mp = (delay: number) => ({
 });
 
 export default function PromoterPartnershipsPage() {
-    const { profile, user } = useDashboardAuth() as any;
+    const { profile, user } = useDashboardAuth();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<Tab>("active");
     const [processingId, setProcessingId] = useState<string | null>(null);

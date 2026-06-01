@@ -31,7 +31,7 @@ const STATUS_CONFIG: Record<string, { label: string; classes: string }> = {
 };
 
 export default function PromoterCommissionsPage() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const promoterId = profile?.activeMembership?.partnerId;
 
     const [loading, setLoading]       = useState(true);

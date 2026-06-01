@@ -80,7 +80,7 @@ function SettlementTable({ title, rows, isLoading, partnerLabel }: {
 }
 
 function HostSection() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
 
     const { data, isLoading } = useQuery<PartnerPayoutsPageData>({
@@ -120,7 +120,7 @@ function HostSection() {
 }
 
 function PromoterSection() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
 
     const { data, isLoading } = useQuery<PartnerPayoutsPageData>({

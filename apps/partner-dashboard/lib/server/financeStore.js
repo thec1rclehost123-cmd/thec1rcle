@@ -33,8 +33,13 @@ export async function getEventFinanceBreakdown(eventId, token) {
  */
 export async function getTransactionHistory(entityId, options = {}, token) {
     const client = getApiClient(token);
-    const query = new URLSearchParams({ entityId, ...options }).toString();
-    return client.request(`/finance/history?${query}`);
+    try {
+        const query = new URLSearchParams({ entityId, ...options }).toString();
+        return await client.request(`/finance/history?${query}`);
+    } catch (error) {
+        console.error("[FinanceStore] getTransactionHistory failed for", entityId, ":", error.message);
+        return [];
+    }
 }
 
 export default {

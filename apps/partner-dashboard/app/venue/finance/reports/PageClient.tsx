@@ -62,22 +62,20 @@ const REPORT_TYPES: ReportType[] = [
         id: "monthly_statement",
         title: "Monthly Statement PDF",
         description: "Formatted statement with all financial activity — print-ready.",
-        available: false,
+        available: true,
         extension: "pdf",
-        comingSoon: true,
     },
     {
         id: "annual_summary",
         title: "Annual Finance Summary PDF",
         description: "Year-end financial summary with tax-ready figures.",
-        available: false,
+        available: true,
         extension: "pdf",
-        comingSoon: true,
     },
 ];
 
 export default function VenueFinanceReportsClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
 
     const [fromDate, setFromDate]   = useState(() => {
@@ -131,6 +129,26 @@ export default function VenueFinanceReportsClient() {
                 const a = document.createElement("a");
                 a.href = url;
                 a.download = `${report.id}-${venueId}-${fromDate}-${toDate}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            }
+            if (report.extension === "pdf") {
+                const token = typeof getIdToken === "function" ? await getIdToken() : "";
+                const qs = new URLSearchParams({
+                    venueId,
+                    from: fromDate,
+                    to: toDate,
+                    type: report.id,
+                });
+                const res = await fetch(`/api/partners/venues/finance/reports/pdf?${qs}`, {
+                    headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (!res.ok) throw new Error("PDF Export failed");
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `${report.id}-${venueId}-${fromDate}-${toDate}.pdf`;
                 a.click();
                 URL.revokeObjectURL(url);
             }
@@ -210,20 +228,7 @@ export default function VenueFinanceReportsClient() {
                 ))}
             </div>
 
-            {/* PDF notice */}
-            <div
-                className="flex items-start gap-3 px-5 py-4 rounded-[var(--v-r-xl)]"
-                style={{
-                    background: "rgba(129,140,248,0.07)",
-                    border: "1px solid rgba(129,140,248,0.15)",
-                }}
-            >
-                <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "#818CF8" }} />
-                <p className="text-[13px]" style={{ color: "rgba(129,140,248,0.85)" }}>
-                    PDF statement generation is coming soon. CSV exports are available for all report types.
-                    For compliance or audit requests, contact your C1rcle account manager.
-                </p>
-            </div>
+
         </VenuePageShell>
     );
 }

@@ -89,7 +89,7 @@ MemoizedHostEventCard.displayName = "MemoizedHostEventCard";
 // ── Page ──
 export default function EventsManagementPage() {
     const { activeTab: hubTab } = useHubTab("events");
-    const { profile, user } = useDashboardAuth() as any;
+    const { profile, user } = useDashboardAuth();
     const [events, setEvents] = useState<Event[]>([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState("all");

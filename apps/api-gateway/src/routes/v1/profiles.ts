@@ -50,6 +50,234 @@ const UserProfileCreateBody = z.object({
 }).strict();
 
 export default async function profileRoutes(fastify: FastifyInstance) {
+    const ALLOWED_PROMOTER_PROFILE_FIELDS = [
+        'displayName', 'name', 'handle', 'avatarUrl', 'photoURL', 'profileImage',
+        'phone', 'contactPhone', 'instagram', 'bio', 'summary', 'city', 'isPublic',
+        'socialLinks', 'website', 'username'
+    ];
+
+    const ALLOWED_HOST_PROFILE_FIELDS = [
+        'displayName', 'bio', 'tagline', 'profileImage', 'coverImage', 'socialLinks',
+        'contactEmail', 'contactPhone', 'genre', 'city', 'instagramHandle',
+        'youtubeHandle', 'spotifyHandle', 'photoURL', 'coverURL', 'instagram', 'phone',
+        'username', 'handle'
+    ];
+
+    const ALLOWED_VENUE_PROFILE_FIELDS = [
+        'name', 'description', 'bio', 'tagline', 'address', 'city', 'state',
+        'capacity', 'amenities', 'photos', 'coverImage', 'profileImage', 'contactEmail',
+        'contactPhone', 'socialLinks', 'operatingHours', 'dressCode', 'ageRestriction',
+        'instagramHandle', 'youtubeHandle', 'spotifyHandle', 'photoURL', 'coverURL'
+    ];
+
+    fastify.get('/profile', {
+        preHandler: [async (request) => { if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request); }]
+    }, async (request: any, reply) => {
+        const { profileId, type, stats } = request.query as any;
+        if (!profileId || !type) {
+            return reply.status(400).send({ error: 'profileId and type are required' });
+        }
+
+        await fastify.verifyPartnerAccess(request, profileId).catch(() => {
+            throw reply.status(403).send({ error: 'Forbidden' });
+        });
+
+        try {
+            if (type === 'promoter') {
+                const doc = await fastify.db.collection('promoters').doc(profileId).get();
+                if (!doc.exists) {
+                    return { profile: { id: profileId } };
+                }
+                return { profile: { id: doc.id, ...doc.data() } };
+            }
+
+            if (type === 'host') {
+                const doc = await fastify.db.collection('hosts').doc(profileId).get();
+                if (!doc.exists) {
+                    return reply.status(404).send({ error: 'Host not found' });
+                }
+                const profile = { id: doc.id, ...doc.data() };
+
+                let statsObj = { followersCount: 0, postsCount: 0, totalLikes: 0, totalViews: 0 };
+                if (stats === 'true') {
+                    const summaryDoc = await fastify.db.collection('host_summary').doc(profileId).get().catch(() => null);
+                    if (summaryDoc && summaryDoc.exists) {
+                        const summaryData = summaryDoc.data();
+                        statsObj = {
+                            followersCount: summaryData?.followersCount || 0,
+                            postsCount: summaryData?.postsCount || 0,
+                            totalLikes: summaryData?.totalLikes || 0,
+                            totalViews: summaryData?.totalViews || 0,
+                        };
+                    }
+                }
+
+                const [posts, highlights] = await Promise.all([
+                    fastify.profileService.getPosts(profileId, 'host', 20).catch(() => []),
+                    fastify.profileService.getHighlights(profileId, 'host').catch(() => []),
+                ]);
+
+                return {
+                    profile,
+                    stats: statsObj,
+                    posts,
+                    highlights,
+                };
+            }
+
+            if (type === 'venue') {
+                const doc = await fastify.db.collection('venues').doc(profileId).get();
+                if (!doc.exists) {
+                    return reply.status(404).send({ error: 'Venue not found' });
+                }
+                const profile = { id: doc.id, ...doc.data() };
+
+                let statsObj = { followersCount: 0, postsCount: 0, totalLikes: 0, totalViews: 0 };
+                if (stats === 'true') {
+                    const summaryDoc = await fastify.db.collection('venue_summary').doc(profileId).get().catch(() => null);
+                    if (summaryDoc && summaryDoc.exists) {
+                        const summaryData = summaryDoc.data();
+                        statsObj = {
+                            followersCount: summaryData?.followersCount || 0,
+                            postsCount: 0,
+                            totalLikes: summaryData?.totalLikes || 0,
+                            totalViews: summaryData?.totalViews || 0,
+                        };
+                    }
+                }
+
+                const [posts, highlights] = await Promise.all([
+                    fastify.profileService.getPosts(profileId, 'venue', 20).catch(() => []),
+                    fastify.profileService.getHighlights(profileId, 'venue').catch(() => []),
+                ]);
+
+                return {
+                    profile,
+                    stats: statsObj,
+                    posts,
+                    highlights,
+                };
+            }
+
+            return reply.status(400).send({ error: `Unsupported profile type: ${type}` });
+        } catch (error: any) {
+            fastify.log.error(`Error in GET /profile: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal Server Error' });
+        }
+    });
+
+    fastify.post('/profile', {
+        preHandler: [async (request) => { if ((fastify as any).requireAuth) await (fastify as any).requireAuth(request); }]
+    }, async (request: any, reply) => {
+        const { profileId, type, action, data } = request.body || {};
+        if (!profileId || !type || !action) {
+            return reply.status(400).send({ error: 'profileId, type, and action are required' });
+        }
+
+        await fastify.verifyPartnerAccess(request, profileId).catch(() => {
+            throw reply.status(403).send({ error: 'Forbidden' });
+        });
+
+        try {
+            if (action === 'updateProfile') {
+                const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
+                if (type === 'promoter') {
+                    for (const field of ALLOWED_PROMOTER_PROFILE_FIELDS) {
+                        if (data[field] !== undefined) patch[field] = data[field];
+                    }
+                    if (patch.displayName && patch.name === undefined) patch.name = patch.displayName;
+                    await fastify.db.collection('promoters').doc(profileId).set(patch, { merge: true });
+                } else if (type === 'host') {
+                    for (const field of ALLOWED_HOST_PROFILE_FIELDS) {
+                        if (data[field] !== undefined) patch[field] = data[field];
+                    }
+                    await fastify.db.collection('hosts').doc(profileId).update(patch);
+                    await fastify.publicDiscoveryService.syncHostReadModels(profileId).catch(() => {});
+                    await fastify.invalidatePublicDiscovery('all').catch(() => {});
+                } else if (type === 'venue') {
+                    for (const field of ALLOWED_VENUE_PROFILE_FIELDS) {
+                        if (data[field] !== undefined) patch[field] = data[field];
+                    }
+                    await fastify.db.collection('venues').doc(profileId).update(patch);
+                    await fastify.publicDiscoveryService.syncVenueReadModels(profileId).catch(() => {});
+                    await fastify.invalidatePublicDiscovery('all').catch(() => {});
+                } else {
+                    return reply.status(400).send({ error: `Unsupported profile type: ${type}` });
+                }
+                return { success: true };
+            }
+
+            if (action === 'createPost') {
+                const newPost = {
+                    profileId,
+                    profileType: type,
+                    content: data.content || '',
+                    imageUrl: data.imageUrl || '',
+                    likes: 0,
+                    views: 0,
+                    authorUid: request.user?.uid || '',
+                    authorName: request.user?.displayName || '',
+                    createdAt: new Date().toISOString(),
+                };
+                const docRef = await fastify.db.collection('profile_posts').add(newPost);
+                return { success: true, id: docRef.id };
+            }
+
+            if (action === 'deletePost') {
+                const postRef = fastify.db.collection('profile_posts').doc(data.postId);
+                const postDoc = await postRef.get();
+                if (!postDoc.exists) return reply.status(404).send({ error: 'Post not found' });
+                const postData = postDoc.data();
+                if (!postData || postData.profileId !== profileId) return reply.status(403).send({ error: 'Forbidden' });
+                await postRef.delete();
+                return { success: true };
+            }
+
+            if (action === 'createHighlight') {
+                const newHighlight = {
+                    profileId,
+                    profileType: type,
+                    title: data.title || '',
+                    color: data.color || '#4F46E5',
+                    authorUid: request.user?.uid || '',
+                    createdAt: new Date().toISOString(),
+                };
+                const docRef = await fastify.db.collection('profile_highlights').add(newHighlight);
+                return { success: true, id: docRef.id };
+            }
+
+            if (action === 'deleteHighlight') {
+                const highlightRef = fastify.db.collection('profile_highlights').doc(data.highlightId);
+                const highlightDoc = await highlightRef.get();
+                if (!highlightDoc.exists) return reply.status(404).send({ error: 'Highlight not found' });
+                const highlightData = highlightDoc.data();
+                if (!highlightData || highlightData.profileId !== profileId) return reply.status(403).send({ error: 'Forbidden' });
+                await highlightRef.delete();
+                return { success: true };
+            }
+
+            if (action === 'addPhoto') {
+                const updateField = data.field === 'coverURL' ? 'coverURL' : (data.field === 'photoURL' ? 'photoURL' : data.field);
+                await fastify.db.collection(type === 'host' ? 'hosts' : 'venues').doc(profileId).update({
+                    [updateField]: data.url,
+                    updatedAt: new Date().toISOString(),
+                });
+                if (type === 'host') {
+                    await fastify.publicDiscoveryService.syncHostReadModels(profileId).catch(() => {});
+                } else if (type === 'venue') {
+                    await fastify.publicDiscoveryService.syncVenueReadModels(profileId).catch(() => {});
+                }
+                await fastify.invalidatePublicDiscovery('all').catch(() => {});
+                return { success: true };
+            }
+
+            return reply.status(400).send({ error: `Unsupported action: ${action}` });
+        } catch (error: any) {
+            fastify.log.error(`Error in POST /profile: ${error.message}`);
+            return reply.status(500).send({ error: 'Internal Server Error' });
+        }
+    });
+
     /**
      * GET /api/v1/profiles/:id
      */

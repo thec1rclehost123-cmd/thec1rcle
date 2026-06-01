@@ -4,8 +4,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load env from admin-console
-dotenv.config({ path: path.resolve(process.cwd(), 'apps/admin-console/.env.local') });
+// Load env from api-gateway
+dotenv.config({ path: path.resolve(process.cwd(), 'apps/api-gateway/.env.development') });
 
 if (!getApps().length) {
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -68,16 +68,19 @@ async function finalSync() {
             };
             await db.collection('users').doc(uid).set(update, { merge: true });
             
-            // 3. Ensure a Membership record exists
-            await db.collection('memberships').doc(`${uid}_${acc.partnerId}`).set({
+            // 3. Ensure a Membership record exists in both memberships and partner_memberships
+            const membershipDoc = {
                 uid,
                 partnerId: acc.partnerId,
                 partnerType: claims.partnerType,
                 role: acc.partnerRole,
                 status: 'active',
                 isActive: true,
-                joinedAt: Date.now()
-            }, { merge: true });
+                joinedAt: Date.now(),
+                createdAt: new Date().toISOString()
+            };
+            await db.collection('memberships').doc(`${uid}_${acc.partnerId}`).set(membershipDoc, { merge: true });
+            await db.collection('partner_memberships').doc(`${uid}_${acc.partnerId}`).set(membershipDoc, { merge: true });
 
             console.log(`✅ Sync complete for ${acc.email}`);
         } catch (e) {

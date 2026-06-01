@@ -114,3 +114,34 @@ export function generateTicketPDF({
 export function getQRCodeUrl(data, size = 200) {
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(data)}&bgcolor=FFFFFF&color=000000&margin=10`;
 }
+
+export function generateFinanceReportPDF({
+    venueName,
+    reportType,
+    fromDate,
+    toDate,
+    totalRevenue = 0,
+    generatedAt = new Date().toISOString(),
+}) {
+    const reportTitle = reportType === 'monthly_statement' ? 'Monthly Statement' : 'Annual Finance Summary';
+    const dateRange = fromDate && toDate ? `${fromDate} to ${toDate}` : 'All Time';
+    const formattedRevenue = `Rs.${totalRevenue.toLocaleString('en-IN')}`;
+
+    const contentLines = [
+        { text: 'THE C1RCLE', size: 20, y: 760, bold: true },
+        { text: 'Finance Report', size: 10, y: 760, x: 400, color: '0.5 0.5 0.5' },
+        { line: true, y: 745 },
+        { text: venueName, size: 16, y: 720, bold: true },
+        { text: '', size: 12, y: 700 },
+        { text: reportTitle, size: 14, y: 685 },
+        { text: `Date Range: ${dateRange}`, size: 10, y: 668, color: '0.4 0.4 0.4' },
+        { line: true, y: 650 },
+        { text: 'Financial Summary', size: 12, y: 625, bold: true },
+        { text: `Total Revenue: ${formattedRevenue}`, size: 11, y: 605 },
+        { text: 'Report generated successfully.', size: 11, y: 585 },
+        { text: `Generated: ${generatedAt}`, size: 8, y: 40, color: '0.6 0.6 0.6' },
+        { text: 'THE C1RCLE — thec1rcle.com', size: 8, y: 28, color: '0.6 0.6 0.6' },
+    ];
+
+    return Buffer.from(buildRawPDF(contentLines));
+}

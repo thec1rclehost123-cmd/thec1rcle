@@ -25,8 +25,8 @@ import {
 // ── Payout Settings Page ──────────────────────────────────────────────────────
 
 export default function VenuePayoutsSettingsClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
-    const venueId = profile?.activeMembership?.partnerId;
+    const { profile, getIdToken } = useDashboardAuth();
+    const venueId = profile?.activeMembership?.partnerId ?? "";
 
     const [settingsState, setSettingsState] = useState<PayoutSettingsState>("unconnected");
     const [payouts, setPayouts] = useState<PayoutRecord[]>([]);

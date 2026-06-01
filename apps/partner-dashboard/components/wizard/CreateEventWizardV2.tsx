@@ -149,6 +149,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         discount: 10,
         discountType: "percent",
         useDefaultDiscount: true,
+        promoters: [],
         images: [],
         poster: "",
         lifecycle: 'draft',
@@ -178,13 +179,14 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
             endDate: startDate,
         });
         const endpoint = role === "host"
-            ? `/api/partners/hosts/venue-calendar?venueId=${venueId}&${params.toString()}`
+            ? `/api/host/venue-calendar?venueId=${venueId}&${params.toString()}`
             : `/api/venues/${venueId}/calendar?${params.toString()}`;
         const res = await authedFetch(endpoint);
         const data = await res.json();
 
         if (!res.ok) {
-            throw new Error(data.message || data.error || "Failed to check slot availability");
+            const slotErrMsg = typeof data.error === 'object' && data.error ? data.error.message : data.error;
+            throw new Error(data.message || slotErrMsg || "Failed to check slot availability");
         }
 
         const day = (data.calendar || data.days || [])[0];
@@ -282,7 +284,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
             if (!res.ok) {
                 const data = await res.json().catch(() => ({}));
-                throw new Error(data.message || data.error || "Create failed");
+                const errMsg = data.message || (typeof data.error === 'object' && data.error ? data.error.message : data.error) || "Create failed";
+                throw new Error(errMsg);
             }
 
             const data = await res.json();
@@ -609,14 +612,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                         const res = await authedFetch(`/api/events/${savedDraftId}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                actor: {
-                                    uid: profile?.uid,
-                                    role: role,
-                                    partnerId: profile?.activeMembership?.partnerId
-                                },
-                                updates: payload
-                            }),
+                            body: JSON.stringify(payload),
                         });
                         if (!res.ok) throw new Error("Update failed");
                     } else {
@@ -718,7 +714,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     });
                     if (!saveRes.ok) {
                         const data = await saveRes.json().catch(() => ({}));
-                        throw new Error(data.message || data.error || "Failed to update draft");
+                        const updErrMsg = typeof data.error === 'object' && data.error ? data.error.message : data.error;
+                        throw new Error(data.message || updErrMsg || "Failed to update draft");
                     }
                 }
 
@@ -759,7 +756,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                 }
             } else {
                 const data = await res.json();
-                alert(`Error: ${data.message || data.error || 'Failed to create event'}`);
+                const errMsg = typeof data.error === 'object' && data.error ? data.error.message : data.error;
+                alert(`Error: ${data.message || errMsg || 'Failed to create event'}`);
             }
         } catch (err) {
             console.error("Submission failed", err);
@@ -984,6 +982,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                                             <PromoterStep
                                                 formData={formData}
                                                 updateFormData={updateFormData}
+                                                role={role}
                                             />
                                         )}
 

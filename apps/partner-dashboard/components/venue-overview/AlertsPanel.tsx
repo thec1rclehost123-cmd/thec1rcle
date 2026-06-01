@@ -139,7 +139,7 @@ export const AlertsPanel = memo(function AlertsPanel({
         const ids = visible.map((a) => a.id);
         setDismissed(new Set(ids));
         ids.forEach((id) => {
-            user?.getIdToken().then((token) =>
+            user?.getIdToken().then((token: string) =>
                 fetch(`/api/partners/venues/alerts/${id}/dismiss`, {
                     method: 'PATCH',
                     headers: { Authorization: `Bearer ${token}` },

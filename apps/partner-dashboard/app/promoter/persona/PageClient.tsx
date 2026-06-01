@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function ProfilePage({ setActions }: { setActions?: (node: React.ReactNode) => void }) {
-    const { profile, user: authUser } = useDashboardAuth() as any;
+    const { profile, user: authUser } = useDashboardAuth();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [editMode, setEditMode] = useState(false);

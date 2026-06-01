@@ -10,6 +10,7 @@
 
 import { randomUUID } from "node:crypto";
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { getApiClient } from "./apiClient";
 import type {
     StaffProfile,
     StaffAction,
@@ -112,8 +113,19 @@ export async function createStaffProfile(
 
 export async function getStaffProfile(
     venueId: string,
-    profileId: string
+    profileId: string,
+    token?: string
 ): Promise<StaffProfile | null> {
+    if (token) {
+        try {
+            const client = getApiClient(token);
+            const res = await client.request(`/venue/staff-profiles/${profileId}?venueId=${venueId}`) as StaffProfile | null;
+            if (res) return res;
+        } catch (error: any) {
+            console.warn("[StaffProfileStore] API Gateway getStaffProfile failed, falling back to direct DB read:", error.message);
+        }
+    }
+
     if (!isFirebaseConfigured()) {
         return _profiles.get(profileId) ?? null;
     }
@@ -123,7 +135,19 @@ export async function getStaffProfile(
     return { id: doc.id, ...doc.data() } as StaffProfile;
 }
 
-export async function listStaffProfiles(venueId: string): Promise<StaffProfile[]> {
+export async function listStaffProfiles(venueId: string, token?: string): Promise<StaffProfile[]> {
+    if (token) {
+        try {
+            const client = getApiClient(token);
+            const res = await client.request(`/venue/staff-profiles?venueId=${venueId}`) as { profiles: StaffProfile[] } | null;
+            if (res && Array.isArray(res.profiles)) {
+                return res.profiles;
+            }
+        } catch (error: any) {
+            console.warn("[StaffProfileStore] API Gateway listStaffProfiles failed, falling back to direct DB read:", error.message);
+        }
+    }
+
     if (!isFirebaseConfigured()) {
         return Array.from(_profiles.values()).filter((p) => p.venueId === venueId);
     }
@@ -269,7 +293,8 @@ export async function revokeProfileFromMember(
 
 export async function resolveEffectiveProfile(
     venueId: string,
-    membershipId: string
+    membershipId: string,
+    token?: string
 ): Promise<{
     baseRole: VenueRole;
     tabVisibility: Partial<Record<VenueTab, boolean>>;
@@ -278,6 +303,23 @@ export async function resolveEffectiveProfile(
     guestlistScope: GuestlistScope;
     eventScope: string[] | null;
 }> {
+    if (token) {
+        try {
+            const client = getApiClient(token);
+            const res = await client.request(`/venue/staff-profiles/resolve?venueId=${venueId}&membershipId=${membershipId}`) as {
+                baseRole: VenueRole;
+                tabVisibility: Partial<Record<VenueTab, boolean>>;
+                actionPermissions: Partial<Record<StaffAction, boolean>>;
+                piiPolicy: PIIPolicy;
+                guestlistScope: GuestlistScope;
+                eventScope: string[] | null;
+            } | null;
+            if (res) return res;
+        } catch (error: any) {
+            console.warn("[StaffProfileStore] API Gateway resolveEffectiveProfile failed, falling back to direct DB read:", error.message);
+        }
+    }
+
     if (!isFirebaseConfigured()) {
         return {
             baseRole: "STAFF",

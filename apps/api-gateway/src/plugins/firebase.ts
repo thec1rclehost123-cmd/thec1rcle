@@ -130,6 +130,12 @@ export default fp(async (fastify) => {
         await fastify.sendInngestEvent('discovery/sync', { type: target === 'all' ? 'all' : target, id: 'system' });
     });
 
+    fastify.decorate('enrichAuthContext', async (request: any) => {
+        if (request?.user) {
+            await ensureMembershipsForRequest(request);
+        }
+    });
+
     fastify.log.info('Firebase Admin, AuthService, Repositories, and Services initialized');
 
     // Simple Request-level User & Workspace Decoration
@@ -307,11 +313,21 @@ export default fp(async (fastify) => {
 
     // Workspace Context Hook — validate x-workspace-id against auth context; never trust blindly
     fastify.addHook('preHandler', async (request, _reply) => {
+        // @ts-ignore
+        const user = request.user as any;
+        // @ts-ignore
+        let authCtx = request.authContext as any;
+        // @ts-ignore
+        const isSystem = user?.isSystem === true;
+
+        // Auto-enrich auth context so workspaceId can fall back to activeMembership.partnerId
+        if (user && !authCtx) {
+            await fastify.enrichAuthContext(request);
+            // @ts-ignore
+            authCtx = request.authContext as any;
+        }
+
         const requestedId = request.headers['x-workspace-id'] as string | undefined;
-        // @ts-ignore
-        const authCtx = request.authContext as any;
-        // @ts-ignore
-        const isSystem = (request.user as any)?.isSystem === true;
 
         let workspaceId: string | null = null;
 
@@ -514,6 +530,7 @@ declare module 'fastify' {
         promoterServiceV2: any;
         storage: ReturnType<typeof getStorage>;
         invalidatePublicDiscovery: (target?: 'events' | 'hosts' | 'venues' | 'search' | 'all') => Promise<void>;
+        enrichAuthContext: (request: any) => Promise<void>;
         verifyPartnerAccess: (request: any, partnerId: string) => Promise<boolean>;
         requireAuth: (request: any, reply: any) => Promise<void>;
         requirePartnerAccess: (getPartnerId: (request: any) => string) => (request: any, reply: any) => Promise<void>;

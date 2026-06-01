@@ -323,6 +323,7 @@ async function main() {
     await server.register(guestProfileRoutes, { prefix: '/api/v1' });
     await server.register(guestPromoterRoutes, { prefix: '/api/v1/public' });
     await server.register(guestPassRoutes, { prefix: '/api/v1' });
+    await server.register(staffRoutes, { prefix: '/api/v1' });
 
     // Unified Partner Domain — new clean API (Phase 1)
     await server.register(partnersHostRoutes, { prefix: '/api/v1' });

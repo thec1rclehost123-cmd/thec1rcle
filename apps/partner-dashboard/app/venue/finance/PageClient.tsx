@@ -354,8 +354,8 @@ function DisputesView({ venueId, onBack, getToken }: { venueId: string; onBack: 
 // ── Main Finance Page ─────────────────────────────────────────────────────────
 
 export default function VenueFinancePageClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
-    const venueId = profile?.activeMembership?.partnerId;
+    const { profile, getIdToken } = useDashboardAuth();
+    const venueId = profile?.activeMembership?.partnerId ?? "";
 
     const getToken = useCallback(async (): Promise<string> => {
         return typeof getIdToken === "function" ? await getIdToken() : "";

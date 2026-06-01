@@ -90,6 +90,10 @@ Desktop.ini
 /android/
 .metro-health-check*
 
+# ── Debug / Stale Artifacts ───────────────────────────────────────────────────
+debug_*
+* 2.*
+
 # ── Sentry ────────────────────────────────────────────────────────────────────
 .sentry-cli
 sentry.properties

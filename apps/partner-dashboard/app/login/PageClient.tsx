@@ -221,6 +221,15 @@ function LoginForm() {
                 if (!assignedType && userData.activeMembership?.partnerType) {
                     const pt = userData.activeMembership.partnerType;
                     assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                } else if (data.activeMembership?.partnerType) {
+                    const pt = data.activeMembership.partnerType;
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                } else if (userData.role === 'host') {
+                    assignedType = 'host';
+                } else if (userData.role === 'promoter') {
+                    assignedType = 'promoter';
+                } else if (userData.role === 'partner' || userData.venueId) {
+                    assignedType = 'venue';
                 }
 
                 // Priority 3: legacy role/venueId fields on the users doc — kept as fallback
@@ -321,6 +330,15 @@ function LoginForm() {
                 if (!assignedType && userData.activeMembership?.partnerType) {
                     const pt = userData.activeMembership.partnerType;
                     assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                } else if (data.activeMembership?.partnerType) {
+                    const pt = data.activeMembership.partnerType;
+                    assignedType = (pt === 'venue' || pt === 'club') ? 'venue' : pt;
+                } else if (userData.role === 'host') {
+                    assignedType = 'host';
+                } else if (userData.role === 'promoter') {
+                    assignedType = 'promoter';
+                } else if (userData.role === 'partner' || userData.venueId) {
+                    assignedType = 'venue';
                 }
 
                 if (!assignedType) {

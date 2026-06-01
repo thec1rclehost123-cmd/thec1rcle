@@ -1,0 +1,26 @@
+[
+  {
+    "name": "guest-portal (critical JS)",
+    "path": "apps/guest-portal/.next/static/chunks/pages/**/*.js",
+    "limit": "300 KB",
+    "running": false
+  },
+  {
+    "name": "partner-dashboard (critical JS)",
+    "path": "apps/partner-dashboard/.next/static/chunks/pages/**/*.js",
+    "limit": "350 KB",
+    "running": false
+  },
+  {
+    "name": "admin-console (critical JS)",
+    "path": "apps/admin-console/.next/static/chunks/pages/**/*.js",
+    "limit": "350 KB",
+    "running": false
+  },
+  {
+    "name": "api-gateway (Docker image)",
+    "path": "apps/api-gateway/dist/**/*.js",
+    "limit": "10 MB",
+    "running": false
+  }
+]

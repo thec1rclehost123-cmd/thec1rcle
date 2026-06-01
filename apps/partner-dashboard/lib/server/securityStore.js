@@ -23,10 +23,9 @@ export async function getSyncCode(eventId, venueId, token) {
     try {
         return await client.request(`/scan/sync-codes/${venueId}/${eventId}`);
     } catch (error) {
+        console.error("[SecurityStore] getSyncCode failed:", error.message);
         return null;
     }
-}
-
 export async function deactivateSyncCode(eventId, venueId, token) {
     const client = getApiClient(token);
     return client.request(`/scan/sync-codes/${venueId}/${eventId}/deactivate`, {

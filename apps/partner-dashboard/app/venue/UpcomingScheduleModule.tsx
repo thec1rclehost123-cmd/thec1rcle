@@ -13,13 +13,13 @@ export default function UpcomingScheduleModule() {
 
     useEffect(() => {
         if (!venueId || !user) return;
-        user.getIdToken().then(token =>
-            fetch(`/api/partners/venues/events?venueId=${venueId}`, {
+        user.getIdToken().then((token: any) =>
+            fetch(`/api/partners/venues/events?venueId=${venueId}&limit=4`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
         )
-            .then(res => res.json())
-            .then(data => setEvents(data.events || []))
+            .then((res: any) => res.ok ? res.json() : Promise.resolve({ events: [] }))
+            .then((data: any) => setEvents(data.events || []))
             .catch(console.error);
     }, [venueId, user]);
 

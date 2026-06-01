@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import process from 'process';
+import { fileURLToPath } from 'url';
 
 const APPS = [
     { name: 'guest-portal', routeRoot: 'apps/guest-portal/app/api' },
@@ -56,7 +57,9 @@ const WRITE_METHOD_PATTERN = /\.(set|add|update|delete)\s*\(/g;
 const GATEWAY_CLIENT_PATTERN = /\bgetApiClient\s*\(|\bnew\s+C1rcleApiClient\b|client\.(request|get|post|patch|delete)\s*\(|\bproxyGatewayJson\s*\(|\bcallGatewayJson\s*\(|\bfetchPublic(?:Events|Event|FeaturedEvents|Hosts|Host|Venues|Venue)\s*\(|\bsearchPublicDiscovery\s*\(/;
 
 function repoRoot() {
-    return path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    return path.resolve(__dirname, '..');
 }
 
 function toPosix(value) {
@@ -386,6 +389,8 @@ export function runCli(argv = process.argv.slice(2)) {
     }
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+import { pathToFileURL } from 'url';
+
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
     runCli();
 }

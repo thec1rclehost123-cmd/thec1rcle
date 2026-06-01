@@ -1,0 +1,146 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  # Enables Turbo remote cache — add TURBO_TOKEN to repo secrets
+
+jobs:
+    # ── 1. Shared setup ──────────────────────────────────────────
+  install:
+    name: Install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+
+    # ── 2. Lint & format (all workspaces via Turbo) ──────────────
+  lint:
+    name: Lint & Format
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npx turbo lint --filter='...[origin/main]'
+              # Only lints packages affected by this PR
+      - run: npx prettier --check .
+
+    # ── 3. TypeScript across all packages ────────────────────────
+  typecheck:
+    name: Type Check
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npx turbo typecheck
+              # Runs tsc --noEmit in each workspace via Turbo
+
+    # ── 4. Tests ─────────────────────────────────────────────────
+  test:
+    name: Tests
+    needs: install
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - workspace: apps/guest-portal
+            test-command: npm test
+          - workspace: apps/partner-dashboard
+            test-command: npx vitest run --coverage --passWithNoTests
+          - workspace: apps/admin-console
+            test-command: npx vitest run --coverage --passWithNoTests
+          - workspace: apps/api-gateway
+            test-command: npx vitest run --coverage --passWithNoTests
+          - workspace: packages/core
+            test-command: npx vitest run --coverage --passWithNoTests
+          - workspace: apps/mobile-app
+            test-command: npx jest --testPathPattern=scanner --coverage --passWithNoTests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - name: Run tests
+        run: |
+          cd ${{ matrix.workspace }}
+          ${{ matrix.test-command }}
+      - uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          flags: ${{ matrix.workspace }}
+          fail_ci_if_error: false
+
+    # ── 5. Build all affected packages ───────────────────────────
+  build:
+    name: Build
+    needs: [lint, typecheck, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npx turbo build --filter='...[origin/main]'
+              # Skips packages unchanged vs main; uses remote cache
+
+    # ── 6. Security ───────────────────────────────────────────────
+  security:
+    name: Security
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        with:
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npm audit --audit-level=high --workspaces
+      - uses: trufflesecurity/trufflehog@main
+        with: { extra_args: --only-verified }
+      - name: Zod v4 schema fuzz
+        run: npx tsx scripts/fuzz-schemas.ts --ci
+        continue-on-error: true
+              # Optional: run fast-check against Zod 4 schemas

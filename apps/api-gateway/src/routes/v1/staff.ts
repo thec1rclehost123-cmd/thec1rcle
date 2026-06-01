@@ -1,186 +1,186 @@
 import { FastifyInstance } from 'fastify';
-import { ROLE_PRESETS, hasStaffPermission } from '@c1rcle/core/staff-engine';
+import { hasStaffPermission } from '@c1rcle/core/staff-engine';
 import { z } from 'zod';
 
 const VenueQuerySchema = z.object({
     venueId: z.string()
 }).strict();
 
-const StaffInviteSchema = z.object({
-    venueId: z.string(),
-    email: z.string().email(),
-    name: z.string(),
-    role: z.string()
-}).strict();
-
 const StaffIdParamSchema = z.object({
     id: z.string()
 }).strict();
 
-const StaffUpdateSchema = z.object({
+const ResolveQuerySchema = z.object({
     venueId: z.string(),
-    email: z.string().email().optional(),
-    name: z.string().optional(),
-    role: z.string().optional(),
-    isActive: z.boolean().optional()
+    membershipId: z.string()
 }).strict();
+
+const DEFAULT_PII_POLICY = {
+    showPhone: false,
+    showEmail: false,
+    showLastName: true,
+    showOrderAmount: false,
+    showPayoutAmounts: false,
+};
+
+const OWNER_PII_POLICY = {
+    showPhone: false,
+    showEmail: false,
+    showLastName: true,
+    showOrderAmount: true,
+    showPayoutAmounts: true,
+};
+
+const MANAGER_TABS = {
+    overview: true,
+    analytics: true,
+    events: true,
+    calendar: true,
+    walk_ins: true,
+    partnerships: true,
+    staff: true,
+    registers: true,
+    guest_ops: true,
+    page_management: true,
+    settings: false,
+    finance: false,
+    door: true,
+    partners: true,
+    presence: true,
+};
+
+const STAFF_TABS = {
+    overview: false,
+    events: false,
+    walk_ins: true,
+    guest_ops: true,
+    registers: true,
+    analytics: false,
+    finance: false,
+    calendar: false,
+    staff: false,
+    settings: false,
+    door: true,
+    partners: false,
+    presence: false,
+};
+
+const SECURITY_TABS = {
+    guest_ops: true,
+    walk_ins: true,
+    registers: false,
+    overview: false,
+    analytics: false,
+    events: false,
+    finance: false,
+    calendar: false,
+    staff: false,
+    settings: false,
+    door: true,
+    partners: false,
+    presence: false,
+};
+
+const FINANCE_ADMIN_TABS = {
+    finance: true,
+    analytics: true,
+    overview: true,
+    events: false,
+    calendar: false,
+    walk_ins: false,
+    staff: false,
+    guest_ops: false,
+    settings: false,
+    door: false,
+    partners: false,
+    presence: false,
+};
+
+const ROLE_DEFAULT_TABS: Record<string, Record<string, boolean>> = {
+    OWNER: {
+        overview: true, analytics: true, events: true, finance: true, calendar: true,
+        walk_ins: true, partnerships: true, staff: true, registers: true, page_management: true,
+        settings: true, guest_ops: true, door: true, partners: true, presence: true, crm: true
+    },
+    MANAGER: MANAGER_TABS,
+    FINANCE_ADMIN: FINANCE_ADMIN_TABS,
+    STAFF: STAFF_TABS,
+    SECURITY: SECURITY_TABS,
+};
 
 export default async function staffRoutes(fastify: FastifyInstance) {
     /**
-     * GET /api/v1/venue/staff
-     * List all staff members for a venue
+     * GET /api/v1/venue/staff-profiles/resolve
+     * Resolve effective profile permissions for a membership
      */
-    fastify.get('/venue/staff', {
-        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
+    fastify.get('/venue/staff-profiles/resolve', {
+        preHandler: [fastify.requireAuth, fastify.validate({ querystring: ResolveQuerySchema })]
     }, async (request: any, reply) => {
-        const { venueId } = request.query;
+        const { venueId, membershipId } = request.query;
         const actorId = request.user?.uid;
 
-        if (!actorId) return reply.status(401).send({ error: "Unauthorized" });
-        if (!venueId) return reply.status(400).send({ error: "venueId is required" });
-
-        const snapshot = await fastify.db.collection('venue_staff')
-            .where("venueId", "==", venueId)
-            .where("userId", "==", actorId)
-            .where("isActive", "==", true)
-            .limit(1)
-            .get();
-
-        if (snapshot.empty) {
-            return { permissions: null, role: null };
+        // RBAC: Verify actor is authorized
+        const hasAccess = await hasStaffPermission(fastify.db, venueId, actorId, 'viewEvents');
+        if (!hasAccess) {
+            fastify.log.warn({ venueId, actorId, membershipId }, "🛡️ SECURITY ALERT: Cross-tenant staff resolution attempt blocked!");
+            return reply.status(403).send({ error: "Unauthorized venue access" });
         }
 
-        const staffData = snapshot.docs[0].data();
+        const memberDoc = await fastify.db.collection("partner_memberships").doc(membershipId).get();
+        if (!memberDoc.exists) return reply.status(404).send({ error: "Membership not found" });
+
+        const data = memberDoc.data()!;
+        const baseRole = (data.role as string)?.toUpperCase() ?? "STAFF";
+
+        if (data.staffProfileId) {
+            const profileDoc = await fastify.db.collection("staff_profiles").doc(data.staffProfileId).get();
+            if (profileDoc.exists && profileDoc.data()?.isActive) {
+                const profile = profileDoc.data()!;
+                return {
+                    baseRole: profile.baseRole,
+                    tabVisibility: profile.tabVisibility,
+                    actionPermissions: profile.actionPermissions,
+                    piiPolicy: profile.piiPolicy,
+                    guestlistScope: profile.guestlistScope,
+                    eventScope: profile.eventScope,
+                };
+            }
+        }
+
+        // Fall back to role defaults
+        const pii = baseRole === "OWNER" ? OWNER_PII_POLICY : DEFAULT_PII_POLICY;
         return {
-            permissions: staffData.permissions,
-            role: staffData.role
+            baseRole,
+            tabVisibility: ROLE_DEFAULT_TABS[baseRole] ?? {},
+            actionPermissions: {},
+            piiPolicy: pii,
+            guestlistScope: baseRole === "OWNER" || baseRole === "MANAGER" ? "editable" : "read_only",
+            eventScope: null,
         };
     });
 
     /**
-     * POST /api/v1/venue/staff
-     * Invite a new staff member to a venue
+     * GET /api/v1/venue/staff-profiles/:id
+     * Fetch a specific staff profile by ID
      */
-    fastify.post('/venue/staff', {
+    fastify.get('/venue/staff-profiles/:id', {
         preHandler: [
-            fastify.validate({ body: StaffInviteSchema }),
-            fastify.requireRoles(['admin', 'partner', 'host'])
+            fastify.requireAuth,
+            fastify.validate({ params: StaffIdParamSchema, querystring: VenueQuerySchema })
         ]
     }, async (request: any, reply) => {
-        const { venueId, email, name, role } = request.body;
-        const actorId = request.user?.uid;
-
-        // RBAC: Only manager or higher can invite
-        const canInvite = await hasStaffPermission(fastify.db, venueId, actorId, 'manageStaff');
-        if (!canInvite) {
-            return reply.status(403).send({ error: "Insufficient permissions to invite staff" });
-        }
-
-        const now = new Date().toISOString();
-        const staffMember = {
-            venueId,
-            email: email.toLowerCase().trim(),
-            name: name.trim(),
-            role,
-            permissions: ROLE_PRESETS[role] || ROLE_PRESETS.viewer,
-            isVerified: false,
-            isActive: true,
-            addedBy: actorId,
-            createdAt: now,
-            updatedAt: now
-        };
-
-        const docRef = await fastify.db.collection('venue_staff').add(staffMember);
-
-        return { success: true, staffId: docRef.id, member: staffMember };
-    });
-
-    /**
-     * GET /api/v1/venue/staff-profiles
-     */
-    fastify.get('/venue/staff-profiles', {
-        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
-    }, async (request: any, reply) => {
-        const { venueId } = request.query;
-        const actorId = request.user?.uid;
-
-        try {
-            const snapshot = await fastify.db.collection('staff_profiles')
-                .where("venueId", "==", venueId)
-                .get();
-
-            const profiles = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            return { profiles };
-        } catch (error: any) {
-            return { profiles: [] };
-        }
-    });
-
-    fastify.get('/venue/staff/permissions', {
-        preHandler: [fastify.requireAuth, fastify.validate({ querystring: VenueQuerySchema })]
-    }, async (request: any, reply) => {
+        const { id } = request.params;
         const { venueId } = request.query;
         const actorId = request.user?.uid;
 
         const hasAccess = await hasStaffPermission(fastify.db, venueId, actorId, 'viewEvents');
-        if (!hasAccess) {
-            return reply.status(403).send({ error: "Unauthorized venue access" });
+        if (!hasAccess) return reply.status(403).send({ error: "Unauthorized venue access" });
+
+        const doc = await fastify.db.collection('staff_profiles').doc(id).get();
+        if (!doc.exists || doc.data()?.venueId !== venueId) {
+            return reply.status(404).send({ error: "Staff profile not found" });
         }
 
-        const snapshot = await fastify.db.collection('venue_staff')
-            .where("venueId", "==", venueId)
-            .where("isActive", "==", true)
-            .get();
-
-        const staff = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        return { staff };
-    });
-
-    /**
-     * PATCH /api/v1/venue/staff
-     * Update staff member
-     */
-    fastify.patch('/venue/staff', {
-        preHandler: [
-            fastify.validate({ params: StaffIdParamSchema, body: StaffUpdateSchema }),
-            fastify.requireRoles(['admin', 'partner', 'host'])
-        ]
-    }, async (request: any, reply) => {
-        const { id } = request.params;
-        const { venueId, ...updates } = request.body;
-        const actorId = request.user?.uid;
-
-        const canManage = await hasStaffPermission(fastify.db, venueId, actorId, 'manageStaff');
-        if (!canManage) return reply.status(403).send({ error: "Unauthorized" });
-
-        const { updateStaff } = await import('@c1rcle/core/staff-engine');
-        await updateStaff(fastify.db, id, updates, { uid: actorId });
-
-        return { success: true };
-    });
-
-    /**
-     * DELETE /api/v1/staff/:id
-     * Deactivate staff member
-     */
-    fastify.delete('/:id', {
-        preHandler: [
-            fastify.validate({ params: StaffIdParamSchema, querystring: VenueQuerySchema }),
-            fastify.requireRoles(['admin', 'partner', 'host'])
-        ]
-    }, async (request: any, reply) => {
-        const { id } = request.params;
-        const { venueId } = request.query;
-        const actorId = request.user?.uid;
-
-        const canManage = await hasStaffPermission(fastify.db, venueId, actorId, 'manageStaff');
-        if (!canManage) return reply.status(403).send({ error: "Unauthorized" });
-
-        await fastify.db.collection('venue_staff').doc(id).update({
-            isActive: false,
-            updatedAt: new Date().toISOString()
-        });
-
-        return { success: true };
+        return { id: doc.id, ...doc.data() };
     });
 }

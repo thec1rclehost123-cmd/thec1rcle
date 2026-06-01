@@ -7,6 +7,7 @@ import { VenueService } from '../../../services/unified/venue-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
+import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
 
 const EventFiltersSchema = z.object({
   status: z.enum(['draft', 'pending_approval', 'approved', 'published', 'live', 'completed', 'cancelled']).optional(),
@@ -746,6 +747,31 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
           if (!doc.exists) return reply.status(404).send(buildErrorResponse({ code: 'NOT_FOUND', message: 'Venue not found', requestId: request.id }));
           return reply.send({ venue: { id: doc.id, ...(doc.data() || {}) } });
+        }
+
+        if (rest === 'finance/reports/pdf' && request.method === 'GET') {
+          const from = query.from as string || 'All Time';
+          const to = query.to as string || 'All Time';
+          const type = query.type as string || 'monthly_statement';
+          
+          const venueDoc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
+          const venueName = venueDoc.exists ? (venueDoc.data()?.name || 'Venue') : 'Venue';
+          
+          // Get total revenue for dummy report
+          const overview = await financeService.getOverview(ctx);
+          
+          const pdfBuffer = generateFinanceReportPDF({
+            venueName,
+            reportType: type,
+            fromDate: from,
+            toDate: to,
+            totalRevenue: overview.totalRevenue,
+          });
+          
+          return reply
+            .header('Content-Type', 'application/pdf')
+            .header('Content-Disposition', `attachment; filename="report.pdf"`)
+            .send(pdfBuffer);
         }
 
         if (rest === 'profile' && request.method === 'PATCH') {

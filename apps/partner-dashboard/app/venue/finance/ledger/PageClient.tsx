@@ -12,7 +12,7 @@ import type { LedgerTransaction, TransactionCategory, SettlementStatus } from "@
 const PAGE_SIZE = 50;
 
 export default function VenueFinanceLedgerClient() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const venueId = profile?.activeMembership?.partnerId;
     const searchParams = useSearchParams();
 

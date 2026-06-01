@@ -2,12 +2,15 @@
  * Partnership Store
  *
  * Uses Firebase Admin SDK (direct Firestore) to manage host-venue partnerships.
- * Mirrors the pattern used in calendarStore.js â€” no dependency on the API gateway.
+ * Mirrors the pattern used in calendarStore.js — no dependency on the API gateway.
  */
 
 import { getAdminDb } from "../firebase/admin";
 
 export async function requestPartnership(hostId, venueId, hostName, venueName) {
+    if (!hostId || !venueId) {
+        throw new Error("[PartnershipStore] hostId and venueId are required to request a partnership");
+    }
     try {
         const db = getAdminDb();
         const existing = await db.collection('partnerships')
@@ -31,6 +34,9 @@ export async function requestPartnership(hostId, venueId, hostName, venueName) {
 }
 
 export async function approvePartnership(partnershipId, _token, tier) {
+    if (!partnershipId) {
+        throw new Error("[PartnershipStore] partnershipId is required to approve a partnership");
+    }
     try {
         const db = getAdminDb();
         const update = {
@@ -47,6 +53,9 @@ export async function approvePartnership(partnershipId, _token, tier) {
 }
 
 export async function rejectPartnership(partnershipId, reason = "") {
+    if (!partnershipId) {
+        throw new Error("[PartnershipStore] partnershipId is required to reject a partnership");
+    }
     try {
         const db = getAdminDb();
         await db.collection('partnerships').doc(partnershipId).update({
@@ -62,6 +71,9 @@ export async function rejectPartnership(partnershipId, reason = "") {
 }
 
 export async function blockPartnership(partnershipId, reason = "") {
+    if (!partnershipId) {
+        throw new Error("[PartnershipStore] partnershipId is required to block a partnership");
+    }
     try {
         const db = getAdminDb();
         await db.collection('partnerships').doc(partnershipId).update({
@@ -92,6 +104,10 @@ export async function listPartnerships(filters = {}) {
 }
 
 export async function checkPartnership(hostId, venueId) {
+    if (!hostId || !venueId) {
+        console.warn("[PartnershipStore] checkPartnership called with missing hostId or venueId");
+        return false;
+    }
     try {
         const db = getAdminDb();
         const snap = await db.collection('partnerships')

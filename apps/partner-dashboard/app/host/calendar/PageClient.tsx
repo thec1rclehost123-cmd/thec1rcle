@@ -97,7 +97,7 @@ function fmt12(t: string): string {
 // ── Main Page Component ───────────────────────────────────────────────────────
 
 export default function HostCalendarPage() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const rm = useReducedMotion();
     const hostId = profile?.activeMembership?.partnerId;
 

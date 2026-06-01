@@ -133,7 +133,7 @@ function GuestRow({ guest, onVipToggle }: { guest: AudienceGuest; onVipToggle: (
 // ── Main Component ────────────────────────────────────────────────────────────
 
 export default function HostAudiencePage() {
-    const { profile, user } = useDashboardAuth() as any;
+    const { profile, user } = useDashboardAuth();
     const [guests, setGuests] = useState<AudienceGuest[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);

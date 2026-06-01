@@ -22,6 +22,21 @@ export async function getEventOrders(eventId, limit = 100, token) {
 }
 
 /**
+ * Get orders for a specific user (used by recommendations engine)
+ */
+export async function getUserOrders(userId, limit = 50, token) {
+    const client = getApiClient(token);
+    try {
+        const data = await client.request(`/orders?userId=${encodeURIComponent(userId)}&limit=${limit}`);
+        return data.orders || [];
+    } catch (error) {
+        console.error("[OrderStore] getUserOrders failed:", error.message);
+        return [];
+    }
+}
+
+
+/**
  * Calculate ticket sales statistics for an event
  */
 export async function getEventSalesStats(eventId, token) {
@@ -67,6 +82,7 @@ export async function updateOrderStatus(orderId, status, token) {
 
 export default {
     getEventOrders,
+    getUserOrders,
     getEventSalesStats,
     getEventGuestlist,
     updateOrderStatus

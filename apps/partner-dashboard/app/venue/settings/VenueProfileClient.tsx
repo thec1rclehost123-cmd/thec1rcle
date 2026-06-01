@@ -214,7 +214,7 @@ export default function VenueProfileClient({
                 setStats(computed);
 
                 // Write computed stats back to venue doc so discovery API can read real values
-                user.getIdToken().then((token) =>
+                user.getIdToken().then((token: any) =>
                     fetch("/api/partners/venues/profile", {
                         method: "PATCH",
                         headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },

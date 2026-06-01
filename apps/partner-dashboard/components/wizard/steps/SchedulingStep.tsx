@@ -43,7 +43,7 @@ export function SchedulingStep({ formData, updateFormData, validationErrors, rol
     const fetchVenueCalendar = async (venueId: string) => {
         setIsLoadingCalendar(true);
         try {
-            const res = await authedFetch(`/api/partners/hosts/venue-calendar?venueId=${venueId}`);
+            const res = await authedFetch(`/api/host/venue-calendar?venueId=${venueId}`);
             if (res.ok) {
                 const data = await res.json();
                 setVenueCalendar(data.calendar || []);

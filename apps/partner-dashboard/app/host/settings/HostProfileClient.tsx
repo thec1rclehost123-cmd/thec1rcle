@@ -212,7 +212,7 @@ export default function HostProfileClient({
                 setStats(computed);
 
                 // Write computed stats back to host doc
-                user.getIdToken().then((tk) =>
+                user.getIdToken().then((tk: any) =>
                     fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
                         method: "PATCH",
                         headers: { Authorization: `Bearer ${tk}`, "Content-Type": "application/json" },

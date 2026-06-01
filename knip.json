@@ -1,0 +1,64 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.mjs", "turbo.json"],
+      "project": ["scripts/**"]
+    },
+    "apps/guest-portal": {
+      "entry": ["app/**/{page,layout,route,loading,error}.{ts,tsx}", "lib/**/*.{ts,tsx}", "instrumentation.{ts,js}"],
+      "project": ["app/**", "lib/**", "components/**", "hooks/**"]
+    },
+    "apps/partner-dashboard": {
+      "entry": ["app/**/{page,layout,route,loading,error}.{ts,tsx}", "lib/**/*.{ts,tsx}", "instrumentation.{ts,js}"],
+      "project": ["app/**", "lib/**", "components/**", "hooks/**"]
+    },
+    "apps/admin-console": {
+      "entry": ["app/**/{page,layout,route,loading,error}.{ts,tsx}", "lib/**/*.{ts,tsx}", "instrumentation.{ts,js}"],
+      "project": ["app/**", "lib/**", "components/**", "hooks/**"]
+    },
+    "apps/api-gateway": {
+      "entry": ["src/app.ts", "src/routes/**/*.ts"],
+      "project": ["src/**"]
+    },
+    "apps/mobile-app": {
+      "entry": ["app/**/_layout.{ts,tsx}", "app/**/{index,page}.{ts,tsx}"],
+      "project": ["app/**", "components/**", "lib/**", "hooks/**"]
+    },
+    "apps/scanner-app": {
+      "entry": ["app/**/_layout.{ts,tsx}", "app/**/{index,page}.{ts,tsx}"],
+      "project": ["app/**", "components/**", "lib/**", "hooks/**"]
+    },
+    "packages/core": {
+      "entry": ["src/index.ts", "src/**/index.ts"],
+      "project": ["src/**"]
+    },
+    "packages/ui": {
+      "entry": ["index.ts"],
+      "project": ["**/*.{ts,tsx}"]
+    },
+    "packages/types": {
+      "entry": ["index.ts"],
+      "project": ["**/*.ts"]
+    },
+    "functions": {
+      "entry": ["src/index.ts"],
+      "project": ["src/**"]
+    }
+  },
+  "ignoreDependencies": [
+    "@types/three",
+    "colorette",
+    "publint",
+    "depcheck",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss",
+    "tailwind-merge",
+    "clsx"
+  ],
+  "ignoreBinaries": ["expo"],
+  "typescript": {
+    "config": ["tsconfig.json"]
+  }
+}

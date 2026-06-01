@@ -960,7 +960,7 @@ export default function VenuePresencePageClient() {
                                 <section className="space-y-6 pt-8 border-t border-border-subtle">
                                     <SectionHeader title="Follower Growth" subtitle="Track your audience expansion over time" icon={TrendingUp} />
                                     <div className="bg-surface-secondary/30 rounded-3xl border border-border-subtle p-8 flex items-center justify-center h-40">
-                                        <p className="text-[13px] text-text-tertiary">Growth data not yet available</p>
+                                        <p className="text-[13px] text-text-tertiary">Insufficient historical data to calculate growth trend</p>
                                     </div>
                                 </section>
 

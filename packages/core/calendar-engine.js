@@ -16,11 +16,11 @@ export async function getVenueAvailability(venueId, startDate, endDate) {
     const db = getAdminDb();
     const snapshot = await db.collection(CALENDAR_COLLECTION)
         .where("venueId", "==", venueId)
-        .where("date", ">=", startDate)
-        .where("date", "<=", endDate)
         .get();
 
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(d => d.date >= startDate && d.date <= endDate);
 }
 
 /**

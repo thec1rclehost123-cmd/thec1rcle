@@ -4,8 +4,8 @@ import { getFirestore } from 'firebase-admin/firestore';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load env from admin-console
-dotenv.config({ path: path.resolve(process.cwd(), 'apps/admin-console/.env.local') });
+// Load env from api-gateway
+dotenv.config({ path: path.resolve(process.cwd(), 'apps/api-gateway/.env.development') });
 
 if (!getApps().length) {
     let privateKey = process.env.FIREBASE_PRIVATE_KEY;
@@ -54,15 +54,18 @@ async function forceComplete() {
             const userData = userDoc.data();
             const partnerId = userData.venueId || userData.partnerId || 'v_system_test_01';
 
-            // Create a membership record if needed
-            await db.collection('memberships').doc(`${uid}_${partnerId}`).set({
+            // Create a membership record if needed in both memberships and partner_memberships
+            const membershipDoc = {
                 uid,
                 partnerId,
                 partnerType: userData.role === 'partner' ? 'venue' : userData.role,
                 role: 'owner',
                 status: 'active',
+                isActive: true,
                 createdAt: new Date().toISOString()
-            }, { merge: true });
+            };
+            await db.collection('memberships').doc(`${uid}_${partnerId}`).set(membershipDoc, { merge: true });
+            await db.collection('partner_memberships').doc(`${uid}_${partnerId}`).set(membershipDoc, { merge: true });
 
             console.log(`✅ ${email} is now fully onboarded and approved.`);
         } catch (e) {

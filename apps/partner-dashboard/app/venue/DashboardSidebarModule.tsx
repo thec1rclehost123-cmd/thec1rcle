@@ -12,13 +12,13 @@ export default function DashboardSidebarModule() {
 
     useEffect(() => {
         if (!venueId || !user) return;
-        user.getIdToken().then(token =>
+        user.getIdToken().then((token: any) =>
             fetch(`/api/partners/venues/notifications?venueId=${venueId}&limit=3`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
         )
-            .then(res => res.ok ? res.json() : Promise.resolve({ notifications: [] }))
-            .then(data => setAlerts(data.notifications || []))
+            .then((res: any) => res.ok ? res.json() : Promise.resolve({ notifications: [] }))
+            .then((data: any) => setAlerts(data.notifications || []))
             .catch(console.error);
     }, [venueId, user]);
 

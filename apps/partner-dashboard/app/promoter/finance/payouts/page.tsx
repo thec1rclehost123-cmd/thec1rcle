@@ -37,7 +37,7 @@ const STATUS_CONFIG: Record<PayoutStatus, { label: string; classes: string }> = 
 };
 
 export default function PromoterPayoutsPage() {
-    const { profile, getIdToken } = useDashboardAuth() as any;
+    const { profile, getIdToken } = useDashboardAuth();
     const promoterId = profile?.activeMembership?.partnerId;
 
     const [loading, setLoading]       = useState(true);

@@ -90,6 +90,9 @@ async function buildServer({
         },
     } as any);
     server.decorate('profileService', { updateProfile: async () => undefined });
+    server.decorate('enrichAuthContext', async (request: any) => {
+        // No-op for mock server context
+    });
     server.decorate('requireAuth', async (_request: any, reply: any) => {
         if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
     });

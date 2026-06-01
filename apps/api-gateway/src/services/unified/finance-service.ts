@@ -156,13 +156,63 @@ export class FinanceService {
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
     }
 
-    const snap = await q.get().catch((err: any) => {
-      this.log.error(
+    let snap;
+    try {
+      snap = await q.get();
+    } catch (err: any) {
+      this.log.warn(
         { service: 'FinanceService', method: 'getLedger', partnerId, error: err?.message ?? String(err) },
-        'Ledger query failed'
+        'Ledger query failed, attempting in-memory fallback'
       );
-      throw err;
-    });
+      
+      try {
+        const fallbackSnap = await this.db
+          .collection('partner_ledger')
+          .where('toPartnerId', '==', partnerId)
+          .get();
+          
+        let allItems = fallbackSnap.docs.map((doc: any) => this.docToLedgerEntry(doc));
+        
+        if (type) {
+          allItems = allItems.filter(item => item.type === type);
+        }
+        if (from) {
+          const fromTime = new Date(from).getTime();
+          allItems = allItems.filter(item => item.createdAt && new Date(item.createdAt).getTime() >= fromTime);
+        }
+        if (to) {
+          const toTime = new Date(to).getTime();
+          allItems = allItems.filter(item => item.createdAt && new Date(item.createdAt).getTime() <= toTime);
+        }
+        
+        allItems.sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        });
+        
+        let startIndex = 0;
+        if (cursor) {
+          const cursorIndex = allItems.findIndex(item => item.entryId === cursor);
+          if (cursorIndex !== -1) {
+            startIndex = cursorIndex + 1;
+          }
+        }
+        
+        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
+        const hasMore = slicedItems.length > cap;
+        const items = slicedItems.slice(0, cap);
+        const nextCursor = hasMore ? items[items.length - 1]?.entryId ?? null : null;
+        
+        return { data: items, hasMore, nextCursor };
+      } catch (fallbackErr: any) {
+        this.log.error(
+          { service: 'FinanceService', method: 'getLedger', partnerId, error: fallbackErr?.message ?? String(fallbackErr) },
+          'Ledger fallback query failed'
+        );
+        return { data: [], hasMore: false, nextCursor: null };
+      }
+    }
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
@@ -198,13 +248,56 @@ export class FinanceService {
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
     }
 
-    const snap = await q.get().catch((err: any) => {
-      this.log.error(
+    let snap;
+    try {
+      snap = await q.get();
+    } catch (err: any) {
+      this.log.warn(
         { service: 'FinanceService', method: 'getPayouts', partnerId: ctx.partnerId, error: err?.message ?? String(err) },
-        'Payouts query failed'
+        'Payouts query failed, attempting in-memory fallback'
       );
-      return { docs: [] };
-    });
+      
+      try {
+        const fallbackSnap = await this.db
+          .collection('payouts')
+          .where('partnerId', '==', ctx.partnerId)
+          .get();
+          
+        let allItems = fallbackSnap.docs.map((doc: any) => this.docToPayout(doc));
+        
+        if (status) {
+          allItems = allItems.filter(item => item.status === status);
+        }
+        
+        allItems.sort((a, b) => {
+          const aTime = a.requestedAt ? new Date(a.requestedAt).getTime() : 0;
+          const bTime = b.requestedAt ? new Date(b.requestedAt).getTime() : 0;
+          return bTime - aTime;
+        });
+        
+        let startIndex = 0;
+        if (cursor) {
+          const cursorIndex = allItems.findIndex(item => item.payoutId === cursor);
+          if (cursorIndex !== -1) {
+            startIndex = cursorIndex + 1;
+          }
+        }
+        
+        const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
+        const hasMore = slicedItems.length > cap;
+        const items = slicedItems.slice(0, cap);
+        const nextCursor = hasMore ? items[items.length - 1]?.payoutId ?? null : null;
+        
+        return { data: items, hasMore, nextCursor };
+      } catch (fallbackErr: any) {
+        this.log.error(
+          { service: 'FinanceService', method: 'getPayouts', partnerId: ctx.partnerId, error: fallbackErr?.message ?? String(fallbackErr) },
+          'Payouts fallback query failed'
+        );
+        return { data: [], hasMore: false, nextCursor: null };
+      }
+    }
+
     const docs: any[] = (snap as any).docs;
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToPayout(doc));
