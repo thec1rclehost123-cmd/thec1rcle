@@ -4,10 +4,14 @@
       "Bash(npm run type-check *)",
       "Bash(npm run guardrails:check *)",
       "Bash(npm run test:guardrails *)",
+      "Bash(npm run architecture:guest *)",
       "Bash(npm test *)",
       "Bash(lsof *)",
       "Bash(ps *)",
-      "Bash(which *)"
+      "Bash(which *)",
+      "Bash(curl -s *)",
+      "Bash(firebase firestore:indexes *)",
+      "Bash(firebase projects:list *)"
     ]
   }
 }
