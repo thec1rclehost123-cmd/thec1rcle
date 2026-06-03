@@ -32,6 +32,7 @@ export interface FinancePayoutRow {
     userName?: string;
     headline?: string;
     subtitle?: ReactNode;
+    avatar?: string;
 }
 
 interface PartnerFinanceSurfaceProps {
@@ -131,7 +132,7 @@ export function PartnerFinanceSurface({
                 {balanceVariant === "wallet" ? (
                     <section>
                         <div
-                            className="relative overflow-hidden rounded-[28px] p-5"
+                            className="relative rounded-[28px] p-5"
                             style={{
                                 background: "linear-gradient(145deg, rgba(94,194,255,0.34) 0%, rgba(47,99,255,0.3) 52%, rgba(21,50,184,0.28) 100%)",
                                 border: "1px solid rgba(255,255,255,0.16)",
@@ -144,6 +145,7 @@ export function PartnerFinanceSurface({
                                 style={{
                                     position: "absolute",
                                     inset: 0,
+                                    borderRadius: 28,
                                     pointerEvents: "none",
                                     background: "radial-gradient(circle at 18% 14%, rgba(255,255,255,0.28) 0%, transparent 26%), radial-gradient(circle at 85% 0%, rgba(120,185,255,0.26) 0%, transparent 30%)",
                                 }}
@@ -181,8 +183,11 @@ export function PartnerFinanceSurface({
                                         <span className="flex items-center gap-1.5 text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.74)" }}>
                                             {row.label}
                                             {row.helpLabel ? (
-                                                <span title={row.helpLabel}>
-                                                    <HelpCircle size={13} style={{ color: "rgba(255,255,255,0.34)" }} />
+                                                <span className="group relative flex items-center">
+                                                    <HelpCircle size={13} style={{ color: "rgba(255,255,255,0.34)", cursor: "help" }} />
+                                                    <div className="absolute bottom-full left-[-10px] mb-2 w-max max-w-[240px] rounded-[10px] p-2.5 text-[12px] font-medium leading-[1.4] opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-none z-[100]" style={{ background: "rgba(15,15,20,0.98)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.9)", boxShadow: "0 12px 32px rgba(0,0,0,0.6)", backdropFilter: "blur(12px)" }}>
+                                                        {row.helpLabel}
+                                                    </div>
                                                 </span>
                                             ) : null}
                                         </span>
@@ -221,8 +226,11 @@ export function PartnerFinanceSurface({
                                         <span className="flex items-center gap-1.5 text-[14px]" style={{ color: "rgba(255,255,255,0.66)" }}>
                                             {row.label}
                                             {row.helpLabel ? (
-                                                <span title={row.helpLabel}>
-                                                    <HelpCircle size={13} style={{ color: "rgba(255,255,255,0.28)" }} />
+                                                <span className="group relative flex items-center">
+                                                    <HelpCircle size={13} style={{ color: "rgba(255,255,255,0.28)", cursor: "help" }} />
+                                                    <div className="absolute bottom-full left-[-10px] mb-2 w-max max-w-[240px] rounded-[10px] p-2.5 text-[12px] font-medium leading-[1.4] opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-none z-[100]" style={{ background: "rgba(15,15,20,0.98)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.9)", boxShadow: "0 12px 32px rgba(0,0,0,0.6)", backdropFilter: "blur(12px)" }}>
+                                                        {row.helpLabel}
+                                                    </div>
                                                 </span>
                                             ) : null}
                                         </span>
@@ -420,7 +428,7 @@ export function PartnerFinanceSurface({
                                             }}
                                         >
                                             <div
-                                                className="flex h-16 w-16 items-center justify-center rounded-full shrink-0"
+                                                className="flex h-16 w-16 items-center justify-center rounded-full shrink-0 overflow-hidden relative"
                                                 style={{
                                                     background: "linear-gradient(145deg, rgba(244,106,58,0.36) 0%, rgba(94,194,255,0.28) 100%)",
                                                     border: "2px solid rgba(255,255,255,0.12)",
@@ -428,7 +436,11 @@ export function PartnerFinanceSurface({
                                                     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.18)",
                                                 }}
                                             >
-                                                <span className="text-[18px] font-black tracking-[-0.04em]">{initials}</span>
+                                                {payout.avatar ? (
+                                                    <img src={payout.avatar} alt={payout.userName || ""} className="h-full w-full object-cover" />
+                                                ) : (
+                                                    <span className="text-[18px] font-black tracking-[-0.04em]">{initials}</span>
+                                                )}
                                             </div>
 
                                             <div className="min-w-0 flex-1">

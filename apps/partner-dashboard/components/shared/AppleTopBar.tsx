@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Search, X, Command, ChevronDown, Settings, LogOut } from "lucide-react";
+import { Search, X, Command, ChevronDown, Settings, LogOut, Trophy } from "lucide-react";
 import { WalletPopover } from "@/components/wallet/WalletPopover";
 import Link from "next/link";
 import { NotificationCenter } from "./NotificationCenter";
@@ -36,6 +36,17 @@ export function AppleTopBar({ title, primaryAction, roleContext = "venue" }: App
             setCurrentTime(parseAsIST(null));
         }, 60000);
         return () => clearInterval(interval);
+    }, []);
+
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+                e.preventDefault();
+                setSearchOpen(true);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, []);
 
     const timeStr = currentTime?.toLocaleTimeString('en-IN', {
@@ -87,18 +98,28 @@ export function AppleTopBar({ title, primaryAction, roleContext = "venue" }: App
                         </Link>
                     )}
 
-                    {/* Quick Search */}
-                    <button
-                        onClick={() => setSearchOpen(true)}
-                        className="hidden md:flex items-center gap-3 px-3 lg:px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-xl transition-all group"
-                    >
-                        <Search className="w-4 h-4 text-text-placeholder group-hover:text-text-tertiary" />
-                        <span className="hidden lg:block text-[13px] text-text-placeholder font-medium">Search...</span>
-                        <div className="hidden xl:flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-tertiary border border-border-subtle">
-                            <Command className="w-3 h-3 text-text-placeholder" />
-                            <span className="text-[10px] font-semibold text-text-placeholder">K</span>
-                        </div>
-                    </button>
+                    {/* Leaderboard or Quick Search */}
+                    {roleContext === 'promoter' ? (
+                        <button
+                            onClick={() => router.push('/promoter/leaderboard')}
+                            className="hidden md:flex items-center gap-2 px-3 lg:px-4 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 hover:border-emerald-500/40 rounded-xl transition-all group"
+                        >
+                            <Trophy className="w-4 h-4 text-emerald-500" />
+                            <span className="hidden lg:block text-[13px] text-emerald-400 font-bold tracking-wide">Leaderboard</span>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => setSearchOpen(true)}
+                            className="hidden md:flex items-center gap-3 px-3 lg:px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary border border-border-subtle rounded-xl transition-all group"
+                        >
+                            <Search className="w-4 h-4 text-text-placeholder group-hover:text-text-tertiary" />
+                            <span className="hidden lg:block text-[13px] text-text-placeholder font-medium">Search...</span>
+                            <div className="hidden xl:flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-tertiary border border-border-subtle">
+                                <Command className="w-3 h-3 text-text-placeholder" />
+                                <span className="text-[10px] font-semibold text-text-placeholder">K</span>
+                            </div>
+                        </button>
+                    )}
 
                     {/* Notifications */}
                     <NotificationCenter />

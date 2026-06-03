@@ -467,6 +467,11 @@ export class FinanceService {
       const markerDoc = await txn.get(idempotencyRef);
       if (markerDoc.exists) return;
 
+      const eventDoc = await txn.get(this.db.collection('events').doc(eventId));
+      const eventData = eventDoc.exists ? eventDoc.data() : {};
+      const eventCity = eventData?.city || eventData?.cityName || 'Unknown';
+      const normalizedCity = String(eventCity).trim().toLowerCase() || 'unknown';
+
       created = true;
       for (const entry of entries) {
         const ref = this.db.collection('partner_ledger').doc();
@@ -480,6 +485,59 @@ export class FinanceService {
         entryCount: entries.length,
         createdAt,
       });
+
+      if (participants.promoterId && promoterCommission > 0) {
+        const statsRef = this.db.collection('promoter_stats').doc(participants.promoterId);
+        // Using FieldValue.increment inside a transaction via set merge
+        txn.set(statsRef, {
+          totalCommissionEarned: FieldValue.increment(promoterCommission),
+          updatedAt: new Date()
+        }, { merge: true });
+
+        // Update city-based stats for Option 2
+        const cityStatsId = `${participants.promoterId}_${normalizedCity}`;
+        const cityStatsRef = this.db.collection('promoter_city_stats').doc(cityStatsId);
+        txn.set(cityStatsRef, {
+          promoterId: participants.promoterId,
+          city: normalizedCity,
+          totalCommissionEarned: FieldValue.increment(promoterCommission),
+          updatedAt: new Date()
+        }, { merge: true });
+
+        // --- NEW TIME & LOCATION MATRIX (Option 3) ---
+        const d = new Date();
+        const monthStr = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+        
+        const d2 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        const dayNum = d2.getUTCDay() || 7;
+        d2.setUTCDate(d2.getUTCDate() + 4 - dayNum);
+        const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
+        const weekNo = Math.ceil((((d2.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+        const weekStr = `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+
+        const buckets = [
+          { type: 'all_time', value: 'all', city: 'global' },
+          { type: 'all_time', value: 'all', city: normalizedCity },
+          { type: 'month', value: monthStr, city: 'global' },
+          { type: 'month', value: monthStr, city: normalizedCity },
+          { type: 'week', value: weekStr, city: 'global' },
+          { type: 'week', value: weekStr, city: normalizedCity },
+        ];
+
+        for (const bucket of buckets) {
+          const docId = `${participants.promoterId}_${bucket.type}_${bucket.value}_${bucket.city}`;
+          const ref = this.db.collection('leaderboard_stats').doc(docId);
+          txn.set(ref, {
+            promoterId: participants.promoterId,
+            periodType: bucket.type,
+            periodValue: bucket.value,
+            city: bucket.city,
+            totalCommissionEarned: FieldValue.increment(promoterCommission),
+            updatedAt: new Date()
+          }, { merge: true });
+        }
+        // ---------------------------------------------
+      }
 
       this.applyAggregateWrites(txn, entries, createdAt);
     });

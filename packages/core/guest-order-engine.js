@@ -152,7 +152,7 @@ export async function createRSVPOrder(payload) {
     let promoterSource = null;
     if (promoterCode) {
         try {
-            const link = await getPromoterLinkByCode(promoterCode);
+            const link = await getPromoterLinkByCode(promoterCode, eventId);
             if (link) {
                 promoterLinkId = link.id;
                 promoterAttributionId = link.promoterId || null;
@@ -335,7 +335,7 @@ export async function createOrder(payload) {
     let promoterSource = null;
     if (promoterCode) {
         try {
-            const link = await getPromoterLinkByCode(promoterCode);
+            const link = await getPromoterLinkByCode(promoterCode, eventId);
             if (link) {
                 promoterLinkId = link.id;
                 promoterDiscount = link.promoterDiscount || 0;

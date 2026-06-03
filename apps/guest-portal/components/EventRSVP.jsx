@@ -86,7 +86,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         const ref = params.get("ref");
         if (ref) {
           setPromoterCode(ref);
-          recordPromoterLinkClick(ref).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
+          recordPromoterLinkClick(ref, event?.id).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
       }
     }
   }, []);

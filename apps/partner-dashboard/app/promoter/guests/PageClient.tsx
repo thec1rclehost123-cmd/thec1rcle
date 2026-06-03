@@ -14,17 +14,23 @@ import {
     Plus,
     X,
     Loader2,
+    Search,
+    Filter,
 } from "lucide-react";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { BarChartPlaceholder, StatTrendCard } from "@/components/promoter/PlaceholderCharts";
 import { formatNumber } from "@/lib/utils/format";
+import dynamic from "next/dynamic";
+
+const BarChartPlaceholder = dynamic(() => import("@/components/promoter/PlaceholderCharts").then(m => m.BarChartPlaceholder), { ssr: false });
+const StatTrendCard = dynamic(() => import("@/components/promoter/PlaceholderCharts").then(m => m.StatTrendCard), { ssr: false });
 
 interface GuestEntry {
     id: string;
     guestName: string;
+    photoUrl?: string;
     eventTitle: string;
     eventId: string;
     amount: number;
@@ -36,9 +42,25 @@ interface GuestEntry {
     createdAt: string;
 }
 
-const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
-    wa: { label: "WhatsApp", color: "#22c55e" },
-    ig: { label: "Instagram", color: "#ec4899" },
+const SOURCE_LABELS: Record<string, { label: string; color: string; icon?: React.ReactNode }> = {
+    wa: { 
+        label: "WhatsApp", 
+        color: "#22c55e",
+        icon: (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/>
+            </svg>
+        )
+    },
+    ig: { 
+        label: "Instagram", 
+        color: "#ec4899",
+        icon: (
+            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 1 0 0 12.324 6.162 6.162 0 0 0 0-12.324zM12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm6.406-11.845a1.44 1.44 0 1 0 0 2.881 1.44 1.44 0 0 0 0-2.881z"/>
+            </svg>
+        )
+    },
     tw: { label: "Twitter/X", color: "#94a3b8" },
     fb: { label: "Facebook", color: "#3b82f6" },
     em: { label: "Email", color: "#f59e0b" },
@@ -51,6 +73,18 @@ const mp = (delay: number) => ({
     transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },
 });
 
+
+function useDebounce<T>(value: T, delay: number): T {
+    const [debouncedValue, setDebouncedValue] = useState<T>(value);
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedValue(value);
+        }, delay);
+        return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+}
+
 export default function GuestStreamPage() {
     const { profile, user } = useDashboardAuth();
     const [guests, setGuests] = useState<GuestEntry[]>([]);
@@ -59,6 +93,15 @@ export default function GuestStreamPage() {
     const [refreshing, setRefreshing] = useState(false);
     const [filterStatus, setFilterStatus] = useState<"all" | "checked_in" | "pending">("all");
     const [autoRefresh, setAutoRefresh] = useState(true);
+
+    // Debounced Search & Filters
+    const [searchQuery, setSearchQuery] = useState("");
+    const debouncedSearch = useDebounce(searchQuery, 500);
+    const [selectedEventId, setSelectedEventId] = useState<string>("all");
+
+    // Cursor Pagination state
+    const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     // ── Add Guest modal state ────────────────────────────────────────────────
     const [assignOpen, setAssignOpen] = useState(false);
@@ -77,42 +120,69 @@ export default function GuestStreamPage() {
 
     const promoterId = profile?.activeMembership?.partnerId;
 
-    const fetchGuests = useCallback(
-        async (isRefresh = false) => {
-            if (!promoterId) return;
+    
+    const fetchGuests = useCallback(async (isRefresh = false, cursor: string | null = null) => {
+        if (!promoterId) return;
+        if (isRefresh) setRefreshing(true);
+        else if (cursor) setLoadingMore(true);
+        else setLoading(true);
 
-            if (isRefresh) setRefreshing(true);
-            else { setLoading(true); setError(false); }
+        try {
+            const token = await user?.getIdToken();
+            const headers = token ? { Authorization: `Bearer ${token}` } : undefined;
+            const params = new URLSearchParams({ limit: "20" });
+            if (cursor) params.set("cursor", cursor);
+            if (filterStatus !== "all") params.set("status", filterStatus);
+            if (selectedEventId && selectedEventId !== "all") params.set("eventId", selectedEventId);
 
-            try {
-                const token = await user?.getIdToken();
-                const res = await fetch(
-                    `/api/partners/promoters/guests?promoterId=${promoterId}&limit=50`,
-                    { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+            const res = await fetch(`/api/partners/promoters/guests?${params.toString()}`, { headers });
+            if (!res.ok) throw new Error("Failed to fetch guests");
+            const data = await res.json();
+            
+            let fetchedGuests = data.guests || [];
+            
+            // Client-side search (since Firestore full-text is limited)
+            if (debouncedSearch) {
+                const lower = debouncedSearch.toLowerCase();
+                fetchedGuests = fetchedGuests.filter((g: any) => 
+                    g.guestName?.toLowerCase().includes(lower) || 
+                    g.eventTitle?.toLowerCase().includes(lower) ||
+                    g.promoterCode?.toLowerCase().includes(lower)
                 );
-                const data = await res.json();
-                setGuests(data.guests || []);
-            } catch (err) {
-                console.error("[Guest Stream] Failed to fetch:", err);
-                if (!isRefresh) setError(true);
-            } finally {
-                setLoading(false);
-                setRefreshing(false);
             }
-        },
-        [promoterId, user]
-    );
 
+            if (cursor) {
+                setGuests(prev => [...prev, ...fetchedGuests]);
+            } else {
+                setGuests(fetchedGuests);
+            }
+            
+            setNextCursor(data.nextCursor || null);
+            setError(false);
+        } catch (err) {
+            console.error(err);
+            setError(true);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+            setRefreshing(false);
+        }
+    }, [promoterId, user, filterStatus, selectedEventId, debouncedSearch]);
+
+    // Re-fetch when dependencies change
     useEffect(() => {
         fetchGuests();
     }, [fetchGuests]);
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh polling (first page only)
     useEffect(() => {
         if (!autoRefresh) return;
         const interval = setInterval(() => fetchGuests(true), 30000);
         return () => clearInterval(interval);
     }, [autoRefresh, fetchGuests]);
+
+    const mutate = () => fetchGuests(true);
+
 
     // ── Add Guest handlers ───────────────────────────────────────────────────
     const openAssignModal = async () => {
@@ -211,11 +281,7 @@ export default function GuestStreamPage() {
         }
     };
 
-    const filteredGuests = guests.filter((g) => {
-        if (filterStatus === "checked_in") return g.checkedIn;
-        if (filterStatus === "pending") return !g.checkedIn;
-        return true;
-    });
+    
 
     const totalRevenue = guests.reduce((s, g) => s + g.amount, 0);
     const totalCommission = guests.reduce((s, g) => s + g.commission, 0);
@@ -278,7 +344,7 @@ export default function GuestStreamPage() {
                     </button>
                     <VenueActionButton
                         variant="secondary"
-                        onClick={() => fetchGuests(true)}
+                        onClick={() => mutate()}
                         disabled={refreshing}
                     >
                         <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -287,47 +353,7 @@ export default function GuestStreamPage() {
                 </div>
             }
         >
-            {/* ── Hero band ── */}
-            <motion.div {...mp(0)}>
-                <div
-                    className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-5"
-                    style={{
-                        background:
-                            "linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)",
-                        border: "1px solid rgba(52,211,153,0.2)",
-                    }}
-                >
-                    <div
-                        className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none"
-                        style={{ background: "rgba(52,211,153,0.07)" }}
-                    />
-                    <div
-                        className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10"
-                        style={{ background: "rgba(52,211,153,0.15)", color: "#34d399" }}
-                    >
-                        <Activity className="w-6 h-6" />
-                    </div>
-                    <div className="relative z-10 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                            <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary">
-                                Guest Stream
-                            </p>
-                            {autoRefresh && (
-                                <span
-                                    className="flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-full"
-                                    style={{
-                                        background: "rgba(52,211,153,0.12)",
-                                        color: "#34d399",
-                                    }}
-                                >
-                                    <span className="w-1.5 h-1.5 rounded-full bg-[#34d399] animate-pulse" />
-                                    Live
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
+
 
             {/* ── Live stats strip ── */}
             <motion.div {...mp(0.06)}>
@@ -335,7 +361,6 @@ export default function GuestStreamPage() {
                     <StatTrendCard
                         label="Total Guests"
                         value={formatNumber(guests.length)}
-                        sparkData={[20, 35, 30, 50, 45, 60, 55]}
                         color="#818cf8"
                         icon={<Users className="w-4 h-4" />}
                     />
@@ -343,14 +368,12 @@ export default function GuestStreamPage() {
                         label="Checked In"
                         value={`${totalCheckedIn}/${guests.length}`}
                         trendUp={totalCheckedIn > 0}
-                        sparkData={[10, 20, 18, 30, 28, 40, 35]}
                         color="#34d399"
                         icon={<CheckCircle2 className="w-4 h-4" />}
                     />
                     <StatTrendCard
                         label="Revenue Generated"
                         value={formatCurrency(totalRevenue)}
-                        sparkData={[30, 50, 45, 65, 55, 75, 70]}
                         color="#f59e0b"
                         icon={<TrendingUp className="w-4 h-4" />}
                     />
@@ -358,41 +381,37 @@ export default function GuestStreamPage() {
                         label="Your Commission"
                         value={formatCurrency(totalCommission)}
                         trendUp={totalCommission > 0}
-                        sparkData={[15, 25, 22, 35, 30, 45, 40]}
                         color="#7c3aed"
                         icon={<IndianRupee className="w-4 h-4" />}
                     />
                 </div>
             </motion.div>
 
-            {/* ── Filter tabs ── */}
-            <motion.div {...mp(0.1)}>
-                <div className="flex items-center gap-2">
-                    {(["all", "checked_in", "pending"] as const).map((f) => (
-                        <button
-                            key={f}
-                            onClick={() => setFilterStatus(f)}
-                            className="px-5 py-2.5 rounded-xl text-[13px] font-semibold transition-all"
-                            style={
-                                filterStatus === f
-                                    ? {
-                                          background: "var(--v-elevated)",
-                                          color: "var(--v-text-primary)",
-                                          border: "1px solid var(--v-border)",
-                                      }
-                                    : { color: "var(--v-text-tertiary)" }
-                            }
-                        >
-                            {f === "all" ? "All" : f === "checked_in" ? "Entered" : "Ticket Only"}
-                            {f !== "all" && (
-                                <span className="ml-1.5 text-[10px] font-bold opacity-50">
-                                    {f === "checked_in"
-                                        ? guests.filter((g) => g.checkedIn).length
-                                        : guests.filter((g) => !g.checkedIn).length}
-                                </span>
-                            )}
-                        </button>
-                    ))}
+
+
+            
+            {/* ── Filters & Search ── */}
+            <motion.div {...mp(0.09)} className="flex flex-col md:flex-row gap-3 mb-6 mt-6">
+                <div className="relative flex-1">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+                    <input
+                        type="text"
+                        placeholder="Search guests by name or promo code..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-white/[0.03] border border-white/5 rounded-2xl py-3 pl-11 pr-4 text-sm focus:outline-none focus:border-brand-primary/50 transition-colors placeholder:text-text-tertiary text-text-primary"
+                    />
+                </div>
+                <div className="flex gap-3">
+                    <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value as any)}
+                        className="bg-white/[0.03] border border-white/5 rounded-2xl py-3 px-4 text-sm text-text-secondary focus:outline-none appearance-none min-w-[140px]"
+                    >
+                        <option value="all">All Status</option>
+                        <option value="checked_in">Checked In</option>
+                        <option value="pending">Pending</option>
+                    </select>
                 </div>
             </motion.div>
 
@@ -424,7 +443,7 @@ export default function GuestStreamPage() {
                             Retry
                         </button>
                     </div>
-                ) : filteredGuests.length === 0 ? (
+                ) : guests.length === 0 ? (
                     /* ── Premium empty state ── */
                     <div
                         className="py-20 rounded-[32px] flex flex-col items-center text-center"
@@ -477,14 +496,12 @@ export default function GuestStreamPage() {
                                     <div
                                         key={h}
                                         className={`text-[10px] font-black uppercase tracking-widest text-text-tertiary ${
-                                            i === 0
+                                            i === 0 
                                                 ? "col-span-3"
                                                 : i === 1
-                                                ? "col-span-3"
-                                                : i >= 5
+                                                ? "col-span-4"
+                                                : i === 4 || i === 5
                                                 ? "col-span-1 text-center"
-                                                : i === 6
-                                                ? "col-span-2 text-right"
                                                 : "col-span-1 text-right"
                                         }`}
                                     >
@@ -495,32 +512,47 @@ export default function GuestStreamPage() {
                         </div>
 
                         {/* Rows */}
-                        <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-                            {filteredGuests.map((guest, i) => (
+                        <div className="flex flex-col" style={{ background: "rgba(255,255,255,0.01)" }}>
+                            {guests.map((guest, i) => (
                                 <div
                                     key={guest.id || i}
-                                    className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-6 py-4 transition-all"
-                                    style={{ animationDelay: `${i * 30}ms` }}
+                                    className="grid grid-cols-1 md:grid-cols-12 gap-2 md:gap-4 px-6 py-4 transition-all relative group border-b last:border-b-0"
+                                    style={{ 
+                                        animationDelay: `${i * 30}ms`,
+                                        borderColor: "rgba(255,255,255,0.03)" 
+                                    }}
                                     onMouseEnter={(e) =>
                                         ((e.currentTarget as HTMLDivElement).style.background =
-                                            "rgba(255,255,255,0.02)")
+                                            "rgba(255,255,255,0.03)")
                                     }
                                     onMouseLeave={(e) =>
                                         ((e.currentTarget as HTMLDivElement).style.background =
                                             "")
                                     }
                                 >
+                                    {/* Subtle hover gradient */}
+                                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" style={{ background: "linear-gradient(90deg, rgba(139,92,246,0.03) 0%, transparent 100%)" }} />
                                     {/* Guest */}
                                     <div className="col-span-3 flex items-center gap-3">
-                                        <div
-                                            className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-black shrink-0"
-                                            style={{
-                                                background: "rgba(124,58,237,0.15)",
-                                                color: "#a78bfa",
-                                            }}
-                                        >
-                                            {guest.guestName?.[0] ?? "?"}
-                                        </div>
+                                        {guest.photoUrl ? (
+                                            <img 
+                                                src={guest.photoUrl} 
+                                                alt={guest.guestName}
+                                                className="w-10 h-10 rounded-full object-cover shrink-0 border"
+                                                style={{ borderColor: "rgba(255,255,255,0.08)" }}
+                                            />
+                                        ) : (
+                                            <div
+                                                className="w-10 h-10 rounded-full flex items-center justify-center text-[14px] font-black shrink-0 relative overflow-hidden"
+                                                style={{
+                                                    background: "linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%)",
+                                                    border: "1px solid rgba(255,255,255,0.08)",
+                                                    color: "#fff",
+                                                }}
+                                            >
+                                                {guest.guestName?.[0]?.toUpperCase() ?? "?"}
+                                            </div>
+                                        )}
                                         <div className="min-w-0">
                                             <p className="text-sm font-bold text-text-primary truncate">
                                                 {guest.guestName}
@@ -533,7 +565,7 @@ export default function GuestStreamPage() {
                                     </div>
 
                                     {/* Event */}
-                                    <div className="col-span-3 flex items-center">
+                                    <div className="col-span-4 flex items-center">
                                         <p className="text-sm text-text-secondary font-medium truncate">
                                             {guest.eventTitle}
                                         </p>
@@ -559,13 +591,18 @@ export default function GuestStreamPage() {
                                     {/* Source */}
                                     <div className="col-span-1 flex items-center justify-center">
                                         {guest.source && SOURCE_LABELS[guest.source] ? (
-                                            <span
-                                                className="w-2.5 h-2.5 rounded-full"
+                                            <div 
+                                                className="w-7 h-7 rounded-full flex items-center justify-center"
                                                 style={{
-                                                    background: SOURCE_LABELS[guest.source].color,
+                                                    background: `${SOURCE_LABELS[guest.source].color}20`,
+                                                    color: SOURCE_LABELS[guest.source].color,
                                                 }}
                                                 title={SOURCE_LABELS[guest.source].label}
-                                            />
+                                            >
+                                                {SOURCE_LABELS[guest.source].icon || (
+                                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: SOURCE_LABELS[guest.source].color }} />
+                                                )}
+                                            </div>
                                         ) : (
                                             <span className="text-[10px] text-text-placeholder">
                                                 —
@@ -601,7 +638,7 @@ export default function GuestStreamPage() {
                                     </div>
 
                                     {/* Time */}
-                                    <div className="col-span-2 flex items-center justify-end">
+                                    <div className="col-span-1 flex items-center justify-end">
                                         <span className="text-xs text-text-placeholder font-medium">
                                             {timeAgo(guest.createdAt)}
                                         </span>
@@ -613,15 +650,7 @@ export default function GuestStreamPage() {
                 )}
             </motion.div>
 
-            {/* ── Chart ── */}
-            {guests.length > 0 && (
-                <motion.div {...mp(0.16)}>
-                    <BarChartPlaceholder
-                        title="Guests by Event"
-                        color="#818cf8"
-                    />
-                </motion.div>
-            )}
+
             {/* ── Add Guest Modal (2-step: Look Up → Preview → Confirm) ── */}
             {assignOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

@@ -12,6 +12,8 @@
  * from the token internally.
  */
 
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
 import { GATEWAY_URL, proxyToGateway } from "@/lib/server/apiGateway";
 

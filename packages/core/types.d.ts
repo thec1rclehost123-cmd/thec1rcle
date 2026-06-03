@@ -125,8 +125,9 @@ declare module '@c1rcle/core/promoter-engine' {
     export function manageConnection(action: string, data: any): Promise<any>;
     export function generatePromoterLink(promoterId: string, eventId: string): Promise<any>;
     export function getPromoterStats(promoterId: string): Promise<any>;
+    export function getPromoterLinkByCode(code: string, eventId?: string): Promise<any>;
     export function listConnections(entityId: string, entityType: string, status?: string): Promise<any[]>;
-    export function trackPromoterLinkClick(code: string, options?: { source?: string }): Promise<{ status: string, linkId?: string }>;
+    export function trackPromoterLinkClick(code: string, options?: { source?: string; eventId?: string }): Promise<{ status: string, linkId?: string }>;
 }
 
 declare module '@c1rcle/core/analytics-engine' {

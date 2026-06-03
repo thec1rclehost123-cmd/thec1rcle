@@ -15,9 +15,11 @@ import {
 import { motion } from "framer-motion";
 import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import { VenuePageShell, VenueActionButton } from "@/components/venue-layout/VenuePageShell";
-import { StatTrendCard } from "@/components/promoter/PlaceholderCharts";
+import dynamic from "next/dynamic";
+
+const StatTrendCard = dynamic(() => import("@/components/promoter/PlaceholderCharts").then(m => m.StatTrendCard), { ssr: false });
 import { formatINR, formatDate } from "@/lib/utils/format";
-import { PayoutRequestModal } from "@/components/promoter/PayoutRequestModal";
+import { TransferConfirmationModal, type PromoterAccount } from "@/components/finance/TransferConfirmationModal";
 import { BankSetupForm, type BankSetupData } from "@/components/finance/BankSetupForm";
 
 interface PayoutBalance {
@@ -66,6 +68,7 @@ export default function PayoutsPage() {
     const { profile, getIdToken } = useDashboardAuth();
     const [balance, setBalance] = useState<PayoutBalance | null>(null);
     const [payouts, setPayouts] = useState<Payout[]>([]);
+    const [accounts, setAccounts] = useState<PromoterAccount[]>([]);
     const [loading, setLoading] = useState(true);
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [showSetup, setShowSetup] = useState(false);
@@ -82,10 +85,28 @@ export default function PayoutsPage() {
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
             const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-            const payoutRes = await fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers });
-            const payoutData = await payoutRes.json();
-            setBalance(payoutData.balance || null);
-            setPayouts(payoutData.payouts || []);
+            
+            const [payoutRes, accountsRes] = await Promise.all([
+                fetch(`/api/partners/promoters/payouts?promoterId=${promoterId}`, { headers }),
+                fetch("/api/partners/promoters/finance/bank-accounts", { headers }),
+            ]);
+
+            if (payoutRes.ok) {
+                const payoutData = await payoutRes.json();
+                setBalance(payoutData.balance || null);
+                setPayouts(payoutData.payouts || []);
+            }
+
+            if (accountsRes.ok) {
+                const accountsData = await accountsRes.json();
+                setAccounts((accountsData.accounts ?? []).map((account: any) => ({
+                    id: account.id,
+                    bankName: account.bankName || "Bank Account",
+                    last4: account.last4 || "0000",
+                    isDefault: account.isDefault ?? false,
+                    paymentType: account.paymentType || "bank_account",
+                })));
+            }
         } catch (err) {
             console.error("Failed to fetch payout data:", err);
         } finally {
@@ -99,7 +120,7 @@ export default function PayoutsPage() {
         setSetupError("");
         try {
             const token = typeof getIdToken === "function" ? await getIdToken() : "";
-            const res = await fetch("/api/promoter/finance/bank-accounts", {
+            const res = await fetch("/api/partners/promoters/finance/bank-accounts", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -300,13 +321,37 @@ export default function PayoutsPage() {
 
             {/* Request Modal */}
             {showRequestModal && (
-                <PayoutRequestModal
-                    availableBalance={balance?.available || 0}
-                    promoterId={promoterId!}
+                <TransferConfirmationModal
+                    available={balance?.available || 0}
+                    pending={balance?.pending || 0}
+                    instantAvailable={0}
+                    payoutAccount={accounts.find((account) => account.isDefault) || accounts[0] || null}
                     onClose={() => setShowRequestModal(false)}
-                    onSuccess={() => {
+                    onSubmit={async (amount, accountId) => {
+                        const token = typeof getIdToken === "function" ? await getIdToken() : "";
+                        const headers: Record<string, string> = { 
+                            "Content-Type": "application/json",
+                            "x-idempotency-key": crypto.randomUUID() 
+                        };
+                        if (token) headers["Authorization"] = `Bearer ${token}`;
+
+                        const amountPaise = Math.round(amount * 100);
+
+                        const res = await fetch("/api/partners/promoters/payouts", {
+                            method: "POST",
+                            headers,
+                            body: JSON.stringify({ amountPaise, bankAccountId: accountId }),
+                        });
+
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error?.message || data.error || "Failed to process transfer.");
+                        
                         setShowRequestModal(false);
                         fetchPayoutData();
+                    }}
+                    onAddPayoutMethod={() => {
+                        setShowRequestModal(false);
+                        setShowSetup(true);
                     }}
                 />
             )}

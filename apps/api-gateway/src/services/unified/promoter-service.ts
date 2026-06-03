@@ -1,5 +1,5 @@
 import type { Firestore } from 'firebase-admin/firestore';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, FieldPath } from 'firebase-admin/firestore';
 import type {
   PartnerContext,
   EventSummary,
@@ -27,6 +27,7 @@ import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js'
 export class PromoterService {
   private db: Firestore;
   private log: ServiceLogger;
+  private redis?: ServiceContext['redis'];
 
   constructor(ctx: ServiceContext);
   /** @deprecated Use ServiceContext form. Retained for backward compatibility. */
@@ -35,6 +36,7 @@ export class PromoterService {
     if ('db' in arg && 'log' in arg) {
       this.db = arg.db;
       this.log = arg.log;
+      this.redis = arg.redis;
     } else {
       this.db = arg as Firestore;
       this.log = consoleLogger;
@@ -124,13 +126,16 @@ export class PromoterService {
     });
 
     // P0-3: Aggregate real time-series data from daily click buckets
-    const linkIds = (snap as any).docs.map((d: any) => d.id);
-    const timeSeries = await this.buildTimeSeries(linkIds, filters.from, filters.to);
+    // If we're getting analytics for a specific link, query that link's bucket.
+    // If getting overall analytics, query the global promoter bucket.
+    const timeSeries = filters.linkId 
+      ? await this.buildTimeSeries({ linkIds: [filters.linkId] }, filters.from, filters.to)
+      : await this.buildTimeSeries({ promoterId }, filters.from, filters.to);
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 500) {
       this.log.warn(
-        { service: 'PromoterService', method: 'getAnalytics', promoterId, durationMs, linkCount: linkIds.length },
+        { service: 'PromoterService', method: 'getAnalytics', promoterId, durationMs, linkCount: byLink.length },
         'Slow analytics aggregation'
       );
     }
@@ -222,7 +227,7 @@ export class PromoterService {
     return this.docToLink(updated);
   }
 
-  async getLinkAnalytics(ctx: PartnerContext, linkId: string): Promise<LinkAnalytics | null> {
+  async getLinkAnalytics(ctx: PartnerContext, linkId: string): Promise<any | null> {
     const doc = await this.db.collection('promoter_links').doc(linkId).get();
     if (!doc.exists) return null;
 
@@ -235,10 +240,11 @@ export class PromoterService {
     const conversionRate = clicks > 0 ? conversions / clicks : 0;
 
     // P0-3: Aggregate real time-series data from daily click buckets
-    const timeSeries = await this.buildTimeSeries([linkId]);
+    const timeSeries = await this.buildTimeSeries({ linkIds: [linkId] });
 
     return {
       linkId,
+      link: this.docToLink(doc),
       clicks,
       conversions,
       revenue,
@@ -247,9 +253,27 @@ export class PromoterService {
     };
   }
 
-  // P1: trackClick uses FieldValue.increment for BOTH the link doc and the
-  // daily bucket — eliminates the read-modify-write race on the link doc.
+  // P1: trackClick uses Redis batching to buffer clicks and reduce Firestore writes.
+  // Falls back to direct FieldValue.increment if Redis is unavailable.
   async trackClick(linkCode: string): Promise<void> {
+    const BATCH_SIZE = 5;
+    const redisKey = `c1rcle:promoter:clicks:batch:${linkCode}`;
+    let batchCount = 1;
+
+    if (this.redis && this.redis.status === 'ready') {
+      try {
+        batchCount = await this.redis.incr(redisKey);
+        if (batchCount < BATCH_SIZE) {
+            return; // Buffered in Redis, will write to Firestore later
+        }
+        // Hit threshold, flush to Firestore
+        await this.redis.del(redisKey); // Reset batch
+      } catch (err: any) {
+        this.log.warn({ service: 'PromoterService', method: 'trackClick', linkCode, error: err.message }, 'Redis batching failed, falling back to direct write');
+        batchCount = 1;
+      }
+    }
+
     const snap = await this.db
       .collection('promoter_links')
       .where('code', '==', linkCode)
@@ -267,11 +291,11 @@ export class PromoterService {
     if (!snap || snap.empty) return;
 
     const linkDoc = snap.docs[0];
+    const promoterId = safeStr(linkDoc.data().promoterId);
 
-    // P1: Atomic increment — eliminates the read-modify-write race in the
-    // original `(linkDoc.data().clickCount ?? 0) + 1` pattern.
+    // P1: Atomic increment — eliminates the read-modify-write race.
     await linkDoc.ref
-      .update({ clickCount: FieldValue.increment(1), updatedAt: new Date() })
+      .update({ clickCount: FieldValue.increment(batchCount), updatedAt: new Date() })
       .catch((err) => {
         this.log.error(
           { service: 'PromoterService', method: 'trackClick', linkId: linkDoc.id, error: err?.message ?? String(err) },
@@ -282,21 +306,42 @@ export class PromoterService {
     // P0-3 Part A: Write a lightweight daily-bucket document for time-series aggregation.
     // Uses FieldValue.increment for safe concurrent writes. Non-blocking, best-effort.
     const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    
+    // 1. Link-specific bucket
     this.db
       .collection('promoter_link_events')
       .doc(linkDoc.id)
       .collection('daily')
       .doc(today)
       .set(
-        { clicks: FieldValue.increment(1), date: today, linkId: linkDoc.id },
+        { clicks: FieldValue.increment(batchCount), date: today, linkId: linkDoc.id },
         { merge: true }
       )
       .catch((err) => {
         this.log.warn(
           { service: 'PromoterService', method: 'trackClick', linkId: linkDoc.id, date: today, error: err?.message ?? String(err) },
-          'Daily bucket write failed (non-critical)'
+          'Daily link bucket write failed (non-critical)'
         );
       });
+
+    // 2. Global promoter bucket
+    if (promoterId) {
+      this.db
+        .collection('promoter_daily_stats')
+        .doc(promoterId)
+        .collection('daily')
+        .doc(today)
+        .set(
+          { clicks: FieldValue.increment(batchCount), date: today, promoterId },
+          { merge: true }
+        )
+        .catch((err) => {
+          this.log.warn(
+            { service: 'PromoterService', method: 'trackClick', promoterId, date: today, error: err?.message ?? String(err) },
+            'Daily global bucket write failed (non-critical)'
+          );
+        });
+    }
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
@@ -367,7 +412,7 @@ export class PromoterService {
     const snapResults = await Promise.all(
       chunks.map((chunk) =>
         this.db.collection('events')
-          .where('__name__', 'in', chunk)
+          .where(FieldPath.documentId(), 'in', chunk)
           .get()
           .catch((err) => {
             this.log.error(
@@ -431,7 +476,7 @@ export class PromoterService {
     const base = this.db.collection('promoter_connections');
 
     const buildQ = (field: 'fromPartnerId' | 'toPartnerId') => {
-      let q: any = base.where(field, '==', ctx.partnerId).limit(100);
+      let q: any = base.where(field, '==', ctx.partnerId).limit(1000);
       if (status) q = q.where('status', '==', status);
       return q.get().catch((err: any) => {
         this.log.error(
@@ -587,25 +632,39 @@ export class PromoterService {
       totalLinks++;
     }
 
-    const commSnap = await this.db
-      .collection('partner_ledger')
-      .where('toPartnerId', '==', promoterId)
-      .where('type', '==', 'promoter_commission')
-      .select('amount', 'status')
-      .get()
-      .catch((err) => {
-        this.log.error(
-          { service: 'PromoterService', method: 'computeStats', promoterId, error: err?.message ?? String(err) },
-          'Ledger commission query failed'
-        );
-        return { docs: [] };
-      });
+    const statsDoc = await this.db.collection('promoter_stats').doc(promoterId).get();
+    
+    if (statsDoc.exists) {
+      commissionEarned = toNum(statsDoc.data()?.totalCommissionEarned);
+    } else {
+      const commSnap = await this.db
+        .collection('partner_ledger')
+        .where('toPartnerId', '==', promoterId)
+        .where('type', '==', 'promoter_commission')
+        .select('amount', 'status')
+        .get()
+        .catch((err) => {
+          this.log.error(
+            { service: 'PromoterService', method: 'computeStats', promoterId, error: err?.message ?? String(err) },
+            'Ledger commission query failed'
+          );
+          return { docs: [] };
+        });
 
-    for (const doc of (commSnap as any).docs) {
-      const d = doc.data() as Record<string, any>;
-      if (d.status !== 'reversed' && d.status !== 'cancelled') {
-        commissionEarned += toNum(d.amount);
+      for (const doc of (commSnap as any).docs) {
+        const d = doc.data() as Record<string, any>;
+        if (d.status !== 'reversed' && d.status !== 'cancelled') {
+          commissionEarned += toNum(d.amount);
+        }
       }
+
+      // Auto-backfill to prevent heavy reads on next load
+      await statsDoc.ref.set({
+        totalCommissionEarned: commissionEarned,
+        updatedAt: new Date()
+      }, { merge: true }).catch(err => {
+        this.log.warn({ service: 'PromoterService', method: 'computeStats', promoterId }, 'Failed to backfill promoter_stats');
+      });
     }
 
     const durationMs = Date.now() - startedAt;
@@ -627,55 +686,77 @@ export class PromoterService {
   }
 
   // P0-3 Part B: Aggregate daily click buckets into a time-series array.
-  // Reads from promoter_link_events/{linkId}/daily/{YYYY-MM-DD} subcollections
-  // written by trackClick (Part A).
-  //
-  // P1: Validated that:
-  //  - Empty linkIds returns [] immediately (no wasted reads)
-  //  - Date range defaults to 30 days when not specified
-  //  - Revenue from daily buckets is aggregated (defaults to 0 when missing)
-  //  - Results are sorted chronologically
+  // Reads from either promoter_daily_stats (for whole promoter) 
+  // or promoter_link_events/{linkId}/daily (for specific links).
   private async buildTimeSeries(
-    linkIds: string[],
+    opts: { linkIds?: string[]; promoterId?: string },
     from?: string,
     to?: string
   ): Promise<DataPoint[]> {
-    if (!linkIds.length) return [];
+    if (!opts.promoterId && (!opts.linkIds || !opts.linkIds.length)) return [];
 
     const start = from ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
     const end   = to   ?? new Date().toISOString().slice(0, 10);
 
     const byDate = new Map<string, { clicks: number; revenue: number }>();
 
-    await Promise.all(
-      linkIds.map(async (linkId) => {
-        const snap = await this.db
-          .collection('promoter_link_events')
-          .doc(linkId)
-          .collection('daily')
-          .where('date', '>=', start)
-          .where('date', '<=', end)
-          .get()
-          .catch((err) => {
-            this.log.warn(
-              { service: 'PromoterService', method: 'buildTimeSeries', linkId, error: err?.message ?? String(err) },
-              'Daily bucket query failed for link'
-            );
-            return { docs: [] };
-          });
+    if (opts.promoterId) {
+      const snap = await this.db
+        .collection('promoter_daily_stats')
+        .doc(opts.promoterId)
+        .collection('daily')
+        .where('date', '>=', start)
+        .where('date', '<=', end)
+        .get()
+        .catch((err) => {
+          this.log.warn(
+            { service: 'PromoterService', method: 'buildTimeSeries', promoterId: opts.promoterId, error: err?.message ?? String(err) },
+            'Daily bucket query failed for global promoter stats'
+          );
+          return { docs: [] };
+        });
 
-        for (const doc of (snap as any).docs) {
-          const d = doc.data() as Record<string, any>;
-          const dateKey = safeStr(d.date);
-          if (!dateKey) continue;
-          const existing = byDate.get(dateKey) ?? { clicks: 0, revenue: 0 };
-          byDate.set(dateKey, {
-            clicks: existing.clicks + toNum(d.clicks),
-            revenue: existing.revenue + toNum(d.revenue ?? 0),
-          });
-        }
-      })
-    );
+      for (const doc of (snap as any).docs) {
+        const d = doc.data() as Record<string, any>;
+        const dateKey = safeStr(d.date);
+        if (!dateKey) continue;
+        const existing = byDate.get(dateKey) ?? { clicks: 0, revenue: 0 };
+        byDate.set(dateKey, {
+          clicks: existing.clicks + toNum(d.clicks),
+          revenue: existing.revenue + toNum(d.revenue ?? 0),
+        });
+      }
+    } else if (opts.linkIds && opts.linkIds.length) {
+      await Promise.all(
+        opts.linkIds.map(async (linkId) => {
+          const snap = await this.db
+            .collection('promoter_link_events')
+            .doc(linkId)
+            .collection('daily')
+            .where('date', '>=', start)
+            .where('date', '<=', end)
+            .get()
+            .catch((err) => {
+              this.log.warn(
+                { service: 'PromoterService', method: 'buildTimeSeries', linkId, error: err?.message ?? String(err) },
+                'Daily bucket query failed for link'
+              );
+              return { docs: [] };
+            });
+
+          for (const doc of (snap as any).docs) {
+            const d = doc.data() as Record<string, any>;
+            const dateKey = safeStr(d.date);
+            if (!dateKey) continue;
+            const existing = byDate.get(dateKey) ?? { clicks: 0, revenue: 0 };
+            byDate.set(dateKey, {
+              clicks: existing.clicks + toNum(d.clicks),
+              revenue: existing.revenue + toNum(d.revenue ?? 0),
+            });
+          }
+        })
+      );
+    }
 
     return [...byDate.entries()]
       .sort(([a], [b]) => a.localeCompare(b))

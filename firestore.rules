@@ -182,6 +182,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Promoter Audit Logs: System logs for manual operations
+    match /promoter_audit_logs/{logId} {
+      allow read: if isAdmin() || (isSignedIn() && 
+        resource.data.promoterId == request.auth.uid);
+      allow write: if false; // Only backend admin SDK can write audit logs
+    }
+
     // Partnerships: Host-Club relationships
     match /partnerships/{partnershipId} {
       allow read: if isAdmin() || (isSignedIn() && (
@@ -236,7 +243,8 @@ service cloud.firestore {
         resource.data.uid == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
         resource.data.customerId == request.auth.uid ||
-        resource.data.venueId == request.auth.token.partnerId
+        resource.data.venueId == request.auth.token.partnerId ||
+        resource.data.promoterId == request.auth.uid
       ));
       allow create: if isSignedIn() && (
         request.resource.data.userId == request.auth.uid ||
@@ -645,5 +653,11 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow write: if false;
     }
+    // Backend-Only Services
+    match /partner_ledger/{id} { allow read, write: if false; }
+    match /promoter_stats/{id} { allow read, write: if false; }
+    match /promoter_daily_stats/{id} { allow read, write: if false; }
+    match /promoter_link_events/{id} { allow read, write: if false; }
+
   }
 }

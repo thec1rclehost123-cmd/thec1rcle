@@ -396,7 +396,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
                 };
             };
 
-            let finalResult;
+            let finalResult: any;
             if (idempotencyKey && fastify.idempotencyService?.executeOnce) {
                 finalResult = await fastify.idempotencyService.executeOnce(idempotencyKey, userId, work);
                 if (finalResult.cached) return finalResult.body;

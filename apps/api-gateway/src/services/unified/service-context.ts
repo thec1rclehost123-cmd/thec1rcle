@@ -31,10 +31,11 @@ export const consoleLogger: ServiceLogger = {
 export interface ServiceContext {
   db: Firestore;
   log: ServiceLogger;
-  redis?: {
+    redis?: {
     get(key: string): Promise<string | null>;
     set(key: string, value: string, mode: string, ttl: number): Promise<any>;
     del(key: string): Promise<any>;
+    incr(key: string): Promise<number>;
     status: string;
   };
 }

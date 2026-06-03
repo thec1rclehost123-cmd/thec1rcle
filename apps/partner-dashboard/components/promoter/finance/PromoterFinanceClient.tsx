@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { DollarSign, Wallet, ArrowDownRight, ArrowUpRight, Clock, Building2, Banknote, RefreshCw, Receipt } from "lucide-react";
 
 function formatCurrencyInline(amount: number) {
@@ -19,6 +19,25 @@ export function PromoterFinanceClient() {
             return res.json();
         },
     });
+
+    const { 
+        data: commissionsData, 
+        fetchNextPage: fetchNextCommissions, 
+        hasNextPage: hasNextCommissions, 
+        isFetchingNextPage: isFetchingMoreCommissions 
+    } = useInfiniteQuery({
+        queryKey: ["promoter", "commissions"],
+        queryFn: async ({ pageParam }) => {
+            const cursorQuery = pageParam ? `?cursor=${pageParam}` : "";
+            const res = await fetch(`/api/partners/promoters/commissions${cursorQuery}`);
+            if (!res.ok) throw new Error("Failed to fetch commissions");
+            return res.json();
+        },
+        initialPageParam: null as string | null,
+        getNextPageParam: (lastPage) => lastPage.nextCursor || null,
+    });
+
+    const commissionsList = commissionsData?.pages.flatMap((page) => page.commissions) || data?.commissionDetails || [];
 
     return (
         <div className="flex flex-col gap-6 w-full animate-in fade-in slide-in-from-bottom-4 duration-500 pb-16">
@@ -258,27 +277,27 @@ export function PromoterFinanceClient() {
                                      </tr>
                                  </thead>
                                  <tbody className="divide-y divide-border-subtle">
-                                     {(data.commissionDetails || []).map((cd: any) => (
+                                     {commissionsList.map((cd: any) => (
                                          <tr key={cd.id} className="hover:bg-surface-hover/30 transition-colors">
-                                             <td className="px-6 py-4 font-semibold text-text-primary text-sm">{cd.eventName}</td>
+                                             <td className="px-6 py-4 font-semibold text-text-primary text-sm">{cd.eventName || cd.eventTitle}</td>
                                              <td className="px-6 py-4 text-sm text-text-secondary">
-                                                 <span className="bg-surface-tertiary px-2 py-0.5 rounded-md border border-border-subtle text-xs font-medium">{cd.ticketType}</span>
+                                                 <span className="bg-surface-tertiary px-2 py-0.5 rounded-md border border-border-subtle text-xs font-medium">{cd.ticketType || 'Ticket'}</span>
                                              </td>
-                                             <td className="px-6 py-4 text-sm text-text-secondary">{cd.buyerName}</td>
+                                             <td className="px-6 py-4 text-sm text-text-secondary">{cd.buyerName || cd.guestName}</td>
                                              <td className="px-6 py-4 text-sm text-text-secondary">
-                                                 {new Date(cd.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                                                 {new Date(cd.date || cd.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                                              </td>
                                              <td className="px-6 py-4">
                                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${
-                                                     cd.status === "cleared" ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                                     (cd.status === "cleared" || cd.status === "paid") ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-amber-500/10 text-amber-500 border-amber-500/20"
                                                  }`}>
                                                      {cd.status}
                                                  </span>
                                              </td>
-                                             <td className="px-6 py-4 text-right font-bold tabular-nums text-emerald-500">+{formatCurrencyInline(cd.amount)}</td>
+                                             <td className="px-6 py-4 text-right font-bold tabular-nums text-emerald-500">+{formatCurrencyInline(cd.amount || cd.commission || 0)}</td>
                                          </tr>
                                      ))}
-                                     {(!data.commissionDetails || data.commissionDetails.length === 0) && (
+                                     {commissionsList.length === 0 && (
                                          <tr>
                                              <td colSpan={6} className="px-6 py-12 text-center text-text-muted">No commission records found.</td>
                                          </tr>
@@ -286,6 +305,17 @@ export function PromoterFinanceClient() {
                                  </tbody>
                              </table>
                          </div>
+                         {hasNextCommissions && (
+                             <div className="p-4 border-t border-border-subtle bg-surface-base flex justify-center">
+                                 <button 
+                                     onClick={() => fetchNextCommissions()} 
+                                     disabled={isFetchingMoreCommissions}
+                                     className="flex items-center gap-2 px-6 py-2 bg-surface-elevated hover:bg-surface-hover border border-border-subtle rounded-full text-sm font-semibold text-text-primary transition-all disabled:opacity-50"
+                                 >
+                                     {isFetchingMoreCommissions ? 'Loading...' : 'Load More Commissions'}
+                                 </button>
+                             </div>
+                         )}
                     </div>
                 </>
             )}

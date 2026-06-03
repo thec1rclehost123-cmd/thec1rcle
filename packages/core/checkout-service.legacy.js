@@ -63,9 +63,9 @@ const buildExistingOrderResponse = (order, reservationId, pricing = null, promot
     };
 };
 
-async function resolveEligiblePromoterCode(promoterCode) {
+async function resolveEligiblePromoterCode(promoterCode, eventId) {
     if (!promoterCode) return null;
-    const promoterLink = await getPromoterLinkByCode(promoterCode);
+    const promoterLink = await getPromoterLinkByCode(promoterCode, eventId);
     return promoterLink ? promoterCode : null;
 }
 
@@ -177,7 +177,7 @@ export async function calculatePricing(eventId, items, options = {}) {
     const event = await getEvent(eventId);
     if (!event) return { success: false, error: 'Event not found' };
 
-    const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode);
+    const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode, eventId);
 
     // Use unified core engine
     return await coreCalculatePricing({
@@ -331,15 +331,13 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
 async function _initiateCheckoutInner(reservationId, userId, userDetails, options, redisClient) {
     const { promoCode = null, promoterCode = null } = options;
 
-    // Resolve promoter code and fetch reservation in parallel — independent operations
-    const [eligiblePromoterCode, reservation] = await Promise.all([
-        resolveEligiblePromoterCode(promoterCode),
-        getReservation(reservationId),
-    ]);
+    const reservation = await getReservation(reservationId);
 
     if (!reservation) {
         return { success: false, error: 'Reservation not found' };
     }
+
+    const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode, reservation.eventId);
 
     const { getOrderByReservationId, checkExistingRSVP } = await import("./guest-order-engine.js");
     const existingOrder = await getOrderByReservationId(reservationId);

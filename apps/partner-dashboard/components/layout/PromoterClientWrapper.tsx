@@ -14,7 +14,8 @@ import { usePathname, useRouter } from "next/navigation";
 
 // ── Tab-to-href mapping ────────────────────────────────────────────────────────
 const PROMOTER_HREF_TO_TAB: Record<string, string> = {
-    "/promoter":            "overview",
+    "/promoter":                "overview",
+    "/promoter/leaderboard":    "overview",
     "/promoter/events":         "events",
     "/promoter/links":          "links",
     "/promoter/guests":         "guests",
@@ -166,7 +167,7 @@ export function PromoterClientWrapper({ children, menuSections }: PromoterClient
                 {/* Main Content */}
                 <div className={`${isCollapsed ? "lg:pl-[80px]" : "lg:pl-[280px]"} flex flex-col min-h-screen min-w-0 pt-14 lg:pt-16 transition-all duration-300 ease-in-out`}>
                     <div className={`hidden lg:block fixed top-0 right-0 z-40 transition-all duration-300 ease-in-out ${isCollapsed ? "left-[80px]" : "left-[280px]"}`}>
-                        <AppleTopBar primaryAction={promoterPrimaryAction} />
+                        <AppleTopBar primaryAction={promoterPrimaryAction} roleContext="promoter" />
                     </div>
 
                     <main className="flex-1 min-w-0 px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:px-6 sm:pt-6 sm:pb-6 lg:px-8 lg:py-8 xl:px-10 xl:py-10">

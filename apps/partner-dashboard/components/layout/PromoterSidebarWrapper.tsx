@@ -11,6 +11,7 @@ import {
     Handshake,
     Wallet,
     Settings,
+    Trophy,
 } from "lucide-react";
 import { AppleSidebar } from "@/components/shared/AppleSidebar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -19,13 +20,13 @@ const MENU_SECTIONS = [
     {
         items: [
             { icon: LayoutDashboard, label: "Overview",  href: "/promoter" },
+            { icon: Trophy,          label: "Leaderboard",href: "/promoter/leaderboard" },
             { icon: Ticket,          label: "Events",    href: "/promoter/events" },
             { icon: Calendar,        label: "Calendar",  href: "/promoter/calendar" },
         ],
     },
     {
         items: [
-            { icon: Link2,        label: "MyLinks",      href: "/promoter/links" },
             { icon: Fingerprint,  label: "Persona",      href: "/promoter/persona" },
             { icon: Handshake,    label: "Partnerships", href: "/promoter/partnerships" },
         ],

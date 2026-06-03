@@ -85,26 +85,33 @@ export async function generatePromoterLink(promoterId, eventId) {
 export async function getPromoterStats(promoterId) {
     const db = getAdminDb();
 
-    // 1. Get confirmed orders attributed to this promoter
-    const ordersSnapshot = await db.collection("orders")
-        .where("promoterId", "==", promoterId)
-        .where("status", "in", ["confirmed", "completed"])
-        .get();
+    try {
+        const statsDoc = await db.collection("promoter_stats").doc(promoterId).get();
+        if (!statsDoc.exists) {
+            return {
+                totalOrders: 0,
+                totalRevenue: 0,
+                totalCommission: 0,
+                conversionRate: 0
+            };
+        }
 
-    const stats = {
-        totalOrders: ordersSnapshot.size,
-        totalRevenue: 0,
-        totalCommission: 0,
-        conversionRate: 0 // Would require click data from another collection
-    };
-
-    ordersSnapshot.forEach(doc => {
-        const data = doc.data();
-        stats.totalRevenue += (data.totalAmount || 0);
-        stats.totalCommission += (data.promoterAttribution?.commissionAmount || 0);
-    });
-
-    return stats;
+        const data = statsDoc.data();
+        return {
+            totalOrders: data.totalOrders || 0,
+            totalRevenue: data.totalRevenue || 0,
+            totalCommission: data.totalCommission || 0,
+            conversionRate: 0 // Would require click data from another collection
+        };
+    } catch (e) {
+        console.error("Failed to get promoter stats:", e);
+        return {
+            totalOrders: 0,
+            totalRevenue: 0,
+            totalCommission: 0,
+            conversionRate: 0
+        };
+    }
 }
 
 /**
@@ -148,10 +155,15 @@ function serializeTimestamps(obj) {
     return out;
 }
 
-export async function getPromoterLinkByCode(code) {
-    if (!code || !isFirebaseConfigured()) return null;
+export async function getPromoterLinkByCode(code, eventId) {
+    if (!code) return null;
+    if (!isFirebaseConfigured()) return null;
     const db = getAdminDb();
-    const snapshot = await db.collection(LINKS_COLLECTION).where("code", "==", code).limit(1).get();
+    let query = db.collection(LINKS_COLLECTION).where("code", "==", String(code).trim());
+    if (eventId) {
+        query = query.where("eventId", "==", String(eventId));
+    }
+    const snapshot = await query.limit(1).get();
     if (snapshot.empty) return null;
     const doc = snapshot.docs[0];
     if (doc.data()?.isActive === false) return null;
@@ -164,15 +176,17 @@ export async function getPromoterLinkByCode(code) {
     return link;
 }
 
-export async function trackPromoterLinkClick(code, { source = "guest-portal" } = {}) {
+export async function trackPromoterLinkClick(code, { source = "guest-portal", eventId } = {}) {
     if (!code) return { status: "not_found" };
     if (!isFirebaseConfigured()) return { status: "unavailable" };
 
     const db = getAdminDb();
-    const snapshot = await db.collection(LINKS_COLLECTION)
-        .where("code", "==", String(code).trim())
-        .limit(1)
-        .get();
+    let query = db.collection(LINKS_COLLECTION).where("code", "==", String(code).trim());
+    if (eventId) {
+        query = query.where("eventId", "==", String(eventId));
+    }
+
+    const snapshot = await query.limit(1).get();
 
     if (snapshot.empty) {
         return { status: "not_found" };

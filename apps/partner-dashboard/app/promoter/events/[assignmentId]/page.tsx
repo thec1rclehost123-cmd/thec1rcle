@@ -5,10 +5,11 @@ export const metadata = {
     description: "Your tracking links, guest list, and sales for this event.",
 };
 
-export default function PromoterAssignmentDetailPage({
+export default async function PromoterAssignmentDetailPage({
     params
 }: {
-    params: { assignmentId: string }
+    params: Promise<{ assignmentId: string }>
 }) {
-    return <PromoterAssignmentDetailClient assignmentId={params.assignmentId} />;
+    const { assignmentId } = await params;
+    return <PromoterAssignmentDetailClient assignmentId={assignmentId} />;
 }
