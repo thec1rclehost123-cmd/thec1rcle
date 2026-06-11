@@ -10,7 +10,8 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
-RUN npm install --legacy-peer-deps --ignore-scripts
+COPY --from=builder /app/scripts/ ./scripts/
+RUN npm install --legacy-peer-deps
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
 RUN npx turbo run build --filter=@c1rcle/admin-console
