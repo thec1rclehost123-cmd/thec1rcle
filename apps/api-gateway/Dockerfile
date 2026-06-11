@@ -21,12 +21,12 @@ COPY --from=builder /app/out/package-lock.json ./package-lock.json
 COPY --from=builder /app/scripts/ ./scripts/
 
 # Install dependencies (only what's needed for the pruned workspace)
-RUN npm install --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm install --legacy-peer-deps
 
 # Build the project
 COPY --from=builder /app/out/full/ .
 COPY turbo.json turbo.json
-RUN npx turbo run build --filter=@c1rcle/api-gateway
+RUN npx turbo run build --filter=@c1rcle/types --filter=@c1rcle/core --filter=@c1rcle/api-gateway
 
 # --- Runner Stage ---
 FROM node:20-alpine AS runner
@@ -49,4 +49,4 @@ ENV PORT 4000
 
 EXPOSE 4000
 
-CMD ["node", "dist/app.js"]
+CMD ["node", "--import", "tsx", "dist/app.js"]

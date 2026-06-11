@@ -1,22 +1,52 @@
-const rateLimitMap = new Map<string, { count: number; expires: number }>();
+import { NextRequest, NextResponse } from 'next/server';
+import { checkRateLimit as coreCheckRateLimit } from '@c1rcle/core/rate-limiter';
+
+export async function checkRateLimit(
+  key: string,
+  limit: number = 20,
+  windowSeconds: number = 60,
+): Promise<any> {
+  return coreCheckRateLimit(key, limit, windowSeconds);
+}
 
 /**
- * A simple in-memory rate limiter. Note: This only works per-instance. 
- * For distributed deployments like Vercel serverless functions, use Upstash Redis.
+ * Distributed rate limiter (Redis-backed).
+ *
+ * Rules:
+ * - 20 requests per minute per IP for general APIs
+ * - 5 requests per minute for sensitive actions (orders, waitlist)
  */
-export function checkRateLimit(identifier: string, limit: number, windowMs: number): boolean {
-    const now = Date.now();
-    const record = rateLimitMap.get(identifier);
+export async function rateLimit(
+  request: NextRequest,
+  limit: number = 20,
+  windowSeconds: number = 60,
+): Promise<boolean> {
+  const ip = request.headers.get('x-forwarded-for') || '127.0.0.1';
+  const key = `partner-dashboard:${ip}`;
 
-    if (!record || record.expires < now) {
-        rateLimitMap.set(identifier, { count: 1, expires: now + windowMs });
-        return true;
-    }
-
-    if (record.count >= limit) {
-        return false;
-    }
-
-    record.count++;
+  try {
+    const result = await coreCheckRateLimit(key, limit, windowSeconds);
+    return result.success;
+  } catch (err: any) {
+    // Fail open: if Redis is unavailable, allow the request rather than
+    // returning 500 to every caller. Log so ops can detect the outage.
+    console.warn('[rateLimit] Redis unavailable — failing open:', err?.message || err);
     return true;
+  }
+}
+
+/**
+ * Middleware wrapper for API routes
+ */
+export function withRateLimit(
+  handler: (request: NextRequest, context?: any) => Promise<Response>,
+  limit: number = 20,
+) {
+  return async (request: NextRequest, context?: any): Promise<Response> => {
+    const allowed = await rateLimit(request, limit);
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
+    }
+    return handler(request, context);
+  };
 }

@@ -1,20 +1,21 @@
-import { withSentryConfig } from "@sentry/nextjs";
-import "./lib/env.js";
+import { withSentryConfig } from '@sentry/nextjs';
+import './lib/env.js';
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  output: 'standalone',
   transpilePackages: ['@c1rcle/core', '@c1rcle/ui', '@c1rcle/types'],
   experimental: {
     optimizePackageImports: [
-      "lucide-react",
-      "date-fns",
-      "lodash",
-      "framer-motion",
-      "react-icons",
-      "firebase/app",
-      "firebase/auth",
-      "firebase/firestore",
-      "firebase/storage"
+      'lucide-react',
+      'date-fns',
+      'lodash',
+      'framer-motion',
+      'react-icons',
+      'firebase/app',
+      'firebase/auth',
+      'firebase/firestore',
+      'firebase/storage',
     ],
   },
   productionBrowserSourceMaps: false,
@@ -56,7 +57,7 @@ const nextConfig = {
         hostname: 'images.unsplash.com',
         port: '',
         pathname: '/**',
-      }
+      },
     ],
   },
   async headers() {
@@ -67,7 +68,10 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          },
         ],
       },
     ];
@@ -83,25 +87,25 @@ const nextConfig = {
         source: '/clubs/:path*',
         destination: '/venues/:path*',
         permanent: true,
-      }
-    ]
+      },
+    ];
   },
   async rewrites() {
     return [
       {
         source: '/api/v1/:path*',
-        destination: 'http://localhost:4000/api/v1/:path*' // Proxy to API Gateway running on port 4000
-      }
-    ]
-  }
+        destination: 'http://localhost:4000/api/v1/:path*', // Proxy to API Gateway running on port 4000
+      },
+    ];
+  },
 };
 
 export default withSentryConfig(
   nextConfig,
   {
     silent: true,
-    org: process.env.SENTRY_ORG || "c1rcle",
-    project: process.env.SENTRY_PROJECT || "admin-console",
+    org: process.env.SENTRY_ORG || 'c1rcle',
+    project: process.env.SENTRY_PROJECT || 'admin-console',
   },
   {
     widenClientFileUpload: true,
@@ -109,5 +113,7 @@ export default withSentryConfig(
     hideSourceMaps: true,
     disableLogger: true,
     automaticVercelMonitors: true,
-  }
+    disableServerWebpackPlugin: true,
+    disableClientWebpackPlugin: true,
+  },
 );
