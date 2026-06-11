@@ -20,7 +20,7 @@ COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
 
 # Install dependencies (only what's needed for the pruned workspace)
-RUN npm install
+RUN npm install --legacy-peer-deps --ignore-scripts
 
 # Build the project
 COPY --from=builder /app/out/full/ .
