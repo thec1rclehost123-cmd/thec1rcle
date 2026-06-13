@@ -33,7 +33,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
-    "expo": "^54.0.31",
+    "expo": "^56.0.0",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
     "stylelint": "^17.13.0",

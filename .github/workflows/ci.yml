@@ -141,7 +141,6 @@ jobs:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npm audit --audit-level=high --workspaces
-        continue-on-error: true
       - uses: trufflesecurity/trufflehog@main
         with: { extra_args: --only-verified }
       - name: Zod v4 schema fuzz
