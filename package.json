@@ -28,7 +28,7 @@
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
     "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore",
-    "*.{css,scss}": "stylelint --fix"
+    "*.css": "stylelint --fix --allow-empty-input"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
