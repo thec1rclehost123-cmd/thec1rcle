@@ -19,16 +19,22 @@
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
     "install:all": "npm install",
-    "prepare": "husky"
+    "prepare": "husky",
+    "prepush": "npm run type-check && npx turbo run test --filter=@c1rcle/core && npm run build"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
-    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore"
+    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore",
+    "*.{css,scss}": "stylelint --fix"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.0.2",
+    "@commitlint/config-conventional": "^21.0.2",
     "expo": "^54.0.31",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
+    "stylelint": "^17.13.0",
+    "stylelint-config-standard": "^40.0.0",
     "turbo": "^2.7.3",
     "vitest": "^4.0.18"
   },
