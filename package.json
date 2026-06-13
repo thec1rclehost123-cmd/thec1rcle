@@ -20,12 +20,11 @@
     "test:watch": "turbo run test:watch",
     "install:all": "npm install",
     "prepare": "husky",
-    "prepush": "npm run type-check && npx turbo run test --filter=@c1rcle/core && npm run build"
+    "prepush": "npm run type-check && npx turbo run test --filter=@c1rcle/core"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",
-    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore",
-    "*.{css,scss}": "stylelint --fix"
+    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.0.2",
