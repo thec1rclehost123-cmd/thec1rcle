@@ -18,10 +18,17 @@
     "type-check": "turbo type-check",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
-    "install:all": "npm install"
+    "install:all": "npm install",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*": "prettier --write --ignore-unknown",
+    "*.{js,jsx,ts,tsx}": "eslint --fix --no-ignore"
   },
   "devDependencies": {
     "expo": "^54.0.31",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.0.7",
     "turbo": "^2.7.3",
     "vitest": "^4.0.18"
   },
