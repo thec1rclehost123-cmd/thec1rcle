@@ -22,7 +22,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-turbo-${{ github.sha }}
           restore-keys: |
             ${{ runner.os }}-turbo-
 
@@ -30,7 +30,7 @@ jobs:
         run: npm ci
 
       - name: Run Linting
-        run: npm run lint
+        run: NODE_OPTIONS="--max-old-space-size=4096" npm run lint
 
       - name: Run Type Checking
         run: npm run type-check
@@ -79,13 +79,13 @@ jobs:
           if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> $GITHUB_OUTPUT; echo "domain=staging-partner.thec1rcle.com" >> $GITHUB_OUTPUT; fi
 
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
+        uses: amondnet/vercel-action@v25.2.0
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ steps.vars.outputs.pid }}
-          working-directory: apps/${{ matrix.app }}
-          alias-domains: ${{ steps.vars.outputs.domain }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-version: latest
 
   deploy-services:
     needs: [validate]
@@ -104,6 +104,10 @@ jobs:
 
       - name: Install Dependencies
         run: npm ci
+
+      - name: Install Functions Dependencies
+        run: npm install
+        working-directory: functions
 
       - name: Deploy Firebase Functions
         run: npx firebase-tools deploy --only functions --project staging --token ${{ secrets.FIREBASE_TOKEN }} --non-interactive

@@ -79,11 +79,13 @@ jobs:
           if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> $GITHUB_OUTPUT; fi
 
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
+        uses: amondnet/vercel-action@v25.2.0
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
           vercel-project-id: ${{ steps.vars.outputs.pid }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          vercel-version: latest
           working-directory: apps/${{ matrix.app }}
           vercel-args: '--prod'
 
