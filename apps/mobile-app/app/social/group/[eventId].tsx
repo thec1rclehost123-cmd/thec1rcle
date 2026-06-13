@@ -1,22 +1,34 @@
-import { useEffect, useState, useRef, useCallback } from "react";
-import { useChatRateLimit } from "@/hooks/useChatRateLimit";
-import { useChatImagePicker } from "@/hooks/useChatImagePicker";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-    View,
-    Text,
-    ScrollView,
-    Pressable,
-    TextInput,
-    KeyboardAvoidingView,
-    Platform,
     ActivityIndicator,
     Alert,
-    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
+import { FlashList, type FlashListRef } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+import { useFocusEffect, useLocalSearchParams, router } from "expo-router";
+import { ImagePlus, Images, LockKeyhole, Users } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
+import {
+    BrightCenterState,
+    BrightChatHeader,
+    BrightChatSurface,
+    BrightComposerDock,
+    BrightMessage,
+    BrightSendButton,
+    BrightTextInput,
+    BrightToolButton,
+    BrightTypingIndicator,
+    formatChatTime,
+    type ChatSurfaceTheme,
+} from "@/components/chat/BrightChatSurface";
+import { useChatRateLimit } from "@/hooks/useChatRateLimit";
+import { useChatImagePicker } from "@/hooks/useChatImagePicker";
 import {
     checkEventEntitlement,
     getEventGroupChat,
@@ -25,166 +37,40 @@ import {
     sendGroupImageMessage,
     getEventAttendees,
     getEventMediaCount,
-    GroupMessage,
-    EventPhase,
+    type GroupMessage,
+    type EventPhase,
     getPhaseInfo,
     canAccessEventChat,
     setGroupTypingStatus,
     subscribeToGroupTyping,
-    formatTypingText,
     createTypingHandler,
-    TypingStatus,
+    type TypingStatus,
     initiateDMRequest,
 } from "@/lib/social";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeInDown, SlideInUp } from "react-native-reanimated";
+import { DEMO_EVENT_CHATS } from "@/lib/demo";
+import { colors, radii, spacing, typography } from "@/lib/design/theme";
+import { useAuthStore } from "@/store/authStore";
 import { trackScreen } from "@/lib/analytics";
 
-// Typing indicator component
-function TypingIndicator({ status }: { status: TypingStatus }) {
-    if (!status.isTyping || status.users.length === 0) return null;
+const fonts = typography.fontFamily;
 
-    return (
-        <Animated.View
-            entering={FadeIn}
-            className="px-4 py-2"
-        >
-            <View className="flex-row items-center">
-                <View className="flex-row items-center bg-midnight-100 px-3 py-2 rounded-bubble border border-white/10">
-                    <View className="flex-row mr-2">
-                        <Animated.Text
-                            entering={FadeIn.delay(0)}
-                            className="text-gold-stone"
-                        >
-                            •
-                        </Animated.Text>
-                        <Animated.Text
-                            entering={FadeIn.delay(200)}
-                            className="text-gold-stone"
-                        >
-                            •
-                        </Animated.Text>
-                        <Animated.Text
-                            entering={FadeIn.delay(400)}
-                            className="text-gold-stone"
-                        >
-                            •
-                        </Animated.Text>
-                    </View>
-                    <Text className="text-gold-stone text-xs">
-                        {formatTypingText(status.users)}
-                    </Text>
-                </View>
-            </View>
-        </Animated.View>
-    );
-}
+type EventAttendee = {
+    userId: string;
+    name: string;
+    avatar?: string;
+};
 
-// Phase badge component
 function PhaseBadge({ phase }: { phase: EventPhase }) {
     const info = getPhaseInfo(phase);
 
     return (
-        <View
-            className="flex-row items-center px-3 py-1.5 rounded-pill"
-            style={{ backgroundColor: `${info.color}20` }}
-        >
-            <Text className="mr-1">{info.icon}</Text>
-            <Text style={{ color: info.color }} className="text-sm font-semibold">
-                {info.label}
-            </Text>
+        <View style={[styles.phaseBadge, { backgroundColor: `${info.color}24` }]}>
+            <Text style={styles.phaseIcon}>{info.icon}</Text>
+            <Text style={[styles.phaseText, { color: info.color }]}>{info.label}</Text>
         </View>
     );
 }
 
-// Message bubble component
-function MessageBubble({
-    message,
-    isOwnMessage,
-    onLongPress
-}: {
-    message: GroupMessage;
-    isOwnMessage: boolean;
-    onLongPress?: () => void;
-}) {
-    const time = message.createdAt?.toDate?.()
-        ? new Date(message.createdAt.toDate()).toLocaleTimeString("en-IN", {
-            hour: "numeric",
-            minute: "2-digit",
-        })
-        : "";
-
-    // Announcement styling
-    if (message.type === "announcement") {
-        return (
-            <Animated.View
-                entering={FadeIn}
-                className="bg-iris/20 border border-iris/30 rounded-bubble p-4 mx-4 mb-3"
-            >
-                <View className="flex-row items-center mb-2">
-                    <Text className="text-iris font-semibold">📢 {message.senderBadge?.toUpperCase()}</Text>
-                </View>
-                <Text className="text-gold">{message.content}</Text>
-                <Text className="text-gold-stone/50 text-xs mt-2">{time}</Text>
-            </Animated.View>
-        );
-    }
-
-    // System message styling
-    if (message.type === "system") {
-        return (
-            <View className="items-center py-2 mb-3">
-                <Text className="text-gold-stone/50 text-xs">{message.content}</Text>
-            </View>
-        );
-    }
-
-    return (
-        <Pressable
-            onLongPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                onLongPress?.();
-            }}
-            className={`mb-3 px-4 ${isOwnMessage ? "items-end" : "items-start"}`}
-        >
-            {/* Sender name for others' messages */}
-            {!isOwnMessage && (
-                <View className="flex-row items-center mb-1 ml-1">
-                    <Text className="text-gold-stone text-xs">{message.senderName}</Text>
-                    {message.senderBadge && (
-                        <View className="bg-iris/20 px-2 py-0.5 rounded-pill ml-2">
-                            <Text className="text-iris text-[10px] uppercase">{message.senderBadge}</Text>
-                        </View>
-                    )}
-                </View>
-            )}
-
-            {message.type === "image" ? (
-                <View className="max-w-[80%]">
-                    <Image
-                        source={{ uri: message.content }}
-                        style={{ width: 220, height: 165, borderRadius: 16 }}
-                        resizeMode="cover"
-                    />
-                </View>
-            ) : (
-                <View
-                    className={`max-w-[80%] px-4 py-3 rounded-bubble ${isOwnMessage
-                        ? "bg-iris rounded-br-lg"
-                        : "bg-midnight-100 border border-white/10 rounded-bl-lg"
-                        }`}
-                >
-                    <Text className={isOwnMessage ? "text-white" : "text-gold"}>
-                        {message.content}
-                    </Text>
-                </View>
-            )}
-            <Text className="text-gold-stone/50 text-xs mt-1 mx-1">{time}</Text>
-        </Pressable>
-    );
-}
-
-// Attendees preview with photo gallery shortcut
 function AttendeesPreview({
     attendees,
     total,
@@ -192,38 +78,29 @@ function AttendeesPreview({
     onPress,
     onGalleryPress,
 }: {
-    attendees: Array<{ userId: string; name: string; avatar?: string }>;
+    attendees: EventAttendee[];
     total: number;
     mediaCount: number;
     onPress: () => void;
     onGalleryPress: () => void;
 }) {
     return (
-        <View className="flex-row gap-2">
-            <Pressable
-                onPress={onPress}
-                className="flex-1 flex-row items-center bg-surface/50 px-3 py-2 rounded-pill border border-white/10"
-            >
-                <View className="flex-row -space-x-2 mr-2">
-                    {attendees.slice(0, 3).map((a) => (
-                        <View
-                            key={a.userId}
-                            className="w-6 h-6 rounded-full bg-midnight-100 border-2 border-midnight items-center justify-center"
-                        >
-                            <Text className="text-[8px]">👤</Text>
+        <View style={styles.previewRow}>
+            <Pressable onPress={onPress} style={styles.previewPill}>
+                <View style={styles.previewAvatars}>
+                    {attendees.slice(0, 3).map((attendee, index) => (
+                        <View key={attendee.userId} style={[styles.previewAvatar, { marginLeft: index === 0 ? 0 : -8 }]}>
+                            <Text style={styles.previewAvatarText}>{attendee.name.slice(0, 1).toUpperCase()}</Text>
                         </View>
                     ))}
                 </View>
-                <Text className="text-gold-stone text-sm">{total}</Text>
+                <Users size={15} color="#FFFFFF" />
+                <Text style={styles.previewText}>{total}</Text>
             </Pressable>
 
-            {/* Photo gallery shortcut */}
-            <Pressable
-                onPress={onGalleryPress}
-                className="flex-row items-center bg-surface/50 px-3 py-2 rounded-pill border border-white/10"
-            >
-                <Text className="mr-1">📷</Text>
-                <Text className="text-gold-stone text-sm">{mediaCount}</Text>
+            <Pressable onPress={onGalleryPress} style={styles.previewPill}>
+                <Images size={15} color="#FFFFFF" />
+                <Text style={styles.previewText}>{mediaCount}</Text>
             </Pressable>
         </View>
     );
@@ -235,7 +112,7 @@ export default function EventGroupChatScreen() {
         eventTitle: string;
     }>();
     const { user } = useAuthStore();
-    const scrollViewRef = useRef<ScrollView>(null);
+    const messagesListRef = useRef<FlashListRef<GroupMessage>>(null);
 
     const [messages, setMessages] = useState<GroupMessage[]>([]);
     const [inputText, setInputText] = useState("");
@@ -244,91 +121,103 @@ export default function EventGroupChatScreen() {
     const [hasAccess, setHasAccess] = useState(false);
     const [accessError, setAccessError] = useState<string | null>(null);
     const [phase, setPhase] = useState<EventPhase>("pre-event");
-    const [attendees, setAttendees] = useState<Array<{ userId: string; name: string }>>([]);
+    const [attendees, setAttendees] = useState<EventAttendee[]>([]);
     const [attendeeCount, setAttendeeCount] = useState(0);
     const [mediaCount, setMediaCount] = useState(0);
     const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
 
-    // Rate limiting
     const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
-
-    // Image picker
     const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
         user?.uid || "",
         `group/${eventId || "unknown"}`
     );
 
-    // Typing handler
-    const typingHandler = useCallback(() => {
+    const demoEventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
+    const phaseInfo = getPhaseInfo(phase);
+    const theme: ChatSurfaceTheme = {
+        mode: "event",
+        title: eventTitle || demoEventChat?.eventTitle || "Event group",
+        subtitle: `${attendeeCount || demoEventChat?.participantCount || 0} people going`,
+        backgroundImage: demoEventChat?.eventCover,
+        heroImage: demoEventChat?.eventCover,
+        avatarUrls: demoEventChat?.activeAvatars || [],
+        accentColor: colors.iris,
+    };
+
+    const typingHandler = useMemo(() => {
         if (eventId && user?.uid) {
             return createTypingHandler(async (isTyping) => {
                 await setGroupTypingStatus(eventId, user.uid, user.displayName || "Guest", isTyping);
             });
         }
-        return { onChangeText: () => { }, onBlur: () => { } };
+        return { onChangeText: () => {}, onBlur: () => {} };
     }, [eventId, user?.uid, user?.displayName]);
 
     useEffect(() => {
         trackScreen("GroupChat");
     }, []);
 
-    useEffect(() => {
-        if (!eventId || !user?.uid) return;
+    useFocusEffect(useCallback(() => {
+        if (!eventId || !user?.uid) {
+            setLoading(false);
+            return;
+        }
 
-        initializeChat();
-    }, [eventId, user?.uid]);
+        let active = true;
+        let unsubscribeMessages: (() => void) | undefined;
+        let unsubscribeTyping: (() => void) | undefined;
 
-    const initializeChat = async () => {
-        setLoading(true);
+        async function initializeChat() {
+            setLoading(true);
 
-        // Check entitlement
-        const entitlement = await checkEventEntitlement(user!.uid, eventId!);
+            const entitlement = await checkEventEntitlement(user!.uid, eventId!);
+            const chatInfo = await getEventGroupChat(eventId!);
+            if (!active) return;
 
-        // Get chat info
-        const chatInfo = await getEventGroupChat(eventId!);
-        setPhase(chatInfo.phase);
-        setAttendeeCount(chatInfo.participantCount);
+            setPhase(chatInfo.phase);
+            setAttendeeCount(chatInfo.participantCount);
 
-        // Check access
-        const access = canAccessEventChat(entitlement, chatInfo.phase);
-        setHasAccess(access.allowed);
-        setAccessError(access.reason || null);
+            const access = canAccessEventChat(entitlement, chatInfo.phase);
+            setHasAccess(access.allowed);
+            setAccessError(access.reason || null);
 
-        if (access.allowed) {
-            // Load attendees preview
-            const eventAttendees = await getEventAttendees(eventId!, 10);
+            if (!access.allowed) {
+                setLoading(false);
+                return;
+            }
+
+            const [eventAttendees, count] = await Promise.all([
+                getEventAttendees(eventId!, 10),
+                getEventMediaCount(eventId!),
+            ]);
+            if (!active) return;
             setAttendees(eventAttendees);
-
-            // Get media count
-            const count = await getEventMediaCount(eventId!);
             setMediaCount(count);
 
-            // Subscribe to messages
-            const unsubMessages = subscribeToGroupChat(eventId!, (newMessages) => {
+            unsubscribeMessages = subscribeToGroupChat(eventId!, (newMessages) => {
+                if (!active) return;
                 setMessages(newMessages);
                 setLoading(false);
-
-                // Scroll to bottom
                 setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                    messagesListRef.current?.scrollToEnd({ animated: true });
                 }, 100);
             });
-
-            // Subscribe to typing indicators
-            const unsubTyping = subscribeToGroupTyping(eventId!, user!.uid, setTypingStatus);
-
-            return () => {
-                unsubMessages();
-                unsubTyping();
-            };
-        } else {
-            setLoading(false);
+            unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
+                if (active) setTypingStatus(status);
+            });
         }
-    };
+
+        initializeChat();
+        return () => {
+            active = false;
+            unsubscribeMessages?.();
+            unsubscribeTyping?.();
+        };
+    }, [eventId, user?.uid]));
 
     const handleTextChange = (text: string) => {
         setInputText(text);
-        typingHandler().onChangeText();
+        typingHandler.onChangeText();
     };
 
     const handleSend = async () => {
@@ -338,10 +227,8 @@ export default function EventGroupChatScreen() {
         const messageContent = inputText.trim();
         setInputText("");
         setSending(true);
-
-        // Stop typing indicator
+        typingHandler.onBlur();
         await setGroupTypingStatus(eventId, user.uid, user.displayName || "Guest", false);
-
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
         const result = await sendGroupMessage(
@@ -399,62 +286,64 @@ export default function EventGroupChatScreen() {
         );
     };
 
-    const phaseInfo = getPhaseInfo(phase);
+    const activeTyper = typingStatus.isTyping ? typingStatus.users[0] : null;
 
-    // Access denied view
+    const renderMessage = useCallback(({ item, index }: { item: GroupMessage; index: number }) => (
+        <BrightMessage
+            content={item.content}
+            time={formatChatTime(item.createdAt, "en-IN")}
+            senderName={item.senderName}
+            senderAvatar={item.senderAvatar}
+            type={item.type === "announcement" ? "announcement" : item.type === "system" ? "system" : item.type === "image" ? "image" : "text"}
+            isOwnMessage={item.senderId === user?.uid}
+            index={index}
+            animate={index >= messages.length - 1}
+            onLongPress={() => handleMessageOptions(item)}
+        />
+    ), [eventId, messages.length, user?.uid]);
+
+    const messageListEmpty = useMemo(() => {
+        if (loading) {
+            return (
+                <View style={styles.loader}>
+                    <ActivityIndicator size="large" color="#FFFFFF" />
+                    <Text style={styles.loaderText}>Loading messages...</Text>
+                </View>
+            );
+        }
+        return <BrightCenterState title="Start the conversation" body="Be the first to say hi to other attendees." />;
+    }, [loading]);
+
     if (!hasAccess && !loading) {
         return (
-            <SafeAreaView className="flex-1 bg-midnight">
-                <View className="flex-row items-center px-4 py-3 border-b border-white/10">
-                    <Pressable onPress={() => router.back()} className="mr-4">
-                        <Text className="text-gold text-lg">←</Text>
-                    </Pressable>
-                    <Text className="text-gold font-semibold flex-1" numberOfLines={1}>
-                        {eventTitle}
-                    </Text>
-                </View>
-
-                <View className="flex-1 items-center justify-center px-6">
-                    <Text className="text-6xl mb-4">🔒</Text>
-                    <Text className="text-gold font-satoshi-bold text-xl mb-2 text-center">
-                        {phase === "expired" ? "Chat Archived" : "Access Required"}
-                    </Text>
-                    <Text className="text-gold-stone text-center mb-6">
-                        {accessError || "You need a ticket to join this chat"}
-                    </Text>
-
-                    {phase !== "expired" && (
-                        <Pressable
-                            onPress={() => router.push({ pathname: "/event/[id]", params: { id: eventId } })}
-                            className="bg-iris px-6 py-3 rounded-pill"
-                        >
-                            <Text className="text-white font-semibold">Get Tickets</Text>
-                        </Pressable>
-                    )}
-                </View>
-            </SafeAreaView>
+            <BrightChatSurface theme={theme}>
+                <SafeAreaView style={styles.lockedScreen} edges={["top", "bottom"]}>
+                    <BrightChatHeader theme={theme} onBack={() => router.back()} rightAccessory={<PhaseBadge phase={phase} />} />
+                    <View style={styles.lockedBody}>
+                        <View style={styles.lockedIcon}>
+                            <LockKeyhole size={34} color="#FFFFFF" />
+                        </View>
+                        <Text style={styles.lockedTitle}>{phase === "expired" ? "Chat Archived" : "Access Required"}</Text>
+                        <Text style={styles.lockedCopy}>{accessError || "You need a ticket to join this chat"}</Text>
+                        {phase !== "expired" ? (
+                            <Pressable
+                                onPress={() => router.push({ pathname: "/event/[id]", params: { id: eventId } })}
+                                style={styles.lockedButton}
+                            >
+                                <Text style={styles.lockedButtonText}>Get Tickets</Text>
+                            </Pressable>
+                        ) : null}
+                    </View>
+                </SafeAreaView>
+            </BrightChatSurface>
         );
     }
 
     return (
-        <SafeAreaView className="flex-1 bg-midnight" edges={["top"]}>
-            {/* Header */}
-            <View className="px-4 py-3 border-b border-white/10">
-                <View className="flex-row items-center justify-between">
-                    <View className="flex-row items-center flex-1">
-                        <Pressable onPress={() => router.back()} className="mr-4">
-                            <Text className="text-gold text-lg">←</Text>
-                        </Pressable>
-                        <View className="flex-1 mr-2">
-                            <Text className="text-gold font-semibold" numberOfLines={1}>{eventTitle}</Text>
-                            <Text className="text-gold-stone text-xs">Group Chat</Text>
-                        </View>
-                    </View>
-                    <PhaseBadge phase={phase} />
-                </View>
-
-                {/* Attendees preview + Gallery */}
-                <View className="mt-3">
+        <BrightChatSurface theme={theme}>
+            <SafeAreaView style={styles.conversation} edges={["top"]}>
+                <BrightChatHeader theme={theme} onBack={() => router.back()} rightAccessory={<PhaseBadge phase={phase} />} />
+                <View style={styles.previewWrap}>
                     <AttendeesPreview
                         attendees={attendees}
                         total={attendeeCount}
@@ -468,118 +357,206 @@ export default function EventGroupChatScreen() {
                             params: { eventId, eventTitle }
                         })}
                     />
+                    <Text style={styles.phaseDescription}>{phaseInfo.description}</Text>
                 </View>
-            </View>
 
-            {/* Phase info banner */}
-            <LinearGradient
-                colors={[`${phaseInfo.color}15`, "transparent"]}
-                className="px-4 py-3"
-            >
-                <Text className="text-gold-stone text-sm">{phaseInfo.description}</Text>
-            </LinearGradient>
-
-            <KeyboardAvoidingView
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
-                className="flex-1"
-                keyboardVerticalOffset={0}
-            >
-                {/* Messages */}
-                <ScrollView
-                    ref={scrollViewRef}
-                    className="flex-1"
-                    contentContainerStyle={{ paddingVertical: 16 }}
+                <FlashList
+                    ref={messagesListRef}
+                    data={loading ? [] : messages}
+                    renderItem={renderMessage}
+                    keyExtractor={(message) => message.id}
+                    drawDistance={500}
+                    style={styles.messages}
+                    contentContainerStyle={styles.messagesContent}
                     showsVerticalScrollIndicator={false}
-                >
-                    {loading ? (
-                        <View className="items-center py-20">
-                            <ActivityIndicator size="large" color="#F44A22" />
-                            <Text className="text-gold-stone mt-4">Loading messages...</Text>
-                        </View>
-                    ) : messages.length === 0 ? (
-                        <View className="items-center py-20 px-6">
-                            <Text className="text-6xl mb-4">💬</Text>
-                            <Text className="text-gold font-semibold text-lg mb-2">
-                                Start the Conversation!
-                            </Text>
-                            <Text className="text-gold-stone text-center">
-                                Be the first to say hi to other attendees
-                            </Text>
-                        </View>
-                    ) : (
-                        messages.map((message) => (
-                            <MessageBubble
-                                key={message.id}
-                                message={message}
-                                isOwnMessage={message.senderId === user?.uid}
-                                onLongPress={() => handleMessageOptions(message)}
-                            />
-                        ))
-                    )}
+                    ListEmptyComponent={messageListEmpty}
+                    ListFooterComponent={activeTyper ? <BrightTypingIndicator name={activeTyper.userName} /> : null}
+                    extraData={{ activeTyper, userId: user?.uid, messageCount: messages.length }}
+                />
+            </SafeAreaView>
 
-                    {/* Typing indicator */}
-                    <TypingIndicator status={typingStatus} />
-                </ScrollView>
-
-                {/* Input Area */}
-                <View className="border-t border-white/10 px-4 py-3 bg-midnight">
-                    <SafeAreaView edges={["bottom"]}>
-                        <View className="flex-row items-end">
-                            {/* Image button */}
-                            <Pressable
-                                onPress={async () => {
-                                    if (!user?.uid || !eventId) return;
-                                    if (!checkRateLimit()) return;
-                                    const url = await pickAndUpload();
-                                    if (url) {
-                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                        const result = await sendGroupImageMessage(
-                                            eventId, user.uid, user.displayName || "Guest", url
-                                        );
-                                        if (!result.success) {
-                                            Alert.alert("Error", result.error || "Failed to send image");
-                                        }
+            <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"}>
+                <SafeAreaView edges={["bottom"]}>
+                    <BrightComposerDock>
+                        <BrightToolButton
+                            onPress={async () => {
+                                if (!user?.uid || !eventId) return;
+                                if (!checkRateLimit()) return;
+                                const url = await pickAndUpload();
+                                if (url) {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    const result = await sendGroupImageMessage(
+                                        eventId,
+                                        user.uid,
+                                        user.displayName || "Guest",
+                                        url
+                                    );
+                                    if (!result.success) {
+                                        Alert.alert("Error", result.error || "Failed to send image");
                                     }
-                                }}
-                                disabled={imageUploading || !canSend}
-                                className={`w-12 h-12 rounded-full items-center justify-center mr-2 ${imageUploading ? "bg-iris/50" : "bg-surface border border-white/10"
-                                    }`}
-                            >
-                                {imageUploading ? (
-                                    <ActivityIndicator size="small" color="#F44A22" />
-                                ) : (
-                                    <Text className="text-lg">📷</Text>
-                                )}
-                            </Pressable>
-
-                            <TextInput
-                                value={inputText}
-                                onChangeText={handleTextChange}
-                                onBlur={typingHandler().onBlur}
-                                placeholder="Message the group..."
-                                placeholderTextColor="#666"
-                                multiline
-                                maxLength={500}
-                                className="flex-1 bg-surface border border-white/10 rounded-bubble px-4 py-3 text-gold mr-3 max-h-32"
-                            />
-                            <Pressable
-                                onPress={handleSend}
-                                disabled={!inputText.trim() || sending || !canSend}
-                                className={`w-12 h-12 rounded-full items-center justify-center ${inputText.trim() && !sending && canSend ? "bg-iris" : "bg-iris/50"
-                                    }`}
-                            >
-                                {sending ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                ) : !canSend ? (
-                                    <Text className="text-white text-xs font-bold">{cooldownSeconds}s</Text>
-                                ) : (
-                                    <Text className="text-white text-lg">↑</Text>
-                                )}
-                            </Pressable>
-                        </View>
-                    </SafeAreaView>
-                </View>
+                                }
+                            }}
+                            disabled={imageUploading || !canSend}
+                        >
+                            {imageUploading ? (
+                                <ActivityIndicator size="small" color={colors.iris} />
+                            ) : (
+                                <ImagePlus size={19} color={colors.iris} />
+                            )}
+                        </BrightToolButton>
+                        <BrightTextInput
+                            value={inputText}
+                            onChangeText={handleTextChange}
+                            onBlur={typingHandler.onBlur}
+                            placeholder="Message the group..."
+                            multiline
+                            maxLength={500}
+                        />
+                        <BrightSendButton
+                            onPress={handleSend}
+                            disabled={!inputText.trim() || sending || !canSend}
+                            loading={sending}
+                            cooldownSeconds={!canSend ? cooldownSeconds : undefined}
+                        />
+                    </BrightComposerDock>
+                </SafeAreaView>
             </KeyboardAvoidingView>
-        </SafeAreaView>
+        </BrightChatSurface>
     );
 }
+
+const styles = StyleSheet.create({
+    conversation: {
+        flex: 1,
+    },
+    lockedScreen: {
+        flex: 1,
+    },
+    lockedBody: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: spacing.xxl,
+    },
+    lockedIcon: {
+        width: 72,
+        height: 72,
+        borderRadius: 36,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.iris,
+        marginBottom: spacing.lg,
+    },
+    lockedTitle: {
+        color: "#FFFFFF",
+        fontFamily: fonts.display,
+        fontSize: typography.fontSize["2xl"],
+        textAlign: "center",
+    },
+    lockedCopy: {
+        color: "rgba(255,255,255,0.86)",
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.sm,
+        textAlign: "center",
+        marginTop: spacing.sm,
+        marginBottom: spacing.xl,
+    },
+    lockedButton: {
+        minHeight: 48,
+        paddingHorizontal: spacing.xl,
+        alignItems: "center",
+        justifyContent: "center",
+        borderRadius: radii.pill,
+        backgroundColor: colors.iris,
+    },
+    lockedButtonText: {
+        color: "#FFFFFF",
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.base,
+    },
+    phaseBadge: {
+        minHeight: 34,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.xs,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.pill,
+        backgroundColor: "rgba(255,255,255,0.22)",
+    },
+    phaseIcon: {
+        fontSize: typography.fontSize.sm,
+    },
+    phaseText: {
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.xs,
+    },
+    previewWrap: {
+        paddingHorizontal: spacing.base,
+        paddingBottom: spacing.sm,
+        gap: spacing.sm,
+    },
+    previewRow: {
+        flexDirection: "row",
+        gap: spacing.sm,
+    },
+    previewPill: {
+        minHeight: 38,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: spacing.xs,
+        paddingHorizontal: spacing.md,
+        borderRadius: radii.pill,
+        backgroundColor: "rgba(255,255,255,0.22)",
+    },
+    previewAvatars: {
+        flexDirection: "row",
+        marginRight: spacing.xs,
+    },
+    previewAvatar: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        borderWidth: 2,
+        borderColor: "#FFFFFF",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.iris,
+    },
+    previewAvatarText: {
+        color: "#FFFFFF",
+        fontFamily: fonts.display,
+        fontSize: 9,
+    },
+    previewText: {
+        color: "#FFFFFF",
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.sm,
+    },
+    phaseDescription: {
+        color: "rgba(255,255,255,0.86)",
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.xs,
+        paddingHorizontal: spacing.xs,
+    },
+    messages: {
+        flex: 1,
+    },
+    messagesContent: {
+        flexGrow: 1,
+        paddingHorizontal: spacing.base,
+        paddingTop: spacing.sm,
+        paddingBottom: spacing.xl,
+    },
+    loader: {
+        flex: 1,
+        minHeight: 220,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    loaderText: {
+        color: "#FFFFFF",
+        fontFamily: fonts.heading,
+        fontSize: typography.fontSize.sm,
+        marginTop: spacing.md,
+    },
+});

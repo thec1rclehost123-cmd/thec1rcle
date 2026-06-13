@@ -18,6 +18,8 @@ import Animated, {
 import * as Haptics from "expo-haptics";
 import { colors, radii } from "@/lib/design/theme";
 
+import { Bell } from "lucide-react-native";
+
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface NotificationBellProps {
@@ -78,7 +80,7 @@ export function NotificationBell({
 
     const renderContent = () => (
         <>
-            <Text style={styles.icon}>🔔</Text>
+            <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
             {showBadge && (
                 <Animated.View
                     entering={FadeIn.springify()}

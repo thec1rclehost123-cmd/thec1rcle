@@ -276,7 +276,7 @@ const styles = StyleSheet.create({
         color: colors.gold,
         fontSize: 34,
         fontWeight: "800",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     largeTitleSubtitle: {
         color: colors.goldMetallic,

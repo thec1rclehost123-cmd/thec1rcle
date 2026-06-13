@@ -66,12 +66,13 @@ function SearchResultCard({
     result,
     index,
     onPress,
-}: {
-    result: SearchResult;
-    index: number;
-    onPress: () => void;
-}) {
+	}: {
+	    result: SearchResult;
+	    index: number;
+	    onPress: (posterTransitionTag: string) => void;
+	}) {
     const scale = useSharedValue(1);
+    const posterTransitionTag = `poster-${result.id}-search-${index}`;
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -92,17 +93,26 @@ function SearchResultCard({
             onPressOut={handlePressOut}
             onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onPress();
+	                onPress(posterTransitionTag);
             }}
             style={[animatedStyle, styles.resultCard]}
         >
             {/* Image */}
             {result.imageUrl ? (
-                <Image
-                    source={{ uri: result.imageUrl }}
-                    style={styles.resultImage}
-                    contentFit="cover"
-                />
+                result.type === "event" ? (
+                    <Animated.Image
+	                        sharedTransitionTag={posterTransitionTag}
+                        source={{ uri: result.imageUrl }}
+                        style={styles.resultImage}
+                        resizeMode="cover"
+                    />
+                ) : (
+                    <Image
+                        source={{ uri: result.imageUrl }}
+                        style={styles.resultImage}
+                        contentFit="cover"
+                    />
+                )
             ) : (
                 <View style={styles.resultImagePlaceholder}>
                     <Text style={styles.resultImageEmoji}>
@@ -329,9 +339,15 @@ export default function SearchScreen() {
         performSearch(searchQuery);
     };
 
-    const handleResultPress = (result: SearchResult) => {
+    const handleResultPress = (result: SearchResult, posterTransitionTag?: string) => {
         if (result.type === "event") {
-            router.push({ pathname: "/event/[id]", params: { id: result.id } });
+            router.push({
+                pathname: "/event/[id]",
+                params: {
+                    id: result.id,
+                    posterTransitionTag: posterTransitionTag || `poster-${result.id}`,
+                },
+            });
         } else if (result.type === "venue") {
             const venueId = result.data?.venueId as string | undefined;
             if (venueId) {
@@ -345,7 +361,11 @@ export default function SearchScreen() {
 
     const handleCancel = () => {
         Keyboard.dismiss();
-        router.back();
+        if (router.canGoBack()) {
+            router.back();
+        } else {
+            router.replace("/");
+        }
     };
 
     const clearQuery = () => {
@@ -395,7 +415,7 @@ export default function SearchScreen() {
 
             {/* Filters */}
             <View style={styles.filters}>
-                <ScrollView
+                <ScrollView bounces={false} overScrollMode="never"
                     horizontal
                     showsHorizontalScrollIndicator={false}
                     contentContainerStyle={styles.filtersList}
@@ -429,7 +449,7 @@ export default function SearchScreen() {
                 </ScrollView>
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scrollView}
                 contentContainerStyle={{ paddingBottom: 100 }}
                 showsVerticalScrollIndicator={false}
@@ -453,7 +473,7 @@ export default function SearchScreen() {
                                 key={result.id}
                                 result={result}
                                 index={index}
-                                onPress={() => handleResultPress(result)}
+	                                onPress={(posterTransitionTag) => handleResultPress(result, posterTransitionTag)}
                             />
                         ))}
                     </View>
@@ -522,7 +542,7 @@ export default function SearchScreen() {
                         {/* Featured venues */}
                         <View style={styles.featuredSection}>
                             <Text style={styles.sectionTitle}>Featured Venues</Text>
-                            <ScrollView
+                            <ScrollView bounces={false} overScrollMode="never"
                                 horizontal
                                 showsHorizontalScrollIndicator={false}
                                 contentContainerStyle={styles.featuredList}

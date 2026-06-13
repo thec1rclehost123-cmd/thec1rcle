@@ -215,7 +215,7 @@ export default function SocialSetupPreferences() {
                 <Text style={styles.stepLabel}>2 of 3</Text>
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 26,
         fontWeight: "800",
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         marginBottom: 6,
     },
     subtitle: {

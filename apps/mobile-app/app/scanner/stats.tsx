@@ -78,7 +78,7 @@ export default function StatsScreen() {
                 <View style={{ width: 50 }} />
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scroll}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />

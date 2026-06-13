@@ -1,4 +1,5 @@
 // Private DM Service via API Gateway
+import { AppState } from "react-native";
 import { apiFetch } from "@/lib/api";
 import { PrivateConversation, DirectMessage } from "./types";
 import { canInitiateDM } from "./entitlements";
@@ -130,6 +131,7 @@ export function subscribeToDirectMessages(
 
     async function poll() {
         if (!active) return;
+        if (AppState.currentState !== "active") return;
         try {
             const response = await apiFetch<{ messages: DirectMessage[] }>(
                 `/api/v1/social/dm/${conversationId}/messages?limit=${messageLimit}`,

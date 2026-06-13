@@ -106,7 +106,7 @@ export default function SocialSetupReview() {
                 <Text style={styles.stepLabel}>3 of 3</Text>
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -315,7 +315,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 26,
         fontWeight: "800",
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         marginBottom: 6,
     },
     subtitle: {
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 22,
         fontWeight: "800",
-        letterSpacing: -0.3,
+        letterSpacing: 0,
     },
     cardCity: {
         color: "rgba(255,255,255,0.7)",

@@ -127,7 +127,7 @@ export default function VerificationScreen() {
                 <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
                 showsVerticalScrollIndicator={false}
             >
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 24,
         fontWeight: "800",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     heroBody: {
         color: "rgba(255,255,255,0.5)",

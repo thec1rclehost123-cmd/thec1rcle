@@ -11,7 +11,6 @@ import {
 import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, router } from "expo-router";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -38,6 +37,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function CategoryEventCard({ event, index }: { event: Event; index: number }) {
     const scale = useSharedValue(1);
+    const posterTransitionTag = `poster-${event.id}-category-${index}`;
 
     const animatedStyle = useAnimatedStyle(() => ({
         transform: [{ scale: scale.value }],
@@ -62,17 +62,17 @@ function CategoryEventCard({ event, index }: { event: Event; index: number }) {
                 onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
                 onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    router.push({ pathname: "/event/[id]", params: { id: event.id } });
+                    router.push({ pathname: "/event/[id]", params: { id: event.id, posterTransitionTag } });
                 }}
                 style={styles.card}
             >
                 <View style={styles.cardImageWrap}>
                     {event.coverImage ? (
-                        <Image
+                        <Animated.Image
+                            sharedTransitionTag={posterTransitionTag}
                             source={{ uri: event.coverImage }}
                             style={styles.cardImage}
-                            contentFit="cover"
-                            transition={300}
+                            resizeMode="cover"
                         />
                     ) : (
                         <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
@@ -170,7 +170,7 @@ export default function CategoryScreen() {
                     <ActivityIndicator size="large" color={colors.iris} />
                 </View>
             ) : (
-                <FlashList
+                <FlashList bounces={false} overScrollMode="never"
                     data={events}
                     keyExtractor={(e) => e.id}
                     contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
@@ -245,7 +245,7 @@ const styles = StyleSheet.create({
         color: colors.gold,
         fontSize: 18,
         fontWeight: "700",
-        letterSpacing: -0.3,
+        letterSpacing: 0,
     },
 
     loadingWrap: {
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
         color: colors.gold,
         fontSize: 16,
         fontWeight: "700",
-        letterSpacing: -0.2,
+        letterSpacing: 0,
     },
     cardVenue: {
         color: colors.goldMetallic,

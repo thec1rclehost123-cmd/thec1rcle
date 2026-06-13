@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getOrders } from "@/lib/api";
 import {
@@ -10,16 +10,22 @@ import {
     Modal,
     StyleSheet,
     Linking,
+    useWindowDimensions,
+    LayoutChangeEvent,
+    NativeScrollEvent,
+    NativeSyntheticEvent,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import { router, useLocalSearchParams } from "expo-router";
 import { useTicketsStore, Order } from "@/store/ticketsStore";
 import { useAuthStore } from "@/store/authStore";
+import { useProfileStore } from "@/store/profileStore";
 import { useCartStore } from "@/store/cartStore";
 import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
 import { shareEventLink } from "@/lib/deeplinks";
-import { addToWallet, isWalletAvailable, PassData } from "@/lib/wallet";
+import { addToWallet, PassData } from "@/lib/wallet";
 import QRCode from "react-native-qrcode-svg";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -28,48 +34,105 @@ import Animated, {
     FadeOut,
     useSharedValue,
     useAnimatedStyle,
-    withSpring,
-    SlideInUp,
+    withTiming,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
-import { colors, radii, gradients } from "@/lib/design/theme";
+import { colors, radii, gradients, typography } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { ErrorState, NetworkError } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
 import { buildCalendarEventUrl } from "@/lib/calendar";
-import { Wallet, CircleUser, Ticket as TicketIcon } from "lucide-react-native";
+import { Wallet, ChevronLeft, Menu, Ticket as TicketIcon } from "lucide-react-native";
 
+import {
+    Info,
+    ArrowRightCircle,
+    CalendarDays,
+    CreditCard,
+    MapPin,
+    ScanLine,
+} from "lucide-react-native";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const TICKET_FILTER_WIDTH = 204;
+const TICKET_FILTER_HEIGHT = 43;
+const TICKET_FILTER_PADDING = 4;
+const TICKET_FILTER_THUMB_WIDTH = (TICKET_FILTER_WIDTH - TICKET_FILTER_PADDING * 2) / 2;
+const ticketFont = {
+    regular: typography.fontFamily.body,
+    medium: typography.fontFamily.medium,
+    bold: typography.fontFamily.heading,
+    black: typography.fontFamily.brandAccent,
+};
 
-// iOS-style action row for ticket detail sheet
-function ActionRow({ icon, label, onPress, danger }: { icon: string; label: string; onPress: () => void; danger?: boolean }) {
+// iOS-style action row for ticket detail sheet — now with inline styles to avoid fast-refresh initialization issues
+function ActionRow({ icon: IconComp, label, onPress, danger }: {
+    icon: React.ComponentType<any>;
+    label: string;
+    onPress: () => void;
+    danger?: boolean;
+}) {
     return (
         <Pressable
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); onPress(); }}
-            style={({ pressed }) => [styles.actionRow, pressed && { opacity: 0.6 }]}
+            style={ms.actionRow}
         >
-            <Text style={styles.actionRowLabel}>{label}</Text>
-            <Text style={[styles.actionRowIcon, danger && { color: colors.error }]}>{icon}</Text>
+            <Text
+                style={[
+                    ms.actionRowText,
+                    danger && { color: colors.error }
+                ]}
+                numberOfLines={1}
+            >
+                {label}
+            </Text>
+            <View
+                style={ms.actionRowIcon}
+            >
+                <IconComp size={30} color={danger ? colors.error : "#fff"} strokeWidth={1.9} />
+            </View>
         </Pressable>
     );
 }
 
-// Ticket Detail Sheet — iOS action-list style (replaces QRModal)
+
+function hexWithAlpha(color: string | undefined, alpha: string, fallback: string) {
+    if (!color || !/^#[0-9A-Fa-f]{6}$/.test(color)) return fallback;
+    return `${color}${alpha}`;
+}
+
+// Ticket Detail Sheet — Posh-style with poster flip + QR
 function QRModal({ visible, order, onClose }: {
     visible: boolean;
     order: Order | null;
     onClose: () => void;
 }) {
     const [showQR, setShowQR] = useState(false);
-    const [walletAvailable, setWalletAvailable] = useState(false);
+    const flipProgress = useSharedValue(0);
+    const { width, height } = useWindowDimensions();
 
     useEffect(() => {
-        isWalletAvailable().then(setWalletAvailable);
-        if (!visible) setShowQR(false); // reset on close
+        if (!visible) {
+            setShowQR(false);
+            flipProgress.value = 0;
+        }
     }, [visible]);
+
+    // Front side (poster) — hides when rotated past 90°
+    const frontStyle = useAnimatedStyle(() => ({
+        transform: [{ perspective: 1200 }, { rotateY: `${flipProgress.value * 180}deg` }],
+        backfaceVisibility: "hidden" as const,
+        opacity: flipProgress.value > 0.5 ? 0 : 1,
+    }));
+
+    // Back side (full QR) — starts at -180° and rotates to 0°
+    const backStyle = useAnimatedStyle(() => ({
+        transform: [{ perspective: 1200 }, { rotateY: `${(flipProgress.value * 180) - 180}deg` }],
+        backfaceVisibility: "hidden" as const,
+        opacity: flipProgress.value > 0.5 ? 1 : 0,
+    }));
 
     if (!order) return null;
 
@@ -77,11 +140,28 @@ function QRModal({ visible, order, onClose }: {
     const totalGuests = (order as any).totalGuests ?? 0;
     const totalRevenue = (order as any).totalRevenue ?? 0;
     const ticketType = order.tickets?.[0]?.tierName || "General Entry";
+    const rawHostName = String((order as any).promoterName || (order as any).hostName || "C1RCLE");
+    const posterHostName = rawHostName.length > 14 ? "C1RCLE" : rawHostName;
     const dateStr = (() => {
         const d = safeDate(order.eventDate);
         if (!d) return "";
-        return d.toLocaleDateString("en-IN", { month: "short", day: "numeric" }) +
-            " at " + d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit", hour12: true });
+        const month = d.toLocaleDateString("en-US", { month: "short" });
+        const day = d.getDate();
+        const suffix = (day: number) => {
+            if (day > 3 && day < 21) return "th";
+            switch (day % 10) {
+                case 1: return "st";
+                case 2: return "nd";
+                case 3: return "rd";
+                default: return "th";
+            }
+        };
+        const hours = d.getHours();
+        const ampm = hours >= 12 ? "PM" : "AM";
+        const displayHours = hours % 12 || 12;
+        const minutes = d.getMinutes();
+        const displayMinutes = minutes > 0 ? `:${String(minutes).padStart(2, "0")}` : "";
+        return `${month} ${day}${suffix(day)} at ${displayHours}${displayMinutes}${ampm}`;
     })();
     const shortId = order.id.replace(/-/g, "").substring(0, 8).toUpperCase();
     const calendarUrl = buildCalendarEventUrl({
@@ -91,21 +171,30 @@ function QRModal({ visible, order, onClose }: {
         description: `${ticketType} · ${totalGuests} ticket${totalGuests > 1 ? "s" : ""}`,
     });
 
+    // Prefer poster-specific colors; brand orange is a weak fallback for this shelf.
+    const accentColor =
+        (order as any).posterAccentColor ||
+        (order as any).dominantColor ||
+        (order as any).eventAccentColor ||
+        (order.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
+            ? order.accentColor
+            : undefined) ||
+        "#D915A8";
+    const posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
+    const miniQrSize = Math.max(126, Math.min(162, posterSize * 0.38));
+    const miniQrPadding = 12;
+    const fullQrSize = Math.max(220, Math.min(280, posterSize * 0.64));
+
+    const handleFlip = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        const next = !showQR;
+        setShowQR(next);
+        flipProgress.value = withTiming(next ? 1 : 0, { duration: 500 });
+    };
+
     const handleTransfer = () => {
         onClose();
         router.push({ pathname: "/transfer", params: { orderId: order.id, ticketName: ticketType } });
-    };
-
-    const handleWhatsApp = async () => {
-        const text = encodeURIComponent(
-            `My ticket for ${order.eventTitle || "Event"} on ${dateStr} (${ticketType}) — Ticket ID: ${shortId}`
-        );
-        const waUrl = `whatsapp://send?text=${text}`;
-        if (await Linking.canOpenURL(waUrl)) {
-            await Linking.openURL(waUrl);
-        } else if (order.eventId && order.eventTitle) {
-            await shareEventLink(order.eventId, order.eventTitle);
-        }
     };
 
     const handleAddToWallet = async () => {
@@ -126,198 +215,619 @@ function QRModal({ visible, order, onClose }: {
         <Modal
             visible={visible}
             animationType="slide"
-            presentationStyle="pageSheet"
+            transparent={true}
             onRequestClose={onClose}
         >
-            <View style={styles.sheetContainer}>
-                <SafeAreaView style={styles.sheetSafeArea}>
+            <View style={{ flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.6)" }}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={[ms.container, { flex: 0, height: "87%", borderTopLeftRadius: 40, borderTopRightRadius: 40, overflow: "hidden" }]}>
+                    <LinearGradient
+                        colors={[
+                            "rgba(8,8,10,0.98)",
+                            hexWithAlpha(accentColor, "24", "rgba(217, 21, 168, 0.14)"),
+                            "rgba(5,5,6,1)",
+                        ]}
+                        locations={[0, 0.45, 1]}
+                        style={StyleSheet.absoluteFill}
+                    />
+                    <SafeAreaView style={ms.safeArea} edges={["left", "right", "bottom"]}>
                     {/* Header */}
-                    <View style={styles.sheetHeader}>
-                        <Pressable onPress={onClose} style={styles.sheetHeaderBtn}>
-                            <Text style={styles.sheetHeaderBtnText}>Cancel</Text>
+                    <View style={ms.header}>
+                        <Pressable onPress={onClose} style={ms.headerBtn}>
+                            <Text style={ms.headerCancelText}>Cancel</Text>
                         </Pressable>
-                        <Text style={styles.sheetHeaderTitle}>Your Order</Text>
-                        <Pressable onPress={onClose} style={styles.sheetHeaderBtn}>
-                            <Text style={[styles.sheetHeaderBtnText, { fontWeight: "700" }]}>Done</Text>
+                        <Text style={ms.headerTitle}>Your Order</Text>
+
+                        <Pressable onPress={onClose} style={[ms.headerBtn, { alignItems: "flex-end" }]}>
+                            <Text style={ms.headerDoneText}>Done</Text>
                         </Pressable>
                     </View>
 
                     <ScrollView
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.sheetContent}
+                        contentContainerStyle={ms.scrollContent}
+                        bounces={false}
+                        overScrollMode="never"
                     >
-                        {/* Hero ticket card */}
-                        <Animated.View
-                            entering={SlideInUp.delay(80).springify()}
-                            style={styles.heroTicketCard}
-                        >
-                            {order.eventCoverImage ? (
-                                <Image
-                                    source={{ uri: order.eventCoverImage }}
-                                    style={StyleSheet.absoluteFill}
-                                    contentFit="cover"
-                                />
-                            ) : (
-                                <LinearGradient
-                                    colors={["#2a1a0e", "#161616"]}
-                                    style={StyleSheet.absoluteFill}
-                                />
-                            )}
-                            <LinearGradient
-                                colors={["rgba(0,0,0,0.5)", "rgba(0,0,0,0.2)", "rgba(0,0,0,0.65)"]}
-                                locations={[0, 0.4, 1]}
-                                style={StyleSheet.absoluteFill}
-                            />
+                        {/* ─── Flip Card ─── */}
+                        <View style={[ms.flipContainer, { width: posterSize, height: posterSize }]}>
+                            {/* FRONT: Poster with small QR */}
+                            <Animated.View style={[ms.cardFace, frontStyle]}>
+                                {order.eventCoverImage ? (
+                                    <>
+                                        <Image
+                                            source={{ uri: order.eventCoverImage }}
+                                            style={StyleSheet.absoluteFill}
+                                            contentFit="cover"
+                                        />
+                                        <View style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(0, 0, 0, 0.25)" }]} />
+                                    </>
+                                ) : (
+                                    <View style={[StyleSheet.absoluteFill, { backgroundColor: accentColor }]} />
+                                )}
 
-                            {/* Top info */}
-                            <View style={styles.heroTopRow}>
-                                <View style={styles.heroTitleBlock}>
-                                    <Text style={styles.heroHostText} numberOfLines={1}>
-                                        {(order as any).hostName || "C1RCLE"}
-                                    </Text>
-                                    <Text style={styles.heroEventText} numberOfLines={1}>
-                                        {order.eventTitle || "Event"}
-                                    </Text>
-                                    {dateStr ? <Text style={styles.heroDateText}>{dateStr}</Text> : null}
+                                {/* Clean Event Name & Ticket Quantity overlay */}
+
+
+                                <View style={{ position: "absolute", bottom: 24, right: 24 }}>
+                                    <View style={{ backgroundColor: "rgba(0,0,0,0.5)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                        <Text style={{ fontFamily: ticketFont.bold, fontSize: 13, fontWeight: "700", color: "#fff" }}>{totalGuests}x</Text>
+                                        <TicketIcon size={14} color="#fff" />
+                                    </View>
                                 </View>
-                            </View>
 
-                            {/* QR overlay */}
-                            {showQR && (
-                                <View style={styles.heroQrOverlay}>
-                                    <View style={styles.heroQrWrapper}>
+                                {/* Centered mini QR in accent color */}
+                                <View style={ms.miniQrWrap}>
+                                    <View
+                                        style={[
+                                            ms.miniQrContainer,
+                                            {
+                                                backgroundColor: accentColor,
+                                                padding: miniQrPadding,
+                                                borderRadius: miniQrPadding + 12,
+                                                elevation: 0,
+                                                shadowOpacity: 0,
+                                            },
+                                        ]}
+                                    >
                                         <QRCode
                                             value={qrData}
-                                            size={160}
+                                            size={miniQrSize}
                                             color="#161616"
-                                            backgroundColor="#ffffff"
+                                            backgroundColor="transparent"
                                         />
                                     </View>
                                 </View>
-                            )}
 
-                            {/* Bottom: order ID + quantity */}
-                            <View style={styles.heroBottomRow}>
-                                <Text style={styles.heroOrderId}>{shortId}</Text>
-                                <View style={styles.heroQtyBadge}>
-                                    <Text style={styles.heroQtyText}>{totalGuests}x</Text>
-                                    <Text style={styles.heroQtyIcon}>⬡</Text>
+                                {/* Side notches */}
+                                <View style={ms.notchLeft} />
+                                <View style={ms.notchRight} />
+                            </Animated.View>
+
+                            {/* BACK: Full QR code */}
+                            <Animated.View style={[ms.cardFace, ms.cardBack, backStyle, { backgroundColor: accentColor }]}>
+                                <View style={[ms.fullQrWrap, { backgroundColor: accentColor, elevation: 0, shadowOpacity: 0 }]}>
+                                    <QRCode
+                                        value={qrData}
+                                        size={fullQrSize}
+                                        color="#161616"
+                                        backgroundColor="transparent"
+                                    />
                                 </View>
-                            </View>
-                        </Animated.View>
 
-                        {/* Show/Hide QR toggle */}
-                        <Pressable
-                            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowQR(v => !v); }}
-                            style={styles.showQrBtn}
-                        >
-                            <Text style={styles.showQrIcon}>⊡</Text>
-                            <Text style={styles.showQrText}>{showQR ? "Hide QR Code" : "Show QR Code"}</Text>
+                                {/* Side notches */}
+                                <View style={ms.notchLeft} />
+                                <View style={ms.notchRight} />
+                            </Animated.View>
+                        </View>
+
+                        {/* Show QR Code toggle */}
+                        <Pressable onPress={handleFlip} style={ms.showQrBtn}>
+                            <ScanLine size={25} color="#fff" strokeWidth={2.1} />
+                            <Text style={ms.showQrText}>
+                                {showQR ? "Show Poster" : "Show QR Code"}
+                            </Text>
                         </Pressable>
 
-                        {/* Action list group 1 */}
-                        <Animated.View entering={FadeInDown.delay(150)} style={styles.actionGroup}>
+                        {/* ─── Action Rows ─── */}
+                        <View style={ms.actionGroup}>
                             <ActionRow
-                                icon="ⓘ"
+                                icon={Info}
                                 label="View Event"
-                                onPress={() => { onClose(); if (order.eventId) router.push({ pathname: "/event/[id]", params: { id: order.eventId } }); }}
-                            />
-                            <View style={styles.actionRowDivider} />
-                            <ActionRow
-                                icon="📅"
-                                label="Add to Calendar"
                                 onPress={() => {
-                                    if (calendarUrl) {
-                                        Linking.openURL(calendarUrl);
+                                    onClose();
+                                    if (order.eventId) {
+                                        router.push({
+                                            pathname: "/event/[id]",
+                                            params: {
+                                                id: order.eventId,
+                                            },
+                                        });
                                     }
                                 }}
                             />
-                            {walletAvailable && (
-                                <>
-                                    <View style={styles.actionRowDivider} />
-                                    <ActionRow
-                                        icon="⊞"
-                                        label="Add to Apple Wallet"
-                                        onPress={handleAddToWallet}
-                                    />
-                                </>
-                            )}
-                            <View style={styles.actionRowDivider} />
+                            <View style={ms.actionRowDivider} />
                             <ActionRow
-                                icon="📍"
+                                icon={ArrowRightCircle}
+                                label="Transfer Tickets"
+                                onPress={handleTransfer}
+                            />
+                            <View style={ms.actionRowDivider} />
+                            <ActionRow
+                                icon={TicketIcon}
+                                label="View Order Confirmation"
+                                onPress={() => {
+                                    onClose();
+                                    if (order.eventId) {
+                                        router.push({
+                                            pathname: "/event/[id]",
+                                            params: {
+                                                id: order.eventId,
+                                                source: "ticketShelf",
+                                                orderId: order.id,
+                                                eventTitle: order.eventTitle || "",
+                                                eventDate: order.eventDate || "",
+                                                eventCoverImage: order.eventCoverImage || "",
+                                                venueLocation: order.venueLocation || "",
+                                                hostName: (order as any).hostName || (order as any).promoterName || "",
+                                                accentColor,
+                                            },
+                                        });
+                                    }
+                                }}
+                            />
+                            <View style={ms.actionRowDivider} />
+                            <ActionRow
+                                icon={CalendarDays}
+                                label="Add to Calendar"
+                                onPress={() => { if (calendarUrl) Linking.openURL(calendarUrl); }}
+                            />
+                            <View style={ms.actionRowDivider} />
+                            <ActionRow
+                                icon={CreditCard}
+                                label="Add to Apple Wallet"
+                                onPress={handleAddToWallet}
+                            />
+                            <View style={ms.actionRowDivider} />
+                            <ActionRow
+                                icon={MapPin}
                                 label="Get Directions"
                                 onPress={() => {
                                     const venue = order.venueLocation;
                                     if (venue) Linking.openURL(`maps://search?q=${encodeURIComponent(venue)}`);
                                 }}
                             />
-                            <View style={styles.actionRowDivider} />
-                            <ActionRow
-                                icon="✓"
-                                label="View Order Confirmation"
-                                onPress={() => { onClose(); router.push({ pathname: "/checkout/success", params: { orderId: order.id } } as any); }}
-                            />
-                        </Animated.View>
+                        </View>
 
-                        {/* Action list group 2 */}
-                        <Animated.View entering={FadeInDown.delay(200)} style={styles.actionGroup}>
-                            <ActionRow icon="↗" label="Transfer Ticket" onPress={handleTransfer} />
-                            <View style={styles.actionRowDivider} />
-                            <ActionRow icon="💬" label="Share via WhatsApp" onPress={handleWhatsApp} />
-                            <View style={styles.actionRowDivider} />
-                            <ActionRow
-                                icon="🔗"
-                                label="Share Event Link"
-                                onPress={async () => { if (order.eventId && order.eventTitle) await shareEventLink(order.eventId, order.eventTitle); }}
-                            />
-                        </Animated.View>
-
-                        {/* Breakdown */}
-                        <Animated.View entering={FadeInDown.delay(250)} style={styles.breakdownCard}>
-                            <Text style={styles.breakdownTitle}>Breakdown</Text>
-                            {order.tickets?.map((t, i) => (
-                                <View key={i} style={styles.breakdownRow}>
-                                    <Text style={styles.breakdownLabel}>{t.tierName || "Ticket"} x{t.quantity}</Text>
-                                    <Text style={styles.breakdownValue}>
-                                        {t.price > 0 ? `₹${(t.price * t.quantity).toLocaleString("en-IN")}` : "Free"}
+                        {/* ─── Ticket Breakdown ─── */}
+                        <View style={ms.breakdownCard}>
+                            <Text style={ms.breakdownTitle}>Ticket Breakdown</Text>
+                            {order.tickets?.map((t, i) => {
+                                const price = t.price ?? 0;
+                                const qty = t.quantity ?? 1;
+                                return (
+                                    <View key={i} style={ms.breakdownRow}>
+                                        <Text style={ms.breakdownLabel}>
+                                            {t.tierName || "Ticket"} × {qty}
+                                        </Text>
+                                        <Text style={ms.breakdownValue}>
+                                            {price > 0 ? `₹${(price * qty).toLocaleString("en-IN")}` : "Free"}
+                                        </Text>
+                                    </View>
+                                );
+                            })}
+                            {(!order.tickets || order.tickets.length === 0) && (
+                                <View style={ms.breakdownRow}>
+                                    <Text style={ms.breakdownLabel}>{ticketType} × {totalGuests || 1}</Text>
+                                    <Text style={ms.breakdownValue}>
+                                        {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN")}` : "Free"}
                                     </Text>
                                 </View>
-                            ))}
-                            <View style={styles.breakdownDivider} />
-                            <View style={styles.breakdownRow}>
-                                <Text style={styles.breakdownTotalLabel}>Total</Text>
-                                <Text style={styles.breakdownTotalValue}>
-                                        {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN")}` : "Free"}
+                            )}
+                            <View style={ms.breakdownDivider} />
+                            <View style={ms.breakdownRow}>
+                                <Text style={ms.breakdownTotalLabel}>Total</Text>
+                                <Text style={ms.breakdownTotalValue}>
+                                    {totalRevenue > 0 ? `₹${totalRevenue.toLocaleString("en-IN")}` : "Free"}
                                 </Text>
                             </View>
-                        </Animated.View>
+                        </View>
                     </ScrollView>
-                </SafeAreaView>
+                    </SafeAreaView>
+                </View>
             </View>
         </Modal>
     );
 }
 
+// ─── Modal-specific styles ────────────────────────────────────────────────
+const ms = StyleSheet.create({
+    container: {
+        flex: 1,
+        backgroundColor: "#050506",
+    },
+    safeArea: {
+        flex: 1,
+    },
+    header: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingTop: 18,
+        paddingBottom: 18,
+        borderBottomWidth: 0,
+    },
+    headerBtn: {
+        minWidth: 64,
+    },
+    headerCancelText: {
+        color: "rgba(239, 238, 249, 0.62)",
+        fontFamily: ticketFont.regular,
+        fontSize: 18,
+        fontWeight: "400",
+    },
+    headerTitle: {
+        color: "#fff",
+        fontFamily: ticketFont.bold,
+        fontSize: 20,
+        fontWeight: "700",
+    },
+    headerDoneText: {
+        color: "rgba(239, 238, 249, 0.62)",
+        fontFamily: ticketFont.bold,
+        fontSize: 18,
+        fontWeight: "700",
+    },
+    scrollContent: {
+        paddingHorizontal: 16,
+        paddingTop: 4,
+        paddingBottom: 80,
+    },
+
+    // ── Flip Card ──
+    flipContainer: {
+        aspectRatio: 1.0,
+        width: "100%",
+        alignSelf: "center",
+        marginBottom: 16,
+    },
+    cardFace: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        borderRadius: 18,
+        overflow: "hidden",
+    },
+    cardBack: {
+        alignItems: "center",
+        justifyContent: "center",
+    },
+
+    // Host Text Overlay
+    posterHostText: {
+        position: "absolute",
+        top: 20,
+        left: 24,
+        right: "64%",
+        color: "#FFFFFF",
+        fontFamily: ticketFont.bold,
+        fontSize: 14,
+        fontWeight: "800",
+        letterSpacing: 0,
+        textShadowColor: "rgba(0,0,0,0.32)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+
+    // Top-right event info
+    posterTopRight: {
+        position: "absolute",
+        top: 20,
+        right: 24,
+        alignItems: "flex-end",
+        maxWidth: "52%",
+    },
+    posterTopRightTitle: {
+        color: "#FFFFFF",
+        fontFamily: ticketFont.black,
+        fontSize: 14,
+        fontWeight: "900",
+        letterSpacing: 0,
+        textAlign: "right",
+        textShadowColor: "rgba(0,0,0,0.32)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+    posterTopRightDate: {
+        color: "rgba(255,255,255,0.74)",
+        fontFamily: ticketFont.regular,
+        fontSize: 13,
+        fontWeight: "400",
+        marginTop: 4,
+        textShadowColor: "rgba(0,0,0,0.32)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 6,
+    },
+
+    // Mini QR centered on poster
+    miniQrWrap: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    miniQrContainer: {
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 18,
+        elevation: 8,
+    },
+    qrCenterLogo: {
+        position: "absolute",
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1.5,
+        borderColor: "rgba(255,255,255,0.96)",
+    },
+    qrCenterLogoText: {
+        color: "#FFFFFF",
+        fontFamily: ticketFont.black,
+        fontSize: 18,
+        fontWeight: "900",
+    },
+
+    // Card bottom row
+    cardBottom: {
+        position: "absolute",
+        bottom: 20,
+        left: 24,
+        right: 24,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+    },
+    cardOrderId: {
+        color: "rgba(255,255,255,0.35)",
+        fontFamily: ticketFont.bold,
+        fontSize: 12,
+        fontWeight: "600",
+        letterSpacing: 1.5,
+        fontVariant: ["tabular-nums"],
+        textShadowColor: "rgba(0,0,0,0.15)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+    cardQtyBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    cardQtyText: {
+        color: "rgba(255,255,255,0.35)",
+        fontFamily: ticketFont.bold,
+        fontSize: 12,
+        fontWeight: "600",
+        textShadowColor: "rgba(0,0,0,0.15)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+
+    // Side notches
+    notchLeft: {
+        position: "absolute",
+        left: -10,
+        top: "50%",
+        marginTop: -10,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: "#050506",
+    },
+    notchRight: {
+        position: "absolute",
+        right: -10,
+        top: "50%",
+        marginTop: -10,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        backgroundColor: "#050506",
+    },
+
+    // Full QR back
+    fullQrWrap: {
+        padding: 22,
+        borderRadius: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.18,
+        shadowRadius: 20,
+        elevation: 8,
+    },
+    fullQrCenterLogo: {
+        width: 52,
+        height: 52,
+        borderRadius: 26,
+    },
+    fullQrLabel: {
+        color: "rgba(255,255,255,0.7)",
+        fontFamily: ticketFont.bold,
+        fontSize: 15,
+        fontWeight: "600",
+        marginTop: 18,
+        letterSpacing: 0,
+    },
+    fullQrId: {
+        color: "rgba(255,255,255,0.5)",
+        fontFamily: ticketFont.bold,
+        fontSize: 14,
+        fontWeight: "600",
+        letterSpacing: 3,
+        marginTop: 6,
+        fontVariant: ["tabular-nums"],
+    },
+
+    // Show QR button
+    showQrBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 2,
+        gap: 10,
+        marginBottom: 20,
+    },
+    showQrText: {
+        color: "#fff",
+        fontFamily: ticketFont.bold,
+        fontSize: 20,
+        fontWeight: "700",
+        lineHeight: 24,
+    },
+    actionGroup: {
+        backgroundColor: "#101114",
+        borderRadius: 22,
+        overflow: "hidden",
+        marginBottom: 12,
+        width: "100%",
+        alignSelf: "stretch",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.03)",
+    },
+    actionRow: {
+        minHeight: 54,
+        width: "100%",
+        alignSelf: "stretch",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+    },
+    actionRowText: {
+        color: "#FFFFFF",
+        flex: 1,
+        fontFamily: ticketFont.bold,
+        fontSize: 17,
+        fontWeight: "700",
+        lineHeight: 22,
+    },
+    actionRowIcon: {
+        width: 42,
+        alignItems: "flex-end",
+        justifyContent: "center",
+        marginLeft: 16,
+    },
+    actionRowDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: "rgba(255,255,255,0.09)",
+    },
+
+    // Breakdown
+    breakdownCard: {
+        backgroundColor: "#161616",
+        borderRadius: 16,
+        padding: 16,
+        marginTop: 12,
+        marginBottom: 32,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.06)",
+    },
+    breakdownTitle: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "700",
+        marginBottom: 14,
+    },
+    breakdownRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        marginBottom: 8,
+    },
+    breakdownLabel: {
+        color: "rgba(255,255,255,0.55)",
+        fontSize: 14,
+    },
+    breakdownValue: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "500",
+    },
+    breakdownDivider: {
+        height: StyleSheet.hairlineWidth,
+        backgroundColor: "rgba(255,255,255,0.1)",
+        marginVertical: 10,
+    },
+    breakdownTotalLabel: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "700",
+    },
+    breakdownTotalValue: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "700",
+    },
+});
+
 // Full-bleed Boarding-Pass Ticket Card
-function TicketCard({ order, onShowQR, index }: {
+function TicketCard({ order, onShowQR, index, onLayout }: {
     order: Order;
     onShowQR: () => void;
     index: number;
+    onLayout?: (event: LayoutChangeEvent) => void;
 }) {
     const scale = useSharedValue(1);
     const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
     const totalGuests = (order as any).totalGuests ?? 0;
-    const shortId = order.id.replace(/-/g, "").substring(0, 8).toUpperCase();
     const hostName = (order as any).hostName || (order as any).promoterName || "";
+
+    const [cardWidth, setCardWidth] = useState(350);
+    const shimmerProgress = useSharedValue(0);
+
+    const shimmerStyle = useAnimatedStyle(() => {
+        const translateX = shimmerProgress.value * (cardWidth + 200) - 100;
+        return {
+            transform: [{ translateX }, { skewX: "-25deg" }],
+            opacity: shimmerProgress.value > 0 && shimmerProgress.value < 1 ? 1 : 0,
+        };
+    });
+
+    useEffect(() => {
+        const delay = 350 + index * 180;
+        const timer = setTimeout(() => {
+            shimmerProgress.value = 0;
+            shimmerProgress.value = withTiming(1, { duration: 800 });
+        }, delay);
+        return () => clearTimeout(timer);
+    }, [index]);
+
+    const handleCardLayout = (event: LayoutChangeEvent) => {
+        setCardWidth(event.nativeEvent.layout.width);
+        if (onLayout) onLayout(event);
+    };
     
     // Format date like "Mar 12th • 5 PM"
     const dateStr = (() => {
         const d = safeDate(order.eventDate);
         if (!d) return "";
         
-        const day = d.getDate();
         const month = d.toLocaleDateString("en-US", { month: "short" });
+        const day = d.getDate();
         const time = d.toLocaleTimeString("en-US", { hour: "numeric", hour12: true }).replace(":00", "");
         
         // Add ordinal suffix (st, nd, rd, th)
@@ -336,67 +846,110 @@ function TicketCard({ order, onShowQR, index }: {
 
     return (
         <AnimatedPressable
-            entering={FadeInDown.delay(index * 70).springify().damping(15)}
-            onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); }}
-            onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); onShowQR(); }}
-            style={[animatedStyle, styles.ticketCard]}
+            entering={FadeInDown.delay(index * 70).duration(220)}
+            onPressIn={() => { scale.value = withTiming(0.97, { duration: 150 }); }}
+            onPressOut={() => { scale.value = withTiming(1, { duration: 150 }); }}
+            onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                shimmerProgress.value = 0;
+                shimmerProgress.value = withTiming(1, { duration: 650 });
+                onShowQR();
+            }}
+            onLayout={handleCardLayout}
+            style={[
+                animatedStyle,
+                styles.ticketCardWrap
+            ]}
         >
-            {/* Full-bleed event poster */}
-            {order.eventCoverImage ? (
-                <Image
-                    source={{ uri: order.eventCoverImage }}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                />
-            ) : (
+            <View style={styles.ticketCardInner}>
+                {/* Full-bleed event poster */}
+                {order.eventCoverImage ? (
+                    <Image
+                        source={{ uri: order.eventCoverImage }}
+                        style={StyleSheet.absoluteFill}
+                        contentFit="cover"
+                    />
+                ) : (
+                    <LinearGradient
+                        colors={["#2a1a0e", "#1a0a0a", "#161616"]}
+                        style={StyleSheet.absoluteFill}
+                    />
+                )}
+
+                {/* Text visibility overlay */}
                 <LinearGradient
-                    colors={["#2a1a0e", "#1a0a0a", "#161616"]}
+                    colors={["rgba(0,0,0,0.85)", "rgba(0,0,0,0.1)"]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                     style={StyleSheet.absoluteFill}
                 />
-            )}
 
-            {/* Premium Gradient Overlay */}
-            <LinearGradient
-                colors={["rgba(0,0,0,0.4)", "rgba(0,0,0,0.1)", "rgba(0,0,0,0.85)"]}
-                locations={[0, 0.45, 1]}
-                style={StyleSheet.absoluteFill}
-            />
-
-            {/* content container */}
-            <View style={styles.ticketContent}>
-                {/* Host Name Badge */}
-                <View style={styles.hostBadge}>
-                    <Text style={styles.hostText} numberOfLines={1}>
-                        {(hostName || "THE C1RCLE").toUpperCase()}
-                    </Text>
+                {/* Ticket Border Outline (placed behind notches so notches can mask it) */}
+                <View style={styles.ticketBorder} collapsable={false}>
+                    <View style={{ width: 0, height: 0 }} />
                 </View>
 
-                {/* Event Info */}
-                <View style={styles.eventInfo}>
-                    <Text style={styles.eventTitle} numberOfLines={2}>
-                        {order.eventTitle}
-                    </Text>
-                    <Text style={styles.eventDateText}>
-                        {dateStr}
-                    </Text>
-                </View>
+                {/* Holographic Specular Shimmer Overlay */}
+                <Animated.View
+                    pointerEvents="none"
+                    style={[
+                        {
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            width: 100,
+                        },
+                        shimmerStyle
+                    ]}
+                >
+                    <LinearGradient
+                        colors={[
+                            "rgba(255, 255, 255, 0)",
+                            "rgba(255, 255, 255, 0.04)",
+                            "rgba(255, 255, 255, 0.28)",
+                            "rgba(255, 255, 255, 0.04)",
+                            "rgba(255, 255, 255, 0)",
+                        ]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={StyleSheet.absoluteFill}
+                    />
+                </Animated.View>
 
-                {/* Bottom Row */}
-                <View style={styles.ticketCardBottom}>
-                    <Text style={styles.ticketCardOrderId}>{shortId}</Text>
-                    
-                    <View style={styles.ticketCardQty}>
-                        <Text style={styles.ticketCardQtyText}>{totalGuests}x</Text>
-                        <TicketIcon size={14} color="#fff" />
-                    </View>
-                </View>
-            </View>
-
-            {/* Side Notches (Punch holes) */}
-            <View style={styles.notchContainer}>
+                {/* Side notches */}
                 <View style={styles.notchLeft} />
                 <View style={styles.notchRight} />
+
+                {/* content container */}
+                <View style={styles.ticketContent}>
+                    {/* Top Row: Pill Host */}
+                    <View style={styles.ticketTopRow}>
+                        <View style={styles.hostPill}>
+                            <Text style={styles.hostPillText} numberOfLines={1}>
+                                {(hostName || "THE C1RCLE").toUpperCase()}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {/* Middle: Title & Date */}
+                    <View style={styles.ticketMiddleInfo}>
+                        <Text style={styles.ticketLeftTitle} numberOfLines={2}>
+                            {order.eventTitle}
+                        </Text>
+                        <Text style={styles.ticketLeftDate}>
+                            {dateStr}
+                        </Text>
+                    </View>
+
+                    {/* Bottom Row */}
+                    <View style={styles.ticketCardBottom}>
+                        <View />
+                        <View style={styles.qtyPill}>
+                            <Text style={styles.qtyPillText}>{totalGuests}x</Text>
+                            <TicketIcon size={12} color="#fff" />
+                        </View>
+                    </View>
+                </View>
             </View>
         </AnimatedPressable>
     );
@@ -433,7 +986,7 @@ function CountdownHero({ order, onViewTicket }: { order: Order; onViewTicket: ()
     const pad = (n: number) => String(n).padStart(2, "0");
 
     return (
-        <Animated.View entering={FadeInDown.springify()} style={styles.countdownHero}>
+        <Animated.View entering={FadeInDown.duration(220)} style={styles.countdownHero}>
             {order.eventCoverImage && (
                 <Image
                     source={{ uri: order.eventCoverImage }}
@@ -489,28 +1042,29 @@ function SegmentedHeader({
     pastCount: number;
 }) {
     const slideAnim = useSharedValue(activeTab === "upcoming" ? 0 : 1);
+    const { user } = useAuthStore();
+    const profile = useProfileStore((state) => state.profile);
+    const avatarPhoto = profile?.photoURL || user?.photoURL || "";
+    const avatarInitial = (profile?.displayName || user?.displayName || "A").charAt(0).toUpperCase();
 
     const handleTabPress = (tab: "upcoming" | "past") => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setActiveTab(tab);
-        slideAnim.value = withSpring(tab === "upcoming" ? 0 : 1, { 
-            damping: 22, 
-            stiffness: 220, 
-            mass: 0.8 
-        });
+        slideAnim.value = withTiming(tab === "upcoming" ? 0 : 1, { duration: 250 });
     };
 
     const animatedBgStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: slideAnim.value * 80 }], // Adjust based on tab width
+        transform: [{ translateX: slideAnim.value * TICKET_FILTER_THUMB_WIDTH }],
     }));
 
     return (
         <View style={styles.headerRow}>
-            <Pressable onPress={() => router.push("/profile")} style={styles.headerIconBtn}>
-                <Wallet size={24} color={colors.gold} />
+            <Pressable onPress={() => router.push("/(tabs)/explore")} style={[styles.headerIconBtn, { borderWidth: 0, backgroundColor: "transparent", shadowOpacity: 0, elevation: 0 }]}>
+                <Wallet size={24} color="#fff" strokeWidth={2} />
             </Pressable>
 
             <View style={styles.segmentedContainer}>
+                <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
                 <Animated.View style={[styles.segmentedActiveBg, animatedBgStyle]} />
                 <Pressable onPress={() => handleTabPress("upcoming")} style={styles.segmentedTab}>
                     <Text style={[styles.segmentedTabText, activeTab === "upcoming" && styles.segmentedTabTextActive]}>
@@ -524,10 +1078,12 @@ function SegmentedHeader({
                 </Pressable>
             </View>
 
-            <Pressable onPress={() => router.push("/profile")} style={styles.avatarBtn}>
-                <View style={styles.avatarCircle}>
-                    <Text style={styles.avatarInitial}>A</Text>
-                </View>
+            <Pressable onPress={() => router.push("/profile")} style={[styles.avatarCircle, { width: 36, height: 36, borderRadius: 18 }]}>
+                {avatarPhoto ? (
+                    <Image source={{ uri: avatarPhoto }} style={styles.avatarImage} contentFit="cover" />
+                ) : (
+                    <Text style={[styles.avatarInitial, { fontSize: 14 }]}>{avatarInitial}</Text>
+                )}
             </Pressable>
         </View>
     );
@@ -548,7 +1104,7 @@ function getOrderGroupLabel(order: Order): string {
 export default function TicketsScreen() {
     const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
     const { user } = useAuthStore();
-    const stats = (user as any).stats ?? {};
+    const stats = (user as any)?.stats ?? {};
     const kpiActiveLinks = stats.activeLinks ?? 0;
     const kpiClicks = stats.totalClicks ?? 0;
     const kpiSales = stats.totalSales ?? 0;
@@ -661,12 +1217,28 @@ export default function TicketsScreen() {
     // If opened via deep link, auto-open the order sheet.
     useEffect(() => {
         if (!orderId) return;
-        router.replace({ pathname: "/ticket/[id]", params: { id: orderId } } as any);
+        const linkedOrder = displayedOrders.find(o => o.id === orderId);
+        if (linkedOrder) {
+            setSelectedOrder(linkedOrder);
+            setShowQRModal(true);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [orderId, orders, cachedOrders]);
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
+            {/* Constant Orange Atmosphere Background */}
+            <View style={StyleSheet.absoluteFill}>
+                <LinearGradient
+                    colors={[
+                        hexWithAlpha(colors.iris, "55", "rgba(244, 74, 34, 0.33)"),
+                        "rgba(5,5,6,0)",
+                    ]}
+                    locations={[0, 0.85]}
+                    style={StyleSheet.absoluteFill}
+                />
+            </View>
+
             {/* QR Modal */}
             <QRModal
                 visible={showQRModal}
@@ -677,6 +1249,8 @@ export default function TicketsScreen() {
             <ScrollView
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
+                bounces={false}
+                overScrollMode="never"
                 contentContainerStyle={{ paddingBottom: 120 }}
                 refreshControl={
                     <RefreshControl
@@ -720,7 +1294,8 @@ export default function TicketsScreen() {
                     <CountdownHero
                         order={nextEvent}
                         onViewTicket={() => {
-                            router.push({ pathname: "/ticket/[id]", params: { id: nextEvent.id } } as any);
+                            setSelectedOrder(nextEvent);
+                            setShowQRModal(true);
                         }}
                     />
                 )}
@@ -748,27 +1323,29 @@ export default function TicketsScreen() {
                     key={activeTab}
                     entering={FadeIn.duration(400)}
                     exiting={FadeOut.duration(300)}
-                    style={styles.ticketsList}
+                    style={[styles.ticketsList, { paddingBottom: 100 }]} // Extra padding so the bottom card isn't flush
                 >
-                    {groupedDisplayedOrders.map((group, groupIndex) => (
-                        <View key={group.label} style={styles.ticketGroup}>
-                            <View style={styles.ticketGroupHeader}>
-                                <Text style={styles.ticketGroupTitle}>{group.label}</Text>
-                                <Text style={styles.ticketGroupMeta}>{group.orders.length} order{group.orders.length === 1 ? "" : "s"}</Text>
-                            </View>
-
-                            {group.orders.map((order, index) => (
-                                <TicketCard
-                                    key={order.id}
-                                    order={order}
-                                    onShowQR={() => {
-                                        router.push({ pathname: "/ticket/[id]", params: { id: order.id } } as any);
-                                    }}
-                                    index={index} // Use index instead of cumulative to refresh animation on tab switch
-                                />
-                            ))}
-                        </View>
-                    ))}
+                    {(() => {
+                        let globalIndex = 0;
+                        return groupedDisplayedOrders.map((group) => (
+                            <Fragment key={group.label}>
+                                {group.orders.map((order) => {
+                                    const currentIndex = globalIndex++;
+                                    return (
+                                        <TicketCard
+                                            key={order.id}
+                                            order={order}
+                                            onShowQR={() => {
+                                                setSelectedOrder(order);
+                                                setShowQRModal(true);
+                                            }}
+                                            index={currentIndex}
+                                        />
+                                    );
+                                })}
+                            </Fragment>
+                        ));
+                    })()}
                 </Animated.View>
 
                 {/* Empty State */}
@@ -818,9 +1395,9 @@ const styles = StyleSheet.create({
 
     // Header
     header: {
-        paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 20,
+        paddingHorizontal: 17,
+        paddingTop: 8,
+        paddingBottom: 14,
     },
     headerRow: {
         flexDirection: "row",
@@ -829,50 +1406,70 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     headerIconBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 39,
+        height: 39,
+        borderRadius: 20,
         backgroundColor: "rgba(255,255,255,0.08)",
         alignItems: "center",
         justifyContent: "center",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.14)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 7 },
+        shadowOpacity: 0.35,
+        shadowRadius: 13,
+        elevation: 7,
     },
     segmentedContainer: {
         flexDirection: "row",
-        backgroundColor: "rgba(0,0,0,0.4)",
+        backgroundColor: "rgba(255,255,255,0.06)",
         borderRadius: radii.pill,
-        padding: 4,
-        width: 164, // Slightly wider for better spacing
+        padding: TICKET_FILTER_PADDING,
+        width: TICKET_FILTER_WIDTH,
+        height: TICKET_FILTER_HEIGHT,
         position: "relative",
         borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.05)",
+        borderColor: "rgba(255,255,255,0.16)",
+        overflow: "hidden",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.35,
+        shadowRadius: 14,
+        elevation: 8,
     },
     segmentedActiveBg: {
         position: "absolute",
-        top: 4,
-        left: 4,
-        width: 78,
-        bottom: 4,
+        top: TICKET_FILTER_PADDING,
+        left: TICKET_FILTER_PADDING,
+        width: TICKET_FILTER_THUMB_WIDTH,
+        bottom: TICKET_FILTER_PADDING,
         borderRadius: radii.pill,
-        backgroundColor: "rgba(255,255,255,0.12)",
-        shadowColor: "#fff",
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.1,
-        shadowRadius: 4,
+        backgroundColor: "rgba(255,255,255,0.17)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.22,
+        shadowRadius: 7,
     },
     segmentedTab: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 7,
         alignItems: "center",
         justifyContent: "center",
         zIndex: 1,
     },
     segmentedTabText: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 14,
-        fontWeight: "600",
+        color: "rgba(255,255,255,0.66)",
+        fontSize: 12,
+        fontWeight: "700",
     },
     segmentedTabTextActive: {
         color: "#fff",
+        textShadowColor: "rgba(0,0,0,0.55)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 1,
     },
     avatarBtn: {
         width: 44,
@@ -886,8 +1483,13 @@ const styles = StyleSheet.create({
         backgroundColor: colors.iris,
         alignItems: "center",
         justifyContent: "center",
-        borderWidth: 2,
-        borderColor: "rgba(255,255,255,0.1)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.18)",
+        overflow: "hidden",
+    },
+    avatarImage: {
+        width: "100%",
+        height: "100%",
     },
     avatarInitial: {
         color: "#fff",
@@ -915,8 +1517,8 @@ const styles = StyleSheet.create({
         borderRadius: radii["2xl"],
         overflow: "hidden",
         height: 220,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1.2,
+        borderColor: "rgba(255, 255, 255, 0.18)",
     },
     countdownContent: {
         flex: 1,
@@ -984,7 +1586,7 @@ const styles = StyleSheet.create({
     // Ticket list
     ticketsList: {
         paddingHorizontal: 20,
-        gap: 18,
+        gap: 12,
     },
     ticketGroup: {
         gap: 14,
@@ -1009,104 +1611,124 @@ const styles = StyleSheet.create({
     },
 
     // Ticket Card
-    ticketCard: {
-        height: 200,
-        borderRadius: 32, // Matches radii["2xl"] or slightly larger
+    ticketCardWrap: {
+        marginBottom: 0,
+    },
+    ticketCardInner: {
+        height: 180,
+        borderRadius: 24,
         overflow: "hidden",
-        marginBottom: 16,
         backgroundColor: colors.base[50],
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.4,
-        shadowRadius: 16,
-        elevation: 8,
+    },
+    ticketBorder: {
+        ...StyleSheet.absoluteFillObject,
+        borderWidth: 1.2,
+        borderColor: "rgba(255, 255, 255, 0.18)",
+        borderRadius: 24,
+        zIndex: 1,
     },
     ticketContent: {
         flex: 1,
         padding: 20,
         justifyContent: "space-between",
     },
-    hostBadge: {
-        alignSelf: "flex-start",
-        backgroundColor: "rgba(255,255,255,0.12)",
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: radii.pill,
-        backdropFilter: "blur(10px)",
+    ticketTopRow: {
+        flexDirection: "row",
+        alignItems: "flex-start",
     },
-    hostText: {
+    hostPill: {
+        backgroundColor: "rgba(255,255,255,0.15)",
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: 12,
+    },
+    hostPillText: {
         color: "rgba(255,255,255,0.8)",
+        fontFamily: ticketFont.bold,
         fontSize: 10,
-        fontWeight: "800",
-        letterSpacing: 1.2,
+        letterSpacing: 1,
     },
-    eventInfo: {
-        marginTop: "auto",
-        marginBottom: 10,
+    ticketMiddleInfo: {
+        marginTop: 12,
     },
-    eventTitle: {
+    ticketLeftTitle: {
         color: "#fff",
-        fontSize: 24,
+        fontFamily: ticketFont.black,
+        fontSize: 22,
         fontWeight: "900",
-        letterSpacing: -0.5,
         marginBottom: 4,
+        textShadowColor: "rgba(0,0,0,0.5)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
     },
-    eventDateText: {
-        color: "rgba(255,255,255,0.65)",
+    ticketLeftDate: {
+        color: "rgba(255,255,255,0.85)",
+        fontFamily: ticketFont.medium,
         fontSize: 14,
-        fontWeight: "600",
+        fontWeight: "500",
     },
     ticketCardBottom: {
         flexDirection: "row",
-        alignItems: "center",
         justifyContent: "space-between",
-        marginTop: 10,
+        alignItems: "center",
+        marginTop: "auto",
     },
-    ticketCardOrderId: {
-        color: "rgba(255,255,255,0.35)",
-        fontSize: 13,
-        fontWeight: "600",
-        letterSpacing: 1.5,
+    ticketOrderId: {
+        color: "rgba(255,255,255,0.4)",
+        fontFamily: ticketFont.medium,
+        fontSize: 12,
+        letterSpacing: 2,
     },
-    ticketCardQty: {
+    qtyPill: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 6,
-        backgroundColor: "rgba(255,255,255,0.1)",
+        backgroundColor: "rgba(255,255,255,0.15)",
         paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: radii.pill,
+        paddingVertical: 6,
+        borderRadius: 16,
+        gap: 4,
     },
-    ticketCardQtyText: {
+    qtyPillText: {
         color: "#fff",
+        fontFamily: ticketFont.bold,
         fontSize: 13,
         fontWeight: "700",
     },
-    notchContainer: {
-        position: "absolute",
-        top: 0,
-        bottom: 0,
-        left: 0,
-        right: 0,
-        justifyContent: "center",
-        pointerEvents: "none",
-    },
     notchLeft: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: colors.base.DEFAULT,
         position: "absolute",
-        left: -10,
+        left: -12,
+        top: "50%",
+        marginTop: -12,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: "#000000",
+        borderWidth: 1.2,
+        borderColor: "rgba(255, 255, 255, 0.18)",
+        zIndex: 5,
     },
     notchRight: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        backgroundColor: colors.base.DEFAULT,
         position: "absolute",
-        right: -10,
+        right: -12,
+        top: "50%",
+        marginTop: -12,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        backgroundColor: "#000000",
+        borderWidth: 1.2,
+        borderColor: "rgba(255, 255, 255, 0.18)",
+        zIndex: 5,
     },
+    ticketCardQtyText: {
+        color: "#fff",
+        fontFamily: ticketFont.bold,
+        fontSize: 16,
+        textShadowColor: "rgba(0,0,0,0.5)",
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 4,
+    },
+
 
     // Detail sheet
     sheetContainer: {
@@ -1240,33 +1862,27 @@ const styles = StyleSheet.create({
 
     // Action list
     actionGroup: {
-        backgroundColor: colors.base[50],
+        backgroundColor: "#161616",
         borderRadius: radii.xl,
         overflow: "hidden",
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
+        marginBottom: 16,
     },
     actionRow: {
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-        paddingVertical: 16,
-        paddingHorizontal: 16,
+        paddingVertical: 18,
+        paddingHorizontal: 20,
     },
     actionRowLabel: {
-        color: colors.gold,
+        color: "#fff",
         fontSize: 16,
-        fontWeight: "400",
-    },
-    actionRowIcon: {
-        color: colors.goldMetallic,
-        fontSize: 18,
+        fontWeight: "600",
     },
     actionRowDivider: {
         height: 1,
         backgroundColor: "rgba(255,255,255,0.06)",
-        marginLeft: 16,
+        marginLeft: 0,
     },
 
     // Breakdown card

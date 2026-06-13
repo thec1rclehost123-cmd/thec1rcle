@@ -1,27 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import {
     View,
     Text,
     ScrollView,
     Pressable,
-    Alert,
-    ActivityIndicator,
-    Switch,
     StyleSheet,
-    Dimensions,
     Linking,
+    Share,
+    Dimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
+import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import * as Notifications from "expo-notifications";
-import { useAuth } from "@/hooks/useAuth";
+import { Settings, Ticket } from "lucide-react-native";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
-import { useTicketsStore } from "@/store/ticketsStore";
-import { useSocialProfileStore } from "@/store/socialProfileStore";
-import { registerPushToken } from "@/lib/notifications";
+import { useTicketsStore, Order } from "@/store/ticketsStore";
 import * as Haptics from "expo-haptics";
 import Animated, {
     FadeIn,
@@ -29,170 +25,157 @@ import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
-    withRepeat,
-    withTiming,
 } from "react-native-reanimated";
-import { colors, radii, gradients } from "@/lib/design/theme";
-import { NotificationBell } from "@/components/ui/NotificationBell";
+import { colors, gradients } from "@/lib/design/theme";
 import { safeDate } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+const PROFILE_AVATAR_SIZE = 136;
+const PROFILE_AVATAR_TOP = Math.max(160, SCREEN_HEIGHT * 0.3 - PROFILE_AVATAR_SIZE / 2);
 
-// Premium Menu Item
-function MenuItem({
-    icon,
-    label,
-    sublabel,
-    onPress,
-    rightElement,
-    danger = false,
-    delay = 0,
-}: {
-    icon: string;
-    label: string;
-    sublabel?: string;
-    onPress?: () => void;
-    rightElement?: React.ReactNode;
-    danger?: boolean;
-    delay?: number;
-}) {
+function HistoryTimelineItem({ order, index, isLast }: { order: Order; index: number; isLast: boolean }) {
     const scale = useSharedValue(1);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: scale.value }],
-    }));
-
-    const handlePressIn = () => {
-        scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
-    };
-
-    const handlePressOut = () => {
-        scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-    };
+    const animStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
 
     const handlePress = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress?.();
+
+        if (order.eventId) {
+            router.push({
+                pathname: "/event/[id]",
+                params: { id: order.eventId },
+            });
+        }
     };
 
+    const dateStr = (() => {
+        const d = safeDate(order.eventDate);
+        if (!d) return "";
+        const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        const dayPart = d.toLocaleDateString("en-US", { weekday: "long" });
+        return `${datePart} ${dayPart}`;
+    })();
+
+    const ticketsInfo = (() => {
+        const qty = order.tickets?.reduce((acc, t) => acc + t.quantity, 0) || 1;
+        const tier = order.tickets?.[0]?.tierName || (order.isRSVP ? "RSVP" : "General Admission");
+        return `${qty}x ${tier}`;
+    })();
+    const hostVenueLabel = order.hostName
+        ? `Hosted by ${order.hostName}`
+        : order.venueLocation
+            ? `Hosted at ${order.venueLocation}`
+            : "Hosted by THE C1RCLE";
+
     return (
-        <Animated.View
-            entering={FadeInDown.delay(delay).springify().damping(15)}
-            style={animatedStyle}
-        >
-            <Pressable
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
+        <View style={styles.timelineItem}>
+            {/* Timeline dot */}
+            <View style={styles.timelineDot} />
+
+            {/* Date Header above the card */}
+            <Text style={styles.timelineDateText}>{dateStr}</Text>
+
+            {/* Ticket Card */}
+            <AnimatedPressable
                 onPress={handlePress}
-                style={styles.menuItem}
+                onPressIn={() => {
+                    scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
+                }}
+                onPressOut={() => {
+                    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+                }}
+                style={[animStyle, styles.historyCard]}
             >
-                <View style={styles.menuItemIcon}>
-                    <Text style={styles.menuItemIconText}>{icon}</Text>
-                </View>
-                <View style={styles.menuItemContent}>
-                    <Text style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}>
-                        {label}
-                    </Text>
-                    {sublabel && (
-                        <Text style={styles.menuItemSublabel}>{sublabel}</Text>
+                <View style={styles.historyCardInner} collapsable={false}>
+                    {order.eventCoverImage ? (
+                        <Image
+                            source={{ uri: order.eventCoverImage }}
+                            style={styles.historyPoster}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                        />
+                    ) : (
+                        <LinearGradient
+                            colors={["#2a1a0e", "#161616"]}
+                            style={styles.historyPoster}
+                        />
                     )}
+
+                    <View style={styles.historyDetailsColumn}>
+                        <View style={styles.historyInfo}>
+                            <Text style={styles.historyTitle} numberOfLines={2}>
+                                {order.eventTitle}
+                            </Text>
+                            <Text style={styles.historyTimeVenue} numberOfLines={2}>
+                                {hostVenueLabel}
+                            </Text>
+                        </View>
+
+                        <View style={styles.historyBottomRow}>
+                            <View style={styles.historyBottomLeft}>
+                                <Ticket size={14} color="rgba(255,255,255,0.42)" strokeWidth={2.2} />
+                                <Text style={styles.historyYourTickets}>Your tickets</Text>
+                            </View>
+                            <Text style={styles.historyTicketQty}>{ticketsInfo}</Text>
+                        </View>
+                    </View>
                 </View>
-                {rightElement || (
-                    <Text style={styles.menuItemArrow}>›</Text>
-                )}
-            </Pressable>
-        </Animated.View>
+            </AnimatedPressable>
+        </View>
     );
 }
 
-// Stats Card
-function StatsCard({
-    value,
-    label,
-    accent = false,
-    delay = 0,
-}: {
-    value: number;
-    label: string;
-    accent?: boolean;
-    delay?: number;
-}) {
-    return (
-        <Animated.View
-            entering={FadeInDown.delay(delay).springify()}
-            style={styles.statCard}
-        >
-            <Text style={[styles.statValue, accent && styles.statValueAccent]}>
-                {value}
-            </Text>
-            <Text style={styles.statLabel}>{label}</Text>
-        </Animated.View>
-    );
+function formatEventDate(order?: Order) {
+    const d = safeDate(order?.eventDate);
+    if (!d) return order?.eventTime || "Date TBA";
+    const date = d.toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+    });
+    return order?.eventTime ? `${date} at ${order.eventTime}` : date;
 }
 
-// Section Header
-function SectionHeader({ title, delay = 0 }: { title: string; delay?: number }) {
-    return (
-        <Animated.Text
-            entering={FadeIn.delay(delay)}
-            style={styles.sectionHeader}
-        >
-            {title}
-        </Animated.Text>
-    );
+function formatJoinedDate(value: unknown) {
+    const d = safeDate(value);
+    if (!d) return "";
+    return `Joined ${d.toLocaleDateString("en-US", { month: "short", year: "numeric" })}`;
+}
+
+function openInstagramProfile(handle: string) {
+    const cleanHandle = handle.trim().replace(/^@+/, "");
+    if (!cleanHandle) return;
+
+    const instagramUrl = `instagram://user?username=${encodeURIComponent(cleanHandle)}`;
+    const webUrl = `https://www.instagram.com/${encodeURIComponent(cleanHandle)}`;
+    Linking.openURL(instagramUrl).catch(() => Linking.openURL(webUrl));
 }
 
 export default function ProfileScreen() {
     const { user } = useAuthStore();
-    const { signOut, loading: authLoading } = useAuth();
     const { orders, fetchUserOrders } = useTicketsStore();
-    const { socialState, loadSocialProfile } = useSocialProfileStore();
     const profile = useProfileStore((state) => state.profile);
-    const profileLoading = useProfileStore((state) => state.loading);
     const loadProfile = useProfileStore((state) => state.loadProfile);
     const subscribeToProfile = useProfileStore((state) => state.subscribeToProfile);
     const insets = useSafeAreaInsets();
 
-    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
-    const [loadingNotifs, setLoadingNotifs] = useState(false);
-
     // Avatar animation
     const avatarScale = useSharedValue(1);
-    const avatarGlow = useSharedValue(0);
 
     useEffect(() => {
         trackScreen("Profile");
-        // Subtle pulse animation for avatar
-        avatarGlow.value = withRepeat(
-            withTiming(1, { duration: 2000 }),
-            -1,
-            true
-        );
     }, []);
 
     useEffect(() => {
-        if (!user?.uid) {
-            setNotificationsEnabled(false);
-            return;
-        }
-
-        let isMounted = true;
+        if (!user?.uid) return;
 
         const syncScreenState = async () => {
             await Promise.allSettled([
                 fetchUserOrders(user.uid),
                 loadProfile(user.uid),
-                loadSocialProfile(user.uid),
             ]);
-
-            const permissions = await Notifications.getPermissionsAsync();
-            if (!isMounted) return;
-
-            setNotificationsEnabled(
-                permissions.granted ||
-                permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
-            );
         };
 
         void syncScreenState();
@@ -200,7 +183,6 @@ export default function ProfileScreen() {
         const unsubscribe = subscribeToProfile(user.uid);
 
         return () => {
-            isMounted = false;
             unsubscribe?.();
         };
     }, [user?.uid, fetchUserOrders, loadProfile, subscribeToProfile]);
@@ -209,465 +191,203 @@ export default function ProfileScreen() {
         transform: [{ scale: avatarScale.value }],
     }));
 
-    const handleLogout = () => {
-        Alert.alert(
-            "Sign Out",
-            "Are you sure you want to sign out?",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Sign Out",
-                    style: "destructive",
-                    onPress: async () => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                        await signOut();
-                        router.replace("/(auth)/login");
-                    }
-                }
-            ]
-        );
-    };
-
-    const promptNotificationSettings = () => {
-        Alert.alert(
-            "Manage Notifications",
-            "Notification permissions are controlled in your device settings.",
-            [
-                { text: "Cancel", style: "cancel" },
-                {
-                    text: "Open Settings",
-                    onPress: () => {
-                        void Linking.openSettings();
-                    },
-                },
-            ]
-        );
-    };
-
-    const toggleNotifications = async (nextValue: boolean) => {
-        if (!user?.uid) return;
-
-        if (!nextValue) {
-            promptNotificationSettings();
-            return;
-        }
-
-        setLoadingNotifs(true);
-        const success = await registerPushToken(user.uid);
-        const permissions = await Notifications.getPermissionsAsync();
-        setNotificationsEnabled(
-            success && (
-                permissions.granted ||
-                permissions.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL
-            )
-        );
-        setLoadingNotifs(false);
-
-        if (!success) {
-            promptNotificationSettings();
-        }
-    };
-
     const nowMs = Date.now();
-    const thisYear = new Date().getFullYear();
     const pastOrders = [...orders]
         .filter((o) => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs)
         .sort((a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0));
-    const upcomingEvents = orders.filter(o =>
-        o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) > nowMs
-    ).length;
-    const thisYearEvents = orders.filter(o => {
-        const d = safeDate(o.eventDate);
-        return d && d.getFullYear() === thisYear && d.getTime() < nowMs;
-    }).length;
+    const nextUpcomingOrder = [...orders]
+        .filter((o) => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) > nowMs)
+        .sort((a, b) => (safeDate(a.eventDate)?.getTime() ?? 0) - (safeDate(b.eventDate)?.getTime() ?? 0))[0];
 
-    // Activity feed — past events newest first, 3 shown by default
-    const [storyExpanded, setStoryExpanded] = useState(false);
-    const storyItems = storyExpanded ? pastOrders : pastOrders.slice(0, 3);
-    const displayName = profile?.displayName?.trim() || user?.displayName || "Party Enthusiast";
-    const displayEmail = profile?.email || user?.email || "No email connected";
+    const displayName = "Aayush Divase";
+    const attendedCount = pastOrders.length;
     const displayPhoto = profile?.photoURL || user?.photoURL || "";
-    const displayCity = profile?.city?.trim() || "";
-    const displayBio = profile?.bio?.trim() || "";
-    const connectionsCount = profile?.connections ?? 0;
-
-    // Get initials
-    const initials = displayName
-        ? displayName.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2)
-        : "?";
+    const isDefaultMockPhoto = !displayPhoto || displayPhoto.includes("img=68");
+    const avatarSource = displayPhoto && !isDefaultMockPhoto
+        ? { uri: displayPhoto }
+        : require("../../assets/images/user_avatar.jpg");
+    const instagramHandle = profile?.instagram?.trim().replace(/^@+/, "") || "";
+    const joinedDateText = formatJoinedDate(profile?.createdAt ?? user?.metadata?.creationTime);
+    const handleShareProfile = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        await Share.share({
+            message: `Check out ${displayName} on THE C1RCLE.`,
+        });
+    };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            {/* Background gradient */}
-            <LinearGradient
-                colors={["rgba(244, 74, 34, 0.15)", "transparent"]}
-                style={styles.backgroundGradient}
-            />
-
+        <View style={styles.container}>
             {/* Top Actions */}
             <Animated.View
                 entering={FadeIn}
-                style={{
-                    flexDirection: "row",
-                    justifyContent: "flex-end",
-                    alignItems: "center",
-                    paddingHorizontal: 20,
-                    paddingVertical: 8,
-                    gap: 8,
-                }}
+                style={[styles.topActions, { top: insets.top - 2 }]}
             >
-                <NotificationBell variant="solid" />
                 <Pressable
                     onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.push("/settings");
+                        router.back();
                     }}
-                    style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: colors.base[50],
-                        alignItems: "center",
-                        justifyContent: "center",
-                    }}
+                    style={styles.topActionButton}
+                    hitSlop={8}
                 >
-                    <Text style={{ fontSize: 20 }}>⚙️</Text>
+                    <Ionicons name="chevron-back" size={26} color="#fff" />
                 </Pressable>
+
+                <View style={styles.topRightActions}>
+                    <Pressable
+                        onPress={() => void handleShareProfile()}
+                        style={styles.topActionButton}
+                        hitSlop={8}
+                    >
+                        <Ionicons name="share-outline" size={24} color="#fff" />
+                    </Pressable>
+                    <Pressable
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            router.push("/settings");
+                        }}
+                        style={styles.topActionButton}
+                    >
+                        <Settings size={22} color="#fff" strokeWidth={2.5} />
+                    </Pressable>
+                </View>
             </Animated.View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scrollView}
                 showsVerticalScrollIndicator={false}
-                contentContainerStyle={{ paddingBottom: 120 }}
+                contentContainerStyle={{ paddingBottom: 148 }}
             >
-                {/* Profile Header */}
                 <Animated.View
                     entering={FadeInDown.delay(100).springify()}
                     style={styles.profileHeader}
                 >
-                    {/* Avatar */}
+                    <Image
+                        source={avatarSource}
+                        style={styles.profileHeroImage}
+                        contentFit="cover"
+                        contentPosition="top center"
+                        blurRadius={14}
+                        cachePolicy="memory-disk"
+                    />
+                    <LinearGradient
+                        colors={[
+                            "rgba(0, 0, 0, 0.22)",
+                            "rgba(0, 0, 0, 0.5)",
+                            colors.base.DEFAULT,
+                        ]}
+                        locations={[0, 0.56, 1]}
+                        style={StyleSheet.absoluteFill}
+                    />
+
                     <Animated.View style={[styles.avatarContainer, avatarAnimatedStyle]}>
                         <Pressable onPress={() => router.push("/profile/edit")}>
                             <LinearGradient
                                 colors={gradients.primary as [string, string]}
                                 style={styles.avatarGradient}
                             >
-                                {displayPhoto ? (
-                                    <Image
-                                        source={{ uri: displayPhoto }}
-                                        style={styles.avatarPhoto}
-                                        contentFit="cover"
-                                    />
-                                ) : (
-                                    <View style={styles.avatarInner}>
-                                        <Text style={styles.avatarText}>{initials}</Text>
-                                    </View>
-                                )}
+                                <Image
+                                    source={avatarSource}
+                                    style={styles.avatarPhoto}
+                                    contentFit="cover"
+                                    contentPosition="top center"
+                                    cachePolicy="memory-disk"
+                                />
                             </LinearGradient>
 
-                            {/* Edit badge */}
-                            <View style={styles.avatarEditBadge}>
-                                <Text style={styles.avatarEditIcon}>✏️</Text>
-                            </View>
                         </Pressable>
                     </Animated.View>
 
-                    {/* User Info */}
                     <Text style={styles.userName}>
                         {displayName}
                     </Text>
-                    <Text style={styles.userEmail}>{displayEmail}</Text>
-                    {(displayCity || displayBio || profileLoading) && (
-                        <Text style={styles.userMeta}>
-                            {profileLoading && !displayCity && !displayBio
-                                ? "Syncing your profile..."
-                                : [displayCity, displayBio].filter(Boolean).join(" • ")}
-                        </Text>
-                    )}
 
-                    {/* Member badge */}
-                    <View style={styles.memberBadge}>
-                        <LinearGradient
-                            colors={["rgba(244, 74, 34, 0.15)", "rgba(244, 74, 34, 0.05)"]}
-                            style={styles.memberBadgeGradient}
-                        >
-                            <Text style={styles.memberBadgeText}>✨ C1RCLE MEMBER</Text>
-                        </LinearGradient>
-                    </View>
-                </Animated.View>
+                    <Text style={styles.profileStatText}>
+                        {attendedCount} {attendedCount === 1 ? "event" : "events"} attended
+                    </Text>
 
-                {/* Stats Row */}
-                <View style={styles.statsRow}>
-                    <StatsCard value={pastOrders.length} label="Attended" delay={200} />
-                    <View style={styles.statsDivider} />
-                    <StatsCard value={thisYearEvents} label="This Year" accent delay={240} />
-                    <View style={styles.statsDivider} />
-                    <StatsCard value={connectionsCount} label="Friends" delay={280} />
-                    <View style={styles.statsDivider} />
-                    <StatsCard value={upcomingEvents} label="Upcoming" delay={320} />
-                </View>
+                    {joinedDateText ? (
+                        <Text style={styles.profileJoinedText}>{joinedDateText}</Text>
+                    ) : null}
 
-                {/* Social Profile Card */}
-                <Animated.View
-                    entering={FadeInDown.delay(360).springify().damping(15)}
-                    style={styles.socialCard}
-                >
-                    <View style={styles.socialCardLeft}>
-                        <View style={[
-                            styles.socialDot,
-                            socialState === "verified" && styles.socialDotVerified,
-                            socialState === "complete" && styles.socialDotComplete,
-                        ]} />
-                        <View style={styles.socialCardText}>
-                            <Text style={styles.socialCardTitle}>
-                                {socialState === "verified"
-                                    ? "✅ Social Profile — Verified"
-                                    : socialState === "complete"
-                                    ? "Social Profile — Active"
-                                    : "Set Up Social Profile"}
-                            </Text>
-                            <Text style={styles.socialCardSub}>
-                                {socialState === "verified"
-                                    ? "Dating, messaging & event likes unlocked"
-                                    : socialState === "complete"
-                                    ? "Verify your profile to unlock dating & chat"
-                                    : "Unlock event likes, dating & connections"}
-                            </Text>
-                        </View>
-                    </View>
                     <Pressable
-                        style={styles.socialCardBtn}
                         onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            if (socialState === "complete") {
-                                router.push("/verification" as any);
-                            } else {
-                                router.push("/social-setup" as any);
+                            if (instagramHandle) {
+                                openInstagramProfile(instagramHandle);
+                                return;
                             }
+
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            router.push("/profile/edit");
                         }}
+                        style={styles.instagramProfileButton}
+                        hitSlop={10}
                     >
-                        <Text style={styles.socialCardBtnText}>
-                            {socialState === "verified" ? "Edit" : socialState === "complete" ? "Verify" : "Setup"}
-                        </Text>
+                        <Ionicons name="logo-instagram" size={19} color="#fff" />
                     </Pressable>
                 </Animated.View>
 
-                {/* Your Story — activity feed */}
-                {pastOrders.length > 0 && (
-                    <View style={styles.storySection}>
-                        <View style={styles.storySectionHeader}>
-                            <Text style={styles.storySectionTitle}>YOUR STORY</Text>
-                            {pastOrders.length > 3 && (
-                                <Pressable onPress={() => setStoryExpanded(v => !v)}>
-                                    <Text style={styles.storyShowAll}>
-                                        {storyExpanded ? "Show less" : `Show all ${pastOrders.length}`}
-                                    </Text>
-                                </Pressable>
-                            )}
-                        </View>
-                        {storyItems.map((order, i) => (
-                            <Animated.View
-                                key={order.id}
-                                entering={FadeInDown.delay(i * 40).springify()}
-                                style={styles.storyItem}
-                            >
-                                {order.eventCoverImage ? (
-                                    <Image
-                                        source={{ uri: order.eventCoverImage }}
-                                        style={styles.storyThumb}
-                                        contentFit="cover"
-                                    />
-                                ) : (
-                                    <LinearGradient
-                                        colors={["#2a1a0e", "#161616"]}
-                                        style={styles.storyThumb}
-                                    />
-                                )}
-                                <View style={styles.storyContent}>
-                                    <Text style={styles.storyEventTitle} numberOfLines={1}>
-                                        {order.eventTitle || "Event"}
-                                    </Text>
-                                    <Text style={styles.storyEventDate}>
-                                        {safeDate(order.eventDate)?.toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" }) ?? ""}
-                                    </Text>
-                                </View>
-                                <View style={styles.storyBadge}>
-                                    <Text style={styles.storyBadgeText}>Attended</Text>
-                                </View>
-                            </Animated.View>
-                        ))}
-                    </View>
-                )}
-
-                {/* Menu Sections */}
-                <View style={styles.menuContainer}>
-                    {/* Safety Section */}
-                    <SectionHeader title="Safety" delay={350} />
-                    <View style={styles.menuSection}>
-                        <MenuItem
-                            icon="🆘"
-                            label="Safety Features"
-                            sublabel="SOS, location sharing, emergency contacts"
-                            onPress={() => router.push("/safety")}
-                            delay={400}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="🔒"
-                            label="Privacy Settings"
-                            sublabel="Control who can see your profile"
-                            onPress={() => Alert.alert("Coming Soon", "Privacy settings will be available soon")}
-                            delay={450}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="✅"
-                            label="Get Verified"
-                            sublabel={profile?.isVerified ? "Your profile is verified" : "Add a blue checkmark to your profile"}
-                            onPress={() => router.push("/verification" as any)}
-                            delay={475}
-                        />
-                    </View>
-
-                    {/* Tickets Section */}
-                    <SectionHeader title="Tickets" delay={500} />
-                    <View style={styles.menuSection}>
-                        <MenuItem
-                            icon="🎟️"
-                            label="My Tickets"
-                            sublabel={`${upcomingEvents} upcoming event${upcomingEvents !== 1 ? 's' : ''}`}
-                            onPress={() => router.push("/(tabs)/tickets")}
-                            delay={550}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="↗️"
-                            label="Transfer Ticket"
-                            sublabel="Send a ticket to a friend"
-                            onPress={() => router.push("/transfer")}
-                            delay={600}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="📜"
-                            label="Order History"
-                            sublabel="View all past purchases"
-                            onPress={() => router.push("/(tabs)/tickets")}
-                            delay={650}
-                        />
-                    </View>
-
-                    {/* Settings Section */}
-                    <SectionHeader title="Settings" delay={700} />
-                    <View style={styles.menuSection}>
-                        <MenuItem
-                            icon="🔔"
-                            label="Notifications"
-                            sublabel="Event reminders and updates"
-                            delay={750}
-                            rightElement={
-                                loadingNotifs ? (
-                                    <ActivityIndicator size="small" color={colors.iris} />
-                                ) : (
-                                    <Switch
-                                        value={notificationsEnabled}
-                                        onValueChange={toggleNotifications}
-                                        trackColor={{ false: colors.base[200], true: colors.iris }}
-                                        thumbColor="#fff"
-                                    />
-                                )
-                            }
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="💳"
-                            label="Payment Methods"
-                            sublabel="Manage your cards"
-                            onPress={() => Alert.alert("Coming Soon", "Payment methods will be available soon")}
-                            delay={800}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="✉️"
-                            label="Email Preferences"
-                            sublabel="Manage email notifications"
-                            onPress={() => Alert.alert("Coming Soon", "Email preferences will be available soon")}
-                            delay={850}
-                        />
-                    </View>
-
-                    {/* Support Section */}
-                    <SectionHeader title="Support" delay={900} />
-                    <View style={styles.menuSection}>
-                        <MenuItem
-                            icon="❓"
-                            label="Help & FAQ"
-                            onPress={() => Alert.alert("Help", "Contact us at support@thec1rcle.com")}
-                            delay={950}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="💬"
-                            label="Contact Support"
-                            onPress={() => Alert.alert("Support", "Email: support@thec1rcle.com\nWhatsApp: +91 98765 43210")}
-                            delay={1000}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="📝"
-                            label="Terms of Service"
-                            onPress={() => Alert.alert("Terms", "View our terms at thec1rcle.com/terms")}
-                            delay={1050}
-                        />
-                        <View style={styles.menuDivider} />
-                        <MenuItem
-                            icon="🔐"
-                            label="Privacy Policy"
-                            onPress={() => Alert.alert("Privacy", "View our privacy policy at thec1rcle.com/privacy")}
-                            delay={1100}
-                        />
-                    </View>
-
-                    {/* Account Section */}
-                    <SectionHeader title="Account" delay={1150} />
-                    <View style={styles.menuSection}>
-                        <MenuItem
-                            icon="🚪"
-                            label="Sign Out"
-                            danger
-                            onPress={handleLogout}
-                            delay={1200}
-                            rightElement={
-                                authLoading ? (
-                                    <ActivityIndicator size="small" color={colors.error} />
-                                ) : (
-                                    <Text style={[styles.menuItemArrow, styles.menuItemArrowDanger]}>›</Text>
-                                )
-                            }
-                        />
-                    </View>
-
-                    {/* App Version */}
-                    <Animated.View
-                        entering={FadeIn.delay(1250)}
-                        style={styles.footer}
-                    >
-                        <LinearGradient
-                            colors={gradients.primary as [string, string]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={styles.footerLogo}
+                <View style={styles.nightsContent}>
+                    {nextUpcomingOrder ? (
+                        <AnimatedPressable
+                            entering={FadeInDown.delay(140).springify()}
+                            onPress={() => {
+                                if (nextUpcomingOrder.eventId) {
+                                    router.push({
+                                        pathname: "/event/[id]",
+                                        params: { id: nextUpcomingOrder.eventId },
+                                    });
+                                }
+                            }}
+                            style={styles.upcomingCard}
                         >
-                            <Text style={styles.footerLogoText}>C1</Text>
-                        </LinearGradient>
-                        <Text style={styles.footerText}>
-                            THE C1RCLE v1.0.0
-                        </Text>
-                        <Text style={styles.footerSubtext}>
-                            Made with ♡ in India
-                        </Text>
-                    </Animated.View>
+                            {nextUpcomingOrder.eventCoverImage ? (
+                                <Image
+                                    source={{ uri: nextUpcomingOrder.eventCoverImage }}
+                                    style={styles.upcomingPoster}
+                                    contentFit="cover"
+                                    cachePolicy="memory-disk"
+                                />
+                            ) : (
+                                <LinearGradient
+                                    colors={["#2a1a0e", "#161616"]}
+                                    style={styles.upcomingPoster}
+                                />
+                            )}
+
+                            <View style={styles.upcomingInfo}>
+                                <Text style={styles.upcomingEyebrow}>Your Next Event</Text>
+                                <Text style={styles.upcomingTitle} numberOfLines={2}>
+                                    {nextUpcomingOrder.eventTitle || "Upcoming Event"}
+                                </Text>
+                                <Text style={styles.upcomingDate} numberOfLines={1}>
+                                    {formatEventDate(nextUpcomingOrder)}
+                                </Text>
+                                <Text style={styles.upcomingAction}>Get Tickets</Text>
+                            </View>
+                        </AnimatedPressable>
+                    ) : null}
+
+                    {pastOrders.length > 0 ? (
+                        <View style={styles.timelineContainer}>
+                            <View style={styles.timelineAxis} />
+
+                            {pastOrders.map((order, i) => (
+                                <HistoryTimelineItem
+                                    key={order.id}
+                                    order={order}
+                                    index={i}
+                                    isLast={i === pastOrders.length - 1}
+                                />
+                            ))}
+                        </View>
+                    ) : (
+                        <View style={styles.emptyHistoryContainer}>
+                            <Text style={styles.emptyHistoryText}>No past events attended yet</Text>
+                        </View>
+                    )}
                 </View>
+
             </ScrollView>
         </View>
     );
@@ -678,12 +398,32 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: colors.base.DEFAULT,
     },
-    backgroundGradient: {
+    topActions: {
         position: "absolute",
-        top: 0,
         left: 0,
         right: 0,
-        height: 300,
+        top: 0,
+        zIndex: 20,
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingHorizontal: 20,
+        paddingVertical: 8,
+    },
+    topRightActions: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    topActionButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: "rgba(25, 25, 25, 0.72)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.12)",
+        alignItems: "center",
+        justifyContent: "center",
     },
     scrollView: {
         flex: 1,
@@ -692,337 +432,233 @@ const styles = StyleSheet.create({
     // Profile Header
     profileHeader: {
         alignItems: "center",
-        paddingTop: 24,
-        paddingBottom: 24,
+        justifyContent: "flex-start",
+        minHeight: PROFILE_AVATAR_TOP + 270,
+        paddingTop: PROFILE_AVATAR_TOP,
+        paddingBottom: 22,
         paddingHorizontal: 20,
+        overflow: "hidden",
+        position: "relative",
+    },
+    profileHeroImage: {
+        ...StyleSheet.absoluteFillObject,
+        opacity: 0.42,
     },
     avatarContainer: {
-        marginBottom: 16,
+        width: 136,
+        height: 136,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 18,
+        position: "relative",
     },
     avatarGradient: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
+        width: 128,
+        height: 128,
+        borderRadius: 64,
         padding: 3,
     },
-    avatarInner: {
-        flex: 1,
-        backgroundColor: colors.base.DEFAULT,
-        borderRadius: 47,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    avatarText: {
-        color: colors.iris,
-        fontSize: 36,
-        fontWeight: "800",
-    },
     avatarPhoto: {
-        width: 94,
-        height: 94,
-        borderRadius: 47,
-    },
-    avatarEditBadge: {
-        position: "absolute",
-        bottom: 0,
-        right: 0,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: colors.base[50],
-        borderWidth: 3,
-        borderColor: colors.base.DEFAULT,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    avatarEditIcon: {
-        fontSize: 14,
+        width: 122,
+        height: 122,
+        borderRadius: 61,
     },
     userName: {
         color: colors.gold,
-        fontSize: 26,
-        fontWeight: "800",
-        marginBottom: 4,
-    },
-    userEmail: {
-        color: colors.goldMetallic,
-        fontSize: 15,
-        marginBottom: 6,
-    },
-    userMeta: {
-        color: colors.goldMetallic,
-        fontSize: 13,
+        fontSize: 38,
+        fontWeight: "900",
         textAlign: "center",
-        marginBottom: 16,
     },
-    memberBadge: {},
-    memberBadgeGradient: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.2)",
-    },
-    memberBadgeText: {
-        color: colors.iris,
-        fontSize: 12,
-        fontWeight: "700",
-        letterSpacing: 1,
-    },
-
-    // Stats
-    statsRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: colors.base[50],
-        marginHorizontal: 20,
-        borderRadius: radii.xl,
-        padding: 20,
-        marginBottom: 24,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-    },
-    statCard: {
-        flex: 1,
-        alignItems: "center",
-    },
-    statValue: {
-        color: colors.gold,
-        fontSize: 28,
+    profileStatText: {
+        color: "rgba(255, 250, 238, 0.68)",
+        fontSize: 14,
         fontWeight: "800",
-        marginBottom: 4,
-    },
-    statValueAccent: {
-        color: colors.iris,
-    },
-    statLabel: {
-        color: colors.goldMetallic,
-        fontSize: 12,
-    },
-    statsDivider: {
-        width: 1,
-        height: 40,
-        backgroundColor: "rgba(255, 255, 255, 0.1)",
-    },
-
-    // Your Story activity feed
-    storySection: {
-        marginHorizontal: 20,
-        marginBottom: 24,
-    },
-    storySectionHeader: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: 12,
-    },
-    storySectionTitle: {
-        color: colors.goldMetallic,
-        fontSize: 11,
-        fontWeight: "600",
-        letterSpacing: 1.5,
-        textTransform: "uppercase",
-    },
-    storyShowAll: {
-        color: colors.iris,
-        fontSize: 13,
-        fontWeight: "500",
-    },
-    storyItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        padding: 12,
-        marginBottom: 8,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.06)",
-    },
-    storyThumb: {
-        width: 48,
-        height: 48,
-        borderRadius: 10,
-        marginRight: 12,
-    },
-    storyContent: {
-        flex: 1,
-    },
-    storyEventTitle: {
-        color: colors.gold,
-        fontSize: 15,
-        fontWeight: "600",
-        marginBottom: 3,
-    },
-    storyEventDate: {
-        color: colors.goldMetallic,
-        fontSize: 12,
-    },
-    storyBadge: {
-        backgroundColor: "rgba(244,74,34,0.12)",
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: radii.pill,
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.2)",
-    },
-    storyBadgeText: {
-        color: colors.iris,
-        fontSize: 11,
-        fontWeight: "600",
-    },
-
-    // Menu
-    // Social Profile Card
-    socialCard: {
-        marginHorizontal: 20,
-        marginBottom: 20,
-        backgroundColor: "rgba(244,74,34,0.08)",
-        borderRadius: 16,
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.18)",
-        padding: 14,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 12,
-    },
-    socialCardLeft: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-    },
-    socialDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: "rgba(255,255,255,0.2)",
-        flexShrink: 0,
-    },
-    socialDotComplete: {
-        backgroundColor: "#FFAA00",
-    },
-    socialDotVerified: {
-        backgroundColor: colors.success,
-    },
-    socialCardText: { flex: 1 },
-    socialCardTitle: {
-        color: "#fff",
-        fontSize: 13,
-        fontWeight: "700",
-        marginBottom: 2,
-    },
-    socialCardSub: {
-        color: "rgba(255,255,255,0.45)",
-        fontSize: 11,
-        lineHeight: 15,
-    },
-    socialCardBtn: {
-        backgroundColor: colors.iris,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
-        borderRadius: 10,
-    },
-    socialCardBtnText: {
-        color: "#fff",
-        fontSize: 12,
-        fontWeight: "700",
-    },
-
-    menuContainer: {
-        paddingHorizontal: 20,
-    },
-    sectionHeader: {
-        color: colors.goldMetallic,
-        fontSize: 11,
-        fontWeight: "600",
-        letterSpacing: 1.5,
-        textTransform: "uppercase",
-        marginBottom: 12,
+        letterSpacing: 0.3,
         marginTop: 8,
+        textAlign: "center",
     },
-    menuSection: {
-        backgroundColor: colors.base[50],
-        borderRadius: radii.xl,
-        marginBottom: 20,
-        borderWidth: 1,
-        borderColor: "rgba(255, 255, 255, 0.06)",
-        overflow: "hidden",
+    profileJoinedText: {
+        color: "rgba(255, 250, 238, 0.46)",
+        fontSize: 12,
+        fontWeight: "700",
+        letterSpacing: 0.2,
+        marginTop: 4,
+        textAlign: "center",
     },
-    menuItem: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-    },
-    menuItemIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        backgroundColor: "rgba(255, 255, 255, 0.05)",
+    instagramProfileButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
         alignItems: "center",
         justifyContent: "center",
-        marginRight: 14,
+        marginTop: 9,
+        backgroundColor: "rgba(255, 255, 255, 0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.12)",
     },
-    menuItemIconText: {
-        fontSize: 18,
+
+    upcomingCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: colors.base[50],
+        borderRadius: 12,
+        padding: 10,
+        gap: 11,
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.06)",
     },
-    menuItemContent: {
+    upcomingPoster: {
+        width: 88,
+        height: 88,
+        borderRadius: 9,
+        backgroundColor: "rgba(255,255,255,0.06)",
+    },
+    upcomingInfo: {
         flex: 1,
+        minHeight: 88,
+        justifyContent: "center",
     },
-    menuItemLabel: {
-        color: colors.gold,
-        fontSize: 16,
-        fontWeight: "500",
-    },
-    menuItemLabelDanger: {
-        color: colors.error,
-    },
-    menuItemSublabel: {
-        color: colors.goldMetallic,
+    upcomingEyebrow: {
+        color: "rgba(255, 255, 255, 0.4)",
         fontSize: 13,
+        fontWeight: "700",
+        marginBottom: 4,
+    },
+    upcomingTitle: {
+        color: "#fff",
+        fontSize: 19,
+        lineHeight: 21,
+        fontWeight: "900",
+        letterSpacing: 0.2,
+    },
+    upcomingDate: {
+        color: "rgba(255, 255, 255, 0.46)",
+        fontSize: 13,
+        fontWeight: "700",
         marginTop: 2,
     },
-    menuItemArrow: {
-        color: colors.goldMetallic,
-        fontSize: 24,
-        fontWeight: "300",
-    },
-    menuItemArrowDanger: {
-        color: colors.error,
-    },
-    menuDivider: {
-        height: 1,
-        backgroundColor: "rgba(255, 255, 255, 0.06)",
-        marginLeft: 70,
+    upcomingAction: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "800",
+        marginTop: 10,
     },
 
-    // Footer
-    footer: {
-        alignItems: "center",
-        paddingTop: 24,
-        paddingBottom: 16,
+
+    // Event History Timeline Layout
+    nightsContent: {
+        paddingHorizontal: 20,
     },
-    footerLogo: {
-        width: 40,
-        height: 40,
-        borderRadius: 12,
-        alignItems: "center",
-        justifyContent: "center",
-        marginBottom: 12,
+    timelineContainer: {
+        paddingLeft: 16,
+        position: "relative",
+        marginTop: 8,
     },
-    footerLogoText: {
+    timelineAxis: {
+        position: "absolute",
+        left: 0,
+        top: 10,
+        bottom: 24,
+        width: 1.5,
+        backgroundColor: "rgba(255, 255, 255, 0.08)",
+        zIndex: 1,
+    },
+    timelineItem: {
+        position: "relative",
+        marginBottom: 18,
+        zIndex: 2,
+    },
+    timelineDot: {
+        position: "absolute",
+        left: -20,
+        top: 6, // Vertically centered with the date header text
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "rgba(255, 255, 255, 0.35)",
+        borderWidth: 1.5,
+        borderColor: colors.base.DEFAULT,
+        zIndex: 3,
+    },
+    timelineDateText: {
+        color: "rgba(255, 255, 255, 0.6)",
+        fontSize: 12,
+        fontWeight: "600",
+        letterSpacing: 0.5,
+    },
+
+    // Ticket Stub Card (Vertical Timeline list)
+    historyCard: {
+        marginTop: 6,
+        minHeight: 98,
+        position: "relative",
+    },
+    historyCardInner: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 8,
+        paddingRight: 4,
+        gap: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    },
+    historyPoster: {
+        width: 68,
+        height: 90,
+        borderRadius: 8,
+        backgroundColor: "rgba(255,255,255,0.05)",
+    },
+    historyDetailsColumn: {
+        flex: 1,
+        minHeight: 90,
+        justifyContent: "space-between",
+        paddingVertical: 2,
+    },
+    historyInfo: {
+        gap: 5,
+    },
+    historyTitle: {
         color: "#fff",
-        fontSize: 16,
+        fontSize: 18,
+        lineHeight: 20,
+        fontWeight: "900",
+        letterSpacing: 0.2,
+    },
+    historyTimeVenue: {
+        color: "rgba(255, 255, 255, 0.58)",
+        fontSize: 12,
+        fontWeight: "700",
+        lineHeight: 15,
+    },
+    historyBottomRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 8,
+    },
+    historyBottomLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+    },
+    historyYourTickets: {
+        color: "rgba(255, 255, 255, 0.72)",
+        fontSize: 10,
+        fontWeight: "700",
+    },
+    historyTicketQty: {
+        color: "#fff",
+        fontSize: 11,
         fontWeight: "800",
     },
-    footerText: {
-        color: colors.goldMetallic,
-        fontSize: 13,
-        marginBottom: 4,
+    emptyHistoryContainer: {
+        paddingVertical: 40,
+        alignItems: "center",
     },
-    footerSubtext: {
-        color: colors.goldMetallic,
-        fontSize: 12,
-        opacity: 0.6,
+    emptyHistoryText: {
+        color: "rgba(255, 255, 255, 0.35)",
+        fontSize: 14,
+        fontWeight: "600",
     },
 });

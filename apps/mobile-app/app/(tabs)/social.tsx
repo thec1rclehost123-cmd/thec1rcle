@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 26,
         fontWeight: "700",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     headerSub: {
         color: "rgba(255,255,255,0.4)",
@@ -608,7 +608,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 22,
         fontWeight: "700",
-        letterSpacing: -0.3,
+        letterSpacing: 0,
     },
     verifiedBadge: {
         width: 20,
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 28,
         fontWeight: "800",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
         marginBottom: 6,
     },
     matchSubtitle: {

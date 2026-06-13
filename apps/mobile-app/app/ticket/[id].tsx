@@ -134,6 +134,15 @@ export default function TicketDetailScreen() {
         description: order?.tickets?.map((ticket) => `${ticket.tierName} x${ticket.quantity}`).join(", "),
     });
 
+    const accentColor =
+        (order as any)?.posterAccentColor ||
+        (order as any)?.dominantColor ||
+        (order as any)?.eventAccentColor ||
+        (order?.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
+            ? order.accentColor
+            : undefined) ||
+        "#D915A8";
+
     const handleAddToWallet = async () => {
         if (!order) return;
         const ticketType = order.tickets[0]?.tierName || "General Entry";
@@ -319,7 +328,7 @@ export default function TicketDetailScreen() {
 
     return (
         <View style={styles.container}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
+            <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 60 }}>
                 <View style={styles.hero}>
                     {order.eventCoverImage ? (
                         <Image source={{ uri: order.eventCoverImage }} style={styles.heroImage} contentFit="cover" />
@@ -365,8 +374,8 @@ export default function TicketDetailScreen() {
 
                         {showQr ? (
                             <View style={styles.qrBlock}>
-                                <View style={styles.qrSurface}>
-                                    <QRCode value={activeQr.qrCode} size={180} color="#161616" backgroundColor="#ffffff" />
+                                <View style={[styles.qrSurface, { backgroundColor: accentColor }]}>
+                                    <QRCode value={activeQr.qrCode} size={180} color="#161616" backgroundColor="transparent" />
                                 </View>
                                 <Text style={styles.qrLabel}>
                                     {activeQr.isUsed ? "Scanned" : "Ready to scan"} · {activeQr.ticketId}
@@ -632,7 +641,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 30,
         fontWeight: "900",
-        letterSpacing: -0.8,
+        letterSpacing: 0,
     },
     heroMeta: {
         color: "rgba(255,255,255,0.76)",

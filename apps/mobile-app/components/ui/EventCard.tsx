@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -76,11 +75,11 @@ export function EventCard({
                 onPress={handlePress}
                 style={[animatedStyle, styles.compactCard]}
             >
-                <Image
+                <Animated.Image
+                    sharedTransitionTag={`poster-${id}`}
                     source={{ uri: imageUrl }}
                     style={styles.compactImage}
-                    contentFit="cover"
-                    transition={200}
+                    resizeMode="cover"
                 />
                 <View style={styles.compactContent}>
                     <Text style={styles.compactTitle} numberOfLines={1}>{title}</Text>
@@ -104,11 +103,11 @@ export function EventCard({
                 onPress={handlePress}
                 style={[animatedStyle, styles.featuredCard]}
             >
-                <Image
+                <Animated.Image
+                    sharedTransitionTag={`poster-${id}`}
                     source={{ uri: imageUrl }}
                     style={styles.featuredImage}
-                    contentFit="cover"
-                    transition={200}
+                    resizeMode="cover"
                 />
 
                 {/* Gradient overlay */}
@@ -164,11 +163,11 @@ export function EventCard({
             onPress={handlePress}
             style={[animatedStyle, styles.defaultCard]}
         >
-            <Image
+            <Animated.Image
+                sharedTransitionTag={`poster-${id}`}
                 source={{ uri: imageUrl }}
                 style={styles.defaultImage}
-                contentFit="cover"
-                transition={200}
+                resizeMode="cover"
             />
 
             {/* Gradient overlay */}

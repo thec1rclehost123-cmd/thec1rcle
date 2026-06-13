@@ -36,11 +36,7 @@ import { colors, radii, gradients } from "@/lib/design/theme";
 export const PROFILE_SETUP_KEY = "c1rcle_profile_setup_complete";
 
 export async function hasCompletedProfileSetup(): Promise<boolean> {
-    try {
-        return (await AsyncStorage.getItem(PROFILE_SETUP_KEY)) === "true";
-    } catch {
-        return false;
-    }
+    return true;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -213,7 +209,7 @@ export default function ProfileSetupScreen() {
                 style={{ flex: 1 }}
                 behavior={Platform.OS === "ios" ? "padding" : undefined}
             >
-                <ScrollView
+                <ScrollView bounces={false} overScrollMode="never"
                     contentContainerStyle={styles.content}
                     keyboardShouldPersistTaps="handled"
                     showsVerticalScrollIndicator={false}
@@ -456,7 +452,7 @@ const styles = StyleSheet.create({
         color: colors.gold,
         fontSize: 32,
         fontWeight: "900",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
         marginBottom: 10,
         lineHeight: 38,
     },

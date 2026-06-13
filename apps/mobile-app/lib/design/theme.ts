@@ -5,7 +5,7 @@
 export const colors = {
     // Base (Midnight dark mode)
     base: {
-        DEFAULT: "#161616",
+        DEFAULT: "#000000",
         50: "#1F1F1F",
         100: "#292929",
         200: "#3D3D3D",
@@ -32,7 +32,7 @@ export const colors = {
     goldMuted: "#A8AAAC",
 
     // Legacy aliases
-    midnight: "#161616",
+    midnight: "#000000",
     midnight100: "#292929",
     midnight200: "#3D3D3D",
     midnight300: "#525252",
@@ -66,7 +66,7 @@ export const colors = {
 // Gradients - matching website
 export const gradients = {
     primary: ["#F44A22", "#FF6B4A"],
-    heroFade: ["rgba(22,22,22,0)", "#161616"],
+    heroFade: ["rgba(0,0,0,0)", "#000000"],
     glass: ["rgba(255, 255, 255, 0.05)", "rgba(255, 255, 255, 0.01)"],
     holographic: ["rgba(244,74,34,0.2)", "rgba(254,248,232,0.2)", "rgba(168,170,172,0.2)"],
 };
@@ -97,11 +97,27 @@ export const radii = {
 };
 
 // Typography
+// Keep the app on the native system font: SF Pro on iOS, Roboto on Android.
+const fontFamilies = {
+    system: "System",
+};
+
 export const typography = {
     fontFamily: {
-        heading: "Satoshi-Bold",
-        body: "Inter-Regular",
-        display: "Satoshi-Black",
+        system: fontFamilies.system,
+        regular: fontFamilies.system,
+        heading: fontFamilies.system,
+        body: fontFamilies.system,
+        medium: fontFamilies.system,
+        bold: fontFamilies.system,
+        black: fontFamilies.system,
+        display: fontFamilies.system,
+        brand: fontFamilies.system,
+        brandAccent: fontFamilies.system,
+        brandRegular: fontFamilies.system,
+        brandMedium: fontFamilies.system,
+        brandBold: fontFamilies.system,
+        brandBlack: fontFamilies.system,
     },
     fontSize: {
         xs: 10,

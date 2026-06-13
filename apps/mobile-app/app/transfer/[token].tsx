@@ -179,93 +179,78 @@ export default function ClaimOrTransferScreen() {
     const event = mode === "transfer" ? transferEvent : shareEvent;
     const sender = mode === "transfer" ? data?.senderName : data?.ownerName || data?.userName;
 
+    const accent = event?.accentColor || event?.dominantColor || "#D915A8";
+    const shortId = data?.id ? data.id.substring(0, 6).toUpperCase() : "A8D8VH";
+    const quantity = data?.quantity || 1;
+
     return (
-        <View style={styles.container}>
-            <ScrollView bounces={false} contentContainerStyle={{ flexGrow: 1 }}>
-                {/* Hero Poster */}
-                <View style={styles.heroContainer}>
-                    <Image
-                        source={{ uri: event.posterUrl || event.image }}
-                        style={styles.heroImage}
-                        contentFit="cover"
-                    />
-                    <LinearGradient
-                        colors={["transparent", "rgba(0,0,0,0.8)", "#000"]}
-                        style={styles.heroOverlay}
-                    />
+        <View style={[styles.container, { backgroundColor: accent }]}>
+            <ScrollView overScrollMode="never" bounces={false} contentContainerStyle={styles.scrollContent}>
 
-                    <View style={[styles.headerContent, { paddingTop: insets.top + 20 }]}>
-                        <Animated.View entering={FadeInDown.delay(200)}>
-                            <Text style={styles.inviteLabel}>
-                                {mode === "transfer" ? "TRANSFER REQUEST" : "TICKET INVITATION"}
-                            </Text>
-                            <Text style={styles.senderText}>
-                                <Text style={{ color: colors.iris }}>{sender || "A friend"}</Text> is sending you a ticket
-                            </Text>
-                        </Animated.View>
-                    </View>
-                </View>
+                {/* Header text */}
+                <Animated.View entering={FadeInDown.delay(100)} style={[styles.headerWrap, { paddingTop: insets.top + 40 }]}>
+                    <Text style={styles.senderText}>
+                        {sender || "Someone"} sent you tickets
+                    </Text>
+                </Animated.View>
 
-                {/* Event Details Card */}
-                <Animated.View entering={FadeInUp.delay(400)} style={styles.content}>
-                    <View style={styles.eventCard}>
-                        <Text style={styles.eventTitle}>{event.title || "The C1RCLE Event"}</Text>
+                {/* Ticket Card */}
+                <Animated.View entering={FadeInDown.delay(300)} style={styles.ticketCardWrap}>
+                    <View style={styles.ticketCard}>
+                        <Image source={{ uri: event.posterUrl || event.image }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                        <LinearGradient colors={["rgba(0,0,0,0.6)", "rgba(0,0,0,0.2)", "rgba(0,0,0,0.8)"]} style={StyleSheet.absoluteFillObject} />
 
-                        <View style={styles.infoRow}>
-                            <Ionicons name="calendar-outline" size={18} color={colors.gold} />
-                            <Text style={styles.infoText}>{event.date || "TBA"}</Text>
+                        <View style={styles.ticketHeader}>
+                            <Text style={styles.ticketHost}>THE C1RCLE</Text>
+                            <View style={styles.ticketEventInfo}>
+                                <Text style={styles.ticketEventTitle} numberOfLines={1}>{event.title || "Event"}</Text>
+                                <Text style={styles.ticketEventDate}>{event.date || "TBA"}</Text>
+                            </View>
                         </View>
 
-                        <View style={styles.infoRow}>
-                            <Ionicons name="location-outline" size={18} color={colors.gold} />
-                            <Text style={styles.infoText}>{event.venue || event.location || "Location TBA"}</Text>
+                        <View style={styles.ticketCenter}>
+                            <View style={[styles.qrPlaceholder, { backgroundColor: accent }]}>
+                                <Ionicons name="qr-code" size={64} color="#161616" />
+                            </View>
                         </View>
 
-                        <View style={styles.divider} />
-
-                        <View style={styles.ticketPill}>
-                            <Ionicons name="ticket-outline" size={16} color="#fff" />
-                            <Text style={styles.ticketPillText}>
-                                {data?.ticketName || data?.tierName || "General Entry"}
-                            </Text>
+                        <View style={styles.ticketFooter}>
+                            <Text style={styles.ticketId}>{shortId}</Text>
+                            <View style={styles.ticketQuantityBadge}>
+                                <Text style={styles.ticketQuantityText}>{quantity}x</Text>
+                                <Ionicons name="ticket" size={14} color="#fff" />
+                            </View>
                         </View>
                     </View>
+                </Animated.View>
 
-                    <Text style={styles.disclaimer}>
-                        Once accepted, this ticket will be added to your digital wallet.
+                {/* Footer text & Actions */}
+                <Animated.View entering={FadeInUp.delay(500)} style={styles.footerWrap}>
+                    <Text style={styles.disclaimerText}>
+                        Download the app to easily transfer tickets{"\n"}and manage events on the go
                     </Text>
 
-                    <View style={{ flex: 1 }} />
-
-                    {/* Action Button */}
                     <Pressable
                         onPress={handleAction}
                         disabled={actionLoading}
                         style={({ pressed }) => [
-                            styles.actionButton,
+                            styles.acceptButton,
                             pressed && { opacity: 0.8 },
                             actionLoading && { opacity: 0.6 },
                         ]}
                     >
-                        <LinearGradient
-                            colors={gradients.primary as [string, string]}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={StyleSheet.absoluteFill}
-                        />
                         {actionLoading ? (
-                            <ActivityIndicator color="#fff" />
+                            <ActivityIndicator color="#000" />
                         ) : (
-                            <Text style={styles.actionButtonText}>
-                                {user ? "Accept & Add to Wallet" : "Login to Accept Ticket"}
-                            </Text>
+                            <Text style={styles.acceptButtonText}>Accept Tickets</Text>
                         )}
                     </Pressable>
 
-                    <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
-                        <Text style={styles.secondaryButtonText}>Not Now</Text>
+                    <Pressable onPress={() => router.back()} style={styles.declineButton}>
+                        <Text style={styles.declineButtonText}>Decline</Text>
                     </Pressable>
                 </Animated.View>
+
             </ScrollView>
         </View>
     );
@@ -276,134 +261,133 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: "#000",
     },
+    scrollContent: {
+        flexGrow: 1,
+        justifyContent: "space-between",
+        paddingHorizontal: 24,
+        paddingBottom: 40,
+    },
+    headerWrap: {
+        alignItems: "center",
+        marginBottom: 30,
+    },
+    senderText: {
+        color: "#fff",
+        fontSize: 32,
+        fontWeight: "600",
+        textAlign: "center",
+        letterSpacing: 0,
+    },
+    ticketCardWrap: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    ticketCard: {
+        width: "100%",
+        aspectRatio: 0.8,
+        borderRadius: 24,
+        overflow: "hidden",
+        backgroundColor: "#161616",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 20 },
+        shadowOpacity: 0.4,
+        shadowRadius: 30,
+    },
+    ticketHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        padding: 20,
+    },
+    ticketHost: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "800",
+    },
+    ticketEventInfo: {
+        alignItems: "flex-end",
+    },
+    ticketEventTitle: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "800",
+        maxWidth: 150,
+    },
+    ticketEventDate: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 11,
+        marginTop: 2,
+    },
+    ticketCenter: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    qrPlaceholder: {
+        width: 140,
+        height: 140,
+        borderRadius: 20,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    ticketFooter: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "flex-end",
+        padding: 20,
+    },
+    ticketId: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 13,
+        fontWeight: "600",
+    },
+    ticketQuantityBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+    },
+    ticketQuantityText: {
+        color: "#fff",
+        fontSize: 14,
+        fontWeight: "700",
+    },
+    footerWrap: {
+        alignItems: "center",
+        marginTop: 40,
+    },
+    disclaimerText: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 14,
+        textAlign: "center",
+        lineHeight: 20,
+        marginBottom: 30,
+    },
+    acceptButton: {
+        backgroundColor: "#fff",
+        width: "100%",
+        height: 56,
+        borderRadius: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: 16,
+    },
+    acceptButtonText: {
+        color: "#000",
+        fontSize: 18,
+        fontWeight: "700",
+    },
+    declineButton: {
+        paddingVertical: 10,
+    },
+    declineButtonText: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 16,
+        fontWeight: "600",
+    },
     center: {
         justifyContent: "center",
         alignItems: "center",
         padding: 40,
-    },
-    heroContainer: {
-        height: SCREEN_WIDTH * 1.2,
-        width: "100%",
-    },
-    heroImage: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    heroOverlay: {
-        ...StyleSheet.absoluteFillObject,
-    },
-    headerContent: {
-        paddingHorizontal: 24,
-        position: "absolute",
-        bottom: 40,
-        width: "100%",
-    },
-    inviteLabel: {
-        color: colors.gold,
-        fontSize: 12,
-        fontWeight: "800",
-        letterSpacing: 2,
-        opacity: 0.9,
-        marginBottom: 12,
-    },
-    senderText: {
-        color: "#fff",
-        fontSize: 22,
-        fontWeight: "900",
-        lineHeight: 28,
-        letterSpacing: -0.5,
-    },
-    content: {
-        flex: 1,
-        paddingHorizontal: 24,
-        paddingTop: 24,
-        paddingBottom: 40,
-    },
-    eventCard: {
-        backgroundColor: "rgba(255,255,255,0.06)",
-        borderRadius: 24,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-        marginBottom: 20,
-    },
-    eventTitle: {
-        color: "#fff",
-        fontSize: 22,
-        fontWeight: "900",
-        letterSpacing: -0.5,
-        marginBottom: 14,
-    },
-    infoRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        marginBottom: 10,
-    },
-    infoText: {
-        color: "rgba(255,255,255,0.75)",
-        fontSize: 14,
-        fontWeight: "600",
-        flex: 1,
-    },
-    divider: {
-        height: 1,
-        backgroundColor: "rgba(255,255,255,0.08)",
-        marginVertical: 16,
-    },
-    ticketPill: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 10,
-        alignSelf: "flex-start",
-        backgroundColor: "rgba(244, 74, 34, 0.2)",
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 999,
-        borderWidth: 1,
-        borderColor: "rgba(244, 74, 34, 0.25)",
-    },
-    ticketPillText: {
-        color: "#fff",
-        fontSize: 12,
-        fontWeight: "800",
-        letterSpacing: 0.8,
-        textTransform: "uppercase",
-    },
-    disclaimer: {
-        color: "rgba(255,255,255,0.55)",
-        fontSize: 12,
-        lineHeight: 18,
-        marginBottom: 24,
-    },
-    actionButton: {
-        height: 56,
-        borderRadius: 18,
-        alignItems: "center",
-        justifyContent: "center",
-        overflow: "hidden",
-        marginTop: 12,
-    },
-    actionButtonText: {
-        color: "#fff",
-        fontSize: 15,
-        fontWeight: "900",
-        letterSpacing: 0.8,
-        textTransform: "uppercase",
-    },
-    secondaryButton: {
-        height: 52,
-        borderRadius: 18,
-        alignItems: "center",
-        justifyContent: "center",
-        marginTop: 14,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.08)",
-        backgroundColor: "rgba(255,255,255,0.04)",
-    },
-    secondaryButtonText: {
-        color: "rgba(255,255,255,0.7)",
-        fontSize: 14,
-        fontWeight: "700",
     },
     errorTitle: {
         color: "#fff",

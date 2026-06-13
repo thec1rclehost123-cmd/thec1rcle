@@ -190,6 +190,105 @@ function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
     );
 }
 
+// ── Ditto Replica Empty State ─────────────────────────────────────────────────
+
+function EmptyChatReplica() {
+    const insets = useSafeAreaInsets();
+
+    return (
+        <View style={{ flex: 1, backgroundColor: "#000", paddingTop: insets.top }}>
+            {/* ── Header ── */}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 }}>
+                <Text style={{ color: "#FFF", fontSize: 28, fontWeight: "700" }}>Chat</Text>
+                <Pressable
+                    onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                    style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.1)", alignItems: "center", justifyContent: "center" }}
+                >
+                    <View>
+                        <Heart size={22} color="#FFF" strokeWidth={2.5} />
+                        <View style={{ position: "absolute", top: -2, right: -2, width: 10, height: 10, borderRadius: 5, backgroundColor: "#F44A22", borderWidth: 2, borderColor: "#1A1A1A" }} />
+                    </View>
+                </Pressable>
+            </View>
+
+            {/* Empty State Content */}
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingBottom: 60 }}>
+                <View style={{ width: 260, height: 280, alignItems: "center", justifyContent: "center", marginBottom: 40, position: "relative" }}>
+
+                    {/* Phone Frame */}
+                    <View style={{ width: 220, height: 260, borderRadius: 36, borderWidth: 2, borderColor: "rgba(255,255,255,0.1)", backgroundColor: "#0A0A0A", paddingTop: 32, paddingHorizontal: 16, overflow: "hidden", position: "absolute", bottom: -20 }}>
+
+                        {/* Mock Row 1 */}
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
+                            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#8B5CF6", alignItems: "center", justifyContent: "center" }}>
+                                <Text style={{ fontSize: 20 }}>🍩</Text>
+                            </View>
+                            <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)", width: 60 }} />
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", width: 100 }} />
+                            </View>
+                        </View>
+
+                        {/* Mock Row 2 */}
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#F59E0B", position: "relative", alignItems: "center", justifyContent: "center" }}>
+                                <Text style={{ fontSize: 20 }}>👩🏽</Text>
+                                <View style={{ position: "absolute", bottom: 0, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: "#10B981", borderWidth: 2, borderColor: "#0A0A0A" }} />
+                            </View>
+                            <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)", width: 80 }} />
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", width: 120 }} />
+                            </View>
+                        </View>
+
+                        {/* Mock Row 3 */}
+                        <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#EAB308", alignItems: "center", justifyContent: "center" }}>
+                                <Text style={{ fontSize: 20 }}>👨🏾</Text>
+                            </View>
+                            <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)", width: 50 }} />
+                                <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.1)", width: 140 }} />
+                            </View>
+                        </View>
+
+                        {/* Bottom fade out gradient */}
+                        <LinearGradient
+                            colors={["rgba(10,10,10,0)", "rgba(0,0,0,1)"]}
+                            style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 60 }}
+                        />
+                    </View>
+
+                    {/* Floating Bubbles */}
+                    <View style={{ position: "absolute", top: 10, right: 30, backgroundColor: "#4A4A4C", paddingHorizontal: 16, paddingVertical: 12, borderRadius: 20, borderBottomLeftRadius: 4, zIndex: 10 }}>
+                        <Text style={{ color: "#FFF", fontSize: 13, fontWeight: "500", lineHeight: 18 }}>See u tomorrow{"\n"}for the event 🥳</Text>
+                    </View>
+
+                    <View style={{ position: "absolute", top: 65, right: -10, backgroundColor: colors.iris, paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderBottomRightRadius: 4, zIndex: 11 }}>
+                        <Text style={{ color: "#FFF", fontSize: 14, fontWeight: "500" }}>Can't wait!!</Text>
+                    </View>
+                </View>
+
+                <Text style={{ color: "#FFF", fontSize: 22, fontWeight: "700", marginBottom: 12 }}>It's Quiet Here</Text>
+                <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 15, textAlign: "center", lineHeight: 22, marginBottom: 32 }}>Start a chat with your friends or others in{"\n"}your event.</Text>
+
+                <Pressable
+                    style={({ pressed }) => ({
+                        backgroundColor: "#FFF",
+                        paddingHorizontal: 28,
+                        paddingVertical: 14,
+                        borderRadius: 30,
+                        opacity: pressed ? 0.8 : 1
+                    })}
+                    onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
+                >
+                    <Text style={{ color: "#000", fontSize: 16, fontWeight: "700" }}>Start Chat</Text>
+                </Pressable>
+            </View>
+        </View>
+    );
+}
+
 // ── Main screen ───────────────────────────────────────────────────────────────
 
 export default function InboxScreen() {
@@ -203,6 +302,13 @@ export default function InboxScreen() {
 
     const newMatchCount = DEMO_NEW_MATCHES.filter((m) => m.isNew).length;
     const totalUnread = (DEMO_PRIVATE_CHATS as any).totalUnread ?? 0;
+
+    // Toggle this to instantly view the DITTO replica Empty State from the design
+    const forceShowEmptyReplica = true;
+
+    if (forceShowEmptyReplica) {
+        return <EmptyChatReplica />;
+    }
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -418,7 +524,7 @@ const cardStyles = StyleSheet.create({
         color: "#fff",
         fontSize: 20,
         fontWeight: "800",
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         marginBottom: 4,
         textShadowColor: "rgba(0,0,0,0.6)",
         textShadowOffset: { width: 0, height: 1 },
@@ -472,7 +578,7 @@ const matchStyles = StyleSheet.create({
         borderColor: "#111113",
     },
     verifiedCheck: { color: "#fff", fontSize: 9, fontWeight: "800" },
-    name: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: -0.1 },
+    name: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: 0 },
     event: { color: "rgba(255,255,255,0.3)", fontSize: 10, textAlign: "center", marginTop: 1 },
 });
 
@@ -504,7 +610,7 @@ const rowStyles = StyleSheet.create({
     content: { flex: 1, gap: 4 },
     nameRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     msgRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
-    name: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: -0.1 },
+    name: { color: "#fff", fontSize: 15, fontWeight: "700", letterSpacing: 0 },
     time: { color: "rgba(255,255,255,0.35)", fontSize: 12 },
     lastMsg: { color: "rgba(255,255,255,0.45)", fontSize: 13, flex: 1 },
     lastMsgUnread: { color: "rgba(255,255,255,0.85)", fontWeight: "600" },
@@ -537,7 +643,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 32,
         fontWeight: "800",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     searchBtn: {
         width: 40,

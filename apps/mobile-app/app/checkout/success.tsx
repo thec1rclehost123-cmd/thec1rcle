@@ -22,6 +22,7 @@ interface OrderDetails {
     venueLocation?: string;
     totalAmount: number;
     status: string;
+    paymentMethod?: string;
     items: Array<{
         tierName: string;
         quantity: number;
@@ -29,7 +30,23 @@ interface OrderDetails {
 }
 
 export default function CheckoutSuccessScreen() {
-    const { orderId } = useLocalSearchParams<{ orderId: string }>();
+    const {
+        orderId,
+        eventTitle,
+        eventDate,
+        venueLocation,
+        totalAmount,
+        ticketCount,
+        paymentMethod,
+    } = useLocalSearchParams<{
+        orderId: string;
+        eventTitle?: string;
+        eventDate?: string;
+        venueLocation?: string;
+        totalAmount?: string;
+        ticketCount?: string;
+        paymentMethod?: string;
+    }>();
     const { user } = useAuthStore();
     const { fetchUserOrders, getOrderById } = useTicketsStore();
     const { joinEventGroupChat } = useEventInterestStore();
@@ -60,6 +77,26 @@ export default function CheckoutSuccessScreen() {
         })),
     });
 
+    const buildUiOrder = (): OrderDetails | null => {
+        if (!orderId || !eventTitle) return null;
+        const parsedTicketCount = Math.max(Number(ticketCount || 1), 1);
+        return {
+            id: orderId,
+            eventTitle,
+            eventDate,
+            venueLocation,
+            totalAmount: Number(totalAmount || 0),
+            status: "confirmed",
+            paymentMethod,
+            items: [
+                {
+                    tierName: "Selected tickets",
+                    quantity: parsedTicketCount,
+                },
+            ],
+        };
+    };
+
     const fetchOrder = async () => {
         if (!orderId) {
             setLoading(false);
@@ -81,9 +118,12 @@ export default function CheckoutSuccessScreen() {
                         photoURL: profile?.photoURL ?? user.photoURL ?? null,
                     });
                 }
+            } else {
+                setOrder(buildUiOrder());
             }
         } catch (error) {
             console.error("Error fetching order:", error);
+            setOrder(buildUiOrder());
         } finally {
             setLoading(false);
         }
@@ -162,6 +202,12 @@ export default function CheckoutSuccessScreen() {
                             <Text className="text-gold font-semibold">Total Paid</Text>
                             <Text className="text-iris font-satoshi-bold text-lg">{order.totalAmount === 0 ? "Free" : `₹${order.totalAmount}`}</Text>
                         </View>
+                        {!!order.paymentMethod && (
+                            <View className="flex-row justify-between mt-2">
+                                <Text className="text-gold-stone">Payment</Text>
+                                <Text className="text-gold">{order.paymentMethod}</Text>
+                            </View>
+                        )}
                     </View>
                 )}
 

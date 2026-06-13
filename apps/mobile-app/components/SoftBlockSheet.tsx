@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 22,
         fontWeight: "800",
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         textAlign: "center",
         marginBottom: 8,
     },

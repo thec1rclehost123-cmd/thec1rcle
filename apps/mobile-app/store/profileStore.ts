@@ -31,6 +31,8 @@ export interface UserProfile {
     // Social
     eventsAttended?: number;
     connections?: number;
+    instagram?: string;
+    spotify?: string;
 
     // Personalisation
     vibeTags?: string[];
@@ -81,6 +83,8 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
         vibeTags: data?.vibeTags,
         isVerified: data?.isVerified,
         isPremium: data?.isPremium,
+        instagram: data?.instagram ?? "",
+        spotify: data?.spotify ?? "",
     };
 }
 

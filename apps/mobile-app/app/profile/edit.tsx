@@ -21,6 +21,7 @@ import { router } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -132,6 +133,8 @@ export default function EditProfileScreen() {
     const [bio, setBio] = useState("");
     const [city, setCity] = useState("");
     const [photoURL, setPhotoURL] = useState(user?.photoURL || "");
+    const [instagram, setInstagram] = useState("");
+    const [spotify, setSpotify] = useState("");
     const [uploading, setUploading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
@@ -157,6 +160,8 @@ export default function EditProfileScreen() {
         setBio(profile?.bio ?? "");
         setCity(profile?.city ?? "");
         setPhotoURL(profile?.photoURL ?? user.photoURL ?? "");
+        setInstagram(profile?.instagram ?? "");
+        setSpotify(profile?.spotify ?? "");
         hydratedUserId.current = user.uid;
     }, [user?.uid, user?.displayName, user?.photoURL, profile, profileLoading]);
 
@@ -277,6 +282,8 @@ export default function EditProfileScreen() {
                 bio: bio.trim(),
                 city: city.trim(),
                 photoURL,
+                instagram: instagram.trim().replace(/^@+/, ""),
+                spotify: spotify.trim(),
             };
 
             const success = await updateProfile(user.uid, {
@@ -350,7 +357,7 @@ export default function EditProfileScreen() {
                     </Pressable>
                 </Animated.View>
 
-                <ScrollView
+                <ScrollView bounces={false} overScrollMode="never"
                     style={styles.scrollView}
                     contentContainerStyle={{ paddingBottom: 100 }}
                     showsVerticalScrollIndicator={false}
@@ -423,6 +430,77 @@ export default function EditProfileScreen() {
                             delay={400}
                         />
                     </View>
+
+                    {/* Social Section */}
+                    <Animated.View
+                        entering={FadeInDown.delay(450).springify()}
+                        style={styles.socialSection}
+                    >
+                        <Text style={styles.sectionTitle}>Social Profiles</Text>
+                        <View style={styles.socialGroup}>
+                            <Pressable
+                                onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    Alert.prompt(
+                                        "Link Instagram",
+                                        "Enter your Instagram username (without @):",
+                                        [
+                                            { text: "Remove", style: "destructive", onPress: () => setInstagram("") },
+                                            { text: "Cancel", style: "cancel" },
+                                            { text: "Save", onPress: (text?: string) => setInstagram(text?.trim() || "") }
+                                        ],
+                                        "plain-text",
+                                        instagram
+                                    );
+                                }}
+                                style={styles.socialButton}
+                            >
+                                <View style={styles.socialButtonLeft}>
+                                    <View style={[styles.socialIcon, styles.instagramIcon]}>
+                                        <Ionicons name="logo-instagram" size={17} color="#fff" />
+                                    </View>
+                                    <Text style={styles.socialButtonText}>
+                                        {instagram ? "Instagram" : "Add Instagram"}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.socialValue, !instagram && styles.socialValuePlaceholder]}>
+                                    {instagram ? `@${instagram}` : "Add Instagram"}
+                                </Text>
+                            </Pressable>
+
+                            <View style={styles.socialDivider} />
+
+                            <Pressable
+                                onPress={() => {
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                    Alert.prompt(
+                                        "Link Spotify",
+                                        "Enter your Spotify username or profile ID:",
+                                        [
+                                            { text: "Remove", style: "destructive", onPress: () => setSpotify("") },
+                                            { text: "Cancel", style: "cancel" },
+                                            { text: "Save", onPress: (text?: string) => setSpotify(text?.trim() || "") }
+                                        ],
+                                        "plain-text",
+                                        spotify
+                                    );
+                                }}
+                                style={styles.socialButton}
+                            >
+                                <View style={styles.socialButtonLeft}>
+                                    <View style={[styles.socialIcon, styles.spotifyIcon]}>
+                                        <Ionicons name="musical-notes" size={17} color="#fff" />
+                                    </View>
+                                    <Text style={styles.socialButtonText}>
+                                        {spotify ? "Spotify" : "Add Spotify"}
+                                    </Text>
+                                </View>
+                                <Text style={[styles.socialValue, !spotify && styles.socialValuePlaceholder]}>
+                                    {spotify ? spotify : "Add Spotify"}
+                                </Text>
+                            </Pressable>
+                        </View>
+                    </Animated.View>
 
                     {/* Read-only info */}
                     <Animated.View
@@ -613,6 +691,63 @@ const styles = StyleSheet.create({
     selectorArrow: {
         color: colors.goldMetallic,
         fontSize: 20,
+    },
+    socialSection: {
+        marginTop: 24,
+        paddingHorizontal: 20,
+    },
+    socialGroup: {
+        backgroundColor: colors.base[50],
+        borderRadius: radii.xl,
+        borderWidth: 1,
+        borderColor: "rgba(255, 255, 255, 0.06)",
+        overflow: "hidden",
+    },
+    socialButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+    },
+    socialButtonLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        flexShrink: 1,
+    },
+    socialIcon: {
+        width: 30,
+        height: 30,
+        borderRadius: 15,
+        marginRight: 10,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    instagramIcon: {
+        backgroundColor: "#E1306C",
+    },
+    spotifyIcon: {
+        backgroundColor: "#1DB954",
+    },
+    socialButtonText: {
+        color: colors.gold,
+        fontSize: 16,
+        fontWeight: "500",
+        flexShrink: 1,
+    },
+    socialValue: {
+        color: colors.iris,
+        fontSize: 14,
+        fontWeight: "500",
+        marginLeft: 12,
+        maxWidth: "46%",
+    },
+    socialValuePlaceholder: {
+        color: colors.goldMetallic,
+    },
+    socialDivider: {
+        height: 1,
+        backgroundColor: "rgba(255, 255, 255, 0.06)",
     },
     readOnlySection: {
         marginTop: 16,

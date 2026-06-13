@@ -297,7 +297,7 @@ export default function VenuesTab() {
                     {[0, 1, 2, 3].map((i) => <PosterSkeleton key={i} />)}
                 </View>
             ) : (
-                <FlatList
+                <FlatList bounces={false} overScrollMode="never"
                     data={activeTab === "venues" ? venuePairs : hostPairs}
                     keyExtractor={(_, i) => String(i)}
                     showsVerticalScrollIndicator={false}
@@ -400,7 +400,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 32,
         fontWeight: "900",
-        letterSpacing: -0.8,
+        letterSpacing: 0,
         marginTop: 2,
         textTransform: "uppercase",
     },
@@ -556,7 +556,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 13,
         fontWeight: "800",
-        letterSpacing: -0.2,
+        letterSpacing: 0,
         lineHeight: 17,
     },
     posterSubtitle: {

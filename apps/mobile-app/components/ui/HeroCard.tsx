@@ -1,5 +1,4 @@
 import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
-import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, {
@@ -69,11 +68,11 @@ export function HeroCard({
             style={[animatedStyle, styles.container]}
         >
             {/* Background Image */}
-            <Image
+            <Animated.Image
+                sharedTransitionTag={`poster-${id}`}
                 source={{ uri: imageUrl }}
                 style={styles.image}
-                contentFit="cover"
-                transition={300}
+                resizeMode="cover"
             />
 
             {/* Gradient Overlay */}
@@ -211,7 +210,7 @@ const styles = StyleSheet.create({
         fontWeight: "800",
         lineHeight: 34,
         marginBottom: 8,
-        letterSpacing: -0.3,
+        letterSpacing: 0,
     },
     venue: {
         color: colors.goldMetallic,

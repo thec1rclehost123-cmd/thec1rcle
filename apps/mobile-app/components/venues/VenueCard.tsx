@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
         fontSize: 22,
         fontWeight: "900",
         textTransform: "uppercase",
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     tagContainer: {
         flexDirection: "row",

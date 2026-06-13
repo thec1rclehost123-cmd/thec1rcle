@@ -40,11 +40,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const ONBOARDING_KEY = "c1rcle_onboarding_complete";
 
 export async function hasCompletedOnboarding(): Promise<boolean> {
-    try {
-        return (await AsyncStorage.getItem(ONBOARDING_KEY)) === "true";
-    } catch {
-        return false;
-    }
+    return true;
 }
 
 export async function markOnboardingComplete(): Promise<void> {
@@ -209,7 +205,7 @@ export default function OnboardingScreen() {
             )}
 
             {/* Slides */}
-            <Animated.ScrollView
+            <Animated.ScrollView overScrollMode="never"
                 ref={scrollViewRef}
                 style={{ flex: 1 }}
                 horizontal
@@ -333,7 +329,7 @@ const styles = StyleSheet.create({
         textAlign: "center",
         lineHeight: 40,
         marginBottom: 16,
-        letterSpacing: -0.5,
+        letterSpacing: 0,
     },
     subtitle: {
         fontSize: 16,

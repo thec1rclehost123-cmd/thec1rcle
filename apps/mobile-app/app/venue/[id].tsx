@@ -131,7 +131,7 @@ export default function VenuePageScreen() {
 
     return (
         <View style={styles.container}>
-            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+            <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
                 <View style={styles.hero}>
                     {bannerUrl ? (
                         <Image source={{ uri: bannerUrl }} style={styles.heroImage} contentFit="cover" />
@@ -238,7 +238,7 @@ export default function VenuePageScreen() {
                     {highlights.length > 0 ? (
                         <Animated.View entering={FadeInDown.delay(100)} style={styles.section}>
                             <Text style={styles.sectionTitle}>Highlights</Text>
-                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightRow}>
+                            <ScrollView bounces={false} overScrollMode="never" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.highlightRow}>
                                 {highlights.map((highlight) => (
                                     <Pressable
                                         key={highlight.id}
@@ -517,7 +517,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 34,
         fontWeight: "900",
-        letterSpacing: -1,
+        letterSpacing: 0,
     },
     tagline: {
         color: "rgba(255,255,255,0.8)",

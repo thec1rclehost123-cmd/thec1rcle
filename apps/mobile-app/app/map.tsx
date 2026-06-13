@@ -137,11 +137,17 @@ function MapEventCard({
         day: "numeric",
     });
     const imageUrl = event.coverImage;
+    const posterTransitionTag = `poster-${event.id}-map`;
 
     return (
         <Pressable onPress={onPress} style={mapStyles.eventCard}>
             {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={mapStyles.eventCardImage} contentFit="cover" />
+                <Animated.Image
+                    sharedTransitionTag={posterTransitionTag}
+                    source={{ uri: imageUrl }}
+                    style={mapStyles.eventCardImage}
+                    resizeMode="cover"
+                />
             ) : (
                 <LinearGradient colors={gradients.primary as [string, string]} style={mapStyles.eventCardImage}>
                     <Text style={mapStyles.cardFallbackEmoji}>🎉</Text>
@@ -602,7 +608,11 @@ export default function MapScreen() {
                     <Pressable
                         onPress={() => {
                             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            router.back();
+                            if (router.canGoBack()) {
+                                router.back();
+                            } else {
+                                router.replace("/");
+                            }
                         }}
                         style={mapStyles.backButton}
                     >
@@ -674,7 +684,10 @@ export default function MapScreen() {
                             onPress={() =>
                                 router.push({
                                     pathname: "/event/[id]",
-                                    params: { id: selectedCluster.events[0].id },
+                                    params: {
+                                        id: selectedCluster.events[0].id,
+                                        posterTransitionTag: `poster-${selectedCluster.events[0].id}-map`,
+                                    },
                                 })
                             }
                         />
@@ -685,7 +698,10 @@ export default function MapScreen() {
                                     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                                     router.push({
                                         pathname: "/event/[id]",
-                                        params: { id: selectedCluster.events[0].id },
+                                        params: {
+                                            id: selectedCluster.events[0].id,
+                                            posterTransitionTag: `poster-${selectedCluster.events[0].id}-map`,
+                                        },
                                     });
                                 }}
                                 style={mapStyles.viewButton}

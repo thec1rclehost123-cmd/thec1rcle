@@ -1,4 +1,5 @@
 // Typing Indicators Service via API Gateway
+import { AppState } from "react-native";
 import { apiFetch } from "@/lib/api";
 
 // Typing indicator data
@@ -86,6 +87,7 @@ export function subscribeToGroupTyping(
 
     async function poll() {
         if (!active) return;
+        if (AppState.currentState !== "active") return;
         try {
             const response = await apiFetch<{ typers: TypingIndicator[] }>(`/api/v1/social/typing/${eventId}`, {
                 requireAuth: true
@@ -123,6 +125,7 @@ export function subscribeToDMTyping(
 
     async function poll() {
         if (!active) return;
+        if (AppState.currentState !== "active") return;
         try {
             const response = await apiFetch<{ typers: TypingIndicator[] }>(`/api/v1/social/typing/${conversationId}`, {
                 requireAuth: true
@@ -147,7 +150,7 @@ export function subscribeToDMTyping(
 export function createTypingHandler(
     setTyping: (isTyping: boolean) => Promise<void>
 ): { onChangeText: () => void; onBlur: () => void; } {
-    let typingTimeout: NodeJS.Timeout | null = null;
+    let typingTimeout: ReturnType<typeof setTimeout> | null = null;
     let isCurrentlyTyping = false;
 
     const onChangeText = () => {

@@ -19,6 +19,9 @@ export interface UserSettings {
         chat: boolean;
         dm: boolean;
         promo: boolean;
+        allowAlerts: boolean;
+        smsTransactional: boolean;
+        marketingPromotions: boolean;
     };
 
     // Privacy settings
@@ -26,6 +29,9 @@ export interface UserSettings {
         dmPrivacy: "anyone" | "event" | "contacts" | "none";
         showOnlineStatus: boolean;
         showLastSeen: boolean;
+        publicProfile: boolean;
+        showOnGuestlists: boolean;
+        showEventsAttending: boolean;
     };
 
     // Appearance
@@ -43,11 +49,17 @@ const DEFAULT_SETTINGS: UserSettings = {
         chat: true,
         dm: true,
         promo: false,
+        allowAlerts: true,
+        smsTransactional: true,
+        marketingPromotions: true,
     },
     privacy: {
         dmPrivacy: "event",
         showOnlineStatus: true,
         showLastSeen: true,
+        publicProfile: true,
+        showOnGuestlists: true,
+        showEventsAttending: true,
     },
     appearance: {
         theme: "dark",

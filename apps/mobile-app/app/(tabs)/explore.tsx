@@ -11,14 +11,16 @@ import {
     Dimensions,
     Modal,
     DeviceEventEmitter,
+    AppState,
     type NativeScrollEvent,
     type NativeSyntheticEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
-import MapView, { PROVIDER_DEFAULT } from "react-native-maps";
+import Svg, { Path } from "react-native-svg";
+import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
 import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
 import { useRecommendationsStore } from "@/store/recommendationsStore";
 import { useProfileStore } from "@/store/profileStore";
@@ -31,21 +33,39 @@ import * as Haptics from "expo-haptics";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
+    useAnimatedScrollHandler,
     withSpring,
+    withTiming,
+    withRepeat,
+    Easing,
+    interpolateColor,
     FadeInDown,
     FadeInRight,
     FadeIn,
+    useFrameCallback,
+    interpolate,
+    Extrapolation,
+    useAnimatedRef,
+    useAnimatedReaction,
+    scrollTo,
 } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { colors } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { trackScreen } from "@/lib/analytics";
 import { formatEventDate, safeDate } from "@/lib/utils/date";
+import { Search, MapPin, Compass } from "lucide-react-native";
+import {
+    ScenesWorthIt,
+    TopVenues,
+    EditorsPicks,
+    TrendingRightNow,
+    ComingUpThisWeek,
+    AllScenes,
+    PremiumEventCard
+} from "@/components/ui/PremiumExploreSections";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const HERO_CARD_WIDTH = SCREEN_WIDTH - 64;
-const FOR_YOU_CARD_WIDTH = SCREEN_WIDTH * 0.78;
-const FOR_YOU_CARD_HEIGHT = 220;
-const GRID_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 const PURE_BLACK = "#000000";
 
 const DEFAULT_MAP_REGION = {
@@ -55,13 +75,73 @@ const DEFAULT_MAP_REGION = {
     longitudeDelta: 0.15,
 };
 
+const darkMapStyle = [
+    { elementType: "geometry", stylers: [{ color: "#1d1d1d" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#8a8a8a" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#1d1d1d" }] },
+    {
+        featureType: "administrative",
+        elementType: "geometry",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "administrative.locality",
+        elementType: "labels.text.fill",
+        stylers: [{ color: "#bdbdbd" }],
+    },
+    {
+        featureType: "poi",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "poi.park",
+        elementType: "geometry",
+        stylers: [{ color: "#1a2e1a" }, { visibility: "simplified" }],
+    },
+    {
+        featureType: "road",
+        elementType: "geometry.fill",
+        stylers: [{ color: "#2c2c2c" }],
+    },
+    {
+        featureType: "road",
+        elementType: "geometry.stroke",
+        stylers: [{ color: "#212121" }],
+    },
+    {
+        featureType: "road.highway",
+        elementType: "geometry.fill",
+        stylers: [{ color: "#3c3c3c" }],
+    },
+    {
+        featureType: "transit",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "water",
+        elementType: "geometry",
+        stylers: [{ color: "#0e1626" }],
+    },
+];
+
 // ── Date filter pills ─────────────────────────────────────────────────────────
 const DATE_FILTERS = [
+    { id: "all",       label: "All Dates" },
     { id: "tonight",   label: "Tonight" },
     { id: "weekend",   label: "Weekend" },
     { id: "this-week", label: "This Week" },
 ] as const;
 type DateFilter = typeof DATE_FILTERS[number]["id"];
+
+// ── Quick filter pills ─────────────────────────────────────────────────────────
+const QUICK_FILTERS = [
+    { id: "all",       label: "All" },
+    { id: "free",      label: "Free" },
+    { id: "tonight",   label: "Tonight" },
+    { id: "trending",  label: "Trending" },
+    { id: "weekend",   label: "Weekend" },
+] as const;
+export type QuickFilter = typeof QUICK_FILTERS[number]["id"];
 
 // ── Category filter pills ─────────────────────────────────────────────────────
 const CATEGORY_FILTERS = [
@@ -99,6 +179,7 @@ function getGreeting(): string {
 }
 
 function applyDateFilter(events: Event[], filter: DateFilter): Event[] {
+    if (filter === "all") return events;
     const now = new Date();
     return events.filter((e) => {
         const d = safeDate(e.startDate);
@@ -133,6 +214,8 @@ function applyCategoryFilter(events: Event[], category: CategoryFilter): Event[]
 // ── AnimatedPressable ──────────────────────────────────────────────────────────
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+
+
 // ── Profile Avatar (header) ────────────────────────────────────────────────────
 function HeaderProfileAvatar() {
     const profile = useProfileStore((s) => s.profile);
@@ -163,78 +246,160 @@ function HeaderProfileAvatar() {
     );
 }
 
-// ── Hero slide card ────────────────────────────────────────────────────────────
-function HeroSlide({ event }: { event: Event }) {
-    const scale = useSharedValue(1);
-    const img = getEventImage(event);
-    const price = getLowestPrice(event);
-    const isFree = price === 0;
-    const isSoldOut = (event as any).soldOut ?? false;
+function AnimatedPeekCard({ event, index, scrollX, itemWidth }: any) {
+    const animatedStyle = useAnimatedStyle(() => {
+        const inputRange = [
+            (index - 1) * itemWidth,
+            index * itemWidth,
+            (index + 1) * itemWidth,
+        ];
+
+        // Scale down side cards
+        const scale = interpolate(scrollX.value, inputRange, [0.85, 1, 0.85], Extrapolation.CLAMP);
+
+        // Push side cards inwards to create the "stacked/overlapping" effect
+        const translateX = interpolate(
+            scrollX.value,
+            inputRange,
+            [-itemWidth * 0.15, 0, itemWidth * 0.15],
+            Extrapolation.CLAMP
+        );
+
+        // Fade out side cards slightly
+        const opacity = interpolate(scrollX.value, inputRange, [0.6, 1, 0.6], Extrapolation.CLAMP);
+
+        // Center card is always on top
+        const zIndex = interpolate(scrollX.value, inputRange, [0, 10, 0], Extrapolation.CLAMP);
+
+        return {
+            transform: [{ translateX }, { scale }],
+            opacity,
+            zIndex: Math.round(zIndex)
+        };
+    });
 
     return (
-        <AnimatedPressable
-            onPressIn={() => { scale.value = withSpring(0.98, { damping: 15, stiffness: 400 }); }}
-            onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push({ pathname: "/event/[id]", params: { id: event.id } });
-            }}
-            style={[useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })), styles.heroSlide]}
-        >
-            {img ? (
-                <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={500} />
-            ) : (
-                <LinearGradient colors={["#2D1A14", "#1A0A0A", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
-            )}
-            <LinearGradient
-                colors={["transparent", "rgba(0,0,0,0.35)", "rgba(0,0,0,0.92)"]}
-                locations={[0.35, 0.65, 1]}
-                style={StyleSheet.absoluteFillObject}
-            />
-            {event.category && (
-                <View style={styles.heroCatTag}>
-                    <Text style={styles.heroCatTagText}>{event.category.toUpperCase()}</Text>
-                </View>
-            )}
-            <View style={styles.heroContent}>
-                <Text style={styles.heroTitle} numberOfLines={2}>{event.title}</Text>
-                <Text style={styles.heroVenueLine} numberOfLines={1}>
-                    {event.venue ?? event.location ?? "TBA"}
-                    {event.startDate ? ` • ${formatEventDate(event.startDate)}` : ""}
-                </Text>
-                <View style={styles.heroFooter}>
-                    <Text style={styles.heroPriceLabel}>
-                        {isSoldOut ? "Sold Out" : (isFree ? "Free" : `₹${price.toLocaleString("en-IN")}`)}
-                    </Text>
-                    <Pressable
-                        style={[styles.heroCtaBtn, isSoldOut && styles.heroCtaBtnSoldOut]}
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            router.push({ pathname: "/event/[id]", params: { id: event.id } });
-                        }}
-                    >
-                        <Text style={styles.heroCtaText}>{isSoldOut ? "Sold Out" : "Get Tickets"}</Text>
-                    </Pressable>
-                </View>
+        <Animated.View style={[{ width: itemWidth, alignItems: 'center' }, animatedStyle]}>
+            <View style={{ width: '100%', paddingHorizontal: 4, position: 'relative' }}>
+                <PremiumEventCard event={event} index={index} variant="featured" />
             </View>
-        </AnimatedPressable>
+        </Animated.View>
     );
 }
 
 function FeaturedCarousel({ events }: { events: Event[] }) {
     if (!events.length) return null;
+
+    const scrollX = useSharedValue(0);
+    const targetX = useSharedValue(0);
+    const isInteracting = useSharedValue(false);
+
+    const ITEM_WIDTH = SCREEN_WIDTH * 0.78;
+    const SPACER = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
+    const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
+
+    // Keep the visual carousel bounded; an oversized repeated rail is expensive on iOS.
+    const rail = useMemo(() => {
+        return events.slice(0, 8);
+    }, [events]);
+    const isScreenFocused = useSharedValue(false);
+    const isAppActive = useSharedValue(AppState.currentState === "active");
+
+    // Custom smooth scroll logic on the UI thread
+    useAnimatedReaction(
+        () => targetX.value,
+        (val, prevVal) => {
+            if (val !== prevVal && !isInteracting.value && isScreenFocused.value && isAppActive.value) {
+                scrollTo(scrollViewRef, val, 0, false);
+            }
+        }
+    );
+
+    useFocusEffect(
+        useCallback(() => {
+            isScreenFocused.value = true;
+            return () => {
+                isScreenFocused.value = false;
+            };
+        }, [isScreenFocused])
+    );
+
+    useEffect(() => {
+        const sub = AppState.addEventListener("change", (state) => {
+            isAppActive.value = state === "active";
+        });
+        return () => sub.remove();
+    }, [isAppActive]);
+
+    useEffect(() => {
+        if (!rail.length) return;
+
+        setTimeout(() => {
+            targetX.value = 0;
+            scrollX.value = 0;
+            if (scrollViewRef.current) {
+                scrollViewRef.current.scrollTo({ x: 0, animated: false });
+            }
+        }, 100);
+
+        if (rail.length < 2) return;
+
+        const interval = setInterval(() => {
+            if (!isInteracting.value && isScreenFocused.value && isAppActive.value && scrollViewRef.current) {
+                const currentIndex = Math.round(scrollX.value / ITEM_WIDTH);
+                const nextIndex = (currentIndex + 1) % rail.length;
+                const nextOffset = nextIndex * ITEM_WIDTH;
+                targetX.value = withTiming(nextOffset, { duration: 800 });
+            }
+        }, 2800); // 2000ms pause + 800ms transition
+
+        return () => clearInterval(interval);
+    }, [rail.length, ITEM_WIDTH, isAppActive, isScreenFocused]);
+
+    const scrollHandler = useAnimatedScrollHandler({
+        onScroll: (e) => {
+            scrollX.value = e.contentOffset.x;
+            if (isInteracting.value) {
+                targetX.value = e.contentOffset.x;
+            }
+        },
+        onBeginDrag: () => {
+            isInteracting.value = true;
+        },
+        onEndDrag: () => {
+            isInteracting.value = false;
+        }
+    });
+
     return (
-        <View style={styles.heroSection}>
-            <FlatList
-                data={events}
+        <View style={{ marginBottom: 36, position: 'relative' }}>
+            <Animated.ScrollView
+                ref={scrollViewRef}
                 horizontal
-                keyExtractor={(e) => e.id}
-                snapToInterval={HERO_CARD_WIDTH + 12}
-                decelerationRate="fast"
                 showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.heroCarouselContent}
-                renderItem={({ item }) => <HeroSlide event={item} />}
-            />
+                snapToInterval={ITEM_WIDTH}
+                snapToAlignment="center"
+                decelerationRate="normal"
+                bounces={false}
+                onScroll={scrollHandler}
+                onScrollBeginDrag={() => { isInteracting.value = true; }}
+                onScrollEndDrag={() => { isInteracting.value = false; }}
+                scrollEventThrottle={16}
+                contentContainerStyle={{
+                    paddingHorizontal: SPACER,
+                    paddingBottom: 20,
+                }}
+            >
+                {rail.map((event, index) => (
+                    <AnimatedPeekCard
+                        key={`${event.id}-${index}`}
+                        event={event}
+                        index={index}
+                        scrollX={scrollX}
+                        itemWidth={ITEM_WIDTH}
+                    />
+                ))}
+            </Animated.ScrollView>
         </View>
     );
 }
@@ -242,32 +407,12 @@ function FeaturedCarousel({ events }: { events: Event[] }) {
 // ── Category filter pills ─────────────────────────────────────────────────────
 function CategoryFilterRow({ active, onChange }: { active: CategoryFilter; onChange: (v: CategoryFilter) => void }) {
     return (
-        <ScrollView
+        <ScrollView bounces={false} overScrollMode="never"
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.catFilterContent}
-            style={styles.catFilterRow}
+            contentContainerStyle={styles.filterRowContent}
         >
             {CATEGORY_FILTERS.map((f) => (
-                <Pressable
-                    key={f.id}
-                    onPress={() => { Haptics.selectionAsync(); onChange(f.id); }}
-                    style={[styles.catFilterPill, active === f.id && styles.catFilterPillActive]}
-                >
-                    <Text style={[styles.catFilterText, active === f.id && styles.catFilterTextActive]}>
-                        {f.label}
-                    </Text>
-                </Pressable>
-            ))}
-        </ScrollView>
-    );
-}
-
-// ── Date filter pills ─────────────────────────────────────────────────────────
-function DateFilterRow({ active, onChange }: { active: DateFilter; onChange: (v: DateFilter) => void }) {
-    return (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRowContent}>
-            {DATE_FILTERS.map((f) => (
                 <Pressable
                     key={f.id}
                     onPress={() => { Haptics.selectionAsync(); onChange(f.id); }}
@@ -282,176 +427,55 @@ function DateFilterRow({ active, onChange }: { active: DateFilter; onChange: (v:
     );
 }
 
-// ── For You / Similar to you — large card ─────────────────────────────────────
-function LargeEventCard({ event, index }: { event: Event; index: number }) {
-    const scale = useSharedValue(1);
-    const heartScale = useSharedValue(1);
-    const price = getLowestPrice(event);
-    const img = getEventImage(event);
-    const isSoldOut = (event as any).soldOut ?? false;
-    const isFree = price === 0;
-
-    const { user } = useAuth();
-    const { likedEventIds, toggleInterest } = useEventInterestStore();
-    const profile = useProfileStore((s) => s.profile);
-    const isLiked = likedEventIds.has(event.id);
-
-    const handleLike = () => {
-        if (!user?.uid) return;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        heartScale.value = withSpring(1.4, { damping: 6 }, () => {
-            heartScale.value = withSpring(1, { damping: 10 });
-        });
-        toggleInterest(event.id, user.uid, {
-            displayName: profile?.displayName ?? "",
-            photoURL: profile?.photoURL ?? null,
-        });
-    };
-
+// ── Quick filter pills ─────────────────────────────────────────────────────────
+function QuickFilterRow({ active, onChange }: { active: QuickFilter; onChange: (v: QuickFilter) => void }) {
     return (
-        <Animated.View
-            entering={FadeInRight.delay(index * 50).springify().damping(18)}
-            style={[useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })), styles.largeCard]}
-        >
-            <AnimatedPressable
-                onPressIn={() => { scale.value = withSpring(0.97, { damping: 15, stiffness: 400 }); }}
-                onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-                onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push({ pathname: "/event/[id]", params: { id: event.id } });
-                }}
-                style={{ flex: 1 }}
-            >
-                {/* Full bleed image */}
-                <View style={styles.largeCardImg}>
-                    {img ? (
-                        <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={300} />
-                    ) : (
-                        <LinearGradient colors={["#2D1A14", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
-                    )}
-                    <LinearGradient
-                        colors={["transparent", "rgba(0,0,0,0.88)"]}
-                        locations={[0.45, 1]}
-                        style={StyleSheet.absoluteFillObject}
-                    />
-                    {/* SOLD OUT banner */}
-                    {isSoldOut && (
-                        <View style={styles.largeCardSoldOut}>
-                            <Text style={styles.largeCardSoldOutText}>SOLD OUT</Text>
-                        </View>
-                    )}
-                    {/* Like button */}
-                    <Animated.View style={[styles.likeBtn, useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }))]}>
-                        <Pressable onPress={handleLike} hitSlop={10}>
-                            <Text style={styles.likeBtnIcon}>{isLiked ? "❤️" : "🤍"}</Text>
-                        </Pressable>
-                    </Animated.View>
-                </View>
-                {/* Info row */}
-                <View style={styles.largeCardBody}>
-                    <View style={styles.largeCardInfo}>
-                        <Text style={styles.largeCardTitle} numberOfLines={1}>{event.title}</Text>
-                        <Text style={styles.largeCardVenue} numberOfLines={1}>
-                            {event.venue ?? event.location ?? ""}
-                            {event.startDate ? ` • ${formatEventDate(event.startDate)}` : ""}
-                        </Text>
-                    </View>
-                    <Text style={styles.largeCardPrice}>
-                        {isSoldOut ? "Sold Out" : (isFree ? "Free" : `₹${price.toLocaleString("en-IN")}`)}
+        <ScrollView bounces={false} overScrollMode="never" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRowContent}>
+            {QUICK_FILTERS.map((f) => (
+                <Pressable
+                    key={f.id}
+                    onPress={() => { Haptics.selectionAsync(); onChange(f.id); }}
+                    style={[styles.filterPill, active === f.id && styles.filterPillActive]}
+                >
+                    <Text style={[styles.filterPillText, active === f.id && styles.filterPillTextActive]}>
+                        {f.label}
                     </Text>
-                </View>
-            </AnimatedPressable>
-        </Animated.View>
+                </Pressable>
+            ))}
+        </ScrollView>
     );
 }
 
-// ── Grid card ─────────────────────────────────────────────────────────────────
-function GridCard({ event, index }: { event: Event; index: number }) {
-    const scale = useSharedValue(1);
-    const heartScale = useSharedValue(1);
-    const price = getLowestPrice(event);
-    const img = getEventImage(event);
-    const isSoldOut = (event as any).soldOut ?? false;
+// LargeEventCard replaced by standard PremiumEventCard
 
-    const { user } = useAuth();
-    const { likedEventIds, toggleInterest } = useEventInterestStore();
-    const profile = useProfileStore((s) => s.profile);
-    const isLiked = likedEventIds.has(event.id);
-
-    const handleLike = () => {
-        if (!user?.uid) return;
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-        heartScale.value = withSpring(1.4, { damping: 6 }, () => {
-            heartScale.value = withSpring(1, { damping: 10 });
-        });
-        toggleInterest(event.id, user.uid, {
-            displayName: profile?.displayName ?? "",
-            photoURL: profile?.photoURL ?? null,
-        });
-    };
-
-    return (
-        <Animated.View
-            entering={FadeInDown.delay(Math.min(index * 40, 200)).springify().damping(18)}
-            style={[useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] })), styles.gridCard]}
-        >
-            <AnimatedPressable
-                onPressIn={() => { scale.value = withSpring(0.96, { damping: 15, stiffness: 400 }); }}
-                onPressOut={() => { scale.value = withSpring(1, { damping: 15, stiffness: 400 }); }}
-                onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    router.push({ pathname: "/event/[id]", params: { id: event.id } });
-                }}
-                style={{ flex: 1 }}
-            >
-                <View style={styles.gridImgWrap}>
-                    {img ? (
-                        <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={300} />
-                    ) : (
-                        <LinearGradient colors={["#2D1A14", "#0A0A0A"]} style={StyleSheet.absoluteFillObject} />
-                    )}
-                    <LinearGradient colors={["transparent", "rgba(0,0,0,0.85)"]} locations={[0.3, 1]} style={StyleSheet.absoluteFillObject} />
-                    {/* FREE badge */}
-                    {price === 0 && !isSoldOut && (
-                        <View style={styles.gridFreeBadge}><Text style={styles.gridFreeBadgeText}>FREE</Text></View>
-                    )}
-                    {/* SOLD OUT overlay */}
-                    {isSoldOut && (
-                        <View style={styles.gridSoldOut}><Text style={styles.gridSoldOutText}>SOLD OUT</Text></View>
-                    )}
-                    {/* Like button */}
-                    <Animated.View style={[styles.gridLikeBtn, useAnimatedStyle(() => ({ transform: [{ scale: heartScale.value }] }))]}>
-                        <Pressable onPress={handleLike} hitSlop={10}>
-                            <Text style={styles.gridLikeBtnIcon}>{isLiked ? "❤️" : "🤍"}</Text>
-                        </Pressable>
-                    </Animated.View>
-                </View>
-                <View style={styles.gridBody}>
-                    <Text style={styles.gridTitle} numberOfLines={2}>{event.title}</Text>
-                    <Text style={styles.gridVenue} numberOfLines={1}>{event.venue ?? event.location ?? ""}</Text>
-                    <View style={styles.gridFooter}>
-                        <Text style={styles.gridDate}>{formatEventDate(event.startDate)}</Text>
-                        {price > 0 && !isSoldOut && <Text style={styles.gridPrice}>₹{price.toLocaleString("en-IN")}</Text>}
-                    </View>
-                </View>
-            </AnimatedPressable>
-        </Animated.View>
-    );
-}
 
 // ── Section header ─────────────────────────────────────────────────────────────
 function SectionHeader({
     title,
+    icon,
     onViewAll,
     viewAllLabel = "See All",
 }: {
     title: string;
+    icon?: string;
     onViewAll?: () => void;
     viewAllLabel?: string;
 }) {
+    const words = title.trim().split(" ");
+    const lastWord = words.pop() || "";
+    const firstPart = words.join(" ");
+
     return (
         <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{title}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                {/* Vertical Glow Bar */}
+                <View style={{ width: 4, height: 18, borderRadius: 2, backgroundColor: colors.iris, shadowColor: colors.iris, shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0.8, shadowRadius: 4 }} />
+
+                {icon && <Text style={{ fontSize: 18, marginLeft: 4 }}>{icon}</Text>}
+                <Text style={styles.sectionTitle}>
+                    {firstPart}{firstPart ? " " : ""}<Text style={styles.sectionTitleAccent}>{lastWord}</Text>
+                </Text>
+            </View>
             {onViewAll && (
                 <Pressable onPress={onViewAll} hitSlop={8}>
                     <Text style={styles.viewAll}>{viewAllLabel}</Text>
@@ -462,16 +486,35 @@ function SectionHeader({
 }
 
 // ── Map preview section ────────────────────────────────────────────────────────
-function MapSection({ eventCount }: { eventCount: number }) {
+function MapSection({ events }: { events: Event[] }) {
+    const eventsWithCoords = useMemo(() => {
+        return events.filter(
+            (e) => e.coordinates?.latitude && e.coordinates?.longitude
+        );
+    }, [events]);
+
+    const initialRegion = useMemo(() => {
+        if (eventsWithCoords.length > 0) {
+            const first = eventsWithCoords[0].coordinates!;
+            return {
+                latitude: first.latitude,
+                longitude: first.longitude,
+                latitudeDelta: 0.08,
+                longitudeDelta: 0.08,
+            };
+        }
+        return DEFAULT_MAP_REGION;
+    }, [eventsWithCoords]);
+
     return (
         <View style={styles.section}>
             <SectionHeader
-                title="Map"
+                title="Explore on Map"
                 onViewAll={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push("/map");
                 }}
-                viewAllLabel="View →"
+                viewAllLabel="View Map →"
             />
             <Pressable
                 style={styles.mapCard}
@@ -483,21 +526,95 @@ function MapSection({ eventCount }: { eventCount: number }) {
                 <MapView
                     style={StyleSheet.absoluteFillObject}
                     provider={PROVIDER_DEFAULT}
-                    initialRegion={DEFAULT_MAP_REGION}
+                    initialRegion={initialRegion}
                     scrollEnabled={false}
                     zoomEnabled={false}
                     rotateEnabled={false}
                     pitchEnabled={false}
                     toolbarEnabled={false}
                     userInterfaceStyle="dark"
-                />
+                    customMapStyle={darkMapStyle}
+                >
+                    {eventsWithCoords.slice(0, 10).map((e) => (
+                        <Marker
+                            key={e.id}
+                            coordinate={e.coordinates!}
+                            pinColor="#F44A22"
+                        />
+                    ))}
+                </MapView>
                 {/* Dark overlay so badge is readable */}
                 <View style={styles.mapOverlay} />
                 {/* Events nearby badge */}
                 <View style={styles.mapBadge}>
-                    <Text style={styles.mapBadgeText}>📍 {eventCount}+ events nearby</Text>
+                    <Text style={styles.mapBadgeText}>
+                        📍 {eventsWithCoords.length || events.length} events nearby
+                    </Text>
                 </View>
             </Pressable>
+        </View>
+    );
+}
+const SCENE_CATEGORIES = [
+    { id: "bollywood", label: "BOLLYWOOD", bg: "#F44A22", image: require("../../assets/bollywood.jpg") },
+    { id: "techno", label: "TECHNO", bg: "#8B5CF6", image: require("../../assets/techno.jpg") },
+    { id: "raves", label: "RAVES", bg: "#3B82F6", image: require("../../assets/raves.jpg") },
+    { id: "pool-parties", label: "POOL\nPARTIES", bg: "#06B6D4", image: require("../../assets/pool.jpg") },
+    { id: "sundowners", label: "SUN\nDOWNERS", bg: "#EAB308", image: require("../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg") },
+];
+
+function ChooseYourSceneGrid() {
+    const handlePress = (cat: any) => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        router.push({ pathname: "/category/[id]", params: { id: cat.id, bg: cat.bg, label: cat.label.replace("\n", " ") } });
+    }
+
+    const renderCard = (cat: any, fontSize = 16) => (
+        <Pressable onPress={() => handlePress(cat)} style={{ flex: 1, backgroundColor: cat.bg, borderRadius: 12, overflow: "hidden" }}>
+            <Image source={cat.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+            <LinearGradient colors={["rgba(0,0,0,0.7)", "transparent"]} style={{ position: "absolute", top: 0, left: 0, right: 0, height: 48 }} />
+            <Text
+                style={{ position: "absolute", top: 12, left: 12, right: 12, color: "#FFF", fontSize, fontWeight: "900", letterSpacing: 0, lineHeight: fontSize * 1.1 }}
+                numberOfLines={2}
+                adjustsFontSizeToFit
+            >
+                {cat.label}
+            </Text>
+        </Pressable>
+    );
+
+    const CONTAINER_SIZE = SCREEN_WIDTH;
+
+    return (
+        <View style={{ marginTop: 12, marginBottom: 44 }}>
+            <SectionHeader title="Choose Your Scene" />
+
+            <View style={{ paddingHorizontal: 0 }}>
+                <View style={{ width: CONTAINER_SIZE, height: CONTAINER_SIZE, gap: 6 }}>
+                    {/* Top Row */}
+                    <View style={{ flex: 1, flexDirection: "row", gap: 6 }}>
+                        <View style={{ flex: 2 }}>
+                            {renderCard(SCENE_CATEGORIES[0], 18)}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            {renderCard(SCENE_CATEGORIES[4], 18)}
+                        </View>
+                    </View>
+
+                    {/* Bottom Row */}
+                    <View style={{ flex: 1, flexDirection: "row", gap: 6 }}>
+                        <View style={{ flex: 1 }}>
+                            {renderCard(SCENE_CATEGORIES[2], 18)}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            {renderCard(SCENE_CATEGORIES[3], 18)}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            {renderCard(SCENE_CATEGORIES[1], 18)}
+                        </View>
+                    </View>
+                </View>
+            </View>
         </View>
     );
 }
@@ -512,17 +629,22 @@ export default function ExploreScreen() {
     const { user } = useAuth();
     const { loadUserInterests } = useEventInterestStore();
 
-    const [dateFilter, setDateFilter]         = useState<DateFilter>("tonight");
+    const [quickFilter, setQuickFilter]       = useState<QuickFilter>("all");
+    const [dateFilter, setDateFilter]         = useState<DateFilter>("all");
     const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
     const [cityFilter, setCityFilter]         = useState("all");
     const [showCityModal, setShowCityModal]   = useState(false);
     const [isOffline, setIsOffline]           = useState(false);
     const [cachedEvents, setCachedEvents]     = useState<Event[]>([]);
     const [refreshing, setRefreshing]         = useState(false);
-    const [showAllEvents, setShowAllEvents]   = useState(false);
+    const mainScrollRef = useRef<ScrollView>(null);
+    const [allScenesY, setAllScenesY] = useState(0);
+    const lastTabBarScrollY = useRef(0);
+    const lastTabBarEmitAt = useRef(0);
 
-    const allEvents = events.length > 0 ? events : cachedEvents;
+    const baseEvents = events.length > 0 ? events : cachedEvents;
 
+    const allEvents = baseEvents;
     const cityOptions = useMemo(() => {
         const seen = new Map<string, string>();
         allEvents.forEach((e) => {
@@ -550,10 +672,30 @@ export default function ExploreScreen() {
                 return c.includes(cityFilter);
             });
         }
+
+        if (quickFilter !== "all") {
+            if (quickFilter === "free") {
+                result = result.filter((e) => getLowestPrice(e) === 0);
+            } else if (quickFilter === "tonight") {
+                const now = new Date();
+                result = result.filter(e => safeDate(e.startDate)?.toDateString() === now.toDateString());
+            } else if (quickFilter === "weekend") {
+                const now = new Date();
+                result = result.filter(e => {
+                    const d = safeDate(e.startDate);
+                    if (!d) return false;
+                    const day = d.getDay();
+                    return (day === 5 || day === 6 || day === 0) && d >= now;
+                });
+            } else if (quickFilter === "trending") {
+                result = [...result].sort((a, b) => getHeatScore(b) - getHeatScore(a)).slice(0, 20);
+            }
+        }
+
         result = applyDateFilter(result, dateFilter);
         result = applyCategoryFilter(result, categoryFilter);
         return result;
-    }, [allEvents, cityFilter, dateFilter, categoryFilter]);
+    }, [allEvents, cityFilter, dateFilter, categoryFilter, quickFilter]);
 
     // "Similar to you" — events NOT in recommendations, by heat score
     const similarEvents = useMemo(() => {
@@ -563,6 +705,27 @@ export default function ExploreScreen() {
             .sort((a, b) => getHeatScore(b) - getHeatScore(a))
             .slice(0, 8);
     }, [allEvents, recommendations]);
+
+    // "Trending This Week" — events happening within the next 7 days, sorted by heat
+    const trendingThisWeek = useMemo(() => {
+        const nowMs = Date.now();
+        const weekAheadMs = nowMs + 7 * 24 * 60 * 60 * 1000;
+        return [...allEvents]
+            .filter((e) => {
+                const t = safeDate(e.startDate)?.getTime() ?? 0;
+                return t >= nowMs && t <= weekAheadMs;
+            })
+            .sort((a, b) => getHeatScore(b) - getHeatScore(a))
+            .slice(0, 10);
+    }, [allEvents]);
+
+    // "Free Entry" — events with zero price
+    const freeEvents = useMemo(() => {
+        return [...allEvents]
+            .filter((e) => getLowestPrice(e) === 0)
+            .sort((a, b) => getHeatScore(b) - getHeatScore(a))
+            .slice(0, 10);
+    }, [allEvents]);
 
     const pastOrderCategories = useMemo(() => {
         const orders = (ticketsStore as any).orders ?? [];
@@ -610,43 +773,38 @@ export default function ExploreScreen() {
 
     const isInitialLoading = loading && allEvents.length === 0;
 
-    const gridEvents = showAllEvents ? filteredEvents : filteredEvents.slice(0, 8);
-    const gridRows: Event[][] = [];
-    for (let i = 0; i < gridEvents.length; i += 2) {
-        gridRows.push(gridEvents.slice(i, i + 2));
-    }
-
     const greeting = getGreeting();
 
-    // ── Auto-hide tab bar on scroll ──────────────────────────────────────────
-    const lastScrollY = useRef(0);
-    const handleScroll = useCallback(
-        (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-            const y    = e.nativeEvent.contentOffset.y;
-            const diff = y - lastScrollY.current;
-            lastScrollY.current = y;
-
-            if (y < 20) {
-                // Always show at the very top
-                DeviceEventEmitter.emit("tabBarScroll", { hide: false });
-            } else if (diff > 8) {
-                // Scrolling DOWN — hide
-                DeviceEventEmitter.emit("tabBarScroll", { hide: true });
-            } else if (diff < -8) {
-                // Scrolling UP — show
-                DeviceEventEmitter.emit("tabBarScroll", { hide: false });
-            }
-        },
-        []
-    );
+    const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+        const y = e.nativeEvent.contentOffset.y;
+        const now = Date.now();
+        if (Math.abs(y - lastTabBarScrollY.current) < 18 && now - lastTabBarEmitAt.current < 120) {
+            return;
+        }
+        lastTabBarScrollY.current = y;
+        lastTabBarEmitAt.current = now;
+        DeviceEventEmitter.emit("tabBarScroll", y);
+    };
 
     return (
         <View style={[styles.container, { paddingTop: insets.top }]}>
+            <LinearGradient
+                pointerEvents="none"
+                colors={["rgba(244,74,34,0.18)", "rgba(244,74,34,0.05)", "rgba(0,0,0,0)"]}
+                start={{ x: 1, y: 0 }}
+                end={{ x: 0, y: 1 }}
+                style={styles.cornerHaze}
+            />
+
             <ScrollView
+                style={styles.scrollLayer}
+                ref={mainScrollRef}
+                bounces={false}
+                overScrollMode="never"
                 showsVerticalScrollIndicator={false}
-                scrollEventThrottle={16}
                 onScroll={handleScroll}
-                contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
+                scrollEventThrottle={16}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
                 refreshControl={
                     <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
                 }
@@ -658,9 +816,8 @@ export default function ExploreScreen() {
                         <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
                             <Text style={styles.greetingText}>{greeting}</Text>
                             <View style={styles.cityRow}>
-                                <Text style={styles.locationPin}>📍</Text>
+                                <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
                                 <Text style={styles.cityName}>{activeCityLabel}</Text>
-                                <Text style={styles.cityChevron}> ∨</Text>
                             </View>
                         </Pressable>
 
@@ -678,13 +835,15 @@ export default function ExploreScreen() {
                             router.push("/search");
                         }}
                         style={styles.searchBar}
-                    >
-                        <Text style={styles.searchBarIcon}>🔍</Text>
-                        <Text style={styles.searchBarPlaceholder}>Search events...</Text>
-                    </Pressable>
+	                    >
+	                        <Search size={18} color="rgba(255,255,255,0.4)" strokeWidth={2.5} />
+	                        <Text style={styles.searchBarPlaceholder}>Search events...</Text>
+	                    </Pressable>
+	                </View>
 
-                    {/* Date filter pills */}
-                    <DateFilterRow active={dateFilter} onChange={setDateFilter} />
+                {/* Filter Pills (Moved outside header to allow edge-to-edge scrolling) */}
+                <View style={{ marginBottom: 24 }}>
+                    <QuickFilterRow active={quickFilter} onChange={setQuickFilter} />
                 </View>
 
                 {/* Offline banner */}
@@ -702,113 +861,64 @@ export default function ExploreScreen() {
                     </View>
                 )}
 
-                {/* ── Featured Carousel ── */}
-                {!isInitialLoading && heroSlides.length > 0 && (
-                    <FeaturedCarousel events={heroSlides} />
-                )}
+                {quickFilter === "all" ? (
+                    <>
+                        {/* ── 1. Featured Scene ── */}
+                        {!isInitialLoading && heroSlides.length > 0 && (
+                            <FeaturedCarousel events={heroSlides} />
+                        )}
 
-                {/* ── Category filter pills ── */}
-                {allEvents.length > 0 && (
-                    <CategoryFilterRow active={categoryFilter} onChange={setCategoryFilter} />
-                )}
+                        {/* ── 2. Choose Your Scene ── */}
+                        <ChooseYourSceneGrid />
 
-                {/* ── For You ── */}
-                {recommendations.length > 0 && (
-                    <View style={styles.section}>
-                        <SectionHeader
-                            title="For You"
-                            onViewAll={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                router.push("/search");
+                        {/* ── 3. Scenes Worth It ── */}
+                        {freeEvents.length > 0 && <ScenesWorthIt events={freeEvents} />}
+
+                        {/* ── 4. Top Venues ── */}
+                        <TopVenues />
+
+                        {/* ── 5. Editor's Picks ── */}
+                        {recommendations.length > 0 && <EditorsPicks events={recommendations} />}
+
+                        {/* ── 6. Trending Right Now ── */}
+                        {trendingThisWeek.length > 0 && <TrendingRightNow events={trendingThisWeek} />}
+
+                        {/* ── 7. Coming Up This Week ── */}
+                        {similarEvents.length > 0 && <ComingUpThisWeek events={similarEvents} />}
+                    </>
+                ) : null}
+
+                {/* ── 9. All Scenes ── */}
+                {filteredEvents.length > 0 ? (
+                    <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
+                        <AllScenes
+                            events={filteredEvents}
+                            onPageChange={() => {
+                                mainScrollRef.current?.scrollTo({ y: allScenesY - 20, animated: true });
                             }}
                         />
-                        <FlatList
-                            data={recommendations}
-                            keyExtractor={(e) => e.id}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            snapToInterval={FOR_YOU_CARD_WIDTH + 12}
-                            decelerationRate="fast"
-                            contentContainerStyle={styles.largeCarouselContent}
-                            renderItem={({ item, index }) => <LargeEventCard event={item} index={index} />}
-                        />
                     </View>
-                )}
-
-                {/* ── Similar to you ── */}
-                {similarEvents.length > 0 && (
-                    <View style={styles.section}>
-                        <SectionHeader
-                            title="Similar to you"
-                            onViewAll={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                router.push("/search");
-                            }}
-                        />
-                        <FlatList
-                            data={similarEvents}
-                            keyExtractor={(e) => e.id}
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            snapToInterval={FOR_YOU_CARD_WIDTH + 12}
-                            decelerationRate="fast"
-                            contentContainerStyle={styles.largeCarouselContent}
-                            renderItem={({ item, index }) => <LargeEventCard event={item} index={index} />}
-                        />
-                    </View>
-                )}
-
-                {/* ── All Events grid ── */}
-                {filteredEvents.length > 0 && (
-                    <View style={styles.section}>
-                        <SectionHeader
-                            title="All Events"
-                            onViewAll={
-                                filteredEvents.length > 8 && !showAllEvents
-                                    ? () => setShowAllEvents(true)
-                                    : undefined
-                            }
-                            viewAllLabel="See All"
-                        />
-                        <View style={styles.gridContainer}>
-                            {gridRows.map((row, ri) => (
-                                <View key={ri} style={styles.gridRow}>
-                                    {row.map((event, ci) => (
-                                        <GridCard key={event.id} event={event} index={ri * 2 + ci} />
-                                    ))}
-                                    {row.length === 1 && <View style={styles.gridCard} />}
-                                </View>
-                            ))}
+                ) : (
+                    !loading && (
+                        <View style={styles.emptyState}>
+                            <Search size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
+                            <Text style={styles.emptyText}>No events found</Text>
+                            <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
                         </View>
-                        {filteredEvents.length > 8 && !showAllEvents && (
-                            <Pressable style={styles.loadMoreBtn} onPress={() => setShowAllEvents(true)}>
-                                <Text style={styles.loadMoreText}>
-                                    Load More ({filteredEvents.length - 8} more)
-                                </Text>
-                            </Pressable>
-                        )}
-                        {filteredEvents.length === 0 && !loading && (
-                            <View style={styles.emptyState}>
-                                <Text style={styles.emptyEmoji}>🔍</Text>
-                                <Text style={styles.emptyText}>No events found</Text>
-                                <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
-                            </View>
-                        )}
-                    </View>
-                )}
-
-                {/* ── Map section ── */}
-                {allEvents.length > 0 && (
-                    <MapSection eventCount={allEvents.length > 31 ? 31 : allEvents.length} />
+                    )
                 )}
 
                 {/* No content */}
                 {!loading && allEvents.length === 0 && !isOffline && (
                     <View style={styles.emptyState}>
-                        <Text style={styles.emptyEmoji}>🎪</Text>
+                        <Compass size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
                         <Text style={styles.emptyText}>No events yet</Text>
                         <Text style={styles.emptySubtext}>Pull down to refresh</Text>
                     </View>
+                )}
+
+                {!isInitialLoading && allEvents.length > 0 && (
+                    <MapSection events={allEvents} />
                 )}
             </ScrollView>
 
@@ -823,7 +933,7 @@ export default function ExploreScreen() {
                 <View style={[styles.cityModal, { paddingBottom: insets.bottom + 16 }]}>
                     <View style={styles.cityModalHandle} />
                     <Text style={styles.cityModalTitle}>Choose City</Text>
-                    <ScrollView showsVerticalScrollIndicator={false}>
+                    <ScrollView bounces={false} overScrollMode="never" showsVerticalScrollIndicator={false}>
                         {cityOptions.map((opt) => (
                             <Pressable
                                 key={opt.value}
@@ -854,9 +964,20 @@ export default function ExploreScreen() {
     );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
+    // ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: PURE_BLACK },
+    scrollLayer: { flex: 1, zIndex: 1 },
+    cornerHaze: {
+        position: "absolute",
+        top: -58,
+        right: -72,
+        width: 260,
+        height: 190,
+        borderBottomLeftRadius: 160,
+        zIndex: 0,
+        opacity: 0.85,
+    },
 
     // ── Header ──────────────────────────────────────────────────────────────────
     header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, gap: 12 },
@@ -865,7 +986,7 @@ const styles = StyleSheet.create({
     greetingText: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "500" },
     cityRow: { flexDirection: "row", alignItems: "center" },
     locationPin: { fontSize: 16, marginRight: 4 },
-    cityName: { color: "#FFFFFF", fontSize: 26, fontWeight: "800", letterSpacing: -0.6 },
+    cityName: { color: "#FFFFFF", fontSize: 26, fontWeight: "800", letterSpacing: 0 },
     cityChevron: { color: "rgba(255,255,255,0.55)", fontSize: 18, fontWeight: "600", marginTop: 2 },
     headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
 
@@ -874,8 +995,6 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 19,
-        borderWidth: 2,
-        borderColor: colors.iris,
         overflow: "hidden",
     },
     avatarImage: { width: "100%", height: "100%" },
@@ -900,25 +1019,37 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 13,
     },
-    searchBarIcon: { fontSize: 15 },
-    searchBarPlaceholder: { color: "rgba(255,255,255,0.38)", fontSize: 15, flex: 1 },
-
-    // ── Date filter pills ────────────────────────────────────────────────────────
-    filterRowContent: { gap: 8, paddingRight: 4 },
-    filterPill: {
+	    searchBarIcon: { fontSize: 15 },
+	    searchBarPlaceholder: { color: "rgba(255,255,255,0.38)", fontSize: 15, flex: 1 },
+	    // ── Quick Filters ────────────────────────────────────────────────────────────
+    filterRowContent: {
+        paddingTop: 16,
+        paddingBottom: 4,
         paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 100,
-        backgroundColor: "rgba(255,255,255,0.06)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.09)",
+        gap: 8,
+    },
+    filterPill: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 16,
+        backgroundColor: "rgba(255,255,255,0.1)",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.15)",
     },
     filterPillActive: {
-        backgroundColor: "rgba(244,74,34,0.16)",
-        borderColor: "rgba(244,74,34,0.5)",
+        backgroundColor: "#FFF",
+        borderColor: "#FFF",
     },
-    filterPillText: { color: "rgba(255,255,255,0.55)", fontSize: 13, fontWeight: "600" },
-    filterPillTextActive: { color: "#F44A22" },
+    filterPillText: {
+        color: "rgba(255,255,255,0.7)",
+        fontSize: 13,
+        fontWeight: "600",
+        letterSpacing: 0,
+    },
+    filterPillTextActive: {
+        color: "#000",
+        fontWeight: "800",
+    },
 
     // ── Offline / loading ────────────────────────────────────────────────────────
     offlineBanner: {
@@ -932,151 +1063,7 @@ const styles = StyleSheet.create({
     loadingWrap: { paddingTop: 60, alignItems: "center", gap: 12 },
     loadingText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
 
-    // ── Featured hero carousel ───────────────────────────────────────────────────
-    heroSection: { marginTop: 16 },
-    heroCarouselContent: { paddingHorizontal: 16, gap: 12 },
-    heroSlide: {
-        width: HERO_CARD_WIDTH,
-        height: 330,
-        borderRadius: 20,
-        overflow: "hidden",
-        position: "relative",
-    },
-    heroCatTag: {
-        position: "absolute", top: 12, right: 12, zIndex: 2,
-        backgroundColor: "rgba(255,255,255,0.18)",
-        borderRadius: 6, paddingHorizontal: 9, paddingVertical: 3,
-        borderWidth: 1, borderColor: "rgba(255,255,255,0.22)",
-    },
-    heroCatTagText: { color: "#FFFFFF", fontSize: 10, fontWeight: "700", letterSpacing: 0.7 },
-    heroContent: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, gap: 4 },
-    heroTitle: { color: "#FFFFFF", fontSize: 22, fontWeight: "800", letterSpacing: -0.4, lineHeight: 28 },
-    heroVenueLine: { color: "rgba(255,255,255,0.62)", fontSize: 12, fontWeight: "500", marginTop: 2 },
-    heroFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10 },
-    heroPriceLabel: { color: "rgba(255,255,255,0.75)", fontSize: 15, fontWeight: "700" },
-    heroCtaBtn: { backgroundColor: "#F44A22", borderRadius: 100, paddingHorizontal: 18, paddingVertical: 9 },
-    heroCtaBtnSoldOut: { backgroundColor: "rgba(255,255,255,0.18)" },
-    heroCtaText: { color: "#FFFFFF", fontSize: 13, fontWeight: "800", letterSpacing: 0.2 },
 
-    // ── Category filter pills ────────────────────────────────────────────────────
-    catFilterRow: { marginTop: 20 },
-    catFilterContent: { paddingHorizontal: 16, gap: 8 },
-    catFilterPill: {
-        paddingHorizontal: 16, paddingVertical: 8, borderRadius: 100,
-        backgroundColor: "rgba(255,255,255,0.07)",
-        borderWidth: 1, borderColor: "rgba(255,255,255,0.09)",
-    },
-    catFilterPillActive: {
-        backgroundColor: "rgba(255,255,255,0.14)",
-        borderColor: "rgba(255,255,255,0.22)",
-    },
-    catFilterText: { color: "rgba(255,255,255,0.5)", fontSize: 13, fontWeight: "600" },
-    catFilterTextActive: { color: "#FFFFFF" },
-
-    // ── Sections ─────────────────────────────────────────────────────────────────
-    section: { marginTop: 28 },
-    sectionHeader: {
-        flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-        paddingHorizontal: 16, marginBottom: 12,
-    },
-    sectionTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "700", letterSpacing: -0.2 },
-    viewAll: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "600" },
-
-    // ── Large cards (For You, Similar to you) ────────────────────────────────────
-    largeCarouselContent: { paddingHorizontal: 16, gap: 12 },
-    largeCard: {
-        width: FOR_YOU_CARD_WIDTH,
-        height: FOR_YOU_CARD_HEIGHT,
-        borderRadius: 16,
-        overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.04)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.07)",
-    },
-    largeCardImg: {
-        flex: 1,
-        position: "relative",
-    },
-    largeCardSoldOut: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        alignItems: "center",
-        paddingVertical: 8,
-        backgroundColor: "rgba(0,0,0,0.55)",
-    },
-    largeCardSoldOutText: {
-        color: "#F44A22",
-        fontSize: 11,
-        fontWeight: "800",
-        letterSpacing: 1.0,
-    },
-    likeBtn: {
-        position: "absolute",
-        top: 8,
-        right: 8,
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        backgroundColor: "rgba(0,0,0,0.55)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    likeBtnIcon: { fontSize: 16 },
-
-    largeCardBody: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        gap: 8,
-    },
-    largeCardInfo: { flex: 1, gap: 2 },
-    largeCardTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "700", letterSpacing: -0.1 },
-    largeCardVenue: { color: "rgba(255,255,255,0.45)", fontSize: 12 },
-    largeCardPrice: { color: "#F44A22", fontSize: 13, fontWeight: "700", flexShrink: 0 },
-
-    // ── Grid (All Events) ─────────────────────────────────────────────────────────
-    gridContainer: { paddingHorizontal: 16, gap: 12 },
-    gridRow: { flexDirection: "row", gap: 12 },
-    gridCard: {
-        width: GRID_CARD_WIDTH, flex: 1, borderRadius: 16, overflow: "hidden",
-        backgroundColor: "rgba(255,255,255,0.04)",
-        borderWidth: 1, borderColor: "rgba(255,255,255,0.07)",
-    },
-    gridImgWrap: { height: 160, position: "relative" },
-    gridFreeBadge: {
-        position: "absolute", top: 8, right: 8,
-        backgroundColor: "#10B981", borderRadius: 6,
-        paddingHorizontal: 6, paddingVertical: 2,
-    },
-    gridFreeBadgeText: { color: "#fff", fontSize: 9, fontWeight: "800", letterSpacing: 0.5 },
-    gridSoldOut: {
-        position: "absolute", bottom: 0, left: 0, right: 0,
-        alignItems: "center", paddingVertical: 5,
-        backgroundColor: "rgba(0,0,0,0.6)",
-    },
-    gridSoldOutText: { color: "#F44A22", fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
-    gridLikeBtn: {
-        position: "absolute",
-        top: 7,
-        right: 7,
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: "rgba(0,0,0,0.55)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    gridLikeBtnIcon: { fontSize: 13 },
-    gridBody: { padding: 10, gap: 3 },
-    gridTitle: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-    gridVenue: { color: "rgba(255,255,255,0.4)", fontSize: 11 },
-    gridFooter: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 5 },
-    gridDate: { color: "rgba(255,255,255,0.35)", fontSize: 10 },
-    gridPrice: { color: "#F44A22", fontSize: 10, fontWeight: "700" },
 
     // ── Load more ─────────────────────────────────────────────────────────────────
     loadMoreBtn: {
@@ -1085,6 +1072,13 @@ const styles = StyleSheet.create({
         alignItems: "center",
     },
     loadMoreText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" },
+
+    // ── Generic Section Styles ──
+    section: { marginBottom: 44 },
+    sectionHeader: { paddingHorizontal: 16, marginBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    sectionTitle: { fontSize: 22, fontWeight: "800", color: "#FFF", letterSpacing: 0 },
+    sectionTitleAccent: { color: colors.iris, textShadowColor: "rgba(244,74,34,0.55)", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
+    viewAll: { color: colors.iris, fontSize: 14, fontWeight: "700" },
 
     // ── Map section ───────────────────────────────────────────────────────────────
     mapCard: {

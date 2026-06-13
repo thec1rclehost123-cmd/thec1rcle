@@ -7,6 +7,7 @@
  * are for UI display of remaining counts only.
  */
 
+import { AppState } from "react-native";
 import { apiFetch } from "./api";
 import { TicketTier } from "@/store/eventsStore";
 
@@ -27,6 +28,7 @@ export function subscribeToEventInventory(
 
     async function poll() {
         if (!active) return;
+        if (AppState.currentState !== "active") return;
         try {
             const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
             if (event?.tickets) onUpdate(event.tickets);

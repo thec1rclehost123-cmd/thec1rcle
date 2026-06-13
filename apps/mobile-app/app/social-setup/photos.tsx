@@ -211,7 +211,7 @@ export default function SocialSetupPhotos() {
                 <Text style={styles.stepLabel}>1 / 3</Text>
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scroll}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
@@ -317,7 +317,7 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontSize: 24,
         fontWeight: "800",
-        letterSpacing: -0.4,
+        letterSpacing: 0,
         marginBottom: 4,
     },
     subtitle: {

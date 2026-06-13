@@ -131,7 +131,7 @@ export default function WalkInsScreen() {
                 <View style={{ width: 50 }} />
             </View>
 
-            <ScrollView
+            <ScrollView bounces={false} overScrollMode="never"
                 style={styles.scroll}
                 contentContainerStyle={styles.content}
                 keyboardShouldPersistTaps="handled"
