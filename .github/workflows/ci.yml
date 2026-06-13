@@ -43,15 +43,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-      - run:
-          npx turbo lint --filter='...[origin/main]'
-          # Only lints packages affected by this PR
+      - run: npx turbo lint --filter='...[origin/main]'
       - run: npx prettier --check .
 
     # ── 3. TypeScript across all packages ────────────────────────
@@ -116,15 +116,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-      - run:
-          npx turbo build --filter='...[origin/main]'
-          # Skips packages unchanged vs main; uses remote cache
+      - run: npx turbo build --filter='...[origin/main]'
 
     # ── 6. Security ───────────────────────────────────────────────
   security:
