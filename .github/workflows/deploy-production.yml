@@ -16,7 +16,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
 
       - name: Cache Turbo
         uses: actions/cache@v4
@@ -44,7 +44,7 @@ jobs:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@master
@@ -66,7 +66,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Dependencies
         run: npm ci
@@ -87,7 +87,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           vercel-version: latest
           working-directory: apps/${{ matrix.app }}
-          vercel-args: '--prod'
+          vercel-args: "--prod"
 
   deploy-services:
     needs: [validate]
@@ -102,7 +102,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm'
+          cache: "npm"
 
       - name: Install Dependencies
         run: npm ci

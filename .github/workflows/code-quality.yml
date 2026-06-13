@@ -7,7 +7,7 @@ on:
     branches: [staging, main]
   schedule:
     # Weekly thorough check: Sunday 04:00 IST (22:30 UTC Saturday)
-    - cron: '30 22 * * 6'
+    - cron: "30 22 * * 6"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

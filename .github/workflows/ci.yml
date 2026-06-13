@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: ['**']
+    branches: ["**"]
   pull_request:
-    branches: ['**']
+    branches: ["**"]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -16,7 +16,7 @@ env:
   # Enables Turbo remote cache — add TURBO_TOKEN to repo secrets
 
 jobs:
-    # ── 1. Shared setup ──────────────────────────────────────────
+  # ── 1. Shared setup ──────────────────────────────────────────
   install:
     name: Install
     runs-on: ubuntu-latest
@@ -49,8 +49,9 @@ jobs:
         with:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-      - run: npx turbo lint --filter='...[origin/main]'
-              # Only lints packages affected by this PR
+      - run:
+          npx turbo lint --filter='...[origin/main]'
+          # Only lints packages affected by this PR
       - run: npx prettier --check .
 
     # ── 3. TypeScript across all packages ────────────────────────
@@ -66,8 +67,9 @@ jobs:
         with:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-      - run: npx turbo typecheck
-              # Runs tsc --noEmit in each workspace via Turbo
+      - run:
+          npx turbo typecheck
+          # Runs tsc --noEmit in each workspace via Turbo
 
     # ── 4. Tests ─────────────────────────────────────────────────
   test:
@@ -120,8 +122,9 @@ jobs:
         with:
           path: node_modules/**/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-      - run: npx turbo build --filter='...[origin/main]'
-              # Skips packages unchanged vs main; uses remote cache
+      - run:
+          npx turbo build --filter='...[origin/main]'
+          # Skips packages unchanged vs main; uses remote cache
 
     # ── 6. Security ───────────────────────────────────────────────
   security:
@@ -142,5 +145,6 @@ jobs:
         with: { extra_args: --only-verified }
       - name: Zod v4 schema fuzz
         run: npx tsx scripts/fuzz-schemas.ts --ci
-        continue-on-error: true
-              # Optional: run fast-check against Zod 4 schemas
+        continue-on-error:
+          true
+          # Optional: run fast-check against Zod 4 schemas
