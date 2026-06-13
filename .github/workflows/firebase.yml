@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm ci
+      - run: npm ci --legacy-peer-deps
       - name: Install Firebase emulator
         run: npx firebase-tools setup:emulators:firestore --project demo-test
       - name: Run rules unit tests
@@ -38,7 +38,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm ci && cd functions && npm ci
+      - run: npm ci --legacy-peer-deps && cd functions && npm ci --legacy-peer-deps
       - run: cd functions && npx tsc --noEmit
 
   deploy:
@@ -57,7 +57,7 @@ jobs:
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.FIREBASE_SA_EMAIL }}
-      - run: npm ci && cd functions && npm ci && npm run build
+      - run: npm ci --legacy-peer-deps && cd functions && npm ci --legacy-peer-deps && npm run build
       - name: Deploy functions + rules
         run: |
           npx firebase-tools deploy \

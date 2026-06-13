@@ -3,8 +3,6 @@ import { execSync } from "child_process";
 const ALLOWED_BRANCHES = /^(main|staging|testing|develop|master)$/;
 const CONVENTIONAL_PREFIX =
   /^(feat|fix|hotfix|bugfix|chore|docs|test|refactor|ci|update|perf|style)(\/[a-zA-Z0-9._-]+)+$/;
-const WITH_TICKET =
-  /^(feat|fix|hotfix|bugfix|chore|docs|test|refactor|ci|update|perf|style)\/[A-Z]+-\d+-[a-zA-Z0-9._-]+$/;
 
 const branch = execSync("git branch --show-current", { encoding: "utf8" }).trim();
 
