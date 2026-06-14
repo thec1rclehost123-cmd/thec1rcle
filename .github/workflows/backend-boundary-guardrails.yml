@@ -2,10 +2,13 @@ name: Backend Boundary Guardrails
 
 on:
   pull_request:
+    branches: [main, staging]
   push:
-    branches:
-      - staging
-      - main
+    branches: [main, staging]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   guardrails:
