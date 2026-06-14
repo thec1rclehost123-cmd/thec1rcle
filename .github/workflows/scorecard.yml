@@ -15,7 +15,7 @@ jobs:
     name: OSSF Scorecard
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with:
           persist-credentials: false
       - uses: ossf/scorecard-action@ff5dd8929f96a8a4dc67d13f32b8c75057829621

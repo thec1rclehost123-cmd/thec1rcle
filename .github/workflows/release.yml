@@ -22,7 +22,7 @@ jobs:
           - admin-console
     environment: production
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with: { node-version: 20, cache: npm }
       - run: npm install --legacy-peer-deps
@@ -50,7 +50,7 @@ jobs:
       id-token: write
       contents: read
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
       - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed
         with:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
@@ -71,7 +71,7 @@ jobs:
     needs: [deploy-web, deploy-api-gateway]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
         with: { fetch-depth: 0 }
       - uses: getsentry/action-release@a74facf8a080ecbdf1cb355f16743530d712abb7
         env:
