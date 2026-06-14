@@ -16,3 +16,5 @@ functions/lib
 packages/core/dist
 docs
 .DS_Store
+.gitignore
+.stylelintignore
