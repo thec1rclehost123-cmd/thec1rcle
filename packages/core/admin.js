@@ -62,19 +62,18 @@ const hasAdminConfig = () => {
 };
 
 export const isToyMode = () => {
-  // Toy mode is ONLY allowed if explicitly enabled AND config is missing
-  return process.env.DEV_TOY_MODE === "true" && !hasAdminConfig();
+  return process.env.DEV_TOY_MODE === "true";
 };
 
-export const isFirebaseConfigured = () => hasAdminConfig();
+export const isFirebaseConfigured = () => hasAdminConfig() && !isToyMode();
 
 const assertAdminConfig = () => {
+  if (isToyMode()) {
+    console.warn("\x1b[33m%s\x1b[0m", "⚠️  [CORE] DEV_TOY_MODE IS ACTIVE. OPERATING IN TOY MODE.");
+    return null;
+  }
   if (!hasAdminConfig()) {
-    if (process.env.DEV_TOY_MODE === "true") {
-      console.warn("\x1b[33m%s\x1b[0m", "⚠️  [CORE] FIREBASE NOT CONFIGURED. OPERATING IN TOY MODE.");
-      return null;
-    }
-    throw new Error("CRITICAL: Missing Firebase admin credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY. Toy mode is disabled unless DEV_TOY_MODE=true.");
+    throw new Error("CRITICAL: Missing Firebase admin credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
   }
   return getAdminConfig();
 };
