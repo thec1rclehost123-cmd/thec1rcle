@@ -27,6 +27,11 @@ const patterns = [
   },
 ];
 
+const isPinnedGitHubAction = (line) =>
+  /uses:\s*[a-zA-Z0-9_.-]+\/[a-zA-Z0-9_.-]+(?:\/[a-zA-Z0-9_.-]+)?@[0-9a-fA-F]{40}\s*$/.test(
+    line.trim(),
+  );
+
 const stagedFiles = execSync("git diff --cached --name-only", {
   encoding: "utf8",
 })
@@ -42,6 +47,9 @@ for (const file of stagedFiles) {
 
   for (let i = 0; i < lines.length; i++) {
     for (const { regex, name } of patterns) {
+      if (name === "Possible Secret (32+ hex chars)" && isPinnedGitHubAction(lines[i])) {
+        continue;
+      }
       if (regex.test(lines[i])) {
         console.error(`⚠  ${name} detected in ${file}:${i + 1}`);
         hasSecrets = true;

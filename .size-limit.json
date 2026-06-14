@@ -1,0 +1,17 @@
+[
+  {
+    "name": "guest-portal static chunks",
+    "path": "apps/guest-portal/.next/static/chunks/**/*.js",
+    "limit": "5 MB"
+  },
+  {
+    "name": "admin-console static chunks",
+    "path": "apps/admin-console/.next/static/chunks/**/*.js",
+    "limit": "5 MB"
+  },
+  {
+    "name": "partner-dashboard static chunks",
+    "path": "apps/partner-dashboard/.next/static/chunks/**/*.js",
+    "limit": "5 MB"
+  }
+]
