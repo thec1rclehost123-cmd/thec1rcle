@@ -7,7 +7,16 @@ const algoliasearch_1 = require("algoliasearch");
 // firebase functions:config:set algolia.app_id="APP_ID" algolia.api_key="API_KEY"
 const APP_ID = process.env.ALGOLIA_APP_ID || '';
 const API_KEY = process.env.ALGOLIA_API_KEY || '';
-const client = (0, algoliasearch_1.algoliasearch)(APP_ID, API_KEY);
+let clientInstance = null;
+function getAlgoliaClient() {
+    if (!clientInstance) {
+        if (!APP_ID || !API_KEY) {
+            throw new Error('Algolia credentials are not configured.');
+        }
+        clientInstance = (0, algoliasearch_1.algoliasearch)(APP_ID, API_KEY);
+    }
+    return clientInstance;
+}
 const INDEX_NAME = 'events';
 /**
  * Maps a Firestore event document to an Algolia record
@@ -52,12 +61,17 @@ async function syncEventToAlgolia(eventId, event) {
     const publicStates = ['approved', 'scheduled', 'live'];
     if (!publicStates.includes(event.lifecycle)) {
         console.log(`[Algolia] Skipping sync for event ${eventId} (lifecycle: ${event.lifecycle})`);
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        try {
+            await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        }
+        catch (e) {
+            // Non-fatal if the object doesn't exist
+        }
         return;
     }
     try {
         const record = mapEventToAlgolia(event, eventId);
-        await client.saveObject({ indexName: INDEX_NAME, body: record });
+        await getAlgoliaClient().saveObject({ indexName: INDEX_NAME, body: record });
         console.log(`[Algolia] Successfully synced event ${eventId}`);
     }
     catch (error) {
@@ -72,7 +86,7 @@ async function removeEventFromAlgolia(eventId) {
     if (!APP_ID || !API_KEY)
         return;
     try {
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         console.log(`[Algolia] Successfully removed event ${eventId}`);
     }
     catch (error) {

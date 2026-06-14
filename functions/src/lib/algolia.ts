@@ -6,7 +6,16 @@ import { algoliasearch } from 'algoliasearch';
 const APP_ID = process.env.ALGOLIA_APP_ID || '';
 const API_KEY = process.env.ALGOLIA_API_KEY || '';
 
-const client = algoliasearch(APP_ID, API_KEY);
+let clientInstance: any = null;
+function getAlgoliaClient() {
+    if (!clientInstance) {
+        if (!APP_ID || !API_KEY) {
+            throw new Error('Algolia credentials are not configured.');
+        }
+        clientInstance = algoliasearch(APP_ID, API_KEY);
+    }
+    return clientInstance;
+}
 const INDEX_NAME = 'events';
 
 /**
@@ -53,13 +62,17 @@ export async function syncEventToAlgolia(eventId: string, event: any) {
     const publicStates = ['approved', 'scheduled', 'live'];
     if (!publicStates.includes(event.lifecycle)) {
         console.log(`[Algolia] Skipping sync for event ${eventId} (lifecycle: ${event.lifecycle})`);
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        try {
+            await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        } catch (e) {
+            // Non-fatal if the object doesn't exist
+        }
         return;
     }
 
     try {
         const record = mapEventToAlgolia(event, eventId);
-        await client.saveObject({ indexName: INDEX_NAME, body: record });
+        await getAlgoliaClient().saveObject({ indexName: INDEX_NAME, body: record });
         console.log(`[Algolia] Successfully synced event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error syncing event ${eventId}:`, error);
@@ -73,7 +86,7 @@ export async function removeEventFromAlgolia(eventId: string) {
     if (!APP_ID || !API_KEY) return;
 
     try {
-        await client.deleteObject({ indexName: INDEX_NAME, objectID: eventId });
+        await getAlgoliaClient().deleteObject({ indexName: INDEX_NAME, objectID: eventId });
         console.log(`[Algolia] Successfully removed event ${eventId}`);
     } catch (error) {
         console.error(`[Algolia] Error removing event ${eventId}:`, error);
