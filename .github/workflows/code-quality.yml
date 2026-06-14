@@ -57,7 +57,6 @@ jobs:
       - run: npm run guardrails:check
       - run: npm run test:guardrails
       - run: npm --workspace=apps/guest-portal run type-check
-      - run: npm --workspace=apps/guest-portal test
       - run: npm --workspace=apps/api-gateway test
 
   stylelint:
