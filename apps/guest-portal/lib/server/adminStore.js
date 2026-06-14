@@ -1,5 +1,5 @@
 import { getAdminDb } from "../firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 /**
  * THE C1RCLE - Admin Governance Store (Hardened)

@@ -1,37 +1,26 @@
+import { getAdminDb } from "@c1rcle/core/admin";
+import { baseEvents, metadataById } from "./apps/guest-portal/data/events.js";
 
-import admin from 'firebase-admin';
-import { events } from './apps/guest-portal/data/events.js';
+process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
 
-process.env.FIRESTORE_EMULATOR_HOST = '127.0.0.1:8080';
-
-admin.initializeApp({
-    projectId: 'thec1rcle-india'
-});
-
-const db = admin.firestore();
+const db = getAdminDb();
 
 async function seed() {
-    console.log('Seeding Firestore emulator...');
-    const batch = db.batch();
+  const batch = db.batch();
+  for (const ev of baseEvents) {
+    const ref = db.collection("events").doc(ev.id);
+    batch.set(ref, ev);
+  }
+  await batch.commit();
+  console.log(`Seeded ${baseEvents.length} events`);
 
-    for (const event of events) {
-        const ref = db.collection('events').doc(event.id);
-        batch.set(ref, {
-            ...event,
-            lifecycle: 'scheduled', // 'scheduled' is required for visibility in mobile app
-            status: 'scheduled',
-            createdAt: event.createdAt || new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-        });
-        console.log(`Added event: ${event.id}`);
-    }
-
-    await batch.commit();
-    console.log('Seeding complete!');
-    process.exit(0);
+  const metaBatch = db.batch();
+  for (const [id, meta] of Object.entries(metadataById)) {
+    const ref = db.collection("event_metadata").doc(id);
+    metaBatch.set(ref, meta);
+  }
+  await metaBatch.commit();
+  console.log(`Seeded ${Object.keys(metadataById).length} event_metadata docs`);
 }
 
-seed().catch(err => {
-    console.error('Seeding failed:', err);
-    process.exit(1);
-});
+seed().catch(console.error);

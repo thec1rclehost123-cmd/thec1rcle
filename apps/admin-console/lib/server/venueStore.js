@@ -1,4 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 const fallbackVenues = [
   {
@@ -146,7 +147,6 @@ export async function getVenueBySlug(slug) {
 export async function followVenue(venueId) {
   if (!isFirebaseConfigured()) return;
   const db = getAdminDb();
-  const FieldValue = require("firebase-admin/firestore").FieldValue;
   await db
     .collection(VENUES_COLLECTION)
     .doc(venueId)

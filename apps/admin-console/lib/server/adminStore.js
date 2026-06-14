@@ -1,5 +1,5 @@
 import { getAdminDb, getAdminAuth } from "@/lib/firebase/admin";
-import { FieldValue } from "firebase-admin/firestore";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 // Authority Tiering
 export const TIER1_ACTIONS = [

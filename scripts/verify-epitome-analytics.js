@@ -1,25 +1,11 @@
 import { config } from "dotenv";
 import { resolve } from "node:path";
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getAdminDb } from "@c1rcle/core/admin";
 
 // Load .env
 config({ path: resolve(process.cwd(), ".env") });
 
-const projectId = process.env.FIREBASE_PROJECT_ID || "thec1rcle-india";
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-if (privateKey) {
-    privateKey = privateKey.replace(/\\n/g, "\n");
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) privateKey = privateKey.slice(1, -1);
-    let body = privateKey.replace(/-----BEGIN PRIVATE KEY-----/g, "").replace(/-----END PRIVATE KEY-----/g, "");
-    body = body.replace(/[^a-zA-Z0-9+/=]/g, "");
-    const formattedBody = body.match(/.{1,64}/g)?.join("\n");
-    if (formattedBody) privateKey = `-----BEGIN PRIVATE KEY-----\n${formattedBody}\n-----END PRIVATE KEY-----\n`;
-}
-
-initializeApp({ credential: cert({ projectId, clientEmail, privateKey }), projectId });
+const db = getAdminDb();
 
 // Import the analytics store functions
 // Note: We need to point to the correct path in the apps/partner-dashboard

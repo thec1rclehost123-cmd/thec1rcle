@@ -1,25 +1,14 @@
-const { getAuth } = require("firebase-admin/auth");
-const { initializeApp, cert } = require("firebase-admin/app");
-const dotenv = require("dotenv");
-const path = require("path");
+import { config } from "dotenv";
+import { resolve } from "path";
+import { fileURLToPath } from "url";
+import { getAdminAuth } from "@c1rcle/core/admin";
+
+const __dirname = resolve(fileURLToPath(import.meta.url), "..");
 
 // Load .env.local
-dotenv.config({ path: path.resolve(__dirname, "../.env.local") });
+config({ path: resolve(__dirname, "../.env.local") });
 
-const projectId = process.env.FIREBASE_PROJECT_ID;
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
-
-if (!projectId || !clientEmail || !privateKey) {
-  console.error("Missing Firebase credentials in .env.local");
-  process.exit(1);
-}
-
-initializeApp({
-  credential: cert({ projectId, clientEmail, privateKey }),
-});
-
-const auth = getAuth();
+const auth = getAdminAuth();
 
 const setRole = async (email, role) => {
   try {

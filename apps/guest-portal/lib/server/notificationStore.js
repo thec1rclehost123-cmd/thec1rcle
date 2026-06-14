@@ -5,6 +5,7 @@
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 const NOTIFICATIONS_COLLECTION = "notifications";
 const FOLLOWS_COLLECTION = "follows";
@@ -343,8 +344,6 @@ export async function followEntity(followerId, targetId, targetType) {
 
   // Update follower count on the target
   const targetCollection = targetType === "venue" ? "venues" : "hosts";
-  const { FieldValue } = require("firebase-admin/firestore");
-
   try {
     await db
       .collection(targetCollection)
@@ -378,8 +377,6 @@ export async function unfollowEntity(followerId, targetId, targetType) {
 
   // Update follower count on the target
   const targetCollection = targetType === "venue" ? "venues" : "hosts";
-  const { FieldValue } = require("firebase-admin/firestore");
-
   try {
     await db
       .collection(targetCollection)

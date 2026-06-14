@@ -1,5 +1,4 @@
-import { getAdminApp, isFirebaseConfigured } from "../firebase/admin";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminAuth, isFirebaseConfigured } from "../firebase/admin";
 import { headers } from "next/headers";
 
 /**
@@ -42,8 +41,7 @@ export async function verifyAuth(request) {
   const token = authHeader.split("Bearer ")[1];
 
   try {
-    const app = getAdminApp();
-    const auth = getAuth(app);
+    const auth = getAdminAuth();
     const decodedToken = await auth.verifyIdToken(token);
     return decodedToken;
   } catch (error) {

@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendEmailOtp, sendSmsOtp } from "@/lib/server/verification";
 import { rateLimit } from "@/lib/server/rateLimit";
-import { getAdminApp } from "@/lib/firebase/admin";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminAuth } from "@/lib/firebase/admin";
 
 export async function POST(req) {
   if (!rateLimit(req, 5, 60000)) {
@@ -26,7 +25,7 @@ export async function POST(req) {
     if (type === "email") {
       // Check if email already exists
       try {
-        const auth = getAuth(getAdminApp());
+        const auth = getAdminAuth();
         await auth.getUserByEmail(recipient);
         // If it exists, we still return success but maybe don't send?
         // The user said: "Do not leak whether an email or phone exists."

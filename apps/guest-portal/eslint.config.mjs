@@ -3,6 +3,9 @@ import nextConfig from "eslint-config-next";
 export default [
   ...nextConfig,
   {
+    languageOptions: {
+      sourceType: "module",
+    },
     rules: {
       "react/no-unescaped-entities": "off",
       "@next/next/no-img-element": "off",

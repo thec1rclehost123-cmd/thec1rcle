@@ -280,7 +280,6 @@ export async function getHostBySlug(slug) {
 export async function followHost(hostId) {
   if (!isFirebaseConfigured()) return;
   const db = getAdminDb();
-  const FieldValue = require("firebase-admin/firestore").FieldValue;
   await db
     .collection(HOSTS_COLLECTION)
     .doc(hostId)

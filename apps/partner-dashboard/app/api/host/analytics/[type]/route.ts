@@ -12,12 +12,13 @@ import {
  * GET /api/host/analytics/[type]
  * Fetches specific analytics for a host
  */
-export async function GET(req: NextRequest, { params }: { params: { type: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
+  const paramsResolved = await params;
+  const { type } = paramsResolved;
   try {
     const { searchParams } = new URL(req.url);
     const hostId = searchParams.get("hostId");
     const range = searchParams.get("range") || "30d";
-    const { type } = params;
 
     if (!hostId) {
       return NextResponse.json({ error: "hostId is required" }, { status: 400 });
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
 
     return NextResponse.json(analytics);
   } catch (error: any) {
-    console.error(`[Host Analytics API][${params.type}] Error:`, error);
+    console.error(`[Host Analytics API][${paramsResolved.type}] Error:`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

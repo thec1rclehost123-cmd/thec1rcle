@@ -1,19 +1,7 @@
-const admin = require("firebase-admin");
-const path = require("path");
+import { getAdminDb } from "@c1rcle/core/admin";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
-const serviceAccountPath = path.resolve(
-  __dirname,
-  "../../Downloads/thec1rcle-india-firebase-adminsdk-fbsvc-7a42d7c601.json",
-);
-const serviceAccount = require(serviceAccountPath);
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
-
-const db = admin.firestore();
+const db = getAdminDb();
 
 async function runSeeder() {
   try {
@@ -24,7 +12,7 @@ async function runSeeder() {
         boostBasePrice: 500,
         featuredSlotWeekly: 2000,
         minWithdrawal: 1000,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -36,7 +24,7 @@ async function runSeeder() {
         enablePublicDiscovery: true,
         enableHostApplications: true,
         maintenanceMode: false,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );
@@ -49,7 +37,7 @@ async function runSeeder() {
         users_total: 0,
         venues_total: { active: 0, pending: 0, suspended: 0 },
         revenue: { total: 0, ticket_commissions: 0, boosts: 0, subscriptions: 0 },
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       });
     }
 
