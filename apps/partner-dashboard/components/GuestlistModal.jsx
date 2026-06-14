@@ -10,7 +10,8 @@ const normalizeHandle = (name = "", index) => {
   return `@${safe || `guest${index + 1}`}`;
 };
 
-const fallbackStats = (index) => `${18 + index} events · ${Math.max(3, 4 + index)} months on THE C1RCLE`;
+const fallbackStats = (index) =>
+  `${18 + index} events · ${Math.max(3, 4 + index)} months on THE C1RCLE`;
 
 const initials = (value = "") =>
   value
@@ -37,7 +38,7 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
         name: guest,
         handle: normalizeHandle(guest, index),
         stats: fallbackStats(index),
-        color: palette[index % palette.length]
+        color: palette[index % palette.length],
       };
     }
     return {
@@ -45,7 +46,7 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
       id: guest.id || `${guest.name}-${index}`,
       handle: guest.handle || normalizeHandle(guest.name, index),
       stats: guest.stats || fallbackStats(index),
-      color: guest.color || palette[index % palette.length]
+      color: guest.color || palette[index % palette.length],
     };
   });
 
@@ -103,7 +104,9 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
                     </span>
                     <div>
                       <p className="text-base font-semibold">{guest.name}</p>
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/50">{guest.handle}</p>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/50">
+                        {guest.handle}
+                      </p>
                       <p className="text-xs text-white/60">{guest.stats}</p>
                     </div>
                   </div>

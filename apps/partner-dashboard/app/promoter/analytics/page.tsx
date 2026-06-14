@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function PromoterAnalyticsRedirect() {
-    redirect("/promoter/analytics/overview");
+  redirect("/promoter/analytics/overview");
 }

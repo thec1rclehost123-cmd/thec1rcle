@@ -13,7 +13,10 @@ export default function Selects({ items }) {
             Curated Collections
           </p>
           <h2 className="font-heading text-4xl font-black uppercase tracking-tight text-black dark:text-white sm:text-7xl leading-none">
-            The C1rcle <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris to-iris-glow">Selects</span>
+            The C1rcle{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris to-iris-glow">
+              Selects
+            </span>
           </h2>
         </div>
         <Link
@@ -21,8 +24,18 @@ export default function Selects({ items }) {
           className="flex text-[10px] sm:text-xs font-bold uppercase tracking-widest text-black/60 dark:text-white/60 transition-all hover:text-black dark:hover:text-white hover:-translate-y-0.5 items-center gap-2"
         >
           View All
-          <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+          <svg
+            className="w-3 h-3 sm:w-4 sm:h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 8l4 4m0 0l-4 4m4-4H3"
+            />
           </svg>
         </Link>
       </div>
@@ -33,7 +46,10 @@ export default function Selects({ items }) {
           const activity = rest.join(" ");
 
           return (
-            <div key={item.title} className="w-[85vw] max-w-[340px] flex-none snap-center sm:w-full sm:max-w-md lg:max-w-[420px] sm:flex-1">
+            <div
+              key={item.title}
+              className="w-[85vw] max-w-[340px] flex-none snap-center sm:w-full sm:max-w-md lg:max-w-[420px] sm:flex-1"
+            >
               <Link
                 href={item.href}
                 className="group relative block aspect-[4/5] overflow-hidden rounded-[32px] sm:rounded-[40px] border border-white/10 bg-[#0A0A0A] btn-lift shadow-2xl"
@@ -74,8 +90,18 @@ export default function Selects({ items }) {
                         Explore Collection
                       </span>
                       <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10 backdrop-blur-md border border-white/20 group-hover:bg-white group-hover:border-white transition-all duration-500 group-hover:scale-110">
-                        <svg className="h-5 w-5 text-white group-hover:text-black transition-all duration-500 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                        <svg
+                          className="h-5 w-5 text-white group-hover:text-black transition-all duration-500 group-hover:translate-x-0.5"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2.5}
+                            d="M17 8l4 4m0 0l-4 4m4-4H3"
+                          />
                         </svg>
                       </div>
                     </div>

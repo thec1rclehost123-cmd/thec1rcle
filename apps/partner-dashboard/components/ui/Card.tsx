@@ -5,7 +5,7 @@ import { forwardRef, type HTMLAttributes } from "react";
 
 /**
  * Card Component — Premium Surface
- * 
+ *
  * Supports dark mode via CSS custom properties
  * Clean, elevated surfaces with subtle depth
  */
@@ -27,33 +27,42 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const CardComponent = forwardRef<HTMLDivElement, CardProps>(
-  ({ interactive = false, padding = "md", elevated = false, glass = false, glow = false, className, children, ...rest }, ref) => {
+  (
+    {
+      interactive = false,
+      padding = "md",
+      elevated = false,
+      glass = false,
+      glow = false,
+      className,
+      children,
+      ...rest
+    },
+    ref,
+  ) => {
     return (
       <article
         ref={ref}
         className={clsx(
           "rounded-2xl border transition-all duration-200",
           // Base styles
-          glass
-            ? "card-glass backdrop-blur-xl"
-            : "bg-[var(--surface-elevated)]",
+          glass ? "card-glass backdrop-blur-xl" : "bg-[var(--surface-elevated)]",
           // Border styles
-          glow
-            ? "border-[var(--c1rcle-orange)] shadow-glow"
-            : "border-[var(--border-subtle)]",
+          glow ? "border-[var(--c1rcle-orange)] shadow-glow" : "border-[var(--border-subtle)]",
           // Elevation
           elevated && "shadow-md",
           // Interactive states
-          interactive && "cursor-pointer hover:shadow-lg hover:border-[var(--border-default)] active:scale-[0.995]",
+          interactive &&
+            "cursor-pointer hover:shadow-lg hover:border-[var(--border-default)] active:scale-[0.995]",
           paddingMap[padding],
-          className
+          className,
         )}
         {...rest}
       >
         {children}
       </article>
     );
-  }
+  },
 );
 
 CardComponent.displayName = "Card";
@@ -101,16 +110,11 @@ export const CardMedia = ({
       className={clsx(
         "relative overflow-hidden rounded-xl -mx-5 -mt-5 mb-5 first:mt-0",
         aspectStyles[aspectRatio],
-        className
+        className,
       )}
       {...rest}
     >
-      <img
-        src={src}
-        alt={alt}
-        className="h-full w-full object-cover"
-        loading="lazy"
-      />
+      <img src={src} alt={alt} className="h-full w-full object-cover" loading="lazy" />
     </div>
   );
 };
@@ -127,12 +131,14 @@ export const CardStat = ({ label, value, change }: CardStatProps) => (
     <span className="text-label-sm text-[var(--text-tertiary)] mb-1">{label}</span>
     <span className="text-stat text-[var(--text-primary)] leading-none">{value}</span>
     {change && (
-      <span className={clsx(
-        "text-[12px] font-semibold mt-2 flex items-center gap-1",
-        change.direction === "up" && "text-[var(--trend-up)]",
-        change.direction === "down" && "text-[var(--trend-down)]",
-        change.direction === "neutral" && "text-[var(--text-tertiary)]"
-      )}>
+      <span
+        className={clsx(
+          "text-[12px] font-semibold mt-2 flex items-center gap-1",
+          change.direction === "up" && "text-[var(--trend-up)]",
+          change.direction === "down" && "text-[var(--trend-down)]",
+          change.direction === "neutral" && "text-[var(--text-tertiary)]",
+        )}
+      >
         {change.direction === "up" && "↑"}
         {change.direction === "down" && "↓"}
         {change.value}
@@ -148,7 +154,13 @@ export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>)
 
 // Card Footer
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-[var(--border-subtle)]", className)} {...rest} />
+  <div
+    className={clsx(
+      "mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-[var(--border-subtle)]",
+      className,
+    )}
+    {...rest}
+  />
 );
 
 // Card Section divider

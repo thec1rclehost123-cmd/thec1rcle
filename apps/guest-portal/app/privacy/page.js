@@ -6,24 +6,29 @@ export default function PrivacyPage() {
   const sections = [
     {
       title: "Our Manifesto on Privacy",
-      content: "At The C1rcle, we believe your data is your digital soul. We don't trade it, we don't leak it, and we definitely don't use it to turn you into a product. Our mission is to facilitate life offline—your online presence with us is purely a utility to make that happen."
+      content:
+        "At The C1rcle, we believe your data is your digital soul. We don't trade it, we don't leak it, and we definitely don't use it to turn you into a product. Our mission is to facilitate life offline—your online presence with us is purely a utility to make that happen.",
     },
     {
       title: "Data We Collect",
-      content: "We collect only what's necessary to get you into the event: your name, email, and phone number for ticketing and communication. If you're a host, we collect payout information to ensure you get paid on time. We also use anonymized analytics to understand how our community uses the platform, making it better for everyone."
+      content:
+        "We collect only what's necessary to get you into the event: your name, email, and phone number for ticketing and communication. If you're a host, we collect payout information to ensure you get paid on time. We also use anonymized analytics to understand how our community uses the platform, making it better for everyone.",
     },
     {
       title: "The 'No-Creep' Policy",
-      content: "We do not track your location across other apps. We do not sell your contact list. We do not listen to your microphone. Period."
+      content:
+        "We do not track your location across other apps. We do not sell your contact list. We do not listen to your microphone. Period.",
     },
     {
       title: "Your Control",
-      content: "You can purge your account and all associated data at any time from the profile settings. No questions asked. No hidden 'cool-down' periods."
+      content:
+        "You can purge your account and all associated data at any time from the profile settings. No questions asked. No hidden 'cool-down' periods.",
     },
     {
       title: "Updates",
-      content: "If we update this manifesto, we'll let you know via email. Not a 50-page legal doc, but a clear explanation of what changed and why."
-    }
+      content:
+        "If we update this manifesto, we'll let you know via email. Not a 50-page legal doc, but a clear explanation of what changed and why.",
+    },
   ];
 
   return (
@@ -45,10 +50,13 @@ export default function PrivacyPage() {
             Safe & Secure
           </div>
           <h1 className="font-heading text-5xl sm:text-7xl font-black uppercase tracking-tighter leading-none mb-8">
-            Privacy<br />Manifesto
+            Privacy
+            <br />
+            Manifesto
           </h1>
           <p className="text-xl text-black/60 dark:text-white/40 max-w-2xl font-light">
-            Last updated: January 2025. Your privacy is not a feature; it is the foundation of our community.
+            Last updated: January 2025. Your privacy is not a feature; it is the foundation of our
+            community.
           </p>
         </motion.div>
 
@@ -81,7 +89,9 @@ export default function PrivacyPage() {
           transition={{ delay: 0.5 }}
           className="mt-32 p-12 rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-center"
         >
-          <h3 className="font-heading text-2xl font-bold mb-4 uppercase tracking-tight">Questions?</h3>
+          <h3 className="font-heading text-2xl font-bold mb-4 uppercase tracking-tight">
+            Questions?
+          </h3>
           <p className="text-black/40 dark:text-white/40 mb-8 max-w-md mx-auto">
             If you have any doubts about how your data is handled, we're here to talk.
           </p>

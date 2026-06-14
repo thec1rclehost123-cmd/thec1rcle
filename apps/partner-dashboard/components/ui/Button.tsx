@@ -5,7 +5,7 @@ import { forwardRef, type ReactNode } from "react";
 
 /**
  * Button Component — Enterprise Grade
- * 
+ *
  * Supports multiple variants, sizes, loading states, and icons
  * Designed for THE C1RCLE Partner Dashboard
  */
@@ -36,7 +36,7 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
     <span
       className={clsx(
         "inline-flex animate-spin rounded-full border-current/30 border-t-current",
-        sizeClasses[size]
+        sizeClasses[size],
       )}
       aria-hidden="true"
     />
@@ -44,13 +44,17 @@ const Spinner = ({ size = "md" }: { size?: ButtonSize }) => {
 };
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary: "bg-[var(--c1rcle-orange)] text-white hover:bg-[var(--c1rcle-orange-dim)] shadow-sm hover:shadow-md active:shadow-sm",
-  secondary: "bg-transparent text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-strong)]",
-  ghost: "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]",
+  primary:
+    "bg-[var(--c1rcle-orange)] text-white hover:bg-[var(--c1rcle-orange-dim)] shadow-sm hover:shadow-md active:shadow-sm",
+  secondary:
+    "bg-transparent text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-[var(--surface-secondary)] hover:border-[var(--border-strong)]",
+  ghost:
+    "bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-secondary)] hover:text-[var(--text-primary)]",
   dark: "bg-[var(--text-primary)] text-[var(--text-inverse)] hover:opacity-90",
   success: "bg-[var(--state-success)] text-white hover:brightness-110",
   danger: "bg-[var(--state-error)] text-white hover:brightness-110",
-  accent: "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)] border border-[var(--c1rcle-orange)]/30 hover:bg-[var(--c1rcle-orange)]/20",
+  accent:
+    "bg-[var(--c1rcle-orange-glow)] text-[var(--c1rcle-orange)] border border-[var(--c1rcle-orange)]/30 hover:bg-[var(--c1rcle-orange)]/20",
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -62,18 +66,21 @@ const sizeStyles: Record<ButtonSize, string> = {
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({
-    variant = "primary",
-    size = "md",
-    loading,
-    disabled,
-    fullWidth,
-    icon,
-    iconPosition = "left",
-    children,
-    className,
-    ...rest
-  }, ref) => {
+  (
+    {
+      variant = "primary",
+      size = "md",
+      loading,
+      disabled,
+      fullWidth,
+      icon,
+      iconPosition = "left",
+      children,
+      className,
+      ...rest
+    },
+    ref,
+  ) => {
     const isDisabled = disabled || loading;
 
     return (
@@ -88,7 +95,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           variantStyles[variant],
           sizeStyles[size],
           fullWidth && "w-full",
-          className
+          className,
         )}
         disabled={isDisabled}
         {...rest}
@@ -107,7 +114,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         )}
       </button>
     );
-  }
+  },
 );
 
 Button.displayName = "Button";
@@ -139,14 +146,14 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
           "active:scale-[0.95]",
           variantStyles[variant],
           iconSizeStyles[size],
-          className
+          className,
         )}
         {...rest}
       >
         {icon}
       </button>
     );
-  }
+  },
 );
 
 IconButton.displayName = "IconButton";
@@ -155,19 +162,22 @@ IconButton.displayName = "IconButton";
 export function ButtonGroup({
   children,
   attached = false,
-  className
+  className,
 }: {
   children: ReactNode;
   attached?: boolean;
   className?: string;
 }) {
   return (
-    <div className={clsx(
-      "inline-flex",
-      attached ? "rounded-xl overflow-hidden divide-x divide-[var(--border-subtle)]" : "gap-2",
-      attached && "[&>button]:rounded-none [&>button:first-child]:rounded-l-xl [&>button:last-child]:rounded-r-xl",
-      className
-    )}>
+    <div
+      className={clsx(
+        "inline-flex",
+        attached ? "rounded-xl overflow-hidden divide-x divide-[var(--border-subtle)]" : "gap-2",
+        attached &&
+          "[&>button]:rounded-none [&>button:first-child]:rounded-l-xl [&>button:last-child]:rounded-r-xl",
+        className,
+      )}
+    >
       {children}
     </div>
   );

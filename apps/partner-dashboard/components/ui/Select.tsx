@@ -29,9 +29,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">
-            {label}
-          </label>
+          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">{label}</label>
         )}
         <div className="relative">
           <select
@@ -43,7 +41,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               hasError
                 ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
                 : "border-transparent",
-              className
+              className,
             )}
             {...rest}
           >
@@ -53,11 +51,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
               </option>
             )}
             {options.map((opt) => (
-              <option
-                key={opt.value}
-                value={opt.value}
-                disabled={opt.disabled}
-              >
+              <option key={opt.value} value={opt.value} disabled={opt.disabled}>
                 {opt.label}
               </option>
             ))}
@@ -65,16 +59,13 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
         </div>
         {(error || hint) && (
-          <p className={clsx(
-            "mt-1.5 text-[12px]",
-            hasError ? "text-red-600" : "text-stone-500"
-          )}>
+          <p className={clsx("mt-1.5 text-[12px]", hasError ? "text-red-600" : "text-stone-500")}>
             {error || hint}
           </p>
         )}
       </div>
     );
-  }
+  },
 );
 
 Select.displayName = "Select";

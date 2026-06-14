@@ -11,7 +11,7 @@ const navLinks = [
   { label: "Explore", href: "/explore" },
   { label: "Create", href: "/create" },
   // { label: "Circle", href: "/about" },
-  { label: "App", href: "/app" }
+  { label: "App", href: "/app" },
 ];
 
 export default function Navbar() {
@@ -23,8 +23,16 @@ export default function Navbar() {
   const navWidth = useTransform(scrollY, [0, 100], ["100%", "90%"]);
   const navY = useTransform(scrollY, [0, 100], [0, 20]);
   const navBackdrop = useTransform(scrollY, [0, 100], ["blur(0px)", "blur(20px)"]);
-  const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"]);
-  const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
+  const navBackground = useTransform(
+    scrollY,
+    [0, 100],
+    ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"],
+  );
+  const navBorder = useTransform(
+    scrollY,
+    [0, 100],
+    ["rgba(255, 255, 255, 0)", "var(--nav-border)"],
+  );
 
   if (pathname?.startsWith("/host")) return null;
 
@@ -49,7 +57,9 @@ export default function Navbar() {
           <Link href="/" className="group flex items-center gap-3">
             <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gold/20 via-gold-dark/10 to-transparent border border-gold/20 transition-all duration-500 group-hover:rotate-180 group-hover:border-gold/40 group-hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]">
               <span className="absolute inset-0 bg-gradient-to-tr from-gold via-transparent to-transparent opacity-30" />
-              <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">C1</span>
+              <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">
+                C1
+              </span>
             </div>
             <span className="text-sm font-bold tracking-widest uppercase text-black/90 dark:text-white/90 group-hover:text-gold-light transition-colors">
               The C1rcle
@@ -63,8 +73,11 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:text-gold-light"
-                    }`}
+                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+                    isActive
+                      ? "text-black dark:text-white"
+                      : "text-black/60 dark:text-white/60 hover:text-gold-light"
+                  }`}
                 >
                   {isActive && (
                     <motion.div
@@ -101,8 +114,19 @@ export default function Navbar() {
                   disabled={loading}
                   className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10 text-black dark:text-white hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-4 h-4"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                    />
                   </svg>
                 </button>
               </>
@@ -138,7 +162,7 @@ export default function Navbar() {
             </button>
           </div>
         </motion.nav>
-      </motion.header >
+      </motion.header>
 
       <AnimatePresence>
         {isMenuOpen && (

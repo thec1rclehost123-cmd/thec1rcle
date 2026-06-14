@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 // ⚡ PERF FIX: Dynamic imports for heavy visual components
 const ExploreCarouselHeader = dynamic(() => import("../../components/ExploreCarouselHeader"), {
   ssr: true,
-  loading: () => <div className="h-[50vh] bg-black/5 animate-pulse rounded-[40px] mx-12 mt-12" />
+  loading: () => <div className="h-[50vh] bg-black/5 animate-pulse rounded-[40px] mx-12 mt-12" />,
 });
 const ExploreEventGrid = dynamic(() => import("../../components/ExploreEventGrid"), { ssr: true });
 const ExploreFilterBar = dynamic(() => import("../../components/ExploreFilterBar"), { ssr: true });
@@ -22,12 +22,12 @@ const dateFilters = [
   { label: "Any date", value: "any" },
   { label: "Today", value: "today" },
   { label: "This weekend", value: "weekend" },
-  { label: "Custom", value: "custom" }
+  { label: "Custom", value: "custom" },
 ];
 const priceFilters = [
   { label: "All prices", value: "all" },
   { label: "Free RSVP", value: "free" },
-  { label: "Paid", value: "paid" }
+  { label: "Paid", value: "paid" },
 ];
 const curatedCategoryOptions = [
   { label: "All vibes", value: "all", description: "Show everything" },
@@ -36,7 +36,7 @@ const curatedCategoryOptions = [
   { label: "Afters", value: "afters", description: "Late nights & underground" },
   { label: "Brunch", value: "brunch", description: "Day parties, sun-kissed" },
   { label: "Art", value: "art", description: "Galleries & pop-up shows" },
-  { label: "Community", value: "community", description: "Markets & meet-ups" }
+  { label: "Community", value: "community", description: "Markets & meet-ups" },
 ];
 
 const curatedCategoryMatchers = {
@@ -45,12 +45,17 @@ const curatedCategoryMatchers = {
   afters: ["after", "afterhours", "late", "underground"],
   brunch: ["brunch", "day party", "sunrise", "cookout"],
   art: ["art", "gallery", "exhibit", "creative", "design"],
-  community: ["community", "market", "meetup", "collective", "venue"]
+  community: ["community", "market", "meetup", "collective", "venue"],
 };
 
 const pageSize = 12;
 
-const slugify = (value = "") => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-/, "").replace(/-$/, "");
+const slugify = (value = "") =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-/, "")
+    .replace(/-$/, "");
 const formatTypeLabel = (value = "") =>
   value
     .split("-")
@@ -63,7 +68,9 @@ const toDate = (value) => {
   return date;
 };
 const isSameDay = (a, b) =>
-  a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  a.getFullYear() === b.getFullYear() &&
+  a.getMonth() === b.getMonth() &&
+  a.getDate() === b.getDate();
 const isWeekend = (date) => {
   const day = date.getDay();
   return day === 0 || day === 6;
@@ -73,7 +80,10 @@ const getStartingPrice = (event) => {
   if (typeof event.startingPrice === "number") return event.startingPrice;
   if (typeof event.priceRange?.min === "number") return event.priceRange.min;
   if (Array.isArray(event.tickets) && event.tickets.length) {
-    return event.tickets.reduce((min, ticket) => Math.min(min, Number(ticket.price) || 0), Infinity);
+    return event.tickets.reduce(
+      (min, ticket) => Math.min(min, Number(ticket.price) || 0),
+      Infinity,
+    );
   }
   return 0;
 };
@@ -85,7 +95,8 @@ const getEventTime = (event) => {
 };
 
 const sortComparators = {
-  Trending: (a, b) => (b.heatScore ?? b.stats?.heatScore ?? 0) - (a.heatScore ?? a.stats?.heatScore ?? 0),
+  Trending: (a, b) =>
+    (b.heatScore ?? b.stats?.heatScore ?? 0) - (a.heatScore ?? a.stats?.heatScore ?? 0),
   "This Week": (a, b) => {
     const now = Date.now();
     const weekAhead = now + 7 * 24 * 60 * 60 * 1000;
@@ -97,22 +108,18 @@ const sortComparators = {
     if (!aInWeek && bInWeek) return 1;
     return timeA - timeB;
   },
-  New: (a, b) => new Date(b.createdAt || b.stats?.createdAt || 0) - new Date(a.createdAt || a.stats?.createdAt || 0),
+  New: (a, b) =>
+    new Date(b.createdAt || b.stats?.createdAt || 0) -
+    new Date(a.createdAt || a.stats?.createdAt || 0),
   Soonest: (a, b) => getEventTime(a) - getEventTime(b),
-  "Price Low to High": (a, b) => getStartingPrice(a) - getStartingPrice(b)
+  "Price Low to High": (a, b) => getStartingPrice(a) - getStartingPrice(b),
 };
 
 export default function ExplorePage() {
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
 
   // ⚡ FIX 2: Pull events from Zustand cache
-  const {
-    events,
-    status,
-    error,
-    fetchEvents,
-    hasMore
-  } = useExploreStore();
+  const { events, status, error, fetchEvents, hasMore } = useExploreStore();
 
   const [selectedCity, setSelectedCity] = useState("");
   const [filters, setFilters] = useState({
@@ -121,7 +128,7 @@ export default function ExplorePage() {
     endDate: "",
     price: "all",
     eventType: "all",
-    curatedCategory: "all"
+    curatedCategory: "all",
   });
 
   // ⚡ Debounced Search Input
@@ -134,7 +141,6 @@ export default function ExplorePage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
-
 
   const [filtersOpen, setFiltersOpen] = useState(false);
 
@@ -173,7 +179,7 @@ export default function ExplorePage() {
     setSelectedCity((prev) => {
       if (prev && cityOptions.some((option) => option.value === prev)) return prev;
       // Default to Pune if available, otherwise first option
-      const pune = cityOptions.find(o => o.value === "pune-in");
+      const pune = cityOptions.find((o) => o.value === "pune-in");
       return pune ? pune.value : cityOptions[0].value;
     });
   }, [cityOptions]);
@@ -203,9 +209,10 @@ export default function ExplorePage() {
     const sorted = [...events].sort(comparator);
 
     // Prioritize "After Dark AZ: Mansion Party"
-    const priorityIndex = sorted.findIndex(e =>
-      e.title?.toLowerCase().includes("after dark az") &&
-      e.title?.toLowerCase().includes("mansion party")
+    const priorityIndex = sorted.findIndex(
+      (e) =>
+        e.title?.toLowerCase().includes("after dark az") &&
+        e.title?.toLowerCase().includes("mansion party"),
     );
 
     if (priorityIndex > -1) {
@@ -223,7 +230,7 @@ export default function ExplorePage() {
     return cityOptions.map((option) => ({
       value: option.value,
       label: option.label,
-      description: `${option.count} events`
+      description: `${option.count} events`,
     }));
   }, [cityOptions]);
 
@@ -234,9 +241,14 @@ export default function ExplorePage() {
     const curatedFilter = filters.curatedCategory || "all";
     const normalizedSearch = debouncedSearch.trim().toLowerCase();
     const targetCity = selectedCity || cityOptions[0]?.value || "";
-    const customStart = filters.datePreset === "custom" && filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
+    const customStart =
+      filters.datePreset === "custom" && filters.startDate
+        ? new Date(`${filters.startDate}T00:00:00`)
+        : null;
     const customEnd =
-      filters.datePreset === "custom" && filters.endDate ? new Date(`${filters.endDate}T23:59:59`) : null;
+      filters.datePreset === "custom" && filters.endDate
+        ? new Date(`${filters.endDate}T23:59:59`)
+        : null;
     const now = new Date();
 
     const matchesDatePreset = (event) => {
@@ -265,7 +277,7 @@ export default function ExplorePage() {
         event.city,
         event.host,
         event.description,
-        ...(event.tags || [])
+        ...(event.tags || []),
       ]
         .join(" ")
         .toLowerCase();
@@ -320,7 +332,10 @@ export default function ExplorePage() {
       .sort(comparator);
   }, [events, filters, debouncedSearch, activeSort, selectedCity, cityOptions]);
 
-  const activeCityLabel = cityOptions.find((option) => option.value === selectedCity)?.label || cityOptions[0]?.label || "your city";
+  const activeCityLabel =
+    cityOptions.find((option) => option.value === selectedCity)?.label ||
+    cityOptions[0]?.label ||
+    "your city";
   const fallbackCities = cityOptions.filter((option) => option.value !== selectedCity).slice(0, 2);
   const showCustomRange = filters.datePreset === "custom";
   const activeFilterCount = useMemo(() => {
@@ -332,7 +347,15 @@ export default function ExplorePage() {
     if (filters.startDate || filters.endDate) count += 1;
     if (searchTerm.trim()) count += 1;
     return count;
-  }, [filters.datePreset, filters.price, filters.eventType, filters.curatedCategory, filters.startDate, filters.endDate, searchTerm]);
+  }, [
+    filters.datePreset,
+    filters.price,
+    filters.eventType,
+    filters.curatedCategory,
+    filters.startDate,
+    filters.endDate,
+    searchTerm,
+  ]);
   const filterSummaryLabel = activeFilterCount
     ? `${activeFilterCount} active ${activeFilterCount === 1 ? "filter" : "filters"}`
     : "No filters applied";
@@ -344,7 +367,7 @@ export default function ExplorePage() {
   const handleFilterChange = (field, value) => {
     setFilters((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
   };
 
@@ -355,7 +378,7 @@ export default function ExplorePage() {
       endDate: "",
       price: "all",
       eventType: "all",
-      curatedCategory: "all"
+      curatedCategory: "all",
     });
     setSearchTerm("");
   };
@@ -404,8 +427,12 @@ export default function ExplorePage() {
               </div>
               <div className="text-center md:text-right">
                 <div className="inline-flex flex-col gap-1 px-8 py-4 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/10 dark:border-white/10">
-                  <p className="text-4xl font-black bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">{filteredEvents.length}</p>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60">Events Found</p>
+                  <p className="text-4xl font-black bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">
+                    {filteredEvents.length}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-black/60 dark:text-white/60">
+                    Events Found
+                  </p>
                 </div>
               </div>
             </div>
@@ -435,7 +462,9 @@ export default function ExplorePage() {
                         <span className="text-xs font-black uppercase tracking-[0.3em]">
                           {status === "loading" ? "Loading..." : "Load More Events"}
                         </span>
-                        {status !== "loading" && <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-2 transition-transform duration-500" />}
+                        {status !== "loading" && (
+                          <ArrowRightIcon className="h-4 w-4 group-hover:translate-x-2 transition-transform duration-500" />
+                        )}
                       </button>
                     </div>
                   )}
@@ -453,7 +482,8 @@ export default function ExplorePage() {
 function FilterDropdown({ label, value, options = [], onChange }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef(null);
-  const selected = options.find((option) => option.value === value) || options[0] || { label: "Select", value: "" };
+  const selected = options.find((option) => option.value === value) ||
+    options[0] || { label: "Select", value: "" };
 
   useEffect(() => {
     const handleClick = (event) => {
@@ -483,11 +513,24 @@ function FilterDropdown({ label, value, options = [], onChange }) {
         aria-expanded={open}
       >
         <div className="flex flex-col text-left leading-tight">
-          <span className="text-[9px] uppercase tracking-[0.5em] text-black/40 dark:text-white/40 mb-0.5">{label}</span>
-          <span className="text-sm font-bold text-black dark:text-white tracking-wide">{selected.label}</span>
-          {selected.description && <span className="text-[10px] text-black/40 dark:text-white/40">{selected.description}</span>}
+          <span className="text-[9px] uppercase tracking-[0.5em] text-black/40 dark:text-white/40 mb-0.5">
+            {label}
+          </span>
+          <span className="text-sm font-bold text-black dark:text-white tracking-wide">
+            {selected.label}
+          </span>
+          {selected.description && (
+            <span className="text-[10px] text-black/40 dark:text-white/40">
+              {selected.description}
+            </span>
+          )}
         </div>
-        <ChevronDownIcon className={clsx("h-4 w-4 text-black/60 dark:text-white/60 transition-transform duration-300", open && "rotate-180")} />
+        <ChevronDownIcon
+          className={clsx(
+            "h-4 w-4 text-black/60 dark:text-white/60 transition-transform duration-300",
+            open && "rotate-180",
+          )}
+        />
       </button>
       <AnimatePresence>
         {open && (
@@ -509,12 +552,18 @@ function FilterDropdown({ label, value, options = [], onChange }) {
                   }}
                   className={clsx(
                     "flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition-all",
-                    option.value === value ? "bg-black/10 dark:bg-white/10 text-black dark:text-white" : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white"
+                    option.value === value
+                      ? "bg-black/10 dark:bg-white/10 text-black dark:text-white"
+                      : "text-black/60 dark:text-white/60 hover:bg-black/5 dark:hover:bg-white/5 hover:text-black dark:hover:text-white",
                   )}
                 >
                   <span className="flex flex-col gap-0.5">
                     <span className="text-sm font-bold tracking-wide">{option.label}</span>
-                    {option.description && <span className="text-[10px] uppercase tracking-wider text-black/30 dark:text-white/30">{option.description}</span>}
+                    {option.description && (
+                      <span className="text-[10px] uppercase tracking-wider text-black/30 dark:text-white/30">
+                        {option.description}
+                      </span>
+                    )}
                   </span>
                   {option.value === value && <CheckIcon className="text-black dark:text-white" />}
                 </button>
@@ -534,12 +583,26 @@ function HeroSkeleton({ status, error }) {
         <div className="mx-auto w-full max-w-[1400px] px-6">
           <div className="rounded-[40px] border border-red-500/20 bg-red-500/5 backdrop-blur-xl p-16 text-center">
             <div className="w-16 h-16 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              <svg
+                className="w-8 h-8 text-red-500"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
               </svg>
             </div>
-            <p className="text-2xl font-black text-red-500 dark:text-red-400 mb-2">Failed to load featured events</p>
-            <p className="text-base text-red-500/70 dark:text-red-400/70">{error || "Please try refreshing the page."}</p>
+            <p className="text-2xl font-black text-red-500 dark:text-red-400 mb-2">
+              Failed to load featured events
+            </p>
+            <p className="text-base text-red-500/70 dark:text-red-400/70">
+              {error || "Please try refreshing the page."}
+            </p>
           </div>
         </div>
       </section>
@@ -552,7 +615,9 @@ function HeroSkeleton({ status, error }) {
           <div className="absolute inset-0 bg-gradient-to-r from-black/5 dark:from-white/5 via-transparent to-transparent shimmer-block" />
           <div className="relative z-10 text-center space-y-4">
             <div className="w-16 h-16 border-4 border-black/10 dark:border-white/10 border-t-black dark:border-t-white rounded-full animate-spin mx-auto" />
-            <p className="text-sm font-bold uppercase tracking-widest text-black/40 dark:text-white/40">Loading Featured Events</p>
+            <p className="text-sm font-bold uppercase tracking-widest text-black/40 dark:text-white/40">
+              Loading Featured Events
+            </p>
           </div>
         </div>
       </div>
@@ -586,9 +651,13 @@ function EmptyState({ city, fallbackCities, onCitySelect, onReset }) {
       <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-[#F44A22]/20 to-[#FF6B4A]/20 border border-[#F44A22]/30">
         <SearchIcon />
       </div>
-      <h3 className="text-3xl md:text-4xl font-heading font-black text-black dark:text-white mb-3 uppercase">No events found</h3>
+      <h3 className="text-3xl md:text-4xl font-heading font-black text-black dark:text-white mb-3 uppercase">
+        No events found
+      </h3>
       <p className="text-lg text-black/60 dark:text-white/60 max-w-lg mx-auto mb-10">
-        We couldn't find any events matching your filters in <span className="font-bold text-[#F44A22]">{city}</span>. Try adjusting your search or check out other cities.
+        We couldn't find any events matching your filters in{" "}
+        <span className="font-bold text-[#F44A22]">{city}</span>. Try adjusting your search or check
+        out other cities.
       </p>
 
       <div className="flex flex-wrap justify-center gap-4">
@@ -648,7 +717,9 @@ function Pagination({ current, total, onChange }) {
             onClick={() => onChange(i + 1)}
             className={clsx(
               "h-2 rounded-full transition-all duration-300",
-              current === i + 1 ? "w-8 bg-black dark:bg-white" : "w-2 bg-black/20 dark:bg-white/20 hover:bg-black/40 dark:hover:bg-white/40"
+              current === i + 1
+                ? "w-8 bg-black dark:bg-white"
+                : "w-2 bg-black/20 dark:bg-white/20 hover:bg-black/40 dark:hover:bg-white/40",
             )}
             aria-label={`Page ${i + 1}`}
           />
@@ -669,23 +740,53 @@ function Pagination({ current, total, onChange }) {
 
 function ChevronDownIcon({ className = "" }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={className} aria-hidden="true">
-      <path d="M5 7.5 10 12.5 15 7.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+      aria-hidden="true"
+    >
+      <path
+        d="M5 7.5 10 12.5 15 7.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function CheckIcon({ className }) {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className={clsx("h-4 w-4", className)} aria-hidden="true">
-      <path d="m5 10 3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={clsx("h-4 w-4", className)}
+      aria-hidden="true"
+    >
+      <path
+        d="m5 10 3 3 7-7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function SearchIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-black/60 dark:text-white/60" aria-hidden="true">
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4 text-black/60 dark:text-white/60"
+      aria-hidden="true"
+    >
       <path
         d="M9 15.5a6.5 6.5 0 1 0 0-13 6.5 6.5 0 0 0 0 13Zm5.5-1 4 4"
         stroke="currentColor"
@@ -699,16 +800,40 @@ function SearchIcon() {
 
 function ArrowLeftIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
-      <path d="M15 10H5m0 0 5-5m-5 5 5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        d="M15 10H5m0 0 5-5m-5 5 5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
 
 function ArrowRightIcon() {
   return (
-    <svg viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" aria-hidden="true">
-      <path d="M5 10h10m0 0-5-5m5 5-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="h-4 w-4"
+      aria-hidden="true"
+    >
+      <path
+        d="M5 10h10m0 0-5-5m5 5-5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

@@ -13,13 +13,15 @@ export const fetchEventsByIds = async (ids = []) => {
     const db = getFirebaseDb();
     const snapshots = await Promise.all(ids.map((id) => getDoc(doc(db, "events", id))));
 
-    const fetchedEvents = snapshots.map((snap) => {
-      if (snap.exists()) {
-        return { id: snap.id, ...snap.data() };
-      }
-      // Fallback to local data if not found in Firestore
-      return fallbackEvents.find(e => e.id === snap.id) || null;
-    }).filter(Boolean);
+    const fetchedEvents = snapshots
+      .map((snap) => {
+        if (snap.exists()) {
+          return { id: snap.id, ...snap.data() };
+        }
+        // Fallback to local data if not found in Firestore
+        return fallbackEvents.find((e) => e.id === snap.id) || null;
+      })
+      .filter(Boolean);
 
     return fetchedEvents;
   } catch (error) {

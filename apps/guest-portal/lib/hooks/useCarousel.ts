@@ -7,7 +7,12 @@ interface UseCarouselOptions {
   loop?: boolean;
 }
 
-export const useCarousel = ({ total, autoplay = true, interval = 6000, loop = true }: UseCarouselOptions) => {
+export const useCarousel = ({
+  total,
+  autoplay = true,
+  interval = 6000,
+  loop = true,
+}: UseCarouselOptions) => {
   const [index, setIndex] = useState(0);
   const timer = useRef<NodeJS.Timeout | null>(null);
   const isMounted = useRef(false);
@@ -34,7 +39,7 @@ export const useCarousel = ({ total, autoplay = true, interval = 6000, loop = tr
         return nextIndex;
       });
     },
-    [loop, total]
+    [loop, total],
   );
 
   const next = useCallback(() => goTo(index + 1), [goTo, index]);

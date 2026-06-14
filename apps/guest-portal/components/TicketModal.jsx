@@ -5,13 +5,21 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Info, Minus, Plus } from "lucide-react";
 
-export default function TicketModal({ open, onClose, tickets = [], eventId, promoterCode, minTicketsPerOrder = 1, maxTicketsPerOrder = 10 }) {
+export default function TicketModal({
+  open,
+  onClose,
+  tickets = [],
+  eventId,
+  promoterCode,
+  minTicketsPerOrder = 1,
+  maxTicketsPerOrder = 10,
+}) {
   const router = useRouter();
   const [quantities, setQuantities] = useState({});
   const [showDescription, setShowDescription] = useState({});
 
   const toggleDescription = (id) => {
-    setShowDescription(prev => ({ ...prev, [id]: !prev[id] }));
+    setShowDescription((prev) => ({ ...prev, [id]: !prev[id] }));
   };
 
   const handlePurchase = () => {
@@ -64,8 +72,12 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
           >
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/50">Tickets</p>
-                <p className="mt-1 text-sm text-white/80">Select quantities and checkout instantly.</p>
+                <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/50">
+                  Tickets
+                </p>
+                <p className="mt-1 text-sm text-white/80">
+                  Select quantities and checkout instantly.
+                </p>
               </div>
               <button
                 type="button"
@@ -90,8 +102,11 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-base font-semibold text-white">{ticket.name}</p>
-                        {(ticket.name.toLowerCase().includes("couple") || ticket.name.toLowerCase().includes("pair")) && (
-                          <span className="rounded-full bg-orange/20 border border-orange/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-orange">Couple</span>
+                        {(ticket.name.toLowerCase().includes("couple") ||
+                          ticket.name.toLowerCase().includes("pair")) && (
+                          <span className="rounded-full bg-orange/20 border border-orange/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-orange">
+                            Couple
+                          </span>
                         )}
                         {ticket.description && (
                           <button
@@ -99,7 +114,9 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                             className="p-1 rounded-full hover:bg-white/10 transition-colors"
                             title="Ticket Information"
                           >
-                            <Info className={`w-3.5 h-3.5 ${showDescription[ticket.id] ? "text-white" : "text-white/30"}`} />
+                            <Info
+                              className={`w-3.5 h-3.5 ${showDescription[ticket.id] ? "text-white" : "text-white/30"}`}
+                            />
                           </button>
                         )}
                       </div>
@@ -127,7 +144,7 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                       onClick={() => {
                         const current = quantities[ticket.id] || 0;
                         if (current > 0) {
-                          setQuantities(prev => ({ ...prev, [ticket.id]: current - 1 }));
+                          setQuantities((prev) => ({ ...prev, [ticket.id]: current - 1 }));
                         }
                       }}
                       className="flex h-9 w-12 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors active:scale-90"
@@ -135,17 +152,22 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
                     >
                       <Minus className="w-4 h-4" />
                     </button>
-                    <span className="w-8 text-center text-base font-bold text-white tabular-nums">{quantities[ticket.id] || 0}</span>
+                    <span className="w-8 text-center text-base font-bold text-white tabular-nums">
+                      {quantities[ticket.id] || 0}
+                    </span>
                     <button
                       type="button"
                       onClick={() => {
                         const current = quantities[ticket.id] || 0;
                         if (current < ticket.quantity) {
-                          setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
+                          setQuantities((prev) => ({ ...prev, [ticket.id]: current + 1 }));
                         }
                       }}
                       className="flex h-9 w-12 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors active:scale-90 disabled:opacity-30"
-                      disabled={(quantities[ticket.id] || 0) >= ticket.quantity || totalQuantity >= maxTicketsPerOrder}
+                      disabled={
+                        (quantities[ticket.id] || 0) >= ticket.quantity ||
+                        totalQuantity >= maxTicketsPerOrder
+                      }
                     >
                       <Plus className="w-4 h-4" />
                     </button>
@@ -162,16 +184,22 @@ export default function TicketModal({ open, onClose, tickets = [], eventId, prom
               {totalQuantity > 0 && (
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-white/40 uppercase tracking-widest">Quantity</p>
-                  <p className={`text-[10px] font-bold ${isAboveMax ? "text-red-500" : "text-white/60"}`}>
+                  <p
+                    className={`text-[10px] font-bold ${isAboveMax ? "text-red-500" : "text-white/60"}`}
+                  >
                     {totalQuantity} / {maxTicketsPerOrder}
                   </p>
                 </div>
               )}
               {isAboveMax && (
-                <p className="text-[10px] text-red-500 font-bold mt-1">Maximum {maxTicketsPerOrder} tickets allowed per account.</p>
+                <p className="text-[10px] text-red-500 font-bold mt-1">
+                  Maximum {maxTicketsPerOrder} tickets allowed per account.
+                </p>
               )}
               {isBelowMin && (
-                <p className="text-[10px] text-orange-400 font-bold">Min {minTicketsPerOrder} tickets required.</p>
+                <p className="text-[10px] text-orange-400 font-bold">
+                  Min {minTicketsPerOrder} tickets required.
+                </p>
               )}
             </div>
             <button

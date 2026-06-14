@@ -15,7 +15,9 @@ export default function CategoryTabs({ tabs = [], active, onChange }) {
             onClick={() => onChange(tab)}
             className={clsx(
               "relative rounded-full px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest transition-all duration-300",
-              isActive ? "text-white dark:text-black" : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
+              isActive
+                ? "text-white dark:text-black"
+                : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white",
             )}
           >
             {isActive && (

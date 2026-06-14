@@ -5,10 +5,10 @@ import { C1rcleApiClient } from "@c1rcle/core/api-client";
  * @param {string} token - The user's Firebase ID token
  */
 export function getApiClient(token) {
-    return new C1rcleApiClient({
-        baseUrl: process.env.PUBLIC_API_URL || "http://localhost:3000/api/v1",
-        getAuthToken: async () => token
-    });
+  return new C1rcleApiClient({
+    baseUrl: process.env.PUBLIC_API_URL || "http://localhost:3000/api/v1",
+    getAuthToken: async () => token,
+  });
 }
 
 /**
@@ -16,8 +16,8 @@ export function getApiClient(token) {
  * Uses a system service token (to be configured).
  */
 export function getSystemApiClient() {
-    return new C1rcleApiClient({
-        baseUrl: process.env.PUBLIC_API_URL || "http://localhost:3000/api/v1",
-        getAuthToken: async () => process.env.INTERNAL_API_KEY
-    });
+  return new C1rcleApiClient({
+    baseUrl: process.env.PUBLIC_API_URL || "http://localhost:3000/api/v1",
+    getAuthToken: async () => process.env.INTERNAL_API_KEY,
+  });
 }

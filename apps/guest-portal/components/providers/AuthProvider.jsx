@@ -1,14 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  arrayRemove,
-  arrayUnion,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -22,7 +15,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
 } from "firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
 
@@ -30,12 +23,12 @@ const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  login: async () => { },
-  register: async () => { },
-  logout: async () => { },
-  updateEventList: async () => { },
-  updateUserProfile: async () => { },
-  changePassword: async () => { }
+  login: async () => {},
+  register: async () => {},
+  logout: async () => {},
+  updateEventList: async () => {},
+  updateUserProfile: async () => {},
+  changePassword: async () => {},
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -53,7 +46,7 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     instagram: "",
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 };
 
@@ -71,17 +64,17 @@ export function AuthProvider({ children }) {
       if (snapshot.exists()) {
         const data = snapshot.data();
         // Normalize timestamps for UI consistency
-        if (data.createdAt && typeof data.createdAt.toDate === 'function') {
+        if (data.createdAt && typeof data.createdAt.toDate === "function") {
           data.createdAt = data.createdAt.toDate().toISOString();
         }
-        if (data.updatedAt && typeof data.updatedAt.toDate === 'function') {
+        if (data.updatedAt && typeof data.updatedAt.toDate === "function") {
           data.updatedAt = data.updatedAt.toDate().toISOString();
         }
         setProfile(data);
         return data;
       }
       const payload = buildProfilePayload(firebaseUser, {
-        gender: firebaseUser.gender || ""
+        gender: firebaseUser.gender || "",
       });
       await setDoc(profileRef, payload);
       setProfile(payload);
@@ -118,13 +111,16 @@ export function AuthProvider({ children }) {
     return () => unsubscribe?.();
   }, [ensureProfile]);
 
-  const login = useCallback(async (email, password, rememberMe = true) => {
-    const auth = getFirebaseAuth();
-    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    const profile = await ensureProfile(credential.user);
-    return { user: credential.user, profile };
-  }, [ensureProfile]);
+  const login = useCallback(
+    async (email, password, rememberMe = true) => {
+      const auth = getFirebaseAuth();
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      const profile = await ensureProfile(credential.user);
+      return { user: credential.user, profile };
+    },
+    [ensureProfile],
+  );
 
   const register = useCallback(
     async (email, password, displayName, gender) => {
@@ -136,11 +132,11 @@ export function AuthProvider({ children }) {
       const profile = await ensureProfile({
         ...credential.user,
         displayName: displayName || credential.user.displayName,
-        gender: gender // Pass gender to ensureProfile
+        gender: gender, // Pass gender to ensureProfile
       });
       return { user: credential.user, profile };
     },
-    [ensureProfile]
+    [ensureProfile],
   );
 
   const logout = useCallback(async () => {
@@ -167,7 +163,7 @@ export function AuthProvider({ children }) {
       const profileRef = doc(db, "users", user.uid);
       await updateDoc(profileRef, {
         [field]: shouldInclude ? arrayUnion(eventId) : arrayRemove(eventId),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
       setProfile((prev) => {
         if (!prev) return prev;
@@ -176,11 +172,11 @@ export function AuthProvider({ children }) {
         else current.delete(eventId);
         return {
           ...prev,
-          [field]: Array.from(current)
+          [field]: Array.from(current),
         };
       });
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const updateUserProfile = useCallback(
@@ -193,20 +189,24 @@ export function AuthProvider({ children }) {
       // Update Firestore
       await updateDoc(profileRef, {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
 
       // Sync Firebase Auth profile if displayName or photoURL changed
-      if (auth.currentUser && (updates.displayName !== undefined || updates.photoURL !== undefined)) {
+      if (
+        auth.currentUser &&
+        (updates.displayName !== undefined || updates.photoURL !== undefined)
+      ) {
         await updateFirebaseProfile(auth.currentUser, {
-          displayName: updates.displayName !== undefined ? updates.displayName : auth.currentUser.displayName,
-          photoURL: updates.photoURL !== undefined ? updates.photoURL : auth.currentUser.photoURL
+          displayName:
+            updates.displayName !== undefined ? updates.displayName : auth.currentUser.displayName,
+          photoURL: updates.photoURL !== undefined ? updates.photoURL : auth.currentUser.photoURL,
         });
       }
 
       setProfile((prev) => ({ ...prev, ...updates }));
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const changePassword = useCallback(
@@ -224,13 +224,13 @@ export function AuthProvider({ children }) {
         // Update password
         await updateFirebasePassword(currentUser, newPassword);
       } catch (err) {
-        if (err.code === 'auth/wrong-password') {
+        if (err.code === "auth/wrong-password") {
           throw new Error("Current password is incorrect");
         }
         throw err;
       }
     },
-    [user]
+    [user],
   );
 
   const value = useMemo(
@@ -245,9 +245,21 @@ export function AuthProvider({ children }) {
       logout,
       updateEventList,
       updateUserProfile,
-      changePassword
+      changePassword,
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile, changePassword]
+    [
+      user,
+      profile,
+      loading,
+      error,
+      login,
+      register,
+      loginWithGoogle,
+      logout,
+      updateEventList,
+      updateUserProfile,
+      changePassword,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

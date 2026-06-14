@@ -8,141 +8,145 @@ import { getFirebaseDb } from "@/lib/firebase";
 import { doc, getDoc, setDoc, updateDoc, onSnapshot } from "firebase/firestore";
 
 export interface UserProfile {
-    uid: string;
-    email: string;
-    displayName: string;
-    photoURL?: string;
-    bio?: string;
-    city?: string;
-    phone?: string;
-    gender?: "male" | "female" | "other" | "prefer_not_to_say";
-    dateOfBirth?: string;
-    createdAt: string;
-    updatedAt: string;
+  uid: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  bio?: string;
+  city?: string;
+  phone?: string;
+  gender?: "male" | "female" | "other" | "prefer_not_to_say";
+  dateOfBirth?: string;
+  createdAt: string;
+  updatedAt: string;
 
-    // Social
-    eventsAttended?: number;
-    connections?: number;
+  // Social
+  eventsAttended?: number;
+  connections?: number;
 
-    // Status
-    isVerified?: boolean;
-    isPremium?: boolean;
+  // Status
+  isVerified?: boolean;
+  isPremium?: boolean;
 }
 
 interface ProfileState {
-    profile: UserProfile | null;
-    loading: boolean;
-    error: string | null;
+  profile: UserProfile | null;
+  loading: boolean;
+  error: string | null;
 
-    // Actions
-    loadProfile: (userId: string) => Promise<void>;
-    updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
-    subscribeToProfile: (userId: string) => () => void;
-    clearProfile: () => void;
+  // Actions
+  loadProfile: (userId: string) => Promise<void>;
+  updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
+  subscribeToProfile: (userId: string) => () => void;
+  clearProfile: () => void;
 }
 
 export const useProfileStore = create<ProfileState>((set, get) => ({
-    profile: null,
-    loading: false,
-    error: null,
+  profile: null,
+  loading: false,
+  error: null,
 
-    loadProfile: async (userId: string) => {
-        set({ loading: true, error: null });
+  loadProfile: async (userId: string) => {
+    set({ loading: true, error: null });
 
-        try {
-            const db = getFirebaseDb();
-            const profileRef = doc(db, "users", userId);
-            const snapshot = await getDoc(profileRef);
+    try {
+      const db = getFirebaseDb();
+      const profileRef = doc(db, "users", userId);
+      const snapshot = await getDoc(profileRef);
 
-            if (snapshot.exists()) {
-                const data = snapshot.data();
-                set({
-                    profile: {
-                        uid: userId,
-                        ...data,
-                    } as UserProfile,
-                    loading: false,
-                });
-            } else {
-                // Create initial profile
-                const initialProfile: UserProfile = {
-                    uid: userId,
-                    email: "",
-                    displayName: "",
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                };
-
-                await setDoc(profileRef, initialProfile);
-                set({ profile: initialProfile, loading: false });
-            }
-        } catch (error: any) {
-            console.error("Error loading profile:", error);
-            set({ error: error.message, loading: false });
-        }
-    },
-
-    updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
-        const { profile } = get();
-
-        // Optimistic update
-        if (profile) {
-            set({
-                profile: {
-                    ...profile,
-                    ...updates,
-                    updatedAt: new Date().toISOString(),
-                },
-            });
-        }
-
-        try {
-            const db = getFirebaseDb();
-            const profileRef = doc(db, "users", userId);
-
-            await updateDoc(profileRef, {
-                ...updates,
-                updatedAt: new Date().toISOString(),
-            });
-
-            return true;
-        } catch (error: any) {
-            console.error("Error updating profile:", error);
-            set({ error: error.message });
-
-            // Revert optimistic update
-            if (profile) {
-                set({ profile });
-            }
-
-            return false;
-        }
-    },
-
-    subscribeToProfile: (userId: string) => {
-        const db = getFirebaseDb();
-        const profileRef = doc(db, "users", userId);
-
-        const unsubscribe = onSnapshot(profileRef, (snapshot) => {
-            if (snapshot.exists()) {
-                set({
-                    profile: {
-                        uid: userId,
-                        ...snapshot.data(),
-                    } as UserProfile,
-                });
-            }
-        }, (error) => {
-            console.error("Profile subscription error:", error);
-            set({ error: error.message });
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        set({
+          profile: {
+            uid: userId,
+            ...data,
+          } as UserProfile,
+          loading: false,
         });
+      } else {
+        // Create initial profile
+        const initialProfile: UserProfile = {
+          uid: userId,
+          email: "",
+          displayName: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-        return unsubscribe;
-    },
+        await setDoc(profileRef, initialProfile);
+        set({ profile: initialProfile, loading: false });
+      }
+    } catch (error: any) {
+      console.error("Error loading profile:", error);
+      set({ error: error.message, loading: false });
+    }
+  },
 
-    clearProfile: () => {
-        set({ profile: null, loading: false, error: null });
-    },
+  updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
+    const { profile } = get();
+
+    // Optimistic update
+    if (profile) {
+      set({
+        profile: {
+          ...profile,
+          ...updates,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    try {
+      const db = getFirebaseDb();
+      const profileRef = doc(db, "users", userId);
+
+      await updateDoc(profileRef, {
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return true;
+    } catch (error: any) {
+      console.error("Error updating profile:", error);
+      set({ error: error.message });
+
+      // Revert optimistic update
+      if (profile) {
+        set({ profile });
+      }
+
+      return false;
+    }
+  },
+
+  subscribeToProfile: (userId: string) => {
+    const db = getFirebaseDb();
+    const profileRef = doc(db, "users", userId);
+
+    const unsubscribe = onSnapshot(
+      profileRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          set({
+            profile: {
+              uid: userId,
+              ...snapshot.data(),
+            } as UserProfile,
+          });
+        }
+      },
+      (error) => {
+        console.error("Profile subscription error:", error);
+        set({ error: error.message });
+      },
+    );
+
+    return unsubscribe;
+  },
+
+  clearProfile: () => {
+    set({ profile: null, loading: false, error: null });
+  },
 }));
 
 export default useProfileStore;

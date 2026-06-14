@@ -50,13 +50,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           transition={{ duration: 1.2, ease: "easeInOut" }}
           className="absolute inset-0 z-0"
         >
-          <Image
-            src={activeEvent.image}
-            alt=""
-            fill
-            className="object-cover"
-            priority
-          />
+          <Image src={activeEvent.image} alt="" fill className="object-cover" priority />
           {/* Multi-layered Gradient Overlays for Depth */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/80" />
           <div className="absolute inset-0 bg-gradient-to-r from-black/50 via-transparent to-black/30" />
@@ -100,7 +94,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-heading font-black text-white uppercase leading-[0.9] tracking-tight"
               style={{
-                textShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 40px rgba(244,74,34,0.3)'
+                textShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 40px rgba(244,74,34,0.3)",
               }}
             >
               {activeEvent.title}
@@ -115,24 +109,59 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             >
               <div className="flex flex-col sm:flex-row gap-1 sm:gap-5 text-sm sm:text-xl text-white/90 font-bold justify-center lg:justify-start">
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  <svg
+                    className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                    />
                   </svg>
                   <span>{activeEvent.date}</span>
                 </div>
                 <div className="hidden sm:block text-white/40">•</div>
                 <div className="flex items-center gap-2 justify-center lg:justify-start">
-                  <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  <svg
+                    className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
                   </svg>
                   <span>{activeEvent.time}</span>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-sm sm:text-lg text-white/70 justify-center lg:justify-start">
-                <svg className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                <svg
+                  className="w-4 h-4 sm:w-6 sm:h-6 text-[#F44A22]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                  />
                 </svg>
                 <span className="font-semibold">{activeEvent.venue || activeEvent.location}</span>
               </div>
@@ -160,7 +189,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                       key={i}
                       className="w-6 h-6 lg:w-10 lg:h-10 rounded-full bg-gradient-to-br from-[#F44A22] to-[#FF6B4A] border-2 border-white/20"
                       style={{
-                        transform: `translateX(-${i * 2}px)`
+                        transform: `translateX(-${i * 2}px)`,
                       }}
                     />
                   ))}
@@ -191,7 +220,10 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-60 group-hover:opacity-40 transition-opacity duration-500" />
 
               {/* Shimmer Effect on Hover */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full" style={{ transform: 'translateX(-100%)' }} />
+              <div
+                className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full"
+                style={{ transform: "translateX(-100%)" }}
+              />
             </div>
 
             {/* Decorative Elements */}
@@ -214,8 +246,19 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               className="p-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Previous slide"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M15.75 19.5L8.25 12l7.5-7.5"
+                />
               </svg>
             </button>
             <button
@@ -223,7 +266,14 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               className="p-4 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 hover:scale-110 transition-all duration-300"
               aria-label="Next slide"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
+                strokeWidth={2.5}
+                stroke="currentColor"
+                className="w-5 h-5"
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
               </svg>
             </button>
@@ -239,7 +289,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                   "h-2 rounded-full transition-all duration-500",
                   idx === activeIndex
                     ? "w-12 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"
-                    : "w-2 bg-white/30 hover:bg-white/50 hover:scale-125"
+                    : "w-2 bg-white/30 hover:bg-white/50 hover:scale-125",
                 )}
                 aria-label={`Go to slide ${idx + 1}`}
               />
@@ -269,4 +319,3 @@ export default function ExploreCarouselHeader({ slides = [] }) {
     </section>
   );
 }
-

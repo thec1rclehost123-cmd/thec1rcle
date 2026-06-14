@@ -14,7 +14,12 @@ export default function EventGallery({ images = [] }) {
             className="group relative aspect-video overflow-hidden rounded-3xl border border-white/10"
             onClick={() => setOpenImage(img)}
           >
-            <Image src={img} alt={`Gallery ${idx}`} fill className="object-cover transition duration-500 group-hover:scale-105" />
+            <Image
+              src={img}
+              alt={`Gallery ${idx}`}
+              fill
+              className="object-cover transition duration-500 group-hover:scale-105"
+            />
           </button>
         ))}
       </div>

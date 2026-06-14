@@ -21,7 +21,7 @@ export const useParallaxTilt = ({ intensity = 12, scale = 1.02 }: UseParallaxTil
       rotateX.set(((y - midY) / midY) * -intensity);
       rotateY.set(((x - midX) / midX) * intensity);
     },
-    [intensity, rotateX, rotateY]
+    [intensity, rotateX, rotateY],
   );
 
   const reset = useCallback(() => {

@@ -1,22 +1,15 @@
 import { useState, useEffect, useRef } from "react";
-import {
-    View,
-    Text,
-    Pressable,
-    StyleSheet,
-    Dimensions,
-    Modal,
-} from "react-native";
+import { View, Text, Pressable, StyleSheet, Dimensions, Modal } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import { useScannerStore } from "@/store/scannerStore";
 import { processQRScan } from "@/lib/scanner";
@@ -27,456 +20,539 @@ const { width } = Dimensions.get("window");
 const SCAN_AREA_SIZE = width * 0.68;
 
 export default function ScanScreen() {
-    const [permission, requestPermission] = useCameraPermissions();
-    const [isScanning, setIsScanning] = useState(true);
-    const [flashEnabled, setFlashEnabled] = useState(false);
-    const [scanResult, setScanResult] = useState<ScanResultData | null>(null);
-    const [showCoupleModal, setShowCoupleModal] = useState(false);
-    const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
-    const [entryCount, setEntryCount] = useState(0);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [isScanning, setIsScanning] = useState(true);
+  const [flashEnabled, setFlashEnabled] = useState(false);
+  const [scanResult, setScanResult] = useState<ScanResultData | null>(null);
+  const [showCoupleModal, setShowCoupleModal] = useState(false);
+  const [pendingCoupleData, setPendingCoupleData] = useState<any>(null);
+  const [entryCount, setEntryCount] = useState(0);
 
-    const { eventData, clearEvent } = useScannerStore();
-    const lastScannedRef = useRef<string | null>(null);
-    const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { eventData, clearEvent } = useScannerStore();
+  const lastScannedRef = useRef<string | null>(null);
+  const scanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const resultScale = useSharedValue(0);
-    const resultOpacity = useSharedValue(0);
+  const resultScale = useSharedValue(0);
+  const resultOpacity = useSharedValue(0);
 
-    useEffect(() => {
-        if (!eventData?.valid) {
-            router.replace("/scanner" as any);
-            return;
-        }
-        if (eventData?.stats) {
-            setEntryCount(eventData.stats.totalEntered);
-        }
-    }, []);
+  useEffect(() => {
+    if (!eventData?.valid) {
+      router.replace("/scanner" as any);
+      return;
+    }
+    if (eventData?.stats) {
+      setEntryCount(eventData.stats.totalEntered);
+    }
+  }, []);
 
-    const showResultOverlay = (result: ScanResultData) => {
-        setScanResult(result);
-        resultScale.value = withSpring(1, { damping: 15 });
-        resultOpacity.value = withTiming(1, { duration: 200 });
+  const showResultOverlay = (result: ScanResultData) => {
+    setScanResult(result);
+    resultScale.value = withSpring(1, { damping: 15 });
+    resultOpacity.value = withTiming(1, { duration: 200 });
 
-        if (result.type === "valid") {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        } else if (result.type === "already_scanned") {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        } else {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        }
+    if (result.type === "valid") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else if (result.type === "already_scanned") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } else {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    }
 
-        scanTimeoutRef.current = setTimeout(() => dismissResult(), 3000);
-    };
+    scanTimeoutRef.current = setTimeout(() => dismissResult(), 3000);
+  };
 
-    const dismissResult = () => {
-        if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
-        resultScale.value = withSpring(0);
-        resultOpacity.value = withTiming(0, { duration: 200 });
-        setTimeout(() => {
-            setScanResult(null);
-            setIsScanning(true);
-            lastScannedRef.current = null;
-        }, 200);
-    };
+  const dismissResult = () => {
+    if (scanTimeoutRef.current) clearTimeout(scanTimeoutRef.current);
+    resultScale.value = withSpring(0);
+    resultOpacity.value = withTiming(0, { duration: 200 });
+    setTimeout(() => {
+      setScanResult(null);
+      setIsScanning(true);
+      lastScannedRef.current = null;
+    }, 200);
+  };
 
-    const handleBarCodeScanned = async ({ data }: BarcodeScanningResult) => {
-        if (!isScanning || data === lastScannedRef.current) return;
-        setIsScanning(false);
-        lastScannedRef.current = data;
+  const handleBarCodeScanned = async ({ data }: BarcodeScanningResult) => {
+    if (!isScanning || data === lastScannedRef.current) return;
+    setIsScanning(false);
+    lastScannedRef.current = data;
 
-        try {
-            const result = await processQRScan({
-                qrData: data,
-                eventId: eventData?.event.id || "",
-                eventCode: eventData?.code || "",
-                gate: eventData?.gate,
-            });
+    try {
+      const result = await processQRScan({
+        qrData: data,
+        eventId: eventData?.event.id || "",
+        eventCode: eventData?.code || "",
+        gate: eventData?.gate,
+      });
 
-            if (result.success && result.ticket?.entryType === "couple") {
-                setPendingCoupleData(result);
-                setShowCoupleModal(true);
-                return;
+      if (result.success && result.ticket?.entryType === "couple") {
+        setPendingCoupleData(result);
+        setShowCoupleModal(true);
+        return;
+      }
+
+      handleScanResult(result);
+    } catch (error: any) {
+      showResultOverlay({ type: "invalid", message: error.message || "Scan failed" });
+    }
+  };
+
+  const handleScanResult = (result: any) => {
+    if (result.success) {
+      setEntryCount((prev) => prev + (result.ticket?.quantity || 1));
+      showResultOverlay({
+        type: "valid",
+        message: result.message || "Entry approved!",
+        guest: {
+          name: result.ticket?.userName || "Guest",
+          ticketType: result.ticket?.ticketName || "Entry",
+          quantity: result.ticket?.quantity || 1,
+          entryType: result.ticket?.entryType || "general",
+        },
+      });
+    } else {
+      showResultOverlay({
+        type: result.result || "invalid",
+        message: result.error || "Invalid ticket",
+        previousScan: result.previousScan
+          ? {
+              time: result.previousScan.scannedAt,
+              by: result.previousScan.scannedBy?.name || "",
             }
-
-            handleScanResult(result);
-        } catch (error: any) {
-            showResultOverlay({ type: "invalid", message: error.message || "Scan failed" });
-        }
-    };
-
-    const handleScanResult = (result: any) => {
-        if (result.success) {
-            setEntryCount((prev) => prev + (result.ticket?.quantity || 1));
-            showResultOverlay({
-                type: "valid",
-                message: result.message || "Entry approved!",
-                guest: {
-                    name: result.ticket?.userName || "Guest",
-                    ticketType: result.ticket?.ticketName || "Entry",
-                    quantity: result.ticket?.quantity || 1,
-                    entryType: result.ticket?.entryType || "general",
-                },
-            });
-        } else {
-            showResultOverlay({
-                type: result.result || "invalid",
-                message: result.error || "Invalid ticket",
-                previousScan: result.previousScan ? {
-                    time: result.previousScan.scannedAt,
-                    by: result.previousScan.scannedBy?.name || "",
-                } : undefined,
-            });
-        }
-    };
-
-    const handleCoupleConfirm = (present: boolean) => {
-        setShowCoupleModal(false);
-        if (present && pendingCoupleData) {
-            handleScanResult(pendingCoupleData);
-        } else {
-            showResultOverlay({ type: "invalid", message: "Couple entry requires both guests present" });
-        }
-        setPendingCoupleData(null);
-    };
-
-    const handleExit = () => {
-        clearEvent();
-        router.replace("/scanner" as any);
-    };
-
-    const resultAnimatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: resultScale.value }],
-        opacity: resultOpacity.value,
-    }));
-
-    const getResultColor = (type: ScanResultType): string => {
-        if (type === "valid") return colors.success;
-        if (type === "already_scanned") return colors.warning;
-        return colors.error;
-    };
-
-    const getResultIcon = (type: ScanResultType): string => {
-        if (type === "valid") return "✅";
-        if (type === "already_scanned") return "⚠️";
-        return "❌";
-    };
-
-    const getResultTitle = (type: ScanResultType): string => {
-        if (type === "valid") return "Entry Approved";
-        if (type === "already_scanned") return "Already Scanned";
-        return "Entry Denied";
-    };
-
-    // Permission: loading
-    if (!permission) {
-        return (
-            <View style={[styles.container, styles.center]}>
-                <Text style={styles.loadingText}>Loading camera...</Text>
-            </View>
-        );
+          : undefined,
+      });
     }
+  };
 
-    // Permission: not granted
-    if (!permission.granted) {
-        return (
-            <SafeAreaView style={[styles.container, styles.center]}>
-                <Text style={{ fontSize: 56 }}>📷</Text>
-                <Text style={styles.permTitle}>Camera Access Required</Text>
-                <Text style={styles.permSubtitle}>
-                    We need camera permission to scan ticket QR codes
-                </Text>
-                <Pressable onPress={requestPermission} style={styles.permButton}>
-                    <LinearGradient
-                        colors={gradients.primary as [string, string]}
-                        style={styles.permButtonInner}
-                    >
-                        <Text style={styles.permButtonText}>Grant Permission</Text>
-                    </LinearGradient>
-                </Pressable>
-            </SafeAreaView>
-        );
+  const handleCoupleConfirm = (present: boolean) => {
+    setShowCoupleModal(false);
+    if (present && pendingCoupleData) {
+      handleScanResult(pendingCoupleData);
+    } else {
+      showResultOverlay({ type: "invalid", message: "Couple entry requires both guests present" });
     }
+    setPendingCoupleData(null);
+  };
 
+  const handleExit = () => {
+    clearEvent();
+    router.replace("/scanner" as any);
+  };
+
+  const resultAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: resultScale.value }],
+    opacity: resultOpacity.value,
+  }));
+
+  const getResultColor = (type: ScanResultType): string => {
+    if (type === "valid") return colors.success;
+    if (type === "already_scanned") return colors.warning;
+    return colors.error;
+  };
+
+  const getResultIcon = (type: ScanResultType): string => {
+    if (type === "valid") return "✅";
+    if (type === "already_scanned") return "⚠️";
+    return "❌";
+  };
+
+  const getResultTitle = (type: ScanResultType): string => {
+    if (type === "valid") return "Entry Approved";
+    if (type === "already_scanned") return "Already Scanned";
+    return "Entry Denied";
+  };
+
+  // Permission: loading
+  if (!permission) {
     return (
-        <View style={styles.container}>
-            {/* Camera */}
-            <CameraView
-                style={StyleSheet.absoluteFillObject}
-                facing="back"
-                enableTorch={flashEnabled}
-                barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
-                onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
-            />
+      <View style={[styles.container, styles.center]}>
+        <Text style={styles.loadingText}>Loading camera...</Text>
+      </View>
+    );
+  }
 
-            {/* Overlay */}
-            <View style={styles.overlay}>
-                {/* Top Bar — Event info + navigation */}
-                <SafeAreaView edges={["top"]}>
-                    <View style={styles.topBar}>
-                        <View style={styles.topBarLeft}>
-                            <View style={styles.liveIndicator}>
-                                <View style={styles.liveDot} />
-                                <Text style={styles.liveText}>SCANNING</Text>
-                            </View>
-                            <Text style={styles.eventTitle} numberOfLines={1}>
-                                {eventData?.event.title}
-                            </Text>
-                        </View>
-                        <View style={styles.topBarRight}>
-                            <View style={styles.counterBadge}>
-                                <Text style={styles.counterNumber}>{entryCount}</Text>
-                                <Text style={styles.counterLabel}>entered</Text>
-                            </View>
-                        </View>
-                    </View>
-                </SafeAreaView>
+  // Permission: not granted
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={[styles.container, styles.center]}>
+        <Text style={{ fontSize: 56 }}>📷</Text>
+        <Text style={styles.permTitle}>Camera Access Required</Text>
+        <Text style={styles.permSubtitle}>We need camera permission to scan ticket QR codes</Text>
+        <Pressable onPress={requestPermission} style={styles.permButton}>
+          <LinearGradient
+            colors={gradients.primary as [string, string]}
+            style={styles.permButtonInner}
+          >
+            <Text style={styles.permButtonText}>Grant Permission</Text>
+          </LinearGradient>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
 
-                {/* Scan Frame */}
-                <View style={styles.scanFrameContainer}>
-                    <View style={[styles.scanFrame, {
-                        borderColor: scanResult
-                            ? getResultColor(scanResult.type)
-                            : "rgba(255,255,255,0.4)",
-                    }]}>
-                        {/* Corner accents */}
-                        <View style={[styles.corner, styles.cornerTL]} />
-                        <View style={[styles.corner, styles.cornerTR]} />
-                        <View style={[styles.corner, styles.cornerBL]} />
-                        <View style={[styles.corner, styles.cornerBR]} />
-                    </View>
-                    <Text style={styles.scanHint}>
-                        Point camera at ticket QR code
-                    </Text>
-                </View>
+  return (
+    <View style={styles.container}>
+      {/* Camera */}
+      <CameraView
+        style={StyleSheet.absoluteFillObject}
+        facing="back"
+        enableTorch={flashEnabled}
+        barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+        onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
+      />
 
-                {/* Bottom Controls */}
-                <SafeAreaView edges={["bottom"]}>
-                    <View style={styles.bottomBar}>
-                        {/* Navigation Buttons Row */}
-                        <View style={styles.navRow}>
-                            <Pressable
-                                onPress={() => router.push("/scanner/door-entry" as any)}
-                                style={styles.navButton}
-                            >
-                                <Text style={styles.navIcon}>🚪</Text>
-                                <Text style={styles.navLabel}>Door Entry</Text>
-                            </Pressable>
+      {/* Overlay */}
+      <View style={styles.overlay}>
+        {/* Top Bar — Event info + navigation */}
+        <SafeAreaView edges={["top"]}>
+          <View style={styles.topBar}>
+            <View style={styles.topBarLeft}>
+              <View style={styles.liveIndicator}>
+                <View style={styles.liveDot} />
+                <Text style={styles.liveText}>SCANNING</Text>
+              </View>
+              <Text style={styles.eventTitle} numberOfLines={1}>
+                {eventData?.event.title}
+              </Text>
+            </View>
+            <View style={styles.topBarRight}>
+              <View style={styles.counterBadge}>
+                <Text style={styles.counterNumber}>{entryCount}</Text>
+                <Text style={styles.counterLabel}>entered</Text>
+              </View>
+            </View>
+          </View>
+        </SafeAreaView>
 
-                            <Pressable
-                                onPress={() => setFlashEnabled(!flashEnabled)}
-                                style={[styles.flashButton, flashEnabled && styles.flashActive]}
-                            >
-                                <Text style={{ fontSize: 24 }}>
-                                    {flashEnabled ? "⚡" : "🔦"}
-                                </Text>
-                            </Pressable>
+        {/* Scan Frame */}
+        <View style={styles.scanFrameContainer}>
+          <View
+            style={[
+              styles.scanFrame,
+              {
+                borderColor: scanResult ? getResultColor(scanResult.type) : "rgba(255,255,255,0.4)",
+              },
+            ]}
+          >
+            {/* Corner accents */}
+            <View style={[styles.corner, styles.cornerTL]} />
+            <View style={[styles.corner, styles.cornerTR]} />
+            <View style={[styles.corner, styles.cornerBL]} />
+            <View style={[styles.corner, styles.cornerBR]} />
+          </View>
+          <Text style={styles.scanHint}>Point camera at ticket QR code</Text>
+        </View>
 
-                            <Pressable
-                                onPress={() => router.push("/scanner/stats" as any)}
-                                style={styles.navButton}
-                            >
-                                <Text style={styles.navIcon}>📊</Text>
-                                <Text style={styles.navLabel}>Stats</Text>
-                            </Pressable>
+        {/* Bottom Controls */}
+        <SafeAreaView edges={["bottom"]}>
+          <View style={styles.bottomBar}>
+            {/* Navigation Buttons Row */}
+            <View style={styles.navRow}>
+              <Pressable
+                onPress={() => router.push("/scanner/door-entry" as any)}
+                style={styles.navButton}
+              >
+                <Text style={styles.navIcon}>🚪</Text>
+                <Text style={styles.navLabel}>Door Entry</Text>
+              </Pressable>
 
-                            <Pressable
-                                onPress={() => router.push("/scanner/guestlist" as any)}
-                                style={styles.navButton}
-                            >
-                                <Text style={styles.navIcon}>👥</Text>
-                                <Text style={styles.navLabel}>Guests</Text>
-                            </Pressable>
-                        </View>
+              <Pressable
+                onPress={() => setFlashEnabled(!flashEnabled)}
+                style={[styles.flashButton, flashEnabled && styles.flashActive]}
+              >
+                <Text style={{ fontSize: 24 }}>{flashEnabled ? "⚡" : "🔦"}</Text>
+              </Pressable>
 
-                        {/* Exit Button */}
-                        <Pressable onPress={handleExit} style={styles.exitButton}>
-                            <Text style={styles.exitText}>Exit Scanner</Text>
-                        </Pressable>
-                    </View>
-                </SafeAreaView>
+              <Pressable
+                onPress={() => router.push("/scanner/stats" as any)}
+                style={styles.navButton}
+              >
+                <Text style={styles.navIcon}>📊</Text>
+                <Text style={styles.navLabel}>Stats</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/scanner/guestlist" as any)}
+                style={styles.navButton}
+              >
+                <Text style={styles.navIcon}>👥</Text>
+                <Text style={styles.navLabel}>Guests</Text>
+              </Pressable>
             </View>
 
-            {/* Scan Result Overlay */}
-            {scanResult && (
-                <Animated.View
-                    style={[StyleSheet.absoluteFillObject, resultAnimatedStyle, { zIndex: 100 }]}
-                >
-                    <Pressable
-                        onPress={dismissResult}
-                        style={[styles.resultOverlay, { backgroundColor: getResultColor(scanResult.type) }]}
-                    >
-                        <Text style={{ fontSize: 96 }}>{getResultIcon(scanResult.type)}</Text>
-                        <Text style={styles.resultTitle}>{getResultTitle(scanResult.type)}</Text>
+            {/* Exit Button */}
+            <Pressable onPress={handleExit} style={styles.exitButton}>
+              <Text style={styles.exitText}>Exit Scanner</Text>
+            </Pressable>
+          </View>
+        </SafeAreaView>
+      </View>
 
-                        {scanResult.guest && scanResult.type === "valid" && (
-                            <View style={styles.resultGuestInfo}>
-                                <Text style={styles.resultGuestName}>{scanResult.guest.name}</Text>
-                                <View style={styles.resultBadgeRow}>
-                                    <View style={styles.resultBadge}>
-                                        <Text style={styles.resultBadgeText}>{scanResult.guest.ticketType}</Text>
-                                    </View>
-                                    {scanResult.guest.quantity > 1 && (
-                                        <View style={styles.resultBadge}>
-                                            <Text style={styles.resultBadgeText}>×{scanResult.guest.quantity}</Text>
-                                        </View>
-                                    )}
-                                </View>
-                                <Text style={styles.resultEntryType}>
-                                    {scanResult.guest.entryType} Entry
-                                </Text>
-                            </View>
-                        )}
+      {/* Scan Result Overlay */}
+      {scanResult && (
+        <Animated.View
+          style={[StyleSheet.absoluteFillObject, resultAnimatedStyle, { zIndex: 100 }]}
+        >
+          <Pressable
+            onPress={dismissResult}
+            style={[styles.resultOverlay, { backgroundColor: getResultColor(scanResult.type) }]}
+          >
+            <Text style={{ fontSize: 96 }}>{getResultIcon(scanResult.type)}</Text>
+            <Text style={styles.resultTitle}>{getResultTitle(scanResult.type)}</Text>
 
-                        {scanResult.type === "already_scanned" && scanResult.previousScan && (
-                            <View style={styles.resultPrevScan}>
-                                <Text style={styles.resultPrevText}>
-                                    Scanned at {scanResult.previousScan.time}
-                                </Text>
-                                {scanResult.previousScan.by && (
-                                    <Text style={styles.resultPrevBy}>
-                                        by {scanResult.previousScan.by}
-                                    </Text>
-                                )}
-                            </View>
-                        )}
-
-                        {scanResult.type !== "valid" && scanResult.type !== "already_scanned" && (
-                            <Text style={styles.resultMessage}>{scanResult.message}</Text>
-                        )}
-
-                        <Text style={styles.resultDismissHint}>Tap anywhere to continue</Text>
-                    </Pressable>
-                </Animated.View>
+            {scanResult.guest && scanResult.type === "valid" && (
+              <View style={styles.resultGuestInfo}>
+                <Text style={styles.resultGuestName}>{scanResult.guest.name}</Text>
+                <View style={styles.resultBadgeRow}>
+                  <View style={styles.resultBadge}>
+                    <Text style={styles.resultBadgeText}>{scanResult.guest.ticketType}</Text>
+                  </View>
+                  {scanResult.guest.quantity > 1 && (
+                    <View style={styles.resultBadge}>
+                      <Text style={styles.resultBadgeText}>×{scanResult.guest.quantity}</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={styles.resultEntryType}>{scanResult.guest.entryType} Entry</Text>
+              </View>
             )}
 
-            {/* Couple Confirm Modal */}
-            <Modal visible={showCoupleModal} transparent animationType="fade" statusBarTranslucent>
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalCard}>
-                        <Text style={{ fontSize: 40, textAlign: "center" }}>👫</Text>
-                        <Text style={styles.modalTitle}>Couple Entry</Text>
-                        {pendingCoupleData?.ticket?.userName && (
-                            <Text style={styles.modalSubtitle}>{pendingCoupleData.ticket.userName}</Text>
-                        )}
-                        <Text style={styles.modalQuestion}>
-                            Is the partner present for this couple entry?
-                        </Text>
-                        <View style={styles.modalButtons}>
-                            <Pressable
-                                onPress={() => handleCoupleConfirm(false)}
-                                style={[styles.modalBtn, styles.modalBtnNo]}
-                            >
-                                <Text style={styles.modalBtnNoText}>No</Text>
-                            </Pressable>
-                            <Pressable
-                                onPress={() => handleCoupleConfirm(true)}
-                                style={[styles.modalBtn, styles.modalBtnYes]}
-                            >
-                                <Text style={styles.modalBtnYesText}>Yes</Text>
-                            </Pressable>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
+            {scanResult.type === "already_scanned" && scanResult.previousScan && (
+              <View style={styles.resultPrevScan}>
+                <Text style={styles.resultPrevText}>Scanned at {scanResult.previousScan.time}</Text>
+                {scanResult.previousScan.by && (
+                  <Text style={styles.resultPrevBy}>by {scanResult.previousScan.by}</Text>
+                )}
+              </View>
+            )}
+
+            {scanResult.type !== "valid" && scanResult.type !== "already_scanned" && (
+              <Text style={styles.resultMessage}>{scanResult.message}</Text>
+            )}
+
+            <Text style={styles.resultDismissHint}>Tap anywhere to continue</Text>
+          </Pressable>
+        </Animated.View>
+      )}
+
+      {/* Couple Confirm Modal */}
+      <Modal visible={showCoupleModal} transparent animationType="fade" statusBarTranslucent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={{ fontSize: 40, textAlign: "center" }}>👫</Text>
+            <Text style={styles.modalTitle}>Couple Entry</Text>
+            {pendingCoupleData?.ticket?.userName && (
+              <Text style={styles.modalSubtitle}>{pendingCoupleData.ticket.userName}</Text>
+            )}
+            <Text style={styles.modalQuestion}>Is the partner present for this couple entry?</Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                onPress={() => handleCoupleConfirm(false)}
+                style={[styles.modalBtn, styles.modalBtnNo]}
+              >
+                <Text style={styles.modalBtnNoText}>No</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => handleCoupleConfirm(true)}
+                style={[styles.modalBtn, styles.modalBtnYes]}
+              >
+                <Text style={styles.modalBtnYesText}>Yes</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
-    );
+      </Modal>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.midnight },
-    center: { alignItems: "center", justifyContent: "center" },
-    loadingText: { color: colors.goldMetallic, fontSize: 16 },
-    permTitle: { color: colors.gold, fontSize: 22, fontWeight: "700", marginTop: 16, textAlign: "center" },
-    permSubtitle: { color: colors.goldMetallic, fontSize: 15, textAlign: "center", marginTop: 8, marginBottom: 24, paddingHorizontal: 40 },
-    permButton: { borderRadius: 16, overflow: "hidden" },
-    permButtonInner: { paddingHorizontal: 32, paddingVertical: 16, borderRadius: 16, alignItems: "center" },
-    permButtonText: { color: "#fff", fontSize: 17, fontWeight: "700" },
-    overlay: { flex: 1, justifyContent: "space-between" },
-    topBar: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: "rgba(0,0,0,0.65)",
-    },
-    topBarLeft: { flex: 1, marginRight: 12 },
-    topBarRight: {},
-    liveIndicator: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
-    liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success, marginRight: 6 },
-    liveText: { color: colors.success, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
-    eventTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
-    counterBadge: { alignItems: "center", backgroundColor: "rgba(255,255,255,0.1)", borderRadius: 12, paddingHorizontal: 16, paddingVertical: 8 },
-    counterNumber: { color: "#fff", fontSize: 22, fontWeight: "800" },
-    counterLabel: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "600" },
-    scanFrameContainer: { alignItems: "center", justifyContent: "center" },
-    scanFrame: {
-        width: SCAN_AREA_SIZE,
-        height: SCAN_AREA_SIZE,
-        borderWidth: 2,
-        borderRadius: 24,
-    },
-    corner: { position: "absolute", width: 28, height: 28, borderColor: colors.iris },
-    cornerTL: { top: -1, left: -1, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 },
-    cornerTR: { top: -1, right: -1, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 16 },
-    cornerBL: { bottom: -1, left: -1, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 16 },
-    cornerBR: { bottom: -1, right: -1, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 16 },
-    scanHint: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 16, textAlign: "center" },
-    bottomBar: {
-        backgroundColor: "rgba(0,0,0,0.7)",
-        paddingTop: 16,
-        paddingHorizontal: 16,
-        paddingBottom: 8,
-    },
-    navRow: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    navButton: { alignItems: "center", paddingVertical: 8, paddingHorizontal: 12 },
-    navIcon: { fontSize: 24, marginBottom: 4 },
-    navLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "600" },
-    flashButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: "rgba(255,255,255,0.15)",
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    flashActive: { backgroundColor: colors.warning },
-    exitButton: {
-        alignItems: "center",
-        paddingVertical: 10,
-    },
-    exitText: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: "600" },
+  container: { flex: 1, backgroundColor: colors.midnight },
+  center: { alignItems: "center", justifyContent: "center" },
+  loadingText: { color: colors.goldMetallic, fontSize: 16 },
+  permTitle: {
+    color: colors.gold,
+    fontSize: 22,
+    fontWeight: "700",
+    marginTop: 16,
+    textAlign: "center",
+  },
+  permSubtitle: {
+    color: colors.goldMetallic,
+    fontSize: 15,
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 24,
+    paddingHorizontal: 40,
+  },
+  permButton: { borderRadius: 16, overflow: "hidden" },
+  permButtonInner: {
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  permButtonText: { color: "#fff", fontSize: 17, fontWeight: "700" },
+  overlay: { flex: 1, justifyContent: "space-between" },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "rgba(0,0,0,0.65)",
+  },
+  topBarLeft: { flex: 1, marginRight: 12 },
+  topBarRight: {},
+  liveIndicator: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.success,
+    marginRight: 6,
+  },
+  liveText: { color: colors.success, fontSize: 11, fontWeight: "800", letterSpacing: 1.5 },
+  eventTitle: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  counterBadge: {
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  counterNumber: { color: "#fff", fontSize: 22, fontWeight: "800" },
+  counterLabel: { color: "rgba(255,255,255,0.5)", fontSize: 11, fontWeight: "600" },
+  scanFrameContainer: { alignItems: "center", justifyContent: "center" },
+  scanFrame: {
+    width: SCAN_AREA_SIZE,
+    height: SCAN_AREA_SIZE,
+    borderWidth: 2,
+    borderRadius: 24,
+  },
+  corner: { position: "absolute", width: 28, height: 28, borderColor: colors.iris },
+  cornerTL: { top: -1, left: -1, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 },
+  cornerTR: {
+    top: -1,
+    right: -1,
+    borderTopWidth: 4,
+    borderRightWidth: 4,
+    borderTopRightRadius: 16,
+  },
+  cornerBL: {
+    bottom: -1,
+    left: -1,
+    borderBottomWidth: 4,
+    borderLeftWidth: 4,
+    borderBottomLeftRadius: 16,
+  },
+  cornerBR: {
+    bottom: -1,
+    right: -1,
+    borderBottomWidth: 4,
+    borderRightWidth: 4,
+    borderBottomRightRadius: 16,
+  },
+  scanHint: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 16, textAlign: "center" },
+  bottomBar: {
+    backgroundColor: "rgba(0,0,0,0.7)",
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  navRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  navButton: { alignItems: "center", paddingVertical: 8, paddingHorizontal: 12 },
+  navIcon: { fontSize: 24, marginBottom: 4 },
+  navLabel: { color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: "600" },
+  flashButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  flashActive: { backgroundColor: colors.warning },
+  exitButton: {
+    alignItems: "center",
+    paddingVertical: 10,
+  },
+  exitText: { color: "rgba(255,255,255,0.35)", fontSize: 13, fontWeight: "600" },
 
-    // Result overlay
-    resultOverlay: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-    resultTitle: { color: "#fff", fontSize: 30, fontWeight: "800", marginTop: 20, textAlign: "center" },
-    resultGuestInfo: { alignItems: "center", marginTop: 20 },
-    resultGuestName: { color: "rgba(255,255,255,0.9)", fontSize: 24, fontWeight: "700" },
-    resultBadgeRow: { flexDirection: "row", marginTop: 8, gap: 8 },
-    resultBadge: { backgroundColor: "rgba(255,255,255,0.2)", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999 },
-    resultBadgeText: { color: "#fff", fontSize: 14, fontWeight: "700" },
-    resultEntryType: { color: "rgba(255,255,255,0.6)", fontSize: 16, marginTop: 12, textTransform: "capitalize" },
-    resultPrevScan: { alignItems: "center", marginTop: 20 },
-    resultPrevText: { color: "rgba(255,255,255,0.9)", fontSize: 16 },
-    resultPrevBy: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 4 },
-    resultMessage: { color: "rgba(255,255,255,0.8)", fontSize: 16, marginTop: 16, textAlign: "center" },
-    resultDismissHint: { color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 40 },
+  // Result overlay
+  resultOverlay: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  resultTitle: {
+    color: "#fff",
+    fontSize: 30,
+    fontWeight: "800",
+    marginTop: 20,
+    textAlign: "center",
+  },
+  resultGuestInfo: { alignItems: "center", marginTop: 20 },
+  resultGuestName: { color: "rgba(255,255,255,0.9)", fontSize: 24, fontWeight: "700" },
+  resultBadgeRow: { flexDirection: "row", marginTop: 8, gap: 8 },
+  resultBadge: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  resultBadgeText: { color: "#fff", fontSize: 14, fontWeight: "700" },
+  resultEntryType: {
+    color: "rgba(255,255,255,0.6)",
+    fontSize: 16,
+    marginTop: 12,
+    textTransform: "capitalize",
+  },
+  resultPrevScan: { alignItems: "center", marginTop: 20 },
+  resultPrevText: { color: "rgba(255,255,255,0.9)", fontSize: 16 },
+  resultPrevBy: { color: "rgba(255,255,255,0.6)", fontSize: 14, marginTop: 4 },
+  resultMessage: {
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 16,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  resultDismissHint: { color: "rgba(255,255,255,0.4)", fontSize: 13, marginTop: 40 },
 
-    // Couple modal
-    modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.8)", alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
-    modalCard: { backgroundColor: colors.base[50], width: "100%", borderRadius: 24, padding: 28, alignItems: "center" },
-    modalTitle: { color: colors.gold, fontSize: 24, fontWeight: "800", marginTop: 12 },
-    modalSubtitle: { color: colors.goldMetallic, fontSize: 16, marginTop: 4 },
-    modalQuestion: { color: colors.goldMetallic, fontSize: 16, textAlign: "center", marginTop: 16, marginBottom: 24, lineHeight: 24 },
-    modalButtons: { flexDirection: "row", gap: 16, width: "100%" },
-    modalBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: "center" },
-    modalBtnNo: { backgroundColor: "rgba(239,68,68,0.15)", borderWidth: 2, borderColor: colors.error },
-    modalBtnNoText: { color: colors.error, fontSize: 18, fontWeight: "700" },
-    modalBtnYes: { backgroundColor: colors.success },
-    modalBtnYesText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  // Couple modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    backgroundColor: colors.base[50],
+    width: "100%",
+    borderRadius: 24,
+    padding: 28,
+    alignItems: "center",
+  },
+  modalTitle: { color: colors.gold, fontSize: 24, fontWeight: "800", marginTop: 12 },
+  modalSubtitle: { color: colors.goldMetallic, fontSize: 16, marginTop: 4 },
+  modalQuestion: {
+    color: colors.goldMetallic,
+    fontSize: 16,
+    textAlign: "center",
+    marginTop: 16,
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  modalButtons: { flexDirection: "row", gap: 16, width: "100%" },
+  modalBtn: { flex: 1, paddingVertical: 16, borderRadius: 14, alignItems: "center" },
+  modalBtnNo: {
+    backgroundColor: "rgba(239,68,68,0.15)",
+    borderWidth: 2,
+    borderColor: colors.error,
+  },
+  modalBtnNoText: { color: colors.error, fontSize: 18, fontWeight: "700" },
+  modalBtnYes: { backgroundColor: colors.success },
+  modalBtnYesText: { color: "#fff", fontSize: 18, fontWeight: "700" },
 });

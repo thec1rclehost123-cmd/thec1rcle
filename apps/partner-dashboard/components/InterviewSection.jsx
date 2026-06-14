@@ -17,8 +17,12 @@ export default function InterviewSection({ interviews }) {
 
       <div className="space-y-24">
         {interviews.map((item, index) => (
-          <article key={item.slug} className={`flex flex-col gap-8 lg:items-center lg:gap-16 ${index % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"
-            }`}>
+          <article
+            key={item.slug}
+            className={`flex flex-col gap-8 lg:items-center lg:gap-16 ${
+              index % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"
+            }`}
+          >
             <div className="relative aspect-[4/3] flex-1 overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-surface lg:aspect-[16/10]">
               <Image
                 src={item.image}
@@ -56,7 +60,12 @@ export default function InterviewSection({ interviews }) {
                     viewBox="0 0 24 24"
                     stroke="currentColor"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M17 8l4 4m0 0l-4 4m4-4H3"
+                    />
                   </svg>
                 </Link>
               </div>

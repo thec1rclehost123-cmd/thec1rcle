@@ -1,6 +1,6 @@
 /**
  * Event Store (Refactored for API Governance)
- * 
+ *
  * Uses the unified C1rcleApiClient to manage Events.
  * Legacy transformation logic removed; now handled by core/event-engine.
  */
@@ -96,5 +96,5 @@ export default {
   deleteEvent,
   updateEventLifecycle,
   getEventInterested,
-  getEventGuestlist
+  getEventGuestlist,
 };

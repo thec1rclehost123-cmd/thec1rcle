@@ -7,7 +7,11 @@ import { motion } from "framer-motion";
  * Guest Portal wrapper for the shared EventCard.
  * Adds index-based entrance animations.
  */
-export default function EventCard({ event, index = 0, height = "h-[320px] sm:h-[340px] md:h-[420px]" }) {
+export default function EventCard({
+  event,
+  index = 0,
+  height = "h-[320px] sm:h-[340px] md:h-[420px]",
+}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -16,15 +20,11 @@ export default function EventCard({ event, index = 0, height = "h-[320px] sm:h-[
       transition={{
         duration: 0.5,
         delay: index * 0.1,
-        ease: [0.16, 1, 0.3, 1]
+        ease: [0.16, 1, 0.3, 1],
       }}
       className="h-full"
     >
-      <SharedEventCard
-        event={event}
-        index={index}
-        height={height}
-      />
+      <SharedEventCard event={event} index={index} height={height} />
     </motion.div>
   );
 }

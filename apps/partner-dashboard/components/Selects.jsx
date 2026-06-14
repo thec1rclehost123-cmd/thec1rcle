@@ -13,7 +13,10 @@ export default function Selects({ items }) {
             Curated Collections
           </p>
           <h2 className="font-heading text-3xl font-black uppercase tracking-tight text-black dark:text-white sm:text-6xl leading-[0.9]">
-            The C1rcle <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris via-black dark:via-white to-gold">Selects</span>
+            The C1rcle{" "}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris via-black dark:via-white to-gold">
+              Selects
+            </span>
           </h2>
         </div>
         <Link
@@ -22,7 +25,12 @@ export default function Selects({ items }) {
         >
           View All
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 8l4 4m0 0l-4 4m4-4H3"
+            />
           </svg>
         </Link>
       </div>
@@ -74,8 +82,18 @@ export default function Selects({ items }) {
                       Explore Collection
                     </span>
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/10 backdrop-blur-sm border border-white/20 group-hover:bg-white group-hover:border-white transition-all duration-300">
-                      <svg className="h-4 w-4 text-white group-hover:text-black transition-all duration-300 group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                      <svg
+                        className="h-4 w-4 text-white group-hover:text-black transition-all duration-300 group-hover:translate-x-0.5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        />
                       </svg>
                     </div>
                   </div>

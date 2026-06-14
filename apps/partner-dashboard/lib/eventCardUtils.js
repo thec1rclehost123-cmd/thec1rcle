@@ -9,7 +9,9 @@ const normalizeGuestName = (guest) => {
 };
 
 export const getGuestList = (event = {}, limit = 4) => {
-  const guests = Array.isArray(event.guests) ? event.guests.map(normalizeGuestName).filter(Boolean) : [];
+  const guests = Array.isArray(event.guests)
+    ? event.guests.map(normalizeGuestName).filter(Boolean)
+    : [];
   const source = guests.length ? guests : fallbackGuests;
   return source.slice(0, limit);
 };

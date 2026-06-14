@@ -12,13 +12,13 @@ import ProfileCompletionPrompt from "../components/ProfileCompletionPrompt";
 
 const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-body"
+  variable: "--font-body",
 });
 
 export const metadata = {
   title: {
     default: "THE.C1RCLE",
-    template: "THE.C1RCLE | %s"
+    template: "THE.C1RCLE | %s",
   },
   description: "Discover Life Offline. The future of Indian nightlife.",
   applicationName: "THE.C1RCLE",
@@ -32,12 +32,8 @@ export const metadata = {
       { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
       { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
     ],
-    apple: [
-      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
-    ],
-    other: [
-      { rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#F44A22" },
-    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+    other: [{ rel: "mask-icon", url: "/safari-pinned-tab.svg", color: "#F44A22" }],
   },
   openGraph: {
     type: "website",
@@ -46,7 +42,7 @@ export const metadata = {
     siteName: "THE.C1RCLE",
     title: {
       default: "THE.C1RCLE",
-      template: "THE.C1RCLE | %s"
+      template: "THE.C1RCLE | %s",
     },
     description: "Discover Life Offline. The future of Indian nightlife.",
     images: [
@@ -54,26 +50,26 @@ export const metadata = {
         url: "/og-image.jpg",
         width: 1200,
         height: 630,
-        alt: "THE.C1RCLE"
-      }
-    ]
+        alt: "THE.C1RCLE",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: {
       default: "THE.C1RCLE",
-      template: "THE.C1RCLE | %s"
+      template: "THE.C1RCLE | %s",
     },
     description: "Discover Life Offline.",
     creator: "@thec1rcle_in",
-    images: ["/og-image.jpg"]
+    images: ["/og-image.jpg"],
   },
   metadataBase: new URL("https://thec1rcle.com"),
 };
 
 export const viewport = {
-  themeColor: '#030303',
-  width: 'device-width',
+  themeColor: "#030303",
+  width: "device-width",
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
@@ -101,6 +97,6 @@ export default function RootLayout({ children }) {
           </div>
         </AppProviders>
       </body>
-    </html >
+    </html>
   );
 }
