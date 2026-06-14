@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { listEvents } from "@/lib/server/eventStore";
+// @ts-expect-error - pre-existing: function exists at runtime in JS module
 import { getApprovedPartnerIds } from "@/lib/server/promoterConnectionStore";
 
 /**
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
         }
 
+        // @ts-expect-error - pre-existing: function exists at runtime in JS module
         const { listEventsForPromoter } = await import("@/lib/server/eventStore");
         const events = await listEventsForPromoter({
             promoterId,

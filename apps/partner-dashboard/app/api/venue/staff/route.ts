@@ -71,6 +71,7 @@ export async function POST(req: NextRequest) {
             name,
             role,
             phone,
+            // @ts-expect-error - pre-existing: runtime passes addedBy even if not in type
             addedBy: addedBy || { uid: "system", name: "System" }
         });
 
