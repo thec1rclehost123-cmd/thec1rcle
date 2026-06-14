@@ -13,7 +13,7 @@
     "@c1rcle/core": "*",
     "@c1rcle/ui": "*",
     "@opentelemetry/api": "^1.9.0",
-    "@react-three/drei": "^9.122.0",
+    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^8.18.0",
     "@react-three/postprocessing": "^2.16.2",
     "@react-three/rapier": "^2.2.0",
