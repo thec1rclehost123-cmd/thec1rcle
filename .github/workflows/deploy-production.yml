@@ -74,9 +74,9 @@ jobs:
       - name: Set Project IDs
         id: vars
         run: |
-          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> $GITHUB_OUTPUT; fi
-          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> $GITHUB_OUTPUT; fi
-          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> $GITHUB_OUTPUT; fi
+          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT"; fi
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@16e87c0a08142b0d0d33b76aeaf20823c381b9b9
@@ -86,7 +86,7 @@ jobs:
           vercel-project-id: ${{ steps.vars.outputs.pid }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           vercel-version: latest
-          working-directory: apps/${{ matrix.app }}
+          working-directory: ./
           vercel-args: "--prod"
 
   deploy-services:

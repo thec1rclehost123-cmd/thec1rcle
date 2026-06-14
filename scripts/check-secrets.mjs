@@ -59,12 +59,8 @@ for (const file of stagedFiles) {
 }
 
 if (hasSecrets) {
-  console.error(
-    "\n❌ Commit blocked: potential secrets found in staged files.",
-  );
-  console.error(
-    "   Remove them before committing, or use .gitignore to exclude the file.",
-  );
+  console.error("\n❌ Commit blocked: potential secrets found in staged files.");
+  console.error("   Remove them before committing, or use .gitignore to exclude the file.");
   process.exit(1);
 }
 

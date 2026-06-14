@@ -19,7 +19,7 @@
         "firebase-functions": "^4.3.1",
         "qrcode": "^1.5.3",
         "razorpay": "^2.9.2",
-        "@c1rcle/core": "*"
+        "@c1rcle/core": "file:../packages/core"
     },
     "devDependencies": {
         "firebase-functions-test": "^3.1.0",
