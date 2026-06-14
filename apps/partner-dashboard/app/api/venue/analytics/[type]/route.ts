@@ -16,12 +16,13 @@ import {
  * GET /api/venue/analytics/[type]
  * Fetches specific analytics for a venue
  */
-export async function GET(req: NextRequest, { params }: { params: { type: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
+  const paramsResolved = await params;
+  const { type } = paramsResolved;
   try {
     const { searchParams } = new URL(req.url);
     const venueId = searchParams.get("venueId") || searchParams.get("partnerId");
     const range = searchParams.get("range") || "30d";
-    const { type } = params;
 
     console.log(`📡 [API/Analytics] Request: type=${type}, venueId=${venueId}, range=${range}`);
 
@@ -75,7 +76,7 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
 
     return NextResponse.json(analytics);
   } catch (error: any) {
-    console.error(`[Venue Analytics API][${params.type}] Error:`, error);
+    console.error(`[Venue Analytics API][${paramsResolved.type}] Error:`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

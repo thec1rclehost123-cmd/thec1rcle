@@ -6,9 +6,10 @@ import { listIncomingRequests } from "@/lib/server/promoterConnectionStore";
  * GET /api/events/[id]/promoters
  * List eligible and currently selected promoters for an event
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const event = await getEvent(params.id);
+    const { id } = await params;
+    const event = await getEvent(id);
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
     // Get approved promoters for this club/host
@@ -34,12 +35,13 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
  * PATCH /api/events/[id]/promoters
  * Update selected promoters and global promoter toggle
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const { allowedPromoterIds, enabled, actor } = body;
 
-    const event = await getEvent(params.id);
+    const event = await getEvent(id);
     if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
     // Authorization check
@@ -53,7 +55,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       allowedPromoterIds: allowedPromoterIds ?? event.promoterSettings?.allowedPromoterIds ?? [],
     };
 
-    const updatedEvent = await updateEvent(params.id, {
+    const updatedEvent = await updateEvent(id, {
       promoterSettings: updatedSettings,
       creatorId: actor.uid,
       creatorRole: actor.role,

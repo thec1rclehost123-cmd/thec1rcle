@@ -6,9 +6,10 @@ import { verifyPartnerAccess } from "@/lib/server/auth";
  * GET /api/events/[id]
  * Get event details
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const event = await getEvent(params.id);
+    const { id } = await params;
+    const event = await getEvent(id);
 
     if (!event) {
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
@@ -25,8 +26,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
  * PATCH /api/events/[id]
  * Update event (draft updates, lifecycle changes)
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const { action, actor, notes, updates } = body;
 
@@ -41,7 +43,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       // Strip lifecycle from updates to ensure it's only managed by updateEventLifecycle
       const { lifecycle, ...cleanUpdates } = updates;
 
-      latestEvent = await updateEvent(params.id, {
+      latestEvent = await updateEvent(id, {
         ...cleanUpdates,
         creatorId: actor.uid,
         creatorRole: actor.role,
@@ -91,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         ["approve", "reject", "deny", "publish", "request_changes"].includes(action) &&
         actor.role !== "admin"
       ) {
-        const event = await getEvent(params.id);
+        const event = await getEvent(id);
         if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
 
         const venueId = event.venueId;
@@ -106,7 +108,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
       }
 
-      const result = await updateEventLifecycle(params.id, newStatus, actor, notes);
+      const result = await updateEventLifecycle(id, newStatus, actor, notes);
       return NextResponse.json({ success: true, result, event: latestEvent });
     }
 
@@ -125,8 +127,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
  * DELETE /api/events/[id]
  * Soft delete an event
  */
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const { actor } = body;
 
@@ -135,7 +138,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     }
 
     const { deleteEvent } = await import("@/lib/server/eventStore");
-    const result = await deleteEvent(params.id, actor);
+    const result = await deleteEvent(id, actor);
 
     return NextResponse.json({ success: true, result });
   } catch (error: any) {

@@ -11,9 +11,10 @@ import { verifyPartnerAccess } from "@/lib/server/auth";
  * GET /api/slots/[id]
  * Get a specific slot request
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const slotRequest = await getSlotRequest(params.id);
+    const { id } = await params;
+    const slotRequest = await getSlotRequest(id);
 
     if (!slotRequest) {
       return NextResponse.json({ error: "Slot request not found" }, { status: 404 });
@@ -33,8 +34,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
  * PATCH /api/slots/[id]
  * Update slot request status (approve, reject, suggest alternatives)
  */
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const body = await req.json();
     const { action, notes, alternativeDates, actor } = body;
 
@@ -60,14 +62,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
               { error: "Unauthorized access to this venue" },
               { status: 403 },
             );
-          result = await approveSlotRequest(params.id, actor, notes, { venueId });
+          result = await approveSlotRequest(id, actor, notes, { venueId });
         } else {
-          result = await approveSlotRequest(params.id, actor, notes);
+          result = await approveSlotRequest(id, actor, notes);
         }
         break;
 
       case "reject":
-        result = await rejectSlotRequest(params.id, actor, notes);
+        result = await rejectSlotRequest(id, actor, notes);
         break;
 
       case "counter":
@@ -78,15 +80,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
             { status: 400 },
           );
         }
-        // @ts-expect-error - pre-existing: function signature mismatch (JS module accepts spread)
         result = await counterProposeSlot(
-          params.id,
+          id,
           body.venueId || actor.partnerId,
-          actor,
-          alternativeDate,
-          alternativeStartTime,
-          alternativeEndTime,
-          notes,
+          { alternativeDate, alternativeStartTime, alternativeEndTime, notes },
         );
         break;
 

@@ -12,10 +12,10 @@ import { verifyAuth } from "@/lib/server/auth";
  * GET /api/venues/[id]/calendar
  * Get venue availability calendar
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { searchParams } = new URL(req.url);
-    const venueId = params.id;
+    const { id: venueId } = await params;
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
     const hostId = searchParams.get("hostId");
@@ -72,9 +72,9 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
  * POST /api/venues/[id]/calendar
  * Block or unblock a date (venue action only)
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const venueId = params.id;
+    const { id: venueId } = await params;
     const body = await req.json();
     const { action, date, reason, actor } = body;
 

@@ -1,14 +1,7 @@
-const admin = require("firebase-admin");
+import { getAdminDb } from "@c1rcle/core/admin";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
-// Adjust this path if you have a service account key,
-// otherwise it will use default credentials (ADC) or emulator.
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: "thec1rcle-india",
-  });
-}
-
-const db = admin.firestore();
+const db = getAdminDb();
 
 async function syncPlatformStats() {
   console.log("Starting platform stats synchronization...");
@@ -72,7 +65,7 @@ async function syncPlatformStats() {
         venues_total: venuesTotal,
         hosts_total: hostsTotal, // Using the simple count for the dashboard stat
         events_total: eventsTotal,
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true },
     );

@@ -15,6 +15,7 @@
         "./client": "./client.js",
         "./api-client": "./api-client.js",
         "./admin": "./admin.js",
+        "./firestore-admin": "./firestore-admin.js",
         "./events": "./events.js",
         "./surge": "./surge.js",
         "./promo-service": "./promo-service.js",

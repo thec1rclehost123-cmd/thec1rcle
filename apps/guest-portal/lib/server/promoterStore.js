@@ -5,6 +5,7 @@
 
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
 import { randomUUID } from "node:crypto";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 const LINKS_COLLECTION = "promoter_links";
 const COMMISSIONS_COLLECTION = "promoter_commissions";
@@ -79,8 +80,6 @@ export async function recordConversion(linkId, orderId, orderAmount, ticketTierI
     createdAt: now,
     updatedAt: now,
   };
-
-  const { FieldValue } = require("firebase-admin/firestore");
 
   // Transaction to update link stats and create commission record
   try {

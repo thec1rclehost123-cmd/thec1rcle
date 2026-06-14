@@ -12,12 +12,13 @@ import {
  * GET /api/promoter/analytics/[type]
  * Fetches specific analytics for a promoter
  */
-export async function GET(req: NextRequest, { params }: { params: { type: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
+  const paramsResolved = await params;
+  const { type } = paramsResolved;
   try {
     const { searchParams } = new URL(req.url);
     const promoterId = searchParams.get("promoterId");
     const range = searchParams.get("range") || "30d";
-    const { type } = params;
 
     if (!promoterId) {
       return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest, { params }: { params: { type: string
 
     return NextResponse.json(analytics);
   } catch (error: any) {
-    console.error(`[Promoter Analytics API][${params.type}] Error:`, error);
+    console.error(`[Promoter Analytics API][${paramsResolved.type}] Error:`, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

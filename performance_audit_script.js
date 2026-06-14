@@ -1,5 +1,4 @@
-
-import admin from 'firebase-admin';
+import { getAdminDb } from "@c1rcle/core/admin";
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -10,25 +9,12 @@ const __dirname = path.dirname(__filename);
 // Load env from api-gateway
 const envPath = path.join(__dirname, 'apps/api-gateway/.env');
 const envContent = fs.readFileSync(envPath, 'utf8');
-const env = {};
 envContent.split('\n').forEach(line => {
     const [key, ...value] = line.split('=');
-    if (key && value) env[key.trim()] = value.join('=').trim().replace(/"/g, '');
+    if (key && value) process.env[key.trim()] = value.join('=').trim().replace(/"/g, '');
 });
 
-const serviceAccount = {
-    projectId: env.FIREBASE_PROJECT_ID,
-    clientEmail: env.FIREBASE_CLIENT_EMAIL,
-    privateKey: env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-};
-
-if (!admin.apps.length) {
-    admin.initializeApp({
-        credential: admin.credential.cert(serviceAccount)
-    });
-}
-
-const db = admin.firestore();
+const db = getAdminDb();
 
 async function audit() {
     console.log('--- FIRESTORE DOCUMENT COUNTS ---');

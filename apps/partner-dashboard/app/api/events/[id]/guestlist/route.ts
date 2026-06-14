@@ -6,9 +6,9 @@ import { getEvent } from "@/lib/server/eventStore";
  * GET /api/events/[id]/guestlist
  * Returns the comprehensive guestlist for an event
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const eventId = params.id;
+    const { id: eventId } = await params;
     const event = await getEvent(eventId);
 
     if (!event) {

@@ -21,8 +21,7 @@
  * Usage: node scripts/seed-epitome-analytics.js
  */
 
-import { initializeApp, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { getAdminDb } from "@c1rcle/core/admin";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -32,37 +31,7 @@ import { config } from "dotenv";
 config({ path: resolve(process.cwd(), ".env") });
 
 // ─── Firebase Init (matches @c1rcle/core/admin.js key parsing) ───────────────
-const projectId = process.env.FIREBASE_PROJECT_ID || "thec1rcle-india";
-const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-let privateKey = process.env.FIREBASE_PRIVATE_KEY;
-
-if (privateKey) {
-    privateKey = privateKey.replace(/\\n/g, "\n");
-    if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
-        privateKey = privateKey.slice(1, -1);
-    }
-    let body = privateKey
-        .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-        .replace(/-----END PRIVATE KEY-----/g, "");
-    body = body.replace(/[^a-zA-Z0-9+/=]/g, "");
-    const formattedBody = body.match(/.{1,64}/g)?.join("\n");
-    if (formattedBody) {
-        privateKey = `-----BEGIN PRIVATE KEY-----\n${formattedBody}\n-----END PRIVATE KEY-----\n`;
-    }
-}
-
-let app;
-if (clientEmail && privateKey) {
-    app = initializeApp({
-        credential: cert({ projectId, clientEmail, privateKey }),
-        projectId
-    });
-    console.log(`🔑 Authenticated with service account: ${clientEmail}`);
-} else {
-    app = initializeApp({ projectId });
-    console.log("⚠️  Using default credentials (no service account in env)");
-}
-const db = getFirestore(app);
+const db = getAdminDb();
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 const VENUE_ID = "venue_NPpsWyAw";

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { getAdminApp } from "../firebase/admin";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminAuth } from "../firebase/admin";
 
 /**
  * THE C1RCLE - Admin Authorization Middleware (Hardened)
@@ -22,7 +21,7 @@ export function withAdminAuth(handler, requiredRole = "admin") {
     const token = authHeader.split("Bearer ")[1];
 
     try {
-      const auth = getAuth(getAdminApp());
+      const auth = getAdminAuth();
 
       // Task 1: Strict Token Verification
       const decodedToken = await auth.verifyIdToken(token, true);

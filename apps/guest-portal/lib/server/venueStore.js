@@ -1,4 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 const fallbackVenues = [
   {
@@ -227,7 +228,7 @@ export async function followVenue(venueId, userId) {
   if (!isFirebaseConfigured() || !venueId || !userId) return;
 
   const db = getAdminDb();
-  const FieldValue = require("firebase-admin/firestore").FieldValue;
+
 
   const followId = `${venueId}_${userId}`;
   const followRef = db.collection("venue_follows").doc(followId);
@@ -254,7 +255,7 @@ export async function unfollowVenue(venueId, userId) {
   if (!isFirebaseConfigured() || !venueId || !userId) return;
 
   const db = getAdminDb();
-  const FieldValue = require("firebase-admin/firestore").FieldValue;
+
 
   const followId = `${venueId}_${userId}`;
   const followRef = db.collection("venue_follows").doc(followId);

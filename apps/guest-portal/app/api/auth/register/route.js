@@ -3,8 +3,7 @@
  * Creates Firebase Auth user (Admin SDK required) + delegates profile creation to Gateway
  */
 import { NextResponse } from "next/server";
-import { getAdminApp } from "@/lib/firebase/admin";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminAuth } from "@/lib/firebase/admin";
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
@@ -17,7 +16,7 @@ export async function POST(req) {
     }
 
     // 1. Create Firebase Auth User (requires Admin SDK — allowlisted)
-    const auth = getAuth(getAdminApp());
+    const auth = getAdminAuth();
     const userRecord = await auth.createUser({
       email,
       password,

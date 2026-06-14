@@ -1,4 +1,5 @@
 import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { FieldValue } from "@c1rcle/core/firestore-admin";
 
 // Extended fallback data for the premium experience
 const fallbackHosts = [
@@ -244,7 +245,6 @@ export async function getHostBySlug(slug) {
 export async function followHost(hostId) {
   if (!isFirebaseConfigured()) return;
   const db = getAdminDb();
-  const FieldValue = require("firebase-admin/firestore").FieldValue;
   await db
     .collection(HOSTS_COLLECTION)
     .doc(hostId)

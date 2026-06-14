@@ -25,8 +25,8 @@ interface CancelRequest {
   notes?: string;
 }
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const eventId = params.id;
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: eventId } = await params;
 
   try {
     const body: CancelRequest = await req.json();

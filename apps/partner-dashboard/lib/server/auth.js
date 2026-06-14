@@ -1,5 +1,4 @@
-import { getAdminApp, isFirebaseConfigured } from "../firebase/admin";
-import { getAuth } from "firebase-admin/auth";
+import { getAdminApp, getAdminAuth, isFirebaseConfigured } from "../firebase/admin";
 
 /**
  * Verify the Firebase ID token from the Authorization header.
@@ -45,7 +44,7 @@ export async function verifyAuth(request) {
       app.options?.projectId || "unknown",
     );
 
-    const auth = getAuth(app);
+    const auth = getAdminAuth();
     console.log("[verifyAuth] Verifying ID token...");
 
     // Verify the token - Don't check for revocation to speed up verification
