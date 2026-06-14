@@ -3,7 +3,11 @@
     "collect": {
       "startServerCommand": "npx next start --port 3000 --hostname 127.0.0.1",
       "url": ["http://127.0.0.1:3000"],
-      "numberOfRuns": 1
+      "numberOfRuns": 1,
+      "startServerReadyTimeout": 30000,
+      "settings": {
+        "chromeFlags": "--no-sandbox --headless --disable-gpu --disable-dev-shm-usage"
+      }
     },
     "assert": {
       "preset": "lighthouse:no-pwa",
