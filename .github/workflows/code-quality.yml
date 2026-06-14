@@ -78,7 +78,7 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm install --legacy-peer-deps
       - run: npm run build --if-present
-      - run: npx lhci autorun
+      - run: npx @lhci/cli autorun
         continue-on-error: true
         env:
           LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}
