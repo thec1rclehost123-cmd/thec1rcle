@@ -1,7 +1,7 @@
 {
   "ci": {
     "collect": {
-      "startServerCommand": "npx next start --port 3000 --hostname 127.0.0.1",
+      "startServerCommand": "npx next start apps/guest-portal --port 3000 --hostname 127.0.0.1",
       "url": ["http://127.0.0.1:3000"],
       "numberOfRuns": 1,
       "startServerReadyTimeout": 30000,
