@@ -12,9 +12,9 @@
   --surface-1: #121211;
   --surface-2: #18181b;
   --surface-3: #1a1a19;
-  --border-primary: rgba(255, 255, 255, 0.06);
-  --border-secondary: rgba(255, 255, 255, 0.03);
-  --nav-bg-opaque: rgba(12, 12, 11, 0.95);
+  --border-primary: rgb(255 255 255 / 6%);
+  --border-secondary: rgb(255 255 255 / 3%);
+  --nav-bg-opaque: rgb(12 12 11 / 95%);
   --nav-border: rgba(255, 255, 255, 0.08);
   --glass-bg: rgba(12, 12, 11, 0.7);
   --glass-border: rgba(255, 255, 255, 0.08);
