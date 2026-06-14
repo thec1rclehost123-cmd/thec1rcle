@@ -5,19 +5,19 @@ const algoliasearch_1 = require("algoliasearch");
 // Initialize Algolia
 // In production, these should be set via environment variables:
 // firebase functions:config:set algolia.app_id="APP_ID" algolia.api_key="API_KEY"
-const APP_ID = process.env.ALGOLIA_APP_ID || '';
-const API_KEY = process.env.ALGOLIA_API_KEY || '';
+const APP_ID = process.env.ALGOLIA_APP_ID || "";
+const API_KEY = process.env.ALGOLIA_API_KEY || "";
 let clientInstance = null;
 function getAlgoliaClient() {
     if (!clientInstance) {
         if (!APP_ID || !API_KEY) {
-            throw new Error('Algolia credentials are not configured.');
+            throw new Error("Algolia credentials are not configured.");
         }
         clientInstance = (0, algoliasearch_1.algoliasearch)(APP_ID, API_KEY);
     }
     return clientInstance;
 }
-const INDEX_NAME = 'events';
+const INDEX_NAME = "events";
 /**
  * Maps a Firestore event document to an Algolia record
  */
@@ -42,10 +42,12 @@ function mapEventToAlgolia(event, eventId) {
         heatScore: event.heatScore || 0,
         status: event.status,
         lifecycle: event.lifecycle,
-        _geoloc: event.coordinates ? {
-            lat: event.coordinates.latitude,
-            lng: event.coordinates.longitude
-        } : undefined
+        _geoloc: event.coordinates
+            ? {
+                lat: event.coordinates.latitude,
+                lng: event.coordinates.longitude,
+            }
+            : undefined,
     };
 }
 exports.mapEventToAlgolia = mapEventToAlgolia;
@@ -54,11 +56,11 @@ exports.mapEventToAlgolia = mapEventToAlgolia;
  */
 async function syncEventToAlgolia(eventId, event) {
     if (!APP_ID || !API_KEY) {
-        console.warn('[Algolia] Missing credentials, skipping sync');
+        console.warn("[Algolia] Missing credentials, skipping sync");
         return;
     }
     // Only index events that are approved or live
-    const publicStates = ['approved', 'scheduled', 'live'];
+    const publicStates = ["approved", "scheduled", "live"];
     if (!publicStates.includes(event.lifecycle)) {
         console.log(`[Algolia] Skipping sync for event ${eventId} (lifecycle: ${event.lifecycle})`);
         try {
