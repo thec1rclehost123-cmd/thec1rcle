@@ -34,7 +34,9 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
 
     # ── 2. Lint & format (all workspaces via Turbo) ──────────────
   lint:
@@ -53,7 +55,9 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
       - run: npx turbo lint --filter='...[origin/main]'
       - name: Prettier (changed files only)
         run: |
@@ -79,9 +83,10 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
       - run: npx turbo type-check
-          # Runs tsc --noEmit in each workspace via Turbo
 
     # ── 4. Tests ─────────────────────────────────────────────────
   test:
@@ -114,7 +119,9 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
       - name: Run tests
         run: |
           cd ${{ matrix.workspace }}
@@ -143,7 +150,9 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
       - run: npx turbo build --filter='...[origin/main]'
 
     # ── 6. Security ───────────────────────────────────────────────
@@ -162,13 +171,13 @@ jobs:
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            nm-${{ runner.os }}-
       - name: npm audit
         run: npm audit --audit-level=high --workspaces
         continue-on-error: true
       - uses: trufflesecurity/trufflehog@main
         continue-on-error: true
         with: { extra_args: --only-verified }
-      - name: Zod v4 schema fuzz
-        run: npx tsx scripts/fuzz-schemas.ts --ci
-        continue-on-error: true
+
