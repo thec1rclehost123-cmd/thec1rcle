@@ -62,10 +62,11 @@ jobs:
       - name: Prettier (changed files only)
         run: |
           CHANGED=$(git diff --name-only origin/main...HEAD --diff-filter=ACMRT || true)
-          if [ -n "$CHANGED" ]; then
-            echo "$CHANGED" | xargs npx prettier --check --ignore-unknown
+          FILTERED=$(echo "$CHANGED" | grep -E '\.(js|jsx|ts|tsx|mjs|cjs|json|css|md|html|yaml|yml)$' || true)
+          if [ -n "$FILTERED" ]; then
+            echo "$FILTERED" | xargs npx prettier --check
           else
-            echo "No changed files to check"
+            echo "No changed formattable files to check"
           fi
 
     # ── 3. TypeScript across all packages ────────────────────────
