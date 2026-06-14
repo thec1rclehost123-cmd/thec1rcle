@@ -8,24 +8,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, '..');
 
 describe('Backend Boundary Guardrails', () => {
-  it('should detect firebase-admin in frontend apps as violations', () => {
-    try {
-      const output = execSync(`node "${ROOT}/scripts/check-backend-boundaries.mjs"`, {
-        cwd: ROOT,
-        encoding: 'utf8',
-        timeout: 120000,
-      });
-      assert.fail('Expected check to fail due to pre-existing violations, but it passed');
-    } catch (err) {
-      const output = err.stdout || err.message;
-      assert.ok(
-        output.includes('unauthorized firebase-admin import'),
-        `Expected violation message in:\n${output}`
-      );
-    }
+  it('should pass with zero violations', () => {
+    const output = execSync(`node "${ROOT}/scripts/check-backend-boundaries.mjs"`, {
+      cwd: ROOT,
+      encoding: 'utf8',
+      timeout: 120000,
+    });
+    assert.ok(
+      output.includes('All backend boundary checks passed'),
+      `Expected success message in:\n${output}`
+    );
   });
 
-  it('should flag guest-portal lib/server files', () => {
+  it('should flag guest-portal lib/server files if they violate', () => {
     try {
       execSync(`node "${ROOT}/scripts/check-backend-boundaries.mjs"`, {
         cwd: ROOT,
@@ -41,7 +36,7 @@ describe('Backend Boundary Guardrails', () => {
     }
   });
 
-  it('should flag partner-dashboard Firebase Admin files', () => {
+  it('should flag partner-dashboard Firebase Admin files if they violate', () => {
     try {
       execSync(`node "${ROOT}/scripts/check-backend-boundaries.mjs"`, {
         cwd: ROOT,

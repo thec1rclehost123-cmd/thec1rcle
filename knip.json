@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "workspaces": {
+    "apps/scanner-app": {
+      "entry": ["app/**/*.tsx", "app/**/*.ts"],
+      "ignore": ["metro.config.js"]
+    },
+    "apps/mobile-app": {
+      "entry": ["app/**/*.tsx", "app/**/*.ts"],
+      "ignore": ["metro.config.js"]
+    }
+  },
+  "ignoreDependencies": [
+    "tailwind.config"
+  ]
+}
