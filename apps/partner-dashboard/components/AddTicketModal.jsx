@@ -26,7 +26,7 @@ export default function AddTicketModal({ open, onClose, onSave }) {
     onSave({
       name: ticket.name,
       price: Number(ticket.price),
-      quantity: Number(ticket.quantity) || 0
+      quantity: Number(ticket.quantity) || 0,
     });
   };
 
@@ -39,12 +39,22 @@ export default function AddTicketModal({ open, onClose, onSave }) {
       >
         <div className="flex items-center justify-between">
           <p className="text-sm uppercase tracking-[0.4em] text-white/50">New Ticket Tier</p>
-          <button type="button" onClick={onClose} className="text-sm text-white/60 hover:text-white">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm text-white/60 hover:text-white"
+          >
             Close
           </button>
         </div>
         <div className="mt-6 space-y-4">
-          <Input label="Ticket Name" placeholder="Sunset VIP" value={ticket.name} onChange={handleChange("name")} required />
+          <Input
+            label="Ticket Name"
+            placeholder="Sunset VIP"
+            value={ticket.name}
+            onChange={handleChange("name")}
+            required
+          />
           <div className="grid gap-4 sm:grid-cols-2">
             <Input
               type="number"

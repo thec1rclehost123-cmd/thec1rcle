@@ -5,7 +5,10 @@ interface UseFollowUserOptions {
   initialIsFollowing?: boolean;
 }
 
-export const useFollowUser = ({ initialFollowers = 0, initialIsFollowing = false }: UseFollowUserOptions = {}) => {
+export const useFollowUser = ({
+  initialFollowers = 0,
+  initialIsFollowing = false,
+}: UseFollowUserOptions = {}) => {
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [followers, setFollowers] = useState(initialFollowers);
 

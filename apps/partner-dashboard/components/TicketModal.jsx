@@ -48,8 +48,12 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
           >
             <div className="mb-6 flex items-start justify-between">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/50">Tickets</p>
-                <p className="mt-1 text-sm text-white/80">Select quantities and checkout instantly.</p>
+                <p className="text-xs font-bold uppercase tracking-[0.3em] text-white/50">
+                  Tickets
+                </p>
+                <p className="mt-1 text-sm text-white/80">
+                  Select quantities and checkout instantly.
+                </p>
               </div>
               <button
                 type="button"
@@ -81,7 +85,7 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
                         onClick={() => {
                           const current = quantities[ticket.id] || 0;
                           if (current > 0) {
-                            setQuantities(prev => ({ ...prev, [ticket.id]: current - 1 }));
+                            setQuantities((prev) => ({ ...prev, [ticket.id]: current - 1 }));
                           }
                         }}
                         className="flex h-8 w-10 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors"
@@ -89,13 +93,15 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
                       >
                         -
                       </button>
-                      <span className="w-8 text-center text-sm font-medium text-white">{quantities[ticket.id] || 0}</span>
+                      <span className="w-8 text-center text-sm font-medium text-white">
+                        {quantities[ticket.id] || 0}
+                      </span>
                       <button
                         type="button"
                         onClick={() => {
                           const current = quantities[ticket.id] || 0;
                           if (current < ticket.quantity) {
-                            setQuantities(prev => ({ ...prev, [ticket.id]: current + 1 }));
+                            setQuantities((prev) => ({ ...prev, [ticket.id]: current + 1 }));
                           }
                         }}
                         className="flex h-8 w-10 items-center justify-center rounded-full text-white/60 hover:bg-white/10 hover:text-white transition-colors"

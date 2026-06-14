@@ -13,22 +13,35 @@ import LikeButton from "./LikeButton";
 import { saveIntent } from "../lib/utils/intentStore";
 
 const avatarPalette = ["#FDE047", "#F43F5E", "#A855F7", "#38BDF8", "#34D399", "#F97316"];
-const fallbackGuests = ["Ari", "Dev", "Ira", "Nia", "Vik", "Reva", "Luna", "Taj", "Mira", "Noah", "Kian", "Sara"];
+const fallbackGuests = [
+  "Ari",
+  "Dev",
+  "Ira",
+  "Nia",
+  "Vik",
+  "Reva",
+  "Luna",
+  "Taj",
+  "Mira",
+  "Noah",
+  "Kian",
+  "Sara",
+];
 const fallbackTickets = [
   { id: "ga", name: "General Admission", price: 899, quantity: 200 },
   { id: "vip", name: "VIP Booth", price: 3200, quantity: 12 },
-  { id: "crew", name: "Creator Tables", price: 0, quantity: 0 }
+  { id: "crew", name: "Creator Tables", price: 0, quantity: 0 },
 ];
 
 const shareActions = [
   { id: "copy", label: "Copy link", Icon: CopyIcon },
   { id: "whatsapp", label: "Share on WhatsApp", Icon: WhatsappIcon },
-  { id: "instagram", label: "Share on Instagram", Icon: InstagramIcon }
+  { id: "instagram", label: "Share on Instagram", Icon: InstagramIcon },
 ];
 
 const sectionVariants = {
   hidden: { opacity: 0, y: 24 },
-  visible: { opacity: 1, y: 0 }
+  visible: { opacity: 1, y: 0 },
 };
 
 const initials = (name = "") =>
@@ -44,7 +57,8 @@ const buildHandle = (name, index) => {
   return `@${safe || `guest${index}`}`;
 };
 
-const guestStats = (index) => `${20 + index} events · ${Math.max(3, 4 + index)} months on THE C1RCLE`;
+const guestStats = (index) =>
+  `${20 + index} events · ${Math.max(3, 4 + index)} months on THE C1RCLE`;
 
 const createGuestDirectory = (guests = []) => {
   const source = guests?.length ? guests : fallbackGuests;
@@ -54,7 +68,7 @@ const createGuestDirectory = (guests = []) => {
     handle: buildHandle(name, index),
     stats: guestStats(index),
     color: avatarPalette[index % avatarPalette.length],
-    initials: initials(name)
+    initials: initials(name),
   }));
 };
 
@@ -82,8 +96,12 @@ export default function EventRSVP({ event, host }) {
   const previewGuests = guestDirectory.slice(0, 6);
   const tickets = event?.tickets?.length ? event.tickets : fallbackTickets;
   const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(event?.location || "Pune, India")}&z=14&ie=UTF8&iwloc=&output=embed`;
-  const gradientStart = Array.isArray(event?.gradient) ? event.gradient[0] : event?.gradientStart || "#18181b";
-  const gradientEnd = Array.isArray(event?.gradient) ? event.gradient[1] : event?.gradientEnd || "#0b0b0f";
+  const gradientStart = Array.isArray(event?.gradient)
+    ? event.gradient[0]
+    : event?.gradientStart || "#18181b";
+  const gradientEnd = Array.isArray(event?.gradient)
+    ? event.gradient[1]
+    : event?.gradientEnd || "#0b0b0f";
   const guestCount = event?.guestCount ?? 580 + previewGuests.length * 14;
 
   const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
@@ -109,9 +127,11 @@ export default function EventRSVP({ event, host }) {
   const ensureAuthenticated = (type) => {
     if (user) return true;
     saveIntent(type, event?.id);
-    window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
-      detail: { intent: type, eventId: event?.id }
-    }));
+    window.dispatchEvent(
+      new CustomEvent("OPEN_AUTH_MODAL", {
+        detail: { intent: type, eventId: event?.id },
+      }),
+    );
     return false;
   };
 
@@ -121,9 +141,11 @@ export default function EventRSVP({ event, host }) {
     if (openTickets) {
       if (!user) {
         saveIntent("BOOK", event.id);
-        window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
-          detail: { intent: "BOOK", eventId: event.id }
-        }));
+        window.dispatchEvent(
+          new CustomEvent("OPEN_AUTH_MODAL", {
+            detail: { intent: "BOOK", eventId: event.id },
+          }),
+        );
         return;
       }
       setTicketModalOpen(true);
@@ -160,12 +182,16 @@ export default function EventRSVP({ event, host }) {
       return;
     }
     if (target === "instagram") {
-      window.open(`https://www.instagram.com/?url=${encodeURIComponent(url)}`, "_blank", "noopener,noreferrer");
+      window.open(
+        `https://www.instagram.com/?url=${encodeURIComponent(url)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
     }
   };
 
   const headerGradient = {
-    backgroundImage: `linear-gradient(120deg, ${gradientStart}, ${gradientEnd})`
+    backgroundImage: `linear-gradient(120deg, ${gradientStart}, ${gradientEnd})`,
   };
 
   console.log("EventRSVP render:", { eventId: event?.id, image: event?.image });
@@ -197,7 +223,7 @@ export default function EventRSVP({ event, host }) {
             style={{
               backgroundImage: `linear-gradient(180deg, ${gradientStart}, rgba(0,0,0,0.1) 60%, #000)`,
               filter: "blur(50px)",
-              opacity: 0.5
+              opacity: 0.5,
             }}
           />
         )}
@@ -218,7 +244,7 @@ export default function EventRSVP({ event, host }) {
           <div className="flex items-center gap-3 text-white">
             <LikeButton
               eventId={event?.id}
-              onAuthRequired={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
+              onAuthRequired={() => window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL"))}
             />
             {shareActions.map(({ id, label, Icon }) => (
               <button
@@ -245,7 +271,9 @@ export default function EventRSVP({ event, host }) {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-xs uppercase tracking-[0.5em] text-white/40">Announcement</p>
-              <h1 className="mt-3 text-4xl font-display uppercase tracking-[0.15em] sm:text-5xl">{event?.title}</h1>
+              <h1 className="mt-3 text-4xl font-display uppercase tracking-[0.15em] sm:text-5xl">
+                {event?.title}
+              </h1>
               <p className="mt-3 text-base text-white/70 sm:text-lg">
                 Hosted by <span className="text-white">{host?.name || event?.host}</span>
               </p>
@@ -282,7 +310,9 @@ export default function EventRSVP({ event, host }) {
               </button>
               <button
                 type="button"
-                onClick={() => event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)}
+                onClick={() =>
+                  event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)
+                }
                 className="rounded-full bg-white/90 px-6 py-2 text-[11px] uppercase tracking-[0.45em] text-black transition hover:bg-white"
               >
                 {event?.isFree ? "Get On List" : "Buy Tickets"}
@@ -308,7 +338,9 @@ export default function EventRSVP({ event, host }) {
                 <p className="mt-2 text-white">
                   {event?.date} · {event?.time || "Time TBA"}
                 </p>
-                <p className="text-white/60">Doors hold your RSVP for 30 minutes past start time.</p>
+                <p className="text-white/60">
+                  Doors hold your RSVP for 30 minutes past start time.
+                </p>
               </div>
             </motion.section>
 
@@ -335,7 +367,10 @@ export default function EventRSVP({ event, host }) {
               </div>
               <div className="space-y-3">
                 {previewGuests.map((guest) => (
-                  <div key={guest.id} className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur transition hover:bg-white/10">
+                  <div
+                    key={guest.id}
+                    className="flex items-center justify-between gap-4 rounded-3xl border border-white/10 bg-white/5 px-4 py-3 backdrop-blur transition hover:bg-white/10"
+                  >
                     <div className="flex items-center gap-3">
                       <span
                         className="flex h-10 w-10 items-center justify-center rounded-full text-xs font-semibold text-black"
@@ -345,7 +380,9 @@ export default function EventRSVP({ event, host }) {
                       </span>
                       <div>
                         <p className="text-sm font-semibold text-white">{guest.name}</p>
-                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">{guest.handle}</p>
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-white/40">
+                          {guest.handle}
+                        </p>
                       </div>
                     </div>
                     <button
@@ -401,10 +438,17 @@ export default function EventRSVP({ event, host }) {
                 className="flex flex-wrap items-center gap-4 group cursor-pointer"
               >
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white/40 group-hover:scale-105">
-                  <Image src={host?.avatar || "/events/holi-edit.svg"} alt={host?.name || "Host"} fill className="object-cover" />
+                  <Image
+                    src={host?.avatar || "/events/holi-edit.svg"}
+                    alt={host?.name || "Host"}
+                    fill
+                    className="object-cover"
+                  />
                 </div>
                 <div>
-                  <p className="text-lg font-semibold group-hover:text-iris transition-colors">{host?.name || event?.host}</p>
+                  <p className="text-lg font-semibold group-hover:text-iris transition-colors">
+                    {host?.name || event?.host}
+                  </p>
                   <p className="text-sm text-white/60">
                     {host?.followers} followers · {host?.location}
                   </p>
@@ -497,7 +541,9 @@ export default function EventRSVP({ event, host }) {
                         </div>
                         <p className="text-lg font-semibold text-white">₹{ticket.price}</p>
                       </div>
-                      <span className={`mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.4em] ${state.tone}`}>
+                      <span
+                        className={`mt-3 inline-flex rounded-full border px-3 py-1 text-[11px] uppercase tracking-[0.4em] ${state.tone}`}
+                      >
                         {state.label}
                       </span>
                     </div>
@@ -508,8 +554,17 @@ export default function EventRSVP({ event, host }) {
           </motion.aside>
         </div>
       </div>
-      <GuestlistModal open={guestModalOpen} guests={guestDirectory} onClose={() => setGuestModalOpen(false)} />
-      <TicketModal open={ticketModalOpen} onClose={() => setTicketModalOpen(false)} tickets={tickets} eventId={event?.id} />
+      <GuestlistModal
+        open={guestModalOpen}
+        guests={guestDirectory}
+        onClose={() => setGuestModalOpen(false)}
+      />
+      <TicketModal
+        open={ticketModalOpen}
+        onClose={() => setTicketModalOpen(false)}
+        tickets={tickets}
+        eventId={event?.id}
+      />
       <motion.div
         initial={{ opacity: 0, y: 40 }}
         animate={{ opacity: 1, y: 0 }}
@@ -518,7 +573,9 @@ export default function EventRSVP({ event, host }) {
         <div className="glass-panel flex w-full max-w-2xl flex-wrap items-center justify-between gap-3 rounded-full border border-white/15 bg-black/70 px-6 py-3 text-sm shadow-glow">
           {hasRSVPd ? (
             <>
-              <p className="text-white/80">You have {event?.isFree ? "RSVP’d to" : "tickets for"} this event.</p>
+              <p className="text-white/80">
+                You have {event?.isFree ? "RSVP’d to" : "tickets for"} this event.
+              </p>
               {event?.isFree && (
                 <button
                   type="button"
@@ -546,16 +603,20 @@ export default function EventRSVP({ event, host }) {
                   {event?.isFree ? "Get on the list" : "Tickets Available"}
                 </p>
                 <p className="text-xs text-white/60">
-                  {event?.isFree ? "Secure your RSVP before doors close." : `Starting from ₹${event?.priceRange?.min || event?.startingPrice || 0}`}
+                  {event?.isFree
+                    ? "Secure your RSVP before doors close."
+                    : `Starting from ₹${event?.priceRange?.min || event?.startingPrice || 0}`}
                 </p>
               </div>
               <button
                 type="button"
                 disabled={rsvpLoading}
-                onClick={() => event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)}
+                onClick={() =>
+                  event?.isFree ? handleRSVP({ openTickets: true }) : setTicketModalOpen(true)
+                }
                 className="rounded-full bg-white px-6 py-2 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
               >
-                {rsvpLoading ? "Processing..." : (event?.isFree ? "RSVP Now" : "Buy Tickets")}
+                {rsvpLoading ? "Processing..." : event?.isFree ? "RSVP Now" : "Buy Tickets"}
               </button>
             </>
           )}
@@ -610,5 +671,3 @@ function InstagramIcon() {
     </svg>
   );
 }
-
-

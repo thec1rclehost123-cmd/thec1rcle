@@ -5,7 +5,6 @@ import { getHostByHandle } from "../../../lib/server/hostStore";
 import { getVenueBySlug } from "../../../lib/server/venueStore";
 import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
 
-
 export async function generateMetadata({ params }) {
   const identifier = decodeURIComponent(params.eventId);
   const event = await getEvent(identifier);
@@ -13,7 +12,7 @@ export async function generateMetadata({ params }) {
   if (!event) {
     return {
       title: "Event Not Found",
-      description: "The event you are looking for does not exist."
+      description: "The event you are looking for does not exist.",
     };
   }
 
@@ -36,7 +35,7 @@ export async function generateMetadata({ params }) {
       title: `THE.C1RCLE | ${title}`,
       description: description,
       images: images,
-    }
+    },
   };
 }
 
@@ -60,7 +59,7 @@ export default async function EventDetailPage({ params }) {
       const h = headers();
       const ip = h.get("x-forwarded-for") || "127.0.0.1";
       const userAgent = h.get("user-agent") || "unknown";
-      const viewerId = Buffer.from(`${ip}-${userAgent}`).toString('base64');
+      const viewerId = Buffer.from(`${ip}-${userAgent}`).toString("base64");
 
       const { trackEventView } = await import("@c1rcle/core/analytics-service");
       await trackEventView(event.id, viewerId);
@@ -76,8 +75,18 @@ export default async function EventDetailPage({ params }) {
         <div className="text-center">
           <div className="mb-8 flex justify-center">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
-              <svg className="h-10 w-10 text-[var(--text-muted)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="h-10 w-10 text-[var(--text-muted)]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
           </div>
@@ -85,7 +94,8 @@ export default async function EventDetailPage({ params }) {
             Event unavailable
           </h1>
           <p className="mt-6 text-sm font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
-            The event reference is missing or broken. This link might have expired or the host has removed the listing.
+            The event reference is missing or broken. This link might have expired or the host has
+            removed the listing.
           </p>
           <div className="mt-12">
             <Link
@@ -93,7 +103,12 @@ export default async function EventDetailPage({ params }) {
               className="inline-flex items-center gap-3 rounded-full bg-orange dark:bg-white px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-black shadow-lg shadow-orange/20 dark:shadow-none transition-transform hover:scale-105"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                />
               </svg>
               Explore Events
             </Link>
@@ -115,13 +130,13 @@ export default async function EventDetailPage({ params }) {
   // 2. If no host profile, try to fetch venue profile if venue exists
   if (!hostProfile && event.venue) {
     // Assuming venue slug is a kebab-case version of name if not provided
-    const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, '-');
+    const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, "-");
     const venueProfile = await getVenueBySlug(venueSlug);
     if (venueProfile) {
       hostProfile = {
         ...venueProfile,
         type: "venue",
-        avatar: venueProfile.photoURL || venueProfile.image
+        avatar: venueProfile.photoURL || venueProfile.image,
       };
     }
   }
@@ -133,14 +148,16 @@ export default async function EventDetailPage({ params }) {
       ...mock,
       type: "host",
       handle: event.host || "@guest",
-      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-")
+      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-"),
     };
   }
 
   // Ensure hostProfile always has a type and fallback slug
   if (hostProfile && !hostProfile.type) hostProfile.type = "host";
   if (hostProfile && !hostProfile.slug) {
-    hostProfile.slug = hostProfile.handle ? hostProfile.handle.replace("@", "").replace(/\./g, "-") : hostProfile.id;
+    hostProfile.slug = hostProfile.handle
+      ? hostProfile.handle.replace("@", "").replace(/\./g, "-")
+      : hostProfile.id;
   }
 
   // Fetch live social proof
@@ -160,8 +177,18 @@ export default async function EventDetailPage({ params }) {
         <div className="relative z-10 w-full max-w-lg text-center">
           {/* Cancelled Badge */}
           <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-red-500/10 ring-8 ring-red-500/5">
-            <svg className="h-12 w-12 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+            <svg
+              className="h-12 w-12 text-red-500"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
+              />
             </svg>
           </div>
 
@@ -171,7 +198,8 @@ export default async function EventDetailPage({ params }) {
           </h1>
 
           <p className="mx-auto mt-4 max-w-md text-base font-medium text-[var(--text-muted)] leading-relaxed">
-            <span className="font-bold text-[var(--text-primary)]">{event.title}</span> has been cancelled by the organizer.
+            <span className="font-bold text-[var(--text-primary)]">{event.title}</span> has been
+            cancelled by the organizer.
           </p>
 
           {/* Reason */}
@@ -201,8 +229,18 @@ export default async function EventDetailPage({ params }) {
               </p>
               {event.refundStatus === "completed" && (
                 <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  <svg
+                    className="w-3.5 h-3.5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M5 13l4 4L19 7"
+                    />
                   </svg>
                   Refunds Processed
                 </p>
@@ -217,7 +255,12 @@ export default async function EventDetailPage({ params }) {
               className="inline-flex items-center gap-3 rounded-full bg-orange dark:bg-white px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-black shadow-lg shadow-orange/20 dark:shadow-none transition-transform hover:scale-105"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2.5}
+                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                />
               </svg>
               Explore Other Events
             </Link>

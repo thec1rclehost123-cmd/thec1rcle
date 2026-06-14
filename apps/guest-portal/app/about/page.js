@@ -13,34 +13,38 @@ const features = [
     id: "composer",
     title: "Create Timeless Events",
     subtitle: "In Under a Minute",
-    description: "Encapsulate your vision with images, music, and lightning-fast flows. The most powerful editor in the game.",
+    description:
+      "Encapsulate your vision with images, music, and lightning-fast flows. The most powerful editor in the game.",
     color: "orange",
-    visual: "ComposerUI"
+    visual: "ComposerUI",
   },
   {
     id: "growth",
     title: "Grow Your Community",
     subtitle: "Like Clockwork",
-    description: "Automated SMS nudges, affiliate boosts, and waitlist pings. Sell out every drop without the manual hustle.",
+    description:
+      "Automated SMS nudges, affiliate boosts, and waitlist pings. Sell out every drop without the manual hustle.",
     color: "silver",
-    visual: "GrowthUI"
+    visual: "GrowthUI",
   },
   {
     id: "capital",
     title: "Instant Access to Capital",
     subtitle: "Financial Flexibility",
-    description: "Track payouts in real-time. Unlock splits for your crew. No waiting for settlement to fund your production.",
+    description:
+      "Track payouts in real-time. Unlock splits for your crew. No waiting for settlement to fund your production.",
     color: "grey",
-    visual: "CapitalUI"
+    visual: "CapitalUI",
   },
   {
     id: "analytics",
     title: "Understand Your Audience",
     subtitle: "Powerful Analytics",
-    description: "Drill into location heatmaps, demographic charts, and guest actions. Own your data.",
+    description:
+      "Drill into location heatmaps, demographic charts, and guest actions. Own your data.",
     color: "stone",
-    visual: "AnalyticsUI"
-  }
+    visual: "AnalyticsUI",
+  },
 ];
 
 const useCases = [
@@ -48,14 +52,30 @@ const useCases = [
   { title: "Arts", subtitle: "Galleries, Performances", image: "/events/select-art.svg" },
   { title: "Nightlife", subtitle: "Venues, Underground", image: "/events/genz-night.svg" },
   { title: "Community", subtitle: "Meetups, Interests", image: "/events/interview-crew.svg" },
-  { title: "Sports", subtitle: "Watch Parties, Rec Leagues", image: "/events/yoga.svg" }
+  { title: "Sports", subtitle: "Watch Parties, Rec Leagues", image: "/events/yoga.svg" },
 ];
 
 const faqs = [
-  { question: "What makes The C1rcle different?", answer: "We are the only platform that combines ticketing, CRM, and financial tools into one seamless operating system designed for the next generation of creators." },
-  { question: "Is it easy to switch?", answer: "Yes. Our onboarding team will migrate your data, set up your first event, and train your team in under 24 hours." },
-  { question: "Are there fees?", answer: "We make money when you do. Our fee structure is transparent and can be passed on to attendees." },
-  { question: "How do payouts work?", answer: "Instant. As soon as a ticket is sold, the funds are available in your dashboard. No holding periods." }
+  {
+    question: "What makes The C1rcle different?",
+    answer:
+      "We are the only platform that combines ticketing, CRM, and financial tools into one seamless operating system designed for the next generation of creators.",
+  },
+  {
+    question: "Is it easy to switch?",
+    answer:
+      "Yes. Our onboarding team will migrate your data, set up your first event, and train your team in under 24 hours.",
+  },
+  {
+    question: "Are there fees?",
+    answer:
+      "We make money when you do. Our fee structure is transparent and can be passed on to attendees.",
+  },
+  {
+    question: "How do payouts work?",
+    answer:
+      "Instant. As soon as a ticket is sold, the funds are available in your dashboard. No holding periods.",
+  },
 ];
 
 // --- Components ---
@@ -89,9 +109,7 @@ export default function AboutPage() {
       </div>
 
       <AnimatePresence>
-        {showHostModal && (
-          <HostModal onClose={() => setShowHostModal(false)} />
-        )}
+        {showHostModal && <HostModal onClose={() => setShowHostModal(false)} />}
       </AnimatePresence>
     </div>
   );
@@ -114,20 +132,30 @@ function UniversitySection() {
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           <div className="space-y-8">
             <div className="space-y-4">
-              <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">The Playbook</span>
+              <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">
+                The Playbook
+              </span>
               <h2 className="font-heading text-5xl sm:text-7xl font-bold leading-tight">
-                C1RCLE<br />University.
+                C1RCLE
+                <br />
+                University.
               </h2>
               <p className="max-w-md text-white/50 text-lg leading-relaxed">
-                We're open-sourcing our tribal knowledge. Learn the systems and strategies used by the world's most successful experience creators.
+                We're open-sourcing our tribal knowledge. Learn the systems and strategies used by
+                the world's most successful experience creators.
               </p>
             </div>
             <div className="grid gap-4">
               {courses.map((course) => (
-                <div key={course.title} className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 group hover:border-orange/50 transition-colors">
+                <div
+                  key={course.title}
+                  className="flex items-center justify-between p-4 rounded-2xl bg-white/5 border border-white/10 group hover:border-orange/50 transition-colors"
+                >
                   <div>
                     <h4 className="font-bold">{course.title}</h4>
-                    <span className="text-[10px] text-white/30 uppercase tracking-widest">{course.duration} • {course.level}</span>
+                    <span className="text-[10px] text-white/30 uppercase tracking-widest">
+                      {course.duration} • {course.level}
+                    </span>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center group-hover:bg-orange group-hover:text-black transition-all">
                     →
@@ -138,11 +166,19 @@ function UniversitySection() {
           </div>
           <div className="relative aspect-square rounded-[40px] overflow-hidden border border-white/10">
             <div className="absolute inset-0 bg-gradient-to-br from-orange/20 to-transparent z-10" />
-            <img src="/events/interview-crew.svg" alt="University" className="w-full h-full object-cover opacity-50" />
+            <img
+              src="/events/interview-crew.svg"
+              alt="University"
+              className="w-full h-full object-cover opacity-50"
+            />
             <div className="absolute inset-0 flex items-center justify-center z-20">
               <div className="bg-black/50 backdrop-blur-xl p-8 rounded-[32px] border border-white/10 text-center">
                 <span className="block text-4xl mb-4">📚</span>
-                <p className="text-sm font-bold uppercase tracking-widest">Enrollment Starts<br />Feb 2025</p>
+                <p className="text-sm font-bold uppercase tracking-widest">
+                  Enrollment Starts
+                  <br />
+                  Feb 2025
+                </p>
               </div>
             </div>
           </div>
@@ -164,19 +200,26 @@ function CareersSection() {
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-end gap-8 mb-16">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">Join the mission</span>
+            <span className="text-xs font-bold uppercase tracking-[0.2em] text-orange">
+              Join the mission
+            </span>
             <h2 className="font-heading text-5xl sm:text-7xl font-bold leading-tight">
-              We're building the future<br /> of life offline.
+              We're building the future
+              <br /> of life offline.
             </h2>
           </div>
           <p className="max-w-md text-white/50 text-lg leading-relaxed">
-            We are looking for obsessed builders who want to fix the loneliness epidemic by building tools that get people out of their screens.
+            We are looking for obsessed builders who want to fix the loneliness epidemic by building
+            tools that get people out of their screens.
           </p>
         </div>
 
         <div className="grid gap-4">
           {jobs.map((job) => (
-            <div key={job.title} className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.05]">
+            <div
+              key={job.title}
+              className="group relative overflow-hidden rounded-[32px] border border-white/5 bg-white/[0.02] p-8 transition-colors hover:bg-white/[0.05]"
+            >
               <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
                 <div className="space-y-2">
                   <h3 className="text-2xl font-bold">{job.title}</h3>
@@ -210,14 +253,17 @@ function HostAccessSection({ onAccess }) {
             Are you an Event Producer?
           </h2>
           <p className="text-white/60 max-w-md">
-            Join our curated network of hosts. Get access to advanced tools, analytics, and our exclusive community.
+            Join our curated network of hosts. Get access to advanced tools, analytics, and our
+            exclusive community.
           </p>
         </div>
         <button
           onClick={onAccess}
           className="group relative px-8 py-4 bg-white text-black rounded-full font-bold uppercase tracking-widest text-xs overflow-hidden"
         >
-          <span className="relative z-10 group-hover:text-white transition-colors duration-300">Host Access</span>
+          <span className="relative z-10 group-hover:text-white transition-colors duration-300">
+            Host Access
+          </span>
           <div className="absolute inset-0 bg-black transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left" />
         </button>
       </div>
@@ -240,10 +286,7 @@ function HeroSection() {
 
   return (
     <section className="relative min-h-[60vh] pt-64 pb-32 flex flex-col items-center justify-center px-6 overflow-hidden">
-      <motion.div
-        style={{ y }}
-        className="text-center space-y-10 max-w-6xl mx-auto relative z-10"
-      >
+      <motion.div style={{ y }} className="text-center space-y-10 max-w-6xl mx-auto relative z-10">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -251,7 +294,9 @@ function HeroSection() {
           className="relative"
         >
           <h1 className="font-heading text-7xl sm:text-9xl font-black tracking-tighter text-white leading-[0.85] mix-blend-overlay opacity-90">
-            BUILD THE<br />IMPOSSIBLE
+            BUILD THE
+            <br />
+            IMPOSSIBLE
           </h1>
           <motion.div
             className="absolute inset-0 bg-gradient-to-r from-orange via-white to-orange-400 opacity-30 blur-[100px] -z-10"
@@ -300,7 +345,9 @@ function FeatureSection({ feature, index }) {
   const isEven = index % 2 === 0;
 
   return (
-    <section className={`flex flex-col lg:flex-row gap-16 items-center ${isEven ? "" : "lg:flex-row-reverse"}`}>
+    <section
+      className={`flex flex-col lg:flex-row gap-16 items-center ${isEven ? "" : "lg:flex-row-reverse"}`}
+    >
       {/* Text Content */}
       <motion.div
         className="flex-1 space-y-8"
@@ -317,9 +364,7 @@ function FeatureSection({ feature, index }) {
           <h2 className="font-heading text-5xl sm:text-6xl font-bold leading-[0.95]">
             {feature.title}
           </h2>
-          <p className="text-lg text-white/60 leading-relaxed max-w-md">
-            {feature.description}
-          </p>
+          <p className="text-lg text-white/60 leading-relaxed max-w-md">{feature.description}</p>
         </div>
         <button className="group flex items-center gap-2 text-sm font-bold uppercase tracking-widest hover:text-white/80 transition-colors">
           Get Started
@@ -355,8 +400,15 @@ function ComposerUI() {
       <div className="relative w-full max-w-md mx-auto bg-black border border-white/10 rounded-3xl p-6 shadow-2xl">
         {/* Header Image */}
         <div className="h-32 w-full bg-white/10 rounded-xl mb-6 relative overflow-hidden group">
-          <Image src="/events/lofi-house.svg" alt="Event" fill className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-700" />
-          <div className="absolute top-2 right-2 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] uppercase font-bold">Cover</div>
+          <Image
+            src="/events/lofi-house.svg"
+            alt="Event"
+            fill
+            className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
+          />
+          <div className="absolute top-2 right-2 bg-black/50 backdrop-blur px-2 py-1 rounded text-[10px] uppercase font-bold">
+            Cover
+          </div>
         </div>
 
         {/* Inputs */}
@@ -412,7 +464,9 @@ function GrowthUI() {
               <h4 className="font-bold text-sm">Early Bird SMS</h4>
               <span className="text-[10px] text-white/50">2m ago</span>
             </div>
-            <p className="text-xs text-white/80">"Presale is LIVE! Use code C1RCLE for 20% off first 100 tix."</p>
+            <p className="text-xs text-white/80">
+              "Presale is LIVE! Use code C1RCLE for 20% off first 100 tix."
+            </p>
           </div>
         </motion.div>
 
@@ -430,7 +484,9 @@ function GrowthUI() {
               <h4 className="font-bold text-sm">Affiliate Boost</h4>
               <span className="text-[10px] text-white/50">Just now</span>
             </div>
-            <p className="text-xs text-white/80">Your promoters just sold 45 tickets in the last hour.</p>
+            <p className="text-xs text-white/80">
+              Your promoters just sold 45 tickets in the last hour.
+            </p>
           </div>
         </motion.div>
       </div>
@@ -446,7 +502,9 @@ function CapitalUI() {
 
         <div className="flex justify-between items-end mb-8">
           <div>
-            <div className="text-xs text-white/40 uppercase tracking-widest mb-1">Total Revenue</div>
+            <div className="text-xs text-white/40 uppercase tracking-widest mb-1">
+              Total Revenue
+            </div>
             <div className="text-4xl font-bold text-white">$29,400</div>
           </div>
           <div className="text-right">
@@ -459,7 +517,9 @@ function CapitalUI() {
         <div className="relative h-40 w-full mt-8">
           {/* Grid Lines */}
           <div className="absolute inset-0 flex flex-col justify-between">
-            {[0, 1, 2, 3].map(i => <div key={i} className="w-full h-px bg-white/5" />)}
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="w-full h-px bg-white/5" />
+            ))}
           </div>
 
           {/* Line Path */}
@@ -491,7 +551,9 @@ function CapitalUI() {
             />
             {/* Points */}
             {[
-              { cx: 150, cy: 60 }, { cx: 300, cy: 20 }, { cx: 450, cy: 10 }
+              { cx: 150, cy: 60 },
+              { cx: 300, cy: 20 },
+              { cx: 450, cy: 10 },
             ].map((p, i) => (
               <motion.circle
                 key={i}
@@ -519,7 +581,9 @@ function AnalyticsUI() {
       <div className="grid grid-cols-2 gap-4 w-full h-full">
         {/* List */}
         <div className="bg-white/5 rounded-2xl p-4 border border-white/10 flex flex-col gap-3">
-          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-2">Attendee Location</div>
+          <div className="text-[10px] uppercase tracking-widest text-white/40 mb-2">
+            Attendee Location
+          </div>
           {[
             { city: "Mumbai, IN", val: 107 },
             { city: "Pune, IN", val: 95 },
@@ -540,7 +604,9 @@ function AnalyticsUI() {
             <svg viewBox="0 0 100 100" className="transform -rotate-90">
               <circle cx="50" cy="50" r="40" fill="transparent" stroke="#333" strokeWidth="20" />
               <motion.circle
-                cx="50" cy="50" r="40"
+                cx="50"
+                cy="50"
+                r="40"
                 fill="transparent"
                 stroke="#F44A22"
                 strokeWidth="20"
@@ -551,7 +617,9 @@ function AnalyticsUI() {
                 transition={{ duration: 1.5, ease: "easeOut" }}
               />
               <motion.circle
-                cx="50" cy="50" r="40"
+                cx="50"
+                cy="50"
+                r="40"
                 fill="transparent"
                 stroke="#A8AAAC"
                 strokeWidth="20"
@@ -582,7 +650,8 @@ function NetworkSection() {
           The <span className="text-orange">Network</span> Effect
         </h2>
         <p className="text-xl text-white/60 max-w-2xl mx-auto">
-          Turn every attendee into a promoter. Our Kickback system incentivizes your community to sell tickets for you.
+          Turn every attendee into a promoter. Our Kickback system incentivizes your community to
+          sell tickets for you.
         </p>
       </div>
 
@@ -613,7 +682,17 @@ function NetworkGraph() {
   ];
 
   const connections = [
-    [1, 2], [2, 3], [2, 5], [1, 4], [4, 5], [5, 6], [5, 7], [4, 8], [7, 8], [3, 6], [4, 7]
+    [1, 2],
+    [2, 3],
+    [2, 5],
+    [1, 4],
+    [4, 5],
+    [5, 6],
+    [5, 7],
+    [4, 8],
+    [7, 8],
+    [3, 6],
+    [4, 7],
   ];
 
   return (
@@ -627,8 +706,8 @@ function NetworkGraph() {
           </linearGradient>
         </defs>
         {connections.map(([startId, endId], i) => {
-          const start = nodes.find(n => n.id === startId);
-          const end = nodes.find(n => n.id === endId);
+          const start = nodes.find((n) => n.id === startId);
+          const end = nodes.find((n) => n.id === endId);
           return (
             <motion.line
               key={`${startId}-${endId}`}
@@ -648,9 +727,16 @@ function NetworkGraph() {
 
       {/* Traveling Particles */}
       {connections.map(([startId, endId], i) => {
-        const start = nodes.find(n => n.id === startId);
-        const end = nodes.find(n => n.id === endId);
-        return <ConnectionParticle key={`p-${startId}-${endId}`} start={start} end={end} delay={i * 0.2} />;
+        const start = nodes.find((n) => n.id === startId);
+        const end = nodes.find((n) => n.id === endId);
+        return (
+          <ConnectionParticle
+            key={`p-${startId}-${endId}`}
+            start={start}
+            end={end}
+            delay={i * 0.2}
+          />
+        );
       })}
 
       {nodes.map((node, i) => (
@@ -682,13 +768,13 @@ function ConnectionParticle({ start, end, delay }) {
       animate={{
         left: [`${start.x}%`, `${end.x}%`],
         top: [`${start.y}%`, `${end.y}%`],
-        opacity: [0, 1, 0]
+        opacity: [0, 1, 0],
       }}
       transition={{
         duration: 3,
         repeat: Infinity,
         delay: delay,
-        ease: "linear"
+        ease: "linear",
       }}
     />
   );
@@ -704,10 +790,14 @@ function UseCasesSection() {
       <div className="px-6 mb-16 max-w-7xl mx-auto">
         <div className="flex items-center gap-3 mb-4">
           <span className="text-orange text-xl">⚡️</span>
-          <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">Limitless Use Cases</span>
+          <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/50">
+            Limitless Use Cases
+          </span>
         </div>
         <h2 className="font-heading text-5xl sm:text-6xl font-bold leading-tight">
-          Built for every kind of<br />IRL experience.
+          Built for every kind of
+          <br />
+          IRL experience.
         </h2>
       </div>
 
@@ -744,7 +834,9 @@ function FAQSection() {
   return (
     <section className="py-32 px-6 max-w-3xl mx-auto">
       <div className="text-center mb-16">
-        <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-4 block">FAQ</span>
+        <span className="text-xs font-bold uppercase tracking-[0.2em] text-white/40 mb-4 block">
+          FAQ
+        </span>
         <h2 className="font-heading text-4xl font-bold">Navigating a new ecosystem...</h2>
       </div>
 
@@ -772,7 +864,9 @@ function FAQItem({ faq }) {
         className="w-full flex items-center justify-between p-6 text-left hover:bg-white/5 transition-colors"
       >
         <span className="font-bold text-lg">{faq.question}</span>
-        <span className={`text-2xl transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}>+</span>
+        <span className={`text-2xl transition-transform duration-300 ${isOpen ? "rotate-45" : ""}`}>
+          +
+        </span>
       </button>
       <AnimatePresence>
         {isOpen && (
@@ -782,9 +876,7 @@ function FAQItem({ faq }) {
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="p-6 pt-0 text-white/60 leading-relaxed">
-              {faq.answer}
-            </div>
+            <div className="p-6 pt-0 text-white/60 leading-relaxed">{faq.answer}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -798,7 +890,10 @@ function CTASection() {
       <div className="absolute inset-0 bg-gradient-to-b from-transparent to-orange/10 pointer-events-none" />
       <div className="max-w-4xl mx-auto space-y-10 relative z-10">
         <h2 className="font-heading text-5xl sm:text-8xl font-black tracking-tighter">
-          Ready to <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange via-white to-orange">Ascend?</span>
+          Ready to{" "}
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange via-white to-orange">
+            Ascend?
+          </span>
         </h2>
         <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
           <a

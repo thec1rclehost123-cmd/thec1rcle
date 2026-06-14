@@ -13,7 +13,7 @@ const navLinks = [
   { label: "Explore", href: "/explore" },
   { label: "Hosts", href: "/hosts" },
   { label: "Tickets", href: "/tickets" },
-  { label: "App", href: "/app" }
+  { label: "App", href: "/app" },
 ];
 
 export default function Navbar() {
@@ -25,10 +25,16 @@ export default function Navbar() {
   const navWidth = useTransform(scrollY, [0, 100], ["100%", "90%"]);
   const navY = useTransform(scrollY, [0, 100], [0, 20]);
   const navBackdrop = useTransform(scrollY, [0, 100], ["blur(0px)", "blur(20px)"]);
-  const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "rgba(3, 3, 3, 0.75)"]);
-  const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "rgba(255, 255, 255, 0.06)"]);
-
-
+  const navBackground = useTransform(
+    scrollY,
+    [0, 100],
+    ["rgba(5, 5, 5, 0)", "rgba(3, 3, 3, 0.75)"],
+  );
+  const navBorder = useTransform(
+    scrollY,
+    [0, 100],
+    ["rgba(255, 255, 255, 0)", "rgba(255, 255, 255, 0.06)"],
+  );
 
   const isLoginPage = pathname === "/login";
   const isMenuOpenRef = useRef(isMenuOpen);
@@ -40,7 +46,7 @@ export default function Navbar() {
   return (
     <>
       <motion.header
-        className={`fixed inset-x-0 top-0 z-50 flex justify-center pt-4 pointer-events-none transition-all duration-700 ${pathname?.startsWith('/admin') ? 'opacity-10 blur-[2px] grayscale-[0.8] hover:opacity-100 hover:blur-none hover:grayscale-0' : ''}`}
+        className={`fixed inset-x-0 top-0 z-50 flex justify-center pt-4 pointer-events-none transition-all duration-700 ${pathname?.startsWith("/admin") ? "opacity-10 blur-[2px] grayscale-[0.8] hover:opacity-100 hover:blur-none hover:grayscale-0" : ""}`}
         style={{ y: navY }}
       >
         <motion.nav
@@ -62,16 +68,20 @@ export default function Navbar() {
             </span>
           </Link>
 
-          <div className={clsx(
-            "hidden items-center gap-1 lg:flex rounded-full p-1 border backdrop-blur-md transition-all duration-500",
-            isLoginPage
-              ? "bg-black/[0.05] dark:bg-white/10 border-black/10 dark:border-white/20 backdrop-blur-xl shadow-sm"
-              : "bg-black/[0.03] dark:bg-white/5 border-black/5 dark:border-white/5"
-          )}>
+          <div
+            className={clsx(
+              "hidden items-center gap-1 lg:flex rounded-full p-1 border backdrop-blur-md transition-all duration-500",
+              isLoginPage
+                ? "bg-black/[0.05] dark:bg-white/10 border-black/10 dark:border-white/20 backdrop-blur-xl shadow-sm"
+                : "bg-black/[0.03] dark:bg-white/5 border-black/5 dark:border-white/5",
+            )}
+          >
             {navLinks.map((link) => {
-              const isActive = link.href === "/"
-                ? pathname === "/"
-                : pathname?.startsWith(link.href) || (link.label === "Hosts" && pathname?.startsWith("/venues"));
+              const isActive =
+                link.href === "/"
+                  ? pathname === "/"
+                  : pathname?.startsWith(link.href) ||
+                    (link.label === "Hosts" && pathname?.startsWith("/venues"));
 
               return (
                 <Link
@@ -79,15 +89,13 @@ export default function Navbar() {
                   href={link.href}
                   className={clsx(
                     "relative px-6 py-2.5 rounded-full text-xs uppercase tracking-widest transition-all duration-300",
-                    isLoginPage ? (
-                      isActive
+                    isLoginPage
+                      ? isActive
                         ? "text-white dark:text-black font-black"
                         : "text-black/70 dark:text-white/80 font-black hover:text-black dark:hover:text-white"
-                    ) : (
-                      isActive
+                      : isActive
                         ? "text-white font-bold"
-                        : "text-black/60 dark:text-white/60 font-bold hover:text-black dark:hover:text-gold-light"
-                    )
+                        : "text-black/60 dark:text-white/60 font-bold hover:text-black dark:hover:text-gold-light",
                   )}
                 >
                   {isActive && (
@@ -97,7 +105,7 @@ export default function Navbar() {
                         "absolute inset-0 rounded-full shadow-md",
                         isLoginPage
                           ? "bg-black dark:bg-white shadow-lg"
-                          : "bg-orange dark:bg-gradient-to-r dark:from-gold dark:via-gold-metallic dark:to-gold-light dark:shadow-[0_0_20px_rgba(255,215,0,0.4)]"
+                          : "bg-orange dark:bg-gradient-to-r dark:from-gold dark:via-gold-metallic dark:to-gold-light dark:shadow-[0_0_20px_rgba(255,215,0,0.4)]",
                       )}
                       transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
                     />
@@ -150,7 +158,7 @@ export default function Navbar() {
             </button>
           </div>
         </motion.nav>
-      </motion.header >
+      </motion.header>
 
       <AnimatePresence>
         {isMenuOpen && (
@@ -177,7 +185,7 @@ export default function Navbar() {
                     href={link.href}
                     onClick={() => closeMenu()}
                     className="block w-full text-center text-5xl sm:text-6xl font-black font-heading uppercase custom-tracking-tighter text-transparent bg-clip-text bg-gradient-to-br from-white to-white/60 hover:to-orange transition-all duration-500"
-                    style={{ letterSpacing: '-0.04em', lineHeight: '1.1' }}
+                    style={{ letterSpacing: "-0.04em", lineHeight: "1.1" }}
                   >
                     {link.label}
                   </Link>

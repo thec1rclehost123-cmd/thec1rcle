@@ -3,7 +3,13 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-export default function ShimmerImage({ className = "", wrapperClassName = "", onLoad, onLoadingComplete, ...props }) {
+export default function ShimmerImage({
+  className = "",
+  wrapperClassName = "",
+  onLoad,
+  onLoadingComplete,
+  ...props
+}) {
   const imgRef = useRef(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -12,7 +18,7 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   useEffect(() => {
     setLoaded(false);
     setError(false);
-    if (props.src && String(props.src).startsWith('http')) {
+    if (props.src && String(props.src).startsWith("http")) {
       console.log(`[ShimmerImage] Loading: ${props.alt} -> ${props.src}`);
     }
     const img = imgRef.current;
@@ -38,8 +44,9 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
   return (
     <div className={`relative ${props.fill ? "h-full w-full" : ""} ${wrapperClassName}`}>
       <div
-        className={`absolute inset-0 rounded-[inherit] bg-black/5 dark:bg-white/5 transition-opacity duration-700 ${loaded ? "opacity-0" : "opacity-100"
-          }`}
+        className={`absolute inset-0 rounded-[inherit] bg-black/5 dark:bg-white/5 transition-opacity duration-700 ${
+          loaded ? "opacity-0" : "opacity-100"
+        }`}
       >
         <div className="absolute inset-0 -translate-x-full animate-[shimmer-block_2s_infinite] bg-gradient-to-r from-transparent via-black/10 to-transparent dark:via-white/10" />
       </div>
@@ -47,7 +54,7 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
       {!isPlaceholder && !error ? (
         <Image
           {...props}
-          unoptimized={props.unoptimized || (props.src && String(props.src).startsWith('http'))}
+          unoptimized={props.unoptimized || (props.src && String(props.src).startsWith("http"))}
           ref={imgRef}
           className={`relative z-10 ${className}`}
           onLoad={(event) => {
@@ -60,7 +67,9 @@ export default function ShimmerImage({ className = "", wrapperClassName = "", on
           }}
         />
       ) : (
-        <div className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400 ${className}`}>
+        <div
+          className={`relative z-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 text-[10px] font-bold uppercase text-zinc-400 ${className}`}
+        >
           {props.alt?.slice(0, 2) || "IM"}
         </div>
       )}

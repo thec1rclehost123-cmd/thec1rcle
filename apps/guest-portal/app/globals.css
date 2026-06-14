@@ -34,7 +34,7 @@
   --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
-  --surface-1: #0A0A0A;
+  --surface-1: #0a0a0a;
   --surface-2: #161616;
   --surface-3: #1c1c1c;
   --border-primary: rgba(255, 255, 255, 0.08);
@@ -117,19 +117,20 @@
 
   /* Global Focus States */
   :focus-visible {
-    outline: 2px solid #F44A22;
+    outline: 2px solid #f44a22;
     outline-offset: 4px;
     border-radius: 4px;
   }
 
   /* Smooth focus transitions */
   * {
-    transition: outline-offset 0.2s ease, outline-color 0.2s ease;
+    transition:
+      outline-offset 0.2s ease,
+      outline-color 0.2s ease;
   }
 
   /* Support for reduced motion */
   @media (prefers-reduced-motion: reduce) {
-
     *,
     *::before,
     *::after {
@@ -141,7 +142,6 @@
 
   /* Gradient shift animation for hero text */
   @keyframes gradient-shift {
-
     0%,
     100% {
       background-position: 0% 50%;
@@ -249,7 +249,9 @@
     border-radius: inherit;
     padding: 1px;
     background: linear-gradient(135deg, rgba(244, 74, 34, 0.5), rgba(254, 248, 232, 0.3));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
@@ -281,11 +283,16 @@
 
   /* Premium App Page Effects */
   .shadow-glow {
-    box-shadow: 0 0 20px rgba(244, 74, 34, 0.4), 0 0 40px rgba(244, 74, 34, 0.2);
+    box-shadow:
+      0 0 20px rgba(244, 74, 34, 0.4),
+      0 0 40px rgba(244, 74, 34, 0.2);
   }
 
   .shadow-glow-lg {
-    box-shadow: 0 0 30px rgba(244, 74, 34, 0.6), 0 0 60px rgba(244, 74, 34, 0.3), 0 0 90px rgba(244, 74, 34, 0.1);
+    box-shadow:
+      0 0 30px rgba(244, 74, 34, 0.6),
+      0 0 60px rgba(244, 74, 34, 0.3),
+      0 0 90px rgba(244, 74, 34, 0.1);
   }
 
   .scrollbar-hide::-webkit-scrollbar {
@@ -302,13 +309,12 @@
   }
 
   .border-gradient-premium {
-    border-image: linear-gradient(135deg, #F44A22, #FF6B4A) 1;
+    border-image: linear-gradient(135deg, #f44a22, #ff6b4a) 1;
   }
 }
 
 /* Premium App Page Animations */
 @keyframes pulse-slow {
-
   0%,
   100% {
     opacity: 0.3;
@@ -320,7 +326,6 @@
 }
 
 @keyframes pulse-glow {
-
   0%,
   100% {
     opacity: 0.2;
@@ -354,7 +359,6 @@
 }
 
 @keyframes tilt {
-
   0%,
   100% {
     transform: rotate(-1deg);
@@ -388,7 +392,6 @@
 
 /* Venue Page - Slow Zoom Animation */
 @keyframes slow-zoom {
-
   0%,
   100% {
     transform: scale(1.1);
@@ -463,7 +466,6 @@
 
 /* Touch device optimizations */
 @media (hover: none) and (pointer: coarse) {
-
   /* Larger touch targets for interactive elements */
   .btn-lift:active {
     transform: scale(0.97);
@@ -516,7 +518,6 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
-
   .animate-pulse-slow,
   .animate-pulse-glow,
   .animate-shimmer,
@@ -534,7 +535,6 @@
 
 /* Slow Bounce Animation for Floating Elements */
 @keyframes bounce-slow {
-
   0%,
   100% {
     transform: translateY(0);
@@ -568,14 +568,15 @@
 
 /* Glow pulse for CTAs */
 @keyframes glow-pulse {
-
   0%,
   100% {
     box-shadow: 0 0 20px rgba(244, 74, 34, 0.4);
   }
 
   50% {
-    box-shadow: 0 0 40px rgba(244, 74, 34, 0.6), 0 0 60px rgba(244, 74, 34, 0.3);
+    box-shadow:
+      0 0 40px rgba(244, 74, 34, 0.6),
+      0 0 60px rgba(244, 74, 34, 0.3);
   }
 }
 
@@ -608,7 +609,6 @@
 
 /* Venue badge animations */
 @keyframes badge-pulse {
-
   0%,
   100% {
     transform: scale(1);

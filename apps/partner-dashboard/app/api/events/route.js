@@ -13,7 +13,16 @@ const getQueryParams = (request) => {
   const lifecycle = searchParams.get("lifecycle") || undefined;
   const creatorRole = searchParams.get("creatorRole") || undefined;
   const parsedLimit = limit ? Number(limit) : undefined;
-  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host, venueId, lifecycle, creatorRole };
+  return {
+    city,
+    limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    sort,
+    search,
+    host,
+    venueId,
+    lifecycle,
+    creatorRole,
+  };
 };
 
 export async function GET(request) {
@@ -29,13 +38,16 @@ export async function GET(request) {
       const endpoint = hostId ? `/api/v1/host/events?hostId=${hostId}` : "/api/v1/events";
       const response = await fetch(`${gatewayUrl}${endpoint}`, {
         headers: {
-          'Authorization': authHeader || '',
-        }
+          Authorization: authHeader || "",
+        },
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        return NextResponse.json({ error: errorData.error || "Gateway error" }, { status: response.status });
+        return NextResponse.json(
+          { error: errorData.error || "Gateway error" },
+          { status: response.status },
+        );
       }
 
       const data = await response.json();
@@ -47,8 +59,18 @@ export async function GET(request) {
   }
 
   try {
-    const { city, limit, sort, search, host, venueId, lifecycle, creatorRole } = getQueryParams(request);
-    const events = await listEvents({ city, limit, sort, search, host, venueId, lifecycle, creatorRole });
+    const { city, limit, sort, search, host, venueId, lifecycle, creatorRole } =
+      getQueryParams(request);
+    const events = await listEvents({
+      city,
+      limit,
+      sort,
+      search,
+      host,
+      venueId,
+      lifecycle,
+      creatorRole,
+    });
     return NextResponse.json(events);
   } catch (error) {
     console.error("GET /api/events error", error);
@@ -57,7 +79,7 @@ export async function GET(request) {
 }
 
 export async function POST(request) {
-  // Keeping POST local for now as it involves complex event building, 
+  // Keeping POST local for now as it involves complex event building,
   // but in Phase 3 we can move event creation to Gateway as well.
   try {
     const isHost = await verifyHostRole(request);

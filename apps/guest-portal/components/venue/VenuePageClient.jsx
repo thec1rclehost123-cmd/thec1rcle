@@ -22,168 +22,152 @@ import ReservationCalendarModal from "./ReservationCalendarModal";
  * Orchestrates all sections and handles follow/reservation logic
  */
 export default function VenuePageClient({
-    venue,
-    upcomingEvents = [],
-    pastEvents = [],
-    stats = null,
-    highlights = [],
-    similarVenues = []
+  venue,
+  upcomingEvents = [],
+  pastEvents = [],
+  stats = null,
+  highlights = [],
+  similarVenues = [],
 }) {
-    const [isFollowing, setIsFollowing] = useState(false);
-    const [followersCount, setFollowersCount] = useState(stats?.followers || venue?.followers || 0);
-    const [showReservation, setShowReservation] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(stats?.followers || venue?.followers || 0);
+  const [showReservation, setShowReservation] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-    // Get auth context - useAuth is always called at top level
-    const { user } = useAuth() || {};
+  // Get auth context - useAuth is always called at top level
+  const { user } = useAuth() || {};
 
-    // Check if user is following on mount
-    useEffect(() => {
-        const checkFollowStatus = async () => {
-            if (!user || !venue?.id) return;
+  // Check if user is following on mount
+  useEffect(() => {
+    const checkFollowStatus = async () => {
+      if (!user || !venue?.id) return;
 
-            try {
-                const response = await fetch(`/api/venues/${venue.id}/follow-status`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setIsFollowing(data.isFollowing);
-                }
-            } catch (err) {
-                console.error("Failed to check follow status:", err);
-            }
-        };
-
-        checkFollowStatus();
-    }, [venue?.id, user]);
-
-    // Handle follow/unfollow
-    const handleFollow = async () => {
-        if (isLoading) return;
-
-        // Optimistic update
-        const newStatus = !isFollowing;
-        setIsFollowing(newStatus);
-        setFollowersCount(prev => newStatus ? prev + 1 : Math.max(0, prev - 1));
-
-        try {
-            setIsLoading(true);
-
-            const response = await fetch(`/api/venues/${venue.id}/follow`, {
-                method: newStatus ? 'POST' : 'DELETE',
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (!response.ok) {
-                // Revert on error
-                setIsFollowing(!newStatus);
-                setFollowersCount(prev => !newStatus ? prev + 1 : Math.max(0, prev - 1));
-                console.error("Failed to update follow status");
-            }
-        } catch (err) {
-            // Revert on error
-            setIsFollowing(!newStatus);
-            setFollowersCount(prev => !newStatus ? prev + 1 : Math.max(0, prev - 1));
-            console.error("Failed to update follow status:", err);
-        } finally {
-            setIsLoading(false);
+      try {
+        const response = await fetch(`/api/venues/${venue.id}/follow-status`);
+        if (response.ok) {
+          const data = await response.json();
+          setIsFollowing(data.isFollowing);
         }
+      } catch (err) {
+        console.error("Failed to check follow status:", err);
+      }
     };
 
-    const handleReserve = () => {
-        setShowReservation(true);
-    };
+    checkFollowStatus();
+  }, [venue?.id, user]);
 
-    // Extract menu images from venue data
-    const menuImages = venue.menuImages || venue.menu?.images || [];
+  // Handle follow/unfollow
+  const handleFollow = async () => {
+    if (isLoading) return;
 
-    // Extract highlights from venue data  
-    const venueHighlights = highlights?.length > 0 ? highlights : (venue.highlights || []);
+    // Optimistic update
+    const newStatus = !isFollowing;
+    setIsFollowing(newStatus);
+    setFollowersCount((prev) => (newStatus ? prev + 1 : Math.max(0, prev - 1)));
 
-    // Extract facilities
-    const facilities = venue.facilities || [];
-    const amenities = venue.amenities || [];
+    try {
+      setIsLoading(true);
 
-    // Extract gallery photos
-    const galleryPhotos = venue.photos || venue.gallery || [];
+      const response = await fetch(`/api/venues/${venue.id}/follow`, {
+        method: newStatus ? "POST" : "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
 
-    return (
-        <>
-            {/* 1. HERO SECTION - Venue Poster */}
-            <VenueHero
-                venue={venue}
-                isFollowing={isFollowing}
-                onFollow={handleFollow}
-                followersCount={followersCount}
-            />
+      if (!response.ok) {
+        // Revert on error
+        setIsFollowing(!newStatus);
+        setFollowersCount((prev) => (!newStatus ? prev + 1 : Math.max(0, prev - 1)));
+        console.error("Failed to update follow status");
+      }
+    } catch (err) {
+      // Revert on error
+      setIsFollowing(!newStatus);
+      setFollowersCount((prev) => (!newStatus ? prev + 1 : Math.max(0, prev - 1)));
+      console.error("Failed to update follow status:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-            {/* 2. QUICK ACTION BUTTONS */}
-            <VenueQuickActions
-                venue={venue}
-                isFollowing={isFollowing}
-                onFollow={handleFollow}
-                followersCount={followersCount}
-            />
+  const handleReserve = () => {
+    setShowReservation(true);
+  };
 
-            {/* 3. HIGHLIGHTS SECTION (Story Style) - Only show if data exists */}
-            {venueHighlights.length > 0 && (
-                <VenueHighlights
-                    highlights={venueHighlights}
-                    venueName={venue.name}
-                />
-            )}
+  // Extract menu images from venue data
+  const menuImages = venue.menuImages || venue.menu?.images || [];
 
-            {/* 4. ACTION CARDS - Events & Menu */}
-            {(upcomingEvents.length > 0 || menuImages.length > 0) && (
-                <VenueActionCards
-                    venueId={venue.id}
-                    upcomingEvents={upcomingEvents}
-                    menuImages={menuImages}
-                />
-            )}
+  // Extract highlights from venue data
+  const venueHighlights = highlights?.length > 0 ? highlights : venue.highlights || [];
 
-            {/* 5. FACILITIES & AMENITIES - Only show if data exists */}
-            {(facilities.length > 0 || amenities.length > 0) && (
-                <VenueFacilities
-                    facilities={facilities}
-                    amenities={amenities}
-                />
-            )}
+  // Extract facilities
+  const facilities = venue.facilities || [];
+  const amenities = venue.amenities || [];
 
-            {/* 6. VENUE GALLERY (3x3 Grid) - Only show if data exists */}
-            {galleryPhotos.length > 0 && (
-                <VenueGallery
-                    photos={galleryPhotos}
-                    venueName={venue.name}
-                />
-            )}
+  // Extract gallery photos
+  const galleryPhotos = venue.photos || venue.gallery || [];
 
-            {/* 7. PAST EVENTS SECTION - Only show if data exists */}
-            {pastEvents.length > 0 && (
-                <VenuePastEvents
-                    events={pastEvents}
-                    venueName={venue.name}
-                />
-            )}
+  return (
+    <>
+      {/* 1. HERO SECTION - Venue Poster */}
+      <VenueHero
+        venue={venue}
+        isFollowing={isFollowing}
+        onFollow={handleFollow}
+        followersCount={followersCount}
+      />
 
-            {/* 8. COMPLETE VENUE DETAILS */}
-            <VenueDetails venue={venue} />
+      {/* 2. QUICK ACTION BUTTONS */}
+      <VenueQuickActions
+        venue={venue}
+        isFollowing={isFollowing}
+        onFollow={handleFollow}
+        followersCount={followersCount}
+      />
 
-            {/* Sticky CTA Bar */}
-            <VenueCtaBar
-                venue={venue}
-                isFollowing={isFollowing}
-                onFollow={handleFollow}
-                onReserve={handleReserve}
-                showOnScroll={true}
-            />
+      {/* 3. HIGHLIGHTS SECTION (Story Style) - Only show if data exists */}
+      {venueHighlights.length > 0 && (
+        <VenueHighlights highlights={venueHighlights} venueName={venue.name} />
+      )}
 
-            {/* Reservation Calendar Modal */}
-            <ReservationCalendarModal
-                venue={venue}
-                upcomingEvents={upcomingEvents}
-                isOpen={showReservation}
-                onClose={() => setShowReservation(false)}
-            />
-        </>
-    );
+      {/* 4. ACTION CARDS - Events & Menu */}
+      {(upcomingEvents.length > 0 || menuImages.length > 0) && (
+        <VenueActionCards
+          venueId={venue.id}
+          upcomingEvents={upcomingEvents}
+          menuImages={menuImages}
+        />
+      )}
+
+      {/* 5. FACILITIES & AMENITIES - Only show if data exists */}
+      {(facilities.length > 0 || amenities.length > 0) && (
+        <VenueFacilities facilities={facilities} amenities={amenities} />
+      )}
+
+      {/* 6. VENUE GALLERY (3x3 Grid) - Only show if data exists */}
+      {galleryPhotos.length > 0 && <VenueGallery photos={galleryPhotos} venueName={venue.name} />}
+
+      {/* 7. PAST EVENTS SECTION - Only show if data exists */}
+      {pastEvents.length > 0 && <VenuePastEvents events={pastEvents} venueName={venue.name} />}
+
+      {/* 8. COMPLETE VENUE DETAILS */}
+      <VenueDetails venue={venue} />
+
+      {/* Sticky CTA Bar */}
+      <VenueCtaBar
+        venue={venue}
+        isFollowing={isFollowing}
+        onFollow={handleFollow}
+        onReserve={handleReserve}
+        showOnScroll={true}
+      />
+
+      {/* Reservation Calendar Modal */}
+      <ReservationCalendarModal
+        venue={venue}
+        upcomingEvents={upcomingEvents}
+        isOpen={showReservation}
+        onClose={() => setShowReservation(false)}
+      />
+    </>
+  );
 }

@@ -17,7 +17,10 @@ export const fadeIn: Variants = {
   visible: { opacity: 1 },
 };
 
-export const createSlideIn = (direction: "left" | "right" | "up" | "down" = "up", distance = 48): Variants => {
+export const createSlideIn = (
+  direction: "left" | "right" | "up" | "down" = "up",
+  distance = 48,
+): Variants => {
   const axis = direction === "left" || direction === "right" ? "x" : "y";
   const multiplier = direction === "left" || direction === "up" ? -1 : 1;
   const hiddenValue = distance * multiplier;

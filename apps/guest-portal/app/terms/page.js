@@ -6,24 +6,29 @@ export default function TermsPage() {
   const sections = [
     {
       title: "The Vibe Agreement",
-      content: "By using The C1rcle, you agree to contribute to a positive, safe, and exciting ecosystem. This is a community platform for discovering real-life experiences. Hostile, discriminatory, or harassing behavior will result in an immediate and permanent shadow-ban."
+      content:
+        "By using The C1rcle, you agree to contribute to a positive, safe, and exciting ecosystem. This is a community platform for discovering real-life experiences. Hostile, discriminatory, or harassing behavior will result in an immediate and permanent shadow-ban.",
     },
     {
       title: "Ticketing & Refuns",
-      content: "The C1rcle is a platform that facilitates transactions between hosts and attendees. Refund policies are set by individual event hosts. Unless an event is cancelled, all ticket sales are final. If an event is cancelled, we will work with the host to ensure your funds are returned safely."
+      content:
+        "The C1rcle is a platform that facilitates transactions between hosts and attendees. Refund policies are set by individual event hosts. Unless an event is cancelled, all ticket sales are final. If an event is cancelled, we will work with the host to ensure your funds are returned safely.",
     },
     {
       title: "Host Responsibilities",
-      content: "Hosts are responsible for the safety and execution of their events. The C1rcle provides the tools, but the host provides the experience. All hosts must adhere to local laws and regulations regarding venue safety and alcohol service."
+      content:
+        "Hosts are responsible for the safety and execution of their events. The C1rcle provides the tools, but the host provides the experience. All hosts must adhere to local laws and regulations regarding venue safety and alcohol service.",
     },
     {
       title: "Intellectual Property",
-      content: "The designs, code, and brand 'The C1rcle' are our property. The content you upload (event descriptions, images) remains yours, but you grant us a license to display it on our platform for your event's promotion."
+      content:
+        "The designs, code, and brand 'The C1rcle' are our property. The content you upload (event descriptions, images) remains yours, but you grant us a license to display it on our platform for your event's promotion.",
     },
     {
       title: "Account Security",
-      content: "You are responsible for keeping your login credentials safe. If you suspect your account has been compromised, notify us immediately. We will never ask for your password via email or social media."
-    }
+      content:
+        "You are responsible for keeping your login credentials safe. If you suspect your account has been compromised, notify us immediately. We will never ask for your password via email or social media.",
+    },
   ];
 
   return (
@@ -45,10 +50,12 @@ export default function TermsPage() {
             Community Guidelines
           </div>
           <h1 className="font-heading text-5xl sm:text-7xl font-black uppercase tracking-tighter leading-none mb-8">
-            Terms &<br />Conditions
+            Terms &<br />
+            Conditions
           </h1>
           <p className="text-xl text-black/60 dark:text-white/40 max-w-2xl font-light">
-            Last updated: January 2025. These are the rules of the road for discovering life offline.
+            Last updated: January 2025. These are the rules of the road for discovering life
+            offline.
           </p>
         </motion.div>
 
@@ -81,7 +88,9 @@ export default function TermsPage() {
           transition={{ delay: 0.5 }}
           className="mt-32 p-12 rounded-[40px] border border-black/5 dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] text-center"
         >
-          <h3 className="font-heading text-2xl font-bold mb-4 uppercase tracking-tight">Need Help?</h3>
+          <h3 className="font-heading text-2xl font-bold mb-4 uppercase tracking-tight">
+            Need Help?
+          </h3>
           <p className="text-black/40 dark:text-white/40 mb-8 max-w-md mx-auto">
             Our support team is always available to clarify any part of the vibe agreement.
           </p>

@@ -18,7 +18,8 @@ export default function CreatePage() {
             Create Event
           </h1>
           <p className="mt-4 text-lg text-black/60 dark:text-white/60 max-w-2xl mx-auto">
-            Build your event in minutes. Every detail you add shows up beautifully on your event page.
+            Build your event in minutes. Every detail you add shows up beautifully on your event
+            page.
           </p>
         </div>
 

@@ -1,7 +1,7 @@
 /**
  * THE C1RCLE — Operator Design Tokens
  * Apple Pro. Operator-First. State-Based Color.
- * 
+ *
  * Color is state, not decoration.
  * Every color must answer: "Is this okay, or do I need to act?"
  */
@@ -50,17 +50,17 @@ export const spacingScale = {
 export const palette = {
   // Surfaces
   surface: {
-    primary: "#fafaf9",     // Warm off-white
-    secondary: "#f5f5f4",   // Stone 100
-    tertiary: "#e7e5e4",    // Stone 200
+    primary: "#fafaf9", // Warm off-white
+    secondary: "#f5f5f4", // Stone 100
+    tertiary: "#e7e5e4", // Stone 200
     elevated: "#ffffff",
   },
 
   // Text hierarchy
   text: {
-    primary: "#1c1917",     // Stone 900
-    secondary: "#57534e",   // Stone 600
-    tertiary: "#a8a29e",    // Stone 400
+    primary: "#1c1917", // Stone 900
+    secondary: "#57534e", // Stone 600
+    tertiary: "#a8a29e", // Stone 400
     placeholder: "#d6d3d1", // Stone 300
   },
 
@@ -90,42 +90,42 @@ export const stateTokens: Record<
 > = {
   // 🟢 Confirmed / Locked / Healthy
   confirmed: {
-    color: "#059669",       // Emerald 600
-    bg: "#ecfdf5",          // Emerald 50
-    border: "#a7f3d0",      // Emerald 200
-    text: "#065f46",        // Emerald 800
+    color: "#059669", // Emerald 600
+    bg: "#ecfdf5", // Emerald 50
+    border: "#a7f3d0", // Emerald 200
+    text: "#065f46", // Emerald 800
   },
 
   // 🟡 Pending / Needs Attention
   pending: {
-    color: "#d97706",       // Amber 600
-    bg: "#fffbeb",          // Amber 50
-    border: "#fde68a",      // Amber 200
-    text: "#92400e",        // Amber 800
+    color: "#d97706", // Amber 600
+    bg: "#fffbeb", // Amber 50
+    border: "#fde68a", // Amber 200
+    text: "#92400e", // Amber 800
   },
 
   // 🔴 Risk / Blocked / Problem
   risk: {
-    color: "#dc2626",       // Red 600
-    bg: "#fef2f2",          // Red 50
-    border: "#fecaca",      // Red 200
-    text: "#991b1b",        // Red 800
+    color: "#dc2626", // Red 600
+    bg: "#fef2f2", // Red 50
+    border: "#fecaca", // Red 200
+    text: "#991b1b", // Red 800
   },
 
   // 🔵 Draft / Informational
   draft: {
-    color: "#4f46e5",       // Indigo 600
-    bg: "#eef2ff",          // Indigo 50
-    border: "#c7d2fe",      // Indigo 200
-    text: "#3730a3",        // Indigo 800
+    color: "#4f46e5", // Indigo 600
+    bg: "#eef2ff", // Indigo 50
+    border: "#c7d2fe", // Indigo 200
+    text: "#3730a3", // Indigo 800
   },
 
   // ⚪ Neutral / Empty
   neutral: {
-    color: "#78716c",       // Stone 500
-    bg: "#f5f5f4",          // Stone 100
-    border: "#d6d3d1",      // Stone 300
-    text: "#57534e",        // Stone 600
+    color: "#78716c", // Stone 500
+    bg: "#f5f5f4", // Stone 100
+    border: "#d6d3d1", // Stone 300
+    text: "#57534e", // Stone 600
   },
 };
 
@@ -144,15 +144,15 @@ export const roleAccents: Record<
   }
 > = {
   venue: {
-    base: "#292524",        // Stone 800 (Authority)
+    base: "#292524", // Stone 800 (Authority)
     light: "#f5f5f4",
   },
   host: {
-    base: "#4f46e5",        // Indigo 600 (Creative)
+    base: "#4f46e5", // Indigo 600 (Creative)
     light: "#eef2ff",
   },
   promoter: {
-    base: "#059669",        // Emerald 600 (Money/Success)
+    base: "#059669", // Emerald 600 (Money/Success)
     light: "#ecfdf5",
   },
 };

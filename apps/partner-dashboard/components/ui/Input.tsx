@@ -5,7 +5,7 @@ import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
 
 /**
  * Input Component — Premium Form Input
- * 
+ *
  * Features:
  * - Dark mode support via CSS variables
  * - Soft focus glow with C1RCLE orange accent
@@ -37,16 +37,15 @@ const iconPadding: Record<InputSize, { left: string; right: string }> = {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ label, error, hint, icon, iconPosition = "left", inputSize = "md", className, ...rest }, ref) => {
+  (
+    { label, error, hint, icon, iconPosition = "left", inputSize = "md", className, ...rest },
+    ref,
+  ) => {
     const hasError = !!error;
 
     return (
       <div className="w-full">
-        {label && (
-          <label className="input-label block mb-2">
-            {label}
-          </label>
-        )}
+        {label && <label className="input-label block mb-2">{label}</label>}
         <div className="relative group">
           {icon && iconPosition === "left" && (
             <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors">
@@ -69,7 +68,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               // Icon padding
               icon && iconPosition === "left" && iconPadding[inputSize].left,
               icon && iconPosition === "right" && iconPadding[inputSize].right,
-              className
+              className,
             )}
             {...rest}
           />
@@ -80,16 +79,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           )}
         </div>
         {(error || hint) && (
-          <p className={clsx(
-            "mt-2 text-[12px] font-medium",
-            hasError ? "text-[var(--state-error)]" : "text-[var(--text-tertiary)]"
-          )}>
+          <p
+            className={clsx(
+              "mt-2 text-[12px] font-medium",
+              hasError ? "text-[var(--state-error)]" : "text-[var(--text-tertiary)]",
+            )}
+          >
             {error || hint}
           </p>
         )}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

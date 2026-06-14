@@ -6,21 +6,19 @@ import { redirect } from "next/navigation";
  * This allows promoters to share shorter, cleaner URLs
  */
 export default function ShortEventRedirect({ params, searchParams }) {
-    const { eventId } = params;
-    const ref = searchParams?.ref;
+  const { eventId } = params;
+  const ref = searchParams?.ref;
 
-    // Build the redirect URL preserving the ref parameter
-    const redirectUrl = ref
-        ? `/event/${eventId}?ref=${ref}`
-        : `/event/${eventId}`;
+  // Build the redirect URL preserving the ref parameter
+  const redirectUrl = ref ? `/event/${eventId}?ref=${ref}` : `/event/${eventId}`;
 
-    redirect(redirectUrl);
+  redirect(redirectUrl);
 }
 
 // Generate metadata for SEO (will show briefly before redirect)
 export async function generateMetadata({ params }) {
-    return {
-        title: "Redirecting... | THE C1RCLE",
-        robots: "noindex, nofollow"
-    };
+  return {
+    title: "Redirecting... | THE C1RCLE",
+    robots: "noindex, nofollow",
+  };
 }

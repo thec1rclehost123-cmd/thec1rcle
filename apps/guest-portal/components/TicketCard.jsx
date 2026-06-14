@@ -9,7 +9,9 @@ export default function TicketCard({ event }) {
       </div>
       <div className="mt-6 flex flex-1 flex-col gap-4 lg:mt-0">
         <h1 className="text-3xl font-display">{event.title}</h1>
-        <p className="text-white/60">{event.date} · {event.time}</p>
+        <p className="text-white/60">
+          {event.date} · {event.time}
+        </p>
         <p className="text-white/60">{event.location}</p>
         <Button>View Ticket</Button>
         <div className="rounded-2xl border border-dashed border-white/20 p-4 text-center">

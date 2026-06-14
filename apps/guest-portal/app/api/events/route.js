@@ -11,7 +11,13 @@ const getQueryParams = (request) => {
   const search = searchParams.get("search") || undefined;
   const host = searchParams.get("host") || undefined;
   const parsedLimit = limit ? Number(limit) : undefined;
-  return { city, limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined, sort, search, host };
+  return {
+    city,
+    limit: Number.isFinite(parsedLimit) ? parsedLimit : undefined,
+    sort,
+    search,
+    host,
+  };
 };
 
 export const dynamic = "force-dynamic";

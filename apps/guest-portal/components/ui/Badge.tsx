@@ -5,8 +5,15 @@ import { getAccentToken, type AccentName } from "../../lib/design-system/tokens"
 type BadgeVariant = "solid" | "soft" | "outline";
 type BadgeTone = AccentName | "neutral" | "success" | "danger";
 
-const tonePalette: Record<Exclude<BadgeTone, AccentName>, { bg: string; text: string; border: string }> = {
-  neutral: { bg: "rgba(255,255,255,0.08)", text: "rgba(255,255,255,0.75)", border: "rgba(255,255,255,0.2)" },
+const tonePalette: Record<
+  Exclude<BadgeTone, AccentName>,
+  { bg: string; text: string; border: string }
+> = {
+  neutral: {
+    bg: "rgba(255,255,255,0.08)",
+    text: "rgba(255,255,255,0.75)",
+    border: "rgba(255,255,255,0.2)",
+  },
   success: { bg: "rgba(34,197,94,0.15)", text: "#34D399", border: "rgba(34,197,94,0.4)" },
   danger: { bg: "rgba(248,113,113,0.18)", text: "#F87171", border: "rgba(248,113,113,0.5)" },
 };
@@ -18,7 +25,15 @@ export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   pill?: boolean;
 }
 
-export const Badge = ({ variant = "soft", tone = "neutral", icon, pill = true, className, children, ...rest }: BadgeProps) => {
+export const Badge = ({
+  variant = "soft",
+  tone = "neutral",
+  icon,
+  pill = true,
+  className,
+  children,
+  ...rest
+}: BadgeProps) => {
   const isAccent = tone === "neutral" || tone === "success" || tone === "danger" ? null : tone;
   const accent = isAccent ? getAccentToken(isAccent as AccentName) : null;
   const palette = accent
@@ -52,7 +67,7 @@ export const Badge = ({ variant = "soft", tone = "neutral", icon, pill = true, c
       className={clsx(
         "inline-flex items-center gap-2 border px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]",
         pill ? "rounded-full" : "rounded-2xl",
-        className
+        className,
       )}
       style={styles[variant]}
       {...rest}

@@ -69,7 +69,10 @@ export default function HeroCarousel({ cards = [] }) {
                     <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-transparent to-transparent z-10" />
 
                     {/* Shimmer Effect on Hover */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full" style={{ transform: 'translateX(-100%)' }} />
+                    <div
+                      className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full"
+                      style={{ transform: "translateX(-100%)" }}
+                    />
 
                     {/* Content */}
                     <div className="absolute inset-0 flex flex-col justify-between p-8">
@@ -89,9 +92,24 @@ export default function HeroCarousel({ cards = [] }) {
                           {card.title}
                         </h3>
                         <div className="flex items-center gap-2 text-sm md:text-base text-white font-bold mb-8 drop-shadow-md">
-                          <svg className="w-4 h-4 text-[#F44A22]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <svg
+                            className="w-4 h-4 text-[#F44A22]"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                            />
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                            />
                           </svg>
                           <span>{card.venue}</span>
                         </div>
@@ -100,8 +118,18 @@ export default function HeroCarousel({ cards = [] }) {
                         <div className="opacity-0 group-hover:opacity-100 transition-all duration-500 transform translate-y-2 group-hover:translate-y-0">
                           <div className="inline-flex items-center gap-3 px-6 py-3 rounded-full bg-white text-black font-black text-xs uppercase tracking-[0.2em]">
                             <span>View Event</span>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2.5}
+                                d="M13 7l5 5m0 0l-5 5m5-5H6"
+                              />
                             </svg>
                           </div>
                         </div>

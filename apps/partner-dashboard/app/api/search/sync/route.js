@@ -14,19 +14,19 @@ const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
  * Body: { action: "index" | "remove" | "init" | "full-sync", eventId?, event? }
  */
 export async function POST(request) {
-    if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
+  if (!GATEWAY_URL) return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
 
-    const auth = await verifyAuth(request);
-    if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await verifyAuth(request);
+  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const body = await request.json();
-    const res = await fetch(`${GATEWAY_URL}/api/v1/search/sync`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": request.headers.get("Authorization") || ""
-        },
-        body: JSON.stringify(body)
-    });
-    return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
+  const body = await request.json();
+  const res = await fetch(`${GATEWAY_URL}/api/v1/search/sync`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: request.headers.get("Authorization") || "",
+    },
+    body: JSON.stringify(body),
+  });
+  return NextResponse.json(await res.json().catch(() => ({})), { status: res.status });
 }

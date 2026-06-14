@@ -1,14 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  arrayRemove,
-  arrayUnion,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -19,7 +12,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
 } from "firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
 
@@ -27,10 +20,10 @@ const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  login: async () => { },
-  register: async () => { },
-  logout: async () => { },
-  updateEventList: async () => { }
+  login: async () => {},
+  register: async () => {},
+  logout: async () => {},
+  updateEventList: async () => {},
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -46,7 +39,7 @@ const buildProfilePayload = (firebaseUser, overrides = {}) => {
     instagram: "",
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 };
 
@@ -102,13 +95,16 @@ export function AuthProvider({ children }) {
     return () => unsubscribe?.();
   }, [ensureProfile]);
 
-  const login = useCallback(async (email, password, rememberMe = true) => {
-    const auth = getFirebaseAuth();
-    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    await ensureProfile(credential.user);
-    return credential.user;
-  }, [ensureProfile]);
+  const login = useCallback(
+    async (email, password, rememberMe = true) => {
+      const auth = getFirebaseAuth();
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await ensureProfile(credential.user);
+      return credential.user;
+    },
+    [ensureProfile],
+  );
 
   const register = useCallback(
     async (email, password, displayName) => {
@@ -119,11 +115,11 @@ export function AuthProvider({ children }) {
       }
       await ensureProfile({
         ...credential.user,
-        displayName: displayName || credential.user.displayName
+        displayName: displayName || credential.user.displayName,
       });
       return credential.user;
     },
-    [ensureProfile]
+    [ensureProfile],
   );
 
   const logout = useCallback(async () => {
@@ -150,7 +146,7 @@ export function AuthProvider({ children }) {
       const profileRef = doc(db, "users", user.uid);
       await updateDoc(profileRef, {
         [field]: shouldInclude ? arrayUnion(eventId) : arrayRemove(eventId),
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
       setProfile((prev) => {
         if (!prev) return prev;
@@ -159,11 +155,11 @@ export function AuthProvider({ children }) {
         else current.delete(eventId);
         return {
           ...prev,
-          [field]: Array.from(current)
+          [field]: Array.from(current),
         };
       });
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const updateUserProfile = useCallback(
@@ -173,11 +169,11 @@ export function AuthProvider({ children }) {
       const profileRef = doc(db, "users", user.uid);
       await updateDoc(profileRef, {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
       setProfile((prev) => ({ ...prev, ...updates }));
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const value = useMemo(
@@ -191,9 +187,20 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       logout,
       updateEventList,
-      updateUserProfile
+      updateUserProfile,
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile]
+    [
+      user,
+      profile,
+      loading,
+      error,
+      login,
+      register,
+      loginWithGoogle,
+      logout,
+      updateEventList,
+      updateUserProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

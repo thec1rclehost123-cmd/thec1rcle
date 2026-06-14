@@ -26,14 +26,27 @@ const NotLiveModal = ({ isOpen, onClose }) => (
         >
           <div className="mb-6 flex justify-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/5">
-              <svg className="h-8 w-8 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              <svg
+                className="h-8 w-8 text-black/40"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
               </svg>
             </div>
           </div>
-          <h2 className="font-heading text-2xl font-black uppercase tracking-tight">This event is not live.</h2>
+          <h2 className="font-heading text-2xl font-black uppercase tracking-tight">
+            This event is not live.
+          </h2>
           <p className="mt-4 text-sm font-medium text-black/60">
-            This event has either ended or is currently disabled. You can still access your tickets from the profile section.
+            This event has either ended or is currently disabled. You can still access your tickets
+            from the profile section.
           </p>
           <div className="mt-10 flex flex-col gap-3">
             <button
@@ -55,7 +68,12 @@ const NotLiveModal = ({ isOpen, onClose }) => (
   </AnimatePresence>
 );
 
-export default function EventRSVP({ event, host, interestedData = { count: 0, users: [] }, guestlist = [] }) {
+export default function EventRSVP({
+  event,
+  host,
+  interestedData = { count: 0, users: [] },
+  guestlist = [],
+}) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, updateEventList } = useAuth();
@@ -77,8 +95,8 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         fetch("/api/promoter/links/click", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: ref })
-        }).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
+          body: JSON.stringify({ code: ref }),
+        }).catch((err) => console.warn("[EventRSVP] Failed to track promoter click", err));
       }
     }
   }, []);
@@ -86,9 +104,11 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
   const ensureAuthenticated = (type) => {
     if (user) return true;
     saveIntent(type, event?.id);
-    window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
-      detail: { intent: type, eventId: event?.id }
-    }));
+    window.dispatchEvent(
+      new CustomEvent("OPEN_AUTH_MODAL", {
+        detail: { intent: type, eventId: event?.id },
+      }),
+    );
     return false;
   };
 
@@ -97,9 +117,11 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
       case "BOOK":
         if (!user) {
           saveIntent("BOOK", event.id);
-          window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
-            detail: { intent: "BOOK", eventId: event.id }
-          }));
+          window.dispatchEvent(
+            new CustomEvent("OPEN_AUTH_MODAL", {
+              detail: { intent: "BOOK", eventId: event.id },
+            }),
+          );
           return;
         }
 
@@ -113,7 +135,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
             if (!admissionToken) {
               const queryParams = new URLSearchParams();
               if (data.tickets) {
-                data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
+                data.tickets.forEach((t) => queryParams.append(`t_${t.id}`, t.quantity));
               }
               if (promoterCode) queryParams.append("ref", promoterCode);
 
@@ -128,7 +150,7 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
 
         if (data.tickets) {
           const queryParams = new URLSearchParams();
-          data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
+          data.tickets.forEach((t) => queryParams.append(`t_${t.id}`, t.quantity));
           if (promoterCode) queryParams.append("ref", promoterCode);
           router.push(`/checkout/${event.id}?${queryParams.toString()}`);
         }
@@ -155,7 +177,8 @@ export default function EventRSVP({ event, host, interestedData = { count: 0, us
         const url = window.location.href;
         const payload = `${event?.title || "THE C1RCLE event"} • ${url}`;
         if (data.id === "copy") {
-          navigator.clipboard?.writeText(url)
+          navigator.clipboard
+            ?.writeText(url)
             .then(() => toast("Link copied", "success"))
             .catch(() => toast("Unable to copy", "error"));
         } else if (data.id === "whatsapp") {

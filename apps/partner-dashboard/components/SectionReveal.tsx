@@ -14,7 +14,13 @@ interface SectionRevealProps {
   children: ReactNode;
 }
 
-export default function SectionReveal({ children, className, variant = "fadeInUp", delay = 0, once = true }: SectionRevealProps) {
+export default function SectionReveal({
+  children,
+  className,
+  variant = "fadeInUp",
+  delay = 0,
+  once = true,
+}: SectionRevealProps) {
   const { ref, controls } = useScrollFade({ delay, once });
   const preset = motionPresets[variant] ?? motionPresets.fadeInUp;
 

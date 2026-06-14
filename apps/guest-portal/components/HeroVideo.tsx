@@ -17,13 +17,7 @@ export default function HeroVideo({ src }) {
     <div className="relative h-[100dvh] w-full overflow-hidden bg-black">
       {/* Background Video Layer with Parallax */}
       <div className="absolute inset-0 h-full w-full">
-        <video
-          autoPlay
-          loop
-          muted
-          playsInline
-          className="h-full w-full object-cover scale-105"
-        >
+        <video autoPlay loop muted playsInline className="h-full w-full object-cover scale-105">
           <source src={src} type="video/mp4" />
         </video>
       </div>
@@ -56,13 +50,13 @@ export default function HeroVideo({ src }) {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="text-[3.5rem] sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] font-heading font-black tracking-tighter leading-[0.9]"
               style={{
-                background: 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%)',
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                backgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                animation: 'gradient-shift 15s ease-in-out infinite',
-                filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))',
+                background: "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%)",
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                backgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                animation: "gradient-shift 15s ease-in-out infinite",
+                filter: "drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))",
               }}
             >
               THE C1RCLE
@@ -126,7 +120,9 @@ export default function HeroVideo({ src }) {
         transition={{ delay: 2, duration: 1 }}
         className="absolute bottom-24 md:bottom-12 left-1/2 -translate-x-1/2 flex flex-col items-center gap-3 z-20"
       >
-        <span className="text-[10px] md:text-xs uppercase tracking-[0.3em] text-white/50 font-bold">Scroll Down</span>
+        <span className="text-[10px] md:text-xs uppercase tracking-[0.3em] text-white/50 font-bold">
+          Scroll Down
+        </span>
         <motion.div
           className="w-5 h-9 md:w-6 md:h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-2"
           animate={{ opacity: [0.3, 1, 0.3] }}
@@ -149,4 +145,3 @@ export default function HeroVideo({ src }) {
     </div>
   );
 }
-

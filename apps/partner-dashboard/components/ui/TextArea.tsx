@@ -20,9 +20,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">
-            {label}
-          </label>
+          <label className="block text-[12px] font-medium text-stone-500 mb-1.5">{label}</label>
         )}
         <textarea
           ref={ref}
@@ -34,21 +32,18 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
             hasError
               ? "border-red-300 focus:border-red-500 focus:ring-red-500/10"
               : "border-transparent",
-            className
+            className,
           )}
           {...rest}
         />
         {(error || hint) && (
-          <p className={clsx(
-            "mt-1.5 text-[12px]",
-            hasError ? "text-red-600" : "text-stone-500"
-          )}>
+          <p className={clsx("mt-1.5 text-[12px]", hasError ? "text-red-600" : "text-stone-500")}>
             {error || hint}
           </p>
         )}
       </div>
     );
-  }
+  },
 );
 
 TextArea.displayName = "TextArea";

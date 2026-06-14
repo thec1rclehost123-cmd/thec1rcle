@@ -1,23 +1,33 @@
-'use client';
+"use client";
 
-import { useState, useRef, Suspense, useEffect } from 'react';
-import { motion, useScroll, useTransform, useMotionValue, useSpring, useMotionTemplate, useInView, AnimatePresence } from 'framer-motion';
-import { useSearchParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { X, Heart, Download, Apple, PlayCircle, ChevronRight, QrCode } from 'lucide-react';
+import { useState, useRef, Suspense, useEffect } from "react";
+import {
+  motion,
+  useScroll,
+  useTransform,
+  useMotionValue,
+  useSpring,
+  useMotionTemplate,
+  useInView,
+  AnimatePresence,
+} from "framer-motion";
+import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
+import { X, Heart, Download, Apple, PlayCircle, ChevronRight, QrCode } from "lucide-react";
 import { addDoc, collection } from "firebase/firestore";
 import { getFirebaseDb } from "../../lib/firebase/client";
-import { trackEvent } from '../../lib/utils/analytics';
+import { trackEvent } from "../../lib/utils/analytics";
 
-import { useTheme } from 'next-themes';
-import Head from 'next/head';
+import { useTheme } from "next-themes";
+import Head from "next/head";
 
 // --- ASSETS ---
 const VIDEOS = {
   hero: "https://cdn.coverr.co/videos/coverr-people-dancing-in-a-nightclub-5429/1080p.mp4",
-  heatmap: "https://cdn.coverr.co/videos/coverr-driving-through-city-lights-at-night-4666/1080p.mp4",
+  heatmap:
+    "https://cdn.coverr.co/videos/coverr-driving-through-city-lights-at-night-4666/1080p.mp4",
   scanner: "https://cdn.coverr.co/videos/coverr-party-crowd-2662/1080p.mp4",
-  vip: "https://cdn.coverr.co/videos/coverr-pouring-champagne-5393/1080p.mp4"
+  vip: "https://cdn.coverr.co/videos/coverr-pouring-champagne-5393/1080p.mp4",
 };
 
 // --- COMPONENTS ---
@@ -45,8 +55,8 @@ const BillboardHero = () => {
           className="absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out"
           style={{
             opacity: isActivated ? 1 : 0,
-            transitionDelay: isActivated ? '50ms' : '0ms',
-            zIndex: 1
+            transitionDelay: isActivated ? "50ms" : "0ms",
+            zIndex: 1,
           }}
         >
           <img
@@ -54,10 +64,10 @@ const BillboardHero = () => {
             alt="The C1rcle Billboard Night"
             className="w-full h-full object-cover object-[center_bottom] antialiased"
             style={{
-              imageRendering: '-webkit-optimize-contrast',
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              transform: 'translate3d(0, 0, 0)'
+              imageRendering: "-webkit-optimize-contrast",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+              transform: "translate3d(0, 0, 0)",
             }}
             loading="eager"
             fetchPriority="high"
@@ -69,7 +79,7 @@ const BillboardHero = () => {
           className="absolute inset-0 w-full h-full transition-opacity duration-300 ease-in-out"
           style={{
             opacity: isActivated ? 0 : 1,
-            zIndex: 2
+            zIndex: 2,
           }}
         >
           <img
@@ -77,10 +87,10 @@ const BillboardHero = () => {
             alt="The C1rcle Billboard Day"
             className="w-full h-full object-cover object-[center_bottom] antialiased"
             style={{
-              imageRendering: '-webkit-optimize-contrast',
-              backfaceVisibility: 'hidden',
-              WebkitBackfaceVisibility: 'hidden',
-              transform: 'translate3d(0, 0, 0)'
+              imageRendering: "-webkit-optimize-contrast",
+              backfaceVisibility: "hidden",
+              WebkitBackfaceVisibility: "hidden",
+              transform: "translate3d(0, 0, 0)",
             }}
             loading="eager"
             fetchPriority="high"
@@ -93,7 +103,6 @@ const BillboardHero = () => {
         {/* Content Overlay */}
         <div className="relative z-[30] h-full w-full flex flex-col items-center justify-end pb-24 px-6">
           <div className="text-center max-w-4xl mx-auto flex flex-col items-center gap-12">
-
             {/* EXPERIENTIAL TOGGLE */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -196,7 +205,7 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
   const ref = useRef(null);
   const { scrollYProgress } = useScroll({
     target: ref,
-    offset: ["start end", "end start"]
+    offset: ["start end", "end start"],
   });
 
   const y = useTransform(scrollYProgress, [0, 1], [100, -100]);
@@ -204,16 +213,20 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
   const opacity = useTransform(scrollYProgress, [0, 0.15, 0.85, 1], [0, 1, 1, 0]);
 
   return (
-    <section ref={ref} className="min-h-[50vh] flex items-center justify-center py-24 relative overflow-hidden">
+    <section
+      ref={ref}
+      className="min-h-[50vh] flex items-center justify-center py-24 relative overflow-hidden"
+    >
       {/* Background Glow */}
-      <div className={`absolute top-1/2 ${align === 'left' ? 'left-0' : 'right-0'} w-[50vw] h-[50vw] bg-[#F44A22] rounded-full blur-[150px] opacity-10 pointer-events-none`} />
+      <div
+        className={`absolute top-1/2 ${align === "left" ? "left-0" : "right-0"} w-[50vw] h-[50vw] bg-[#F44A22] rounded-full blur-[150px] opacity-10 pointer-events-none`}
+      />
 
       <div className="max-w-7xl w-full px-6 grid lg:grid-cols-2 gap-20 items-center relative z-10">
-
         {/* Text Content */}
         <motion.div
-          style={{ opacity, x: align === 'left' ? -50 : 50 }}
-          className={`flex flex-col ${align === 'right' ? 'lg:order-2 lg:items-end lg:text-right' : 'lg:items-start text-left'}`}
+          style={{ opacity, x: align === "left" ? -50 : 50 }}
+          className={`flex flex-col ${align === "right" ? "lg:order-2 lg:items-end lg:text-right" : "lg:items-start text-left"}`}
         >
           <div className="flex items-center gap-4 mb-6">
             <span className="text-[#F44A22] font-mono text-xl">0{index}</span>
@@ -241,7 +254,7 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
         {/* Visual Card */}
         <motion.div
           style={{ scale, y }}
-          className={`relative aspect-[4/5] ${align === 'right' ? 'lg:order-1' : ''}`}
+          className={`relative aspect-[4/5] ${align === "right" ? "lg:order-1" : ""}`}
         >
           <div className="absolute inset-0 bg-black rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl group">
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black/80 z-10" />
@@ -260,7 +273,9 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
             <div className="absolute bottom-8 left-8 right-8 z-20 transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
               <div className="bg-white/10 backdrop-blur-md p-6 rounded-2xl border border-white/20">
                 <div className="flex justify-between items-center mb-2">
-                  <span className="text-white font-bold uppercase tracking-wider text-sm">Live Status</span>
+                  <span className="text-white font-bold uppercase tracking-wider text-sm">
+                    Live Status
+                  </span>
                   <div className="w-2 h-2 bg-[#F44A22] rounded-full animate-pulse" />
                 </div>
                 <div className="h-1 w-full bg-white/20 rounded-full overflow-hidden">
@@ -270,7 +285,6 @@ const FeatureCard = ({ title, subtitle, video, index, align }) => {
             </div>
           </div>
         </motion.div>
-
       </div>
     </section>
   );
@@ -283,7 +297,6 @@ const GridSection = ({ title, subtitle, number }) => {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.05)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.05)_1px,transparent_1px)] bg-[size:40px_40px]" />
 
       <div className="max-w-7xl w-full px-6 grid lg:grid-cols-2 gap-12 items-center relative z-10">
-
         {/* Content */}
         <div className="flex flex-col items-start text-left lg:order-1">
           <div className="flex items-center gap-4 mb-6">
@@ -351,7 +364,6 @@ const GridSection = ({ title, subtitle, number }) => {
             ACCESS GRANTED
           </motion.div>
         </div>
-
       </div>
     </section>
   );
@@ -415,7 +427,10 @@ const AppLikeGate = () => {
         exit={{ scale: 0.9, opacity: 0, y: 30 }}
         className="relative w-full max-w-lg overflow-hidden rounded-[40px] border border-white/10 bg-zinc-900/50 p-8 sm:p-12 shadow-2xl backdrop-blur-2xl"
       >
-        <button onClick={closeModal} className="absolute right-8 top-8 text-white/40 hover:text-white transition-colors">
+        <button
+          onClick={closeModal}
+          className="absolute right-8 top-8 text-white/40 hover:text-white transition-colors"
+        >
           <X size={24} />
         </button>
         <div className="flex flex-col items-center text-center">
@@ -425,7 +440,9 @@ const AppLikeGate = () => {
               <Download size={14} />
             </div>
           </div>
-          <h1 className="mb-4 text-3xl font-display uppercase tracking-widest text-white">Download to like</h1>
+          <h1 className="mb-4 text-3xl font-display uppercase tracking-widest text-white">
+            Download to like
+          </h1>
           <p className="mb-10 text-base text-white/50 max-w-xs">
             Likes live in the app. Download it to like events and see everyone who’s interested.
           </p>
@@ -442,14 +459,20 @@ const AppLikeGate = () => {
             <button
               onClick={() => {
                 trackEvent("app_download_clicked", { eventId, platform: "android" });
-                window.open("https://play.google.com/store/apps/details?id=com.thec1rcle", "_blank");
+                window.open(
+                  "https://play.google.com/store/apps/details?id=com.thec1rcle",
+                  "_blank",
+                );
               }}
               className="flex items-center justify-center gap-3 rounded-2xl border border-white/10 bg-white/5 py-4 text-sm font-bold uppercase tracking-widest text-white transition hover:bg-white/10"
             >
               <PlayCircle size={20} /> Play Store
             </button>
           </div>
-          <button onClick={closeModal} className="mt-8 text-xs font-bold uppercase tracking-[0.3em] text-white/30 hover:text-white transition-colors">
+          <button
+            onClick={closeModal}
+            className="mt-8 text-xs font-bold uppercase tracking-[0.3em] text-white/30 hover:text-white transition-colors"
+          >
             Continue Browsing
           </button>
         </div>
@@ -459,7 +482,7 @@ const AppLikeGate = () => {
 };
 
 export default function AppPage() {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [joined, setJoined] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -472,10 +495,10 @@ export default function AppPage() {
         await addDoc(collection(db, "waitlist"), {
           email,
           joinedAt: new Date().toISOString(),
-          source: "app_page"
+          source: "app_page",
         });
         setJoined(true);
-        setEmail('');
+        setEmail("");
         setTimeout(() => setJoined(false), 5000);
       } catch (error) {
         console.error("Error joining waitlist:", error);
@@ -487,14 +510,13 @@ export default function AppPage() {
   };
 
   const scrollToWaitlist = () => {
-    document.getElementById('waitlist')?.scrollIntoView({ behavior: 'smooth' });
+    document.getElementById("waitlist")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-black" />}>
       <AppLikeGate />
       <div className="bg-[var(--bg-color)] text-[var(--text-primary)] selection:bg-[#F44A22] selection:text-black transition-colors duration-500 overflow-x-hidden">
-
         {/* --- HERO --- */}
         <BillboardHero />
 
@@ -502,11 +524,13 @@ export default function AppPage() {
         <section className="py-32 px-6 bg-[var(--surface-1)] relative overflow-hidden transition-colors duration-500">
           <div className="max-w-5xl mx-auto text-center relative z-10">
             <ManifestoLine className="text-4xl md:text-6xl font-black leading-tight text-[var(--text-primary)] uppercase">
-              "The night is not just a time.<br />
+              "The night is not just a time.
+              <br />
               It's a <span className="text-[#F44A22]">place</span>."
             </ManifestoLine>
             <ManifestoLine className="mt-12 text-xl text-[var(--text-secondary)] max-w-2xl mx-auto leading-relaxed font-light">
-              We are rewriting the code of social interaction. No more guessing. No more waiting. Just pure, unfiltered connection with the people and places that match your energy.
+              We are rewriting the code of social interaction. No more guessing. No more waiting.
+              Just pure, unfiltered connection with the people and places that match your energy.
             </ManifestoLine>
           </div>
         </section>
@@ -535,12 +559,17 @@ export default function AppPage() {
         />
 
         {/* --- CTA --- */}
-        <section id="waitlist" className="relative h-screen flex items-center justify-center bg-[#F44A22] overflow-hidden">
+        <section
+          id="waitlist"
+          className="relative h-screen flex items-center justify-center bg-[#F44A22] overflow-hidden"
+        >
           <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 mix-blend-overlay" />
 
           <div className="relative z-10 max-w-4xl w-full px-6 text-center">
             <h2 className="text-[12vw] font-black text-black leading-[0.8] tracking-tighter mb-12 uppercase">
-              GET IN<br />THE C1RCLE
+              GET IN
+              <br />
+              THE C1RCLE
             </h2>
 
             {joined ? (
@@ -549,10 +578,15 @@ export default function AppPage() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="bg-black p-8 rounded-3xl shadow-2xl inline-block"
               >
-                <span className="text-white font-black text-2xl uppercase tracking-wider">Welcome to the list.</span>
+                <span className="text-white font-black text-2xl uppercase tracking-wider">
+                  Welcome to the list.
+                </span>
               </motion.div>
             ) : (
-              <form onSubmit={handleJoin} className="bg-black p-2 sm:p-4 rounded-[2rem] sm:rounded-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 shadow-2xl transform hover:scale-105 transition-transform duration-300">
+              <form
+                onSubmit={handleJoin}
+                className="bg-black p-2 sm:p-4 rounded-[2rem] sm:rounded-full flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-0 shadow-2xl transform hover:scale-105 transition-transform duration-300"
+              >
                 <input
                   type="email"
                   placeholder="ENTER YOUR EMAIL"
@@ -561,7 +595,11 @@ export default function AppPage() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                 />
-                <button type="submit" disabled={loading} className="w-full sm:w-auto bg-white text-black px-8 py-4 sm:px-12 sm:py-6 rounded-full font-black uppercase tracking-wider hover:bg-gray-200 transition-colors text-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full sm:w-auto bg-white text-black px-8 py-4 sm:px-12 sm:py-6 rounded-full font-black uppercase tracking-wider hover:bg-gray-200 transition-colors text-lg whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   {loading ? "Joining..." : "Join Now"}
                 </button>
               </form>

@@ -6,4 +6,4 @@
  * treat all imports from those packages as `any`, suppressing TS7016 errors
  * while keeping strict type-checking for all our own TypeScript source files.
  */
-declare module '@c1rcle/core/*';
+declare module "@c1rcle/core/*";

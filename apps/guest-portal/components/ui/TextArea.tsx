@@ -20,7 +20,10 @@ const tones: Record<TextAreaTone, string> = {
 };
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
-  ({ label, helperText, errorText, tone = "default", leadingIcon, className, required, ...rest }, ref) => (
+  (
+    { label, helperText, errorText, tone = "default", leadingIcon, className, required, ...rest },
+    ref,
+  ) => (
     <label className="flex w-full flex-col gap-2 text-sm text-white/70">
       {label && (
         <span className="text-xs font-medium uppercase tracking-[0.35em] text-white/50">
@@ -28,10 +31,20 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         </span>
       )}
       <div className="relative flex items-start">
-        {leadingIcon && <span className="pointer-events-none absolute left-4 top-4 text-white/40">{leadingIcon}</span>}
+        {leadingIcon && (
+          <span className="pointer-events-none absolute left-4 top-4 text-white/40">
+            {leadingIcon}
+          </span>
+        )}
         <textarea
           ref={ref}
-          className={clsx(baseStyles, tones[tone], leadingIcon && "pl-12", errorText && "border-red-400/50", className)}
+          className={clsx(
+            baseStyles,
+            tones[tone],
+            leadingIcon && "pl-12",
+            errorText && "border-red-400/50",
+            className,
+          )}
           {...rest}
         />
       </div>
@@ -41,7 +54,7 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
         helperText && <span className="text-xs text-white/40">{helperText}</span>
       )}
     </label>
-  )
+  ),
 );
 
 TextArea.displayName = "TextArea";

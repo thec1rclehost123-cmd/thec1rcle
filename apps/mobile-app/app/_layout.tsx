@@ -10,8 +10,8 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { initAuthListener, useAuthStore } from "@/store/authStore";
 import { subscribeToDeepLinks, parseDeepLink } from "@/lib/deeplinks";
 import {
-    addNotificationReceivedListener,
-    addNotificationResponseListener,
+  addNotificationReceivedListener,
+  addNotificationResponseListener,
 } from "@/lib/notifications";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -20,7 +20,7 @@ import { colors } from "@/lib/design/theme";
 
 // Prevent auto-hide until we're ready
 SplashScreen.preventAutoHideAsync().catch(() => {
-    // Ignore if already hidden
+  // Ignore if already hidden
 });
 
 /**
@@ -28,42 +28,42 @@ SplashScreen.preventAutoHideAsync().catch(() => {
  * Automatically redirects based on auth state
  */
 function useProtectedRoute(user: unknown) {
-    const segments = useSegments();
-    const navigationState = useRootNavigationState();
-    const [onboardingChecked, setOnboardingChecked] = useState(false);
-    const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const segments = useSegments();
+  const navigationState = useRootNavigationState();
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-    // Check onboarding status once on mount
-    useEffect(() => {
-        hasCompletedOnboarding().then((completed) => {
-            setNeedsOnboarding(!completed);
-            setOnboardingChecked(true);
-        });
-    }, []);
+  // Check onboarding status once on mount
+  useEffect(() => {
+    hasCompletedOnboarding().then((completed) => {
+      setNeedsOnboarding(!completed);
+      setOnboardingChecked(true);
+    });
+  }, []);
 
-    useEffect(() => {
-        // Wait for navigation + onboarding check to be ready
-        if (!navigationState?.key || !onboardingChecked) return;
+  useEffect(() => {
+    // Wait for navigation + onboarding check to be ready
+    if (!navigationState?.key || !onboardingChecked) return;
 
-        const inAuthGroup = segments[0] === "(auth)";
-        const inOnboarding = segments[0] === "onboarding";
-        const inScanner = segments[0] === "scanner";
+    const inAuthGroup = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "onboarding";
+    const inScanner = segments[0] === "scanner";
 
-        // Scanner routes are public — no auth needed (security staff)
-        if (inScanner) return;
+    // Scanner routes are public — no auth needed (security staff)
+    if (inScanner) return;
 
-        // First-time user — show onboarding
-        if (needsOnboarding && !inOnboarding && !user) {
-            router.replace("/onboarding");
-            return;
-        }
+    // First-time user — show onboarding
+    if (needsOnboarding && !inOnboarding && !user) {
+      router.replace("/onboarding");
+      return;
+    }
 
-        if (!user && !inAuthGroup && !inOnboarding) {
-            router.replace("/(auth)/login");
-        } else if (user && (inAuthGroup || inOnboarding)) {
-            router.replace("/(tabs)/explore");
-        }
-    }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding]);
+    if (!user && !inAuthGroup && !inOnboarding) {
+      router.replace("/(auth)/login");
+    } else if (user && (inAuthGroup || inOnboarding)) {
+      router.replace("/(tabs)/explore");
+    }
+  }, [user, segments, navigationState?.key, onboardingChecked, needsOnboarding]);
 }
 
 /**
@@ -71,295 +71,292 @@ function useProtectedRoute(user: unknown) {
  * Handles: Auth, Navigation, Theming, Deep Links, Notifications
  */
 export default function RootLayout() {
-    const { initialized, user } = useAuthStore();
-    const appState = useRef(AppState.currentState);
+  const { initialized, user } = useAuthStore();
+  const appState = useRef(AppState.currentState);
 
-    // Load custom fonts (empty for now - using system fonts)
-    const [fontsLoaded] = useFonts({});
+  // Load custom fonts (empty for now - using system fonts)
+  const [fontsLoaded] = useFonts({});
 
-    // Initialize Firebase auth listener on mount
-    useEffect(() => {
-        const unsubscribe = initAuthListener();
-        return unsubscribe;
-    }, []);
+  // Initialize Firebase auth listener on mount
+  useEffect(() => {
+    const unsubscribe = initAuthListener();
+    return unsubscribe;
+  }, []);
 
-    // Handle deep links
-    useEffect(() => {
-        const unsubscribe = subscribeToDeepLinks((url) => {
-            console.log("[DeepLink] Received:", url);
-            const { type, params } = parseDeepLink(url);
+  // Handle deep links
+  useEffect(() => {
+    const unsubscribe = subscribeToDeepLinks((url) => {
+      console.log("[DeepLink] Received:", url);
+      const { type, params } = parseDeepLink(url);
 
-            switch (type) {
-                case "event":
-                    if (params.id) {
-                        router.push({ pathname: "/event/[id]", params: { id: params.id } });
-                    }
-                    break;
-                case "transfer":
-                    if (params.code) {
-                        router.push({ pathname: "/transfer/receive", params: { code: params.code } });
-                    }
-                    break;
-                default:
-                    console.log("[DeepLink] Unknown type:", type);
-            }
-        });
+      switch (type) {
+        case "event":
+          if (params.id) {
+            router.push({ pathname: "/event/[id]", params: { id: params.id } });
+          }
+          break;
+        case "transfer":
+          if (params.code) {
+            router.push({ pathname: "/transfer/receive", params: { code: params.code } });
+          }
+          break;
+        default:
+          console.log("[DeepLink] Unknown type:", type);
+      }
+    });
 
-        return unsubscribe;
-    }, []);
+    return unsubscribe;
+  }, []);
 
-    // Handle push notification taps
-    useEffect(() => {
-        const receivedSub = addNotificationReceivedListener((notification) => {
-            console.log("[Notification] Received:", notification.request.content.title);
-        });
+  // Handle push notification taps
+  useEffect(() => {
+    const receivedSub = addNotificationReceivedListener((notification) => {
+      console.log("[Notification] Received:", notification.request.content.title);
+    });
 
-        const responseSub = addNotificationResponseListener((response) => {
-            const data = response.notification.request.content.data;
+    const responseSub = addNotificationResponseListener((response) => {
+      const data = response.notification.request.content.data;
 
-            // Navigate based on notification payload
-            if (data?.eventId) {
-                router.push({ pathname: "/event/[id]", params: { id: data.eventId as string } });
-            } else if (data?.orderId) {
-                router.push("/(tabs)/tickets");
-            } else if (data?.chatId) {
-                router.push(`/social/dm/${data.chatId}`);
-            } else if (data?.navigateTo === "notifications") {
-                router.push("/notifications");
-            }
-        });
+      // Navigate based on notification payload
+      if (data?.eventId) {
+        router.push({ pathname: "/event/[id]", params: { id: data.eventId as string } });
+      } else if (data?.orderId) {
+        router.push("/(tabs)/tickets");
+      } else if (data?.chatId) {
+        router.push(`/social/dm/${data.chatId}`);
+      } else if (data?.navigateTo === "notifications") {
+        router.push("/notifications");
+      }
+    });
 
-        return () => {
-            receivedSub.remove();
-            responseSub.remove();
-        };
-    }, []);
+    return () => {
+      receivedSub.remove();
+      responseSub.remove();
+    };
+  }, []);
 
-    // Track app state for background/foreground
-    useEffect(() => {
-        const handleAppStateChange = (nextAppState: AppStateStatus) => {
-            if (
-                appState.current.match(/inactive|background/) &&
-                nextAppState === "active"
-            ) {
-                console.log("[App] Came to foreground");
-                // Could trigger data refresh here
-            }
-            appState.current = nextAppState;
-        };
+  // Track app state for background/foreground
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === "active") {
+        console.log("[App] Came to foreground");
+        // Could trigger data refresh here
+      }
+      appState.current = nextAppState;
+    };
 
-        const subscription = AppState.addEventListener("change", handleAppStateChange);
-        return () => subscription.remove();
-    }, []);
+    const subscription = AppState.addEventListener("change", handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
 
-    // Hide splash when ready
-    const onLayoutRootView = useCallback(async () => {
-        if (fontsLoaded && initialized) {
-            await SplashScreen.hideAsync();
-        }
-    }, [fontsLoaded, initialized]);
-
-    // Use auth-based navigation guard
-    useProtectedRoute(user);
-
-    // Show nothing while loading (splash screen is visible)
-    if (!fontsLoaded || !initialized) {
-        return null;
+  // Hide splash when ready
+  const onLayoutRootView = useCallback(async () => {
+    if (fontsLoaded && initialized) {
+      await SplashScreen.hideAsync();
     }
+  }, [fontsLoaded, initialized]);
 
-    return (
-        <ErrorBoundary>
-            <SafeAreaProvider>
-                <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-                    <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
-                        <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
+  // Use auth-based navigation guard
+  useProtectedRoute(user);
 
-                        {/* Global offline indicator */}
-                        <OfflineBanner />
+  // Show nothing while loading (splash screen is visible)
+  if (!fontsLoaded || !initialized) {
+    return null;
+  }
 
-                        <Stack
-                            screenOptions={{
-                                headerShown: false,
-                                contentStyle: { backgroundColor: colors.base.DEFAULT },
-                                animation: "slide_from_right",
-                            }}
-                        >
-                            {/* Onboarding (first-time users) */}
-                            <Stack.Screen
-                                name="onboarding"
-                                options={{
-                                    headerShown: false,
-                                    animation: "fade",
-                                }}
-                            />
+  return (
+    <ErrorBoundary>
+      <SafeAreaProvider>
+        <GestureHandlerRootView style={{ flex: 1 }} onLayout={onLayoutRootView}>
+          <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
+            <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
 
-                            {/* Auth Flow */}
-                            <Stack.Screen
-                                name="(auth)"
-                                options={{
-                                    headerShown: false,
-                                    animation: "fade",
-                                }}
-                            />
+            {/* Global offline indicator */}
+            <OfflineBanner />
 
-                            {/* Main Tab Navigation */}
-                            <Stack.Screen
-                                name="(tabs)"
-                                options={{
-                                    headerShown: false
-                                }}
-                            />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: colors.base.DEFAULT },
+                animation: "slide_from_right",
+              }}
+            >
+              {/* Onboarding (first-time users) */}
+              <Stack.Screen
+                name="onboarding"
+                options={{
+                  headerShown: false,
+                  animation: "fade",
+                }}
+              />
 
-                            {/* Index redirect */}
-                            <Stack.Screen
-                                name="index"
-                                options={{
-                                    headerShown: false
-                                }}
-                            />
+              {/* Auth Flow */}
+              <Stack.Screen
+                name="(auth)"
+                options={{
+                  headerShown: false,
+                  animation: "fade",
+                }}
+              />
 
-                            {/* Event Detail */}
-                            <Stack.Screen
-                                name="event/[id]"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
+              {/* Main Tab Navigation */}
+              <Stack.Screen
+                name="(tabs)"
+                options={{
+                  headerShown: false,
+                }}
+              />
 
-                            {/* Checkout Flow (Modal) */}
-                            <Stack.Screen
-                                name="checkout"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "modal",
-                                    animation: "slide_from_bottom",
-                                }}
-                            />
+              {/* Index redirect */}
+              <Stack.Screen
+                name="index"
+                options={{
+                  headerShown: false,
+                }}
+              />
 
-                            {/* Chat Screens */}
-                            <Stack.Screen
-                                name="chat"
-                                options={{
-                                    headerShown: false,
-                                }}
-                            />
+              {/* Event Detail */}
+              <Stack.Screen
+                name="event/[id]"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
 
-                            {/* Safety Features (Modal) */}
-                            <Stack.Screen
-                                name="safety"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "modal",
-                                    animation: "slide_from_bottom",
-                                }}
-                            />
+              {/* Checkout Flow (Modal) */}
+              <Stack.Screen
+                name="checkout"
+                options={{
+                  headerShown: false,
+                  presentation: "modal",
+                  animation: "slide_from_bottom",
+                }}
+              />
 
-                            {/* Ticket Transfer */}
-                            <Stack.Screen
-                                name="transfer"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "modal",
-                                    animation: "slide_from_bottom",
-                                }}
-                            />
+              {/* Chat Screens */}
+              <Stack.Screen
+                name="chat"
+                options={{
+                  headerShown: false,
+                }}
+              />
 
-                            {/* Social Screens */}
-                            <Stack.Screen
-                                name="social"
-                                options={{
-                                    headerShown: false,
-                                }}
-                            />
+              {/* Safety Features (Modal) */}
+              <Stack.Screen
+                name="safety"
+                options={{
+                  headerShown: false,
+                  presentation: "modal",
+                  animation: "slide_from_bottom",
+                }}
+              />
 
-                            {/* Notifications */}
-                            <Stack.Screen
-                                name="notifications"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
+              {/* Ticket Transfer */}
+              <Stack.Screen
+                name="transfer"
+                options={{
+                  headerShown: false,
+                  presentation: "modal",
+                  animation: "slide_from_bottom",
+                }}
+              />
 
-                            {/* Settings */}
-                            <Stack.Screen
-                                name="settings"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
+              {/* Social Screens */}
+              <Stack.Screen
+                name="social"
+                options={{
+                  headerShown: false,
+                }}
+              />
 
-                            {/* Scanner (No auth — security staff) */}
-                            <Stack.Screen
-                                name="scanner"
-                                options={{
-                                    headerShown: false,
-                                    animation: "slide_from_bottom",
-                                }}
-                            />
+              {/* Notifications */}
+              <Stack.Screen
+                name="notifications"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
 
-                            {/* Search */}
-                            <Stack.Screen
-                                name="search"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                    animation: "fade",
-                                }}
-                            />
+              {/* Settings */}
+              <Stack.Screen
+                name="settings"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
 
-                            {/* Profile Edit (Modal) */}
-                            <Stack.Screen
-                                name="profile/edit"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "modal",
-                                    animation: "slide_from_bottom",
-                                }}
-                            />
+              {/* Scanner (No auth — security staff) */}
+              <Stack.Screen
+                name="scanner"
+                options={{
+                  headerShown: false,
+                  animation: "slide_from_bottom",
+                }}
+              />
 
-                            {/* Legal Pages */}
-                            <Stack.Screen
-                                name="legal/terms"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
-                            <Stack.Screen
-                                name="legal/privacy"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
-                            <Stack.Screen
-                                name="legal/refunds"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
-                            <Stack.Screen
-                                name="legal/guidelines"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
-                            <Stack.Screen
-                                name="legal/safety"
-                                options={{
-                                    headerShown: false,
-                                    presentation: "card",
-                                }}
-                            />
-                        </Stack>
-                    </View>
-                </GestureHandlerRootView>
-            </SafeAreaProvider>
-        </ErrorBoundary>
-    );
+              {/* Search */}
+              <Stack.Screen
+                name="search"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                  animation: "fade",
+                }}
+              />
+
+              {/* Profile Edit (Modal) */}
+              <Stack.Screen
+                name="profile/edit"
+                options={{
+                  headerShown: false,
+                  presentation: "modal",
+                  animation: "slide_from_bottom",
+                }}
+              />
+
+              {/* Legal Pages */}
+              <Stack.Screen
+                name="legal/terms"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
+              <Stack.Screen
+                name="legal/privacy"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
+              <Stack.Screen
+                name="legal/refunds"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
+              <Stack.Screen
+                name="legal/guidelines"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
+              <Stack.Screen
+                name="legal/safety"
+                options={{
+                  headerShown: false,
+                  presentation: "card",
+                }}
+              />
+            </Stack>
+          </View>
+        </GestureHandlerRootView>
+      </SafeAreaProvider>
+    </ErrorBoundary>
+  );
 }

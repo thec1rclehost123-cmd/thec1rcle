@@ -19,7 +19,16 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   rounded?: "full" | "xl";
 }
 
-export const Avatar = ({ src, alt = "", name, accent = "iris", size = "md", rounded = "full", className, ...rest }: AvatarProps) => {
+export const Avatar = ({
+  src,
+  alt = "",
+  name,
+  accent = "iris",
+  size = "md",
+  rounded = "full",
+  className,
+  ...rest
+}: AvatarProps) => {
   const initials = name
     ?.split(" ")
     .map((n) => n[0])
@@ -34,7 +43,7 @@ export const Avatar = ({ src, alt = "", name, accent = "iris", size = "md", roun
         "relative overflow-hidden text-white uppercase",
         sizeMap[size],
         rounded === "full" ? "rounded-full" : "rounded-3xl",
-        className
+        className,
       )}
       style={{ background: accentToken.gradient, boxShadow: accentToken.shadow }}
       {...rest}
@@ -42,7 +51,9 @@ export const Avatar = ({ src, alt = "", name, accent = "iris", size = "md", roun
       {src ? (
         <img src={src} alt={alt || name || "Guest avatar"} className="h-full w-full object-cover" />
       ) : (
-        <span className="flex h-full w-full items-center justify-center bg-black/30">{initials || "??"}</span>
+        <span className="flex h-full w-full items-center justify-center bg-black/30">
+          {initials || "??"}
+        </span>
       )}
     </div>
   );

@@ -14,7 +14,7 @@ const selectsSeed = [
     cta: "View Selects",
     image: "/events/select-activities.svg",
     href: "/explore?category=activities",
-    slug: "2025-activities"
+    slug: "2025-activities",
   },
   {
     title: "2025 Art Circuits",
@@ -22,23 +22,24 @@ const selectsSeed = [
     cta: "View Selects",
     image: "/events/select-art.svg",
     href: "/explore?category=art",
-    slug: "2025-art-circuits"
-  }
+    slug: "2025-art-circuits",
+  },
 ];
 
 const interviewsSeed = [
   {
     slug: "pune-street-crew",
     title: "Interview: Pune Street Crew",
-    excerpt: "How Pune's late-night collectives are shaping a new sonic identity across KP and Kalyani Nagar.",
-    image: "/events/interview-crew.svg"
+    excerpt:
+      "How Pune's late-night collectives are shaping a new sonic identity across KP and Kalyani Nagar.",
+    image: "/events/interview-crew.svg",
   },
   {
     slug: "underground-fashion-labs",
     title: "Interview: Underground Fashion Labs",
     excerpt: "Inside the ateliers building the next wave of South Asian couture pop-ups.",
-    image: "/events/interview-fashion.svg"
-  }
+    image: "/events/interview-fashion.svg",
+  },
 ];
 
 const slugify = (value = "") =>
@@ -50,7 +51,7 @@ const slugify = (value = "") =>
 
 const toPlainDocument = (doc) => ({
   id: doc.id,
-  ...doc.data()
+  ...doc.data(),
 });
 
 const loadCollectionWithSeed = async (_collectionName, seed) => {
@@ -68,7 +69,7 @@ const mapHeroCards = (events) =>
     time: formatEventTime(event),
     image: event.image,
     guests: event.guests || [],
-    href: getEventHref(event)
+    href: getEventHref(event),
   }));
 
 const mapEventGrid = (events) => events.slice(0, 8);
@@ -98,7 +99,7 @@ const buildStats = (events, city) => {
   return {
     eventsThisMonth: monthEvents.length,
     weeklyRegistrations,
-    city
+    city,
   };
 };
 
@@ -120,6 +121,6 @@ export const getHomepageContent = cache(async (city) => {
     categoryFilters: categories,
     selects,
     interviews,
-    stats
+    stats,
   };
 });

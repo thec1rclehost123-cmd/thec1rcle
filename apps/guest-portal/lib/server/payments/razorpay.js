@@ -8,7 +8,7 @@ const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET;
 
 // Check if Razorpay is configured
 export function isRazorpayConfigured() {
-    return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
+  return Boolean(RAZORPAY_KEY_ID && RAZORPAY_KEY_SECRET);
 }
 
 /**
@@ -17,51 +17,51 @@ export function isRazorpayConfigured() {
  * @returns {Object} Razorpay order response
  */
 export async function createRazorpayOrder({
-    amount, // Amount in paise (₹100 = 10000 paise)
-    currency = "INR",
-    receipt, // Order ID from our system
-    notes = {}
+  amount, // Amount in paise (₹100 = 10000 paise)
+  currency = "INR",
+  receipt, // Order ID from our system
+  notes = {},
 }) {
-    if (!isRazorpayConfigured()) {
-        // FAIL-CLOSED: Do not allow order creation if keys are missing
-        if (process.env.NODE_ENV === "production") {
-            throw new Error("Payment Gateway Configuration Missing");
-        }
-
-        console.log("[Razorpay] Not configured, returning mock order (DEV MODE)");
-        return {
-            id: `order_mock_${Date.now()}`,
-            amount,
-            currency,
-            receipt,
-            status: "created",
-            created_at: Math.floor(Date.now() / 1000)
-        };
+  if (!isRazorpayConfigured()) {
+    // FAIL-CLOSED: Do not allow order creation if keys are missing
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("Payment Gateway Configuration Missing");
     }
 
-    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+    console.log("[Razorpay] Not configured, returning mock order (DEV MODE)");
+    return {
+      id: `order_mock_${Date.now()}`,
+      amount,
+      currency,
+      receipt,
+      status: "created",
+      created_at: Math.floor(Date.now() / 1000),
+    };
+  }
 
-    const response = await fetch("https://api.razorpay.com/v1/orders", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Basic ${auth}`
-        },
-        body: JSON.stringify({
-            amount,
-            currency,
-            receipt,
-            notes
-        })
-    });
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 
-    if (!response.ok) {
-        const error = await response.json();
-        console.error("[Razorpay] Order creation failed:", error);
-        throw new Error(error.error?.description || "Failed to create payment order");
-    }
+  const response = await fetch("https://api.razorpay.com/v1/orders", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${auth}`,
+    },
+    body: JSON.stringify({
+      amount,
+      currency,
+      receipt,
+      notes,
+    }),
+  });
 
-    return await response.json();
+  if (!response.ok) {
+    const error = await response.json();
+    console.error("[Razorpay] Order creation failed:", error);
+    throw new Error(error.error?.description || "Failed to create payment order");
+  }
+
+  return await response.json();
 }
 
 /**
@@ -70,27 +70,27 @@ export async function createRazorpayOrder({
  * @returns {boolean} Whether signature is valid
  */
 export function verifyPaymentSignature({
-    razorpay_order_id,
-    razorpay_payment_id,
-    razorpay_signature
+  razorpay_order_id,
+  razorpay_payment_id,
+  razorpay_signature,
 }) {
-    if (!isRazorpayConfigured()) {
-        // FAIL-CLOSED: Auto-verify ONLY in local development
-        if (process.env.NODE_ENV === "production") {
-            console.error("[Razorpay] Security Alert: Payment verification called without API keys!");
-            return false;
-        }
-        return true;
+  if (!isRazorpayConfigured()) {
+    // FAIL-CLOSED: Auto-verify ONLY in local development
+    if (process.env.NODE_ENV === "production") {
+      console.error("[Razorpay] Security Alert: Payment verification called without API keys!");
+      return false;
     }
+    return true;
+  }
 
-    const crypto = require("node:crypto");
-    const data = `${razorpay_order_id}|${razorpay_payment_id}`;
-    const expectedSignature = crypto
-        .createHmac("sha256", RAZORPAY_KEY_SECRET)
-        .update(data)
-        .digest("hex");
+  const crypto = require("node:crypto");
+  const data = `${razorpay_order_id}|${razorpay_payment_id}`;
+  const expectedSignature = crypto
+    .createHmac("sha256", RAZORPAY_KEY_SECRET)
+    .update(data)
+    .digest("hex");
 
-    return expectedSignature === razorpay_signature;
+  return expectedSignature === razorpay_signature;
 }
 
 /**
@@ -99,29 +99,29 @@ export function verifyPaymentSignature({
  * @returns {Object} Payment details
  */
 export async function fetchPayment(paymentId) {
-    if (!isRazorpayConfigured()) {
-        return {
-            id: paymentId,
-            amount: 0,
-            status: "captured",
-            method: "mock"
-        };
-    }
+  if (!isRazorpayConfigured()) {
+    return {
+      id: paymentId,
+      amount: 0,
+      status: "captured",
+      method: "mock",
+    };
+  }
 
-    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 
-    const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
-        headers: {
-            "Authorization": `Basic ${auth}`
-        }
-    });
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+    headers: {
+      Authorization: `Basic ${auth}`,
+    },
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.description || "Failed to fetch payment");
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.description || "Failed to fetch payment");
+  }
 
-    return await response.json();
+  return await response.json();
 }
 
 /**
@@ -131,27 +131,27 @@ export async function fetchPayment(paymentId) {
  * @returns {Object} Capture response
  */
 export async function capturePayment(paymentId, amount) {
-    if (!isRazorpayConfigured()) {
-        return { id: paymentId, status: "captured", amount };
-    }
+  if (!isRazorpayConfigured()) {
+    return { id: paymentId, status: "captured", amount };
+  }
 
-    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 
-    const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/capture`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Basic ${auth}`
-        },
-        body: JSON.stringify({ amount })
-    });
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/capture`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${auth}`,
+    },
+    body: JSON.stringify({ amount }),
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.description || "Failed to capture payment");
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.description || "Failed to capture payment");
+  }
 
-    return await response.json();
+  return await response.json();
 }
 
 /**
@@ -162,41 +162,41 @@ export async function capturePayment(paymentId, amount) {
  * @returns {Object} Refund response
  */
 export async function initiateRefund(paymentId, amount = null, options = {}) {
-    if (!isRazorpayConfigured()) {
-        return {
-            id: `rfnd_mock_${Date.now()}`,
-            payment_id: paymentId,
-            amount: amount || 0,
-            status: "processed"
-        };
-    }
-
-    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
-
-    const body = {
-        speed: options.speed || "normal", // "normal" or "optimum"
-        notes: options.notes || {}
+  if (!isRazorpayConfigured()) {
+    return {
+      id: `rfnd_mock_${Date.now()}`,
+      payment_id: paymentId,
+      amount: amount || 0,
+      status: "processed",
     };
+  }
 
-    if (amount) {
-        body.amount = amount;
-    }
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 
-    const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Basic ${auth}`
-        },
-        body: JSON.stringify(body)
-    });
+  const body = {
+    speed: options.speed || "normal", // "normal" or "optimum"
+    notes: options.notes || {},
+  };
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.description || "Failed to initiate refund");
-    }
+  if (amount) {
+    body.amount = amount;
+  }
 
-    return await response.json();
+  const response = await fetch(`https://api.razorpay.com/v1/payments/${paymentId}/refund`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Basic ${auth}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.description || "Failed to initiate refund");
+  }
+
+  return await response.json();
 }
 
 /**
@@ -205,24 +205,24 @@ export async function initiateRefund(paymentId, amount = null, options = {}) {
  * @returns {Object} Refund details
  */
 export async function fetchRefund(refundId) {
-    if (!isRazorpayConfigured()) {
-        return { id: refundId, status: "processed" };
-    }
+  if (!isRazorpayConfigured()) {
+    return { id: refundId, status: "processed" };
+  }
 
-    const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
+  const auth = Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64");
 
-    const response = await fetch(`https://api.razorpay.com/v1/refunds/${refundId}`, {
-        headers: {
-            "Authorization": `Basic ${auth}`
-        }
-    });
+  const response = await fetch(`https://api.razorpay.com/v1/refunds/${refundId}`, {
+    headers: {
+      Authorization: `Basic ${auth}`,
+    },
+  });
 
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error?.description || "Failed to fetch refund");
-    }
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error?.description || "Failed to fetch refund");
+  }
 
-    return await response.json();
+  return await response.json();
 }
 
 /**
@@ -230,19 +230,19 @@ export async function fetchRefund(refundId) {
  * @returns {Object} Client configuration
  */
 export function getRazorpayClientConfig() {
-    return {
-        key: RAZORPAY_KEY_ID || "rzp_test_DEVELOPMENT",
-        currency: "INR",
-        name: "THE C1RCLE",
-        description: "Event Tickets",
-        image: "/logo.png",
-        prefill: {
-            name: "",
-            email: "",
-            contact: ""
-        },
-        theme: {
-            color: "#1d1d1f"
-        }
-    };
+  return {
+    key: RAZORPAY_KEY_ID || "rzp_test_DEVELOPMENT",
+    currency: "INR",
+    name: "THE C1RCLE",
+    description: "Event Tickets",
+    image: "/logo.png",
+    prefill: {
+      name: "",
+      email: "",
+      contact: "",
+    },
+    theme: {
+      color: "#1d1d1f",
+    },
+  };
 }

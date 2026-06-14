@@ -15,28 +15,28 @@
 
 :root {
   /* ─── Brand Colors ─── */
-  --c1rcle-orange: #F44A22;
+  --c1rcle-orange: #f44a22;
   --c1rcle-orange-glow: rgba(244, 74, 34, 0.25);
-  --c1rcle-orange-dim: #CC3311;
-  --c1rcle-orange-light: #FF6B4A;
+  --c1rcle-orange-dim: #cc3311;
+  --c1rcle-orange-light: #ff6b4a;
 
   /* ─── Light Mode Surfaces ─── */
-  --surface-base: #FFFFFF;
-  --surface-secondary: #F8F9FA;
-  --surface-tertiary: #F1F3F5;
-  --surface-elevated: #FFFFFF;
+  --surface-base: #ffffff;
+  --surface-secondary: #f8f9fa;
+  --surface-tertiary: #f1f3f5;
+  --surface-elevated: #ffffff;
   --surface-overlay: rgba(0, 0, 0, 0.5);
 
   /* ─── Light Mode Sidebar ─── */
-  --sidebar-bg: #FAFBFC;
+  --sidebar-bg: #fafbfc;
   --sidebar-border: rgba(0, 0, 0, 0.06);
 
   /* ─── Light Mode Typography ─── */
-  --text-primary: #0F172A;
+  --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-tertiary: #94A3B8;
-  --text-placeholder: #CBD5E1;
-  --text-inverse: #FFFFFF;
+  --text-tertiary: #94a3b8;
+  --text-placeholder: #cbd5e1;
+  --text-inverse: #ffffff;
 
   /* ─── Light Mode Borders ─── */
   --border-subtle: rgba(0, 0, 0, 0.04);
@@ -45,24 +45,26 @@
   --border-focus: var(--c1rcle-orange);
 
   /* ─── State Colors (Semantic) ─── */
-  --state-success: #10B981;
+  --state-success: #10b981;
   --state-success-bg: rgba(16, 185, 129, 0.1);
-  --state-warning: #F59E0B;
+  --state-warning: #f59e0b;
   --state-warning-bg: rgba(245, 158, 11, 0.1);
-  --state-error: #EF4444;
+  --state-error: #ef4444;
   --state-error-bg: rgba(239, 68, 68, 0.1);
-  --state-info: #6366F1;
+  --state-info: #6366f1;
   --state-info-bg: rgba(99, 102, 241, 0.1);
 
   /* ─── Trend Colors (Financial) ─── */
-  --trend-up: #10B981;
+  --trend-up: #10b981;
   --trend-up-bg: rgba(16, 185, 129, 0.12);
-  --trend-down: #EF4444;
+  --trend-down: #ef4444;
   --trend-down-bg: rgba(239, 68, 68, 0.12);
-  --trend-neutral: #6B7280;
+  --trend-neutral: #6b7280;
 
   /* ─── Typography Stack ─── */
-  --font-system: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI", sans-serif;
+  --font-system:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI",
+    sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Monaco", monospace;
 
   /* ─── Spacing Scale ─── */
@@ -112,22 +114,22 @@
 
 .dark {
   /* ─── Dark Mode Surfaces ─── */
-  --surface-base: #0A0A0B;
+  --surface-base: #0a0a0b;
   --surface-secondary: #111113;
-  --surface-tertiary: #18181B;
-  --surface-elevated: #1C1C1F;
+  --surface-tertiary: #18181b;
+  --surface-elevated: #1c1c1f;
   --surface-overlay: rgba(0, 0, 0, 0.8);
 
   /* ─── Dark Mode Sidebar ─── */
-  --sidebar-bg: #0D0D0E;
+  --sidebar-bg: #0d0d0e;
   --sidebar-border: rgba(255, 255, 255, 0.06);
 
   /* ─── Dark Mode Typography ─── */
-  --text-primary: #FAFAFA;
-  --text-secondary: #A1A1AA;
-  --text-tertiary: #71717A;
-  --text-placeholder: #52525B;
-  --text-inverse: #0A0A0B;
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa;
+  --text-tertiary: #71717a;
+  --text-placeholder: #52525b;
+  --text-inverse: #0a0a0b;
 
   /* ─── Dark Mode Borders ─── */
   --border-subtle: rgba(255, 255, 255, 0.04);
@@ -135,19 +137,19 @@
   --border-strong: rgba(255, 255, 255, 0.12);
 
   /* ─── Dark Mode State Colors ─── */
-  --state-success: #34D399;
+  --state-success: #34d399;
   --state-success-bg: rgba(52, 211, 153, 0.15);
-  --state-warning: #FBBF24;
+  --state-warning: #fbbf24;
   --state-warning-bg: rgba(251, 191, 36, 0.15);
-  --state-error: #F87171;
+  --state-error: #f87171;
   --state-error-bg: rgba(248, 113, 113, 0.15);
-  --state-info: #818CF8;
+  --state-info: #818cf8;
   --state-info-bg: rgba(129, 140, 248, 0.15);
 
   /* ─── Dark Mode Trend Colors ─── */
-  --trend-up: #34D399;
+  --trend-up: #34d399;
   --trend-up-bg: rgba(52, 211, 153, 0.15);
-  --trend-down: #F87171;
+  --trend-down: #f87171;
   --trend-down-bg: rgba(248, 113, 113, 0.15);
 
   /* ─── Dark Mode Shadows ─── */
@@ -188,7 +190,9 @@ body {
   font-weight: 400;
   letter-spacing: -0.011em;
   min-height: 100vh;
-  transition: background-color var(--transition-smooth), color var(--transition-smooth);
+  transition:
+    background-color var(--transition-smooth),
+    color var(--transition-smooth);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -893,7 +897,6 @@ body {
 }
 
 @keyframes pulse-dot {
-
   0%,
   100% {
     opacity: 1;
@@ -1234,7 +1237,6 @@ body {
 }
 
 @keyframes pulse-glow {
-
   0%,
   100% {
     box-shadow: 0 0 0 0 var(--c1rcle-orange-glow);
@@ -1280,31 +1282,31 @@ body {
 }
 
 /* Stagger Children */
-.stagger-children>* {
+.stagger-children > * {
   animation: slide-up 0.3s ease-out backwards;
 }
 
-.stagger-children>*:nth-child(1) {
+.stagger-children > *:nth-child(1) {
   animation-delay: 0ms;
 }
 
-.stagger-children>*:nth-child(2) {
+.stagger-children > *:nth-child(2) {
   animation-delay: 50ms;
 }
 
-.stagger-children>*:nth-child(3) {
+.stagger-children > *:nth-child(3) {
   animation-delay: 100ms;
 }
 
-.stagger-children>*:nth-child(4) {
+.stagger-children > *:nth-child(4) {
   animation-delay: 150ms;
 }
 
-.stagger-children>*:nth-child(5) {
+.stagger-children > *:nth-child(5) {
   animation-delay: 200ms;
 }
 
-.stagger-children>*:nth-child(6) {
+.stagger-children > *:nth-child(6) {
   animation-delay: 250ms;
 }
 
@@ -1323,18 +1325,12 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(255, 255, 255, 0.3),
-      transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
   animation: shimmer 1.5s infinite;
 }
 
 .dark .skeleton::after {
-  background: linear-gradient(90deg,
-      transparent,
-      rgba(255, 255, 255, 0.08),
-      transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
 }
 
 .skeleton-text {
@@ -1628,14 +1624,16 @@ body {
 
 /* Animated progress */
 .progress-bar-animated .progress-bar-fill {
-  background-image: linear-gradient(-45deg,
-      rgba(255, 255, 255, 0.15) 25%,
-      transparent 25%,
-      transparent 50%,
-      rgba(255, 255, 255, 0.15) 50%,
-      rgba(255, 255, 255, 0.15) 75%,
-      transparent 75%,
-      transparent);
+  background-image: linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.15) 25%,
+    transparent 25%,
+    transparent 50%,
+    rgba(255, 255, 255, 0.15) 50%,
+    rgba(255, 255, 255, 0.15) 75%,
+    transparent 75%,
+    transparent
+  );
   background-size: 1rem 1rem;
   animation: progress-stripes 1s linear infinite;
 }
@@ -1711,7 +1709,6 @@ body {
 
 /* Touch Device Optimizations */
 @media (hover: none) and (pointer: coarse) {
-
   .nav-item,
   .list-item-interactive,
   .btn {

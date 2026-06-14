@@ -2,7 +2,7 @@ import clsx from "clsx";
 
 /**
  * Avatar Component — User Representation
- * 
+ *
  * Clean, simple, no decorative gradients.
  */
 
@@ -22,14 +22,7 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: AvatarSize;
 }
 
-export const Avatar = ({
-  src,
-  alt = "",
-  name,
-  size = "md",
-  className,
-  ...rest
-}: AvatarProps) => {
+export const Avatar = ({ src, alt = "", name, size = "md", className, ...rest }: AvatarProps) => {
   const initials = name
     ?.split(" ")
     .map((n) => n[0])
@@ -42,16 +35,12 @@ export const Avatar = ({
       className={clsx(
         "relative overflow-hidden flex items-center justify-center rounded-full bg-stone-100 text-stone-600 font-medium",
         sizeMap[size],
-        className
+        className,
       )}
       {...rest}
     >
       {src ? (
-        <img
-          src={src}
-          alt={alt || name || "Avatar"}
-          className="h-full w-full object-cover"
-        />
+        <img src={src} alt={alt || name || "Avatar"} className="h-full w-full object-cover" />
       ) : (
         <span>{initials || "?"}</span>
       )}

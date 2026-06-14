@@ -20,7 +20,18 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const CardBase = forwardRef<HTMLDivElement, CardProps>(
-  ({ interactive = true, padding = "md", accent = "iris", blur = true, className, children, ...rest }, ref) => {
+  (
+    {
+      interactive = true,
+      padding = "md",
+      accent = "iris",
+      blur = true,
+      className,
+      children,
+      ...rest
+    },
+    ref,
+  ) => {
     const accentToken = getAccentToken(accent);
     return (
       <article
@@ -28,9 +39,10 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
         className={clsx(
           "group relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] text-white",
           blur && "backdrop-blur-xl",
-          interactive && "transition-all hover:-translate-y-1 hover:border-white/30 hover:scale-[1.01]",
+          interactive &&
+            "transition-all hover:-translate-y-1 hover:border-white/30 hover:scale-[1.01]",
           paddingMap[padding],
-          className
+          className,
         )}
         style={{ boxShadow: accentToken.soft }}
         {...rest}
@@ -42,7 +54,7 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
         <div className="relative z-10 flex flex-col gap-4">{children}</div>
       </article>
     );
-  }
+  },
 );
 
 CardBase.displayName = "Card";
@@ -53,8 +65,16 @@ export interface CardMediaProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export const CardMedia = ({ src, alt = "", className, ...rest }: CardMediaProps) => (
-  <div className={clsx("relative aspect-[4/3] overflow-hidden rounded-[28px]", className)} {...rest}>
-    <img src={src} alt={alt} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+  <div
+    className={clsx("relative aspect-[4/3] overflow-hidden rounded-[28px]", className)}
+    {...rest}
+  >
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+      loading="lazy"
+    />
     <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
   </div>
 );

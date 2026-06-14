@@ -1,5 +1,10 @@
 import clsx from "clsx";
-import { forwardRef, type HTMLInputTypeAttribute, type InputHTMLAttributes, type ReactNode } from "react";
+import {
+  forwardRef,
+  type HTMLInputTypeAttribute,
+  type InputHTMLAttributes,
+  type ReactNode,
+} from "react";
 
 type InputTone = "default" | "light";
 
@@ -18,13 +23,25 @@ const baseFieldStyles =
 
 const toneClasses: Record<InputTone, string> = {
   default: "border-white/10 focus-visible:border-white/40",
-  light: "border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 focus-visible:ring-black/20",
+  light:
+    "border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 focus-visible:ring-black/20",
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   (
-    { label, helperText, errorText, leadingIcon, trailingIcon, tone = "default", className, required, type = "text", ...rest },
-    ref
+    {
+      label,
+      helperText,
+      errorText,
+      leadingIcon,
+      trailingIcon,
+      tone = "default",
+      className,
+      required,
+      type = "text",
+      ...rest
+    },
+    ref,
   ) => {
     const fieldClasses = clsx(
       baseFieldStyles,
@@ -32,7 +49,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       (leadingIcon || trailingIcon) && "pl-12",
       trailingIcon && "pr-12",
       errorText && "border-red-400/50 focus-visible:ring-red-300/60",
-      className
+      className,
     );
 
     return (
@@ -43,9 +60,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           </span>
         )}
         <div className="relative flex items-center">
-          {leadingIcon && <span className="pointer-events-none absolute left-4 text-white/40">{leadingIcon}</span>}
+          {leadingIcon && (
+            <span className="pointer-events-none absolute left-4 text-white/40">{leadingIcon}</span>
+          )}
           <input ref={ref} type={type} className={fieldClasses} {...rest} />
-          {trailingIcon && <span className="pointer-events-none absolute right-4 text-white/40">{trailingIcon}</span>}
+          {trailingIcon && (
+            <span className="pointer-events-none absolute right-4 text-white/40">
+              {trailingIcon}
+            </span>
+          )}
         </div>
         {errorText ? (
           <span className="text-xs text-red-300">{errorText}</span>
@@ -54,7 +77,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         )}
       </label>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

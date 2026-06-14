@@ -9,7 +9,8 @@ const baseEvents = [
     category: "Trending",
     image: "/events/neon-nights.jpg",
     gradient: ["#3d0d17", "#050505"],
-    description: "A multi-floor takeover with indie DJs, projection domes, and mango lassi cocktails.",
+    description:
+      "A multi-floor takeover with indie DJs, projection domes, and mango lassi cocktails.",
     guests: ["Anaya", "Rohit", "Mira", "Kabir", "Zoya", "Rhea"],
     gallery: [
       "/events/neon-nights.jpg",
@@ -17,8 +18,8 @@ const baseEvents = [
       "/events/disclosure.svg",
       "/events/lofi-house.svg",
       "/events/palm-tree.svg",
-      "/events/art-bazaar.svg"
-    ]
+      "/events/art-bazaar.svg",
+    ],
   },
   {
     id: "campus-cookout",
@@ -31,7 +32,8 @@ const baseEvents = [
     category: "This Week",
     image: "/events/poolside-vibes.jpg",
     gradient: ["#12322a", "#050505"],
-    description: "BBQ smoke, vinyl selectors, and art stalls meet on FC Road for the first summer cookout.",
+    description:
+      "BBQ smoke, vinyl selectors, and art stalls meet on FC Road for the first summer cookout.",
     guests: ["Yash", "Ishika", "Sameer"],
     gallery: [
       "/events/poolside-vibes.jpg",
@@ -39,8 +41,8 @@ const baseEvents = [
       "/events/select-art.svg",
       "/events/select-activities.svg",
       "/events/art-bazaar.svg",
-      "/events/lower-east.svg"
-    ]
+      "/events/lower-east.svg",
+    ],
   },
   {
     id: "lofi-rooftop",
@@ -60,8 +62,8 @@ const baseEvents = [
       "/events/nirvana.svg",
       "/events/genz-night.svg",
       "/events/campus.svg",
-      "/events/palm-tree.svg"
-    ]
+      "/events/palm-tree.svg",
+    ],
   },
   {
     id: "genz-night",
@@ -81,8 +83,8 @@ const baseEvents = [
       "/events/lofi-house.svg",
       "/events/cypher.svg",
       "/events/yoga.svg",
-      "/events/lower-east.svg"
-    ]
+      "/events/lower-east.svg",
+    ],
   },
   {
     id: "diy-art-basement",
@@ -102,8 +104,8 @@ const baseEvents = [
       "/events/interview-fashion.svg",
       "/events/interview-crew.svg",
       "/events/disclosure.svg",
-      "/events/lofi-house.svg"
-    ]
+      "/events/lofi-house.svg",
+    ],
   },
   {
     id: "riverfront-fit",
@@ -124,8 +126,8 @@ const baseEvents = [
       "/events/campus.svg",
       "/events/holi-edit.svg",
       "/events/nirvana.svg",
-      "/events/art-bazaar.svg"
-    ]
+      "/events/art-bazaar.svg",
+    ],
   },
   {
     id: "house-of-synth",
@@ -144,8 +146,8 @@ const baseEvents = [
       "/events/lofi-house.svg",
       "/events/campus.svg",
       "/events/lower-east.svg",
-      "/events/yoga.svg"
-    ]
+      "/events/yoga.svg",
+    ],
   },
   {
     id: "secret-brunch",
@@ -165,8 +167,8 @@ const baseEvents = [
       "/events/campus.svg",
       "/events/holi-edit.svg",
       "/events/yoga.svg",
-      "/events/palm-tree.svg"
-    ]
+      "/events/palm-tree.svg",
+    ],
   },
   {
     id: "cypher-sundays",
@@ -185,8 +187,8 @@ const baseEvents = [
       "/events/lower-east.svg",
       "/events/genz-night.svg",
       "/events/disclosure.svg",
-      "/events/palm-tree.svg"
-    ]
+      "/events/palm-tree.svg",
+    ],
   },
   {
     id: "lower-east-block",
@@ -205,8 +207,8 @@ const baseEvents = [
       "/events/art-bazaar.svg",
       "/events/campus.svg",
       "/events/palm-tree.svg",
-      "/events/interview-crew.svg"
-    ]
+      "/events/interview-crew.svg",
+    ],
   },
   {
     id: "nirvana-night",
@@ -225,8 +227,8 @@ const baseEvents = [
       "/events/cypher.svg",
       "/events/art-bazaar.svg",
       "/events/palm-tree.svg",
-      "/events/select-art.svg"
-    ]
+      "/events/select-art.svg",
+    ],
   },
   {
     id: "sunset-social",
@@ -246,8 +248,8 @@ const baseEvents = [
       "/events/holi-edit.svg",
       "/events/nirvana.svg",
       "/events/genz-night.svg",
-      "/events/art-bazaar.svg"
-    ]
+      "/events/art-bazaar.svg",
+    ],
   },
   {
     id: "honesty-lab",
@@ -267,8 +269,8 @@ const baseEvents = [
       "/events/genz-night.svg",
       "/events/lofi-house.svg",
       "/events/campus.svg",
-      "/events/palm-tree.svg"
-    ]
+      "/events/palm-tree.svg",
+    ],
   },
   {
     id: "midnight-market",
@@ -288,8 +290,8 @@ const baseEvents = [
       "/events/interview-fashion.svg",
       "/events/disclosure.svg",
       "/events/yoga.svg",
-      "/events/genz-night.svg"
-    ]
+      "/events/genz-night.svg",
+    ],
   },
   {
     id: "neon-horizon-gala",
@@ -301,7 +303,8 @@ const baseEvents = [
     category: "Trending",
     image: "/events/electric-dreams.jpg",
     gradient: ["#4f46e5", "#0f172a"],
-    description: "An exclusive black-tie affair with a neon twist. Unlimited cocktails and gourmet dining.",
+    description:
+      "An exclusive black-tie affair with a neon twist. Unlimited cocktails and gourmet dining.",
     guests: ["Aria", "Leo", "Zara"],
     gallery: [
       "/events/electric-dreams.jpg",
@@ -309,9 +312,9 @@ const baseEvents = [
       "/events/art-bazaar.svg",
       "/events/disclosure.svg",
       "/events/palm-tree.svg",
-      "/events/genz-night.svg"
-    ]
-  }
+      "/events/genz-night.svg",
+    ],
+  },
 ];
 
 const metadataById = {
@@ -325,7 +328,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1599,
-    stats: { heatScore: 94, rsvpsLast48h: 184, views: 2380, saves: 402, shares: 118, createdAt: "2025-10-12T09:00:00+05:30" },
+    stats: {
+      heatScore: 94,
+      rsvpsLast48h: 184,
+      views: 2380,
+      saves: 402,
+      shares: 118,
+      createdAt: "2025-10-12T09:00:00+05:30",
+    },
     tickets: [
       {
         id: "after-ga",
@@ -338,7 +348,7 @@ const metadataById = {
         minPerOrder: 1,
         maxPerOrder: 4,
         salesStart: "2025-10-10T10:00:00+05:30",
-        salesEnd: "2025-11-21T17:00:00+05:30"
+        salesEnd: "2025-11-21T17:00:00+05:30",
       },
       {
         id: "after-vip",
@@ -351,7 +361,7 @@ const metadataById = {
         minPerOrder: 2,
         maxPerOrder: 8,
         salesStart: "2025-10-10T10:00:00+05:30",
-        salesEnd: "2025-11-21T18:00:00+05:30"
+        salesEnd: "2025-11-21T18:00:00+05:30",
       },
       {
         id: "after-rsvp",
@@ -361,9 +371,9 @@ const metadataById = {
         quantity: 60,
         remaining: 12,
         description: "Guestlist RSVP · pay at door",
-        rsvpOnly: true
-      }
-    ]
+        rsvpOnly: true,
+      },
+    ],
   },
   "campus-cookout": {
     city: "Pune, IN",
@@ -375,7 +385,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 76, rsvpsLast48h: 126, views: 1640, saves: 230, shares: 72, createdAt: "2025-10-15T08:30:00+05:30" },
+    stats: {
+      heatScore: 76,
+      rsvpsLast48h: 126,
+      views: 1640,
+      saves: 230,
+      shares: 72,
+      createdAt: "2025-10-15T08:30:00+05:30",
+    },
     tickets: [
       {
         id: "cookout-free",
@@ -384,7 +401,7 @@ const metadataById = {
         currency: "INR",
         quantity: 200,
         remaining: 200,
-        description: "General admission for all students."
+        description: "General admission for all students.",
       },
       {
         id: "cookout-student",
@@ -395,7 +412,7 @@ const metadataById = {
         remaining: 34,
         description: "Bring valid college ID at gate.",
         minPerOrder: 1,
-        maxPerOrder: 6
+        maxPerOrder: 6,
       },
       {
         id: "cookout-ga",
@@ -404,7 +421,7 @@ const metadataById = {
         currency: "INR",
         quantity: 180,
         remaining: 88,
-        description: "Entry plus tastings from all pop up kitchens."
+        description: "Entry plus tastings from all pop up kitchens.",
       },
       {
         id: "cookout-rsvp",
@@ -414,9 +431,9 @@ const metadataById = {
         quantity: 90,
         remaining: 38,
         description: "RSVP only · Pay for plates on-site",
-        rsvpOnly: true
-      }
-    ]
+        rsvpOnly: true,
+      },
+    ],
   },
   "lofi-rooftop": {
     city: "Pune, IN",
@@ -428,7 +445,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 68, rsvpsLast48h: 92, views: 1120, saves: 180, shares: 52, createdAt: "2025-10-18T09:30:00+05:30" },
+    stats: {
+      heatScore: 68,
+      rsvpsLast48h: 92,
+      views: 1120,
+      saves: 180,
+      shares: 52,
+      createdAt: "2025-10-18T09:30:00+05:30",
+    },
     tickets: [
       {
         id: "lofi-free",
@@ -437,7 +461,7 @@ const metadataById = {
         currency: "INR",
         quantity: 50,
         remaining: 50,
-        description: "Standard access to the rooftop."
+        description: "Standard access to the rooftop.",
       },
       {
         id: "lofi-flow",
@@ -448,7 +472,7 @@ const metadataById = {
         remaining: 18,
         description: "Breathwork + live beat tape listening.",
         minPerOrder: 1,
-        maxPerOrder: 3
+        maxPerOrder: 3,
       },
       {
         id: "lofi-duo",
@@ -457,9 +481,9 @@ const metadataById = {
         currency: "INR",
         quantity: 80,
         remaining: 12,
-        description: "Duo mat zone with herbal tea service."
-      }
-    ]
+        description: "Duo mat zone with herbal tea service.",
+      },
+    ],
   },
   "genz-night": {
     city: "Pune, IN",
@@ -471,7 +495,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 89, rsvpsLast48h: 158, views: 2100, saves: 345, shares: 118, createdAt: "2025-10-05T10:00:00+05:30" },
+    stats: {
+      heatScore: 89,
+      rsvpsLast48h: 158,
+      views: 2100,
+      saves: 345,
+      shares: 118,
+      createdAt: "2025-10-05T10:00:00+05:30",
+    },
     tickets: [
       {
         id: "genz-floor",
@@ -480,7 +511,7 @@ const metadataById = {
         currency: "INR",
         quantity: 250,
         remaining: 110,
-        description: "Standing access + merch drop pin."
+        description: "Standing access + merch drop pin.",
       },
       {
         id: "genz-crew",
@@ -491,9 +522,9 @@ const metadataById = {
         remaining: 6,
         description: "Reserved table for 4 with mocktails.",
         minPerOrder: 4,
-        maxPerOrder: 6
-      }
-    ]
+        maxPerOrder: 6,
+      },
+    ],
   },
   "diy-art-basement": {
     city: "Pune, IN",
@@ -505,7 +536,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "link",
     startingPrice: 699,
-    stats: { heatScore: 73, rsvpsLast48h: 102, views: 1400, saves: 180, shares: 55, createdAt: "2025-10-20T11:00:00+05:30" },
+    stats: {
+      heatScore: 73,
+      rsvpsLast48h: 102,
+      views: 1400,
+      saves: 180,
+      shares: 55,
+      createdAt: "2025-10-20T11:00:00+05:30",
+    },
     tickets: [
       {
         id: "diy-floor",
@@ -514,7 +552,7 @@ const metadataById = {
         currency: "INR",
         quantity: 140,
         remaining: 64,
-        description: "Basement gallery plus zine lab."
+        description: "Basement gallery plus zine lab.",
       },
       {
         id: "diy-circle",
@@ -523,9 +561,9 @@ const metadataById = {
         currency: "INR",
         quantity: 30,
         remaining: 18,
-        description: "Front row pillows + meet the visualists."
-      }
-    ]
+        description: "Front row pillows + meet the visualists.",
+      },
+    ],
   },
   "riverfront-fit": {
     city: "Pune, IN",
@@ -537,7 +575,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 61, rsvpsLast48h: 90, views: 880, saves: 140, shares: 40, createdAt: "2025-10-08T07:30:00+05:30" },
+    stats: {
+      heatScore: 61,
+      rsvpsLast48h: 90,
+      views: 880,
+      saves: 140,
+      shares: 40,
+      createdAt: "2025-10-08T07:30:00+05:30",
+    },
     tickets: [
       {
         id: "river-rsvp",
@@ -547,9 +592,9 @@ const metadataById = {
         quantity: 220,
         remaining: 150,
         description: "Guided breathwork and chai finishers.",
-        rsvpOnly: true
-      }
-    ]
+        rsvpOnly: true,
+      },
+    ],
   },
   "house-of-synth": {
     city: "Mumbai, IN",
@@ -562,7 +607,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1299,
-    stats: { heatScore: 82, rsvpsLast48h: 132, views: 1750, saves: 260, shares: 82, createdAt: "2025-10-22T10:00:00+05:30" },
+    stats: {
+      heatScore: 82,
+      rsvpsLast48h: 132,
+      views: 1750,
+      saves: 260,
+      shares: 82,
+      createdAt: "2025-10-22T10:00:00+05:30",
+    },
     tickets: [
       {
         id: "synth-floor",
@@ -571,7 +623,7 @@ const metadataById = {
         currency: "INR",
         quantity: 180,
         remaining: 0,
-        description: "Standing room with VJ pit view."
+        description: "Standing room with VJ pit view.",
       },
       {
         id: "synth-lab",
@@ -582,9 +634,9 @@ const metadataById = {
         remaining: 0,
         description: "Behind the booth walkthrough.",
         minPerOrder: 2,
-        maxPerOrder: 4
-      }
-    ]
+        maxPerOrder: 4,
+      },
+    ],
   },
   "secret-brunch": {
     city: "Pune, IN",
@@ -597,7 +649,14 @@ const metadataById = {
     visibility: "password",
     passwordCode: "TABLE22",
     startingPrice: 0,
-    stats: { heatScore: 67, rsvpsLast48h: 94, views: 1200, saves: 150, shares: 46, createdAt: "2025-10-18T15:30:00+05:30" },
+    stats: {
+      heatScore: 67,
+      rsvpsLast48h: 94,
+      views: 1200,
+      saves: 150,
+      shares: 46,
+      createdAt: "2025-10-18T15:30:00+05:30",
+    },
     tickets: [
       {
         id: "brunch-rsvp",
@@ -607,7 +666,7 @@ const metadataById = {
         quantity: 80,
         remaining: 22,
         description: "Includes chai welcome and access to chef stalls.",
-        rsvpOnly: true
+        rsvpOnly: true,
       },
       {
         id: "brunch-chef",
@@ -616,9 +675,9 @@ const metadataById = {
         currency: "INR",
         quantity: 20,
         remaining: 4,
-        description: "Six course tasting by Goa pop up chefs."
-      }
-    ]
+        description: "Six course tasting by Goa pop up chefs.",
+      },
+    ],
   },
   "cypher-sundays": {
     city: "Pune, IN",
@@ -630,7 +689,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 299,
-    stats: { heatScore: 65, rsvpsLast48h: 110, views: 980, saves: 140, shares: 44, createdAt: "2025-10-24T12:00:00+05:30" },
+    stats: {
+      heatScore: 65,
+      rsvpsLast48h: 110,
+      views: 980,
+      saves: 140,
+      shares: 44,
+      createdAt: "2025-10-24T12:00:00+05:30",
+    },
     tickets: [
       {
         id: "cypher-crew",
@@ -639,7 +705,7 @@ const metadataById = {
         currency: "INR",
         quantity: 60,
         remaining: 12,
-        description: "Includes slot in open cypher battle."
+        description: "Includes slot in open cypher battle.",
       },
       {
         id: "cypher-gallery",
@@ -648,9 +714,9 @@ const metadataById = {
         currency: "INR",
         quantity: 90,
         remaining: 38,
-        description: "Stadium seating + photo booth token."
-      }
-    ]
+        description: "Stadium seating + photo booth token.",
+      },
+    ],
   },
   "lower-east-block": {
     city: "New Delhi, IN",
@@ -663,7 +729,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 1499,
-    stats: { heatScore: 72, rsvpsLast48h: 108, views: 1600, saves: 200, shares: 60, createdAt: "2025-10-25T10:30:00+05:30" },
+    stats: {
+      heatScore: 72,
+      rsvpsLast48h: 108,
+      views: 1600,
+      saves: 200,
+      shares: 60,
+      createdAt: "2025-10-25T10:30:00+05:30",
+    },
     tickets: [
       {
         id: "block-pass",
@@ -672,7 +745,7 @@ const metadataById = {
         currency: "INR",
         quantity: 240,
         remaining: 98,
-        description: "Day pass + skate demos."
+        description: "Day pass + skate demos.",
       },
       {
         id: "block-raver",
@@ -681,9 +754,9 @@ const metadataById = {
         currency: "INR",
         quantity: 160,
         remaining: 44,
-        description: "Late night warehouse stage until 2 AM."
-      }
-    ]
+        description: "Late night warehouse stage until 2 AM.",
+      },
+    ],
   },
   "nirvana-night": {
     city: "Pune, IN",
@@ -695,7 +768,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 799,
-    stats: { heatScore: 100, rsvpsLast48h: 118, views: 1500, saves: 210, shares: 62, createdAt: "2025-10-28T12:00:00+05:30" },
+    stats: {
+      heatScore: 100,
+      rsvpsLast48h: 118,
+      views: 1500,
+      saves: 210,
+      shares: 62,
+      createdAt: "2025-10-28T12:00:00+05:30",
+    },
     tickets: [
       {
         id: "nirvana-floor",
@@ -704,7 +784,7 @@ const metadataById = {
         currency: "INR",
         quantity: 200,
         remaining: 84,
-        description: "Standing pass with zine bundle."
+        description: "Standing pass with zine bundle.",
       },
       {
         id: "nirvana-balcony",
@@ -715,9 +795,9 @@ const metadataById = {
         remaining: 8,
         description: "Balcony stools + drink combo.",
         minPerOrder: 2,
-        maxPerOrder: 4
-      }
-    ]
+        maxPerOrder: 4,
+      },
+    ],
   },
   "sunset-social": {
     city: "Pune, IN",
@@ -729,7 +809,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 0,
-    stats: { heatScore: 64, rsvpsLast48h: 105, views: 1300, saves: 170, shares: 55, createdAt: "2025-10-18T08:00:00+05:30" },
+    stats: {
+      heatScore: 64,
+      rsvpsLast48h: 105,
+      views: 1300,
+      saves: 170,
+      shares: 55,
+      createdAt: "2025-10-18T08:00:00+05:30",
+    },
     tickets: [
       {
         id: "sunset-rsvp",
@@ -739,9 +826,9 @@ const metadataById = {
         quantity: 150,
         remaining: 60,
         description: "Bring your disposable for the film swap.",
-        rsvpOnly: true
-      }
-    ]
+        rsvpOnly: true,
+      },
+    ],
   },
   "honesty-lab": {
     city: "Pune, IN",
@@ -754,7 +841,14 @@ const metadataById = {
     visibility: "password",
     passwordCode: "HONESTY",
     startingPrice: 399,
-    stats: { heatScore: 58, rsvpsLast48h: 80, views: 960, saves: 180, shares: 42, createdAt: "2025-10-26T13:30:00+05:30" },
+    stats: {
+      heatScore: 58,
+      rsvpsLast48h: 80,
+      views: 960,
+      saves: 180,
+      shares: 42,
+      createdAt: "2025-10-26T13:30:00+05:30",
+    },
     tickets: [
       {
         id: "honesty-circle",
@@ -763,9 +857,9 @@ const metadataById = {
         currency: "INR",
         quantity: 60,
         remaining: 10,
-        description: "Guided prompts + zine kit."
-      }
-    ]
+        description: "Guided prompts + zine kit.",
+      },
+    ],
   },
   "midnight-market": {
     city: "Bangalore, IN",
@@ -778,7 +872,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 499,
-    stats: { heatScore: 75, rsvpsLast48h: 140, views: 1800, saves: 220, shares: 78, createdAt: "2025-10-30T11:30:00+05:30" },
+    stats: {
+      heatScore: 75,
+      rsvpsLast48h: 140,
+      views: 1800,
+      saves: 220,
+      shares: 78,
+      createdAt: "2025-10-30T11:30:00+05:30",
+    },
     tickets: [
       {
         id: "market-pass",
@@ -787,7 +888,7 @@ const metadataById = {
         currency: "INR",
         quantity: 260,
         remaining: 122,
-        description: "Night market access + thrift tokens."
+        description: "Night market access + thrift tokens.",
       },
       {
         id: "market-crew",
@@ -796,9 +897,9 @@ const metadataById = {
         currency: "INR",
         quantity: 120,
         remaining: 52,
-        description: "Includes access to the rooftop cypher."
-      }
-    ]
+        description: "Includes access to the rooftop cypher.",
+      },
+    ],
   },
   "neon-horizon-gala": {
     city: "Pune, IN",
@@ -810,7 +911,14 @@ const metadataById = {
     timezone: "Asia/Kolkata",
     visibility: "public",
     startingPrice: 2499,
-    stats: { heatScore: 98, rsvpsLast48h: 210, views: 3500, saves: 560, shares: 190, createdAt: "2025-11-01T10:00:00+05:30" },
+    stats: {
+      heatScore: 98,
+      rsvpsLast48h: 210,
+      views: 3500,
+      saves: 560,
+      shares: 190,
+      createdAt: "2025-11-01T10:00:00+05:30",
+    },
     tickets: [
       {
         id: "gala-ga",
@@ -819,7 +927,7 @@ const metadataById = {
         currency: "INR",
         quantity: 300,
         remaining: 150,
-        description: "Entry + 2 premium cocktails."
+        description: "Entry + 2 premium cocktails.",
       },
       {
         id: "gala-vip",
@@ -830,7 +938,7 @@ const metadataById = {
         remaining: 12,
         description: "Unlimited F&B + Private Lounge Access.",
         minPerOrder: 1,
-        maxPerOrder: 4
+        maxPerOrder: 4,
       },
       {
         id: "gala-table",
@@ -841,13 +949,18 @@ const metadataById = {
         remaining: 3,
         description: "Reserved table for 6 with bottle service.",
         minPerOrder: 1,
-        maxPerOrder: 1
-      }
-    ]
-  }
+        maxPerOrder: 1,
+      },
+    ],
+  },
 };
 
-const slugify = (value = "") => value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-/, "").replace(/-$/, "");
+const slugify = (value = "") =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-/, "")
+    .replace(/-$/, "");
 
 const inferCity = (location = "") => {
   if (!location) return "Pune, IN";
@@ -866,7 +979,7 @@ const summarizeTickets = (tickets = []) => {
       totalCapacity: 0,
       totalRemaining: 0,
       soldOut: false,
-      fewSpotsLeft: false
+      fewSpotsLeft: false,
     };
   }
 
@@ -879,21 +992,22 @@ const summarizeTickets = (tickets = []) => {
       return {
         minPrice: Math.min(acc.minPrice, price),
         totalCapacity: acc.totalCapacity + capacity,
-        totalRemaining: acc.totalRemaining + remaining
+        totalRemaining: acc.totalRemaining + remaining,
       };
     },
-    { minPrice: Infinity, totalCapacity: 0, totalRemaining: 0 }
+    { minPrice: Infinity, totalCapacity: 0, totalRemaining: 0 },
   );
 
   const soldOut = summary.totalRemaining <= 0;
-  const fewSpotsLeft = !soldOut && summary.totalCapacity > 0 && summary.totalRemaining / summary.totalCapacity <= 0.2;
+  const fewSpotsLeft =
+    !soldOut && summary.totalCapacity > 0 && summary.totalRemaining / summary.totalCapacity <= 0.2;
 
   return {
     minPrice: Number.isFinite(summary.minPrice) ? summary.minPrice : 0,
     totalCapacity: summary.totalCapacity,
     totalRemaining: summary.totalRemaining,
     soldOut,
-    fewSpotsLeft
+    fewSpotsLeft,
   };
 };
 
@@ -919,21 +1033,23 @@ const applyMetadata = (event) => {
       : [];
   const tickets = ticketsSource.map((ticket, index) => ({
     ...ticket,
-    id: ticket.id || `${event.id}-ticket-${index + 1}`
+    id: ticket.id || `${event.id}-ticket-${index + 1}`,
   }));
   const ticketSummary = summarizeTickets(tickets);
-  const startPrice = typeof metadata.startingPrice === "number" ? metadata.startingPrice : ticketSummary.minPrice;
+  const startPrice =
+    typeof metadata.startingPrice === "number" ? metadata.startingPrice : ticketSummary.minPrice;
   const stats = metadata.stats || event.stats || {};
   const startDateTime = metadata.startDateTime || event.startDateTime || "";
   const endDateTime = metadata.endDateTime || event.endDateTime || startDateTime;
   const startDate = metadata.startDate || toIsoString(startDateTime);
   const endDate = metadata.endDate || toIsoString(endDateTime);
-  const createdAt = metadata.createdAt || stats.createdAt || startDate || "2025-10-01T10:00:00+05:30";
+  const createdAt =
+    metadata.createdAt || stats.createdAt || startDate || "2025-10-01T10:00:00+05:30";
   const updatedAt = metadata.updatedAt || createdAt;
   const priceRange = metadata.priceRange || {
     min: startPrice,
     max: typeof metadata.maxPrice === "number" ? metadata.maxPrice : startPrice,
-    currency: "INR"
+    currency: "INR",
   };
 
   return {
@@ -959,7 +1075,7 @@ const applyMetadata = (event) => {
       views: stats.views ?? 620,
       saves: stats.saves ?? 54,
       shares: stats.shares ?? 18,
-      createdAt
+      createdAt,
     },
     heatScore: typeof stats.heatScore === "number" ? stats.heatScore : 60,
     createdAt,
@@ -972,8 +1088,8 @@ const applyMetadata = (event) => {
       total: ticketSummary.totalCapacity,
       remaining: ticketSummary.totalRemaining,
       soldOut: metadata.soldOut ?? ticketSummary.soldOut,
-      fewSpotsLeft: metadata.fewSpotsLeft ?? ticketSummary.fewSpotsLeft
-    }
+      fewSpotsLeft: metadata.fewSpotsLeft ?? ticketSummary.fewSpotsLeft,
+    },
   };
 };
 

@@ -1,14 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import {
-  arrayRemove,
-  arrayUnion,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc
-} from "firebase/firestore";
+import { arrayRemove, arrayUnion, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -19,7 +12,7 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
 } from "firebase/auth";
 import { getFirebaseAuth, getFirebaseDb } from "../../lib/firebase/client";
 
@@ -27,9 +20,9 @@ const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  login: async () => { },
-  logout: async () => { },
-  updateUserProfile: async () => { }
+  login: async () => {},
+  logout: async () => {},
+  updateUserProfile: async () => {},
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
@@ -62,7 +55,7 @@ export function AuthProvider({ children }) {
     } finally {
       setProfile(null);
       setUser(null);
-      sessionStorage.removeItem('lastActivity');
+      sessionStorage.removeItem("lastActivity");
     }
   }, []);
 
@@ -71,11 +64,11 @@ export function AuthProvider({ children }) {
     if (!user) return;
 
     const handleActivity = () => {
-      sessionStorage.setItem('lastActivity', Date.now().toString());
+      sessionStorage.setItem("lastActivity", Date.now().toString());
     };
 
     const checkIdle = () => {
-      const lastActivity = parseInt(sessionStorage.getItem('lastActivity') || "0");
+      const lastActivity = parseInt(sessionStorage.getItem("lastActivity") || "0");
       if (Date.now() - lastActivity > IDLE_TIMEOUT) {
         console.warn("[SECURITY] Idle timeout triggered. Logging out.");
         logout();
@@ -85,54 +78,59 @@ export function AuthProvider({ children }) {
     // Initial activity
     handleActivity();
 
-    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
-    events.forEach(e => window.addEventListener(e, handleActivity));
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, handleActivity));
 
     const interval = setInterval(checkIdle, 30000); // Check every 30s
 
     return () => {
-      events.forEach(e => window.removeEventListener(e, handleActivity));
+      events.forEach((e) => window.removeEventListener(e, handleActivity));
       clearInterval(interval);
     };
   }, [user, logout]);
 
-  const ensureProfile = useCallback(async (firebaseUser) => {
-    try {
-      const db = getFirebaseDb();
+  const ensureProfile = useCallback(
+    async (firebaseUser) => {
+      try {
+        const db = getFirebaseDb();
 
-      // 1. Primary Check: Dedicated 'admins' collection
-      const adminRef = doc(db, "admins", firebaseUser.uid);
-      const adminSnap = await getDoc(adminRef);
+        // 1. Primary Check: Dedicated 'admins' collection
+        const adminRef = doc(db, "admins", firebaseUser.uid);
+        const adminSnap = await getDoc(adminRef);
 
-      if (adminSnap.exists()) {
-        const data = adminSnap.data();
-        if (data.status === 'suspended') {
-          throw new Error("ADMIN_ACCOUNT_SUSPENDED");
+        if (adminSnap.exists()) {
+          const data = adminSnap.data();
+          if (data.status === "suspended") {
+            throw new Error("ADMIN_ACCOUNT_SUSPENDED");
+          }
+          setProfile(data);
+          return data;
         }
-        setProfile(data);
-        return data;
-      }
 
-      // 2. Legacy Check: 'users' collection with admin role
-      const legacyRef = doc(db, "users", firebaseUser.uid);
-      const legacySnap = await getDoc(legacyRef);
-      if (legacySnap.exists()) {
-        const legacyData = legacySnap.data();
-        if (legacyData.role === 'admin' || legacyData.admin_role) {
-          setProfile(legacyData);
-          return legacyData;
+        // 2. Legacy Check: 'users' collection with admin role
+        const legacyRef = doc(db, "users", firebaseUser.uid);
+        const legacySnap = await getDoc(legacyRef);
+        if (legacySnap.exists()) {
+          const legacyData = legacySnap.data();
+          if (legacyData.role === "admin" || legacyData.admin_role) {
+            setProfile(legacyData);
+            return legacyData;
+          }
         }
-      }
 
-      // 3. Unauthorized: This is an admin console, no other contexts allowed.
-      throw new Error("AUTHORITY_MISSING: Access restricted to authorized administrative personnel.");
-    } catch (profileError) {
-      console.error("ensureProfile error", profileError);
-      setError(profileError.message || "Access Denied");
-      logout();
-      return null;
-    }
-  }, [logout]);
+        // 3. Unauthorized: This is an admin console, no other contexts allowed.
+        throw new Error(
+          "AUTHORITY_MISSING: Access restricted to authorized administrative personnel.",
+        );
+      } catch (profileError) {
+        console.error("ensureProfile error", profileError);
+        setError(profileError.message || "Access Denied");
+        logout();
+        return null;
+      }
+    },
+    [logout],
+  );
 
   useEffect(() => {
     let unsubscribe;
@@ -155,18 +153,21 @@ export function AuthProvider({ children }) {
     return () => unsubscribe?.();
   }, [ensureProfile]);
 
-  const login = useCallback(async (email, password) => {
-    const auth = getFirebaseAuth();
+  const login = useCallback(
+    async (email, password) => {
+      const auth = getFirebaseAuth();
 
-    // HARD RULE 4: No "Remember me", No Persistent local login
-    // Force Session Persistence (Cleared on tab/window close)
-    await setPersistence(auth, browserSessionPersistence);
+      // HARD RULE 4: No "Remember me", No Persistent local login
+      // Force Session Persistence (Cleared on tab/window close)
+      await setPersistence(auth, browserSessionPersistence);
 
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    await ensureProfile(credential.user);
-    sessionStorage.setItem('lastActivity', Date.now().toString());
-    return credential.user;
-  }, [ensureProfile]);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await ensureProfile(credential.user);
+      sessionStorage.setItem("lastActivity", Date.now().toString());
+      return credential.user;
+    },
+    [ensureProfile],
+  );
 
   const updateUserProfile = useCallback(
     async (updates) => {
@@ -175,11 +176,11 @@ export function AuthProvider({ children }) {
       const profileRef = doc(db, "users", user.uid);
       await updateDoc(profileRef, {
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       });
       setProfile((prev) => ({ ...prev, ...updates }));
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const value = useMemo(
@@ -190,9 +191,9 @@ export function AuthProvider({ children }) {
       error,
       login,
       logout,
-      updateUserProfile
+      updateUserProfile,
     }),
-    [user, profile, loading, error, login, logout, updateUserProfile]
+    [user, profile, loading, error, login, logout, updateUserProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
@@ -201,4 +202,3 @@ export function AuthProvider({ children }) {
 export const useAuth = () => useContext(AuthContext);
 
 export default AuthProvider;
-
