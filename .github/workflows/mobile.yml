@@ -1,0 +1,55 @@
+name: Mobile EAS Build
+
+on:
+  push:
+    branches: [main, staging]
+    paths:
+      - apps/mobile-app/**
+      - apps/scanner-app/**
+      - packages/core/**
+      - packages/ui/**
+      - packages/types/**
+
+jobs:
+  eas-build:
+    name: EAS Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [mobile-app, scanner-app]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm install --legacy-peer-deps
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: EAS Build (preview)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          cd apps/${{ matrix.app }}
+          eas build --platform all --profile preview --non-interactive
+      - name: EAS Build (production)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd apps/${{ matrix.app }}
+          eas build --platform all --profile production --non-interactive
+          eas submit --platform all --non-interactive
+
+  expo-updates:
+    name: OTA Update (EAS Update)
+    if: github.ref == 'refs/heads/main'
+    needs: eas-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: |
+          cd apps/mobile-app && eas update --branch production --message "${{ github.event.head_commit.message }}"

@@ -67,7 +67,7 @@
         "./moderation-service": "./dist/domain/services/moderation-service.js"
     },
     "dependencies": {
-        "firebase": "^12.6.0",
+        "firebase": "^12.14.0",
         "firebase-admin": "^13.6.0",
         "inngest": "^3.52.0",
         "ioredis": "^5.9.2",
