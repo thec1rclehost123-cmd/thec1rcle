@@ -10,12 +10,13 @@ const firebaseConfig = {
   storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
 let firebaseApp;
 
-const hasRequiredClientConfig = () => Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
+const hasRequiredClientConfig = () =>
+  Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId);
 
 export function getFirebaseApp() {
   if (!firebaseApp) {
@@ -24,7 +25,9 @@ export function getFirebaseApp() {
         console.warn("⚠️  [CORE] Firebase client configuration is missing. Operating in TOY MODE.");
         return null;
       }
-      throw new Error("Missing Firebase client configuration. Set NEXT_PUBLIC_FIREBASE_* env vars.");
+      throw new Error(
+        "Missing Firebase client configuration. Set NEXT_PUBLIC_FIREBASE_* env vars.",
+      );
     }
     firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
   }

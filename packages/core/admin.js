@@ -42,7 +42,8 @@ const getAdminConfig = () => {
   // Remove debug logs to avoid clutter/leaks
   // console.log("DEBUG: Processed PK Len:", privateKey?.length);
 
-  const storageBucket = process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
+  const storageBucket =
+    process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
 
   return {
     projectId,
@@ -73,7 +74,9 @@ const assertAdminConfig = () => {
     return null;
   }
   if (!hasAdminConfig()) {
-    throw new Error("CRITICAL: Missing Firebase admin credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.");
+    throw new Error(
+      "CRITICAL: Missing Firebase admin credentials. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY.",
+    );
   }
   return getAdminConfig();
 };
@@ -82,7 +85,7 @@ export function getAdminApp() {
   if (adminApp) return adminApp;
 
   // Hardened Singleton: Check global scope to bridge module resolution gaps
-  if (typeof global !== 'undefined' && global._adminApp) {
+  if (typeof global !== "undefined" && global._adminApp) {
     adminApp = global._adminApp;
     return adminApp;
   }
@@ -90,7 +93,7 @@ export function getAdminApp() {
   const existingApps = getApps();
   if (existingApps.length) {
     adminApp = getApp();
-    if (typeof global !== 'undefined') global._adminApp = adminApp;
+    if (typeof global !== "undefined") global._adminApp = adminApp;
     return adminApp;
   }
 
@@ -105,16 +108,16 @@ export function getAdminApp() {
       credential: cert({
         projectId: credentials.projectId,
         clientEmail: credentials.clientEmail,
-        privateKey: credentials.privateKey
+        privateKey: credentials.privateKey,
       }),
-      storageBucket: credentials.storageBucket
+      storageBucket: credentials.storageBucket,
     });
-    if (typeof global !== 'undefined') global._adminApp = adminApp;
+    if (typeof global !== "undefined") global._adminApp = adminApp;
   } catch (err) {
     // Definitive Duplicate Check: If someone else beat us to it
-    if (err.code === 'app/duplicate-app') {
+    if (err.code === "app/duplicate-app") {
       adminApp = getApp();
-      if (typeof global !== 'undefined') global._adminApp = adminApp;
+      if (typeof global !== "undefined") global._adminApp = adminApp;
       return adminApp;
     }
     console.error("FATAL: Failed to initialize Firebase Admin:", err);
@@ -122,7 +125,6 @@ export function getAdminApp() {
   }
   return adminApp;
 }
-
 
 export function getAdminDb() {
   if (!adminDb) {
