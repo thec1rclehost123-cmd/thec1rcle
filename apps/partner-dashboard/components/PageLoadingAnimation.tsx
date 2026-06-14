@@ -124,7 +124,7 @@ export default function PageLoadingAnimation() {
           <div className="absolute bottom-8 left-8 w-8 h-8 border-b-2 border-l-2 border-cyan-500/50" />
           <div className="absolute bottom-8 right-8 w-8 h-8 border-b-2 border-r-2 border-cyan-500/50" />
 
-          <style jsx>{`
+          <style>{`
             @keyframes scanline {
               0% {
                 background-position: 0 0;

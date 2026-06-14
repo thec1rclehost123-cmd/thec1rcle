@@ -215,7 +215,7 @@ export default function PageLoadingAnimation() {
             <div className="absolute bottom-1/3 right-1/4 w-1 h-1 bg-white rounded-full animate-pulse-slow delay-700" />
           </div>
 
-          <style jsx global>{`
+          <style>{`
             @keyframes pulse-slow {
               0%,
               100% {
