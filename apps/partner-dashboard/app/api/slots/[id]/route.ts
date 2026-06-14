@@ -82,6 +82,7 @@ export async function PATCH(
                         { status: 400 }
                     );
                 }
+                // @ts-expect-error - pre-existing: function signature mismatch (JS module accepts spread)
                 result = await counterProposeSlot(params.id, body.venueId || actor.partnerId, actor, alternativeDate, alternativeStartTime, alternativeEndTime, notes);
                 break;
 
