@@ -9,7 +9,7 @@
     // Monorepo: packages are hoisted to workspace root node_modules.
     // node10 walks up directories — but the local node_modules/@types stops the search
     // before reaching root. typeRoots explicitly points TypeScript at root @types.
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "typeRoots": [
       "../../node_modules/@types",
       "node_modules/@types"
