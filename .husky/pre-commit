@@ -1,3 +1,4 @@
 node scripts/check-branch-name.mjs
 node scripts/check-secrets.mjs
-npx lint-staged
+npm run lint
+npx prettier --check .

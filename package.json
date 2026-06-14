@@ -23,7 +23,10 @@
     "format:check": "prettier --check .",
     "stylelint:check": "stylelint \"**/*.css\" --allow-empty-input",
     "test:integration": "echo 'No integration tests configured yet' && exit 0",
-    "prepush": "npm run type-check && npx turbo run test --filter=@c1rcle/core && npm run build"
+    "guardrails:check": "node scripts/check-backend-boundaries.mjs",
+    "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
+    "architecture:guest": "node scripts/check-backend-boundaries.mjs --guest-architecture",
+    "prepush": "npm run lint && npx prettier --check . && npm run stylelint:check && npm run type-check && npm audit --audit-level=high --workspaces && npm test && npm run build && npm run guardrails:check"
   },
   "lint-staged": {
     "*": "prettier --write --ignore-unknown",

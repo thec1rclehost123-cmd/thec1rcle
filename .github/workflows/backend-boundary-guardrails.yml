@@ -25,3 +25,9 @@ jobs:
       - run: npx turbo type-check
 
       - run: npx turbo lint
+
+      - name: Backend boundary compliance
+        run: npm run guardrails:check
+
+      - name: Guardrails tests
+        run: npm run test:guardrails
