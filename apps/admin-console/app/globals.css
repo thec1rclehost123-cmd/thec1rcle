@@ -15,13 +15,13 @@
   --border-primary: rgb(255 255 255 / 6%);
   --border-secondary: rgb(255 255 255 / 3%);
   --nav-bg-opaque: rgb(12 12 11 / 95%);
-  --nav-border: rgba(255, 255, 255, 0.08);
-  --glass-bg: rgba(12, 12, 11, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.6);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.7);
-  --bg-gradient: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.02), transparent 70%);
+  --nav-border: rgb(255 255 255 / 8%);
+  --glass-bg: rgb(12 12 11 / 70%);
+  --glass-border: rgb(255 255 255 / 8%);
+  --shadow-sm: 0 2px 8px rgb(0 0 0 / 50%);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / 60%);
+  --shadow-lg: 0 8px 32px rgb(0 0 0 / 70%);
+  --bg-gradient: radial-gradient(circle at 50% 0%, rgb(255 255 255 / 2%), transparent 70%);
 
   /* Mobile Spacing System */
   --page-px-mobile: 1rem;
@@ -33,11 +33,13 @@
   html {
     -webkit-tap-highlight-color: transparent;
     font-size: 18px;
+
     /* Further increased to 18px for a more pronounced zoom effect */
   }
 
   body {
     @apply font-body antialiased transition-colors duration-300 text-[16px];
+
     background-color: var(--bg-color);
     color: var(--text-primary);
     background-attachment: fixed;
@@ -63,12 +65,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(255 255 255 / 10%);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(255 255 255 / 20%);
 }
 
 ::selection {
@@ -89,18 +91,19 @@
 @layer components {
   .page-shell {
     @apply relative min-h-screen w-full overflow-x-hidden;
+
     padding-left: var(--page-px-mobile);
     padding-right: var(--page-px-mobile);
   }
 
-  @media (min-width: 640px) {
+  @media (width >= 640px) {
     .page-shell {
       padding-left: var(--page-px-tablet);
       padding-right: var(--page-px-tablet);
     }
   }
 
-  @media (min-width: 1024px) {
+  @media (width >= 1024px) {
     .page-shell {
       padding-left: 0;
       padding-right: 0;
@@ -148,12 +151,12 @@
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgb(255 255 255 / 8%);
     border-radius: 10px;
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgb(255 255 255 / 15%);
   }
 }
 
@@ -176,12 +179,12 @@
   0%,
   100% {
     opacity: 1;
-    filter: drop-shadow(0 0 2px rgba(244, 74, 34, 0.4));
+    filter: drop-shadow(0 0 2px rgb(244 74 34 / 40%));
   }
 
   50% {
     opacity: 0.7;
-    filter: drop-shadow(0 0 8px rgba(244, 74, 34, 0.6));
+    filter: drop-shadow(0 0 8px rgb(244 74 34 / 60%));
   }
 }
 

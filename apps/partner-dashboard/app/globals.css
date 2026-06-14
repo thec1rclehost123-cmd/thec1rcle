@@ -16,54 +16,54 @@
 :root {
   /* ─── Brand Colors ─── */
   --c1rcle-orange: #f44a22;
-  --c1rcle-orange-glow: rgba(244, 74, 34, 0.25);
-  --c1rcle-orange-dim: #cc3311;
+  --c1rcle-orange-glow: rgb(244 74 34 / 25%);
+  --c1rcle-orange-dim: #c31;
   --c1rcle-orange-light: #ff6b4a;
 
   /* ─── Light Mode Surfaces ─── */
-  --surface-base: #ffffff;
+  --surface-base: #fff;
   --surface-secondary: #f8f9fa;
   --surface-tertiary: #f1f3f5;
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(0, 0, 0, 0.5);
+  --surface-elevated: #fff;
+  --surface-overlay: rgb(0 0 0 / 50%);
 
   /* ─── Light Mode Sidebar ─── */
   --sidebar-bg: #fafbfc;
-  --sidebar-border: rgba(0, 0, 0, 0.06);
+  --sidebar-border: rgb(0 0 0 / 6%);
 
   /* ─── Light Mode Typography ─── */
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-tertiary: #94a3b8;
   --text-placeholder: #cbd5e1;
-  --text-inverse: #ffffff;
+  --text-inverse: #fff;
 
   /* ─── Light Mode Borders ─── */
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-default: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgb(0 0 0 / 4%);
+  --border-default: rgb(0 0 0 / 8%);
+  --border-strong: rgb(0 0 0 / 12%);
   --border-focus: var(--c1rcle-orange);
 
   /* ─── State Colors (Semantic) ─── */
   --state-success: #10b981;
-  --state-success-bg: rgba(16, 185, 129, 0.1);
+  --state-success-bg: rgb(16 185 129 / 10%);
   --state-warning: #f59e0b;
-  --state-warning-bg: rgba(245, 158, 11, 0.1);
+  --state-warning-bg: rgb(245 158 11 / 10%);
   --state-error: #ef4444;
-  --state-error-bg: rgba(239, 68, 68, 0.1);
+  --state-error-bg: rgb(239 68 68 / 10%);
   --state-info: #6366f1;
-  --state-info-bg: rgba(99, 102, 241, 0.1);
+  --state-info-bg: rgb(99 102 241 / 10%);
 
   /* ─── Trend Colors (Financial) ─── */
   --trend-up: #10b981;
-  --trend-up-bg: rgba(16, 185, 129, 0.12);
+  --trend-up-bg: rgb(16 185 129 / 12%);
   --trend-down: #ef4444;
-  --trend-down-bg: rgba(239, 68, 68, 0.12);
+  --trend-down-bg: rgb(239 68 68 / 12%);
   --trend-neutral: #6b7280;
 
   /* ─── Typography Stack ─── */
   --font-system:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI",
+    -apple-system, blinkmacsystemfont, "SF Pro Display", "SF Pro Text", "Inter", "Segoe UI",
     sans-serif;
   --font-mono: "SF Mono", "Fira Code", "Monaco", monospace;
 
@@ -92,11 +92,11 @@
   --radius-full: 9999px;
 
   /* ─── Shadows (Light) ─── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.06);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-sm: 0 2px 4px rgb(0 0 0 / 4%), 0 1px 2px rgb(0 0 0 / 2%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 6%), 0 2px 4px rgb(0 0 0 / 4%);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 8%), 0 4px 8px rgb(0 0 0 / 4%);
+  --shadow-xl: 0 16px 48px rgb(0 0 0 / 12%), 0 8px 16px rgb(0 0 0 / 6%);
   --shadow-glow: 0 0 20px var(--c1rcle-orange-glow);
   --shadow-glow-lg: 0 0 40px var(--c1rcle-orange-glow);
 
@@ -118,11 +118,11 @@
   --surface-secondary: #111113;
   --surface-tertiary: #18181b;
   --surface-elevated: #1c1c1f;
-  --surface-overlay: rgba(0, 0, 0, 0.8);
+  --surface-overlay: rgb(0 0 0 / 80%);
 
   /* ─── Dark Mode Sidebar ─── */
   --sidebar-bg: #0d0d0e;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgb(255 255 255 / 6%);
 
   /* ─── Dark Mode Typography ─── */
   --text-primary: #fafafa;
@@ -132,34 +132,34 @@
   --text-inverse: #0a0a0b;
 
   /* ─── Dark Mode Borders ─── */
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgb(255 255 255 / 4%);
+  --border-default: rgb(255 255 255 / 8%);
+  --border-strong: rgb(255 255 255 / 12%);
 
   /* ─── Dark Mode State Colors ─── */
   --state-success: #34d399;
-  --state-success-bg: rgba(52, 211, 153, 0.15);
+  --state-success-bg: rgb(52 211 153 / 15%);
   --state-warning: #fbbf24;
-  --state-warning-bg: rgba(251, 191, 36, 0.15);
+  --state-warning-bg: rgb(251 191 36 / 15%);
   --state-error: #f87171;
-  --state-error-bg: rgba(248, 113, 113, 0.15);
+  --state-error-bg: rgb(248 113 113 / 15%);
   --state-info: #818cf8;
-  --state-info-bg: rgba(129, 140, 248, 0.15);
+  --state-info-bg: rgb(129 140 248 / 15%);
 
   /* ─── Dark Mode Trend Colors ─── */
   --trend-up: #34d399;
-  --trend-up-bg: rgba(52, 211, 153, 0.15);
+  --trend-up-bg: rgb(52 211 153 / 15%);
   --trend-down: #f87171;
-  --trend-down-bg: rgba(248, 113, 113, 0.15);
+  --trend-down-bg: rgb(248 113 113 / 15%);
 
   /* ─── Dark Mode Shadows ─── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 30px rgba(244, 74, 34, 0.3);
-  --shadow-glow-lg: 0 0 60px rgba(244, 74, 34, 0.4);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-sm: 0 2px 4px rgb(0 0 0 / 30%), 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 40%), 0 2px 4px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 50%), 0 4px 8px rgb(0 0 0 / 30%);
+  --shadow-xl: 0 16px 48px rgb(0 0 0 / 60%), 0 8px 16px rgb(0 0 0 / 40%);
+  --shadow-glow: 0 0 30px rgb(244 74 34 / 30%);
+  --shadow-glow-lg: 0 0 60px rgb(244 74 34 / 40%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -177,7 +177,7 @@
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizelegibility;
   font-size: 16px;
   scroll-behavior: smooth;
 }
@@ -503,16 +503,15 @@ body {
 
 /* Glass Card (Dark Mode Premium) */
 .card-glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(255 255 255 / 3%);
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
 }
 
 .dark .card-glass {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 8%);
 }
 
 /* Glow Card (Accent) */
@@ -549,13 +548,13 @@ body {
 }
 
 .kpi-tile-accent {
-  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgba(244, 74, 34, 0.03) 100%);
-  border-color: rgba(244, 74, 34, 0.15);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgb(244 74 34 / 3%) 100%);
+  border-color: rgb(244 74 34 / 15%);
 }
 
 .dark .kpi-tile-accent {
-  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgba(244, 74, 34, 0.08) 100%);
-  border-color: rgba(244, 74, 34, 0.2);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgb(244 74 34 / 8%) 100%);
+  border-color: rgb(244 74 34 / 20%);
 }
 
 .kpi-icon {
@@ -917,7 +916,7 @@ body {
   padding: 4px 12px;
   border-radius: var(--radius-full);
   background: var(--state-success-bg);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid rgb(16 185 129 / 20%);
 }
 
 .live-indicator::before {
@@ -996,7 +995,7 @@ body {
 }
 
 .dark .nav-item-active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(255 255 255 / 8%);
 }
 
 .nav-icon {
@@ -1325,12 +1324,12 @@ body {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 30%), transparent);
   animation: shimmer 1.5s infinite;
 }
 
 .dark .skeleton::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 8%), transparent);
 }
 
 .skeleton-text {
@@ -1626,11 +1625,11 @@ body {
 .progress-bar-animated .progress-bar-fill {
   background-image: linear-gradient(
     -45deg,
-    rgba(255, 255, 255, 0.15) 25%,
+    rgb(255 255 255 / 15%) 25%,
     transparent 25%,
     transparent 50%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.15) 75%,
+    rgb(255 255 255 / 15%) 50%,
+    rgb(255 255 255 / 15%) 75%,
     transparent 75%,
     transparent
   );
@@ -1652,7 +1651,7 @@ body {
    RESPONSIVE UTILITIES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 640px) {
+@media (width <= 640px) {
   .text-display-xl {
     font-size: 36px;
   }
@@ -1773,7 +1772,7 @@ body {
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: rgb(255 255 255 / 10%) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -1786,22 +1785,12 @@ body {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(255 255 255 / 10%);
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-/* Hide scrollbar but keep functionality */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+  background: rgb(255 255 255 / 20%);
 }
 
 @tailwind utilities;

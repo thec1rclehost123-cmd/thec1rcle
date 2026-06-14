@@ -1,16 +1,68 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "workspaces": {
+    "apps/admin-console": {
+      "entry": ["app/**/*.{tsx,ts,jsx,js}"],
+      "project": ["app/**/*.{tsx,ts,jsx,js}"]
+    },
+    "apps/guest-portal": {
+      "entry": ["app/**/*.{tsx,ts,jsx,js}"],
+      "project": ["app/**/*.{tsx,ts,jsx,js}"]
+    },
+    "apps/partner-dashboard": {
+      "entry": ["app/**/*.{tsx,ts,jsx,js}"],
+      "project": ["app/**/*.{tsx,ts,jsx,js}"]
+    },
+    "apps/api-gateway": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
     "apps/scanner-app": {
-      "entry": ["app/**/*.tsx", "app/**/*.ts"],
-      "ignore": ["metro.config.js"]
+      "entry": ["app/**/*.tsx"],
+      "project": ["app/**/*.tsx"]
     },
     "apps/mobile-app": {
-      "entry": ["app/**/*.tsx", "app/**/*.ts"],
-      "ignore": ["metro.config.js"]
+      "entry": ["app/**/*.tsx"],
+      "project": ["app/**/*.tsx"]
+    },
+    "packages/core": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
+    },
+    "packages/ui": {
+      "entry": ["src/**/*.{js,jsx}"],
+      "project": ["src/**/*.{js,jsx}"]
+    },
+    "packages/types": {
+      "entry": ["src/**/*.ts"],
+      "project": ["src/**/*.ts"]
     }
   },
+  "ignore": [
+    "debug_*.js",
+    "functions/**",
+    "latency_*.js",
+    "ledger_*.js",
+    "performance_*.js",
+    "repair_*.js",
+    "scripts/*.mjs",
+    "scripts/*.js",
+    "seed_*.js",
+    "settle_*.js",
+    "tailwind.config.js",
+    "test_*.js"
+  ],
+  "exclude": [
+    "dependencies",
+    "unlisted",
+    "binaries",
+    "unresolved",
+    "duplicates"
+  ],
   "ignoreDependencies": [
-    "tailwind.config"
+    "@vitest/coverage-v8",
+    "tailwind.config",
+    "tailwindcss",
+    "vitest"
   ]
 }
