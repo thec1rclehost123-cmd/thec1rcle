@@ -52,4 +52,6 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: |
-          cd apps/mobile-app && eas update --branch production --message "${{ github.event.head_commit.message }}"
+          cd apps/mobile-app && eas update --branch production --message "$COMMIT_MSG"
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}

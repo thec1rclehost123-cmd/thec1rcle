@@ -74,9 +74,9 @@ jobs:
       - name: Set Project IDs
         id: vars
         run: |
-          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> $GITHUB_OUTPUT; echo "domain=staging-admin.thec1rcle.com" >> $GITHUB_OUTPUT; fi
-          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> $GITHUB_OUTPUT; echo "domain=staging.thec1rcle.com" >> $GITHUB_OUTPUT; fi
-          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> $GITHUB_OUTPUT; echo "domain=staging-partner.thec1rcle.com" >> $GITHUB_OUTPUT; fi
+          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT"; echo "domain=staging-admin.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT"; echo "domain=staging.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT"; echo "domain=staging-partner.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25.2.0
