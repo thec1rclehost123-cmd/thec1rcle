@@ -1,45 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createEvent } from "@/lib/server/eventStore";
-import { createSlotRequest } from "@/lib/server/slotStore";
+/**
+ * POST /api/events/create
+ * Thin proxy — delegates partner event creation to the API Gateway at
+ * POST /api/v1/partner/events/create.
+ *
+ * All business logic (slot checks, partnership enforcement, lifecycle
+ * transitions, slot request creation) lives in the gateway.
+ */
+import { NextRequest } from "next/server";
+import { withAuth } from "@/lib/server/withAuth";
+import { fail } from "@/lib/server/apiResponse";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+export const POST = withAuth(async (req: NextRequest) => {
+    const body = await req.json().catch(() => null);
+    if (!body?.title) return fail("title is required", 400);
+    if (!body?.creatorRole) return fail("creatorRole is required", 400);
 
-    // Enforce lifecycle based on role, only if NOT a draft
-    if (body.lifecycle !== "draft") {
-      if (body.creatorRole === "host") {
-        body.lifecycle = "submitted";
-      } else if (body.creatorRole === "venue" || body.creatorRole === "club") {
-        body.lifecycle = "approved";
-      }
-    }
-
-    const event = await createEvent(body);
-
-    // If it's a host event, also create a slot request
-    if (body.creatorRole === "host" && body.venueId) {
-      try {
-        await createSlotRequest({
-          eventId: event.id,
-          hostId: body.creatorId || "",
-          hostName: body.host || "",
-          venueId: body.venueId,
-          venueName: body.venueName || body.venue || "",
-          requestedDate: body.startDate,
-          requestedStartTime: body.startTime,
-          requestedEndTime: body.endTime,
-          notes: `Event creation request: ${body.title}`,
-        });
-      } catch (slotError) {
-        console.error("Failed to create slot request:", slotError);
-        // We don't fail the whole event creation, but we log it
-      }
-    }
-
-    return NextResponse.json({ success: true, event });
-  } catch (error: any) {
-    console.error("Create Event error:", error);
-    return NextResponse.json({ error: error.message || "Failed to create event" }, { status: 500 });
-  }
-}
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partner/events/create`, {
+        method: "POST",
+        body: JSON.stringify(body),
+    });
+});

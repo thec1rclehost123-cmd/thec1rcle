@@ -13,6 +13,7 @@ import { getRedisClient } from "./redis.js";
  */
 export async function trackEventView(eventId, viewerId) {
     const redis = getRedisClient();
+    if (!redis || redis.status !== "ready") return; // skip if not yet connected
     const key = `viewers:${eventId}`;
     const userKey = `viewer_session:${eventId}:${viewerId}`;
 
@@ -25,6 +26,8 @@ export async function trackEventView(eventId, viewerId) {
         // NOTE: In a high-traffic system, we might use a Sorted Set with timestamps 
         // to prune old viewers more efficiently.
     }
+
+    return Boolean(isNew);
 }
 
 /**
@@ -32,6 +35,7 @@ export async function trackEventView(eventId, viewerId) {
  */
 export async function getLiveViewerCount(eventId) {
     const redis = getRedisClient();
+    if (!redis || redis.status !== "ready") return 0;
     const key = `viewers:${eventId}`;
 
     // In a production environment, we'd prune the Set here or via a CRON

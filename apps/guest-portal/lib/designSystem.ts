@@ -1,3 +1,5 @@
+"use client";
+
 import type { Variants } from "framer-motion";
 import { tokens } from "./design-system/tokens";
 import {

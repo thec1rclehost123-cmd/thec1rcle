@@ -1,7 +1,5 @@
-"use client";
-
 import { motion } from "framer-motion";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { type ReactNode } from "react";
 import { motionPresets, transitions, type MotionPresetKey } from "../lib/motion";
 import { useScrollFade } from "../lib/hooks/useScrollFade";
@@ -27,7 +25,7 @@ export default function SectionReveal({
   return (
     <motion.div
       ref={ref}
-      className={clsx("will-change-transform", className)}
+      className={cn("will-change-transform", className)}
       variants={preset}
       initial="hidden"
       animate={controls}

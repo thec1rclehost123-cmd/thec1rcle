@@ -1,7 +1,8 @@
 /**
  * Venue Page Store (Refactored for API Governance)
- *
- * Uses the unified C1rcleApiClient to manage Venue CMS data.
+ * 
+ * Uses the unified C1rcleApiClient to manage venue page content.
+ * All DB access moved to @c1rcle/core/cms-engine via API Gateway.
  */
 
 import { getApiClient } from "./apiClient";
@@ -10,237 +11,271 @@ import { getApiClient } from "./apiClient";
  * Get complete venue page data for partner dashboard.
  */
 export async function getVenuePageDataForDashboard(venueId, token) {
-  const client = getApiClient(token);
-  try {
-    const data = await client.getVenueCMSData(venueId);
-
-    // Ensure default facilities are initialized if empty (handled by Gateway/Engine usually, but safe fallback)
-    if (data.facilities?.length === 0) {
-      await client.initVenueFacilities(venueId);
-      return client.getVenueCMSData(venueId);
+    const client = getApiClient(token);
+    try {
+        const res = await client.request(`/cms/venue/${venueId}`);
+        return res;
+    } catch (error) {
+        console.error("[VenuePageStore] getVenuePageDataForDashboard failed:", error.message);
+        return null;
     }
-
-    return data;
-  } catch (error) {
-    console.error("[VenuePageStore] Error getting venue page data:", error.message);
-    throw error;
-  }
-}
-
-/**
- * Update venue basic details
- */
-export async function updateVenueDetails(venueId, updates, token) {
-  const client = getApiClient(token);
-  return client.updateProfile("venue", updates, venueId);
-}
-
-// ─── Highlights ──────────────────────────────────────────────────
-
-export async function createHighlight(venueId, data, token) {
-  const client = getApiClient(token);
-  return client.createHighlight(venueId, data);
-}
-
-export async function updateHighlight(highlightId, venueId, updates, token) {
-  const client = getApiClient(token);
-  return client.updateHighlight(highlightId, venueId, updates);
-}
-
-export async function deleteHighlight(highlightId, venueId, token) {
-  // Note: We might need a deleteHighlight in SDK if PATCH isActive=false isn't enough
-  // For now, using updateHighlight with isActive: false or if we added a DELETE route
-  const client = getApiClient(token);
-  return client.updateHighlight(highlightId, venueId, { isActive: false });
-}
-
-// ─── Gallery ─────────────────────────────────────────────────────
-
-export async function addGalleryPhoto(venueId, imageUrl, caption, token) {
-  const client = getApiClient(token);
-  return client.addGalleryPhoto(venueId, imageUrl, caption);
-}
-
-export async function removeGalleryPhoto(photoId, venueId, token) {
-  // SDK needs removeGalleryPhoto if we implemented it in Gateway
-  const client = getApiClient(token);
-  // If not in SDK yet, we can use request directly for now or update SDK
-  return client.request(`/cms/gallery/${photoId}?venueId=${venueId}`, { method: "DELETE" });
-}
-
-// ─── Menu ────────────────────────────────────────────────────────
-
-export async function addMenuImage(venueId, imageUrl, title, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/menu", {
-    method: "POST",
-    body: JSON.stringify({ venueId, imageUrl, title }),
-  });
-}
-
-export async function removeMenuImage(menuId, venueId, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/menu/${menuId}?venueId=${venueId}`, { method: "DELETE" });
-}
-
-// ─── Facilities ──────────────────────────────────────────────────
-
-export async function addFacility(venueId, name, icon, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/facilities", {
-    method: "POST",
-    body: JSON.stringify({ venueId, name, icon }),
-  });
-}
-
-export async function updateFacility(facilityId, updates, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/facilities/${facilityId}`, {
-    method: "PATCH",
-    body: JSON.stringify(updates),
-  });
-}
-
-export async function deleteFacility(facilityId, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/facilities/${facilityId}`, { method: "DELETE" });
-}
-
-export async function toggleFacility(facilityId, isEnabled, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/facilities/${facilityId}/toggle`, {
-    method: "PATCH",
-    body: JSON.stringify({ isEnabled }),
-  });
-}
-
-export async function reorderFacilities(venueId, orderedIds, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/facilities/reorder", {
-    method: "POST",
-    body: JSON.stringify({ venueId, orderedIds }),
-  });
-}
-
-export async function initializeDefaultFacilities(venueId, token) {
-  const client = getApiClient(token);
-  return client.initVenueFacilities(venueId);
-}
-
-// ─── Gallery (Extended) ──────────────────────────────────────────
-
-export async function reorderGalleryPhotos(venueId, orderedIds, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/gallery/reorder", {
-    method: "POST",
-    body: JSON.stringify({ venueId, orderedIds }),
-  });
 }
 
 /**
  * Get public venue page data
  */
 export async function getVenuePageData(venueId, token) {
-  const client = getApiClient(token);
-  try {
-    return await client.getVenueCMSData(venueId);
-  } catch (error) {
-    console.error("[VenuePageStore] Error getting venue page data:", error.message);
-    return null;
-  }
+    // Public data might not need a token or might use a guest token
+    const client = getApiClient(token);
+    try {
+        const res = await client.request(`/cms/venue/${venueId}`);
+        return res;
+    } catch (error) {
+        console.error("[VenuePageStore] getVenuePageData failed:", error.message);
+        return null;
+    }
+}
+
+/**
+ * Update venue basic details
+ */
+export async function updateVenueDetails(venueId, updates, token) {
+    const client = getApiClient(token);
+    return client.updateProfile('venue', updates, venueId);
+}
+
+export async function initializeDefaultFacilities(venueId) {
+    const DEFAULT_FACILITIES = [
+        { name: "Parking", icon: "Car" },
+        { name: "WiFi", icon: "Wifi" },
+        { name: "VIP Area", icon: "Crown" },
+        { name: "Bar", icon: "GlassWater" },
+        { name: "Security", icon: "Shield" }
+    ];
+    
+    const db = getAdminDb();
+    const batch = db.batch();
+    
+    DEFAULT_FACILITIES.forEach((f, i) => {
+        const ref = db.collection('venue_facilities').doc();
+        batch.set(ref, {
+            ...f,
+            venueId,
+            isEnabled: true,
+            order: i,
+            createdAt: new Date().toISOString()
+        });
+    });
+    
+    await batch.commit();
+    return { success: true };
+}
+
+/**
+ * Get highlights for a profile
+ */
+export async function getVenueHighlights(venueId, token) {
+    const client = getApiClient(token);
+    try {
+        return await client.getProfileHighlights(venueId, 'venue');
+    } catch (error) {
+        console.error("[VenuePageStore] getVenueHighlights failed:", error.message);
+        return [];
+    }
+}
+
+/**
+ * Create a new highlight
+ */
+export async function createHighlight(venueId, data, token) {
+    const client = getApiClient(token);
+    return client.request('/cms/highlights', {
+        method: 'POST',
+        body: JSON.stringify({ venueId, ...data })
+    });
+}
+
+/**
+ * Update a highlight
+ */
+export async function updateHighlight(highlightId, venueId, updates, token) {
+    const client = getApiClient(token);
+    return client.request(`/cms/highlights/${highlightId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ venueId, ...updates })
+    });
+}
+
+/**
+ * Delete a highlight
+ */
+export async function deleteHighlight(highlightId, venueId, token) {
+    const client = getApiClient(token);
+    return client.request(`/cms/highlights/${highlightId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ venueId })
+    });
+}
+
+/**
+ * Add a photo to the gallery
+ */
+export async function addGalleryPhoto(venueId, imageUrl, caption, token) {
+    const client = getApiClient(token);
+    return client.request('/cms/gallery', {
+        method: 'POST',
+        body: JSON.stringify({ venueId, imageUrl, caption })
+    });
+}
+
+/**
+ * Remove a photo from the gallery
+ */
+export async function removeGalleryPhoto(photoId, venueId, token) {
+    const client = getApiClient(token);
+    return client.request(`/cms/gallery/${photoId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ venueId })
+    });
+}
+
+/**
+ * Add a menu image
+ */
+export async function addMenuImage(venueId, imageUrl, title, token) {
+    const client = getApiClient(token);
+    return client.request('/cms/menu', {
+        method: 'POST',
+        body: JSON.stringify({ venueId, imageUrl, title })
+    });
+}
+
+/**
+ * Remove a menu image
+ */
+export async function removeMenuImage(menuId, venueId, token) {
+    const client = getApiClient(token);
+    return client.request(`/cms/menu/${menuId}`, {
+        method: 'DELETE',
+        body: JSON.stringify({ venueId })
+    });
 }
 
 /**
  * Get upcoming events for a venue
  */
 export async function getVenueUpcomingEvents(venueId, token) {
-  const client = getApiClient(token);
-  try {
-    const data = await client.getEvents({ venueId, timeframe: "upcoming" });
-    return data.events || [];
-  } catch (error) {
-    console.error("[VenuePageStore] Error getting upcoming events:", error.message);
-    return [];
-  }
+    const client = getApiClient(token);
+    try {
+        const res = await client.request(`/events?venueId=${venueId}&status=upcoming&limit=20`);
+        return Array.isArray(res) ? res : res?.data || [];
+    } catch (error) {
+        console.error("[VenuePageStore] getVenueUpcomingEvents failed:", error.message);
+        return [];
+    }
 }
 
 /**
  * Get past events for a venue
  */
 export async function getVenuePastEvents(venueId, token) {
-  const client = getApiClient(token);
-  try {
-    const data = await client.getEvents({ venueId, timeframe: "past" });
-    return data.events || [];
-  } catch (error) {
-    console.error("[VenuePageStore] Error getting past events:", error.message);
-    return [];
-  }
+    const client = getApiClient(token);
+    try {
+        const res = await client.request(`/events?venueId=${venueId}&status=past&limit=20`);
+        return Array.isArray(res) ? res : res?.data || [];
+    } catch (error) {
+        console.error("[VenuePageStore] getVenuePastEvents failed:", error.message);
+        return [];
+    }
 }
 
-export async function addImageToHighlight(highlightId, imageUrl, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/highlights/${highlightId}/images`, {
-    method: "POST",
-    body: JSON.stringify({ imageUrl }),
-  });
+/**
+ * Initialize venue facilities
+ */
+export async function initializeFacilities(venueId, token) {
+    const client = getApiClient(token);
+    return client.initVenueFacilities(venueId);
 }
 
-export async function removeImageFromHighlight(highlightId, imageUrl, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/highlights/${highlightId}/images`, {
-    method: "DELETE",
-    body: JSON.stringify({ imageUrl }),
-  });
+export async function addFacility(venueId, name, icon, token) {
+    const client = getApiClient(token);
+    return client.addFacility(venueId, name, icon);
 }
 
-export async function reorderHighlightImages(highlightId, images, token) {
-  const client = getApiClient(token);
-  return client.request(`/cms/highlights/${highlightId}/reorder`, {
-    method: "POST",
-    body: JSON.stringify({ images }),
-  });
+export async function updateFacility(facilityId, updates, token) {
+    const client = getApiClient(token);
+    return client.updateFacility(facilityId, updates);
 }
 
-export async function reorderHighlights(venueId, orderedIds, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/highlights/reorder", {
-    method: "POST",
-    body: JSON.stringify({ venueId, orderedIds }),
-  });
+export async function deleteFacility(facilityId, token) {
+    const client = getApiClient(token);
+    return client.deleteFacility(facilityId);
+}
+
+export async function toggleFacility(facilityId, isEnabled, token) {
+    const client = getApiClient(token);
+    return client.toggleFacility(facilityId, isEnabled);
+}
+
+export async function reorderFacilities(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderFacilities(venueId, orderedIds);
+}
+
+export async function reorderGalleryPhotos(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderGalleryPhotos(venueId, orderedIds);
 }
 
 export async function reorderMenuImages(venueId, orderedIds, token) {
-  const client = getApiClient(token);
-  return client.request("/cms/menu/reorder", {
-    method: "POST",
-    body: JSON.stringify({ venueId, orderedIds }),
-  });
+    const client = getApiClient(token);
+    return client.reorderMenuImages(venueId, orderedIds);
+}
+
+export async function addImageToHighlight(highlightId, imageUrl, venueId, token) {
+    const client = getApiClient(token);
+    return client.addImageToHighlight(highlightId, imageUrl, venueId);
+}
+
+export async function removeImageFromHighlight(highlightId, imageId, venueId, token) {
+    const client = getApiClient(token);
+    return client.removeImageFromHighlight(highlightId, imageId, venueId);
+}
+
+export async function reorderHighlightImages(highlightId, orderedIds, venueId, token) {
+    const client = getApiClient(token);
+    return client.reorderHighlightImages(highlightId, orderedIds, venueId);
+}
+
+export async function reorderHighlights(venueId, orderedIds, token) {
+    const client = getApiClient(token);
+    return client.reorderHighlights(venueId, orderedIds);
 }
 
 export default {
-  getVenuePageData,
-  getVenuePageDataForDashboard,
-  updateVenueDetails,
-  createHighlight,
-  updateHighlight,
-  deleteHighlight,
-  addImageToHighlight,
-  removeImageFromHighlight,
-  reorderHighlightImages,
-  reorderHighlights,
-  addGalleryPhoto,
-  removeGalleryPhoto,
-  reorderGalleryPhotos,
-  addMenuImage,
-  removeMenuImage,
-  reorderMenuImages,
-  getVenueUpcomingEvents,
-  getVenuePastEvents,
-  addFacility,
-  updateFacility,
-  deleteFacility,
-  toggleFacility,
-  reorderFacilities,
-  initializeDefaultFacilities,
+    getVenuePageData,
+    getVenuePageDataForDashboard,
+    updateVenueDetails,
+    getVenueHighlights,
+    createHighlight,
+    updateHighlight,
+    deleteHighlight,
+    addGalleryPhoto,
+    removeGalleryPhoto,
+    addMenuImage,
+    removeMenuImage,
+    getVenueUpcomingEvents,
+    getVenuePastEvents,
+    initializeFacilities,
+    addFacility,
+    updateFacility,
+    deleteFacility,
+    toggleFacility,
+    reorderFacilities,
+    reorderGalleryPhotos,
+    reorderMenuImages,
+    addImageToHighlight,
+    removeImageFromHighlight,
+    reorderHighlightImages,
+    reorderHighlights
 };

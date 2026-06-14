@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { usePathname } from "next/navigation";
 
-export default function RouteTransition({ children }) {
+export default function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   return (

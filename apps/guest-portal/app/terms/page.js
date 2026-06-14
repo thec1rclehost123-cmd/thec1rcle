@@ -32,7 +32,7 @@ export default function TermsPage() {
   ];
 
   return (
-    <div className="relative min-h-screen bg-white dark:bg-[#0A0A0A] text-black dark:text-white pb-32 pt-40 px-6 sm:px-12">
+    <div className="relative min-h-screen bg-white dark:bg-[#0A0A0A] text-black dark:text-white pb-32 pt-40 px-4 sm:px-6 md:px-12">
       {/* Background Glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-iris/5 blur-[120px] rounded-full" />

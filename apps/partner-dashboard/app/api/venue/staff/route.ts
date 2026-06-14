@@ -1,136 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  addStaffMember,
-  listVenueStaff,
-  updateStaffMember,
-  removeStaffMember,
-  verifyStaffMember,
-  rolePresets,
-} from "@/lib/server/staffStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/venue/staff
- * List all staff members for a club
- */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const venueId = searchParams.get("venueId");
-    const isActive = searchParams.get("isActive");
-
-    if (!venueId) {
-      return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-    }
-
-    const staff = await listVenueStaff(venueId, {
-      isActive: isActive === "false" ? false : isActive === "all" ? null : true,
-    });
-
-    return NextResponse.json({
-      staff,
-      roleOptions: Object.keys(rolePresets),
-    });
-  } catch (error: any) {
-    console.error("[Staff API] GET Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to fetch staff" }, { status: 500 });
-  }
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff?${searchParams}`, {});
 }
 
-/**
- * POST /api/venue/staff
- * Add a new staff member
- */
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { venueId, email, name, role, phone, addedBy } = body;
-
-    if (!venueId || !email || !name || !role) {
-      return NextResponse.json(
-        { error: "venueId, email, name, and role are required" },
-        { status: 400 },
-      );
-    }
-
-    if (!rolePresets[role as keyof typeof rolePresets]) {
-      return NextResponse.json(
-        { error: `Invalid role. Valid roles: ${Object.keys(rolePresets).join(", ")}` },
-        { status: 400 },
-      );
-    }
-
-    const staffMember = await addStaffMember({
-      venueId,
-      email,
-      name,
-      role,
-      phone,
-      // @ts-expect-error - pre-existing: runtime passes addedBy even if not in type
-      addedBy: addedBy || { uid: "system", name: "System" },
+    const ctx = await requireVenueAccess(req, "manage_staff");
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff`, {
+        method: "POST",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
     });
-
-    return NextResponse.json({ staff: staffMember }, { status: 201 });
-  } catch (error: any) {
-    console.error("[Staff API] POST Error:", error);
-
-    if (error.message?.includes("already exists")) {
-      return NextResponse.json({ error: error.message }, { status: 409 });
-    }
-
-    return NextResponse.json(
-      { error: error.message || "Failed to add staff member" },
-      { status: 500 },
-    );
-  }
 }
 
-/**
- * PATCH /api/venue/staff
- * Update a staff member (role, permissions, verify, remove)
- */
 export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { staffId, action, updates, updatedBy } = body;
+    const ctx = await requireVenueAccess(req, "manage_staff");
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff`, {
+        method: "PATCH",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
+}
 
-    if (!staffId || !action) {
-      return NextResponse.json({ error: "staffId and action are required" }, { status: 400 });
-    }
-
-    let result;
-
-    switch (action) {
-      case "update":
-        if (!updates) {
-          return NextResponse.json(
-            { error: "updates object is required for update action" },
-            { status: 400 },
-          );
-        }
-        result = await updateStaffMember(staffId, updates, updatedBy);
-        break;
-
-      case "verify":
-        result = await verifyStaffMember(staffId, updatedBy);
-        break;
-
-      case "remove":
-        result = await removeStaffMember(staffId, updatedBy);
-        break;
-
-      default:
-        return NextResponse.json(
-          { error: "Invalid action. Valid actions: update, verify, remove" },
-          { status: 400 },
-        );
-    }
-
-    return NextResponse.json({ staff: result });
-  } catch (error: any) {
-    console.error("[Staff API] PATCH Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to update staff member" },
-      { status: 500 },
-    );
-  }
+export async function DELETE(req: NextRequest) {
+    const ctx = await requireVenueAccess(req, "manage_staff");
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff?${searchParams}`, {
+        method: "DELETE",
+    });
 }

@@ -29,7 +29,7 @@ export default function EventPoster({ event, className }: EventPosterProps) {
       onMouseLeave={tilt.handleLeave}
     >
       <div className="relative h-[420px] w-full overflow-hidden rounded-[28px]">
-        <Image src={event.image} alt={event.title} fill priority className="object-cover" />
+        <Image src={event.image} alt={event.title} fill priority sizes="(max-width: 768px) 100vw, 800px" className="object-cover" />
         <span
           className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 hover:opacity-60"
           style={{ background: gradients.aurora }}

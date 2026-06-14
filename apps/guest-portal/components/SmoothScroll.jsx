@@ -2,36 +2,33 @@
 import { useEffect } from "react";
 import Lenis from "lenis";
 
-import { usePathname } from "next/navigation";
-
 export default function SmoothScroll() {
-  const pathname = usePathname();
+    useEffect(() => {
+        if (typeof window === "undefined") return;
 
-  useEffect(() => {
-    if (pathname?.startsWith("/admin")) return;
+        // Skip Lenis on touch/mobile — native momentum scroll is already smooth
+        // and Lenis on touch adds jank + extra CPU overhead
+        const isTouchDevice = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+        if (isTouchDevice) return;
 
-    const lenis = new Lenis({
-      duration: 1.2,
-      easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-      direction: "vertical",
-      gestureDirection: "vertical",
-      smooth: true,
-      mouseMultiplier: 1,
-      smoothTouch: false,
-      touchMultiplier: 2,
-    });
+        const lenis = new Lenis({
+            duration: 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            smoothTouch: false,
+        });
 
-    function raf(time) {
-      lenis.raf(time);
-      requestAnimationFrame(raf);
-    }
+        let rafId;
+        function raf(time) {
+            lenis.raf(time);
+            rafId = requestAnimationFrame(raf);
+        }
+        rafId = requestAnimationFrame(raf);
 
-    requestAnimationFrame(raf);
+        return () => {
+            cancelAnimationFrame(rafId);
+            lenis.destroy();
+        };
+    }, []);
 
-    return () => {
-      lenis.destroy();
-    };
-  }, [pathname]);
-
-  return null;
+    return null;
 }

@@ -1,35 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listPromoterCommissions } from "@/lib/server/promoterLinkStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/promoter/commissions
- * List commissions for a promoter
- */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const promoterId = searchParams.get("promoterId");
-    const eventId = searchParams.get("eventId");
-    const status = searchParams.get("status");
-    const limit = parseInt(searchParams.get("limit") || "50");
-
-    if (!promoterId && !eventId) {
-      return NextResponse.json({ error: "promoterId or eventId is required" }, { status: 400 });
-    }
-
-    const commissions = await listPromoterCommissions({
-      promoterId: promoterId || undefined,
-      eventId: eventId || undefined,
-      status: status || undefined,
-      limit,
-    });
-
-    return NextResponse.json({ commissions });
-  } catch (error: any) {
-    console.error("[Promoter Commissions API] GET Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch commissions" },
-      { status: 500 },
-    );
-  }
+    searchParams.set("promoterId", ctx.promoterId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/commissions?${searchParams}`, {});
 }

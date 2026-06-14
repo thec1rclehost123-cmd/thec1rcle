@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import PageClient from './PageClient';
 
-export default function PromoterAnalyticsRedirect() {
-  redirect("/promoter/analytics/overview");
+export default function Page() {
+    return <PageClient />;
 }

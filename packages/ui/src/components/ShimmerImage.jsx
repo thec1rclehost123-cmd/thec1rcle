@@ -1,60 +1,51 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 /**
- * A shared ShimmerImage component with loading states using only Tailwind.
+ * ShimmerImage — shared image component with loading shimmer.
+ *
+ * Changes from previous version:
+ * - Replaced deprecated `onLoadingComplete` with `onLoad` (Next.js 13.4+)
+ * - Removed unsafe `node.querySelector('img')` ref (broken in Next.js 14)
+ * - SVG URLs are automatically served with `unoptimized` to avoid _next/image 400 errors
+ * - Data URLs rendered via native <img> (unchanged)
  */
 export default function ShimmerImage({
     className = "",
     wrapperClassName = "",
-    onLoad,
+    onLoad: onLoadProp,
+    /** @deprecated use onLoad instead */
     onLoadingComplete,
     fill,
     src,
     alt,
+    unoptimized: unoptimizedProp,
+    sizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw",
     ...props
 }) {
-    const imgRef = useRef(null);
     const [loaded, setLoaded] = useState(false);
     const [error, setError] = useState(false);
+
     const isPlaceholder = !src || src === "placeholder";
     const isDataUrl = typeof src === "string" && src.startsWith("data:");
-    const isLocal = typeof src === "string" && src.startsWith("/");
-    // We prefer Next.js Image for local paths too for optimization and better handling
-    const useNativeImage = isDataUrl;
 
-    useEffect(() => {
-        if (!src || isPlaceholder) {
-            setError(true);
-            return;
-        }
-        setError(false);
-
-        // If it's a data URL, it's ready immediately
-        if (isDataUrl) {
-            setLoaded(true);
-            return;
-        }
-
-        // Reset loaded state for new src
-        setLoaded(false);
-
-        // Check if image is already cached/loaded
-        if (imgRef.current && imgRef.current.complete) {
-            setLoaded(true);
-        }
-    }, [src, isPlaceholder, isDataUrl]);
+    // SVGs can't go through Next.js image optimizer → serve them raw
+    const isSvg = typeof src === "string" && (
+        src.endsWith(".svg") ||
+        src.includes(".svg?") ||
+        src.includes("/svg")          // covers api.dicebear.com/.../svg
+    );
+    const shouldUnoptimize = unoptimizedProp ?? isSvg;
 
     const handleLoad = (e) => {
         setLoaded(true);
-        if (onLoad) onLoad(e);
-        if (onLoadingComplete) onLoadingComplete(e);
+        onLoadProp?.(e);
+        onLoadingComplete?.(e); // backwards compat — no-op if not passed
     };
 
     const handleError = () => {
-        console.error(`[ShimmerImage] Failed to load: ${src?.substring(0, 50)}...`);
         setError(true);
     };
 
@@ -62,9 +53,16 @@ export default function ShimmerImage({
         ? `absolute inset-0 overflow-hidden ${wrapperClassName}`
         : `relative overflow-hidden ${wrapperClassName}`;
 
+    const imgClassName = [
+        "relative z-10 transition-opacity duration-500",
+        loaded ? "opacity-100" : "opacity-0",
+        fill ? "" : "h-full w-full object-cover",
+        className,
+    ].filter(Boolean).join(" ");
+
     return (
         <div className={wrapperStyles}>
-            {/* Shimmer Effect */}
+            {/* Shimmer overlay — fades out once image is loaded */}
             <div
                 className={`absolute inset-0 z-0 bg-white/5 transition-opacity duration-700 ${loaded ? "opacity-0 invisible" : "opacity-100 visible"
                     }`}
@@ -73,13 +71,12 @@ export default function ShimmerImage({
             </div>
 
             {!isPlaceholder && !error ? (
-                useNativeImage ? (
+                isDataUrl ? (
+                    // Data URLs: use native <img> — no Next.js optimization needed
                     <img
-                        ref={imgRef}
                         src={src}
                         alt={alt || "Image"}
-                        className={`relative z-10 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"
-                            } ${fill ? 'absolute inset-0 h-full w-full object-cover' : 'h-full w-full object-cover'} ${className}`}
+                        className={imgClassName.replace("h-full w-full object-cover", "") + (fill ? " absolute inset-0 h-full w-full object-cover" : " h-full w-full object-cover")}
                         onLoad={handleLoad}
                         onError={handleError}
                     />
@@ -89,24 +86,19 @@ export default function ShimmerImage({
                         src={src}
                         alt={alt || "Image"}
                         fill={fill}
-                        ref={(node) => {
-                            // Support both functional ref (for Next.js Image) and local ref
-                            if (node) {
-                                imgRef.current = node.querySelector ? node.querySelector('img') : node;
-                                if (imgRef.current?.complete && !loaded) {
-                                    setLoaded(true);
-                                }
-                            }
-                        }}
-                        className={`relative z-10 transition-opacity duration-500 ${loaded ? "opacity-100" : "opacity-0"
-                            } ${className}`}
-                        onLoadingComplete={handleLoad}
+                        unoptimized={shouldUnoptimize}
+                        className={imgClassName}
+                        sizes={sizes}
+                        onLoad={handleLoad}
                         onError={handleError}
                     />
                 )
             ) : (
-                <div className={`relative z-10 flex flex-col items-center justify-center bg-zinc-900 border border-white/5 ${fill ? 'absolute inset-0' : 'h-full w-full'
-                    } ${className}`}>
+                // Fallback placeholder
+                <div
+                    className={`relative z-10 flex flex-col items-center justify-center bg-zinc-900 border border-white/5 ${fill ? "absolute inset-0" : "h-full w-full"
+                        } ${className}`}
+                >
                     <div className="text-[10px] font-black uppercase text-white/10 tracking-[0.2em] text-center px-4">
                         {alt || "No Image"}
                     </div>
@@ -116,8 +108,7 @@ export default function ShimmerImage({
     );
 }
 
-// Ensure the shimmer animation is in tailwind.config.js or globals.css:
-// @keyframes shimmer {
-//   100% { transform: translateX(100%); }
-// }
-// .animate-shimmer { animation: shimmer 2s infinite; }
+// shimmer keyframe must be defined in tailwind.config.js or globals.css:
+// @keyframes shimmer { 100% { transform: translateX(100%); } }
+
+

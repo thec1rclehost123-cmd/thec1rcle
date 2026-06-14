@@ -1,267 +1,200 @@
-// Event Group Chat Service
-import {
-  doc,
-  collection,
-  query,
-  where,
-  orderBy,
-  limit,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  onSnapshot,
-  serverTimestamp,
-  Timestamp,
-} from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+// Event Group Chat Service via API Gateway
+import { apiFetch } from "@/lib/api";
 import { GroupMessage, EventPhase, getEventPhase } from "./types";
-import { checkEventEntitlement } from "./entitlements";
 
-// Get or create event group chat
+/**
+ * Get or create event group chat status.
+ * Routes through the API Gateway.
+ */
 export async function getEventGroupChat(eventId: string): Promise<{
-  enabled: boolean;
-  phase: EventPhase;
-  participantCount: number;
+    enabled: boolean;
+    phase: EventPhase;
+    participantCount: number;
 }> {
-  try {
-    const db = getFirebaseDb();
-    const eventRef = doc(db, "events", eventId);
-    const eventDoc = await getDoc(eventRef);
-
-    if (!eventDoc.exists()) {
-      return { enabled: false, phase: "expired", participantCount: 0 };
+    if (!eventId || typeof eventId !== "string") {
+        return { enabled: false, phase: "expired", participantCount: 0 };
     }
+    try {
+        const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
+        if (!event) return { enabled: false, phase: "expired", participantCount: 0 };
 
-    const eventData = eventDoc.data();
-    const eventDate = eventData.startDate?.toDate?.() || new Date(eventData.startDate);
-    const phase = getEventPhase(eventDate);
+        const eventDate = new Date(event.startDate);
+        const phase = getEventPhase(eventDate);
 
-    // Count participants
-    const ordersQuery = query(
-      collection(db, "orders"),
-      where("eventId", "==", eventId),
-      where("status", "in", ["confirmed", "checked_in"]),
-    );
-    const ordersSnap = await getDocs(ordersQuery);
-    const userIds = new Set(ordersSnap.docs.map((d) => d.data().userId));
-
-    return {
-      enabled: phase !== "expired",
-      phase,
-      participantCount: userIds.size,
-    };
-  } catch (error) {
-    console.error("Error getting group chat:", error);
-    return { enabled: false, phase: "expired", participantCount: 0 };
-  }
+        return {
+            enabled: phase !== "expired",
+            phase,
+            participantCount: event.stats?.rsvps || 0,
+        };
+    } catch (error) {
+        console.error("Error getting group chat status:", error);
+        return { enabled: false, phase: "expired", participantCount: 0 };
+    }
 }
 
-// Send message to event group chat
+/**
+ * Send message to event group chat.
+ * Uses: POST /api/v1/social/chat
+ */
 export async function sendGroupMessage(
-  eventId: string,
-  userId: string,
-  userName: string,
-  content: string,
-  userAvatar?: string,
-  userBadge?: string,
+    eventId: string,
+    userId: string,
+    userName: string,
+    content: string,
+    userAvatar?: string,
+    userBadge?: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  try {
-    // Verify entitlement
-    const entitlement = await checkEventEntitlement(userId, eventId);
-    if (!entitlement) {
-      return { success: false, error: "You need a ticket to send messages" };
+    try {
+        const response = await apiFetch<any>("/api/v1/social/chat", {
+            method: "POST",
+            body: JSON.stringify({
+                eventId,
+                text: content,
+                metadata: {
+                    senderAvatar: userAvatar,
+                    senderBadge: userBadge
+                }
+            }),
+            requireAuth: true,
+        });
+
+        return { success: true, messageId: response.id };
+    } catch (error: any) {
+        console.error("Error sending group message:", error);
+        return { success: false, error: error.message };
     }
-
-    const db = getFirebaseDb();
-
-    const message: Omit<GroupMessage, "id"> = {
-      eventId,
-      senderId: userId,
-      senderName: userName,
-      senderAvatar: userAvatar || undefined,
-      senderBadge: userBadge || undefined,
-      content,
-      type: "text",
-      createdAt: serverTimestamp(),
-    };
-
-    const docRef = await addDoc(collection(db, "eventGroupMessages"), message);
-
-    return { success: true, messageId: docRef.id };
-  } catch (error: any) {
-    console.error("Error sending group message:", error);
-    return { success: false, error: error.message };
-  }
 }
 
-// Send image message to event group chat
+/**
+ * Send image message to event group chat.
+ */
 export async function sendGroupImageMessage(
-  eventId: string,
-  userId: string,
-  userName: string,
-  imageUrl: string,
-  userAvatar?: string,
-  userBadge?: string,
+    eventId: string,
+    userId: string,
+    userName: string,
+    imageUrl: string,
+    userAvatar?: string,
+    userBadge?: string
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
-  try {
-    const entitlement = await checkEventEntitlement(userId, eventId);
-    if (!entitlement) {
-      return { success: false, error: "You need a ticket to send messages" };
+    try {
+        const response = await apiFetch<any>("/api/v1/social/chat", {
+            method: "POST",
+            body: JSON.stringify({
+                eventId,
+                imageUrl,
+                metadata: {
+                    senderAvatar: userAvatar,
+                    senderBadge: userBadge
+                }
+            }),
+            requireAuth: true,
+        });
+
+        return { success: true, messageId: response.id };
+    } catch (error: any) {
+        console.error("Error sending group image:", error);
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Send announcement (hosts/venues only).
+ */
+export async function sendAnnouncement(
+    eventId: string,
+    userId: string,
+    userName: string,
+    content: string,
+    badge: "host" | "venue"
+): Promise<{ success: boolean; error?: string }> {
+    try {
+        await apiFetch<any>("/api/v1/social/chat", {
+            method: "POST",
+            body: JSON.stringify({
+                eventId,
+                text: content,
+                metadata: {
+                    senderBadge: badge,
+                    isAnnouncement: true
+                }
+            }),
+            requireAuth: true,
+        });
+
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
+}
+
+/**
+ * Subscribe to group chat messages via polling.
+ */
+export function subscribeToGroupChat(
+    eventId: string,
+    onMessages: (messages: GroupMessage[]) => void,
+    messageLimit: number = 100
+): () => void {
+    let active = true;
+
+    async function poll() {
+        if (!active) return;
+        try {
+            const response = await apiFetch<{ messages: GroupMessage[] }>(
+                `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,
+                { requireAuth: false }
+            );
+            if (active && response.messages) {
+                onMessages(response.messages);
+            }
+        } catch (e) {
+            // Polling error, ignore
+        }
     }
 
-    const db = getFirebaseDb();
+    poll();
+    const intervalId = setInterval(poll, 5000); // 5s polling for messages
 
-    const message: Omit<GroupMessage, "id"> = {
-      eventId,
-      senderId: userId,
-      senderName: userName,
-      senderAvatar: userAvatar || undefined,
-      senderBadge: userBadge || undefined,
-      content: imageUrl,
-      type: "image",
-      createdAt: serverTimestamp(),
+    return () => {
+        active = false;
+        clearInterval(intervalId);
     };
-
-    const docRef = await addDoc(collection(db, "eventGroupMessages"), message);
-
-    return { success: true, messageId: docRef.id };
-  } catch (error: any) {
-    console.error("Error sending group image:", error);
-    return { success: false, error: error.message };
-  }
 }
 
-// Send announcement (hosts/venues only)
-export async function sendAnnouncement(
-  eventId: string,
-  userId: string,
-  userName: string,
-  content: string,
-  badge: "host" | "venue",
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const db = getFirebaseDb();
-
-    const message: Omit<GroupMessage, "id"> = {
-      eventId,
-      senderId: userId,
-      senderName: userName,
-      senderBadge: badge,
-      content,
-      type: "announcement",
-      createdAt: serverTimestamp(),
-    };
-
-    await addDoc(collection(db, "eventGroupMessages"), message);
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
-
-// Subscribe to group chat messages
-export function subscribeToGroupChat(
-  eventId: string,
-  onMessages: (messages: GroupMessage[]) => void,
-  messageLimit: number = 100,
-): () => void {
-  const db = getFirebaseDb();
-
-  const messagesQuery = query(
-    collection(db, "eventGroupMessages"),
-    where("eventId", "==", eventId),
-    where("isDeleted", "!=", true),
-    orderBy("isDeleted"),
-    orderBy("createdAt", "desc"),
-    limit(messageLimit),
-  );
-
-  return onSnapshot(
-    messagesQuery,
-    (snapshot) => {
-      const messages: GroupMessage[] = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as GroupMessage[];
-
-      // Reverse to show oldest first
-      onMessages(messages.reverse());
-    },
-    (error) => {
-      console.error("Error subscribing to group chat:", error);
-      // Fallback query without isDeleted filter
-      const fallbackQuery = query(
-        collection(db, "eventGroupMessages"),
-        where("eventId", "==", eventId),
-        orderBy("createdAt", "desc"),
-        limit(messageLimit),
-      );
-
-      onSnapshot(fallbackQuery, (snapshot) => {
-        const messages: GroupMessage[] = snapshot.docs
-          .filter((doc) => !doc.data().isDeleted)
-          .map((doc) => ({
-            id: doc.id,
-            ...doc.data(),
-          })) as GroupMessage[];
-
-        onMessages(messages.reverse());
-      });
-    },
-  );
-}
-
-// Delete message (moderators only)
+/**
+ * Delete message (moderators only).
+ */
 export async function deleteGroupMessage(
-  messageId: string,
-  deletedByUserId: string,
+    messageId: string,
+    deletedByUserId: string
 ): Promise<{ success: boolean; error?: string }> {
-  try {
-    const db = getFirebaseDb();
-    const messageRef = doc(db, "eventGroupMessages", messageId);
-
-    await updateDoc(messageRef, {
-      isDeleted: true,
-      deletedBy: deletedByUserId,
-      deletedAt: serverTimestamp(),
-    });
-
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+    // Note: Need to implement DELETE route in Gateway if needed
+    try {
+        await apiFetch(`/api/v1/social/chat/${messageId}`, {
+            method: "DELETE",
+            requireAuth: true
+        });
+        return { success: true };
+    } catch (error: any) {
+        return { success: false, error: error.message };
+    }
 }
 
-// Get recent messages (for initial load)
+/**
+ * Get recent messages (for initial load).
+ */
 export async function getRecentGroupMessages(
-  eventId: string,
-  messageLimit: number = 50,
+    eventId: string,
+    messageLimit: number = 50
 ): Promise<GroupMessage[]> {
-  try {
-    const db = getFirebaseDb();
-
-    const messagesQuery = query(
-      collection(db, "eventGroupMessages"),
-      where("eventId", "==", eventId),
-      orderBy("createdAt", "desc"),
-      limit(messageLimit),
-    );
-
-    const snapshot = await getDocs(messagesQuery);
-
-    const messages: GroupMessage[] = snapshot.docs
-      .filter((doc) => !doc.data().isDeleted)
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as GroupMessage[];
-
-    return messages.reverse();
-  } catch (error) {
-    console.error("Error fetching group messages:", error);
-    return [];
-  }
+    try {
+        const response = await apiFetch<{ messages: GroupMessage[] }>(
+            `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,
+            { requireAuth: false }
+        );
+        return response.messages || [];
+    } catch (error) {
+        console.error("Error fetching group messages:", error);
+        return [];
+    }
 }

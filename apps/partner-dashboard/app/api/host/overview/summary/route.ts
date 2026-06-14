@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getHostOverviewStats } from "@/lib/server/analyticsStore";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const hostId = searchParams.get("hostId");
-
-    if (!hostId) {
-      return NextResponse.json({ error: "hostId is required" }, { status: 400 });
-    }
-
-    const stats = await getHostOverviewStats(hostId);
-    return NextResponse.json(stats);
-  } catch (error: any) {
-    console.error("[Host Summary API] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.set("hostId", ctx.hostId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/overview/summary?${searchParams}`, {});
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useToast } from "./providers/ToastProvider";
-import { WifiOff, Wifi } from "lucide-react";
 
 export default function OfflineListener() {
   const { toast } = useToast();

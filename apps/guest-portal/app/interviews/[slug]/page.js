@@ -1,12 +1,6 @@
-import PagePlaceholder from "../../../components/PagePlaceholder";
+import { notFound } from "next/navigation";
 
-export default function InterviewDynamicPage({ params }) {
-  return (
-    <div className="px-6">
-      <PagePlaceholder
-        title={params.slug.replace(/-/g, " ")}
-        description="Full interview detail view will live here."
-      />
-    </div>
-  );
+export default async function InterviewDynamicPage({ params }) {
+  await params;
+  notFound();
 }

@@ -1,25 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getHostAnalytics } from "@/lib/server/analyticsStore";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/host/analytics
- * Fetches performance analytics for a host
- */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const hostId = searchParams.get("hostId");
-    const range = searchParams.get("range") || "30d";
-
-    if (!hostId) {
-      return NextResponse.json({ error: "hostId is required" }, { status: 400 });
-    }
-
-    const analytics = await getHostAnalytics(hostId, range);
-
-    return NextResponse.json(analytics);
-  } catch (error: any) {
-    console.error("[Host Analytics API] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.delete("hostId");
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/analytics/host/${ctx.hostId}?${searchParams.toString()}`, {});
 }

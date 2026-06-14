@@ -1,25 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPromoterAnalytics } from "@/lib/server/analyticsStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * GET /api/promoter/stats
  * Fetches combined stats and timeline for a promoter
  */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const promoterId = searchParams.get("promoterId");
-    const range = searchParams.get("range") || "30d";
-
-    if (!promoterId) {
-      return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-    }
-
-    const analytics = await getPromoterAnalytics(promoterId, range);
-
-    return NextResponse.json({ ...analytics });
-  } catch (error: any) {
-    console.error("[Promoter Stats API] GET Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to fetch stats" }, { status: 500 });
-  }
+    searchParams.set("promoterId", ctx.promoterId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/stats?${searchParams.toString()}`, {});
 }

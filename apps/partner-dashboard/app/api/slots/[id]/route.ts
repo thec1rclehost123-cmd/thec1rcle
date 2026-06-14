@@ -1,105 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import {
-  getSlotRequest,
-  approveSlotRequest,
-  rejectSlotRequest,
-  counterProposeSlot,
-} from "@/lib/server/slotStore";
-import { verifyPartnerAccess } from "@/lib/server/auth";
+import { NextRequest } from "next/server";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/slots/[id]
- * Get a specific slot request
- */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
     const { id } = await params;
-    const slotRequest = await getSlotRequest(id);
-
-    if (!slotRequest) {
-      return NextResponse.json({ error: "Slot request not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ slotRequest });
-  } catch (error: any) {
-    console.error("[Slots API] GET Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch slot request" },
-      { status: 500 },
-    );
-  }
+    const { search } = new URL(req.url);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/slots/${id}${search}`, {});
 }
 
-/**
- * PATCH /api/slots/[id]
- * Update slot request status (approve, reject, suggest alternatives)
- */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
     const { id } = await params;
-    const body = await req.json();
-    const { action, notes, alternativeDates, actor } = body;
-
-    if (!actor || !actor.uid || !actor.role) {
-      return NextResponse.json({ error: "Actor information required" }, { status: 400 });
-    }
-
-    let result;
-
-    switch (action) {
-      case "approve":
-        // Verify management access
-        if (actor.role !== "admin") {
-          const venueId = body.venueId || actor.partnerId;
-          if (!venueId)
-            return NextResponse.json(
-              { error: "venueId is required for authorization" },
-              { status: 400 },
-            );
-          const hasAccess = await verifyPartnerAccess(req, venueId);
-          if (!hasAccess)
-            return NextResponse.json(
-              { error: "Unauthorized access to this venue" },
-              { status: 403 },
-            );
-          result = await approveSlotRequest(id, actor, notes, { venueId });
-        } else {
-          result = await approveSlotRequest(id, actor, notes);
-        }
-        break;
-
-      case "reject":
-        result = await rejectSlotRequest(id, actor, notes);
-        break;
-
-      case "counter":
-        const { alternativeDate, alternativeStartTime, alternativeEndTime } = body;
-        if (!alternativeDate || !alternativeStartTime || !alternativeEndTime) {
-          return NextResponse.json(
-            { error: "Alternative date and times required" },
-            { status: 400 },
-          );
-        }
-        result = await counterProposeSlot(
-          id,
-          body.venueId || actor.partnerId,
-          { alternativeDate, alternativeStartTime, alternativeEndTime, notes },
-        );
-        break;
-
-      default:
-        return NextResponse.json(
-          { error: "Invalid action. Use: approve, reject, or counter" },
-          { status: 400 },
-        );
-    }
-
-    return NextResponse.json({ slotRequest: result });
-  } catch (error: any) {
-    console.error("[Slots API] PATCH Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to update slot request" },
-      { status: 500 },
-    );
-  }
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/slots/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+    });
 }

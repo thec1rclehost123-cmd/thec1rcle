@@ -1,13 +1,12 @@
 {
   "expo": {
     "name": "THE C1RCLE",
-    "slug": "c1rcle",
+    "slug": "thec1rcle",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "scheme": "c1rcle",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -17,6 +16,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.c1rcle.app",
       "backgroundColor": "#161616",
+      "config": {
+        "googleMapsApiKey": "GOOGLE_MAPS_API_KEY_HERE"
+      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "THE C1RCLE needs your location for safety features like SOS alerts and sharing your location with friends.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "THE C1RCLE needs background location access to share your location with friends during events.",
@@ -30,11 +32,20 @@
         "backgroundColor": "#161616"
       },
       "package": "com.c1rcle.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "GOOGLE_MAPS_API_KEY_HERE"
+        }
+      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "VIBRATE"
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ]
     },
     "web": {
@@ -70,16 +81,17 @@
         {
           "cameraPermission": "Allow THE C1RCLE to access your camera for scanning ticket QR codes."
         }
-      ],
-      [
-        "react-native-maps",
-        {
-          "googleMapsApiKey": "GOOGLE_MAPS_API_KEY_HERE"
-        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "845316d6-f91c-4178-933f-807fd4758d68"
+      }
+    },
+    "owner": "thec1rcle"
   }
 }

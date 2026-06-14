@@ -18,6 +18,89 @@ import {
 export async function getFinancialSummary(entityId, type = "venue") {
     const db = getAdminDb();
 
+    if (String(type).toLowerCase() === "event") {
+        let gross = 0;
+        let discounts = 0;
+        let net = 0;
+        let commissions = 0;
+        let fees = 0;
+        let settlementStatus = "pending";
+
+        try {
+            const eventDoc = await db.collection("events").doc(entityId).get();
+            const event = eventDoc.exists ? eventDoc.data() : {};
+            settlementStatus = event.settlementStatus || "pending";
+
+            // Query ledger splits to get actual allocated amounts if settled,
+            // otherwise calculate potential splits based on orders.
+            const ledgerSnapshot = await db.collection("ledger_entries")
+                .where("metadata.eventId", "==", entityId)
+                .get();
+
+            const ledgerEntries = ledgerSnapshot.docs.map(doc => doc.data());
+
+            if (ledgerEntries.length > 0) {
+                // Already settled: read actual balances from ledger
+                for (const entry of ledgerEntries) {
+                    if (entry.state === MONEY_STATES.CAPTURED && entry.amount > 0) {
+                        gross += entry.amount;
+                    }
+                    if (entry.state === MONEY_STATES.PAYABLE) {
+                        if (entry.actorType === ACCOUNTS.PARTNER) {
+                            net += entry.amount;
+                        } else if (entry.actorType === ACCOUNTS.PROMOTER) {
+                            commissions += entry.amount;
+                        } else if (entry.actorId === ACCOUNTS.PLATFORM_FEE) {
+                            fees += entry.amount;
+                        }
+                    }
+                }
+            } else {
+                // Not settled yet: calculate potential splits based on orders
+                const ordersSnapshot = await db.collection("orders")
+                    .where("eventId", "==", entityId)
+                    .where("status", "==", "confirmed")
+                    .get();
+
+                const orders = ordersSnapshot.docs.map(doc => doc.data());
+
+                const { calculateOrderSplits } = await import("./payout-engine.js");
+
+                for (const order of orders) {
+                    const total = Number(order.totalAmount) || 0;
+                    gross += total;
+                    discounts += Number(order.discountAmount) || 0;
+
+                    const splits = calculateOrderSplits(order, event);
+                    for (const split of splits) {
+                        if (split.actorType === "promoter") {
+                            commissions += split.amount;
+                        } else if (split.actorId === ACCOUNTS.PLATFORM_FEE) {
+                            fees += split.amount;
+                        } else if (split.actorType === "venue" || split.actorType === "host") {
+                            net += split.amount;
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error("[FinanceEngine] getFinancialSummary for event failed:", error.message);
+        }
+
+        return {
+            entityId,
+            type,
+            gross,
+            net,
+            commissions,
+            discounts,
+            fees,
+            payouts: [],
+            auditStatus: settlementStatus,
+            currency: "INR"
+        };
+    }
+
     // Total Revenue (HELD + SETTLED + PAYABLE)
     const netRevenue = await getBalance({ actorId: entityId });
 

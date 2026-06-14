@@ -1,20 +1,38 @@
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3000";
+
+interface FetchOptions extends RequestInit {
+    headers?: Record<string, string>;
+}
+
 /**
- * THE C1RCLE - Scanner App API Client
+ * Lightweight fetch wrapper for all scanner API calls.
+ * Attaches X-Scanner-Code header when a scannerCode is provided.
+ * Throws on non-2xx responses with .status and .data attached.
  */
+export async function scannerFetch(
+    path: string,
+    options: FetchOptions = {},
+    scannerCode?: string
+): Promise<any> {
+    const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        ...options.headers,
+    };
 
-import { C1rcleApiClient } from "@c1rcle/core/api-client";
+    if (scannerCode) {
+        headers["x-scanner-code"] = scannerCode;
+    }
 
-// Gateway URL fallback
-const GATEWAY_URL = process.env.EXPO_PUBLIC_GATEWAY_URL || "http://localhost:3000/api/v1";
+    const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
 
-export const apiClient = new C1rcleApiClient({
-  baseUrl: GATEWAY_URL,
-  getAuthToken: async () => {
-    // In a real app, this would get the token from Secure Store or similar
-    // For the scanner, it might use a static event token or device token
-    return process.env.EXPO_PUBLIC_SCANNER_TOKEN || null;
-  },
-  onUnauthorized: () => {
-    console.error("Scanner session expired or invalid token");
-  },
-});
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+        const err: any = new Error(data.error || `HTTP ${res.status}`);
+        err.status = res.status;
+        err.data = data;
+        throw err;
+    }
+
+    return data;
+}

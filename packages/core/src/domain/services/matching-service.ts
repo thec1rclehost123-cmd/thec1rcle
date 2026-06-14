@@ -18,7 +18,7 @@ export class MatchingService {
         lng?: number,
         limit?: number,
         type?: 'user' | 'event'
-    }): Promise<any[]> {
+    }, workspaceId: string): Promise<any[]> {
         const { lat, lng, limit = 20, type = 'event' } = options;
         const redis = getRedisClient();
         const cacheKey = `match_feed:${userId}:${type}:${lat || 0}:${lng || 0}:${limit}`;
@@ -31,24 +31,17 @@ export class MatchingService {
             console.warn('Redis cache read failed:', e);
         }
 
-        // 2. Get user profile for interest matching
-        const userProfile = await this.profileRepo.getById(userId, 'user');
+        // 2-4. Parallelize independent fetches (Optimization Fix)
+        const [userProfile, adaptiveBoosts, excludedIds, candidates] = await Promise.all([
+            this.profileRepo.getById(userId, 'user'),
+            this.getAdaptiveBoosts(userId),
+            this.matchingRepo.getInteractedIds(userId, type),
+            type === 'event' 
+                ? this.eventRepo.list({ status: 'live', limit: 100 }, workspaceId)
+                : Promise.resolve([])
+        ]);
+
         if (!userProfile) throw new Error('User profile not found');
-
-        // 2.1 Get adaptive boosts (Step 3 Retention)
-        const adaptiveBoosts = await this.getAdaptiveBoosts(userId);
-
-        // 3. Get already interacted IDs to exclude them
-        const excludedIds = await this.matchingRepo.getInteractedIds(userId, type);
-
-        // 4. Fetch candidates (Broad fetch)
-        let candidates: any[] = [];
-        if (type === 'event') {
-            candidates = await this.eventRepo.list({ status: 'live', limit: 100 });
-        } else {
-            // Placeholder for matching with other users if implemented
-            return [];
-        }
 
         // 5. Weighting & Scoring Model V1 + Adaptive Boost
         // Score = (Interests * 40%) + (Proximity * 40%) + (Activity * 20%)
@@ -61,10 +54,19 @@ export class MatchingService {
 
                 const finalScore = (interestScore * 0.4) + (proximityScore * 0.4) + (activityScore * 0.2);
 
-                return {
-                    ...candidate,
-                    matchScore: Math.round(finalScore * 100) / 100
+                // 🛡️ Phase 6: Redact PII in discovery feed
+                const redactedCandidate = {
+                    id: candidate.id,
+                    type: type,
+                    matchScore: Math.round(finalScore * 100) / 100,
+                    // Generic placeholders for discovery phase
+                    displayName: type === 'user' ? 'Attendee' : candidate.title,
+                    photoURL: type === 'user' ? null : (candidate.image || candidate.poster),
+                    interests: candidate.genres || candidate.interests || [],
+                    stats: candidate.stats || {}
                 };
+
+                return redactedCandidate;
             })
             .sort((a, b) => b.matchScore - a.matchScore)
             .slice(0, limit);
@@ -84,13 +86,13 @@ export class MatchingService {
         lng?: number,
         limit?: number,
         type?: 'user' | 'event'
-    }): Promise<void> {
+    }, workspaceId: string): Promise<void> {
         // Simple wrapper to run getMatchFeed and let it populate the cache
         // In a real system, this would be triggered by a worker or on location change
-        await this.getMatchFeed(userId, options);
+        await this.getMatchFeed(userId, options, workspaceId);
     }
 
-    async handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up'): Promise<void> {
+    async handleSwipe(userId: string, targetId: string, targetType: 'user' | 'event', direction: 'left' | 'right' | 'up', workspaceId: string): Promise<void> {
         // 1. Safety Control: Rate Limiting (Step 2 Safety)
         // Limit to 60 swipes per minute to prevent botting/fatigue
         const rateLimit = await checkRateLimit(`swipe:${userId}`, 60, 60);
@@ -112,13 +114,13 @@ export class MatchingService {
         // 2. Adaptive Adjustments (Step 3 Retention)
         // Store recent swipe preferences in Redis for session-based scoring boost
         if (direction === 'right' || direction === 'up') {
-            await this.updateAdaptivePreferences(userId, targetId, targetType);
+            await this.updateAdaptivePreferences(userId, targetId, targetType, workspaceId);
         }
 
         // Analytics instrumentation
         try {
             // @ts-ignore
-            const { trackInteraction } = await import('../../analytics-service.js');
+            const { trackInteraction } = await import('../../../analytics-service.js');
             await trackInteraction(userId, targetId, 'swipe', { targetType, direction });
         } catch (e) {
             console.error('Analytics tracking failed:', e);
@@ -127,15 +129,47 @@ export class MatchingService {
         // Logic for "It's a Match!" can go here if two-way matching is needed
     }
 
-    private async updateAdaptivePreferences(userId: string, targetId: string, targetType: 'user' | 'event'): Promise<void> {
+    async checkMutualMatch(userId: string, targetId: string): Promise<boolean> {
+        if (userId === targetId) return true; // Self is always a match
+
+        try {
+            // Check if A swiped right on B
+            const interactionAB = await this.matchingRepo.getInteractedIds(userId, 'user');
+            if (!interactionAB.includes(targetId)) return false;
+
+            // Check if B swiped right on A
+            const interactionBA = await this.matchingRepo.getInteractedIds(targetId, 'user');
+            if (!interactionBA.includes(userId)) return false;
+
+            return true;
+        } catch (e) {
+            console.error('Match check failed:', e);
+            return false;
+        }
+    }
+
+    async getMatchStatus(userId: string, targetId: string): Promise<{ isMatch: boolean, status: string }> {
+        const isMatch = await this.checkMutualMatch(userId, targetId);
+        
+        // This could be expanded to check for "Pending", "Blocked", etc.
+        return {
+            isMatch,
+            status: isMatch ? 'matched' : 'stranger'
+        };
+    }
+
+    private async updateAdaptivePreferences(userId: string, targetId: string, targetType: 'user' | 'event', workspaceId: string): Promise<void> {
         const redis = getRedisClient();
         const prefKey = `user_prefs_boost:${userId}`;
 
         try {
             let targetGenres: string[] = [];
             if (targetType === 'event') {
-                const event = await this.eventRepo.getById(targetId);
-                targetGenres = event?.genres || [];
+                const event = await this.eventRepo.getById(targetId, workspaceId);
+                if (event) {
+                    const { id: _, ...dataWithoutId } = event as any;
+                    targetGenres = dataWithoutId?.genres || [];
+                }
             }
 
             for (const genre of targetGenres) {

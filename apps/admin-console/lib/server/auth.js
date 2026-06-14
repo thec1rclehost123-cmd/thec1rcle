@@ -1,58 +1,43 @@
-import { getAdminAuth, isFirebaseConfigured } from "../firebase/admin";
+import { getAdminApp, isFirebaseConfigured } from "../firebase/admin";
+import { getAuth } from "firebase-admin/auth";
 import { headers } from "next/headers";
 
 /**
  * Verify the Firebase ID token from the Authorization header.
  * Returns the decoded token if valid, or null if invalid/missing.
+ * SECURITY: Never returns a hardcoded fallback user. Fails closed.
+ * Admin routes: if Firebase is not configured this always returns null.
  *
  * @param {Request} [request] - The incoming Next.js request object (optional for Server Actions)
  */
 export async function verifyAuth(request) {
-  if (!isFirebaseConfigured()) {
-    if (process.env.NODE_ENV === "development") {
-      return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1", // Use the actual dev UID for Aayush
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
-      };
+    if (!isFirebaseConfigured()) {
+        // Admin console must never fall back to a fake user under any circumstances
+        console.error("[AdminAuth] CRITICAL: Firebase not configured — all admin requests rejected");
+        return null;
     }
-    return null;
-  }
 
-  let authHeader;
-  if (request) {
-    authHeader = request.headers.get("Authorization");
-  } else {
-    const headerList = await headers();
-    authHeader = headerList.get("Authorization");
-  }
-
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    if (process.env.NODE_ENV === "development") {
-      return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
-      };
+    let authHeader;
+    if (request) {
+        authHeader = request.headers.get("Authorization");
+    } else {
+        const headerList = await headers();
+        authHeader = headerList.get("Authorization");
     }
-    return null;
-  }
 
-  const token = authHeader.split("Bearer ")[1];
-
-  try {
-    const auth = getAdminAuth();
-    const decodedToken = await auth.verifyIdToken(token);
-    return decodedToken;
-  } catch (error) {
-    console.error("Auth verification failed:", error);
-    if (process.env.NODE_ENV === "development") {
-      return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
-      };
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        return null;
     }
-    return null;
-  }
+
+    const token = authHeader.slice(7);
+
+    try {
+        const app = getAdminApp();
+        const auth = getAuth(app);
+        const decodedToken = await auth.verifyIdToken(token);
+        return decodedToken;
+    } catch (error) {
+        console.error("[AdminAuth] Token verification failed:", error.code || error.message);
+        return null;
+    }
 }

@@ -57,7 +57,7 @@ export const handleEventCancellation = inngest.createFunction(
             const db = getAdminDb();
             const snapshot = await db.collection("orders")
                 .where("eventId", "==", eventId)
-                .where("status", "in", ["confirmed", "pending_payment"])
+                .where("status", "in", ["confirmed", "payment_pending", "pending_payment"])
                 .get();
 
             const rsvpSnapshot = await db.collection("rsvp_orders")

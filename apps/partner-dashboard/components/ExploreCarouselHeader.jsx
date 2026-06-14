@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 
 export default function ExploreCarouselHeader({ slides = [] }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -285,7 +285,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               <button
                 key={idx}
                 onClick={() => goToSlide(idx)}
-                className={clsx(
+                className={cn(
                   "h-2 rounded-full transition-all duration-500",
                   idx === activeIndex
                     ? "w-12 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"

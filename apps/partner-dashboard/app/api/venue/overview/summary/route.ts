@@ -1,19 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getVenueOverviewStats } from "@/lib/server/analyticsStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const venueId = searchParams.get("venueId") || searchParams.get("venueId");
-
-    if (!venueId) {
-      return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-    }
-
-    const stats = await getVenueOverviewStats(venueId);
-    return NextResponse.json(stats);
-  } catch (error: any) {
-    console.error("[Venue Summary API] Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/overview/summary?${searchParams}`, {});
 }

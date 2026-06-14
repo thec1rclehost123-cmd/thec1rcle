@@ -221,8 +221,18 @@ export async function createRSVPOrder(payload: any) {
     if (event) {
         orderData.qrCodes = generateOrderQRCodes(orderData, event);
     }
+    let persistedOrder = orderData;
 
-    await db.collection(RSVP_COLLECTION).doc(orderId).set(orderData);
+    await db.runTransaction(async (transaction: any) => {
+        transaction.db = db;
+        persistedOrder = await coreExecuteOrderCreation(transaction, {
+            db,
+            event,
+            orderData,
+            reservationId: payload.reservationId || null,
+            inventoryEngine
+        });
+    });
 
     // --- PUBLIC DISCOVERY SYNC ---
     try {
@@ -242,7 +252,7 @@ export async function createRSVPOrder(payload: any) {
         console.error("Public attendee sync failed for RSVP:", e);
     }
 
-    return orderData;
+    return persistedOrder;
 }
 
 /**

@@ -1,45 +1,74 @@
-import { IOrderRepository, Order, Reservation, PaymentRecord } from '../repositories/order-repository.js';
+import { IOrderRepository, Order } from '../repositories/order-repository.js';
 import { IEventRepository } from '../repositories/event-repository.js';
+import { InventoryService } from './inventory-service.js';
+import { PaymentService } from './payment-service.js';
+import { FulfillmentService } from './fulfillment-service.js';
+import { CancellationService } from './cancellation-service.js';
+// @ts-ignore
+import { calculatePricing } from '@c1rcle/core/pricing-engine';
+// @ts-ignore
+import { PUBLIC_LIFECYCLE_STATES } from '@c1rcle/core/events';
+// @ts-ignore
+import {
+    buildOrderPayload,
+    executeOrderCreation,
+    isPaymentPendingOrderStatus,
+    PAYMENT_PENDING_ORDER_STATUS,
+} from '@c1rcle/core/order-engine';
+// @ts-ignore
+import { telemetry } from '@c1rcle/core/telemetry';
+// @ts-ignore
+import { getAdminDb } from '@c1rcle/core/admin';
 
+/**
+ * Optimized Checkout Orchestrator
+ * 
+ * Decomposed into:
+ * - InventoryService: Reservation and locking
+ * - PaymentService: Gateway interactions
+ * - FulfillmentService: Post-payment side-effects
+ */
 export class CheckoutService {
+    private inventory: InventoryService;
+    private payment: PaymentService;
+    private fulfillment: FulfillmentService;
+    private cancellation: CancellationService;
+
     constructor(
         private orderRepo: IOrderRepository,
         private eventRepo: IEventRepository
-    ) { }
-
-    async validatePricing(params: any): Promise<any> {
-        // @ts-ignore
-        const { calculatePricing } = await import('@c1rcle/core/pricing-engine');
-        const event = await this.eventRepo.getById(params.eventId);
-        if (!event) throw new Error('Event not found');
-
-        return calculatePricing({ ...params, event });
+    ) {
+        this.inventory = new InventoryService(orderRepo, eventRepo);
+        this.payment = new PaymentService(orderRepo);
+        this.fulfillment = new FulfillmentService();
+        this.cancellation = new CancellationService(orderRepo, eventRepo);
     }
 
-    async reserveItems(eventId: string, userId: string, deviceId: string | null, items: any[]): Promise<any> {
-        // @ts-ignore
-        const { createReservation } = await import('@c1rcle/core/inventory-engine');
-        const event = await this.eventRepo.getById(eventId);
-        if (!event) throw new Error('Event not found');
-
-        const result = await createReservation(event, userId, deviceId, items);
-
-        if (result.success) {
-            await this.orderRepo.createReservation({
-                id: result.reservationId,
-                eventId,
-                customerId: userId,
-                deviceId: deviceId,
-                items,
-                status: 'active',
-                createdAt: new Date().toISOString(),
-                expiresAt: result.expiresAt
-            });
-        }
-
-        return result;
+    /**
+     * Entry Point: Reserve items before checkout
+     */
+    async reserveItems(params: {
+        eventId: string,
+        userId: string,
+        deviceId: string | null,
+        items: any[],
+        workspaceId?: string | null,
+        options?: { queueId?: string | null }
+    }): Promise<any> {
+        telemetry.track("CHECKOUT_RESERVE_REQUESTED", {
+            eventId: params.eventId,
+            queueId: params.options?.queueId || null,
+            userId: params.userId,
+        });
+        return this.inventory.reserve({
+            ...params,
+            queueId: params.options?.queueId
+        });
     }
 
+    /**
+     * Core Orchestrator: Transition from reservation to order
+     */
     async initiateCheckout(params: {
         reservationId: string,
         userId: string,
@@ -48,206 +77,292 @@ export class CheckoutService {
         userPhone: string,
         promoCode?: string,
         promoterCode?: string
-    }): Promise<any> {
+    }, workspaceId?: string | null): Promise<any> {
         const { reservationId, userId, userName, userEmail, userPhone, promoCode, promoterCode } = params;
+        const startTime = Date.now();
 
-        const reservation = await this.orderRepo.getReservationById(reservationId);
-        if (!reservation) throw new Error('Reservation not found');
-        if (reservation.status !== 'active') throw new Error(`Reservation is ${reservation.status}`);
-        if (new Date(reservation.expiresAt) < new Date()) {
-            await this.orderRepo.updateReservation(reservationId, { status: 'expired' });
-            throw new Error('Reservation has expired');
-        }
-
-        const event = await this.eventRepo.getById(reservation.eventId);
-        if (!event) throw new Error('Event not found');
-
-        // @ts-ignore
-        const { calculatePricing } = await import('@c1rcle/core/pricing-engine');
-        const pricingResult = await calculatePricing({
-            event,
-            items: reservation.items.map((i: any) => ({ ...i, tierId: i.tierId || i.ticketId })),
-            promoCode,
-            promoterCode,
-            userId
-        });
-
-        if (!pricingResult.success) throw new Error(pricingResult.error);
-        const pricing = pricingResult.pricing;
-
-        const orderId = `ORD-${Date.now().toString(36).toUpperCase()}`;
-        const orderPayload: Order = {
-            id: orderId,
-            eventId: event.id,
-            eventName: (event as any).title,
-            userId,
-            userName,
-            userEmail,
-            userPhone,
-            tickets: pricing.items.map((item: any) => ({
-                ticketId: item.tierId,
-                name: item.tierName,
-                quantity: item.quantity,
-                price: item.unitPrice,
-                total: item.subtotal
-            })),
-            subtotal: pricing.subtotal,
-            discounts: pricing.discounts,
-            discountTotal: pricing.discountTotal,
-            fees: pricing.fees,
-            totalAmount: pricing.grandTotal,
-            status: (pricing.isFree || (event as any).isRSVP) ? 'confirmed' : 'payment_pending',
-            reservationId: reservationId,
-            promoterCode: promoterCode || null,
-            createdAt: new Date().toISOString(),
-            isRSVP: !!(event as any).isRSVP
-        };
-
-        if (orderPayload.status === 'confirmed') {
-            (orderPayload as any).confirmedAt = orderPayload.createdAt;
-        }
-
-        await this.orderRepo.runInTransaction(async (transaction) => {
-            await this.orderRepo.createOrder(orderPayload, transaction);
-            await this.orderRepo.updateReservation(reservationId, {
-                status: 'converted',
-                orderId: orderId,
-                convertedAt: new Date().toISOString()
-            }, transaction);
-        });
-
-        // Handle Inngest trigger after transaction
-        if (orderPayload.status === 'confirmed') {
-            try {
-                // @ts-ignore
-                const { sendEvent, Events } = await import('@c1rcle/core/inngest-client');
-                await sendEvent(Events.TICKET_PURCHASED, {
-                    orderId: orderPayload.id,
-                    userId: orderPayload.userId,
-                    userEmail: orderPayload.userEmail,
-                    eventId: orderPayload.eventId,
-                    tickets: orderPayload.tickets,
-                    totalAmount: orderPayload.totalAmount,
-                    promoterCode: orderPayload.promoterCode
-                });
-            } catch (e) {
-                console.error('Inngest trigger failed:', e);
+        try {
+            // 1. Validate Reservation
+            const reservation = await this.inventory.validateAndExpire(reservationId);
+            
+            const existingOrder = await this.orderRepo.getOrderByReservationId(reservationId);
+            if (existingOrder && reservation.status !== 'active') {
+                return this.buildExistingOrderResponse(existingOrder, reservationId);
             }
-        }
 
-        return {
-            success: true,
-            requiresPayment: !pricing.isFree && !(event as any).isRSVP,
-            order: orderPayload,
-            pricing
-        };
+            if (reservation.status !== 'active') throw new Error(`Reservation is ${reservation.status}`);
+
+            // 2. Pricing & Valuation
+            const resolvedWorkspaceId = workspaceId || reservation.workspaceId || null;
+            const event = await this.eventRepo.getById(reservation.eventId, resolvedWorkspaceId || undefined as any);
+            if (!event) throw new Error('Event not found');
+
+            const pricingResult = await calculatePricing({
+                event,
+                items: reservation.items.map((i: any) => ({ ...i, tierId: i.tierId || i.ticketId })),
+                promoCode,
+                promoterCode,
+                userId
+            });
+
+            if (!pricingResult.success) throw new Error(pricingResult.error);
+            const pricing = pricingResult.pricing;
+
+
+            if (existingOrder) {
+                return this.buildExistingOrderResponse(existingOrder, reservationId, pricing, promoterCode || null);
+            }
+
+            // 3. Build Authoritative Payload (Logic moved to Engine)
+            const orderPayload = buildOrderPayload({
+                reservation,
+                event,
+                pricing,
+                user: { id: userId, name: userName, email: userEmail, phone: userPhone },
+                promoterCode,
+                workspaceId: resolvedWorkspaceId
+            });
+
+            // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
+            // so concurrent requests cannot both pass the check before either writes.
+            const db = await getAdminDb();
+            await db.runTransaction(async (transaction: any) => {
+                if ((event as any).isRSVP) {
+                    const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
+                        event.id, { userId, email: userEmail }, transaction
+                    );
+                    if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
+                }
+                await executeOrderCreation(transaction, {
+                    db,
+                    event,
+                    orderData: orderPayload,
+                    reservationId: reservationId
+                });
+            });
+
+            telemetry.track("CHECKOUT_INITIATED", { 
+                orderId: orderPayload.id, 
+                userId, 
+                eventId: event.id,
+                duration: Date.now() - startTime 
+            });
+
+            // Phase 2: Fulfillment or Payment Readiness
+            if (orderPayload.status === 'confirmed') {
+                await this.fulfillment.processFulfillment(orderPayload, reservation.queueId);
+            }
+
+            return {
+                success: true,
+                requiresPayment: isPaymentPendingOrderStatus(orderPayload.status),
+                order: orderPayload,
+                pricing
+            };
+        } catch (error: any) {
+            telemetry.error('[Checkout] Initiation failed', error, { userId, reservationId });
+            throw error;
+        }
     }
 
+    /**
+     * Payment Orchestration
+     */
     async preparePayment(orderId: string, userId: string, razorpayConfig: any): Promise<any> {
         const order = await this.orderRepo.getOrderById(orderId);
         if (!order) throw new Error('Order not found');
         if (order.userId !== userId) throw new Error('Forbidden');
+        if (!isPaymentPendingOrderStatus(order.status)) throw new Error(`Order is ${order.status}`);
 
-        const { keyId, keySecret } = razorpayConfig;
-        if (!keyId || !keySecret) {
-            // Mock for Dev
-            return {
-                razorpayOrderId: `order_mock_${Date.now()}`,
-                amount: order.totalAmount,
-                currency: "INR",
-                key: "rzp_test_DEVELOPMENT"
-            };
-        }
+        return this.payment.prepareRazorpayOrder({ order, userId, config: razorpayConfig });
 
-        const authHeader = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-        const response = await fetch("https://api.razorpay.com/v1/orders", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Basic ${authHeader}`
-            },
-            body: JSON.stringify({
-                amount: Math.round(order.totalAmount * 100),
-                currency: "INR",
-                receipt: orderId,
-                notes: { orderId, userId }
-            })
-        });
-
-        if (!response.ok) {
-            const err = await response.json() as any;
-            throw new Error(err.error?.description || "Razorpay order failed");
-        }
-
-        const rzpOrder = await response.json() as any;
-
-        // Store in payments collection
-        await this.orderRepo.createPaymentRecord({
-            orderId,
-            razorpayOrderId: rzpOrder.id,
-            amount: order.totalAmount,
-            status: 'initiated',
-            userId,
-            createdAt: new Date().toISOString()
-        });
-
-        return {
-            razorpayOrderId: rzpOrder.id,
-            amount: order.totalAmount,
-            currency: "INR",
-            key: keyId
-        };
     }
 
     async verifyPayment(params: {
         orderId: string,
         razorpayOrderId: string,
         razorpayPaymentId: string,
-        userId: string
-    }): Promise<void> {
-        const { orderId, razorpayOrderId, razorpayPaymentId, userId } = params;
+        userId?: string | null,
+        paymentGatewayConfig?: {
+            keyId?: string;
+            keySecret?: string;
+            allowMockPayment?: boolean;
+        }
+    }): Promise<any> {
+        const { orderId, razorpayOrderId, razorpayPaymentId, userId = null, paymentGatewayConfig } = params;
+        telemetry.track("CHECKOUT_PAYMENT_VERIFY_REQUESTED", {
+            orderId,
+            razorpayPaymentId,
+            userId,
+        });
 
+        const paymentRecord = await this.orderRepo.getPaymentRecord(orderId, razorpayOrderId);
+        if (!paymentRecord) {
+            throw new Error('Payment order not found');
+        }
+        if (userId && paymentRecord.userId !== userId) {
+            throw new Error('Unauthorized');
+        }
+
+        const existingPaymentLink = await this.orderRepo.getPaymentRecordByPaymentId(razorpayPaymentId);
+        if (existingPaymentLink && existingPaymentLink.orderId !== orderId) {
+            throw new Error('Payment already linked to another order');
+        }
+
+        if (paymentGatewayConfig) {
+            await this.payment.validateGatewayPayment({
+                paymentRecord,
+                razorpayOrderId,
+                razorpayPaymentId,
+                config: paymentGatewayConfig,
+            });
+        }
+
+        let finalOrder: any = null;
         await this.orderRepo.runInTransaction(async (transaction) => {
-            const order = await this.orderRepo.getOrderById(orderId);
-            if (!order) throw new Error('Order not found');
-            if (order.status === 'confirmed') return;
-            if (order.userId !== userId) throw new Error('Unauthorized');
+            const order = await this.orderRepo.getOrderById(orderId, transaction);
+            if (!order) {
+                finalOrder = order;
+                return;
+            }
+            if (userId && order.userId !== userId) {
+                throw new Error('Unauthorized');
+            }
 
-            await this.orderRepo.updateOrder(orderId, {
+            const currentPaymentRecord = await this.orderRepo.getPaymentRecord(orderId, razorpayOrderId, transaction);
+            if (!currentPaymentRecord) {
+                throw new Error('Payment order not found');
+            }
+            if (currentPaymentRecord.userId !== order.userId) {
+                throw new Error('Unauthorized');
+            }
+            if (Number(currentPaymentRecord.amount) !== Number(order.totalAmount)) {
+                throw new Error('Payment amount mismatch');
+            }
+
+            const linkedPayment = await this.orderRepo.getPaymentRecordByPaymentId(razorpayPaymentId, transaction);
+            if (linkedPayment && linkedPayment.orderId !== orderId) {
+                throw new Error('Payment already linked to another order');
+            }
+            if (order.status === 'confirmed') {
+                finalOrder = { ...order, alreadyConfirmed: true };
+                return;
+            }
+
+            if (order.reservationId) {
+                const res = await this.orderRepo.getReservationById(order.reservationId, transaction);
+                if (res && res.status === 'expired') {
+                    const event = await this.eventRepo.getById(order.eventId, order.workspaceId || undefined as any);
+                    if (event && this.isInventoryExhausted(event, order.tickets)) {
+                        finalOrder = { ...order, verifyError: 'RESERVATION_EXPIRED_OVERSOLD' };
+                        return;
+                    }
+                }
+            }
+
+            const updates: Partial<Order> = {
                 status: 'confirmed',
                 paymentId: razorpayPaymentId,
                 paymentOrderId: razorpayOrderId,
                 confirmedAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-            }, transaction);
+            };
 
-            await this.orderRepo.updatePaymentRecord(orderId, razorpayOrderId, {
-                status: 'verified',
-                razorpayPaymentId: razorpayPaymentId,
-                verifiedAt: new Date().toISOString()
-            }, transaction);
+            await Promise.all([
+                this.orderRepo.updateOrder(orderId, updates, order.isRSVP, transaction),
+                this.payment.recordPaymentVerification(orderId, razorpayOrderId, razorpayPaymentId, transaction)
+            ]);
+
+            finalOrder = { ...order, ...updates };
         });
-    }
 
-    async cancelCheckout(reservationId: string, orderId?: string): Promise<any> {
-        if (orderId) {
-            await this.orderRepo.updateOrder(orderId, {
-                status: 'cancelled',
-                updatedAt: new Date().toISOString()
-            }).catch(() => { });
+        if (finalOrder?.verifyError === 'RESERVATION_EXPIRED_OVERSOLD') {
+            return {
+                success: false,
+                error: 'Your reservation expired and the event sold out. Please contact support.',
+                order: finalOrder,
+            };
         }
 
-        // @ts-ignore
-        const { releaseReservation } = await import('@c1rcle/core/inventory-engine');
-        const result = await releaseReservation(reservationId);
+        if (finalOrder && finalOrder.status === 'confirmed' && !finalOrder.alreadyConfirmed) {
+            await this.fulfillment.processFulfillment(finalOrder, finalOrder.queueId || null);
+        }
 
-        if (reservationId) {
-            await this.orderRepo.updateReservation(reservationId, {
-                status: 'released',
-                releasedAt: new Date().toISOString()
-            }).catch(() => { });
+        return {
+            success: true,
+            alreadyConfirmed: Boolean(finalOrder?.alreadyConfirmed),
+            order: finalOrder,
+        };
+    }
+
+    private isInventoryExhausted(event: any, tickets: any[]): boolean {
+        const tiers: any[] = event.ticketCatalog?.tiers || event.tickets || [];
+        for (const orderTicket of tickets) {
+            const tier = tiers.find((t: any) => t.id === orderTicket.ticketId);
+            if (!tier) continue;
+            const inv = tier.inventory;
+            if (inv) {
+                const capacity = Number(inv.totalQuantity ?? inv.capacity ?? 0);
+                const sold = Number(inv.soldQuantity ?? 0);
+                const held = Number(inv.heldQuantity ?? 0);
+                if (capacity > 0 && (sold + held) >= capacity) return true;
+            } else {
+                if (Number(tier.remaining ?? tier.quantity ?? 999) <= 0) return true;
+            }
+        }
+        return false;
+    }
+
+    async reissueFulfillment(order: Order): Promise<void> {
+        await this.fulfillment.processFulfillment(order, null);
+    }
+
+    async recordPaymentFailure(orderId: string, razorpayOrderId: string, razorpayPaymentId?: string | null): Promise<void> {
+        await this.payment.recordPaymentFailure(orderId, razorpayOrderId, razorpayPaymentId);
+    }
+
+    /**
+     * Helpers
+     */
+    private buildExistingOrderResponse(order: Order, reservationId: string, pricing: any = null, promoterCode: string | null = null) {
+        const requiresPayment = !order.isRSVP && isPaymentPendingOrderStatus(order.status);
+        return {
+            success: true,
+            requiresPayment,
+            order,
+            reservationId,
+            pricing,
+            promoterCode,
+            message: order.status === 'confirmed' ? 'Order confirmed!' : 'Checkout initiated.',
+            normalizedStatus: requiresPayment ? PAYMENT_PENDING_ORDER_STATUS : order.status,
+        };
+    }
+
+    /**
+     * Cancellation Orchestration
+     */
+    async cancelOrder(params: any, options: any = {}) {
+        const { order, event, cancelledBy, cancelledByType } = params;
+        telemetry.track("CHECKOUT_CANCEL_REQUESTED", {
+            cancelledBy,
+            cancelledByType,
+            eventId: event?.id || order?.eventId || null,
+            orderId: order.id,
+        });
+        
+        const result = await this.cancellation.cancel({
+            ...params,
+            refundPayment: options.refundPayment
+        });
+
+        if (order.reservationId) {
+            await this.inventory.release(order.reservationId).catch(() => undefined);
         }
 
         return result;
+    }
+
+    async getCancellationDecision(order: any, event: any) {
+        return this.cancellation.getDecision(order, event);
     }
 }

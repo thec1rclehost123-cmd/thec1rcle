@@ -1,6 +1,16 @@
 import { normalizeCity, PUBLIC_LIFECYCLE_STATES, mapEventForClient, EVENT_LIFECYCLE, getCityLabel, resolvePoster } from "./events.js";
 import { randomUUID } from "node:crypto";
 
+export async function getEvent(eventId, { client = false } = {}) {
+    if (!eventId) return null;
+    const { getAdminDb } = await import("./admin.js");
+    const db = getAdminDb();
+    const doc = await db.collection("events").doc(eventId).get();
+    if (!doc.exists) return null;
+    const data = { id: doc.id, ...doc.data() };
+    return client ? mapEventForClient(data, doc.id) : data;
+}
+
 /**
  * Calculates a heat score for trending events.
  * High scores indicate trending/popular events.
@@ -85,11 +95,11 @@ export function buildEvent(payload = {}) {
         category: payload.category?.trim() || "Trending",
         tags,
         host: (payload.host || "C1RCLE Partner").trim(),
-        hostId: payload.hostId || "",
+        hostId: payload.hostId || (payload.creatorRole === 'host' ? payload.creatorId : "") || "",
         location: (payload.location || payload.venueName || "").trim(),
         venue: (payload.venue || payload.venueName || "").trim(),
-        venueId: payload.venueId || "",
-        promoterVisibility: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true,
+        venueId: payload.venueId || ((payload.creatorRole === 'venue' || payload.creatorRole === 'club') ? payload.creatorId : "") || "",
+        promotersEnabled: payload.promotersEnabled ?? payload.promoterSettings?.enabled ?? true,
         city: cityLabel,
         cityKey,
         country: payload.country || "India",
@@ -106,6 +116,10 @@ export function buildEvent(payload = {}) {
         priceRange: payload.priceRange || { min: 0, max: 0, currency: "INR" },
         isRSVP: !!payload.isRSVP,
         promoterSettings: payload.promoterSettings || { enabled: true },
+        // Top-level visibility field for public discovery filtering.
+        // Explicitly stored so filtering code never relies on undefined-defaulting.
+        // Lifecycle-gating (isEventPublic) is the real access guard, not this field alone.
+        visibility: payload.visibility || 'public',
         settings: payload.settings || { showExplore: true, visibility: "public" },
         stats: payload.stats || { rsvps: 0, views: 0, saves: 0, shares: 0 },
         isDeleted: payload.isDeleted ?? false,
@@ -142,7 +156,9 @@ export function filterAndSortEvents(events, { city, sort = "heat", search, host 
     let results = events.filter(event => {
         if (!PUBLIC_LIFECYCLE_STATES.includes(event.lifecycle)) return false;
         const end = event.endDate || event.startDate;
-        if (end < nowIso) return false;
+        // Normalize date-only strings (YYYY-MM-DD) to end-of-day so today's events aren't filtered out
+        const endNormalized = end && end.length === 10 ? end + "T23:59:59.999Z" : end;
+        if (endNormalized < nowIso) return false;
         if (city && event.cityKey !== normalizeCity(city)) return false;
         if (host && event.host !== host) return false;
         if (search) {
@@ -168,6 +184,7 @@ export function filterAndSortEvents(events, { city, sort = "heat", search, host 
 }
 
 export default {
+    getEvent,
     calculateHeatScore,
     resolveStartingPrice,
     determineStatus,
@@ -175,4 +192,3 @@ export default {
     filterAndSortEvents,
     EVENT_SORTERS
 };
-

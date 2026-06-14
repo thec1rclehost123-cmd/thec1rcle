@@ -5,49 +5,52 @@
 
 import { createHmac } from "node:crypto";
 
-// Secret key for HMAC signing (should be in env vars in production)
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+// Secret key for HMAC signing (must be set via env var)
+const QR_SECRET = process.env.QR_SECRET_KEY;
+if (!QR_SECRET) {
+  throw new Error("QR_SECRET_KEY environment variable is required for QR code HMAC signing");
+}
 
 /**
  * Generate QR code payload for a ticket
  * The QR code contains a signed JSON payload that can be verified at entry
  */
 export function generateQRPayload({
-  orderId,
-  eventId,
-  ticketId,
-  ticketTierName,
-  userId,
-  quantity = 1,
-  entryType = "general",
-  isRSVP = false,
+    orderId,
+    eventId,
+    ticketId,
+    ticketTierName,
+    userId,
+    quantity = 1,
+    entryType = "general",
+    isRSVP = false
 }) {
-  const timestamp = Date.now();
+    const timestamp = Date.now();
 
-  // Create the payload
-  const payload = {
-    o: orderId, // Order ID
-    e: eventId, // Event ID
-    t: ticketId, // Ticket tier ID
-    n: ticketTierName, // Ticket name (for display)
-    u: userId, // User ID
-    q: quantity, // Quantity
-    et: entryType, // Entry type (stag, couple, etc.)
-    rt: isRSVP ? 1 : 0, // RSVP Type (1 = RSVP, 0 = Paid)
-    ts: timestamp, // Timestamp
-    v: 1, // Version for future compatibility
-  };
+    // Create the payload
+    const payload = {
+        o: orderId,           // Order ID
+        e: eventId,           // Event ID
+        t: ticketId,          // Ticket tier ID
+        n: ticketTierName,    // Ticket name (for display)
+        u: userId,            // User ID
+        q: quantity,          // Quantity
+        et: entryType,        // Entry type (stag, couple, etc.)
+        rt: isRSVP ? 1 : 0,    // RSVP Type (1 = RSVP, 0 = Paid)
+        ts: timestamp,        // Timestamp
+        v: 1                  // Version for future compatibility
+    };
 
-  // Create signature
-  const dataToSign = `${orderId}:${eventId}:${ticketId}:${userId}:${quantity}:${timestamp}:${isRSVP ? "RSVP" : "PAID"}`;
-  const signature = createHmac("sha256", QR_SECRET)
-    .update(dataToSign)
-    .digest("hex")
-    .substring(0, 16); // Shortened for QR efficiency
+    // Create signature
+    const dataToSign = `${orderId}:${eventId}:${ticketId}:${userId}:${quantity}:${timestamp}:${isRSVP ? 'RSVP' : 'PAID'}`;
+    const signature = createHmac("sha256", QR_SECRET)
+        .update(dataToSign)
+        .digest("hex")
+        .substring(0, 16); // Shortened for QR efficiency
 
-  payload.sig = signature;
+    payload.sig = signature;
 
-  return payload;
+    return payload;
 }
 
 /**
@@ -55,16 +58,16 @@ export function generateQRPayload({
  * Returns a base64 encoded SVG that can be displayed directly
  */
 export function generateQRCodeData(payload) {
-  // Convert payload to compact JSON string
-  const data = JSON.stringify(payload);
+    // Convert payload to compact JSON string
+    const data = JSON.stringify(payload);
 
-  // For server-side QR generation, we'll return the raw data
-  // The client will use a QR library to render it
-  return {
-    rawData: data,
-    // Shortened URL format for compact QR
-    shortData: `c1r://${payload.o}/${payload.sig}`,
-  };
+    // For server-side QR generation, we'll return the raw data
+    // The client will use a QR library to render it
+    return {
+        rawData: data,
+        // Shortened URL format for compact QR
+        shortData: `c1r://${payload.o}/${payload.sig}`
+    };
 }
 
 /**
@@ -72,51 +75,55 @@ export function generateQRCodeData(payload) {
  * Returns verification result with decoded data
  */
 export function verifyQRPayload(payload) {
-  try {
-    // Validate required fields
-    if (!payload.o || !payload.e || !payload.t || !payload.sig) {
-      return { valid: false, error: "Invalid QR code format" };
+    try {
+        // Handle short QR format (needs lookup before verification)
+        if (payload.isShort && payload.o && payload.sig) {
+            return { valid: false, needsLookup: true, orderId: payload.o, signature: payload.sig };
+        }
+
+        // Validate required fields
+        if (!payload.o || !payload.e || !payload.t || !payload.sig) {
+            return { valid: false, error: "Invalid QR code format" };
+        }
+
+        const isRSVP = payload.rt === 1;
+
+        // Recreate the signature
+        const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}:${isRSVP ? 'RSVP' : 'PAID'}`;
+        const expectedSignature = createHmac("sha256", QR_SECRET)
+            .update(dataToSign)
+            .digest("hex")
+            .substring(0, 16);
+
+        if (payload.sig !== expectedSignature) {
+            return { valid: false, error: "Invalid signature - QR code may be tampered" };
+        }
+
+        // Check if QR is too old (max 30 days)
+        const qrAge = Date.now() - payload.ts;
+        const maxAge = 30 * 24 * 60 * 60 * 1000;
+        if (qrAge > maxAge) {
+            return { valid: false, error: "QR code has expired" };
+        }
+
+        return {
+            valid: true,
+            data: {
+                orderId: payload.o,
+                eventId: payload.e,
+                ticketId: payload.t,
+                ticketName: payload.n,
+                userId: payload.u,
+                quantity: payload.q,
+                entryType: payload.et,
+                isRSVP: isRSVP,
+                generatedAt: new Date(payload.ts).toISOString(),
+                version: payload.v
+            }
+        };
+    } catch (error) {
+        return { valid: false, error: "Failed to parse QR code" };
     }
-
-    const isRSVP = payload.rt === 1;
-
-    // Recreate the signature
-    const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}:${isRSVP ? "RSVP" : "PAID"}`;
-    const expectedSignature = createHmac("sha256", QR_SECRET)
-      .update(dataToSign)
-      .digest("hex")
-      .substring(0, 16);
-
-    if (payload.sig !== expectedSignature) {
-      return { valid: false, error: "Invalid signature - QR code may be tampered" };
-    }
-
-    // Check if QR is too old (older than 48 hours before event)
-    // This is a soft check - the actual validation happens at scan time
-    const qrAge = Date.now() - payload.ts;
-    const maxAge = 30 * 24 * 60 * 60 * 1000; // 30 days
-    if (qrAge > maxAge) {
-      return { valid: false, error: "QR code has expired" };
-    }
-
-    return {
-      valid: true,
-      data: {
-        orderId: payload.o,
-        eventId: payload.e,
-        ticketId: payload.t,
-        ticketName: payload.n,
-        userId: payload.u,
-        quantity: payload.q,
-        entryType: payload.et,
-        isRSVP: isRSVP,
-        generatedAt: new Date(payload.ts).toISOString(),
-        version: payload.v,
-      },
-    };
-  } catch (error) {
-    return { valid: false, error: "Failed to parse QR code" };
-  }
 }
 
 /**
@@ -124,28 +131,28 @@ export function verifyQRPayload(payload) {
  * Handles both full JSON and short URL format
  */
 export function parseQRCode(scanData) {
-  try {
-    // Try parsing as JSON first
-    if (scanData.startsWith("{")) {
-      return JSON.parse(scanData);
-    }
+    try {
+        // Try parsing as JSON first
+        if (scanData.startsWith("{")) {
+            return JSON.parse(scanData);
+        }
 
-    // Handle short URL format: c1r://orderId/signature
-    if (scanData.startsWith("c1r://")) {
-      const parts = scanData.replace("c1r://", "").split("/");
-      if (parts.length >= 2) {
-        return {
-          o: parts[0],
-          sig: parts[1],
-          isShort: true,
-        };
-      }
-    }
+        // Handle short URL format: c1r://orderId/signature
+        if (scanData.startsWith("c1r://")) {
+            const parts = scanData.replace("c1r://", "").split("/");
+            if (parts.length >= 2) {
+                return {
+                    o: parts[0],
+                    sig: parts[1],
+                    isShort: true
+                };
+            }
+        }
 
-    return null;
-  } catch {
-    return null;
-  }
+        return null;
+    } catch {
+        return null;
+    }
 }
 
 /**
@@ -153,36 +160,36 @@ export function parseQRCode(scanData) {
  * Returns an array of QR payloads, one per ticket in the order
  */
 export function generateOrderQRCodes(order, event) {
-  const qrCodes = [];
-  const isRSVP = event?.isRSVP || order.isRSVP || order.id.startsWith("RSVP");
+    const qrCodes = [];
+    const isRSVP = event?.isRSVP || order.isRSVP || order.id.startsWith("RSVP");
 
-  for (const ticket of order.tickets) {
-    // Generate one QR per quantity unit if needed
-    // For simplicity, we generate one QR per ticket tier with quantity
-    const payload = generateQRPayload({
-      orderId: order.id,
-      eventId: order.eventId,
-      ticketId: ticket.ticketId,
-      ticketTierName: ticket.name,
-      userId: order.userId,
-      quantity: ticket.quantity,
-      entryType: ticket.entryType || "general",
-      isRSVP: isRSVP,
-    });
+    for (const ticket of order.tickets) {
+        // Generate one QR per quantity unit if needed
+        // For simplicity, we generate one QR per ticket tier with quantity
+        const payload = generateQRPayload({
+            orderId: order.id,
+            eventId: order.eventId,
+            ticketId: ticket.ticketId,
+            ticketTierName: ticket.name,
+            userId: order.userId,
+            quantity: ticket.quantity,
+            entryType: ticket.entryType || "general",
+            isRSVP: isRSVP
+        });
 
-    const qrData = generateQRCodeData(payload);
+        const qrData = generateQRCodeData(payload);
 
-    qrCodes.push({
-      ticketId: ticket.ticketId,
-      ticketName: ticket.name,
-      quantity: ticket.quantity,
-      entryType: ticket.entryType || "general",
-      isRSVP: isRSVP,
-      qrPayload: payload,
-      qrData: qrData.rawData,
-      shortCode: qrData.shortData,
-    });
-  }
+        qrCodes.push({
+            ticketId: ticket.ticketId,
+            ticketName: ticket.name,
+            quantity: ticket.quantity,
+            entryType: ticket.entryType || "general",
+            isRSVP: isRSVP,
+            qrPayload: payload,
+            qrData: qrData.rawData,
+            shortCode: qrData.shortData
+        });
+    }
 
-  return qrCodes;
+    return qrCodes;
 }

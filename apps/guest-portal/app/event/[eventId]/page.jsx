@@ -1,287 +1,93 @@
-import { notFound } from "next/navigation";
-import EventRSVP from "../../../components/EventRSVP";
-import { getEvent, getEventInterested, getEventGuestlist } from "../../../lib/server/eventStore";
-import { getHostByHandle } from "../../../lib/server/hostStore";
-import { getVenueBySlug } from "../../../lib/server/venueStore";
-import { getHostProfile as getMockHostProfile } from "../../../data/hosts";
+import PageClient from "./PageClient";
+import { guestServerJson } from "../../../lib/api/server";
+import { buildEventDetailView } from "../../../lib/bff/events.js";
+import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
+import {
+  buildEventJsonLd,
+  buildTitle,
+  getEventDescription,
+  getEventImage,
+  getSiteUrl,
+} from "../../../features/seo/seoUtils";
+
+const EVENT_REVALIDATE_SECONDS = 30;
+
+async function resolveParams(params) {
+  return await params;
+}
+
+async function loadEventDetail(eventId) {
+  if (!eventId) return null;
+
+  if (isGuestBffEnabled("eventDetail")) {
+    const result = await buildEventDetailView(eventId);
+    return result.data || null;
+  }
+
+  const { response, data } = await guestServerJson(`/public/events/${encodeURIComponent(eventId)}`, {
+    forwardCookies: false,
+    next: { revalidate: EVENT_REVALIDATE_SECONDS },
+  });
+
+  if (!response.ok) return null;
+  return data;
+}
 
 export async function generateMetadata({ params }) {
-  const identifier = decodeURIComponent(params.eventId);
-  const event = await getEvent(identifier);
+  const resolved = await resolveParams(params);
+  const eventId = decodeURIComponent(String(resolved?.eventId || ""));
+  const detail = await loadEventDetail(eventId);
+  const event = detail?.event || detail || null;
 
   if (!event) {
     return {
-      title: "Event Not Found",
-      description: "The event you are looking for does not exist.",
+      title: "Event unavailable | THE.C1RCLE",
+      description: "This C1RCLE event is unavailable or has been removed.",
+      alternates: { canonical: `${getSiteUrl()}/event/${encodeURIComponent(eventId)}` },
     };
   }
 
-  const title = event.title.toUpperCase();
-  const description = event.summary || event.description || "Join us at THE C1RCLE.";
-  const images = event.image ? [event.image] : [];
+  const title = event.title || event.name || "C1RCLE Event";
+  const description = getEventDescription(event);
+  const image = getEventImage(event);
+  const canonical = `${getSiteUrl()}/event/${encodeURIComponent(event.slug || event.id || eventId)}`;
 
   return {
-    title: title,
-    description: description,
+    title: buildTitle(title),
+    description,
+    alternates: { canonical },
     openGraph: {
-      title: `THE.C1RCLE | ${title}`,
-      description: description,
-      images: images,
-      siteName: "THE.C1RCLE",
+      title,
+      description,
+      url: canonical,
       type: "website",
+      images: [{ url: image, width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
-      title: `THE.C1RCLE | ${title}`,
-      description: description,
-      images: images,
+      title,
+      description,
+      images: [image],
     },
   };
 }
 
-import Link from "next/link";
-import { headers } from "next/headers";
-
-const AuroraBackground = () => (
-  <div className="fixed inset-0 -z-10 overflow-hidden bg-[var(--bg-color)]">
-    <div className="absolute -top-[30%] left-0 h-[80vh] w-full bg-gradient-to-b from-orange/10 dark:from-iris/10 via-transparent to-transparent blur-[120px] opacity-60" />
-    <div className="absolute top-[20%] right-[-20%] h-[600px] w-[600px] rounded-full bg-orange/5 dark:bg-gold/5 blur-[100px] opacity-40 mix-blend-multiply dark:mix-blend-screen animate-pulse" />
-  </div>
-);
-
 export default async function EventDetailPage({ params }) {
-  const identifier = decodeURIComponent(params.eventId);
-  const event = await getEvent(identifier);
-
-  // TRACK LIVE VIEW (Redis)
-  if (event) {
-    try {
-      const h = headers();
-      const ip = h.get("x-forwarded-for") || "127.0.0.1";
-      const userAgent = h.get("user-agent") || "unknown";
-      const viewerId = Buffer.from(`${ip}-${userAgent}`).toString("base64");
-
-      const { trackEventView } = await import("@c1rcle/core/analytics-service");
-      await trackEventView(event.id, viewerId);
-    } catch (err) {
-      console.error("[EventPage] Failed to track live view:", err);
-    }
-  }
-
-  if (!event) {
-    return (
-      <div className="relative flex min-h-[80vh] items-center justify-center bg-[var(--bg-color)] px-4">
-        <AuroraBackground />
-        <div className="text-center">
-          <div className="mb-8 flex justify-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-black/5 dark:bg-white/5">
-              <svg
-                className="h-10 w-10 text-[var(--text-muted)]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
-              </svg>
-            </div>
-          </div>
-          <h1 className="font-heading text-4xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-6xl">
-            Event unavailable
-          </h1>
-          <p className="mt-6 text-sm font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] max-w-sm mx-auto leading-relaxed">
-            The event reference is missing or broken. This link might have expired or the host has
-            removed the listing.
-          </p>
-          <div className="mt-12">
-            <Link
-              href="/explore"
-              className="inline-flex items-center gap-3 rounded-full bg-orange dark:bg-white px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-black shadow-lg shadow-orange/20 dark:shadow-none transition-transform hover:scale-105"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                />
-              </svg>
-              Explore Events
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Determine the primary host profile
-  let hostProfile = null;
-
-  // 1. Try to fetch real host profile
-  if (event.host) {
-    hostProfile = await getHostByHandle(event.host);
-    if (hostProfile) hostProfile.type = "host";
-  }
-
-  // 2. If no host profile, try to fetch venue profile if venue exists
-  if (!hostProfile && event.venue) {
-    // Assuming venue slug is a kebab-case version of name if not provided
-    const venueSlug = event.venueSlug || event.venue.toLowerCase().replace(/\s+/g, "-");
-    const venueProfile = await getVenueBySlug(venueSlug);
-    if (venueProfile) {
-      hostProfile = {
-        ...venueProfile,
-        type: "venue",
-        avatar: venueProfile.photoURL || venueProfile.image,
-      };
-    }
-  }
-
-  // 3. Fallback to mock data if still nothing
-  if (!hostProfile) {
-    const mock = getMockHostProfile(event.host);
-    hostProfile = {
-      ...mock,
-      type: "host",
-      handle: event.host || "@guest",
-      slug: (event.host || "@guest").replace("@", "").replace(/\./g, "-"),
-    };
-  }
-
-  // Ensure hostProfile always has a type and fallback slug
-  if (hostProfile && !hostProfile.type) hostProfile.type = "host";
-  if (hostProfile && !hostProfile.slug) {
-    hostProfile.slug = hostProfile.handle
-      ? hostProfile.handle.replace("@", "").replace(/\./g, "-")
-      : hostProfile.id;
-  }
-
-  // Fetch live social proof
-  const interestedData = await getEventInterested(event.id);
-
-  let guestlist = [];
-  if (event.settings?.showGuestlist) {
-    guestlist = await getEventGuestlist(event.id);
-  }
-
-  // ── Handle Cancelled Event ──
-  if (event.lifecycle === "cancelled") {
-    return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center bg-[var(--bg-color)] px-4 py-20">
-        <AuroraBackground />
-
-        <div className="relative z-10 w-full max-w-lg text-center">
-          {/* Cancelled Badge */}
-          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full bg-red-500/10 ring-8 ring-red-500/5">
-            <svg
-              className="h-12 w-12 text-red-500"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-              />
-            </svg>
-          </div>
-
-          {/* Event Title */}
-          <h1 className="font-heading text-3xl font-black uppercase tracking-tight text-[var(--text-primary)] md:text-5xl">
-            Event Cancelled
-          </h1>
-
-          <p className="mx-auto mt-4 max-w-md text-base font-medium text-[var(--text-muted)] leading-relaxed">
-            <span className="font-bold text-[var(--text-primary)]">{event.title}</span> has been
-            cancelled by the organizer.
-          </p>
-
-          {/* Reason */}
-          {event.cancellationReason && (
-            <div className="mx-auto mt-8 max-w-md rounded-3xl border border-black/5 dark:border-white/5 bg-black/3 dark:bg-white/3 p-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2">
-                Reason
-              </p>
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                {event.cancellationReason}
-              </p>
-            </div>
-          )}
-
-          {/* Refund Info */}
-          {event.refundPolicy && (
-            <div className="mx-auto mt-4 max-w-md rounded-3xl border border-black/5 dark:border-white/5 bg-black/3 dark:bg-white/3 p-6">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[var(--text-muted)] mb-2">
-                Refund Status
-              </p>
-              <p className="text-sm font-medium text-[var(--text-primary)]">
-                {event.refundPolicy === "full"
-                  ? "A full refund has been initiated. It will be processed within 5–7 business days."
-                  : event.refundPolicy === "partial"
-                    ? `A ${event.partialRefundPercent || 50}% refund has been initiated. It will be processed within 5–7 business days.`
-                    : "Contact support for refund information."}
-              </p>
-              {event.refundStatus === "completed" && (
-                <p className="mt-2 text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center justify-center gap-1.5">
-                  <svg
-                    className="w-3.5 h-3.5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2.5}
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
-                  Refunds Processed
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* CTA */}
-          <div className="mt-12 flex flex-col items-center gap-4">
-            <Link
-              href="/explore"
-              className="inline-flex items-center gap-3 rounded-full bg-orange dark:bg-white px-10 py-5 text-[10px] font-black uppercase tracking-[0.3em] text-white dark:text-black shadow-lg shadow-orange/20 dark:shadow-none transition-transform hover:scale-105"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2.5}
-                  d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                />
-              </svg>
-              Explore Other Events
-            </Link>
-            <Link
-              href="/profile"
-              className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
-            >
-              View My Tickets →
-            </Link>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const resolved = await resolveParams(params);
+  const eventId = decodeURIComponent(String(resolved?.eventId || ""));
+  const detail = await loadEventDetail(eventId);
+  const event = detail?.event || detail || null;
+  const jsonLd = event ? buildEventJsonLd(event) : null;
 
   return (
-    <EventRSVP
-      event={event}
-      host={hostProfile}
-      interestedData={interestedData}
-      guestlist={guestlist}
-    />
+    <>
+      {jsonLd ? (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+        />
+      ) : null}
+      <PageClient initialDetail={detail} initialEventId={eventId} />
+    </>
   );
 }

@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main, staging]
+    branches: ['**']
   pull_request:
-    branches: [main, staging]
+    branches: ['**']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -13,35 +13,28 @@ concurrency:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-
-permissions:
-  contents: read
-  issues: write
-  pull-requests: write
   # Enables Turbo remote cache — add TURBO_TOKEN to repo secrets
 
 jobs:
-  # ── 1. Shared setup ──────────────────────────────────────────
+    # ── 1. Shared setup ──────────────────────────────────────────
   install:
     name: Install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
-      - run: npm install --legacy-peer-deps
+      - run: npm ci
       - name: Cache node_modules
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+        uses: actions/cache@v4
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
 
     # ── 2. Lint & format (all workspaces via Turbo) ──────────────
   lint:
@@ -49,30 +42,16 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@v4
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo lint --filter='...[origin/main]'
-      - name: Prettier (changed files only)
-        run: |
-          CHANGED=$(git diff --name-only origin/main...HEAD --diff-filter=ACMRT || true)
-          FILTERED=$(echo "$CHANGED" | grep -E '\.(js|jsx|ts|tsx|mjs|cjs|json|css|md|html|yaml|yml)$' || true)
-          if [ -n "$FILTERED" ]; then
-            echo "$FILTERED" | xargs npx prettier --check
-          else
-            echo "No changed formattable files to check"
-          fi
+              # Only lints packages affected by this PR
+      - run: npx prettier --check .
 
     # ── 3. TypeScript across all packages ────────────────────────
   typecheck:
@@ -80,19 +59,15 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@v4
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
-      - run: npx turbo type-check
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npx turbo typecheck
+              # Runs tsc --noEmit in each workspace via Turbo
 
     # ── 4. Tests ─────────────────────────────────────────────────
   test:
@@ -100,11 +75,10 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
         include:
           - workspace: apps/guest-portal
-            test-command: echo "No tests for guest-portal"
+            test-command: npm test
           - workspace: apps/partner-dashboard
             test-command: npx vitest run --coverage --passWithNoTests
           - workspace: apps/admin-console
@@ -114,27 +88,21 @@ jobs:
           - workspace: packages/core
             test-command: npx vitest run --coverage --passWithNoTests
           - workspace: apps/mobile-app
-            test-command: echo "No tests for mobile-app"
+            test-command: npx jest --testPathPattern=scanner --coverage --passWithNoTests
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@v4
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - name: Run tests
         run: |
           cd ${{ matrix.workspace }}
           ${{ matrix.test-command }}
-      - uses: codecov/codecov-action@04b047e8bb82a0c002c8312c1c880fbc6a999d45
+      - uses: codecov/codecov-action@v4
         if: always()
-        continue-on-error: true
         with:
           flags: ${{ matrix.workspace }}
           fail_ci_if_error: false
@@ -145,21 +113,15 @@ jobs:
     needs: [lint, typecheck, test]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@v4
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo build --filter='...[origin/main]'
+              # Skips packages unchanged vs main; uses remote cache
 
     # ── 6. Security ───────────────────────────────────────────────
   security:
@@ -167,53 +129,18 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache@v4
         with:
-          path: |
-            node_modules
-            apps/*/node_modules
-            packages/*/node_modules
-          key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            nm-${{ runner.os }}-
-      - name: npm audit
-        run: npm audit --audit-level=high --workspaces
-        continue-on-error: true
-      - uses: trufflesecurity/trufflehog@84a2b33c9f891494db6ebe02f2a55b19cdf38f25
-        continue-on-error: true
+          path: node_modules/**/node_modules
+          key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+      - run: npm audit --audit-level=high --workspaces
+      - uses: trufflesecurity/trufflehog@main
         with: { extra_args: --only-verified }
-
-  summary-comment:
-    name: CI Summary Comment
-    needs: [lint, typecheck, test, build, security]
-    if: always() && github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b
-        with:
-          script: |
-            const marker = '<!-- c1rcle-ci-summary -->';
-            const rows = [
-              ['Lint & Format', '${{ needs.lint.result }}'],
-              ['Type Check', '${{ needs.typecheck.result }}'],
-              ['Tests', '${{ needs.test.result }}'],
-              ['Build', '${{ needs.build.result }}'],
-              ['Security', '${{ needs.security.result }}'],
-            ];
-            const icon = (result) => result === 'success' ? '✓' : result === 'skipped' ? '-' : '✗';
-            const table = rows.map(([name, result]) => `| ${icon(result)} | ${name} | ${result} |`).join('\n');
-            const body = `${marker}\n## CI Summary\n\n| Status | Check | Result |\n|---|---|---|\n${table}\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
-            const { owner, repo } = context.repo;
-            const issue_number = context.issue.number;
-            const comments = await github.rest.issues.listComments({ owner, repo, issue_number, per_page: 100 });
-            const existing = comments.data.find((comment) => comment.user.type === 'Bot' && comment.body.includes(marker));
-            if (existing) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
-
+      - name: Zod v4 schema fuzz
+        run: npx tsx scripts/fuzz-schemas.ts --ci
+        continue-on-error: true
+              # Optional: run fast-check against Zod 4 schemas

@@ -1,10 +1,5 @@
-import PromoterPlaceholderPage from "@/components/promoter-layout/PromoterPlaceholderPage";
+import PageClient from "./PageClient";
 
-export default function GuestListPage() {
-  return (
-    <PromoterPlaceholderPage
-      title="Buyer Guest List"
-      description="See who bought tickets from you. Use this to follow up, but remember: data is limited for privacy."
-    />
-  );
+export default function Page(props: any) {
+    return <PageClient {...props} />;
 }

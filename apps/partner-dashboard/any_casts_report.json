@@ -1,0 +1,1186 @@
+[
+  {
+    "file": "apps\\partner-dashboard\\app\\api\\event-codes\\route.ts",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 33,
+        "code": "body: JSON.stringify({ ...body, createdBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })"
+      },
+      {
+        "line": 50,
+        "code": "body: JSON.stringify({ revokedBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\api\\events\\create\\route.test.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 25,
+        "code": "} as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\api\\host\\events\\[id]\\submit\\route.test.ts",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 26,
+        "code": "} as any;"
+      },
+      {
+        "line": 43,
+        "code": "expect((result as any).success).toBe(true);"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\api\\promoter\\notifications\\route.test.ts",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 37,
+        "code": "const req = new Request(\"http://localhost/api/promoter/notifications?limit=10\") as any;"
+      },
+      {
+        "line": 55,
+        "code": "} as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\events\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 113,
+        "code": "const m = mapEventForClient(r, r.id) as any;"
+      },
+      {
+        "line": 122,
+        "code": "status: m.lifecycle as any,"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\events\\requests\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 235,
+        "code": "onClick={() => setActiveTab(tab.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\finance\\payouts\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 51,
+        "code": "throw new Error((err as any).error || \"Failed to save bank account.\");"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\network\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 42,
+        "code": "transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },"
+      },
+      {
+        "line": 297,
+        "code": "filterType={discoverType as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\page-management\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 362,
+        "code": "onClick={() => setActiveTab(tab.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\partnerships\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 298,
+        "code": "status: ((p.status || p.partnershipStatus || \"pending\") === \"active\" ? \"approved\" : (p.status || p.partnershipStatus || \"pending\")) as any,"
+      },
+      {
+        "line": 345,
+        "code": "status: (r.status || \"pending\") as any,"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\presence\\HostPresencePageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 523,
+        "code": "onClick={() => setActiveTab(tab.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\promoters\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 135,
+        "code": "const token = await (window as any).getAuthToken?.();"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\reviews\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 202,
+        "code": "onClick={() => setFilter(tab.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\host\\settings\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 174,
+        "code": "if (JSON.stringify(local[k]) !== JSON.stringify(settings[k])) (diff as any)[k] = local[k];"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\onboard\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 157,
+        "code": "const savedStep = (authProfile as any)?.onboardingStep;"
+      },
+      {
+        "line": 158,
+        "code": "const savedEntity = (authProfile as any)?.entityType;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\promoter\\guests\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 48,
+        "code": "transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\promoter\\partnerships\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 48,
+        "code": "transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },"
+      },
+      {
+        "line": 272,
+        "code": "filterType={discoverType as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\promoter\\payouts\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 62,
+        "code": "transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },"
+      },
+      {
+        "line": 112,
+        "code": "throw new Error((err as any).error || \"Failed to save bank account.\");"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\analytics\\live\\LiveClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 398,
+        "code": "setData(normalizeAnalyticsV2((payload as any)?.analytics ?? payload));"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\crm\\page.tsx",
+    "count": 3,
+    "occurrences": [
+      {
+        "line": 672,
+        "code": "if (Array.isArray(data?.events)) return data.events as any[];"
+      },
+      {
+        "line": 673,
+        "code": "if (Array.isArray(data)) return data as any[];"
+      },
+      {
+        "line": 779,
+        "code": "? Promise.resolve({ entries: [] as any[] })"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\door\\sell\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 296,
+        "code": "idempotencyKey: idempotencyKey((profile as any)?.uid ?? \"staff\"),"
+      },
+      {
+        "line": 575,
+        "code": "const isLive = (event as any).lifecycle === \"live\" || event.status === \"live\";"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\events\\PageClient.tsx",
+    "count": 5,
+    "occurrences": [
+      {
+        "line": 114,
+        "code": "const m = mapEventForClient(r, r.id) as any;"
+      },
+      {
+        "line": 123,
+        "code": "status: m.lifecycle as any,"
+      },
+      {
+        "line": 176,
+        "code": "setEvents((prev) => prev.map((e) => e.id === eventId ? { ...e, status: (mappedStatus || e.status) as any } : e));"
+      },
+      {
+        "line": 180,
+        "code": "const getStatus = (e: Event) => (e as any).lifecycle || e.status;"
+      },
+      {
+        "line": 392,
+        "code": "event={selectedEvent as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\finance\\host-payouts\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 43,
+        "code": "const { profile, getIdToken } = useDashboardAuth() as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\finance\\ledger\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 28,
+        "code": "const [category, setCategory] = useState<TransactionCategory | \"\">((searchParams.get(\"category\") || \"\") as any);"
+      },
+      {
+        "line": 29,
+        "code": "const [status, setStatus]   = useState<SettlementStatus | \"\">((searchParams.get(\"status\") || \"\") as any);"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\finance\\payouts\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 52,
+        "code": "const rawPayoutState = (data.metrics as any)?.payoutState as PayoutSettingsState | undefined;"
+      },
+      {
+        "line": 78,
+        "code": "throw new Error((err as any).error || \"Failed to save bank account.\");"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\finance\\records\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 51,
+        "code": "const [category, setCategory] = useState<TransactionCategory | \"\">((searchParams.get(\"category\") || \"\") as any);"
+      },
+      {
+        "line": 52,
+        "code": "const [status, setStatus]     = useState<SettlementStatus | \"\">((searchParams.get(\"status\") || \"\") as any);"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\guest-ops\\door\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 588,
+        "code": "<GuestSourceChip source={guest.guestType as any} size=\"xs\" />"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\guest-ops\\list\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 274,
+        "code": "<div><GuestSourceChip source={guest.guestType as any} size=\"xs\" /></div>"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\guest-ops\\scanner\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 178,
+        "code": "<ScanKPI label=\"Invalid Scans\" value={summary?.kpis ? (summary.kpis as any).invalidScans ?? 0 : 0} color=\"red\" icon={<XCircle size={14} />} />"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 478,
+        "code": "const Wrapper = href ? Link : (\"div\" as any);"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\partners\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 42,
+        "code": "transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },"
+      },
+      {
+        "line": 304,
+        "code": "filterType={discoverType as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\presence\\VenuePresencePageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 523,
+        "code": "onClick={() => setActiveTab(tab.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\reservations\\PageClient.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 95,
+        "code": "const totalGuests = (reservations as any).totalGuests ?? 0;"
+      },
+      {
+        "line": 96,
+        "code": "const totalRevenue = (reservations as any).totalRevenue ?? 0;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\settings\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 177,
+        "code": "(diff as any)[key] = local[key];"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\staff\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 190,
+        "code": "onClick={() => setActiveView(view.id as any)}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\app\\venue\\tables\\PageClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 157,
+        "code": "const totalCapacity = (tables as any).totalCapacity ?? 0;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\ChartPrimitives.tsx",
+    "count": 6,
+    "occurrences": [
+      {
+        "line": 50,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 55,
+        "code": "const Defs = \"defs\" as any;"
+      },
+      {
+        "line": 56,
+        "code": "const LinearGradient = \"linearGradient\" as any;"
+      },
+      {
+        "line": 57,
+        "code": "const Stop = \"stop\" as any;"
+      },
+      {
+        "line": 408,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 527,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\DrillDownDrawer.tsx",
+    "count": 4,
+    "occurrences": [
+      {
+        "line": 40,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 45,
+        "code": "const Defs = \"defs\" as any;"
+      },
+      {
+        "line": 46,
+        "code": "const LG   = \"linearGradient\" as any;"
+      },
+      {
+        "line": 47,
+        "code": "const Stop = \"stop\" as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\EventAnalyticsClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 142,
+        "code": "const mapped = mapEventForClient(rawEvent, rawEvent.id) as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\sections\\index.tsx",
+    "count": 6,
+    "occurrences": [
+      {
+        "line": 32,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 53,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 72,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 75,
+        "code": "const Defs = \"defs\" as any;"
+      },
+      {
+        "line": 76,
+        "code": "const LG = \"linearGradient\" as any;"
+      },
+      {
+        "line": 77,
+        "code": "const Stop = \"stop\" as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\UnifiedAnalyticsClient.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 40,
+        "code": "const { profile, getIdToken } = useDashboardAuth() as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\analytics\\VenueCrossEventClient.tsx",
+    "count": 17,
+    "occurrences": [
+      {
+        "line": 38,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 63,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 82,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 127,
+        "code": "const { profile, getIdToken } = useDashboardAuth() as any;"
+      },
+      {
+        "line": 218,
+        "code": "const rawOverview  = (overviewQuery.data as any)?.analytics ?? overviewQuery.data ?? {};"
+      },
+      {
+        "line": 221,
+        "code": "const revSeries   = (tsRevenueQuery.data as any)?.series ?? [];"
+      },
+      {
+        "line": 222,
+        "code": "const tickSeries  = (tsTicketsQuery.data as any)?.series ?? [];"
+      },
+      {
+        "line": 223,
+        "code": "const revTotal    = (tsRevenueQuery.data as any)?.total ?? 0;"
+      },
+      {
+        "line": 224,
+        "code": "const tickTotal   = (tsTicketsQuery.data as any)?.total ?? 0;"
+      },
+      {
+        "line": 226,
+        "code": "const audience    = (audienceQuery.data as any)?.analytics ?? audienceQuery.data ?? {};"
+      },
+      {
+        "line": 227,
+        "code": "const partners    = (hostsQuery.data as any)?.analytics ?? hostsQuery.data ?? {};"
+      },
+      {
+        "line": 228,
+        "code": "const ops         = (opsQuery.data as any)?.analytics ?? opsQuery.data ?? {};"
+      },
+      {
+        "line": 229,
+        "code": "const strategy    = (strategyQuery.data as any)?.analytics ?? strategyQuery.data ?? {};"
+      },
+      {
+        "line": 414,
+        "code": "{(audience.topCities as any[]).slice(0, 8).map((c: any, i: number) => {"
+      },
+      {
+        "line": 461,
+        "code": "{([...(partners.hosts as any[])]"
+      },
+      {
+        "line": 561,
+        "code": "{(partners.promoters as any[]).map((p: any, i: number) => ("
+      },
+      {
+        "line": 659,
+        "code": "{(strategy.recommendations as any[]).map((rec: any, i: number) => ("
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\dashboard\\DashboardPanel.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 53,
+        "code": "const Wrapper = (interactive ? motion.div : \"div\") as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\finance\\BankSetupForm.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 288,
+        "code": "throw new Error((data as any).error?.message || (data as any).error || \"Upload failed.\");"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\guest-ops\\GuestDetailDrawer.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 317,
+        "code": "<GuestSourceChip source={guest.guestType as any} size=\"xs\" />"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\guest-ops\\modals\\AddGuestModal.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 51,
+        "code": "Authorization: `Bearer ${(profile as any)?._token ?? \"\"}`,"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\partnerships\\DiscoverDirectory.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 268,
+        "code": "partner={partner as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\promoter\\PayoutRequestModal.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 27,
+        "code": "const { getIdToken } = useDashboardAuth() as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\shared\\AppleTopBar.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 25,
+        "code": "const { profile, signOut } = useDashboardAuth() as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\shared\\AuditTrail.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 59,
+        "code": "const Icon = style.icon as any;"
+      },
+      {
+        "line": 91,
+        "code": "{React.createElement(User as any, { className: \"h-3 w-3\" })}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\shared\\BankingBanner.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 15,
+        "code": "const partnerType = (profile?.activeMembership as any)?.type as string | undefined;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\shared\\NotificationCenter.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 196,
+        "code": "const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\studio\\EventStudio.tsx",
+    "count": 5,
+    "occurrences": [
+      {
+        "line": 42,
+        "code": "{React.createElement(Clock as any, { className: \"h-8 w-8 text-text-placeholder mb-3\" })}"
+      },
+      {
+        "line": 97,
+        "code": "{evt.type === 'incident' ? React.createElement(ShieldAlert as any, { className: \"h-3 w-3\" }) : React.createElement(Zap as any, { className: \"h-3 w-3\" })}"
+      },
+      {
+        "line": 154,
+        "code": "{insight.severity === 'critical' ? React.createElement(ShieldAlert as any, { className: \"h-6 w-6\" }) : React.createElement(Zap as any, { className: \"h-6 w-6\" })}"
+      },
+      {
+        "line": 168,
+        "code": "View Data Point {React.createElement(ArrowUpRight as any, { className: \"h-3 w-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform\" })}"
+      },
+      {
+        "line": 174,
+        "code": "{React.createElement(TrendingUp as any, { className: \"h-4 w-4 text-emerald-500 mt-0.5 shrink-0\" })}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\studio\\StudioComponents.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 41,
+        "code": "const TrendIcon = (trendType === \"up\" ? TrendingUp : trendType === \"down\" ? TrendingDown : Minus) as any;"
+      },
+      {
+        "line": 62,
+        "code": "{React.createElement(Info as any, { className: \"h-3 w-3 opacity-50\" })}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\ui\\Card.tsx",
+    "count": 6,
+    "occurrences": [
+      {
+        "line": 49,
+        "code": "{...rest as any}"
+      },
+      {
+        "line": 67,
+        "code": "<div className={cn(\"flex items-start justify-between mb-5\", className)} {...rest as any}>"
+      },
+      {
+        "line": 104,
+        "code": "{...rest as any}"
+      },
+      {
+        "line": 144,
+        "code": "<div className={cn(\"flex flex-col gap-4\", className)} {...rest as any} />"
+      },
+      {
+        "line": 149,
+        "code": "<div className={cn(\"mt-auto flex flex-wrap items-center gap-3 pt-5 border-t border-border-subtle\", className)} {...rest as any} />"
+      },
+      {
+        "line": 154,
+        "code": "<div className={cn(\"h-px bg-border-subtle my-4 -mx-5\", className)} {...rest as any} />"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\ui\\EmptyState.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 25,
+        "code": "const isComponent = typeof Icon === \"function\" || (typeof Icon === \"object\" && Icon !== null && \"render\" in (Icon as any));"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\ui\\MagneticButton.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 52,
+        "code": "ref={buttonRef as any}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\ui\\VenueChart.tsx",
+    "count": 9,
+    "occurrences": [
+      {
+        "line": 53,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 74,
+        "code": "const Defs = (m as any).defs || \"defs\";"
+      },
+      {
+        "line": 75,
+        "code": "const LinearGradient = (m as any).linearGradient || \"linearGradient\";"
+      },
+      {
+        "line": 76,
+        "code": "const Stop = (m as any).stop || \"stop\";"
+      },
+      {
+        "line": 134,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 190,
+        "code": "(import(\"recharts\") as any).then((m: any) => ({"
+      },
+      {
+        "line": 211,
+        "code": "const Defs = (m as any).defs || \"defs\";"
+      },
+      {
+        "line": 212,
+        "code": "const LinearGradient = (m as any).linearGradient || \"linearGradient\";"
+      },
+      {
+        "line": 213,
+        "code": "const Stop = (m as any).stop || \"stop\";"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\venue-events\\VenueSelectionGrid.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 14,
+        "code": "const venueLogo = (profile?.activeMembership as any)?.partnerLogo || \"\";"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\venue-layout\\VenueSidebar.tsx",
+    "count": 3,
+    "occurrences": [
+      {
+        "line": 288,
+        "code": "{(profile?.activeMembership as any)?.partnerLogo ? ("
+      },
+      {
+        "line": 289,
+        "code": "<img src={(profile!.activeMembership as any).partnerLogo} alt=\"Logo\" className=\"h-full w-full object-cover\" />"
+      },
+      {
+        "line": 292,
+        "code": "{(profile?.activeMembership as any)?.partnerName?.[0] || \"C\"}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\wizard\\CreateEventWizard.tsx",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 1743,
+        "code": "avatar: (profile as any)?.photoURL || \"/events/holi-edit.svg\","
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\wizard\\steps\\SchedulingStep.tsx",
+    "count": 2,
+    "occurrences": [
+      {
+        "line": 262,
+        "code": "{(formData as any)[key] || \"—\"}"
+      },
+      {
+        "line": 270,
+        "code": "value={(formData as any)[key] || \"\"}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\wizard\\TicketTierStep.tsx",
+    "count": 3,
+    "occurrences": [
+      {
+        "line": 692,
+        "code": "<button key={v} onClick={() => onUpdate({ promoterCommissionType: v as any })}"
+      },
+      {
+        "line": 740,
+        "code": "<button key={v} onClick={() => onUpdate({ promoterDiscountType: v as any })}"
+      },
+      {
+        "line": 1133,
+        "code": "<input type=\"datetime-local\" value={(schedule as any)[k]}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\components\\wizard\\WizardUI.tsx",
+    "count": 3,
+    "occurrences": [
+      {
+        "line": 46,
+        "code": "{React.createElement(Icon as any, { className: \"h-4 w-4\" })}"
+      },
+      {
+        "line": 64,
+        "code": "{React.createElement(AlertCircle as any, { className: \"h-3 w-3\" })}"
+      },
+      {
+        "line": 115,
+        "code": "{React.createElement(CheckCircle2 as any, { className: \"h-4 w-4\" })}"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\analytics\\zeroState.ts",
+    "count": 31,
+    "occurrences": [
+      {
+        "line": 275,
+        "code": "const ticketsSold = n((r as any).ticketsSold ?? (r as any).totalTicketsSold);"
+      },
+      {
+        "line": 276,
+        "code": "const checkins = n((r as any).totalCheckIns ?? (r as any).checkins);"
+      },
+      {
+        "line": 287,
+        "code": "? (r.revenueTimeline as any[]).map((d: any) => n(d.revenue))"
+      },
+      {
+        "line": 290,
+        "code": "? (r.ticketsTimeline as any[]).map((d: any) => n(d.tickets))"
+      },
+      {
+        "line": 294,
+        "code": "const prior = (r as any).prior ?? {};"
+      },
+      {
+        "line": 354,
+        "code": "n((r as any).metrics?.repeatRate ?? r.repeatGuestRate), 0,"
+      },
+      {
+        "line": 355,
+        "code": "fmtPct(n((r as any).metrics?.repeatRate ?? r.repeatGuestRate)), true,"
+      },
+      {
+        "line": 460,
+        "code": "const rawFunnel = Array.isArray(r.funnel) && (r.funnel as any[]).length > 0"
+      },
+      {
+        "line": 461,
+        "code": "? (r.funnel as any[])"
+      },
+      {
+        "line": 491,
+        "code": "? (r.channelQuality as any[]).map((c: any) => ({"
+      },
+      {
+        "line": 515,
+        "code": "genderRatio: (r.genderRatio as any) ?? { female: 0, male: 0, other: 0 },"
+      },
+      {
+        "line": 516,
+        "code": "ageBands: (r.ageBands as any) ?? { \"18–22\": 0, \"23–27\": 0, \"28–34\": 0, \"35+\": 0 },"
+      },
+      {
+        "line": 533,
+        "code": "const eventScorecards: EventScorecard[] = Array.isArray(r.topEvents) && (r.topEvents as any[]).length > 0"
+      },
+      {
+        "line": 534,
+        "code": "? (r.topEvents as any[]).map((e: any) => ({"
+      },
+      {
+        "line": 558,
+        "code": "status: (e.status as any) ?? \"complete\","
+      },
+      {
+        "line": 564,
+        "code": "const promoters: PromoterScore[] = Array.isArray(r.promoters) && (r.promoters as any[]).length > 0"
+      },
+      {
+        "line": 565,
+        "code": "? (r.promoters as any[]).map((p: any) => ({"
+      },
+      {
+        "line": 587,
+        "code": "tier: (p.tier as any) ?? \"developing\","
+      },
+      {
+        "line": 597,
+        "code": "const rejectedScans = n((r as any).deniedStats?.total ?? r.rejectedScans);"
+      },
+      {
+        "line": 661,
+        "code": "? (r.sources as any[]).map((src: any) => ({"
+      },
+      {
+        "line": 730,
+        "code": "arrivalWaveShape: (r.arrivalWaveShape as any) ?? \"steady\","
+      },
+      {
+        "line": 735,
+        "code": "weekdayVsWeekend: (r.weekdayVsWeekend as any) ?? { weekday: 0, weekend: 0 },"
+      },
+      {
+        "line": 759,
+        "code": "Array.isArray(r.revenueTimeline) && (r.revenueTimeline as any[]).length > 0,"
+      },
+      {
+        "line": 760,
+        "code": "Array.isArray(r.funnel) && (r.funnel as any[]).length > 0,"
+      },
+      {
+        "line": 761,
+        "code": "Array.isArray(r.sources) && (r.sources as any[]).length > 0,"
+      },
+      {
+        "line": 767,
+        "code": "role: (r.role as any) ?? \"venue\","
+      },
+      {
+        "line": 861,
+        "code": "return { date: d.toLocaleDateString(\"en-IN\", { day: \"numeric\", month: \"short\" }), [vk]: 0 } as any;"
+      },
+      {
+        "line": 885,
+        "code": "revenueTimeline: Array.isArray(r.revenueTimeline) ? r.revenueTimeline as any[] : makeDateSeries30(\"revenue\"),"
+      },
+      {
+        "line": 886,
+        "code": "ticketsTimeline: Array.isArray(r.ticketsTimeline) ? r.ticketsTimeline as any[] : makeDateSeries30(\"tickets\"),"
+      },
+      {
+        "line": 889,
+        "code": "interestTimeline: Array.isArray(r.interestTimeline) ? r.interestTimeline as any[] : makeDateSeries30(\"count\"),"
+      },
+      {
+        "line": 891,
+        "code": "sources: Array.isArray(r.sources) ? r.sources as any[] : ["
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\assistant\\orchestrator.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 329,
+        "code": "return await (tool as any)(args, ctx);"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\hooks\\useGuestOpsShellData.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 34,
+        "code": "Authorization: `Bearer ${(profile as any)?._token ?? \"\"}`,"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\hooks\\useScrollFade.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 14,
+        "code": "const inView = useInView(ref, { amount, once, margin: margin as any });"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\doorSellStore.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 38,
+        "code": "...(payload.gender ? { gender: payload.gender as any } : {}),"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\hostAuthMiddleware.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 84,
+        "code": "hostId, uid, action, error: (e as any)?.message,"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\logger.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 47,
+        "code": "const fromHeader = (request as any).headers?.get?.(\"x-request-id\");"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\partnerAuthMiddleware.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 90,
+        "code": "const claims = decoded as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\payments\\payoutAccounts.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 24,
+        "code": "const data = doc.data() as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\staffProfileStore.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 84,
+        "code": "payload.tabVisibility ?? (ROLE_DEFAULT_TABS[payload.baseRole] as any),"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\server\\withAuth.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 66,
+        "code": "}) as any;"
+      }
+    ]
+  },
+  {
+    "file": "apps\\partner-dashboard\\lib\\types\\staffProfile.ts",
+    "count": 1,
+    "occurrences": [
+      {
+        "line": 206,
+        "code": "OWNER: Object.fromEntries((Object.keys({} as Record<VenueTab, boolean>)).map(k => [k, true])) as any,"
+      }
+    ]
+  }
+]

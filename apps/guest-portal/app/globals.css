@@ -5,23 +5,26 @@
 :root {
   --font-heading: "Satoshi", "Inter", sans-serif;
   --font-body: "Inter", sans-serif;
-  --bg-color: #fff;
-  --text-primary: #111;
-  --text-secondary: #444;
-  --text-muted: #888;
-  --surface-1: #fff;
-  --surface-2: #f8f8f8;
-  --surface-3: #f0f0f0;
-  --border-primary: rgb(0 0 0 / 8%);
-  --border-secondary: rgb(0 0 0 / 4%);
-  --nav-bg-opaque: rgb(255 255 255 / 85%);
-  --nav-border: rgb(0 0 0 / 6%);
-  --glass-bg: rgb(255 255 255 / 70%);
-  --glass-border: rgb(0 0 0 / 8%);
-  --shadow-sm: 0 2px 8px rgb(0 0 0 / 5%);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 8%);
-  --shadow-lg: 0 8px 32px rgb(0 0 0 / 12%);
-  --bg-gradient: radial-gradient(circle at 50% 0%, rgb(244 74 34 / 5%), transparent 50%);
+  --bg-color: #FAFAF9;
+  --text-primary: #1A1A1A;
+  --text-secondary: #4A4A4A;
+  --text-muted: #888888;
+  --surface-1: #FFFFFF;
+  --surface-2: #F5F4F2;
+  --surface-3: #ECEAE7;
+  --border-primary: rgba(0, 0, 0, 0.07);
+  --border-secondary: rgba(0, 0, 0, 0.04);
+  --nav-bg-opaque: rgba(250, 250, 249, 0.90);
+  --nav-border: rgba(0, 0, 0, 0.06);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.10);
+  --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.14);
+  --bg-gradient:
+    radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.08), transparent 50%),
+    radial-gradient(circle at 0% 100%, rgba(244, 74, 34, 0.04), transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(244, 74, 34, 0.03), transparent 40%);
 
   /* Mobile Spacing System */
   --page-px-mobile: 1.25rem;
@@ -31,25 +34,25 @@
 
 .dark {
   --bg-color: #030303;
-  --text-primary: #fff;
+  --text-primary: #ffffff;
   --text-secondary: #a1a1aa;
   --text-muted: #71717a;
-  --surface-1: #0a0a0a;
+  --surface-1: #0A0A0A;
   --surface-2: #161616;
   --surface-3: #1c1c1c;
-  --border-primary: rgb(255 255 255 / 8%);
-  --border-secondary: rgb(255 255 255 / 4%);
-  --nav-bg-opaque: rgb(3 3 3 / 75%);
-  --nav-border: rgb(255 255 255 / 6%);
-  --glass-bg: rgb(10 10 10 / 70%);
-  --glass-border: rgb(255 255 255 / 8%);
-  --shadow-sm: 0 2px 8px rgb(0 0 0 / 40%);
-  --shadow-md: 0 4px 16px rgb(0 0 0 / 50%);
-  --shadow-lg: 0 8px 32px rgb(0 0 0 / 60%);
+  --border-primary: rgba(255, 255, 255, 0.08);
+  --border-secondary: rgba(255, 255, 255, 0.04);
+  --nav-bg-opaque: rgba(3, 3, 3, 0.75);
+  --nav-border: rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(10, 10, 10, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --bg-gradient:
-    radial-gradient(circle at 50% 0%, rgb(244 74 34 / 12%), transparent 45%),
-    radial-gradient(circle at 0% 50%, rgb(244 74 34 / 4%), transparent 40%),
-    radial-gradient(circle at 100% 50%, rgb(244 74 34 / 4%), transparent 40%);
+    radial-gradient(circle at 50% 0%, rgba(244, 74, 34, 0.12), transparent 45%),
+    radial-gradient(circle at 0% 50%, rgba(244, 74, 34, 0.04), transparent 40%),
+    radial-gradient(circle at 100% 50%, rgba(244, 74, 34, 0.04), transparent 40%);
 }
 
 @layer base {
@@ -81,7 +84,6 @@
 
   body {
     @apply font-body antialiased transition-colors duration-300;
-
     background-color: var(--bg-color);
     color: var(--text-primary);
     background-image: var(--bg-gradient);
@@ -111,27 +113,26 @@
 
   /* Premium Selection Color */
   ::selection {
-    background-color: rgb(244 74 34 / 30%);
-    color: #fff;
-    text-shadow: 0 0 10px rgb(244 74 34 / 40%);
+    background-color: rgba(244, 74, 34, 0.3);
+    color: #ffffff;
+    text-shadow: 0 0 10px rgba(244, 74, 34, 0.4);
   }
 
   /* Global Focus States */
   :focus-visible {
-    outline: 2px solid #f44a22;
+    outline: 2px solid #F44A22;
     outline-offset: 4px;
     border-radius: 4px;
   }
 
   /* Smooth focus transitions */
   * {
-    transition:
-      outline-offset 0.2s ease,
-      outline-color 0.2s ease;
+    transition: outline-offset 0.2s ease, outline-color 0.2s ease;
   }
 
   /* Support for reduced motion */
   @media (prefers-reduced-motion: reduce) {
+
     *,
     *::before,
     *::after {
@@ -143,6 +144,7 @@
 
   /* Gradient shift animation for hero text */
   @keyframes gradient-shift {
+
     0%,
     100% {
       background-position: 0% 50%;
@@ -157,19 +159,18 @@
 @layer components {
   .page-shell {
     @apply relative min-h-screen w-full overflow-x-hidden;
-
     padding-left: var(--page-px-mobile);
     padding-right: var(--page-px-mobile);
   }
 
-  @media (width >= 640px) {
+  @media (min-width: 640px) {
     .page-shell {
       padding-left: var(--page-px-tablet);
       padding-right: var(--page-px-tablet);
     }
   }
 
-  @media (width >= 1024px) {
+  @media (min-width: 1024px) {
     .page-shell {
       /* Keep desktop paddings unchanged - use default or specific overrides */
       padding-left: 0;
@@ -178,7 +179,7 @@
   }
 
   /* Mobile Typography Clarity - Editorial Style */
-  @media (width <= 768px) {
+  @media (max-width: 768px) {
     h1 {
       @apply text-[2.75rem] font-black leading-[0.95] tracking-tighter;
     }
@@ -223,20 +224,20 @@
 
   .btn-lift:hover {
     transform: translateY(-4px);
-    box-shadow: 0 10px 40px rgb(244 74 34 / 40%);
+    box-shadow: 0 10px 40px rgba(244, 74, 34, 0.4);
   }
 
   .btn-lift:active {
     transform: translateY(0);
-    box-shadow: 0 5px 20px rgb(244 74 34 / 30%);
+    box-shadow: 0 5px 20px rgba(244, 74, 34, 0.3);
   }
 
   .text-glow {
-    text-shadow: 0 0 20px rgb(255 255 255 / 50%);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
   }
 
   .text-glow-iris {
-    text-shadow: 0 0 20px rgb(244 74 34 / 60%);
+    text-shadow: 0 0 20px rgba(244, 74, 34, 0.6);
   }
 
   /* Gradient border utility */
@@ -250,10 +251,9 @@
     inset: 0;
     border-radius: inherit;
     padding: 1px;
-    background: linear-gradient(135deg, rgb(244 74 34 / 50%), rgb(254 248 232 / 30%));
-    mask:
-      linear-gradient(#fff 0 0) content-box,
-      linear-gradient(#fff 0 0);
+    background: linear-gradient(135deg, rgba(244, 74, 34, 0.5), rgba(254, 248, 232, 0.3));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
     mask-composite: exclude;
     pointer-events: none;
   }
@@ -284,16 +284,11 @@
 
   /* Premium App Page Effects */
   .shadow-glow {
-    box-shadow:
-      0 0 20px rgb(244 74 34 / 40%),
-      0 0 40px rgb(244 74 34 / 20%);
+    box-shadow: 0 0 20px rgba(244, 74, 34, 0.4), 0 0 40px rgba(244, 74, 34, 0.2);
   }
 
   .shadow-glow-lg {
-    box-shadow:
-      0 0 30px rgb(244 74 34 / 60%),
-      0 0 60px rgb(244 74 34 / 30%),
-      0 0 90px rgb(244 74 34 / 10%);
+    box-shadow: 0 0 30px rgba(244, 74, 34, 0.6), 0 0 60px rgba(244, 74, 34, 0.3), 0 0 90px rgba(244, 74, 34, 0.1);
   }
 
   .scrollbar-hide::-webkit-scrollbar {
@@ -310,12 +305,13 @@
   }
 
   .border-gradient-premium {
-    border-image: linear-gradient(135deg, #f44a22, #ff6b4a) 1;
+    border-image: linear-gradient(135deg, #F44A22, #FF6B4A) 1;
   }
 }
 
 /* Premium App Page Animations */
 @keyframes pulse-slow {
+
   0%,
   100% {
     opacity: 0.3;
@@ -327,6 +323,7 @@
 }
 
 @keyframes pulse-glow {
+
   0%,
   100% {
     opacity: 0.2;
@@ -360,6 +357,7 @@
 }
 
 @keyframes tilt {
+
   0%,
   100% {
     transform: rotate(-1deg);
@@ -393,6 +391,7 @@
 
 /* Venue Page - Slow Zoom Animation */
 @keyframes slow-zoom {
+
   0%,
   100% {
     transform: scale(1.1);
@@ -441,7 +440,7 @@
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* Small Mobile (< 480px) */
-@media (width <= 480px) {
+@media (max-width: 480px) {
   h1 {
     @apply text-[2.25rem] font-black leading-[0.92] tracking-tighter;
   }
@@ -467,6 +466,7 @@
 
 /* Touch device optimizations */
 @media (hover: none) and (pointer: coarse) {
+
   /* Larger touch targets for interactive elements */
   .btn-lift:active {
     transform: scale(0.97);
@@ -519,6 +519,7 @@
 
 /* Reduced motion preference */
 @media (prefers-reduced-motion: reduce) {
+
   .animate-pulse-slow,
   .animate-pulse-glow,
   .animate-shimmer,
@@ -536,6 +537,7 @@
 
 /* Slow Bounce Animation for Floating Elements */
 @keyframes bounce-slow {
+
   0%,
   100% {
     transform: translateY(0);
@@ -569,15 +571,14 @@
 
 /* Glow pulse for CTAs */
 @keyframes glow-pulse {
+
   0%,
   100% {
-    box-shadow: 0 0 20px rgb(244 74 34 / 40%);
+    box-shadow: 0 0 20px rgba(244, 74, 34, 0.4);
   }
 
   50% {
-    box-shadow:
-      0 0 40px rgb(244 74 34 / 60%),
-      0 0 60px rgb(244 74 34 / 30%);
+    box-shadow: 0 0 40px rgba(244, 74, 34, 0.6), 0 0 60px rgba(244, 74, 34, 0.3);
   }
 }
 
@@ -610,6 +611,7 @@
 
 /* Venue badge animations */
 @keyframes badge-pulse {
+
   0%,
   100% {
     transform: scale(1);
@@ -629,12 +631,36 @@
 /* Floating CTA bar shadow */
 .cta-bar-shadow {
   box-shadow:
-    0 -10px 40px rgb(0 0 0 / 10%),
-    0 -5px 20px rgb(0 0 0 / 5%);
+    0 -10px 40px rgba(0, 0, 0, 0.1),
+    0 -5px 20px rgba(0, 0, 0, 0.05);
 }
 
 .dark .cta-bar-shadow {
   box-shadow:
-    0 -10px 40px rgb(0 0 0 / 40%),
-    0 -5px 20px rgb(0 0 0 / 20%);
+    0 -10px 40px rgba(0, 0, 0, 0.4),
+    0 -5px 20px rgba(0, 0, 0, 0.2);
 }
+
+/* ─── Toast animations (no framer-motion) ───────────────────────────────── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(50px) scale(0.9); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+@keyframes toastOut {
+  from { opacity: 1; transform: translateY(0)    scale(1);   }
+  to   { opacity: 0; transform: translateY(20px) scale(0.9); }
+}
+@keyframes toastProgress {
+  from { width: 100%; }
+  to   { width: 0%;   }
+}
+.toast-enter { animation: toastIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.toast-exit  { animation: toastOut 0.2s ease forwards; }
+.toast-progress { animation: toastProgress linear forwards; }
+
+/* ─── Route transition (no framer-motion) ───────────────────────────────── */
+@keyframes routeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+.route-enter { animation: routeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }

@@ -1,8 +1,5 @@
-"use client";
-
 import Link from "next/link";
 import Image from "next/image";
-import { motion } from "framer-motion";
 
 export default function Selects({ items }) {
   return (
@@ -54,13 +51,23 @@ export default function Selects({ items }) {
                 href={item.href}
                 className="group relative block aspect-[4/5] overflow-hidden rounded-[32px] sm:rounded-[40px] border border-white/10 bg-[#0A0A0A] btn-lift shadow-2xl"
               >
-                <Image
-                  src={item.image}
-                  alt={item.title}
-                  fill
-                  className="object-cover transition-all duration-1000 group-hover:scale-110 opacity-60 group-hover:opacity-80"
-                  loading="lazy"
-                />
+                {item.image.endsWith('.svg') ? (
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="absolute inset-0 h-full w-full object-cover transition-all duration-1000 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                    loading="lazy"
+                  />
+                ) : (
+                  <Image
+                    src={item.image}
+                    alt={item.title}
+                    fill
+                    className="object-cover transition-all duration-1000 group-hover:scale-110 opacity-60 group-hover:opacity-80"
+                    loading="lazy"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                  />
+                )}
 
                 {/* Enhanced gradient overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-95" />

@@ -1,97 +1,93 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { scannerFetch } from "./client";
 import { EventData } from "@/store/eventContext";
 
-// API base URL - update for production
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || "http://localhost:3001/api";
+const SCANNER_CODE_KEY = "scanner_active_code";
+
+/** Persist the active scanner code so all other API calls can retrieve it. */
+export async function saveActiveCode(code: string): Promise<void> {
+    await AsyncStorage.setItem(SCANNER_CODE_KEY, code);
+}
+
+/** Retrieve the currently active scanner code. */
+export async function getActiveCode(): Promise<string | null> {
+    return AsyncStorage.getItem(SCANNER_CODE_KEY);
+}
+
+/** Clear the active scanner code (on sign-out or expiry). */
+export async function clearActiveCode(): Promise<void> {
+    await AsyncStorage.removeItem(SCANNER_CODE_KEY);
+}
 
 /**
- * Validate an event code and get event data
+ * Validate an event code against the backend.
+ * On success, persists the code to AsyncStorage for subsequent API calls.
  */
-export async function validateEventCode(code: string): Promise<EventData> {
-  try {
-    const response = await fetch(`${API_BASE}/scan/auth`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ code }),
-    });
+export async function validateEventCode(code: string): Promise<EventData & { valid: boolean; error?: string }> {
+    try {
+        const data = await scannerFetch("/api/scanner/validate", {
+            method: "POST",
+            body: JSON.stringify({ code }),
+        });
 
-    const data = await response.json();
+        if (data.valid) {
+            await saveActiveCode(code);
+        }
 
-    if (!response.ok) {
-      return {
-        valid: false,
-        code,
-        event: {} as any,
-        permissions: { canScan: false, canDoorEntry: false },
-        tiers: [],
-        error: data.error || "Invalid code",
-      } as any;
+        return { valid: !!data.valid, code, ...data };
+    } catch (error: any) {
+        console.error("[validateEventCode] Error:", error);
+
+        // In dev mode, return mock data so the app is usable without a running backend
+        if (__DEV__) {
+            await saveActiveCode(code);
+            return getMockEventData(code);
+        }
+
+        throw new Error(error.message || "Unable to connect to server");
     }
+}
 
+/**
+ * Refresh live event stats for the stats screen pull-to-refresh.
+ * @param eventId  The actual Firestore event document ID
+ * @param code     The scanner session code (optional — falls back to stored code)
+ */
+export async function refreshEventStats(eventId: string, code?: string): Promise<any> {
+    try {
+        const activeCode = code || await getActiveCode() || "";
+        return await scannerFetch(
+            `/api/scanner/stats?eventId=${encodeURIComponent(eventId)}`,
+            {},
+            activeCode
+        );
+    } catch (error) {
+        console.error("[refreshEventStats] Error:", error);
+        return null;
+    }
+}
+
+function getMockEventData(code: string): EventData & { valid: boolean } {
     return {
-      valid: true,
-      code,
-      ...data,
+        valid: true,
+        code,
+        event: {
+            id: "dev_event_001",
+            title: "Dev Night — Test Event",
+            venue: "Club Dev",
+            venueId: "dev_venue_001",
+            date: new Date().toISOString().split("T")[0],
+            startTime: "22:00",
+            endTime: "04:00",
+            capacity: 500,
+        },
+        permissions: { canScan: true, canDoorEntry: true },
+        tiers: [
+            { id: "stag", name: "Stag Entry", price: 500, entryType: "stag", available: true },
+            { id: "couple", name: "Couple Entry", price: 800, entryType: "couple", available: true },
+            { id: "vip", name: "VIP Entry", price: 2000, entryType: "vip", available: true },
+        ],
+        gate: "Main Gate",
+        stats: { totalEntered: 0, prebooked: 0, doorEntries: 0, doorRevenue: 0 },
     };
-  } catch (error: any) {
-    console.error("[validateEventCode] Error:", error);
-
-    // For development/demo, return mock data
-    if (__DEV__) {
-      return getMockEventData(code);
-    }
-
-    throw new Error("Unable to connect to server");
-  }
-}
-
-/**
- * Mock data for development/demo
- */
-function getMockEventData(code: string): EventData {
-  return {
-    valid: true,
-    code,
-    event: {
-      id: "evt_demo_123",
-      title: "Saturday Night Live",
-      venue: "Club Paradiso",
-      venueId: "venue_demo_456",
-      date: new Date().toISOString().split("T")[0],
-      startTime: "22:00",
-      endTime: "04:00",
-      capacity: 500,
-    },
-    permissions: {
-      canScan: true,
-      canDoorEntry: true,
-    },
-    tiers: [
-      { id: "tier_stag", name: "Stag Entry", price: 500, entryType: "stag", available: true },
-      { id: "tier_couple", name: "Couple Entry", price: 800, entryType: "couple", available: true },
-      { id: "tier_vip", name: "VIP Entry", price: 2000, entryType: "vip", available: true },
-    ],
-    gate: "Main Gate",
-    stats: {
-      totalEntered: 127,
-      prebooked: 89,
-      doorEntries: 38,
-      doorRevenue: 24500,
-    },
-  };
-}
-
-/**
- * Refresh event stats
- */
-export async function refreshEventStats(code: string): Promise<any> {
-  try {
-    const response = await fetch(`${API_BASE}/scan/stats?code=${code}`);
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error("[refreshEventStats] Error:", error);
-    return null;
-  }
 }

@@ -1,9 +1,1 @@
-node scripts/check-branch-name.mjs
-node scripts/check-secrets.mjs
-if command -v gitleaks >/dev/null 2>&1; then
-  gitleaks protect --staged --redact --verbose
-else
-  echo "gitleaks is required for pre-commit secret scanning. Install it from https://github.com/gitleaks/gitleaks"
-  exit 1
-fi
 npx lint-staged

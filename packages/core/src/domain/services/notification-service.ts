@@ -1,5 +1,24 @@
 import { INotificationRepository, Notification } from '../repositories/notification-repository.js';
 
+async function fetchWithRetry(url: string, options: any, maxRetries = 3): Promise<Response> {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const response = await fetch(url, options);
+            if (response.status >= 500) {
+                if (i === maxRetries - 1) return response;
+                // Exponential backoff
+                await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+                continue;
+            }
+            return response;
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            await new Promise(res => setTimeout(res, Math.pow(2, i) * 1000));
+        }
+    }
+    throw new Error('Max retries reached');
+}
+
 export class NotificationService {
     constructor(private notificationRepo: INotificationRepository) { }
 
@@ -40,7 +59,7 @@ export class NotificationService {
         for (let i = 0; i < notifications.length; i += 100) {
             const chunk = notifications.slice(i, i + 100);
             try {
-                await fetch('https://exp.host/--/api/v2/push/send', {
+                await fetchWithRetry('https://exp.host/--/api/v2/push/send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(chunk)

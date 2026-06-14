@@ -1,6 +1,7 @@
 {
   "projects": {
     "default": "thec1rcle-india",
+    "development": "thec1rcle-india",
     "staging": "c1rcle-staging",
     "production": "c1rcle-prod"
   }

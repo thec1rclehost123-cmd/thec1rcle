@@ -1,89 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  listIncomingRequests,
-  approveConnectionRequest,
-  rejectConnectionRequest,
-  revokeConnection,
-} from "@/lib/server/promoterConnectionStore";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/host/promoter-requests
- * List incoming promoter connection requests for a host
- */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const hostId = searchParams.get("hostId");
-    const status = searchParams.get("status");
-
-    if (!hostId) {
-      return NextResponse.json({ error: "hostId is required" }, { status: 400 });
-    }
-
-    const requests = await listIncomingRequests(hostId, "host", status || undefined);
-
-    return NextResponse.json({ requests });
-  } catch (error: any) {
-    console.error("[Host Promoter Requests API] GET Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to fetch requests" },
-      { status: 500 },
-    );
-  }
+    searchParams.set("hostId", ctx.hostId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/promoter-requests?${searchParams}`, {});
 }
 
-/**
- * PATCH /api/host/promoter-requests
- * Approve, reject, or revoke a promoter connection
- */
 export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const { connectionId, action, hostId, hostName, reason } = body;
-
+    const ctx = await requireHostAccess(req, "MANAGE_PROMOTERS");
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    const { connectionId, action } = body;
     if (!connectionId || !action) {
-      return NextResponse.json({ error: "connectionId and action are required" }, { status: 400 });
+        return NextResponse.json({ success: false, error: { code: "BAD_REQUEST", message: "connectionId and action are required" } }, { status: 400 });
     }
-
-    switch (action) {
-      case "approve": {
-        await approveConnectionRequest(connectionId, {
-          uid: hostId,
-          name: hostName || "",
-        });
-        break;
-      }
-
-      case "reject": {
-        await rejectConnectionRequest(
-          connectionId,
-          { uid: hostId, name: hostName || "" },
-          reason || "",
-        );
-        break;
-      }
-
-      case "revoke": {
-        await revokeConnection(connectionId, {
-          uid: hostId,
-          name: hostName || "",
-        });
-        break;
-      }
-
-      default:
-        return NextResponse.json(
-          { error: "Invalid action. Use 'approve', 'reject', or 'revoke'" },
-          { status: 400 },
-        );
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("[Host Promoter Requests API] PATCH Error:", error);
-    return NextResponse.json(
-      { error: error.message || "Failed to update request" },
-      { status: 400 },
-    );
-  }
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/promoter-connections/${connectionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ hostId: ctx.hostId, action }),
+    });
 }

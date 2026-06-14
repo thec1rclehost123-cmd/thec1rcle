@@ -1,148 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEvent, updateEventLifecycle, updateEvent } from "@/lib/server/eventStore";
-import { verifyPartnerAccess } from "@/lib/server/auth";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { verifyAuth } from "@/lib/server/auth";
 
-/**
- * GET /api/events/[id]
- * Get event details
- */
+function unauthorized(req: NextRequest) {
+    return NextResponse.json(
+        { success: false, error: { code: "UNAUTHORIZED", message: "Authentication required", requestId: req.headers.get("x-request-id") || crypto.randomUUID() } },
+        { status: 401 }
+    );
+}
+
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+    const decoded = await verifyAuth(req);
+    if (!decoded) return unauthorized(req);
     const { id } = await params;
-    const event = await getEvent(id);
-
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ event });
-  } catch (error: any) {
-    console.error("[Events API] GET Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to fetch event" }, { status: 500 });
-  }
+    const { search } = new URL(req.url);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/events/${id}${search}`, {});
 }
 
-/**
- * PATCH /api/events/[id]
- * Update event (draft updates, lifecycle changes)
- */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+    const decoded = await verifyAuth(req);
+    if (!decoded) return unauthorized(req);
     const { id } = await params;
-    const body = await req.json();
-    const { action, actor, notes, updates } = body;
-
-    if (!actor || !actor.uid || !actor.role) {
-      return NextResponse.json({ error: "Actor information required" }, { status: 400 });
-    }
-
-    let latestEvent: any = null;
-
-    // Handle content updates
-    if (updates) {
-      // Strip lifecycle from updates to ensure it's only managed by updateEventLifecycle
-      const { lifecycle, ...cleanUpdates } = updates;
-
-      latestEvent = await updateEvent(id, {
-        ...cleanUpdates,
-        creatorId: actor.uid,
-        creatorRole: actor.role,
-        partnerId: actor.partnerId,
-      });
-    }
-
-    // Handle lifecycle transitions
-    if (action) {
-      let newStatus: string;
-
-      switch (action) {
-        case "submit":
-          newStatus = "submitted";
-          break;
-        case "approve":
-          newStatus = "approved";
-          break;
-        case "reject":
-        case "deny":
-          newStatus = "denied";
-          break;
-        case "request_changes":
-          newStatus = "needs_changes";
-          break;
-        case "publish":
-          newStatus = "scheduled";
-          break;
-        case "pause":
-          newStatus = "paused";
-          break;
-        case "resume":
-          newStatus = "scheduled";
-          break;
-        case "cancel":
-          newStatus = "cancelled";
-          break;
-        case "draft":
-          newStatus = "draft";
-          break;
-        default:
-          return NextResponse.json({ error: `Invalid action: ${action}` }, { status: 400 });
-      }
-
-      // Verify management access for approve/reject/publish
-      if (
-        ["approve", "reject", "deny", "publish", "request_changes"].includes(action) &&
-        actor.role !== "admin"
-      ) {
-        const event = await getEvent(id);
-        if (!event) return NextResponse.json({ error: "Event not found" }, { status: 404 });
-
-        const venueId = event.venueId;
-        if (!venueId)
-          return NextResponse.json(
-            { error: "Venue ID not associated with this event" },
-            { status: 400 },
-          );
-
-        const hasAccess = await verifyPartnerAccess(req, venueId);
-        if (!hasAccess)
-          return NextResponse.json({ error: "Unauthorized access to this venue" }, { status: 403 });
-      }
-
-      const result = await updateEventLifecycle(id, newStatus, actor, notes);
-      return NextResponse.json({ success: true, result, event: latestEvent });
-    }
-
-    if (latestEvent) {
-      return NextResponse.json({ success: true, event: latestEvent });
-    }
-
-    return NextResponse.json({ error: "Action or updates required" }, { status: 400 });
-  } catch (error: any) {
-    console.error("[Events API] PATCH Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to update event" }, { status: 500 });
-  }
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/events/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+    });
 }
 
-/**
- * DELETE /api/events/[id]
- * Soft delete an event
- */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  try {
+    const decoded = await verifyAuth(req);
+    if (!decoded) return unauthorized(req);
     const { id } = await params;
-    const body = await req.json();
-    const { actor } = body;
-
-    if (!actor || !actor.uid || !actor.role) {
-      return NextResponse.json({ error: "Actor information required" }, { status: 400 });
-    }
-
-    const { deleteEvent } = await import("@/lib/server/eventStore");
-    const result = await deleteEvent(id, actor);
-
-    return NextResponse.json({ success: true, result });
-  } catch (error: any) {
-    console.error("[Events API] DELETE Error:", error);
-    return NextResponse.json({ error: error.message || "Failed to delete event" }, { status: 500 });
-  }
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/events/${id}`, { method: "DELETE" });
 }

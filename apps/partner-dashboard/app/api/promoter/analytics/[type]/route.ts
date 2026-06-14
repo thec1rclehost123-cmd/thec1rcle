@@ -1,56 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getPromoterAnalytics,
-  getPromoterEventPerformance,
-  getPromoterAudienceAnalytics,
-  getPromoterFunnelAnalytics,
-  getPromoterTrustAnalytics,
-  getPromoterStrategyAnalytics,
-} from "@/lib/server/analyticsStore";
+import { requirePromoterAccess } from "@/lib/server/promoterAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 /**
  * GET /api/promoter/analytics/[type]
  * Fetches specific analytics for a promoter
  */
 export async function GET(req: NextRequest, { params }: { params: Promise<{ type: string }> }) {
-  const paramsResolved = await params;
-  const { type } = paramsResolved;
-  try {
+    const ctx = await requirePromoterAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const { type } = await params;
     const { searchParams } = new URL(req.url);
-    const promoterId = searchParams.get("promoterId");
-    const range = searchParams.get("range") || "30d";
-
-    if (!promoterId) {
-      return NextResponse.json({ error: "promoterId is required" }, { status: 400 });
-    }
-
-    let analytics;
-    switch (type) {
-      case "overview":
-        analytics = await getPromoterAnalytics(promoterId, range);
-        break;
-      case "performance":
-        analytics = await getPromoterEventPerformance(promoterId, range);
-        break;
-      case "audience":
-        analytics = await getPromoterAudienceAnalytics(promoterId, range);
-        break;
-      case "funnel":
-        analytics = await getPromoterFunnelAnalytics(promoterId, range);
-        break;
-      case "trust":
-        analytics = await getPromoterTrustAnalytics(promoterId, range);
-        break;
-      case "strategy":
-        analytics = await getPromoterStrategyAnalytics(promoterId, range);
-        break;
-      default:
-        return NextResponse.json({ error: "Invalid analytics type" }, { status: 400 });
-    }
-
-    return NextResponse.json(analytics);
-  } catch (error: any) {
-    console.error(`[Promoter Analytics API][${paramsResolved.type}] Error:`, error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.set("promoterId", ctx.promoterId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/promoter/analytics/${type}?${searchParams.toString()}`, {});
 }

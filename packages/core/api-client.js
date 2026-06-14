@@ -5,7 +5,7 @@
 
 export class C1rcleApiClient {
     constructor(config) {
-        this.baseUrl = config.baseUrl || "http://localhost:3000/api/v1";
+        this.baseUrl = config.baseUrl || "/api/v1";
         this.getAuthToken = config.getAuthToken || (async () => null);
         this.onUnauthorized = config.onUnauthorized || (() => { });
     }
@@ -201,12 +201,6 @@ export class C1rcleApiClient {
         });
     }
 
-    // ─── Analytics ────────────────────────────────────────────────
-
-    async getAnalytics(id, type = 'venue', range = '30d') {
-        return this.request(`/analytics/${type}/${id}?range=${range}`);
-    }
-
     // ─── Tables ───────────────────────────────────────────────────
 
     async getFloorPlan(venueId) {
@@ -258,8 +252,34 @@ export class C1rcleApiClient {
         return this.request(`/search?${query}`, { requireAuth: false });
     }
 
-    async getAnalytics(type, id, subCategory = 'overview') {
-        return this.request(`/analytics/${type}/${id}/${subCategory}`);
+    async getAnalytics(arg1, arg2 = 'venue', arg3 = '30d') {
+        const entityTypes = new Set(['venue', 'host', 'promoter', 'event', 'promoter_audience', 'promoter_funnel', 'promoter_strategy']);
+        const rangeValues = new Set(['1d', '7d', '1w', '30d', '1m', '90d', 'all']);
+
+        let type;
+        let id;
+        let subCategory = null;
+        let range = '30d';
+
+        if (entityTypes.has(arg1)) {
+            type = arg1;
+            id = arg2;
+            if (arg3 && rangeValues.has(arg3)) {
+                range = arg3;
+            } else if (arg3) {
+                subCategory = arg3;
+            }
+        } else {
+            id = arg1;
+            type = arg2;
+            range = arg3 || '30d';
+        }
+
+        if (subCategory) {
+            return this.request(`/analytics/${type}/${id}/${subCategory}`);
+        }
+
+        return this.request(`/analytics/${type}/${id}?range=${range}`);
     }
 
     // ─── Calendar ────────────────────────────────────────────────
@@ -350,6 +370,40 @@ export class C1rcleApiClient {
         return this.request('/cms/facilities/init', {
             method: 'POST',
             body: JSON.stringify({ venueId })
+        });
+    }
+
+    async addFacility(venueId, name, icon) {
+        return this.request('/cms/facilities', {
+            method: 'POST',
+            body: JSON.stringify({ venueId, name, icon })
+        });
+    }
+
+    async updateFacility(facilityId, updates) {
+        return this.request(`/cms/facilities/${facilityId}`, {
+            method: 'PATCH',
+            body: JSON.stringify(updates)
+        });
+    }
+
+    async deleteFacility(facilityId) {
+        return this.request(`/cms/facilities/${facilityId}`, {
+            method: 'DELETE'
+        });
+    }
+
+    async toggleFacility(facilityId, isEnabled) {
+        return this.request(`/cms/facilities/${facilityId}/toggle`, {
+            method: 'PATCH',
+            body: JSON.stringify({ isEnabled })
+        });
+    }
+
+    async reorderFacilities(venueId, orderedIds) {
+        return this.request('/cms/facilities/reorder', {
+            method: 'POST',
+            body: JSON.stringify({ venueId, orderedIds })
         });
     }
 
@@ -517,7 +571,6 @@ export class C1rcleApiClient {
         });
     }
 }
-
 
 
 

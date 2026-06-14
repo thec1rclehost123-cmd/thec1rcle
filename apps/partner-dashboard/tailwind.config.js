@@ -1,5 +1,5 @@
 /** @type {import('tailwindcss').Config} */
-module.exports = {
+export default {
   content: [
     "./app/**/*.{js,jsx,ts,tsx}",
     "./components/**/*.{js,jsx,ts,tsx}",
@@ -29,6 +29,19 @@ module.exports = {
           dim: "#CC3311",
         },
         // Surfaces
+        text: {
+          primary: "var(--text-primary)",
+          secondary: "var(--text-secondary)",
+          tertiary: "var(--text-tertiary)",
+          placeholder: "var(--text-placeholder)",
+          inverse: "var(--text-inverse)",
+        },
+        border: {
+          subtle: "var(--border-subtle)",
+          default: "var(--border-default)",
+          strong: "var(--border-strong)",
+          focus: "var(--border-focus)",
+        },
         obsidian: {
           base: "var(--surface-base)",
           surface: "var(--surface-secondary)",
@@ -46,6 +59,12 @@ module.exports = {
         silver: "#FAFAFA",
         grey: "#E4E2E3",
         stone: "#A8AAAC",
+        accent: {
+          primary: "var(--accent-primary)",
+          glow: "var(--accent-glow)",
+          dim: "var(--accent-primary-dim)",
+          light: "var(--accent-primary-light)",
+        },
       },
       spacing: {
         gutter: "min(6vw, 3.5rem)",

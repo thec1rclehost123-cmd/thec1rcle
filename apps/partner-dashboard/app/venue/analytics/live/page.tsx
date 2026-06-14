@@ -1,10 +1,9 @@
-import VenuePlaceholderPage from "@/components/venue-layout/VenuePlaceholderPage";
+import LiveClient from "./LiveClient";
+
+export const metadata = {
+    title: "Live Operations | Partner Dashboard",
+};
 
 export default function LiveAnalyticsPage() {
-  return (
-    <VenuePlaceholderPage
-      title="Live Operations Analytics"
-      description="Real-time tracking of current event performance, entry counts, and sales velocity."
-    />
-  );
+    return <LiveClient />;
 }

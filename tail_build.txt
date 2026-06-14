@@ -1,0 +1,30 @@
+@c1rcle/partner-dashboard:build: [0m [90m 1 |[39m [36mimport[39m { [33mNextResponse[39m } [36mfrom[39m [32m"next/server"[39m[33m;[39m
+@c1rcle/partner-dashboard:build:  [90m 2 |[39m [36mimport[39m { [33mNextRequest[39m } [36mfrom[39m [32m"next/server"[39m[33m;[39m
+@c1rcle/partner-dashboard:build: [31m[1m>[22m[39m[90m 3 |[39m [36mimport[39m { randomUUID } [36mfrom[39m [32m"node:crypto"[39m[33m;[39m
+@c1rcle/partner-dashboard:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@c1rcle/partner-dashboard:build:  [90m 4 |[39m
+@c1rcle/partner-dashboard:build:  [90m 5 |[39m [90m/**[39m
+@c1rcle/partner-dashboard:build:  [90m 6 |[39m [90m * Edge middleware ??? runs before every request.[39m[0m
+@c1rcle/partner-dashboard:build: 
+@c1rcle/partner-dashboard:build: A Node.js module is loaded ('node:crypto' at line 3) which is not supported in the Edge Runtime.
+@c1rcle/partner-dashboard:build: Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+@c1rcle/partner-dashboard:build: 
+@c1rcle/partner-dashboard:build: 
+@c1rcle/partner-dashboard:build: ??? Compiled successfully in 7.7min
+@c1rcle/partner-dashboard:build:   Running next.config.js provided runAfterProductionCompile ...
+@c1rcle/partner-dashboard:build: ??? Completed runAfterProductionCompile in 45287ms
+@c1rcle/partner-dashboard:build:   Running TypeScript ...
+@c1rcle/admin-console:build: Turbopack build encountered 1 warnings:
+@c1rcle/admin-console:build: ./Desktop/Sagar/Circle/thec1rcle/apps/admin-console/middleware.js:2:1
+@c1rcle/admin-console:build: Ecmascript file had an error
+@c1rcle/admin-console:build: [0m [90m 1 |[39m [36mimport[39m { [33mNextResponse[39m } [36mfrom[39m [32m"next/server"[39m[33m;[39m
+@c1rcle/admin-console:build: [31m[1m>[22m[39m[90m 2 |[39m [36mimport[39m { randomUUID } [36mfrom[39m [32m"node:crypto"[39m[33m;[39m
+@c1rcle/admin-console:build:  [90m   |[39m [31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m[31m[1m^[22m[39m
+@c1rcle/admin-console:build:  [90m 3 |[39m
+@c1rcle/admin-console:build:  [90m 4 |[39m [90m/**[39m
+@c1rcle/admin-console:build:  [90m 5 |[39m [90m * Edge middleware ??? runs before every request.[39m[0m
+@c1rcle/admin-console:build: 
+@c1rcle/admin-console:build: A Node.js module is loaded ('node:crypto' at line 2) which is not supported in the Edge Runtime.
+@c1rcle/admin-console:build: Learn More: https://nextjs.org/docs/messages/node-module-in-edge-runtime
+@c1rcle/admin-console:build: 
+@c1rcle/admin-console:build: 

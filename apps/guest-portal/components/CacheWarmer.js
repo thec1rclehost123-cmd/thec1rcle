@@ -1,47 +1,38 @@
 "use client";
 
 import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "./providers/AuthProvider";
-import { useExploreStore } from "../store/exploreStore";
-import { useHostsStore } from "../store/hostsStore";
-import { useTicketsStore } from "../store/ticketsStore";
+import { fetchTicketsWallet, ticketsWalletQueryKey } from "../features/tickets/ticketsQueries";
 
 /**
- * ⚡ CacheWarmer: Proactive Background Data Loading
+ * ⚡ CacheWarmer: Authenticated Wallet Warmup
  *
- * This component runs once at the root layout (under providers).
- * It "pre-warms" the global Zustand caches for high-traffic pages
- * so that when the user clicks 'Explore' or 'Hosts', the data is
- * already there — zero loading spinner.
+ * Public discovery data is now server-rendered or page-local.
+ * This warmer is intentionally limited to authenticated wallet data until
+ * tickets move fully to React Query in the next cleanup slice.
  */
 export default function CacheWarmer() {
-  const { user, loading: authLoading } = useAuth();
+    const { user, bootstrap, loading: authLoading } = useAuth();
+    const queryClient = useQueryClient();
 
-  // Store Actions
-  const fetchEvents = useExploreStore((s) => s.fetchEvents);
-  const fetchHosts = useHostsStore((s) => s.fetchData);
-  const loadTickets = useTicketsStore((s) => s.loadTickets);
+    useEffect(() => {
+        if (user && !authLoading && bootstrap?.routeAccess?.isAuthenticated) {
+            const ric = typeof requestIdleCallback !== "undefined" ? requestIdleCallback : (cb) => setTimeout(cb, 200);
+            const cancel = typeof cancelIdleCallback !== "undefined" ? cancelIdleCallback : clearTimeout;
 
-  useEffect(() => {
-    // 1. Pre-warm Explore (Events)
-    // This is the most common landing page logic
-    fetchEvents().catch((err) => console.error("CacheWarmer: Failed to pre-warm Explore", err));
+            const id = ric(
+                () => queryClient.prefetchQuery({
+                    queryKey: ticketsWalletQueryKey(user.uid),
+                    queryFn: fetchTicketsWallet,
+                    staleTime: 2 * 60 * 1000,
+                }).catch(err => console.error("CacheWarmer: Failed to pre-warm Tickets", err)),
+                { timeout: 3000 }
+            );
 
-    // 2. Pre-warm Hosts (Venues default tab)
-    fetchHosts({ activeTab: "venues" }).catch((err) =>
-      console.error("CacheWarmer: Failed to pre-warm Hosts", err),
-    );
-  }, [fetchEvents, fetchHosts]);
+            return () => cancel(id);
+        }
+    }, [user, bootstrap?.routeAccess?.isAuthenticated, authLoading, queryClient]);
 
-  useEffect(() => {
-    // 3. Pre-warm Tickets (only if user is logged in)
-    if (user && !authLoading) {
-      loadTickets(user.uid).catch((err) =>
-        console.error("CacheWarmer: Failed to pre-warm Tickets", err),
-      );
-    }
-  }, [user, authLoading, loadTickets]);
-
-  // This component renders nothing, it just manages side effects
-  return null;
+    return null;
 }

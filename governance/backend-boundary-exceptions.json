@@ -1,0 +1,514 @@
+{
+  "apps/partner-dashboard/app/api/host/analytics/[type]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-5",
+    "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/analytics/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-5",
+    "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/analytics/time-series/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-5",
+    "target_owner": "Fastify partner host analytics routes + AnalyticsService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/audience/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-3",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/broadcast/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/attendees/[attendeeId]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/attendees/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/finance/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/guestlist/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "V-3",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when V-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/overview/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/promoters/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/resubmit/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/submission-history/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/submit/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/[id]/tickets/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify tickets routes + ticket/entitlement services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/events/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/finance/bank-accounts/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify partner host finance routes + FinanceService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/finance/disputes/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify partner host finance routes + FinanceService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/finance/overview/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify partner host finance routes + FinanceService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/finance/payouts/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify partner host finance routes + FinanceService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/invite/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/notifications/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-6",
+    "target_owner": "Fastify notifications routes + NotificationService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-6 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/ops/tonight/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify partner host routes + Host operations services",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/orders/[orderId]/cancel/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify orders routes + OrderService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/orders/[orderId]/resend-receipt/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify orders routes + OrderService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/orders/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-4",
+    "target_owner": "Fastify orders routes + OrderService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/overview/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/overview/summary/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/page/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/partnerships/request/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-3",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/partnerships/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-3",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/profile/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify profiles routes + ProfileService",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/promoter-requests/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/promoters/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-3",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/settings/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-6",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-6 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/settings/session/revoke/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-6",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-6 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/slot-requests/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/team/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-6",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-6 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/upload/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-1",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/host/venue-calendar/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "H-2",
+    "target_owner": "Fastify API gateway route + domain service",
+    "reason": "Legacy host app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when H-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/partner/promoter/analytics/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-4",
+    "target_owner": "Fastify partner promoter analytics routes + AnalyticsService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/partner/promoter/events/[id]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/partner/promoter/events/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/partner/promoter/finance/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-3",
+    "target_owner": "Fastify partner promoter finance routes + CommissionService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/partner/promoter/overview/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-1",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/analytics/[type]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-4",
+    "target_owner": "Fastify partner promoter analytics routes + AnalyticsService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/commissions/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-3",
+    "target_owner": "Fastify partner promoter finance routes + CommissionService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/connections/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/events/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify public/events routes + discovery/event services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/finance/bank-accounts/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-3",
+    "target_owner": "Fastify partner promoter finance routes + CommissionService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/links/[id]/analytics/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/links/[id]/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/links/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-2",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/notifications/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-1",
+    "target_owner": "Fastify notifications routes + NotificationService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/payouts/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-3",
+    "target_owner": "Fastify partner promoter finance routes + CommissionService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-3 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/identity/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/notifications/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify notifications routes + NotificationService",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/payout/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/security/logout-all/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/settings/verification/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-5",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-5 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/stats/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-4",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-4 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/upload/route.ts": {
+    "classification": "legacy_backend_logic",
+    "phase": "P-1",
+    "target_owner": "Fastify partner promoter routes + promoter services",
+    "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
+    "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
+    "remove_when": "Remove when P-1 migration completes and this route becomes a thin bridge or is deleted."
+  }
+}

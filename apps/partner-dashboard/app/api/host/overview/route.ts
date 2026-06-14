@@ -1,31 +1,38 @@
-/**
- * THE C1RCLE - Host Overview API (BFF Proxy)
- * Delegates to API Gateway for host dashboard summary
- */
 import { NextRequest, NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
+function authError(
+    req: NextRequest,
+    status: number,
+    error: string | { code?: string; message?: string; requestId?: string }
+) {
+    const normalized = typeof error === "string"
+        ? {
+            code: status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+            message: error,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        }
+        : {
+            code: error.code || (status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : "BAD_REQUEST"),
+            message: error.message || "Request failed",
+            requestId: error.requestId || req.headers.get("x-request-id") || crypto.randomUUID(),
+        };
 
-/**
- * GET /api/host/overview?hostId=XXX
- * Fetches summary statistics and recent events for a host
- */
+    return NextResponse.json({
+        success: false,
+        error: normalized,
+    }, { status });
+}
+
 export async function GET(req: NextRequest) {
-  if (!GATEWAY_URL) {
-    return NextResponse.json({ error: "Service unavailable" }, { status: 503 });
-  }
-
-  const auth = await verifyAuth(req);
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const { searchParams } = new URL(req.url);
-  const res = await fetch(
-    `${GATEWAY_URL}/api/v1/venue-settings/host/overview?${searchParams.toString()}`,
-    {
-      headers: { Authorization: req.headers.get("Authorization") || "" },
-    },
-  );
-  const data = await res.json().catch(() => ({}));
-  return NextResponse.json(data, { status: res.status });
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return authError(req, ctx.status, ctx.error);
+    const { searchParams } = new URL(req.url);
+    searchParams.set("hostId", ctx.hostId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/overview?${searchParams}`, {
+        headers: {
+            'x-workspace-id': ctx.hostId
+        }
+    });
 }

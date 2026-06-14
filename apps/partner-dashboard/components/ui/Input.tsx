@@ -1,11 +1,9 @@
-"use client";
-
-import clsx from "clsx";
+import { cn } from "@/lib/utils";
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from "react";
 
 /**
  * Input Component — Premium Form Input
- *
+ * 
  * Features:
  * - Dark mode support via CSS variables
  * - Soft focus glow with C1RCLE orange accent
@@ -37,60 +35,59 @@ const iconPadding: Record<InputSize, { left: string; right: string }> = {
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  (
-    { label, error, hint, icon, iconPosition = "left", inputSize = "md", className, ...rest },
-    ref,
-  ) => {
+  ({ label, error, hint, icon, iconPosition = "left", inputSize = "md", className, ...rest }, ref) => {
     const hasError = !!error;
 
     return (
       <div className="w-full">
-        {label && <label className="input-label block mb-2">{label}</label>}
+        {label && (
+          <label className="input-label block mb-2">
+            {label}
+          </label>
+        )}
         <div className="relative group">
           {icon && iconPosition === "left" && (
-            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}
           <input
             ref={ref}
-            className={clsx(
-              "w-full bg-[var(--surface-secondary)] border text-[var(--text-primary)] placeholder:text-[var(--text-placeholder)] transition-all duration-200 outline-none",
+            className={cn(
+              "w-full bg-surface-secondary border text-text-primary placeholder:text-text-placeholder transition-all duration-200 outline-none",
               sizeStyles[inputSize],
               // Hover state
-              "hover:bg-[var(--surface-tertiary)] hover:border-[var(--border-default)]",
+              "hover:bg-surface-tertiary hover:border-border-default",
               // Focus state
-              "focus:bg-[var(--surface-base)] focus:border-[var(--c1rcle-orange)] focus:ring-3 focus:ring-[var(--c1rcle-orange-glow)]",
+              "focus:bg-surface-base focus:border-accent-primary focus:ring-3 focus:ring-[var(--accent-glow)]",
               // Error state
               hasError
                 ? "border-[var(--state-error)] focus:border-[var(--state-error)] focus:ring-[var(--state-error-bg)]"
-                : "border-[var(--border-subtle)]",
+                : "border-border-subtle",
               // Icon padding
               icon && iconPosition === "left" && iconPadding[inputSize].left,
               icon && iconPosition === "right" && iconPadding[inputSize].right,
-              className,
+              className
             )}
             {...rest}
           />
           {icon && iconPosition === "right" && (
-            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[var(--text-placeholder)] group-focus-within:text-[var(--c1rcle-orange)] transition-colors">
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-text-placeholder group-focus-within:text-accent-primary transition-colors">
               {icon}
             </div>
           )}
         </div>
         {(error || hint) && (
-          <p
-            className={clsx(
-              "mt-2 text-[12px] font-medium",
-              hasError ? "text-[var(--state-error)]" : "text-[var(--text-tertiary)]",
-            )}
-          >
+          <p className={cn(
+            "mt-2 text-[12px] font-medium",
+            hasError ? "text-red-500" : "text-text-tertiary"
+          )}>
             {error || hint}
           </p>
         )}
       </div>
     );
-  },
+  }
 );
 
 Input.displayName = "Input";

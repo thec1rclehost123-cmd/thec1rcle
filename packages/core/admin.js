@@ -13,30 +13,13 @@ const getAdminConfig = () => {
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   let privateKey = process.env.FIREBASE_PRIVATE_KEY;
   if (privateKey) {
-    // 1. Handle literal \n replacement
-    privateKey = privateKey.replace(/\\n/g, "\n");
-
-    // 2. Remove any surrounding quotes if they somehow got into the string
+    // ── HARDENED PARSING ──
+    // 1. Strip surrounding quotes if present
     if (privateKey.startsWith('"') && privateKey.endsWith('"')) {
       privateKey = privateKey.slice(1, -1);
     }
-
-    // 3. Robustly reconstruct the PEM
-    //    Remove header, footer first to isolate body
-    let body = privateKey
-      .replace(/-----BEGIN PRIVATE KEY-----/g, "")
-      .replace(/-----END PRIVATE KEY-----/g, "");
-
-    //    Clean body: keep ONLY valid Base64 chars (A-Z, a-z, 0-9, +, /, =)
-    //    This aggressively strips whitespace, newlines, escaped newlines, and garbage chars like backslashes
-    body = body.replace(/[^a-zA-Z0-9+/=]/g, "");
-
-    //    Reformat body into 64-char lines
-    const formattedBody = body.match(/.{1,64}/g)?.join("\n");
-
-    if (formattedBody) {
-      privateKey = `-----BEGIN PRIVATE KEY-----\n${formattedBody}\n-----END PRIVATE KEY-----\n`;
-    }
+    // 2. Unescape \n into real line breaks
+    privateKey = privateKey.replace(/\\n/g, "\n");
   }
 
   // Remove debug logs to avoid clutter/leaks

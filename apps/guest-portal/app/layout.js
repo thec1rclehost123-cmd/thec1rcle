@@ -1,14 +1,9 @@
 import "./globals.css";
 import { Inter } from "next/font/google";
-import Navbar from "../components/Navbar";
-import Footer from "../components/Footer";
-import MobileBottomNav from "../components/MobileBottomNav";
-import PageWrapper from "../components/PageWrapper";
+import CheckoutAwareShell from "../components/CheckoutAwareShell";
 import AppProviders from "../components/providers/AppProviders";
-import ScrollProgressBar from "../components/ScrollProgressBar";
-import PageLoadingAnimation from "../components/PageLoadingAnimation";
-import SmoothScroll from "../components/SmoothScroll";
-import ProfileCompletionPrompt from "../components/ProfileCompletionPrompt";
+import { QueryProvider } from "../components/providers/QueryProvider";
+import { WebVitals } from "../components/WebVitals";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -25,7 +20,10 @@ export const metadata = {
   appleWebApp: {
     title: "THE.C1RCLE",
     statusBarStyle: "black-translucent",
-    capable: true,
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
   },
   icons: {
     icon: [
@@ -75,27 +73,28 @@ export const viewport = {
   userScalable: false,
 };
 
+// Removed force-dynamic — it was cascading to ALL routes, blocking the server.
+// Individual pages/API routes that need dynamic rendering already declare it themselves.
+
+import Navbar from "../components/Navbar";
+import FooterContent from "../components/FooterContent";
+import ContextualFooter from "../components/ContextualFooter";
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} font-body antialiased`}>
-        <AppProviders>
-          <PageLoadingAnimation />
-          <ScrollProgressBar />
-          <div className="page-shell relative flex min-h-screen flex-col bg-white dark:bg-black text-black dark:text-white transition-colors duration-300 overflow-x-hidden">
-            <ProfileCompletionPrompt />
-            <div className="pointer-events-none fixed inset-0 -z-10 opacity-0 dark:opacity-90 transition-opacity duration-300">
-              <div className="absolute inset-x-0 top-0 h-[60vh] bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.08),transparent_55%)] blur-[120px]" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,_rgba(136,69,255,0.18),transparent_55%)]" />
-              <div className="absolute inset-x-0 bottom-0 h-[50vh] bg-[radial-gradient(circle_at_bottom,_rgba(255,181,167,0.2),transparent_50%)] blur-[140px]" />
-            </div>
-            <Navbar />
-            <PageWrapper>{children}</PageWrapper>
-            <Footer />
-            <MobileBottomNav />
-            <SmoothScroll />
-          </div>
-        </AppProviders>
+        <WebVitals />
+        <QueryProvider>
+          <AppProviders>
+            <CheckoutAwareShell
+              navbar={<Navbar />}
+              footer={<ContextualFooter footerContent={<FooterContent />} />}
+            >
+              {children}
+            </CheckoutAwareShell>
+          </AppProviders>
+        </QueryProvider>
       </body>
     </html>
   );

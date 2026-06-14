@@ -1,99 +1,90 @@
 /**
- * THE C1RCLE - Real-time Inventory Service
- * Reads from the same Firestore 'events' collection as the guest-portal
- * and partner-dashboard.
+ * THE C1RCLE - Inventory Service
+ * Reads ticket availability through the API gateway — no direct Firestore access.
  *
  * IMPORTANT: Actual inventory reservation happens SERVER-SIDE via the
- * /api/checkout/reserve endpoint (see lib/api.ts). These client-side
- * functions are for real-time UI updates only (showing remaining count).
+ * /api/checkout/reserve endpoint (see lib/api.ts). These functions
+ * are for UI display of remaining counts only.
  */
 
-import { doc, getDoc, onSnapshot } from "firebase/firestore";
-import { getFirebaseDb } from "./firebase";
+import { apiFetch } from "./api";
 import { TicketTier } from "@/store/eventsStore";
 
 /**
- * Subscribe to real-time ticket availability for an event.
- * Updates the UI as inventory changes (other users purchase, etc.)
+ * Subscribe to ticket availability for an event via polling.
+ * Polls every 10s instead of holding an open onSnapshot listener.
  */
 export function subscribeToEventInventory(
-  eventId: string,
-  onUpdate: (tickets: TicketTier[]) => void,
+    eventId: string,
+    onUpdate: (tickets: TicketTier[]) => void
 ): () => void {
-  const db = getFirebaseDb();
-  const eventRef = doc(db, "events", eventId);
+    if (!eventId || typeof eventId !== "string") {
+        console.error("[Inventory] Invalid eventId:", eventId);
+        return () => {};
+    }
 
-  const unsubscribe = onSnapshot(
-    eventRef,
-    (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
-        onUpdate(data.tickets || []);
-      }
-    },
-    (error) => {
-      console.error("Error subscribing to inventory:", error);
-    },
-  );
+    let active = true;
 
-  return unsubscribe;
+    async function poll() {
+        if (!active) return;
+        try {
+            const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
+            if (event?.tickets) onUpdate(event.tickets);
+        } catch (e) {
+            // Silent fail — UI will just show stale count
+        }
+    }
+
+    // Initial fetch immediately
+    poll();
+    const intervalId = setInterval(poll, 10000);
+
+    return () => {
+        active = false;
+        clearInterval(intervalId);
+    };
 }
 
 /**
  * Check if tickets are still available (one-time read).
- * Uses doc.get() with the document ID — NOT a query with where("id", ...).
  */
 export async function checkAvailability(
-  eventId: string,
-  tierId: string,
-  quantity: number,
+    eventId: string,
+    tierId: string,
+    quantity: number
 ): Promise<{ available: boolean; remaining: number }> {
-  const db = getFirebaseDb();
-
-  try {
-    // Use getDoc with document reference — correct Firestore pattern
-    const eventRef = doc(db, "events", eventId);
-    const eventSnap = await getDoc(eventRef);
-
-    if (!eventSnap.exists()) {
-      return { available: false, remaining: 0 };
+    if (!eventId || typeof eventId !== "string") {
+        return { available: false, remaining: 0 };
     }
 
-    const data = eventSnap.data();
-    const tickets: TicketTier[] = data.tickets || [];
-    const tier = tickets.find((t) => t.id === tierId);
+    try {
+        const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
+        const tickets: TicketTier[] = event?.tickets || [];
+        const tier = tickets.find((t) => t.id === tierId);
 
-    if (!tier) {
-      return { available: false, remaining: 0 };
+        if (!tier) return { available: false, remaining: 0 };
+
+        return {
+            available: tier.remaining >= quantity,
+            remaining: tier.remaining,
+        };
+    } catch (error) {
+        console.error("Error checking availability:", error);
+        return { available: false, remaining: 0 };
     }
-
-    return {
-      available: tier.remaining >= quantity,
-      remaining: tier.remaining,
-    };
-  } catch (error) {
-    console.error("Error checking availability:", error);
-    return { available: false, remaining: 0 };
-  }
 }
 
 /**
  * Get all ticket tiers for an event (one-time read).
  */
 export async function getEventTickets(eventId: string): Promise<TicketTier[]> {
-  const db = getFirebaseDb();
+    if (!eventId || typeof eventId !== "string") return [];
 
-  try {
-    const eventRef = doc(db, "events", eventId);
-    const eventSnap = await getDoc(eventRef);
-
-    if (!eventSnap.exists()) {
-      return [];
+    try {
+        const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
+        return event?.tickets || [];
+    } catch (error) {
+        console.error("Error fetching event tickets:", error);
+        return [];
     }
-
-    return eventSnap.data().tickets || [];
-  } catch (error) {
-    console.error("Error fetching event tickets:", error);
-    return [];
-  }
 }

@@ -17,12 +17,14 @@
         "baseUrl": ".",
         "paths": {
             "@c1rcle/core/*": [
-                "./src/*"
+                "./src/*",
+                "./*"
             ]
         }
     },
     "include": [
-        "src/**/*"
+        "src/**/*",
+        "types.d.ts"
     ],
     "exclude": [
         "node_modules",

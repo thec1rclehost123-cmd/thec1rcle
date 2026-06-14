@@ -1,85 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
-import { updateEventLifecycle, listEvents } from "@/lib/server/eventStore";
-import { verifyAuth } from "@/lib/server/auth";
-// GET - Fetch all events for a venue via eventStore (API Gateway)
-export async function GET(req: NextRequest) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const venueId = searchParams.get("venueId");
-    const status = searchParams.get("status");
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-    if (!venueId) {
-      return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-    }
+function authError(
+    req: NextRequest,
+    status: number,
+    error: string | { code?: string; message?: string; requestId?: string }
+) {
+    const normalized = typeof error === "string"
+        ? {
+            code: status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : "BAD_REQUEST",
+            message: error,
+            requestId: req.headers.get("x-request-id") || crypto.randomUUID(),
+        }
+        : {
+            code: error.code || (status === 401 ? "UNAUTHORIZED" : status === 403 ? "FORBIDDEN" : "BAD_REQUEST"),
+            message: error.message || "Request failed",
+            requestId: error.requestId || req.headers.get("x-request-id") || crypto.randomUUID(),
+        };
 
-    const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const events = await listEvents(
-      { venueId, ...(status && status !== "all" ? { status } : {}) },
-      token,
-    );
-
-    return NextResponse.json({ events });
-  } catch (error: any) {
-    console.error("Error fetching events:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
-  }
+    return NextResponse.json({
+        success: false,
+        error: normalized,
+    }, { status });
 }
 
-// PATCH - Update event (approve, reject, pause, lock)
+export async function GET(req: NextRequest) {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return authError(req, ctx.status, ctx.error);
+    const { searchParams } = new URL(req.url);
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/events?${searchParams}`, {});
+}
+
 export async function PATCH(req: NextRequest) {
-  try {
-    const decodedToken: any = await verifyAuth(req);
-    if (!decodedToken) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { eventId, action, data } = await req.json();
-
-    if (!eventId || !action) {
-      return NextResponse.json({ error: "eventId and action are required" }, { status: 400 });
-    }
-
-    // Map frontend action to canonical lifecycle status
-    const statusMap: Record<string, string> = {
-      approve: "approved",
-      reject: "denied",
-      pause: "paused",
-      resume: "live",
-    };
-
-    const newStatus = statusMap[action];
-    if (!newStatus) {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-
-    // Resolve role from token claims — eventStore.updateEventLifecycle validates permissions
-    let role = decodedToken.partnerType || (decodedToken.admin ? "admin" : "user");
-    // Dev backdoor for testing
-    if (process.env.NODE_ENV === "development" && decodedToken.uid === "dev-user-123") {
-      role = "venue";
-    }
-
-    // Internal context for eventStore
-    const context = {
-      uid: decodedToken.uid,
-      role: role,
-      requestId: `API_${Date.now()}`,
-    };
-
-    const result = await updateEventLifecycle(
-      eventId,
-      newStatus,
-      context,
-      data?.notes || data?.reason || "",
-    );
-
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error("Error updating event:", error);
-    return NextResponse.json({ error: error.message || "Internal server error" }, { status: 500 });
-  }
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return authError(req, ctx.status, ctx.error);
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/events`, {
+        method: "PATCH",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
 }

@@ -34,3 +34,10 @@ export const clearIntent = () => {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(INTENT_KEY);
 };
+
+export const consumeIntent = () => {
+    const intent = getIntent();
+    if (!intent) return null;
+    clearIntent();
+    return intent;
+};

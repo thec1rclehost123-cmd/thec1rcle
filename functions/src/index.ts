@@ -8,6 +8,7 @@ import { createOrder, createRSVPOrder, getOrderByReservationId, confirmOrderPaym
 import { getEvent } from './lib/events';
 import { createRazorpayOrder } from './lib/razorpay';
 import { initiateTransferInternal, acceptTransferInternal, cancelTransferInternal } from './lib/transfers';
+import { expireStaleReservations } from './lib/bookingExpiry';
 import { syncEventToAlgolia, removeEventFromAlgolia } from './lib/algolia';
 import { postChatMessageInternal } from './lib/chat';
 
@@ -281,12 +282,26 @@ export const razorpayWebhook = functions.https.onRequest(async (req, res) => {
 });
 
 /**
- * 6. Inventory Cleanup (Cron)
+ * 6. Inventory Cleanup (Cron) — legacy cart_reservations
  */
 export const cleanupReservations = functions.pubsub.schedule('every 5 minutes').onRun(async (context) => {
     console.log('[Cron] Running reservation + order cleanup...');
     await cleanupExpiredReservations();
     await failStaleOrders(); // Restore inventory for abandoned payments
+    return null;
+});
+
+/**
+ * 6b. Booking System Expiry (Cron) — Phase-1 reservations collection
+ *
+ * Expires stale "pending" and "payment_pending" reservations and
+ * restores their seats atomically via Firestore transaction.
+ * Each reservation is processed in its own transaction so a single
+ * failure doesn't block others.
+ */
+export const expireBookingReservations = functions.pubsub.schedule('every 5 minutes').onRun(async (_context) => {
+    console.log('[Cron] Running booking reservation expiry...');
+    await expireStaleReservations();
     return null;
 });
 

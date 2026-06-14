@@ -2,6 +2,7 @@ export interface Profile {
   uid: string;
   email?: string;
   displayName?: string;
+  age?: number;
   photoURL?: string;
   gender?: string;
   phone?: string;

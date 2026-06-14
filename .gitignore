@@ -1,9 +1,32 @@
-node_modules
-dist
-coverage
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# ── Build Output ──────────────────────────────────────────────────────────────
+.next/
+.expo/
+dist/
+out/
+build/
+web-build/
+storybook-static/
+functions/lib/
+packages/core/dist/
+packages/types/dist/
+apps/api-gateway/dist/
+
+# ── TypeScript ────────────────────────────────────────────────────────────────
 *.tsbuildinfo
 next-env.d.ts
-.next
+expo-env.d.ts
+
+# ── Environment Variables ─────────────────────────────────────────────────────
 .env
 .env.local
 .env.development
@@ -11,7 +34,70 @@ next-env.d.ts
 .env.production
 .env.*.local
 !.env.example
-.DS_Store
+
+# ── Logs & Debug ──────────────────────────────────────────────────────────────
 *.log
-.vercel
-.turbo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+tsc_output*.txt
+boot_err.txt
+err.txt
+
+# ── Test & Coverage ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Cache & Tooling ───────────────────────────────────────────────────────────
+.turbo/
+.vercel/
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# ── OS Files ──────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── IDE & Editors ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.cursor/
+*.swp
+*.swo
+*~
+.project
+.classpath
+
+# ── Native Mobile ─────────────────────────────────────────────────────────────
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+/ios/
+/android/
+.metro-health-check*
+
+# ── Debug / Stale Artifacts ───────────────────────────────────────────────────
+debug_*
+* 2.*
+
+# ── Sentry ────────────────────────────────────────────────────────────────────
+.sentry-cli
+sentry.properties
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+*.local
+.npmrc.local

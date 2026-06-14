@@ -4,8 +4,13 @@
  */
 
 import { createHmac } from "node:crypto";
+import { getQrSecret } from "./secret-registry.js";
 
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+let _QR_SECRET = null;
+function QR_SECRET() {
+    if (!_QR_SECRET) _QR_SECRET = getQrSecret();
+    return _QR_SECRET;
+}
 
 /**
  * Verifies the signature of a ticket QR code.
@@ -13,9 +18,12 @@ const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
 export function verifyScanSignature(payload) {
     if (!payload.sig) return false;
 
-    // Standard data format: orderId:eventId:ticketId:userId:quantity:timestamp
-    const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}`;
-    const expectedSignature = createHmac("sha256", QR_SECRET)
+    const isRSVP = payload.rt === 1;
+
+    // Standard data format: orderId:eventId:ticketId:userId:quantity:timestamp:STATUS
+    // Matches qrStore.js implementation
+    const dataToSign = `${payload.o}:${payload.e}:${payload.t}:${payload.u}:${payload.q}:${payload.ts}:${isRSVP ? 'RSVP' : 'PAID'}`;
+    const expectedSignature = createHmac("sha256", QR_SECRET())
         .update(dataToSign)
         .digest("hex")
         .substring(0, 16);
@@ -27,22 +35,22 @@ export function verifyScanSignature(payload) {
  * Validates if a device is authorized to scan for a specific venue.
  */
 export async function validateScannerDevice(db, deviceId, venueId) {
-    const snapshot = await db.collection("bound_devices")
-        .where("deviceId", "==", deviceId)
-        .where("venueId", "==", venueId)
-        .where("status", "==", "active")
-        .limit(1)
-        .get();
+    const deviceRef = db.collection("bound_devices").doc(`${venueId}_${deviceId}`);
+    const deviceDoc = await deviceRef.get();
 
-    if (snapshot.empty) {
+    if (!deviceDoc.exists) {
         return { valid: false, error: "Device not authorized for this venue" };
     }
 
-    const deviceDoc = snapshot.docs[0];
+    const device = deviceDoc.data() || {};
+    if (device.status !== "active" || device.bound !== true) {
+        return { valid: false, error: "Device not authorized for this venue" };
+    }
+
     return {
         valid: true,
-        device: { id: deviceDoc.id, ...deviceDoc.data() },
-        ref: deviceDoc.ref
+        device: { id: deviceDoc.id, ...device },
+        ref: deviceRef
     };
 }
 

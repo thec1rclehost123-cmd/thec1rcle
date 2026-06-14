@@ -1,7 +1,4 @@
-"use client";
-
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 
 const links = [
   { label: "Download App", href: "/app" },
@@ -9,17 +6,10 @@ const links = [
   { label: "University", href: "/about" },
   { label: "Careers", href: "/about#careers" },
   { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" },
+  { label: "Terms", href: "/terms" }
 ];
 
 export default function Footer() {
-  const pathname = usePathname();
-
-  // Hide footer on host studio internal routes
-  const isHostDashboard =
-    pathname?.startsWith("/host") && !pathname.includes("%40") && !pathname.includes("@");
-  if (isHostDashboard) return null;
-
   return (
     <footer className="bg-black text-white pt-32 pb-12 px-6">
       <div className="max-w-[1400px] mx-auto flex flex-col items-center">

@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requestPartnership } from "@/lib/server/partnershipStore";
+import { requireHostAccess } from "@/lib/server/hostAuthMiddleware";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 export async function POST(req: NextRequest) {
-  try {
-    const { hostId, venueId, hostName, venueName } = await req.json();
-
-    if (!hostId || !venueId) {
-      return NextResponse.json({ error: "hostId and venueId are required" }, { status: 400 });
-    }
-
-    const result = await requestPartnership(hostId, venueId, hostName, venueName);
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    const ctx = await requireHostAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => ({}));
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/partners/hosts/partnerships/request`, {
+        method: "POST",
+        body: JSON.stringify({ hostId: ctx.hostId, ...body }),
+    });
 }

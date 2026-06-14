@@ -4,17 +4,18 @@
  */
 
 import { randomBytes, createHmac } from "node:crypto";
+import { getTicketSecret } from "./secret-registry.js";
 
-const TICKET_SECRET = process.env.TICKET_SECRET || "c1rcle-secret-2025";
+const TICKET_SECRET = getTicketSecret();
+
 
 /**
  * Signs a ticket ID for QR verification.
  */
 export function signTicketId(ticketId) {
-    const signature = createHmac("sha256", TICKET_SECRET)
+    const signature = createHmac("sha256", getTicketSecret())
         .update(ticketId)
-        .digest("hex")
-        .slice(0, 16);
+        .digest("hex"); // full 64-char SHA-256 — was truncated to 16, giving only 64 bits of entropy
     return `${ticketId}:${signature}`;
 }
 

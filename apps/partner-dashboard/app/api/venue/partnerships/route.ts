@@ -1,47 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  listPartnerships,
-  approvePartnership,
-  rejectPartnership,
-} from "@/lib/server/partnershipStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const venueId = searchParams.get("venueId");
-    const hostId = searchParams.get("hostId");
-    const status = searchParams.get("status");
-
-    const filters: any = {};
-    if (venueId) filters.venueId = venueId;
-    if (hostId) filters.hostId = hostId;
-    if (status) filters.status = status;
-
-    const partnerships = await listPartnerships(filters);
-    return NextResponse.json({ partnerships });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/partnerships?${searchParams}`, {});
 }
 
 export async function PATCH(req: NextRequest) {
-  try {
-    const { partnershipId, action } = await req.json();
-
-    if (!partnershipId || !action) {
-      return NextResponse.json({ error: "partnershipId and action are required" }, { status: 400 });
-    }
-
-    if (action === "approve") {
-      await approvePartnership(partnershipId);
-    } else if (action === "reject") {
-      await rejectPartnership(partnershipId);
-    } else {
-      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+    const body = await req.json().catch(() => null);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/partnerships`, {
+        method: "PATCH",
+        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+    });
 }

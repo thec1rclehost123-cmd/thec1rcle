@@ -1,41 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listEvents } from "@/lib/server/eventStore";
+import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
+import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
 
-/**
- * GET /api/venue/availability?venueId=xxx
- *
- * Returns blocked date/time slots based on approved/scheduled/live events.
- * Data fetched via eventStore (API Gateway) — no direct Firestore access.
- */
 export async function GET(req: NextRequest) {
-  try {
+    const ctx = await requireVenueAccess(req);
+    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
     const { searchParams } = new URL(req.url);
-    const venueId = searchParams.get("venueId");
-
-    if (!venueId) {
-      return NextResponse.json({ error: "venueId is required" }, { status: 400 });
-    }
-
-    const token = req.headers.get("authorization")?.split("Bearer ")[1] || "";
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Fetch events for this venue with relevant lifecycle statuses
-    // Gateway now supports comma-separated status values via the venueId+status filter
-    const events = await listEvents({ venueId, status: "approved,scheduled,live" }, token);
-
-    const blockedSlots = events.map((event: any) => ({
-      // Gateway returns startDate as ISO string (Firestore Timestamps are serialized)
-      date: event.startDate || event.date || null,
-      startTime: event.startTime || null,
-      endTime: event.endTime || null,
-      eventId: event.id,
-      isBlocked: true,
-    }));
-
-    return NextResponse.json({ blockedSlots });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
+    searchParams.set("venueId", ctx.venueId);
+    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/availability?${searchParams}`, {});
 }

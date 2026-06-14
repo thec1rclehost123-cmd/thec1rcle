@@ -1,4 +1,5 @@
 import { inngest, Events } from "../inngest-client.js";
+import { telemetry } from "../telemetry.js";
 import { getAdminDb } from "../admin.js";
 import { indexEvent, indexVenue, removeEventFromIndex } from "../search.js";
 
@@ -21,15 +22,21 @@ export const syncEventToSearch = inngest.createFunction(
     async ({ event, step }) => {
         const { eventId, action } = event.data;
         const db = getAdminDb();
+        const startTime = Date.now();
 
         // Handle removal
         if (action === "remove") {
             await step.run("remove-from-index", async () => {
-                await removeEventFromIndex(eventId);
-                return { removed: true };
+                try {
+                    await removeEventFromIndex(eventId);
+                    return { removed: true };
+                } catch (error) {
+                    telemetry.error(`[SearchSync] Failed to remove event ${eventId} from index`, error, { eventId });
+                    throw error;
+                }
             });
 
-            return { status: "removed", eventId };
+            return { status: "removed", eventId, duration: Date.now() - startTime };
         }
 
         // Fetch full event data
@@ -62,14 +69,23 @@ export const syncEventToSearch = inngest.createFunction(
 
         // Index to Meilisearch
         await step.run("index-event", async () => {
-            const result = await indexEvent(eventData);
-            return result;
+            try {
+                const result = await indexEvent(eventData);
+                return result;
+            } catch (error) {
+                telemetry.error(`[SearchSync] Failed to index event ${eventId}`, error, {
+                    eventId,
+                    title: eventData.title
+                });
+                throw error;
+            }
         });
 
         return {
             status: "indexed",
             eventId,
-            title: eventData.title
+            title: eventData.title,
+            duration: Date.now() - startTime
         };
     }
 );

@@ -1,11 +1,21 @@
 import { randomUUID, createHmac } from "node:crypto";
 import { getAdminDb } from "./admin.js";
+import { getQrSecret } from "./secret-registry.js";
 
 const ENTITLEMENT_COLLECTION = "entitlements";
 const SCAN_LEDGER_COLLECTION = "scan_ledger";
 
-// Secret key for HMAC signing (should be in env vars in production)
-const QR_SECRET = process.env.QR_SECRET_KEY || "c1rcle-qr-secret-2024";
+/**
+ * Price threshold (INR) above which tickets use the rotating "Magic Ticket" QR.
+ * Exported so qrStore, mobile app, and scanner all read from one place.
+ */
+export const MAGIC_TICKET_THRESHOLD = 5000;
+
+let _QR_SECRET = null;
+function QR_SECRET() {
+    if (!_QR_SECRET) _QR_SECRET = getQrSecret();
+    return _QR_SECRET;
+}
 
 export const ENTITLEMENT_STATES = {
     ISSUED: "ISSUED",       // Created, potentially unclaimed slot
@@ -16,28 +26,50 @@ export const ENTITLEMENT_STATES = {
 };
 
 /**
- * Issue entitlements for an order
- * This is the "Truth" creation step.
+ * Issue entitlements for an order.
+ * IDs are deterministic (ENT-{orderId}-{tierId}-{index}) so concurrent retries
+ * are safe: the idempotency check runs inside the transaction against known doc refs,
+ * eliminating the TOCTOU race that existed when the check was outside the transaction.
  */
 export async function issueEntitlements(order, items, transaction = null) {
     const db = getAdminDb();
+
+    if (!items || items.length === 0) return [];
+
+    // Fetch event summary for denormalization — read outside transaction (no write contention).
+    let eventSummary = null;
+    if (order.eventId) {
+        const eventDoc = await db.collection("events").doc(order.eventId).get();
+        if (eventDoc.exists) {
+            const ev = eventDoc.data();
+            eventSummary = {
+                title: ev.title || order.eventTitle || null,
+                startAt: ev.startDate || ev.startAt || null,
+                venue: ev.venue || ev.venueName || ev.location || null,
+                city: ev.city || null,
+                posterUrl: ev.image || null,
+            };
+        }
+    }
+
     const entitlements = [];
 
     for (const item of items) {
-        // One entitlement per human unit
-        // NOTE: item.quantity can be > 1 if it's a multi-ticket tier
         for (let i = 0; i < (item.quantity || 1); i++) {
+            // Deterministic ID: stable across retries, no UUID randomness.
+            const tierId = (item.ticketId || item.tierId || 'GEN').replace(/\//g, '-');
             const entitlement = {
-                id: `ENT-${randomUUID().substring(0, 12).toUpperCase()}`,
+                id: `ENT-${order.id}-${tierId}-${i + 1}`.toUpperCase(),
                 eventId: order.eventId,
                 orderId: order.id,
                 ownerUserId: order.userId,
                 ticketType: order.isRSVP ? 'rsvp' : (item.entryType === 'couple' ? 'couple' : 'paid'),
                 genderConstraint: item.genderRequirement || 'none',
-                scanCountAllowed: 1, // Deterministic: one human = one entry
+                scanCountAllowed: item.entryType === 'couple' ? 2 : 1,
                 scanCountUsed: 0,
                 state: ENTITLEMENT_STATES.ISSUED,
                 issuedAt: new Date().toISOString(),
+                ...(eventSummary ? { eventSummary } : {}),
                 metadata: {
                     tierId: item.ticketId,
                     tierName: item.name,
@@ -50,18 +82,27 @@ export async function issueEntitlements(order, items, transaction = null) {
     }
 
     const saveOp = async (t) => {
+        // Idempotency check inside the transaction: reads and writes are atomic,
+        // so two concurrent fulfillment tasks cannot both pass and double-write.
+        const firstRef = db.collection(ENTITLEMENT_COLLECTION).doc(entitlements[0].id);
+        const firstDoc = await t.get(firstRef);
+        if (firstDoc.exists) {
+            const allDocs = await Promise.all(
+                entitlements.map(ent => t.get(db.collection(ENTITLEMENT_COLLECTION).doc(ent.id)))
+            );
+            return allDocs.filter(d => d.exists).map(d => ({ id: d.id, ...d.data() }));
+        }
         for (const ent of entitlements) {
             t.set(db.collection(ENTITLEMENT_COLLECTION).doc(ent.id), ent);
         }
+        return entitlements;
     };
 
     if (transaction) {
-        await saveOp(transaction);
+        return await saveOp(transaction);
     } else {
-        await db.runTransaction(saveOp);
+        return await db.runTransaction(saveOp);
     }
-
-    return entitlements;
 }
 
 /**
@@ -73,7 +114,7 @@ export function generateEntitlementQR(entitlementId) {
     const window = Math.floor(timestamp / 30);
 
     const dataToSign = `${entitlementId}:${window}`;
-    const signature = createHmac("sha256", QR_SECRET)
+    const signature = createHmac("sha256", QR_SECRET())
         .update(dataToSign)
         .digest("hex")
         .substring(0, 16);
@@ -102,7 +143,7 @@ export function verifyEntitlementQR(payload) {
     // Check current and prev window to be extra safe with timing
     const verifyWindow = (w) => {
         const dataToSign = `${eid}:${w}`;
-        const expected = createHmac("sha256", QR_SECRET)
+        const expected = createHmac("sha256", QR_SECRET())
             .update(dataToSign)
             .digest("hex")
             .substring(0, 16);
@@ -184,32 +225,52 @@ export async function processEntryScan(qrPayload, scannerId, eventId, context = 
         }
 
         // 3. Rule Enforcement
-        // Gender Constraint
+        // Gender Constraint — prefer boundGender (locked at claim time) over live profile to prevent
+        // post-claim profile changes from causing door rejections.
         if (entitlement.genderConstraint && entitlement.genderConstraint !== 'none') {
-            const userGender = context.userGender;
-            if (userGender && entitlement.genderConstraint !== userGender) {
+            const effectiveGender = entitlement.boundGender || context.userGender;
+            if (effectiveGender && entitlement.genderConstraint !== effectiveGender) {
                 await recordScanLedgerEntry({
                     entitlementId, eventId, scannerId,
                     result: 'DENIED', reasonCode: 'GENDER_MISMATCH',
-                    metadata: { ...context, required: entitlement.genderConstraint, actual: userGender }
+                    metadata: { ...context, required: entitlement.genderConstraint, actual: effectiveGender }
                 }, t);
                 return { success: false, reason: 'GENDER_MISMATCH' };
             }
         }
 
-        // Couple Logic
-        if (entitlement.ticketType === 'couple' && !context.isCoupleBypassed) {
-            if (!context.partnerPresent) {
-                await recordScanLedgerEntry({
-                    entitlementId, eventId, scannerId,
-                    result: 'DENIED', reasonCode: 'COUPLE_INCOMPLETE',
-                    metadata: context
-                }, t);
-                return { success: false, reason: 'COUPLE_INCOMPLETE' };
-            }
+        // Couple Logic — allow sequential entry; first partner enters immediately, second triggers CONSUMED.
+        // Do NOT block entry if the other partner hasn't arrived yet.
+        if (entitlement.ticketType === 'couple') {
+            const isFirstScan = entitlement.scanCountUsed === 0;
+            const newCountUsed = entitlement.scanCountUsed + 1;
+            const isFull = newCountUsed >= entitlement.scanCountAllowed;
+            const coupleSlot = isFirstScan ? 'primary' : 'partner';
+
+            t.update(entRef, {
+                scanCountUsed: newCountUsed,
+                state: isFull ? ENTITLEMENT_STATES.CONSUMED : entitlement.state,
+                lastScannerId: scannerId,
+                consumedMetadata: context,
+                ...(isFirstScan
+                    ? { primaryEnteredAt: timestamp, primaryScannerId: scannerId }
+                    : { partnerEnteredAt: timestamp, partnerScannerId: scannerId, consumedAt: timestamp })
+            });
+
+            await recordScanLedgerEntry({
+                entitlementId, eventId, scannerId,
+                result: 'GRANTED',
+                metadata: { ...context, coupleSlot }
+            }, t);
+
+            return {
+                success: true,
+                couplePartialEntry: !isFull,
+                entitlement: { ...entitlement, scanCountUsed: newCountUsed }
+            };
         }
 
-        // 4. Atomic State Transition
+        // 4. Atomic State Transition (non-couple tickets)
         const newCountUsed = entitlement.scanCountUsed + 1;
         const newState = ENTITLEMENT_STATES.CONSUMED;
 
@@ -258,7 +319,7 @@ async function recordScanLedgerEntry(data, transaction = null) {
 /**
  * Transfer Entitlement (Revoke old, Issue new)
  */
-export async function transferEntitlement(entitlementId, newOwnerUserId, actorId, transaction = null) {
+export async function transferEntitlement(entitlementId, newOwnerUserId, actorId, transaction = null, boundGender = null) {
     const db = getAdminDb();
     const now = new Date().toISOString();
 
@@ -291,6 +352,7 @@ export async function transferEntitlement(entitlementId, newOwnerUserId, actorId
             issuedAt: now,
             scanCountUsed: 0,
             consumedAt: null,
+            ...(boundGender ? { boundGender } : {}),
             metadata: {
                 ...oldEnt.metadata,
                 transferredFrom: oldEnt.id,

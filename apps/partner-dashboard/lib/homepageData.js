@@ -7,58 +7,7 @@ export const heroVideoSrc = "/background-video.mp4";
 const SELECTS_COLLECTION = "homepage_selects";
 const INTERVIEWS_COLLECTION = "homepage_interviews";
 
-const selectsSeed = [
-  {
-    title: "2025 Activities",
-    description: "Curation of immersive outdoor + culture drops.",
-    cta: "View Selects",
-    image: "/events/select-activities.svg",
-    href: "/explore?category=activities",
-    slug: "2025-activities",
-  },
-  {
-    title: "2025 Art Circuits",
-    description: "Intimate showcases for the indie art scene.",
-    cta: "View Selects",
-    image: "/events/select-art.svg",
-    href: "/explore?category=art",
-    slug: "2025-art-circuits",
-  },
-];
-
-const interviewsSeed = [
-  {
-    slug: "pune-street-crew",
-    title: "Interview: Pune Street Crew",
-    excerpt:
-      "How Pune's late-night collectives are shaping a new sonic identity across KP and Kalyani Nagar.",
-    image: "/events/interview-crew.svg",
-  },
-  {
-    slug: "underground-fashion-labs",
-    title: "Interview: Underground Fashion Labs",
-    excerpt: "Inside the ateliers building the next wave of South Asian couture pop-ups.",
-    image: "/events/interview-fashion.svg",
-  },
-];
-
-const slugify = (value = "") =>
-  value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+/, "")
-    .replace(/-+$/, "");
-
-const toPlainDocument = (doc) => ({
-  id: doc.id,
-  ...doc.data(),
-});
-
-const loadCollectionWithSeed = async (_collectionName, seed) => {
-  // Homepage CMS content is served from hardcoded seed by default.
-  // Live CMS updates flow through the API Gateway's /api/v1/cms route.
-  return seed ?? [];
-};
+const loadCollection = async () => [];
 
 const mapHeroCards = (events) =>
   events.slice(0, 4).map((event) => ({
@@ -69,7 +18,7 @@ const mapHeroCards = (events) =>
     time: formatEventTime(event),
     image: event.image,
     guests: event.guests || [],
-    href: getEventHref(event),
+    href: getEventHref(event)
   }));
 
 const mapEventGrid = (events) => events.slice(0, 8);
@@ -99,7 +48,7 @@ const buildStats = (events, city) => {
   return {
     eventsThisMonth: monthEvents.length,
     weeklyRegistrations,
-    city,
+    city
   };
 };
 
@@ -107,12 +56,12 @@ const getCity = (city) => city || DEFAULT_CITY;
 
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
-  const events = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
+  const { events = [] } = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
   const heroCards = mapHeroCards(events);
   const eventGrid = mapEventGrid(events);
   const categories = getCategoryFilters(events);
-  const selects = await loadCollectionWithSeed(SELECTS_COLLECTION, selectsSeed);
-  const interviews = await loadCollectionWithSeed(INTERVIEWS_COLLECTION, interviewsSeed);
+  const selects = await loadCollection();
+  const interviews = await loadCollection();
   const stats = buildStats(events, selectedCity);
 
   return {
@@ -121,6 +70,6 @@ export const getHomepageContent = cache(async (city) => {
     categoryFilters: categories,
     selects,
     interviews,
-    stats,
+    stats
   };
 });

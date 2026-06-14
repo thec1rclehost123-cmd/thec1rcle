@@ -55,6 +55,7 @@ export const IndexConfig = {
             "tags",
         ],
         filterableAttributes: [
+            "lifecycle",
             "status",
             "venueId",
             "hostId",
@@ -183,6 +184,7 @@ export async function searchEvents(query, options = {}) {
     // Build filter string
     const filterParts = [];
 
+    if (filters.lifecycle) filterParts.push(`lifecycle = "${filters.lifecycle}"`);
     if (filters.status) filterParts.push(`status = "${filters.status}"`);
     if (filters.venueCity) filterParts.push(`venueCity = "${filters.venueCity}"`);
     if (filters.genres?.length) {
@@ -343,7 +345,8 @@ function transformEventForSearch(event) {
         hostId: event.hostId || "",
         genres: event.genres || [],
         tags: event.tags || [],
-        status: event.status || "draft",
+        lifecycle: event.lifecycle || "draft",
+        status: event.status || "upcoming",
         startDate: new Date(event.startDate).getTime(), // Unix timestamp for filtering
         startDateISO: event.startDate, // For display
         priceMin,

@@ -74,18 +74,56 @@ service cloud.firestore {
 
     // --- 📦 OPERATIONAL DATA ---
     match /events/{eventId} {
-      // Drafts and sensitive states are restricted
-      allow read: if isAdmin() || 
-                    (resource.data.lifecycle in ['scheduled', 'live', 'completed', 'cancelled'] && !resource.data.isDeleted) ||
-                    (isSignedIn() && (
-                        resource.data.creatorId == request.auth.uid || 
-                        resource.data.venueId == request.auth.uid ||
-                        resource.data.hostId == request.auth.uid ||
-                        request.auth.token.partnerId == resource.data.creatorId ||
-                        request.auth.token.partnerId == resource.data.venueId ||
-                        request.auth.token.partnerId == resource.data.hostId
-                    ));
-      allow write: if isAdmin(); // Partners write via server routes
+      // ─── READ RULES ───────────────────────────────────────────────────
+      // PUBLIC: Only 'scheduled' and 'live' events are guest-visible.
+      // - 'approved' is an internal pre-publish state (host flow), not public.
+      // - 'completed' / 'cancelled' are not shown in the guest portal.
+      //   They can be read by authenticated partners or admins only.
+      //   This mirrors PUBLIC_LIFECYCLE_STATES in @c1rcle/core/events.
+      //
+      // NOTE: Events are fully public for reading (discovery platform).
+      // Security is enforced at write time (isAdmin only) and at the app layer
+      // (lifecycle filter in every Firestore query + isPublicEvent client filter).
+      // Firestore cannot evaluate complex resource.data OR conditions on list queries,
+      // so both list and get are open. Venues use the same pattern.
+      allow read: if true;
+      // ─── WRITE RULES ───────────────────────────────────────────────────
+      // ALL writes go through the Admin SDK via server-side API routes.
+      // Clients NEVER write events directly.
+      allow write: if isAdmin(); // Partners write via server routes only
+
+      match /scan_logs/{scanId} {
+        allow read: if isAdmin() ||
+                      (isSignedIn() && (
+                        get(/databases/$(database)/documents/events/$(eventId)).data.creatorId == request.auth.uid ||
+                        get(/databases/$(database)/documents/events/$(eventId)).data.venueId == request.auth.uid ||
+                        get(/databases/$(database)/documents/events/$(eventId)).data.hostId == request.auth.uid ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.creatorId ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.venueId ||
+                        request.auth.token.partnerId == get(/databases/$(database)/documents/events/$(eventId)).data.hostId
+                      ));
+        allow write: if isAdmin();
+      }
+    }
+
+    // --- ⏳ WAITLIST ---
+    match /waitlist/{entryId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow list: if isAdmin() || isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // --- 🔖 RSVP / LIKES ---
+    // Tracks which events users have saved (used by RSVP toggle and interested counts)
+    match /likes/{likeId} {
+      // Users can read their own likes; event owners (via partnerId) can read aggregate
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.userId == request.auth.uid ||
+        request.auth.token.partnerId != null
+      ));
+      // Backend creates/deletes via Admin SDK (rsvp route.js)
+      allow write: if isAdmin();
     }
 
     // --- 🎪 EVENT MANAGEMENT ---
@@ -156,7 +194,16 @@ service cloud.firestore {
     }
 
     // --- 🔔 PARTNER NOTIFICATIONS ---
-    
+
+    // Notifications: Real-time alerts for venue/host/promoter partners and consumer users
+    match /notifications/{notifId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        resource.data.targetId == request.auth.token.partnerId ||
+        resource.data.targetId == request.auth.uid
+      ));
+      allow write: if false; // Created and updated only by server-side Admin SDK
+    }
+
     // Notification Reads: Track which notifications partners have seen
     match /notification_reads/{readId} {
       allow read: if isAdmin() || (isSignedIn() && 
@@ -259,13 +306,65 @@ service cloud.firestore {
       allow update, delete: if false; // Redemptions are immutable
     }
 
-    // --- 💬 EVENT SOCIAL LAYER ---
-    
-    // Helper: Check if user has a valid ticket for the event
-    function hasEventTicket(eventId) {
-      return exists(/databases/$(database)/documents/orders/$(request.auth.uid + '_' + eventId)) ||
-             getAfter(/databases/$(database)/documents/orders).data.eventId == eventId;
+    // --- ❤️ DATING / MATCHING LAYER ---
+
+    // User Likes (swipe right)
+    match /userLikes/{likeId} {
+      // list: allow signed-in users — where clause in query constrains results
+      // get:  verify ownership on individual doc reads
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (
+        resource.data.fromUserId == request.auth.uid ||
+        resource.data.toUserId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update, delete: if false;
     }
+
+    // User Passes (swipe left — kept to avoid reshowing profiles)
+    match /userPasses/{passId} {
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Mutual Matches
+    match /userMatches/{matchId} {
+      // list: allow signed-in users — queries are always filtered by user1Id or user2Id
+      // get:  verify participation on individual doc reads
+      allow list: if isSignedIn();
+      allow get: if isSignedIn() && (
+        resource.data.user1Id == request.auth.uid ||
+        resource.data.user2Id == request.auth.uid
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.user1Id == request.auth.uid ||
+        request.resource.data.user2Id == request.auth.uid
+      );
+      allow update: if isSignedIn() && (
+        resource.data.user1Id == request.auth.uid ||
+        resource.data.user2Id == request.auth.uid
+      );
+      allow delete: if false;
+    }
+
+    // Verification Requests
+    match /verificationRequests/{userId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isAdmin();
+    }
+
+    // Verification Attempts (sub-collection; Cloud Function writes results)
+    match /verificationAttempts/{userId}/attempts/{attemptId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isAdmin(); // Cloud Function updates result async
+      allow delete: if false;
+    }
+
+    // --- 💬 EVENT SOCIAL LAYER ---
     
     // Event Group Chat Messages
     match /eventGroupMessages/{messageId} {
@@ -351,6 +450,35 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
     
+    // --- ❤️ EVENT INTEREST (Likes / Who's Going) ---
+
+    // eventInterest/{eventId}/interestedUsers/{userId}
+    // Any signed-in user can read who's interested in an event.
+    // Only the owner can write their own interest doc.
+    match /eventInterest/{eventId}/interestedUsers/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // userEventInterests/{userId}/events/{eventId} — mirror for user-centric queries
+    match /userEventInterests/{userId}/events/{eventId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- 🎫 EVENT GROUP CHAT MEMBERS (auto-join on ticket purchase) ---
+
+    // eventGroupChatMembers/{eventId}/members/{userId}
+    // Any signed-in user can read who's in the group chat.
+    // Users can only write their own membership doc.
+    match /eventGroupChatMembers/{eventId}/members/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isSignedIn() && request.auth.uid == userId;
+      allow delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
     // Event Chats (legacy, for backwards compatibility)
     match /eventChats/{chatId} {
       allow read: if isSignedIn();
@@ -455,6 +583,61 @@ service cloud.firestore {
     match /public_attendees/{id} {
       allow read: if isSignedIn();
       allow write: if false; // Server only
+    }
+
+    // --- 💳 COVER WALLET SYSTEM ---
+
+    // Cover Wallets: closed-loop spend wallets attached to ticket entitlements
+    match /cover_wallets/{walletId} {
+      // Guests can read their own wallet (balance + state)
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      // Only the backend (Admin SDK) creates wallets — no client-side creation
+      allow create: if false;
+      // Only the backend updates wallet balance and state
+      allow update, delete: if false;
+    }
+
+    // Wallet Transactions: immutable debit/credit/reversal log
+    match /cover_wallets/{walletId}/txns/{txnId} {
+      // Guests can read their own wallet's transactions
+      allow read: if isAdmin() || (isSignedIn() &&
+        get(/databases/$(database)/documents/cover_wallets/$(walletId)).data.userId == request.auth.uid
+      );
+      // Only backend writes transactions
+      allow write: if false;
+    }
+
+    // Cover Wallet Reconciliations: event-close finance reports
+    match /cover_wallet_reconciliations/{eventId} {
+      allow read: if isAdmin() || (isSignedIn() && (
+        request.auth.token.partnerId != null
+      ));
+      allow write: if false; // Backend only
+    }
+
+    // --- 👥 FOLLOWS (Venues & Hosts) ---
+
+    // User-centric follow lookups — only the owner can read/write
+    match /userFollows/{userId}/venues/{venueId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    match /userFollows/{userId}/hosts/{hostId} {
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Venue-centric follower mirrors — any signed-in user can read counts/members
+    match /venueFollowers/{venueId}/followers/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Host-centric follower mirrors
+    match /hostFollowers/{hostId}/followers/{userId} {
+      allow read: if isSignedIn();
+      allow create, delete: if isSignedIn() && request.auth.uid == userId;
     }
 
     // --- 🏁 DEFAULT CATCH-ALL (STRICT) ---

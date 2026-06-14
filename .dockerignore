@@ -9,9 +9,15 @@ dist
 **/dist
 .turbo
 **/.turbo
+.expo
+**/.expo
+coverage
+**/coverage
+functions/lib
 .env*
 !.env.example
 *.log
+*.tsbuildinfo
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

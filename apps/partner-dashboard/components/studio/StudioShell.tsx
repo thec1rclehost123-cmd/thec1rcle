@@ -1,215 +1,458 @@
 "use client";
 
-import { ReactNode, useState, useEffect } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
+import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
 import {
-  Search,
-  Calendar,
-  ChevronDown,
-  Activity,
-  TrendingUp,
-  Zap,
-  DollarSign,
-  Users,
-  ShieldAlert,
-  ChevronRight,
-  Play,
-  Info,
-  Clock,
+    Search, ChevronDown, Check, CalendarRange,
+    BarChart3, X, Layers,
 } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+/* ── Types ──────────────────────────────────────────────────────────────── */
 
-interface StudioShellProps {
-  children: ReactNode;
-  title: string;
-  description: string;
-  role: "venue" | "host" | "promoter";
-  onRangeChange?: (range: string) => void;
-  onEventChange?: (eventId: string | null) => void;
+export interface SectionDef {
+    id: string;
+    label: string;
 }
 
+interface StudioShellProps {
+    children: ReactNode;
+    title: string;
+    subtitle?: string;
+    role: "venue" | "host" | "promoter";
+    sections: SectionDef[];
+    onEventChange?: (eventId: string | null) => void;
+    heroBackground?: "tinted" | "plain";
+}
+
+/* ── EventPickerModal ───────────────────────────────────────────────────── */
+
+interface EventPickerModalProps {
+    events: { id: string; title: string }[];
+    selectedId: string | null;
+    onSelect: (id: string | null) => void;
+    onClose: () => void;
+}
+
+function EventPickerModal({ events, selectedId, onSelect, onClose }: EventPickerModalProps) {
+    const [q, setQ] = useState("");
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Focus input on mount, close on Escape
+    useEffect(() => {
+        inputRef.current?.focus();
+        const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+        window.addEventListener("keydown", onKey);
+        return () => window.removeEventListener("keydown", onKey);
+    }, [onClose]);
+
+    const allEvents = [{ id: null as string | null, title: "All Events" }, ...events];
+    const filtered = q.trim()
+        ? allEvents.filter(e => e.title.toLowerCase().includes(q.toLowerCase()))
+        : allEvents;
+
+    const nonAllEvents = events.filter(e =>
+        !q.trim() || e.title.toLowerCase().includes(q.toLowerCase())
+    );
+
+    return (
+        /* Overlay */
+        <div
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 sm:p-6"
+            style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(8px)" }}
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+            {/* Panel */}
+            <div
+                className="w-full max-w-[520px] rounded-3xl overflow-hidden"
+                style={{
+                    background: "#18181b",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    boxShadow: "0 32px 80px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.04)",
+                }}
+            >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4"
+                     style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                             style={{ background: "rgba(244,74,34,0.15)" }}>
+                            <CalendarRange className="w-4 h-4" style={{ color: "#F44A22" }} />
+                        </div>
+                        <div>
+                            <div className="text-[15px] font-bold" style={{ color: "var(--v-text-primary)" }}>
+                                Select Event
+                            </div>
+                            <div className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                {events.length} event{events.length !== 1 ? "s" : ""} available
+                            </div>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="w-8 h-8 rounded-xl flex items-center justify-center transition-all focus:outline-none"
+                        style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
+                </div>
+
+                {/* Search */}
+                <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                    <div className="relative">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+                                style={{ color: "rgba(255,255,255,0.3)" }} />
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Search events..."
+                            value={q}
+                            onChange={e => setQ(e.target.value)}
+                            className="w-full pl-10 pr-4 py-3 rounded-xl text-[14px] font-medium focus:outline-none transition-all"
+                            style={{
+                                background: "rgba(255,255,255,0.05)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                color: "var(--v-text-primary)",
+                            }}
+                            onFocus={e => {
+                                (e.target as HTMLInputElement).style.border = "1px solid rgba(244,74,34,0.4)";
+                                (e.target as HTMLInputElement).style.background = "rgba(244,74,34,0.04)";
+                            }}
+                            onBlur={e => {
+                                (e.target as HTMLInputElement).style.border = "1px solid rgba(255,255,255,0.08)";
+                                (e.target as HTMLInputElement).style.background = "rgba(255,255,255,0.05)";
+                            }}
+                        />
+                        {q && (
+                            <button
+                                onClick={() => setQ("")}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full flex items-center justify-center"
+                                style={{ background: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
+                            >
+                                <X className="w-3 h-3" />
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                {/* List */}
+                <div className="overflow-y-auto" style={{ maxHeight: 360 }}>
+                    {/* All Events option */}
+                    {(!q.trim()) && (
+                        <div className="px-4 pt-3 pb-1">
+                            <button
+                                onClick={() => onSelect(null)}
+                                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all text-left focus:outline-none"
+                                style={{
+                                    background: selectedId === null
+                                        ? "rgba(244,74,34,0.1)"
+                                        : "rgba(255,255,255,0.03)",
+                                    border: selectedId === null
+                                        ? "1px solid rgba(244,74,34,0.25)"
+                                        : "1px solid rgba(255,255,255,0.06)",
+                                }}
+                            >
+                                <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                                     style={{ background: selectedId === null ? "rgba(244,74,34,0.15)" : "rgba(255,255,255,0.06)" }}>
+                                    <Layers className="w-4.5 h-4.5" style={{ color: selectedId === null ? "#F44A22" : "rgba(255,255,255,0.4)" }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-[14px] font-bold"
+                                         style={{ color: selectedId === null ? "#F44A22" : "var(--v-text-primary)" }}>
+                                        All Events
+                                    </div>
+                                    <div className="text-[11px] font-medium mt-0.5"
+                                         style={{ color: "rgba(255,255,255,0.35)" }}>
+                                        Aggregated view across all events
+                                    </div>
+                                </div>
+                                {selectedId === null && (
+                                    <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                                         style={{ background: "#F44A22" }}>
+                                        <Check className="w-3 h-3 text-white" />
+                                    </div>
+                                )}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Event list */}
+                    {(q.trim() ? filtered : nonAllEvents).length > 0 && (
+                        <div className="px-4 pt-2 pb-3">
+                            {!q.trim() && (
+                                <div className="text-[10px] font-bold uppercase tracking-[0.14em] px-1 pb-2 pt-1"
+                                     style={{ color: "rgba(255,255,255,0.25)" }}>
+                                    Events
+                                </div>
+                            )}
+                            <div className="space-y-1">
+                                {(q.trim() ? filtered.filter(e => e.id !== null) : nonAllEvents).map((event, i) => {
+                                    const sel = selectedId === event.id;
+                                    // Cycle through accent dots
+                                    const dots = ["#F44A22", "#818CF8", "#34D399", "#FBBF24", "#22D3EE", "#EC4899"];
+                                    const dot = dots[i % dots.length];
+                                    return (
+                                        <button
+                                            key={event.id}
+                                            onClick={() => onSelect(event.id)}
+                                            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-left focus:outline-none"
+                                            style={{
+                                                background: sel ? "rgba(244,74,34,0.08)" : "transparent",
+                                                border: sel ? "1px solid rgba(244,74,34,0.18)" : "1px solid transparent",
+                                            }}
+                                        >
+                                            <div className="w-2.5 h-2.5 rounded-full shrink-0 mt-0.5"
+                                                 style={{ background: dot, boxShadow: `0 0 6px ${dot}80` }} />
+                                            <span className="flex-1 text-[14px] font-semibold truncate"
+                                                  style={{ color: sel ? "var(--v-text-primary)" : "rgba(255,255,255,0.65)" }}>
+                                                {event.title}
+                                            </span>
+                                            {sel && (
+                                                <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0"
+                                                     style={{ background: "#F44A22" }}>
+                                                    <Check className="w-3 h-3 text-white" />
+                                                </div>
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Empty state */}
+                    {filtered.length === 0 && (
+                        <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3"
+                                 style={{ background: "rgba(255,255,255,0.05)" }}>
+                                <Search className="w-5 h-5" style={{ color: "rgba(255,255,255,0.2)" }} />
+                            </div>
+                            <p className="text-[14px] font-semibold mb-1" style={{ color: "rgba(255,255,255,0.35)" }}>
+                                No events found
+                            </p>
+                            <p className="text-[12px]" style={{ color: "rgba(255,255,255,0.2)" }}>
+                                Try a different search term
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                {/* Footer hint */}
+                <div className="flex items-center justify-center gap-1 px-5 py-3"
+                     style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
+                    <kbd className="text-[10px] font-bold px-1.5 py-0.5 rounded-md"
+                         style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                        ESC
+                    </kbd>
+                    <span className="text-[11px] font-medium ml-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+                        to close
+                    </span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+/* ── StudioShell ────────────────────────────────────────────────────────── */
+
 export default function StudioShell({
-  children,
-  title,
-  description,
-  role,
-  onRangeChange,
-  onEventChange,
+    children,
+    title,
+    subtitle,
+    sections,
+    onEventChange,
+    heroBackground = "tinted",
 }: StudioShellProps) {
-  const pathname = usePathname();
-  const router = useRouter();
-  const [range, setRange] = useState("30d");
-  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
-  const [isEventSelectorOpen, setIsEventSelectorOpen] = useState(false);
+    const searchParams = useSearchParams();
+    const urlEventId = searchParams.get("eventId");
 
-  // Mock events for selector - in real implementation this would fetch from API
-  const events = [
-    { id: null, title: "Global (All Events)" },
-    { id: "evt-1", title: "New Year's Eve 2025" },
-    { id: "evt-2", title: "Techno Night Prototype" },
-    { id: "evt-3", title: "Sunday Sundowner" },
-  ];
+    const { user, profile } = useDashboardAuth();
+    const [activeSection, setActiveSection] = useState(sections[0]?.id ?? "");
+    const [selectedEventId, setSelectedEventId] = useState<string | null>(urlEventId);
+    const [isOpen, setIsOpen] = useState(false);
+    const [venueEvents, setVenueEvents] = useState<{ id: string; title: string }[]>([]);
+    const userScrolling = useRef(true);
 
-  const currentEvent = events.find((e) => e.id === selectedEventId) || events[0];
+    /* ── Fetch events ──────────────────────────────────────────────────── */
+    useEffect(() => {
+        const pid = profile?.activeMembership?.partnerId;
+        if (!pid || !user) return;
+        user.getIdToken()
+            .then((t: any) => fetch(`/api/partners/venues/events?venueId=${pid}&limit=50`, { headers: { Authorization: `Bearer ${t}` } }))
+            .then((r: any) => r.ok ? r.json() : { events: [] })
+            .then(({ events }: { events: any[] }) =>
+                setVenueEvents(events
+                    .filter((e: any) => e.lifecycle !== "draft" && e.status !== "draft")
+                    .map((e: any) => ({ id: e.id, title: e.title || e.name || e.id })))
+            )
+            .catch(() => {});
+    }, [profile, user]);
 
-  const tabs = [
-    { label: "Summary", href: `/${role}/analytics/overview`, icon: Activity },
-    { label: "Timing", href: `/${role}/analytics/timeline`, icon: Clock },
-    { label: "Demand", href: `/${role}/analytics/reach`, icon: TrendingUp },
-    { label: "Turnout", href: `/${role}/analytics/engagement`, icon: Zap },
-    { label: "Money", href: `/${role}/analytics/revenue`, icon: DollarSign },
-    { label: "Crowd", href: `/${role}/analytics/audience`, icon: Users },
-    { label: "Gate & Ops", href: `/${role}/analytics/ops`, icon: ShieldAlert },
-    { label: "Partners", href: `/${role}/analytics/attribution`, icon: Users },
-  ];
+    /* ── URL sync ──────────────────────────────────────────────────────── */
+    useEffect(() => {
+        if (urlEventId && urlEventId !== selectedEventId) {
+            setSelectedEventId(urlEventId);
+            onEventChange?.(urlEventId);
+        }
+    }, [urlEventId]);
 
-  const handleRangeChange = (newRange: string) => {
-    setRange(newRange);
-    onRangeChange?.(newRange);
-  };
-
-  const handleEventSelect = (eventId: string | null) => {
-    setSelectedEventId(eventId);
-    setIsEventSelectorOpen(false);
-    onEventChange?.(eventId);
-  };
-
-  return (
-    <div className="flex flex-col min-h-screen bg-[#F9FAFB]">
-      {/* Studio Header */}
-      <div className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-2">
-              <span className="font-black text-slate-900 tracking-tighter text-xl">STATS</span>
-
-              <div className="h-4 w-[1px] bg-slate-200 mx-2" />
-              <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
-                <Activity className="h-3 w-3" />
-                <span className="text-[10px] font-black uppercase tracking-widest">
-                  Running Well
-                </span>
-              </div>
-            </div>
-
-            {/* Event Selector */}
-            <div className="relative">
-              <button
-                onClick={() => setIsEventSelectorOpen(!isEventSelectorOpen)}
-                className="flex items-center gap-3 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 transition-all group"
-              >
-                <div className="h-6 w-6 rounded-md bg-slate-900 flex items-center justify-center">
-                  <Play className="h-3 w-3 text-white fill-white" />
-                </div>
-                <span className="text-sm font-bold text-slate-900">{currentEvent.title}</span>
-                <ChevronDown
-                  className={`h-4 w-4 text-slate-400 transition-transform ${isEventSelectorOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {isEventSelectorOpen && (
-                <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 shadow-2xl rounded-2xl p-2 z-50 animate-in fade-in zoom-in duration-200">
-                  <div className="p-2">
-                    <div className="relative mb-2">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                      <input
-                        type="text"
-                        placeholder="Search events..."
-                        className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-slate-900/5"
-                      />
-                    </div>
-                    <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
-                      {events.map((event) => (
-                        <button
-                          key={event.id || "global"}
-                          onClick={() => handleEventSelect(event.id)}
-                          className={`w-full text-left px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${selectedEventId === event.id ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-50"}`}
-                        >
-                          {event.title}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
-              {[
-                { id: "tonight", label: "Tonight" },
-                { id: "weekend", label: "This Weekend" },
-                { id: "30d", label: "Last 30 Nights" },
-                { id: "all", label: "All Time" },
-              ].map((r) => (
-                <button
-                  key={r.id}
-                  onClick={() => handleRangeChange(r.id)}
-                  className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${range === r.id ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-900"}`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-
-            <button className="h-10 w-10 bg-slate-900 rounded-xl flex items-center justify-center text-white shadow-lg hover:scale-105 transition-transform">
-              <Calendar className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Studio Tabs */}
-        <div className="px-8 flex items-center gap-8">
-          {tabs.map((tab) => {
-            const active = pathname === tab.href;
-            return (
-              <Link
-                key={tab.href}
-                href={tab.href}
-                className={`relative py-4 text-sm font-black uppercase tracking-widest transition-colors ${active ? "text-slate-900" : "text-slate-400 hover:text-slate-600"}`}
-              >
-                {tab.label}
-                {active && (
-                  <div className="absolute bottom-0 left-0 w-full h-1 bg-slate-900 rounded-t-full" />
-                )}
-              </Link>
+    /* ── IntersectionObserver for section tracking ─────────────────────── */
+    useEffect(() => {
+        const obs: IntersectionObserver[] = [];
+        sections.forEach(({ id }) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const o = new IntersectionObserver(
+                ([entry]) => { if (entry.isIntersecting && userScrolling.current) setActiveSection(id); },
+                { rootMargin: "-30% 0px -50% 0px", threshold: 0 }
             );
-          })}
+            o.observe(el);
+            obs.push(o);
+        });
+        return () => obs.forEach(o => o.disconnect());
+    }, [sections, children]);
+
+    /* ── Helpers ────────────────────────────────────────────────────────── */
+    const current = selectedEventId
+        ? (venueEvents.find(e => e.id === selectedEventId) ?? { title: "All Events" })
+        : { title: "All Events" };
+
+    const pickEvent = (id: string | null) => {
+        setSelectedEventId(id);
+        setIsOpen(false);
+        onEventChange?.(id);
+    };
+
+    const scrollTo = useCallback((id: string) => {
+        userScrolling.current = false;
+        setActiveSection(id);
+        const el = document.getElementById(id);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => { userScrolling.current = true; }, 800);
+    }, []);
+
+    return (
+        <div style={{ minHeight: "100vh", background: "var(--v-canvas, #111113)" }}>
+
+            {/* ── Hero header ─────────────────────────────────────────────── */}
+            <div className="relative overflow-hidden">
+                {heroBackground === "tinted" && (
+                    <>
+                        <div
+                            className="absolute inset-0 pointer-events-none"
+                            style={{ background: "linear-gradient(135deg, rgba(244,74,34,0.08) 0%, rgba(129,140,248,0.05) 50%, rgba(52,211,153,0.04) 100%)" }}
+                        />
+                        <div
+                            className="absolute top-0 right-0 w-[500px] h-[300px] pointer-events-none"
+                            style={{ background: "radial-gradient(ellipse at top right, rgba(244,74,34,0.12) 0%, transparent 60%)" }}
+                        />
+                    </>
+                )}
+
+                <div className="relative px-6 sm:px-8 lg:px-10 pt-8 pb-6">
+                    <div className="max-w-[1440px] mx-auto flex items-center justify-between gap-6 flex-wrap">
+                        <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0"
+                                 style={{ background: "rgba(244,74,34,0.15)", boxShadow: "0 0 24px rgba(244,74,34,0.15)" }}>
+                                <BarChart3 className="w-6 h-6" style={{ color: "#F44A22" }} />
+                            </div>
+                            <div>
+                                <h1 className="text-[32px] sm:text-[38px] font-black tracking-tight leading-none"
+                                    style={{ color: "var(--v-text-primary)" }}>
+                                    {title}
+                                </h1>
+                                {subtitle ? (
+                                    <p className="text-[14px] font-medium mt-1.5" style={{ color: "rgba(255,255,255,0.4)" }}>
+                                        {subtitle}
+                                    </p>
+                                ) : null}
+                            </div>
+                        </div>
+
+                        {/* Event picker trigger */}
+                        <button
+                            onClick={() => setIsOpen(true)}
+                            className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all focus:outline-none shrink-0"
+                            style={{
+                                background: "rgba(255,255,255,0.04)",
+                                border: "1px solid rgba(255,255,255,0.08)",
+                                minWidth: 220,
+                            }}
+                        >
+                            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                                 style={{ background: "rgba(244,74,34,0.15)" }}>
+                                <CalendarRange className="w-4 h-4" style={{ color: "#F44A22" }} />
+                            </div>
+                            <div className="flex-1 text-left min-w-0">
+                                <div className="text-[10px] font-bold uppercase tracking-[0.14em] mb-0.5"
+                                     style={{ color: "rgba(255,255,255,0.35)" }}>
+                                    Viewing
+                                </div>
+                                <div className="text-[14px] font-bold truncate" style={{ color: "var(--v-text-primary)" }}>
+                                    {current.title}
+                                </div>
+                            </div>
+                            <ChevronDown className="w-4 h-4 shrink-0" style={{ color: "rgba(255,255,255,0.3)" }} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Sticky section nav ─────────────────────────────────────── */}
+            {sections.length > 0 && (
+                <div
+                    className="sticky top-0 z-30"
+                    style={{
+                        background: "rgba(17,17,19,0.85)",
+                        backdropFilter: "blur(24px) saturate(180%)",
+                        WebkitBackdropFilter: "blur(24px) saturate(180%)",
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                    }}
+                >
+                    <div className="max-w-[1440px] mx-auto px-6 sm:px-8 lg:px-10 py-3">
+                        <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-hide p-1 rounded-2xl"
+                             style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+                            {sections.map(({ id, label }) => {
+                                const active = activeSection === id;
+                                return (
+                                    <button
+                                        key={id}
+                                        onClick={() => scrollTo(id)}
+                                        className="px-5 py-2.5 rounded-xl text-[12px] font-bold uppercase tracking-[0.10em] shrink-0 transition-all focus:outline-none"
+                                        style={active ? {
+                                            background: "#F44A22",
+                                            color: "#fff",
+                                            boxShadow: "0 2px 16px rgba(244,74,34,0.4), 0 0 0 1px rgba(244,74,34,0.5)",
+                                        } : {
+                                            background: "transparent",
+                                            color: "rgba(255,255,255,0.45)",
+                                        }}
+                                    >
+                                        {label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Content ────────────────────────────────────────────────── */}
+            <main className="px-6 sm:px-8 lg:px-10 pt-8 pb-24">
+                <div className="max-w-[1440px] mx-auto">
+                    {children}
+                </div>
+            </main>
+
+            {/* ── Event picker modal ─────────────────────────────────────── */}
+            {isOpen && (
+                <EventPickerModal
+                    events={venueEvents}
+                    selectedId={selectedEventId}
+                    onSelect={pickEvent}
+                    onClose={() => setIsOpen(false)}
+                />
+            )}
         </div>
-      </div>
-
-      {/* Main Content Area */}
-      <main className="flex-1 p-8">
-        <div className="max-w-7xl mx-auto space-y-8">
-          <header>
-            <h1 className="text-3xl font-black text-slate-900 tracking-tight">{title}</h1>
-            <p className="text-slate-500 font-medium mt-1 flex items-center gap-2">
-              {description}
-              <Info className="h-4 w-4 text-slate-300 cursor-help" />
-            </p>
-          </header>
-
-          {children}
-        </div>
-      </main>
-
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: #e2e8f0;
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: #cbd5e1;
-        }
-      `}</style>
-    </div>
-  );
+    );
 }

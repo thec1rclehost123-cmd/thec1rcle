@@ -1,6 +1,34 @@
 import { inngest, Events } from "../inngest-client.js";
 import { getAdminDb } from "../admin.js";
-import { generateEntitlementQR, issueEntitlements } from "../entitlement-engine.js";
+import { issueEntitlements } from "../entitlement-engine.js";
+import { FieldValue } from "firebase-admin/firestore";
+// NOTE: generateEntitlementQR is intentionally NOT imported here.
+// The rotating QR is generated live by the mobile app at display time.
+// Pre-generating it server-side produces a snapshot that expires in 30s.
+
+/**
+ * Dead-letter handler: called after a ticketing workflow exhausts all retries.
+ * Writes a record to `fulfillment_failures` so ops can observe and reprocess.
+ */
+export const handleTicketFulfillmentFailure = inngest.createFunction(
+    { id: "ticket-fulfillment-on-failure" },
+    { event: "inngest/function.failed" },
+    async ({ event }) => {
+        if (event.data.function_id !== "ticket-fulfillment-pipeline") return;
+        const db = getAdminDb();
+        const { orderId, eventId, userId } = event.data.event?.data || {};
+        await db.collection("fulfillment_failures").add({
+            functionId: event.data.function_id,
+            runId: event.data.run_id,
+            orderId: orderId ?? null,
+            eventId: eventId ?? null,
+            userId: userId ?? null,
+            error: event.data.error?.message ?? "unknown",
+            failedAt: new Date().toISOString(),
+            status: "pending_review"
+        });
+    }
+);
 
 /**
  * PRODUCTION WORKFLOW: Ticket Fulfillment Pipeline
@@ -27,10 +55,10 @@ export const handleTicketFulfillment = inngest.createFunction(
     },
     { event: Events.TICKET_PURCHASED },
     async ({ event, step }) => {
-        const { orderId, userId, userEmail, eventId, tickets, totalAmount, promoterCode } = event.data;
+        const { orderId, userId, userEmail, eventId, tickets, totalAmount, ticketsCount, promoterCode } = event.data;
         const db = getAdminDb();
 
-        // Step 1: Issue entitlements and generate QR codes
+        // Step 1: Issue entitlements (one per human unit / quantity)
         const entitlements = await step.run("issue-entitlements", async () => {
             const order = { id: orderId, userId, eventId };
             const items = tickets.map(t => ({
@@ -40,20 +68,34 @@ export const handleTicketFulfillment = inngest.createFunction(
                 entryType: t.entryType || 'general',
                 genderRequirement: t.genderRequirement
             }));
-
-            const issuedEntitlements = await issueEntitlements(order, items);
-
-            // Generate QR payloads for each entitlement
-            return issuedEntitlements.map(ent => ({
-                ...ent,
-                qrPayload: generateEntitlementQR(ent.id)
-            }));
+            return await issueEntitlements(order, items);
         });
 
-        // Step 2: Update order with entitlement IDs
+        // Step 2: Link entitlementIds back to the order.
+        // For magic-mode qrCode entries, populate entitlementIds[] so the mobile app
+        // can call generateEntitlementQR(id) live at display time.
         await step.run("link-entitlements-to-order", async () => {
+            const orderDoc = await db.collection("orders").doc(orderId).get();
+            const existingQrCodes = orderDoc.data()?.qrCodes || [];
+
+            // Build a per-tierId bucket of entitlement IDs
+            const entsByTier = {};
+            for (const ent of entitlements) {
+                const tierId = ent.metadata?.tierId;
+                if (!tierId) continue;
+                if (!entsByTier[tierId]) entsByTier[tierId] = [];
+                entsByTier[tierId].push(ent.id);
+            }
+
+            // Inject entitlementIds into each magic-mode qrCode entry
+            const updatedQrCodes = existingQrCodes.map(qr => {
+                if (qr.qrMode !== 'magic') return qr;
+                return { ...qr, entitlementIds: entsByTier[qr.ticketId] || [] };
+            });
+
             await db.collection("orders").doc(orderId).update({
                 entitlementIds: entitlements.map(e => e.id),
+                qrCodes: updatedQrCodes,
                 fulfilledAt: new Date().toISOString(),
                 fulfillmentStatus: "completed"
             });
@@ -64,7 +106,7 @@ export const handleTicketFulfillment = inngest.createFunction(
         const pdfResult = await step.run("generate-ticket-pdf", async () => {
             // In production, call your PDF generation service (e.g., Puppeteer, PDFKit, or external API)
             // For now, we return a placeholder URL
-            const pdfUrl = `https://c1rcle.com/api/tickets/${orderId}/download`;
+            const pdfUrl = `${process.env.APP_BASE_URL || "https://c1rcle.com"}/api/tickets/${orderId}/download`;
 
             // Store PDF reference
             await db.collection("orders").doc(orderId).update({
@@ -98,7 +140,7 @@ export const handleTicketFulfillment = inngest.createFunction(
                     ticketCount: entitlements.length,
                     totalAmount,
                     pdfUrl: pdfResult.pdfUrl,
-                    qrCodes: entitlements.map(e => e.qrPayload)
+                    entitlementIds: entitlements.map(e => e.id)
                 }
             };
 
@@ -128,31 +170,53 @@ export const handleTicketFulfillment = inngest.createFunction(
 
                 const commission = Math.round(totalAmount * commissionRate * 100) / 100;
 
-                // Add to promoter ledger
-                await db.collection("promoter_ledger").add({
-                    promoterId,
-                    orderId,
-                    eventId,
-                    promoCode: promoterCode,
-                    orderAmount: totalAmount,
-                    commissionRate,
-                    commissionAmount: commission,
-                    status: "pending", // Will be settled after event
-                    createdAt: new Date().toISOString()
-                });
+                // Write to partner_ledger (canonical) — skip if finance-service already wrote for this order
+                const idempotencyRef = db.collection("partner_ledger_idempotency").doc(orderId);
+                const idempotencyDoc = await idempotencyRef.get();
+                if (!idempotencyDoc.exists) {
+                    const now = new Date().toISOString();
+                    await db.collection("partner_ledger").add({
+                        type: "promoter_commission",
+                        toPartnerId: promoterId,
+                        fromPartnerId: null,
+                        eventId,
+                        referenceId: orderId,
+                        amount: commission,
+                        currency: "INR",
+                        status: "pending",
+                        settledAt: null,
+                        createdAt: now,
+                    });
+                    await db.collection("partner_ledger_idempotency").doc(`promo_${orderId}`).set({
+                        orderId, eventId, promoterId, type: "promo_commission", createdAt: now,
+                    });
+                }
 
                 // Increment promoter stats
                 await db.collection("promoters").doc(promoterId).update({
-                    totalSales: db.FieldValue.increment(totalAmount),
-                    totalOrders: db.FieldValue.increment(1),
-                    pendingCommission: db.FieldValue.increment(commission)
+                    totalSales: FieldValue.increment(totalAmount),
+                    totalOrders: FieldValue.increment(1),
+                    pendingCommission: FieldValue.increment(commission)
                 });
 
                 return { credited: true, promoterId, commission };
             });
         }
 
-        // Step 6: Update real-time analytics
+        // Step 6: Update event stats on the main event document.
+        // Runs here (background) rather than in the synchronous fulfillment path to avoid
+        // hitting Firestore's ~1 write/s/doc limit during high-volume drops.
+        // Inngest throttles this to ≤100 executions/min/event, preventing write bursts.
+        await step.run("update-event-stats", async () => {
+            const count = ticketsCount ?? entitlements.length;
+            await db.collection("events").doc(eventId).update({
+                "stats.ticketsSold": FieldValue.increment(count),
+                "stats.totalRevenue": FieldValue.increment(totalAmount || 0),
+            });
+            return { ticketsSold: count, revenue: totalAmount };
+        });
+
+        // Step 7: Update real-time analytics
         await step.run("update-analytics", async () => {
             const now = new Date();
             const dateKey = now.toISOString().split("T")[0]; // YYYY-MM-DD
@@ -161,10 +225,10 @@ export const handleTicketFulfillment = inngest.createFunction(
             await db.collection("event_analytics").doc(`${eventId}_${dateKey}`).set({
                 eventId,
                 date: dateKey,
-                ticketsSold: db.FieldValue.increment(entitlements.length),
-                revenue: db.FieldValue.increment(totalAmount),
-                ordersCount: db.FieldValue.increment(1),
-                updatedAt: db.FieldValue.serverTimestamp()
+                ticketsSold: FieldValue.increment(entitlements.length),
+                revenue: FieldValue.increment(totalAmount),
+                ordersCount: FieldValue.increment(1),
+                updatedAt: FieldValue.serverTimestamp()
             }, { merge: true });
 
             return { updated: true };
@@ -325,23 +389,32 @@ export const processEventSettlement = inngest.createFunction(
             return { hostPayout };
         });
 
-        // Step 4: Mark promoter commissions as ready for payout
+        // Step 4: Mark promoter commissions as settled
         await step.run("finalize-promoter-commissions", async () => {
-            const commissions = await db.collection("promoter_ledger")
+            const now = new Date().toISOString();
+            // Settle partner_ledger entries (canonical collection)
+            const ledgerSnap = await db.collection("partner_ledger")
                 .where("eventId", "==", eventId)
+                .where("type", "==", "promoter_commission")
                 .where("status", "==", "pending")
                 .get();
 
             const batch = db.batch();
-            commissions.docs.forEach(doc => {
-                batch.update(doc.ref, {
-                    status: "ready_for_payout",
-                    finalizedAt: new Date().toISOString()
-                });
+            ledgerSnap.docs.forEach(doc => {
+                batch.update(doc.ref, { status: "settled", settledAt: now });
             });
-            await batch.commit();
 
-            return { promoterCommissions: commissions.size };
+            // Also settle any historical promoter_ledger entries (created before migration)
+            const legacySnap = await db.collection("promoter_ledger")
+                .where("eventId", "==", eventId)
+                .where("status", "==", "pending")
+                .get();
+            legacySnap.docs.forEach(doc => {
+                batch.update(doc.ref, { status: "ready_for_payout", finalizedAt: now });
+            });
+
+            await batch.commit();
+            return { promoterCommissions: ledgerSnap.size + legacySnap.size };
         });
 
         // Step 5: Create settlement summary

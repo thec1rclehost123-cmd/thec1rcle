@@ -2,12 +2,18 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { EventPage } from "@c1rcle/ui";
+import EventDetail from "./EventDetail";
 import { useAuth } from "./providers/AuthProvider";
 import { useToast } from "./providers/ToastProvider";
 import { saveIntent } from "../lib/utils/intentStore";
+import { useSocialActions } from "../hooks/useSocialActions";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import {
+  getEventQueueStatus,
+  recordEventView,
+  recordPromoterLinkClick,
+} from "../features/events/api/eventEngagementApi";
 
 const NotLiveModal = ({ isOpen, onClose }) => (
   <AnimatePresence>
@@ -26,27 +32,14 @@ const NotLiveModal = ({ isOpen, onClose }) => (
         >
           <div className="mb-6 flex justify-center">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/5">
-              <svg
-                className="h-8 w-8 text-black/40"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                />
+              <svg className="h-8 w-8 text-black/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
           </div>
-          <h2 className="font-heading text-2xl font-black uppercase tracking-tight">
-            This event is not live.
-          </h2>
+          <h2 className="font-heading text-2xl font-black uppercase tracking-tight">This event is not live.</h2>
           <p className="mt-4 text-sm font-medium text-black/60">
-            This event has either ended or is currently disabled. You can still access your tickets
-            from the profile section.
+            This event has either ended or is currently disabled. You can still access your tickets from the profile section.
           </p>
           <div className="mt-10 flex flex-col gap-3">
             <button
@@ -68,47 +61,51 @@ const NotLiveModal = ({ isOpen, onClose }) => (
   </AnimatePresence>
 );
 
-export default function EventRSVP({
-  event,
-  host,
-  interestedData = { count: 0, users: [] },
-  guestlist = [],
-}) {
+export default function EventRSVP({ event, host, interestedData = { count: 0, users: [] }, isCompleted = false }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile, updateEventList } = useAuth();
+  const { toggleRSVP, isRSVPLoading } = useSocialActions(event?.id);
   const { toast } = useToast();
   const [promoterCode, setPromoterCode] = useState(null);
+  const [liveInterestedData, setLiveInterestedData] = useState(interestedData);
   const [notLiveModalOpen, setNotLiveModalOpen] = useState(() => {
-    const isPastFromStatus = event?.status === "past";
+    const isPastFromStatus = event?.status === "past" || event?.lifecycle === "completed";
     const isPastFromDate = event?.endDate && new Date(event.endDate) < new Date();
     const isDisabled = event?.settings?.activity === false;
-    return isPastFromStatus || isPastFromDate || isDisabled;
+    return isCompleted || isPastFromStatus || isPastFromDate || isDisabled;
   });
+  const hasRSVPd = Boolean(
+    event?.viewerState?.hasRsvped ??
+    (event?.id && profile?.attendedEvents?.includes(event.id))
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const ref = params.get("ref");
-      if (ref) {
-        setPromoterCode(ref);
-        fetch("/api/promoter/links/click", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: ref }),
-        }).catch((err) => console.warn("[EventRSVP] Failed to track promoter click", err));
+        const params = new URLSearchParams(window.location.search);
+        const ref = params.get("ref");
+        if (ref) {
+          setPromoterCode(ref);
+          recordPromoterLinkClick(ref).catch(err => console.warn("[EventRSVP] Failed to track promoter click", err));
       }
     }
   }, []);
 
+  // Track event view client-side so the server component can use ISR caching.
+  // Fire-and-forget: never blocks render, never surfaces errors to the user.
+  useEffect(() => {
+    if (event?.id) {
+      recordEventView(event.id)
+        .catch(() => { /* non-critical */ });
+    }
+  }, [event?.id]);
+
   const ensureAuthenticated = (type) => {
     if (user) return true;
     saveIntent(type, event?.id);
-    window.dispatchEvent(
-      new CustomEvent("OPEN_AUTH_MODAL", {
-        detail: { intent: type, eventId: event?.id },
-      }),
-    );
+    window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+      detail: { intent: type, eventId: event?.id }
+    }));
     return false;
   };
 
@@ -117,29 +114,29 @@ export default function EventRSVP({
       case "BOOK":
         if (!user) {
           saveIntent("BOOK", event.id);
-          window.dispatchEvent(
-            new CustomEvent("OPEN_AUTH_MODAL", {
-              detail: { intent: "BOOK", eventId: event.id },
-            }),
-          );
+          window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+            detail: { intent: "BOOK", eventId: event.id }
+          }));
           return;
         }
 
         // Surge Protection Check
         try {
-          const surgeRes = await fetch(`/api/events/${event.id}/queue`);
-          const surgeData = await surgeRes.json();
+          const surgeData = await getEventQueueStatus(event.id);
 
           if (surgeData.surgeActive) {
             const admissionToken = sessionStorage.getItem(`admission_token_${event.id}`);
             if (!admissionToken) {
               const queryParams = new URLSearchParams();
-              if (data.tickets) {
-                data.tickets.forEach((t) => queryParams.append(`t_${t.id}`, t.quantity));
+              if (data?.tickets) {
+                data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
               }
               if (promoterCode) queryParams.append("ref", promoterCode);
 
-              const returnTo = `/checkout/${event.id}?${queryParams.toString()}`;
+              const queryString = queryParams.toString();
+              const returnTo = queryString
+                ? `/checkout/${event.id}?${queryString}`
+                : `/checkout/${event.id}`;
               router.push(`/event/${event.id}/queue?returnTo=${encodeURIComponent(returnTo)}`);
               return;
             }
@@ -148,28 +145,32 @@ export default function EventRSVP({
           console.warn("[EventRSVP] Surge check failed, proceeding with caution", err);
         }
 
-        if (data.tickets) {
-          const queryParams = new URLSearchParams();
-          data.tickets.forEach((t) => queryParams.append(`t_${t.id}`, t.quantity));
-          if (promoterCode) queryParams.append("ref", promoterCode);
-          router.push(`/checkout/${event.id}?${queryParams.toString()}`);
+        const queryParams = new URLSearchParams();
+        if (data?.tickets) {
+          data.tickets.forEach(t => queryParams.append(`t_${t.id}`, t.quantity));
         }
+        if (promoterCode) queryParams.append("ref", promoterCode);
+        const queryString = queryParams.toString();
+        router.push(queryString ? `/checkout/${event.id}?${queryString}` : `/checkout/${event.id}`);
         break;
 
       case "RSVP":
         if (!ensureAuthenticated("RSVP")) return;
-        const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
-        try {
-          await updateEventList("attendedEvents", event.id, !hasRSVPd);
-          toast(!hasRSVPd ? "RSVP confirmed" : "RSVP removed", "success");
-        } catch (error) {
-          toast("Unable to update RSVP status.", "error");
-        }
+        toggleRSVP(!hasRSVPd);
+        setLiveInterestedData(prev => ({
+          ...prev,
+          count: Math.max(0, Number(prev?.count || 0) + (hasRSVPd ? -1 : 1))
+        }));
         break;
 
       case "LIKE":
-        if (!ensureAuthenticated("LIKE")) return;
-        // Logic for liking could be added here
+        if (!user) {
+          window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL', {
+            detail: { intent: "LIKE", eventId: event?.id }
+          }));
+          return;
+        }
+        toast("Favorites are coming soon.", "info");
         break;
 
       case "SHARE":
@@ -177,8 +178,7 @@ export default function EventRSVP({
         const url = window.location.href;
         const payload = `${event?.title || "THE C1RCLE event"} • ${url}`;
         if (data.id === "copy") {
-          navigator.clipboard
-            ?.writeText(url)
+          navigator.clipboard?.writeText(url)
             .then(() => toast("Link copied", "success"))
             .catch(() => toast("Unable to copy", "error"));
         } else if (data.id === "whatsapp") {
@@ -189,17 +189,16 @@ export default function EventRSVP({
         break;
 
       default:
-        console.log("Unhandled action:", type, data);
+        console.warn("Unhandled RSVP action:", type);
     }
   };
 
   return (
     <>
-      <EventPage
+      <EventDetail
         event={event}
         host={host}
-        interestedData={interestedData}
-        guestlist={guestlist}
+        interestedData={liveInterestedData}
         user={user}
         profile={profile}
         toast={toast}

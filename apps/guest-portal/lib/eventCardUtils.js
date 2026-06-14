@@ -1,5 +1,3 @@
-const fallbackGuests = ["Anaya", "Rohit", "Mira", "Neel"];
-
 const normalizeGuestName = (guest) => {
   if (!guest) return null;
   if (typeof guest === "string") return guest;
@@ -9,11 +7,8 @@ const normalizeGuestName = (guest) => {
 };
 
 export const getGuestList = (event = {}, limit = 4) => {
-  const guests = Array.isArray(event.guests)
-    ? event.guests.map(normalizeGuestName).filter(Boolean)
-    : [];
-  const source = guests.length ? guests : fallbackGuests;
-  return source.slice(0, limit);
+  const guests = Array.isArray(event.guests) ? event.guests.map(normalizeGuestName).filter(Boolean) : [];
+  return guests.slice(0, limit);
 };
 
 export const getGuestInitials = (guest) => {
@@ -32,11 +27,7 @@ export const formatEventTime = (event = {}) => {
   const parsed = new Date(start);
   if (Number.isNaN(parsed.getTime())) return "";
   try {
-    return new Intl.DateTimeFormat("en-IN", {
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "Asia/Kolkata",
-    }).format(parsed);
+    return new Intl.DateTimeFormat("en-IN", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kolkata" }).format(parsed);
   } catch (error) {
     return "";
   }
