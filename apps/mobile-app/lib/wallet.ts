@@ -9,7 +9,7 @@
  */
 
 import { Alert, Linking, Platform } from "react-native";
-import * as FileSystem from "expo-file-system";
+import { cacheDirectory, getInfoAsync, downloadAsync } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
 
@@ -38,15 +38,15 @@ export interface PassData {
  */
 export async function downloadTicketPDF(orderId: string): Promise<string | null> {
     try {
-        const fileUri = `${FileSystem.cacheDirectory}ticket-${orderId.substring(0, 8)}.pdf`;
+        const fileUri = `${cacheDirectory}ticket-${orderId.substring(0, 8)}.pdf`;
 
         // Check if already downloaded
-        const existing = await FileSystem.getInfoAsync(fileUri);
+        const existing = await getInfoAsync(fileUri);
         if (existing.exists) {
             return fileUri;
         }
 
-        const downloadResult = await FileSystem.downloadAsync(
+        const downloadResult = await downloadAsync(
             `${API_BASE}/api/tickets/download?orderId=${orderId}`,
             fileUri
         );
@@ -148,9 +148,9 @@ export async function generateAppleWalletPass(passData: PassData): Promise<strin
     if (Platform.OS !== "ios") return null;
 
     try {
-        const fileUri = `${FileSystem.cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
+        const fileUri = `${cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
 
-        const downloadResult = await FileSystem.downloadAsync(
+        const downloadResult = await downloadAsync(
             `${API_BASE}/api/passes/apple?orderId=${passData.orderId}`,
             fileUri
         );
