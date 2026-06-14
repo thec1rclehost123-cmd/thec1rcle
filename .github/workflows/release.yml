@@ -73,7 +73,7 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with: { fetch-depth: 0 }
-      - uses: getsentry/action-release@a74facf8a080ecbdf1cb355f16743530d712abb7
+      - uses: getsentry/action-release@ff07929a6537bac57790c3451cf4d364aca38528
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
