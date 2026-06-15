@@ -43,11 +43,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
-          path: node_modules/**/node_modules
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo lint --filter='...[origin/main]'
               # Only lints packages affected by this PR
@@ -64,7 +69,10 @@ jobs:
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
-          path: node_modules/**/node_modules
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo type-check
               # Runs tsc --noEmit in each workspace via Turbo
@@ -95,7 +103,10 @@ jobs:
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
-          path: node_modules/**/node_modules
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - name: Run tests
         run: |
@@ -114,11 +125,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
-          path: node_modules/**/node_modules
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo build --filter='...[origin/main]'
               # Skips packages unchanged vs main; uses remote cache
@@ -135,7 +151,10 @@ jobs:
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
         with:
-          path: node_modules/**/node_modules
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npm audit --audit-level=high --workspaces
       - uses: trufflesecurity/trufflehog@main
