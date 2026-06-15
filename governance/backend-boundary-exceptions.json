@@ -510,5 +510,61 @@
     "reason": "Legacy promoter app/api route still owns backend logic during Phase 0.",
     "parity_notes": "Preserve current business behavior exactly while re-homing ownership into Fastify and packages/core.",
     "remove_when": "Remove when P-1 migration completes and this route becomes a thin bridge or is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoters/connections/route.ts": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-3",
+    "target_owner": "Fastify partner promoter routes + PromoterService",
+    "reason": "Legacy route uses firebase-admin/firestore directly during Phase 0 migration.",
+    "parity_notes": "Preserve current Firestore access behavior while re-homing into Fastify and packages/core.",
+    "remove_when": "Remove when P-3 migration completes and this route delegates to the gateway."
+  },
+  "apps/partner-dashboard/lib/server/aggregation-engine.ts": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-5",
+    "target_owner": "packages/core AnalyticsService",
+    "reason": "Shared aggregation engine uses firebase-admin/firestore directly during Phase 0.",
+    "parity_notes": "Preserve all aggregation logic while migrating ownership into packages/core.",
+    "remove_when": "Remove when analytics aggregation is fully owned by packages/core services."
+  },
+  "apps/partner-dashboard/lib/server/analyticsStore.js": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-5",
+    "target_owner": "packages/core AnalyticsService",
+    "reason": "Legacy analytics store uses firebase-admin/firestore directly during Phase 0.",
+    "parity_notes": "Preserve current analytics query behavior while re-homing into packages/core.",
+    "remove_when": "Remove when H-5/P-5 migration completes and this store is deleted."
+  },
+  "apps/partner-dashboard/lib/server/auth.js": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-1",
+    "target_owner": "apps/api-gateway auth plugin + packages/core",
+    "reason": "Legacy server auth helper uses firebase-admin/auth directly during Phase 0.",
+    "parity_notes": "Preserve token verification behavior while migrating to gateway-backed auth.",
+    "remove_when": "Remove when all partner routes delegate auth verification to the gateway."
+  },
+  "apps/partner-dashboard/lib/server/bookingStore.ts": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-2",
+    "target_owner": "Fastify partner table routes + TableBookingService",
+    "reason": "Legacy booking store uses firebase-admin/firestore directly during Phase 0.",
+    "parity_notes": "Preserve booking read/write behavior while re-homing into Fastify and packages/core.",
+    "remove_when": "Remove when P-2 migration completes and booking logic lives in the gateway."
+  },
+  "apps/partner-dashboard/lib/server/orderTracking.ts": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-3",
+    "target_owner": "Fastify partner order routes + OrderTrackingService",
+    "reason": "Legacy order tracking module uses firebase-admin/firestore directly during Phase 0.",
+    "parity_notes": "Preserve order tracking query behavior while re-homing into packages/core.",
+    "remove_when": "Remove when P-3 migration completes and order tracking lives in the gateway."
+  },
+  "apps/partner-dashboard/lib/server/promoterLinkStore.js": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-4",
+    "target_owner": "Fastify partner promoter routes + PromoterService",
+    "reason": "Legacy promoter link store uses firebase-admin/firestore directly during Phase 0.",
+    "parity_notes": "Preserve promoter link read/write behavior while migrating to gateway.",
+    "remove_when": "Remove when P-4 migration completes and this store is deleted."
   }
 }

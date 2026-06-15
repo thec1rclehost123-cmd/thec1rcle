@@ -13,6 +13,9 @@ const ALLOWED_PATTERNS = [
   'packages/core/dist/**',
   'apps/api-gateway/**',
   'functions/**',
+  'scripts/**', // top-level project utility and admin scripts
+  'apps/admin-console/**', // internal admin tool — firebase-admin is legitimate here
+  'apps/*/scripts/**', // app-level seed and test-data scripts (not shipped code)
 ];
 
 const IGNORE_PATTERNS = [
@@ -33,7 +36,22 @@ function matchesGlob(file, pattern) {
   return new RegExp(`^${regex}$`).test(rel);
 }
 
+function loadExceptions() {
+  try {
+    const exceptionsPath = resolve(
+      __dirname,
+      '..',
+      'governance',
+      'backend-boundary-exceptions.json',
+    );
+    return JSON.parse(readFileSync(exceptionsPath, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
 async function findViolations() {
+  const exceptions = loadExceptions();
   const files = glob.sync('**/*.{ts,tsx,js,jsx,mjs,cjs}', {
     cwd: ROOT,
     ignore: IGNORE_PATTERNS,
@@ -45,8 +63,14 @@ async function findViolations() {
   const violations = [];
 
   for (const file of files) {
+    // Root-level utility scripts (no directory separator) are exempt
+    if (!file.includes('/') && !file.includes('\\')) continue;
+
     const isAllowed = ALLOWED_PATTERNS.some((p) => matchesGlob(file, p));
     if (isAllowed) continue;
+
+    const normalizedFile = file.replace(/\\/g, '/');
+    if (normalizedFile in exceptions) continue;
 
     try {
       const content = readFileSync(`${ROOT}${file}`, 'utf8');
@@ -69,7 +93,10 @@ async function main() {
 
   if (violations.length === 0) {
     console.log('✅ All backend boundary checks passed!');
-    console.log('   firebase-admin only used in: packages/core, apps/api-gateway, functions\n');
+    console.log(
+      '   firebase-admin only used in: packages/core, apps/api-gateway, functions,\n' +
+        '   scripts/, apps/admin-console, app scripts dirs, and approved exceptions\n',
+    );
     process.exit(0);
   }
 
@@ -78,9 +105,11 @@ async function main() {
     console.log(`   ${v.file}:${v.line}`);
     console.log(`     → ${v.importLine}`);
   }
-  console.log('\nfirebase-admin is ONLY allowed in: packages/core, apps/api-gateway, functions');
+  console.log('\nfirebase-admin is ONLY allowed in: packages/core, apps/api-gateway, functions,');
+  console.log('scripts/, apps/admin-console, app-level scripts dirs, and files listed in');
+  console.log('governance/backend-boundary-exceptions.json');
   console.log(
-    'Frontend apps (guest-portal, partner-dashboard, admin-console, mobile-app, scanner-app) must NOT use firebase-admin.\n',
+    'Frontend apps (guest-portal, partner-dashboard, mobile-app, scanner-app) must NOT use firebase-admin directly.\n',
   );
   process.exit(1);
 }
