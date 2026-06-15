@@ -1,6 +1,7 @@
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { Tabs } from "expo-router";
-import { View, StyleSheet, Pressable, DeviceEventEmitter } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     Compass,
     MapPin,
@@ -9,18 +10,19 @@ import {
     Heart,
     type LucideIcon,
 } from "lucide-react-native";
+import React, { useEffect } from "react";
+import { View, StyleSheet, Pressable, DeviceEventEmitter } from "react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
     withTiming,
 } from "react-native-reanimated";
-import React, { useEffect } from "react";
-import * as Haptics from "expo-haptics";
-import { BlurView } from "expo-blur";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Polygon, Defs, LinearGradient as SvgGradient, Stop } from "react-native-svg";
+
 import { colors, gradients } from "@/lib/design/theme";
-import { LinearGradient } from "expo-linear-gradient";
+
 
 
 // viewBox is 100×62. All cone coordinates live in this space.

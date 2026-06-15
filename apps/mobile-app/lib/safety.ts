@@ -1,10 +1,13 @@
 // Safety features - Location sharing, SOS via API Gateway
 import * as Location from "expo-location";
-import { apiFetch } from "@/lib/api";
-import { scheduleLocalNotification } from "./notifications";
-import { Linking, Alert } from "react-native";
-import { getFirebaseApp } from "@/lib/firebase/client";
 import { getFirestore, doc, getDoc, updateDoc } from "firebase/firestore";
+import { Linking, Alert } from "react-native";
+
+import { scheduleLocalNotification } from "./notifications";
+
+import { apiFetch } from "@/lib/api";
+import { getFirebaseApp } from "@/lib/firebase/client";
+
 
 function getDb() { return getFirestore(getFirebaseApp()); }
 

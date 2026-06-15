@@ -9,16 +9,16 @@
  *   isInternetReachable is explicitly false (not null).
  *   We also debounce by 1.5 s to absorb momentary blips.
  */
+import NetInfo from "@react-native-community/netinfo";
 import { useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import NetInfo from "@react-native-community/netinfo";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
     withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface OfflineBannerProps {
     message?: string;

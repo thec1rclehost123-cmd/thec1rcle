@@ -3,6 +3,7 @@
  * Shimmer loading placeholders for better perceived performance
  */
 
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect } from "react";
 import { View, StyleSheet, Dimensions } from "react-native";
 import Animated, {
@@ -13,7 +14,7 @@ import Animated, {
   interpolate,
   Easing,
 } from "react-native-reanimated";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { colors, radii } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

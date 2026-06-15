@@ -8,10 +8,10 @@
  * - isWalletAvailable: checks if wallet app is installed
  */
 
-import { Alert, Linking, Platform } from "react-native";
 import * as FileSystem from "expo-file-system/legacy";
-import * as Sharing from "expo-sharing";
 import * as Haptics from "expo-haptics";
+import * as Sharing from "expo-sharing";
+import { Alert, Linking, Platform } from "react-native";
 
 const API_BASE =
     process.env.EXPO_PUBLIC_API_BASE_URL || "https://thec1rcle.com";
@@ -262,10 +262,10 @@ export async function isWalletAvailable(): Promise<boolean> {
  * Generate pass preview data for display in the app.
  */
 export function generatePassPreview(passData: PassData): {
-    headerFields: Array<{ label: string; value: string }>;
-    primaryFields: Array<{ label: string; value: string }>;
-    secondaryFields: Array<{ label: string; value: string }>;
-    auxiliaryFields: Array<{ label: string; value: string }>;
+    headerFields: { label: string; value: string }[];
+    primaryFields: { label: string; value: string }[];
+    secondaryFields: { label: string; value: string }[];
+    auxiliaryFields: { label: string; value: string }[];
 } {
     const eventDate = new Date(passData.eventDate);
 

@@ -3,16 +3,17 @@
  * Entry splash — perks list + step preview.
  * Auto-skips to photos if profile already exists.
  */
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
+import { ShieldCheck, Camera, Heart, Users, ChevronRight, X } from "lucide-react-native";
 import { useEffect } from "react";
 import { View, Text, StyleSheet, Pressable, StatusBar } from "react-native";
-import { router } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { ShieldCheck, Camera, Heart, Users, ChevronRight, X } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { useAuth } from "@/hooks/useAuth";
-import { useSocialProfileStore } from "@/store/socialProfileStore";
 import { colors } from "@/lib/design/theme";
+import { useSocialProfileStore } from "@/store/socialProfileStore";
 
 const PERKS = [
     {

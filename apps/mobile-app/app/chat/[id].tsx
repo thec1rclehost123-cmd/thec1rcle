@@ -1,3 +1,5 @@
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import {
     View,
@@ -10,15 +12,14 @@ import {
     ActivityIndicator
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
+import { DEMO_MODE, DEMO_CHAT_MESSAGES } from "@/lib/demo";
 import {
     sendGroupMessage,
     subscribeToGroupChat,
 } from "@/lib/social/groupChat";
 import { GroupMessage } from "@/lib/social/types";
-import * as Haptics from "expo-haptics";
-import { DEMO_MODE, DEMO_CHAT_MESSAGES } from "@/lib/demo";
+import { useAuthStore } from "@/store/authStore";
 
 function MessageBubble({ message, isOwnMessage }: {
     message: GroupMessage;

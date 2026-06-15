@@ -3,13 +3,14 @@
  * Base component for all legal content pages
  */
 
-import { View, Text, ScrollView, StyleSheet, Pressable } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router, useLocalSearchParams } from "expo-router";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { colors, radii } from "@/lib/design/theme";
-import { trackScreen } from "@/lib/analytics";
 import { useEffect } from "react";
+import { View, Text, ScrollView, StyleSheet, Pressable } from "react-native";
+import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { trackScreen } from "@/lib/analytics";
+import { colors, radii } from "@/lib/design/theme";
 
 // Legal page type
 export type LegalPageType = "terms" | "privacy" | "refunds" | "guidelines" | "safety";
@@ -24,10 +25,10 @@ const LEGAL_CONTENT: Record<
   {
     title: string;
     lastUpdated: string;
-    sections: Array<{
+    sections: {
       heading?: string;
       content: string[];
-    }>;
+    }[];
   }
 > = {
   terms: {

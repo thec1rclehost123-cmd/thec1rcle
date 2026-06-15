@@ -1,3 +1,9 @@
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
     View,
@@ -8,17 +14,10 @@ import {
     Platform,
     Linking,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
-import { router, useLocalSearchParams } from "expo-router";
-import * as Location from "expo-location";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
 import Animated, { SlideInUp } from "react-native-reanimated";
-import { useEventsStore, type Event } from "@/store/eventsStore";
-import { useVenuesStore, type Venue } from "@/store/venuesStore";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { colors, radii, gradients } from "@/lib/design/theme";
 import {
     calculateDistanceKm,
@@ -30,6 +29,8 @@ import {
     getVenueLocationLabel,
     normalizeVenueKey,
 } from "@/lib/venueDiscovery";
+import { useEventsStore, type Event } from "@/store/eventsStore";
+import { useVenuesStore, type Venue } from "@/store/venuesStore";
 
 const DEFAULT_REGION = {
     latitude: 19.076,
@@ -505,7 +506,7 @@ export default function MapScreen() {
                 style={StyleSheet.absoluteFill}
                 provider={PROVIDER_DEFAULT}
                 initialRegion={initialRegion}
-                showsUserLocation={true}
+                showsUserLocation
                 showsMyLocationButton={false}
                 showsCompass={false}
                 mapType="standard"

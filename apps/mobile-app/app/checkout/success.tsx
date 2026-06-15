@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
-import { View, Text, Pressable, ActivityIndicator, Share } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
-import { Order, useTicketsStore } from "@/store/ticketsStore";
+import { useEffect, useState } from "react";
+import { View, Text, Pressable, ActivityIndicator, Share } from "react-native";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
     withDelay
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { useAuthStore } from "@/store/authStore";
 import { useEventInterestStore } from "@/store/eventInterestStore";
 import { useProfileStore } from "@/store/profileStore";
+import { Order, useTicketsStore } from "@/store/ticketsStore";
 
 interface OrderDetails {
     id: string;
@@ -22,10 +23,10 @@ interface OrderDetails {
     venueLocation?: string;
     totalAmount: number;
     status: string;
-    items: Array<{
+    items: {
         tierName: string;
         quantity: number;
-    }>;
+    }[];
 }
 
 export default function CheckoutSuccessScreen() {

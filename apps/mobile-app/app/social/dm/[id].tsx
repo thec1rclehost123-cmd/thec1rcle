@@ -1,6 +1,6 @@
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useChatRateLimit } from "@/hooks/useChatRateLimit";
-import { useChatImagePicker } from "@/hooks/useChatImagePicker";
 import {
     View,
     Text,
@@ -13,9 +13,14 @@ import {
     Alert,
     Image,
 } from "react-native";
+import Animated, { FadeIn } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
+import { useChatImagePicker } from "@/hooks/useChatImagePicker";
+import { useChatRateLimit } from "@/hooks/useChatRateLimit";
+import { trackScreen } from "@/lib/analytics";
+import { apiFetch } from "@/lib/api";
+import { DEMO_MODE, DEMO_DM_MESSAGES, DEMO_PRIVATE_CHATS, DEMO_NEW_MATCHES } from "@/lib/demo";
 import {
     subscribeToDirectMessages,
     sendDirectMessage,
@@ -30,11 +35,8 @@ import {
     subscribeToDMTyping,
     createTypingHandler,
 } from "@/lib/social";
-import { apiFetch } from "@/lib/api";
-import { trackScreen } from "@/lib/analytics";
-import { DEMO_MODE, DEMO_DM_MESSAGES, DEMO_PRIVATE_CHATS, DEMO_NEW_MATCHES } from "@/lib/demo";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeIn } from "react-native-reanimated";
+import { useAuthStore } from "@/store/authStore";
+
 
 // Typing indicator
 function DMTypingIndicator({ isTyping, userName }: { isTyping: boolean; userName: string }) {

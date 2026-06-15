@@ -1,6 +1,7 @@
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
+
 import { colors } from "@/lib/design/theme";
 
 export default function CheckoutEventRedirect() {

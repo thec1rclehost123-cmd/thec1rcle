@@ -1,15 +1,17 @@
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
+import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInDown,
 } from "react-native-reanimated";
-import { colors, radii, gradients } from "@/lib/design/theme";
+
 import { Badge } from "./Primitives";
+
+import { colors, radii, gradients } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_WIDTH = SCREEN_WIDTH - 32;

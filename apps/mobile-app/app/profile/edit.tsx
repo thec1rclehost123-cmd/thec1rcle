@@ -3,6 +3,11 @@
  * Full-screen form for editing user profile
  */
 
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import {
     View,
@@ -16,11 +21,6 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
-import * as ImagePicker from "expo-image-picker";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -28,12 +28,13 @@ import Animated, {
     useAnimatedStyle,
     withSpring,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
-import { useAuthStore } from "@/store/authStore";
-import { useProfileStore } from "@/store/profileStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { trackScreen, track } from "@/lib/analytics";
 import { apiFetch } from "@/lib/api";
 import { colors, radii, gradients } from "@/lib/design/theme";
-import { trackScreen, track } from "@/lib/analytics";
+import { useAuthStore } from "@/store/authStore";
+import { useProfileStore } from "@/store/profileStore";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

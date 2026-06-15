@@ -1,7 +1,8 @@
 // Media Sharing Service via API Gateway
-import { apiFetch } from "@/lib/api";
-import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+
+import { apiFetch } from "@/lib/api";
 
 // Media types
 export interface EventMedia {

@@ -1,5 +1,3 @@
-import { create } from "zustand";
-import { getFirebaseApp } from "@/lib/firebase/client";
 import {
     getFirestore,
     collection,
@@ -11,6 +9,9 @@ import {
     doc,
     getDoc,
 } from "firebase/firestore";
+import { create } from "zustand";
+
+import { getFirebaseApp } from "@/lib/firebase/client";
 
 function getDb() {
     return getFirestore(getFirebaseApp());
@@ -121,7 +122,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
             passedSnap.forEach((d) => excluded.add(d.data().toUserId));
 
             // 3. For each event (max 5), collect other attendees
-            const candidates: Array<{ userId: string; eventId: string }> = [];
+            const candidates: { userId: string; eventId: string }[] = [];
 
             for (const eventId of eventIds.slice(0, 5)) {
                 const snap = await getDocs(

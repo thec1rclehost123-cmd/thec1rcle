@@ -1,4 +1,9 @@
 "use client";
+import { FlashList } from "@shopify/flash-list";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useCallback, useRef } from "react";
 import {
     View,
@@ -8,22 +13,18 @@ import {
     ActivityIndicator,
     RefreshControl,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withSpring,
     FadeInDown,
 } from "react-native-reanimated";
-import { colors, radii, gradients, shadows } from "@/lib/design/theme";
-import { useEventsStore, type Event } from "@/store/eventsStore";
-import { formatEventDate, formatEventTime, safeDate } from "@/lib/utils/date";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { trackScreen } from "@/lib/analytics";
+import { colors, radii, gradients, shadows } from "@/lib/design/theme";
+import { formatEventDate, formatEventTime, safeDate } from "@/lib/utils/date";
+import { useEventsStore, type Event } from "@/store/eventsStore";
 
 const CATEGORY_META: Record<string, { label: string; emoji: string; accent: string }> = {
     club:     { label: "Club Nights",   emoji: "🎧", accent: "#8B5CF6" },

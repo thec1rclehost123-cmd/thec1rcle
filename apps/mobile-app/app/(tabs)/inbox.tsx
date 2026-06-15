@@ -3,6 +3,10 @@
  * Segment control: Event Chats | Private Chats
  * Matches the Venues/Hosts tab style.
  */
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Search, Plus, MessageCircle, Heart } from "lucide-react-native";
 import React, { useState } from "react";
 import {
     View,
@@ -13,13 +17,9 @@ import {
     StyleSheet,
     Image,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { Search, Plus, MessageCircle, Heart } from "lucide-react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
-import { colors } from "@/lib/design/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import {
     DEMO_MODE,
     DEMO_EVENT_CHATS,
@@ -29,6 +29,7 @@ import {
     type DemoPrivateChat,
     type DemoNewMatch,
 } from "@/lib/demo";
+import { colors } from "@/lib/design/theme";
 
 type Tab = "events" | "private";
 

@@ -1,3 +1,6 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState, useRef } from "react";
 import {
     View,
@@ -11,12 +14,10 @@ import {
     StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { useScannerStore } from "@/store/scannerStore";
-import { validateEventCode, prewarmConnection, registerScannerDevice } from "@/lib/scanner";
+
 import { colors, gradients } from "@/lib/design/theme";
+import { validateEventCode, prewarmConnection, registerScannerDevice } from "@/lib/scanner";
+import { useScannerStore } from "@/store/scannerStore";
 
 export default function ScannerCodeScreen() {
     const [code, setCode] = useState("");

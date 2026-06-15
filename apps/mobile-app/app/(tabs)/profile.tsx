@@ -1,3 +1,8 @@
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Notifications from "expo-notifications";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -11,18 +16,6 @@ import {
     Dimensions,
     Linking,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
-import { router } from "expo-router";
-import * as Notifications from "expo-notifications";
-import { useAuth } from "@/hooks/useAuth";
-import { useAuthStore } from "@/store/authStore";
-import { useProfileStore } from "@/store/profileStore";
-import { useTicketsStore } from "@/store/ticketsStore";
-import { useSocialProfileStore } from "@/store/socialProfileStore";
-import { registerPushToken } from "@/lib/notifications";
-import * as Haptics from "expo-haptics";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -32,10 +25,19 @@ import Animated, {
     withRepeat,
     withTiming,
 } from "react-native-reanimated";
-import { colors, radii, gradients } from "@/lib/design/theme";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { NotificationBell } from "@/components/ui/NotificationBell";
-import { safeDate } from "@/lib/utils/date";
+import { useAuth } from "@/hooks/useAuth";
 import { trackScreen } from "@/lib/analytics";
+import { colors, radii, gradients } from "@/lib/design/theme";
+import { registerPushToken } from "@/lib/notifications";
+import { safeDate } from "@/lib/utils/date";
+import { useAuthStore } from "@/store/authStore";
+import { useProfileStore } from "@/store/profileStore";
+import { useSocialProfileStore } from "@/store/socialProfileStore";
+import { useTicketsStore } from "@/store/ticketsStore";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

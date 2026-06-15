@@ -4,16 +4,19 @@
  * Flow: reserve → initiate → Razorpay → verify → webhook confirms
  */
 
-import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Image } from "expo-image";
 import { router } from "expo-router";
 import { useState, useCallback, useEffect } from "react";
-import { useCartStore, CartItem } from "@/store/cartStore";
-import { useAuthStore } from "@/store/authStore";
-import { useProfileStore } from "@/store/profileStore";
-import { Image } from "expo-image";
-import { processFullCheckout, type CheckoutStatus } from "@/lib/payments";
+import { View, Text, ScrollView, Pressable, TextInput, ActivityIndicator, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { calculatePricing, type PricingResult } from "@/lib/api";
+import { processFullCheckout, type CheckoutStatus } from "@/lib/payments";
+import { useAuthStore } from "@/store/authStore";
+import { useCartStore, CartItem } from "@/store/cartStore";
+import { useProfileStore } from "@/store/profileStore";
+
+
 
 function getReservationLabel(expiresAt?: string | null): string | null {
     if (!expiresAt) return null;

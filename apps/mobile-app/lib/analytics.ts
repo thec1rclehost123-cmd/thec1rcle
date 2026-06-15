@@ -31,8 +31,8 @@ const config = {
 };
 
 // Provider-specific initializations
-let mixpanelClient: any = null;
-let amplitudeClient: any = null;
+const mixpanelClient: any = null;
+const amplitudeClient: any = null;
 
 /**
  * Initialize analytics providers

@@ -3,6 +3,9 @@
  * Central hub for all personal, app, and safety controls
  */
 
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useEffect } from "react";
 import {
     View,
@@ -14,9 +17,6 @@ import {
     Alert,
     Linking,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -24,11 +24,12 @@ import Animated, {
     useAnimatedStyle,
     withSpring,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
-import { colors, radii } from "@/lib/design/theme";
 import { trackScreen } from "@/lib/analytics";
+import { colors, radii } from "@/lib/design/theme";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

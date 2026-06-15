@@ -1,11 +1,13 @@
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
-import { getSavedContacts } from "@/lib/social";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getSavedContacts } from "@/lib/social";
+import { useAuthStore } from "@/store/authStore";
+
 
 // Contact card
 function ContactCard({
@@ -59,13 +61,13 @@ export default function SavedContactsScreen() {
   const { user } = useAuthStore();
 
   const [contacts, setContacts] = useState<
-    Array<{
+    {
       contactUserId: string;
       contactName: string;
       contactAvatar?: string;
       eventTitle: string;
       savedAt: any;
-    }>
+    }[]
   >([]);
   const [loading, setLoading] = useState(true);
 

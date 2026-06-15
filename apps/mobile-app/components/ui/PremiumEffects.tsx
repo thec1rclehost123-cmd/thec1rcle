@@ -3,6 +3,8 @@
  * Liquid Glass, Aurora, Holographic, and Gen-Z Aesthetic Effects
  */
 
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect } from "react";
 import { View, StyleSheet, Dimensions, ViewStyle } from "react-native";
 import Animated, {
@@ -17,9 +19,8 @@ import Animated, {
     interpolateColor,
     Easing,
 } from "react-native-reanimated";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import Svg, { Defs, RadialGradient, Stop, Ellipse, Circle, Rect, G } from "react-native-svg";
+
 import { colors } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");

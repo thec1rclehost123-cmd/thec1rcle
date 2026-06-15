@@ -13,8 +13,6 @@
  *   eventGroupChatMembers/{eventId}/members/{userId}
  *     → { userId, displayName, photoURL, joinedAt, source }
  */
-import { create } from "zustand";
-import { getFirebaseApp } from "@/lib/firebase/client";
 import {
     getFirestore,
     doc,
@@ -26,6 +24,9 @@ import {
     where,
     serverTimestamp,
 } from "firebase/firestore";
+import { create } from "zustand";
+
+import { getFirebaseApp } from "@/lib/firebase/client";
 
 function getDb() { return getFirestore(getFirebaseApp()); }
 

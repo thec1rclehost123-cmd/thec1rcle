@@ -3,10 +3,12 @@
  * Centralized settings management with backend sync
  */
 
-import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getFirebaseApp } from "@/lib/firebase/client";
 import { getFirestore, doc, getDoc, setDoc } from "firebase/firestore";
+import { create } from "zustand";
+
+import { getFirebaseApp } from "@/lib/firebase/client";
+
 
 function getDb() { return getFirestore(getFirebaseApp()); }
 

@@ -1,10 +1,10 @@
-import React from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
-import { Venue } from "@/store/venuesStore";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import React from "react";
+import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+
 import { colors } from "@/lib/design/theme";
 import {
     formatCompactCount,
@@ -12,6 +12,7 @@ import {
     getVenueDisplayName,
     getVenueLocationLabel,
 } from "@/lib/venueDiscovery";
+import { Venue } from "@/store/venuesStore";
 
 const { width } = Dimensions.get("window");
 const CARD_WIDTH = width - 40;

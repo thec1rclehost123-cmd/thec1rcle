@@ -12,10 +12,10 @@ export interface TypingIndicator {
 // Typing status for group chat
 export interface TypingStatus {
     isTyping: boolean;
-    users: Array<{
+    users: {
         userId: string;
         userName: string;
-    }>;
+    }[];
 }
 
 const TYPING_TIMEOUT = 5000;
@@ -173,7 +173,7 @@ export function createTypingHandler(
     return { onChangeText, onBlur };
 }
 
-export function formatTypingText(users: Array<{ userName: string }>): string {
+export function formatTypingText(users: { userName: string }[]): string {
     if (users.length === 0) return "";
     if (users.length === 1) return `${users[0].userName} is typing...`;
     if (users.length === 2) return `${users[0].userName} and ${users[1].userName} are typing...`;

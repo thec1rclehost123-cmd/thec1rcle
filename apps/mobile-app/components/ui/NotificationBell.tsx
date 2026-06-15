@@ -3,9 +3,10 @@
  * Shows unread notification count with animated badge
  */
 
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import { router } from "expo-router";
 import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
+import { View, Text, StyleSheet, Pressable } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,7 +16,7 @@ import Animated, {
   withTiming,
   FadeIn,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
+
 import { colors, radii } from "@/lib/design/theme";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

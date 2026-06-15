@@ -3,6 +3,9 @@
  * Step 2 — City, interestedIn, age range, height, smoking, drinking,
  *           sexuality, lookingFor. All required to proceed.
  */
+import * as Haptics from "expo-haptics";
+import { router, useLocalSearchParams } from "expo-router";
+import { ChevronRight } from "lucide-react-native";
 import { useState } from "react";
 import {
     View,
@@ -13,11 +16,9 @@ import {
     TextInput,
     Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { ChevronRight } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { colors } from "@/lib/design/theme";
 import type { SocialProfile } from "@/store/socialProfileStore";
 import { useSocialProfileStore } from "@/store/socialProfileStore";

@@ -3,10 +3,10 @@
  * Consistent header pattern for all main tab screens
  */
 
-import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,9 +15,12 @@ import Animated, {
   interpolate,
   SharedValue,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { NotificationBell } from "./NotificationBell";
+
 import { colors, radii } from "@/lib/design/theme";
-import * as Haptics from "expo-haptics";
+
 
 interface GlobalHeaderProps {
   title: string;

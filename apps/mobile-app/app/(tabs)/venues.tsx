@@ -3,6 +3,11 @@
  * Two-tab screen: Venues | Hosts
  * 2-column poster grid (BookMyShow-style), search bar, no filter chips.
  */
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Search, X, MapPin, Building2, Users, Heart } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
     View,
@@ -14,20 +19,15 @@ import {
     RefreshControl,
     Dimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { Search, X, MapPin, Building2, Users, Heart } from "lucide-react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { useAuth } from "@/hooks/useAuth";
 import { colors } from "@/lib/design/theme";
-import { useVenuesStore, Venue } from "@/store/venuesStore";
+import { getVenueDisplayName, getVenueLocationLabel, formatCompactCount } from "@/lib/venueDiscovery";
 import { useEventsStore } from "@/store/eventsStore";
 import { useFollowStore } from "@/store/followStore";
-import { useAuth } from "@/hooks/useAuth";
-import { getVenueDisplayName, getVenueLocationLabel, formatCompactCount } from "@/lib/venueDiscovery";
+import { useVenuesStore, Venue } from "@/store/venuesStore";
 
 const { width: SCREEN_W } = Dimensions.get("window");
 const H_PAD = 16;

@@ -13,6 +13,7 @@ import {
     Auth
 } from "firebase/auth";
 import { Platform } from "react-native";
+
 import { firebaseConfig } from "./config";
 
 // Initialize Firebase App (singleton)

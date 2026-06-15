@@ -5,6 +5,7 @@
  */
 
 import React, { Component, type ErrorInfo, type ReactNode } from "react";
+
 import { CrashScreen } from "./CrashScreen";
 
 interface ErrorBoundaryProps {

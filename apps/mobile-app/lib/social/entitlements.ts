@@ -1,6 +1,7 @@
 // Event Entitlement Service - Access Control for Social Features via API Gateway
-import { apiFetch } from "@/lib/api";
 import { EventEntitlement } from "./types";
+
+import { apiFetch } from "@/lib/api";
 
 /**
  * Check if user has valid entitlement for event.
@@ -55,7 +56,7 @@ export function subscribeToEntitlement(
 export async function getEventAttendees(
     eventId: string,
     limit: number = 50
-): Promise<Array<{ userId: string; name: string; avatar?: string; badge?: string }>> {
+): Promise<{ userId: string; name: string; avatar?: string; badge?: string }[]> {
     try {
         // Fallback or implementation of attendee list via Gateway
         const response = await apiFetch<{ attendees: any[] }>(

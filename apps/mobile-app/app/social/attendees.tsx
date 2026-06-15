@@ -1,11 +1,13 @@
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
-import { getEventAttendees, initiateDMRequest, checkEventEntitlement } from "@/lib/social";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { getEventAttendees, initiateDMRequest, checkEventEntitlement } from "@/lib/social";
+import { useAuthStore } from "@/store/authStore";
+
 
 // Attendee card
 function AttendeeCard({
@@ -70,12 +72,12 @@ export default function AttendeesScreen() {
   const { user } = useAuthStore();
 
   const [attendees, setAttendees] = useState<
-    Array<{
+    {
       userId: string;
       name: string;
       avatar?: string;
       badge?: string;
-    }>
+    }[]
   >([]);
   const [loading, setLoading] = useState(true);
   const [dmLoading, setDmLoading] = useState<string | null>(null);

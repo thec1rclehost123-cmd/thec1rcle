@@ -1,8 +1,9 @@
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { router } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
+
 import { colors } from "@/lib/design/theme";
 import { useAuthStore } from "@/store/authStore";
 

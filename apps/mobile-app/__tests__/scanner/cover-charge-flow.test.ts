@@ -4,12 +4,12 @@
  */
 
 // Mocks must be before imports
+import { fetchWalletByOrder, submitDebit } from '../../lib/scanner/api';
+
 jest.mock('../../lib/scanner/api', () => ({
     fetchWalletByOrder: jest.fn(),
     submitDebit: jest.fn(),
 }));
-
-import { fetchWalletByOrder, submitDebit } from '../../lib/scanner/api';
 
 const mockFetchWallet = fetchWalletByOrder as jest.MockedFunction<typeof fetchWalletByOrder>;
 const mockSubmitDebit = submitDebit as jest.MockedFunction<typeof submitDebit>;

@@ -1,3 +1,6 @@
+import { router } from "expo-router";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { ArrowLeft, ShieldCheck, Camera, CheckCircle2, Clock, AlertCircle } from "lucide-react-native";
 import { useState } from "react";
 import {
     View,
@@ -8,11 +11,9 @@ import {
     ScrollView,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { ArrowLeft, ShieldCheck, Camera, CheckCircle2, Clock, AlertCircle } from "lucide-react-native";
-import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { getFirebaseApp } from "@/lib/firebase/client";
+
 import { colors } from "@/lib/design/theme";
+import { getFirebaseApp } from "@/lib/firebase/client";
 import { useAuthStore } from "@/store/authStore";
 import { useProfileStore } from "@/store/profileStore";
 

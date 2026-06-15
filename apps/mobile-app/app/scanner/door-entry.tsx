@@ -1,3 +1,7 @@
+import { randomUUID } from "expo-crypto";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import {
     View,
@@ -9,16 +13,15 @@ import {
     Alert,
     StyleSheet,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { useScannerStore } from "@/store/scannerStore";
-import { createDoorEntry } from "@/lib/scanner";
-import { randomUUID } from "expo-crypto";
-import { EventTier } from "@/lib/scanner/types";
-import { colors, gradients } from "@/lib/design/theme";
 import QRCode from "react-native-qrcode-svg";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { colors, gradients } from "@/lib/design/theme";
+import { createDoorEntry } from "@/lib/scanner";
+import { EventTier } from "@/lib/scanner/types";
+import { useScannerStore } from "@/store/scannerStore";
+
+
 
 type PaymentMethod = "cash" | "upi" | "card";
 

@@ -1,4 +1,5 @@
 import { View, ActivityIndicator } from "react-native";
+
 import { colors } from "@/lib/design/theme";
 
 /**

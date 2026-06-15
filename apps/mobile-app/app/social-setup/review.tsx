@@ -3,6 +3,10 @@
  * Step 3 — Profile preview card + isVisible toggle + "Go Live" CTA.
  * Calls socialProfileStore.completeSetup() on confirm.
  */
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams } from "expo-router";
+import { ShieldCheck, Eye, EyeOff, Sparkles } from "lucide-react-native";
 import { useState } from "react";
 import {
     View,
@@ -14,16 +18,13 @@ import {
     ActivityIndicator,
     Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
-import { router, useLocalSearchParams } from "expo-router";
 import Animated, { FadeInDown, FadeIn } from "react-native-reanimated";
-import { ShieldCheck, Eye, EyeOff, Sparkles } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { useAuth } from "@/hooks/useAuth";
+import { colors } from "@/lib/design/theme";
 import { useProfileStore } from "@/store/profileStore";
 import { useSocialProfileStore } from "@/store/socialProfileStore";
-import { colors } from "@/lib/design/theme";
 
 type Params = {
     photosJson: string;

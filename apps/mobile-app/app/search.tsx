@@ -3,6 +3,11 @@
  * Unified search for events, venues, and hosts
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
     View,
@@ -14,10 +19,6 @@ import {
     Keyboard,
     ActivityIndicator,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
-import { Image } from "expo-image";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -27,13 +28,14 @@ import Animated, {
     withSpring,
     Layout,
 } from "react-native-reanimated";
-import * as Haptics from "expo-haptics";
-import { useEventsStore, Event } from "@/store/eventsStore";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
-import { colors, radii, gradients } from "@/lib/design/theme";
 import { trackScreen, trackSearch } from "@/lib/analytics";
-import { LinearGradient } from "expo-linear-gradient";
+import { colors, radii, gradients } from "@/lib/design/theme";
+import { useEventsStore, Event } from "@/store/eventsStore";
+
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const RECENT_SEARCHES_KEY = "@recent_searches";

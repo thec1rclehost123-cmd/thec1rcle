@@ -1,3 +1,5 @@
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -7,18 +9,18 @@ import {
     ActivityIndicator,
     Alert
 } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
+import { apiFetch } from "@/lib/api";
 import {
     getPendingDMRequests,
     acceptDMRequest,
     declineDMRequest,
     PrivateConversation,
 } from "@/lib/social";
-import { apiFetch } from "@/lib/api";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeInDown } from "react-native-reanimated";
+import { useAuthStore } from "@/store/authStore";
+
 
 // Request card
 function RequestCard({
@@ -97,11 +99,11 @@ function formatTimeAgo(date: Date): string {
 export default function DMRequestsScreen() {
     const { user } = useAuthStore();
 
-    const [requests, setRequests] = useState<Array<{
+    const [requests, setRequests] = useState<{
         request: PrivateConversation;
         senderName: string;
         eventTitle: string;
-    }>>([]);
+    }[]>([]);
     const [loading, setLoading] = useState(true);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
 

@@ -1,3 +1,6 @@
+import { Image } from "expo-image";
+import { router } from "expo-router";
+import { ArrowLeft, MessageCircle, Heart } from "lucide-react-native";
 import { useEffect } from "react";
 import {
     View,
@@ -8,13 +11,11 @@ import {
     ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { ArrowLeft, MessageCircle, Heart } from "lucide-react-native";
-import { Image } from "expo-image";
+
 import { colors } from "@/lib/design/theme";
+import { formatTimeAgo } from "@/lib/social";
 import { useAuthStore } from "@/store/authStore";
 import { useDatingStore, type Match } from "@/store/datingStore";
-import { formatTimeAgo } from "@/lib/social";
 
 function MatchCard({ match }: { match: Match }) {
     const initials = match.displayName

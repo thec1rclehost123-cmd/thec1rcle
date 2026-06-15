@@ -1,3 +1,6 @@
+import { FlashList } from "@shopify/flash-list";
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import {
     View,
@@ -8,14 +11,12 @@ import {
     StyleSheet,
     Alert,
 } from "react-native";
-import { FlashList } from "@shopify/flash-list";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { useScannerStore } from "@/store/scannerStore";
+
+import { colors } from "@/lib/design/theme";
 import { fetchGuestList, manualCheckIn } from "@/lib/scanner";
 import { Guest } from "@/lib/scanner/types";
-import { colors } from "@/lib/design/theme";
+import { useScannerStore } from "@/store/scannerStore";
 
 type FilterType = "all" | "entered" | "not_entered" | "door";
 

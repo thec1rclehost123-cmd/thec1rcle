@@ -1,3 +1,5 @@
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
 import { useState, useEffect, useCallback } from "react";
 import {
     View,
@@ -11,11 +13,10 @@ import {
     StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { useScannerStore } from "@/store/scannerStore";
-import { createWalkIn, fetchWalkIns, WalkInEntry } from "@/lib/scanner";
+
 import { colors } from "@/lib/design/theme";
+import { createWalkIn, fetchWalkIns, WalkInEntry } from "@/lib/scanner";
+import { useScannerStore } from "@/store/scannerStore";
 
 export default function WalkInsScreen() {
     const { eventData, sessionToken } = useScannerStore();

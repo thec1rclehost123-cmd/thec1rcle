@@ -8,6 +8,11 @@
  * adjustments to use the mobile app's API client.
  */
 
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -18,23 +23,18 @@ import {
     ScrollView,
     Dimensions,
 } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { colors, gradients } from "@/lib/design/theme";
-import { useAuthStore } from "@/store/authStore";
-import { useTicketsStore } from "@/store/ticketsStore";
 import {
     getTransferDetails,
     acceptFormalTransfer,
     getShareBundle,
     claimShareTicket,
 } from "@/lib/api";
+import { colors, gradients } from "@/lib/design/theme";
+import { useAuthStore } from "@/store/authStore";
+import { useTicketsStore } from "@/store/ticketsStore";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 

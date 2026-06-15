@@ -1,5 +1,3 @@
-import { create } from "zustand";
-import { getFirebaseApp } from "@/lib/firebase/client";
 import {
     getFirestore,
     collection,
@@ -7,6 +5,9 @@ import {
     getDoc,
     doc,
 } from "firebase/firestore";
+import { create } from "zustand";
+
+import { getFirebaseApp } from "@/lib/firebase/client";
 
 // Lazy Firestore singleton — reuses the same app instance as auth
 function getDb() {

@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { Platform } from "react-native";
-import { useAuthStore } from "@/store/authStore";
+
 import {
   loginWithEmail,
   signupWithEmail,
@@ -9,6 +9,7 @@ import {
   loginWithApple as firebaseLoginWithApple,
   loginWithGoogle as firebaseLoginWithGoogle,
 } from "@/lib/firebase";
+import { useAuthStore } from "@/store/authStore";
 
 export function useAuth() {
   const { user, loading, initialized } = useAuthStore();

@@ -7,10 +7,12 @@
  * 2KB size limit that caused silent data loss on iOS.
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { TicketTier } from "./eventsStore";
+
 import { validatePromoCode as apiValidatePromo } from "@/lib/api";
 
 export interface CartItem {

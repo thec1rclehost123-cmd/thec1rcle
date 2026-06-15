@@ -1,23 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { getOrders } from "@/lib/api";
-import {
-    View,
-    Text,
-    ScrollView,
-    Pressable,
-    RefreshControl,
-    Modal,
-    StyleSheet,
-    Linking,
-} from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
-import { useTicketsStore, Order } from "@/store/ticketsStore";
-import { useAuthStore } from "@/store/authStore";
-import { useCartStore } from "@/store/cartStore";
-import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
+
 import { shareEventLink } from "@/lib/deeplinks";
 import { addToWallet, isWalletAvailable, PassData } from "@/lib/wallet";
 import QRCode from "react-native-qrcode-svg";
@@ -32,14 +14,33 @@ import Animated, {
     SlideInUp,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
 import { colors, radii, gradients } from "@/lib/design/theme";
-import { NotificationBell } from "@/components/ui/NotificationBell";
-import { ErrorState, NetworkError } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/Skeleton";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
 import { trackScreen } from "@/lib/analytics";
 import { buildCalendarEventUrl } from "@/lib/calendar";
 import { Wallet, CircleUser, Ticket as TicketIcon } from "lucide-react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+    View,
+    Text,
+    ScrollView,
+    Pressable,
+    RefreshControl,
+    Modal,
+    StyleSheet,
+    Linking,
+} from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { ErrorState, NetworkError } from "@/components/ui/EmptyState";
+import { NotificationBell } from "@/components/ui/NotificationBell";
+import { getOrders } from "@/lib/api";
+import { cacheUserOrders, getCachedUserOrders } from "@/lib/cache";
+import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
+import { useTicketsStore, Order } from "@/store/ticketsStore";
 
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

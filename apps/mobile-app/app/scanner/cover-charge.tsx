@@ -9,6 +9,12 @@
  * Mount guard: all setState calls guarded with mountedRef
  */
 
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
+import Constants from "expo-constants";
+import { randomUUID } from "expo-crypto";
+import * as Haptics from "expo-haptics";
+import * as Network from "expo-network";
+import { router } from "expo-router";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
     View,
@@ -20,17 +26,12 @@ import {
     ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
-import * as Network from "expo-network";
-import Constants from "expo-constants";
-import { randomUUID } from "expo-crypto";
-import { useScannerStore } from "@/store/scannerStore";
-import { fetchWalletByOrder, submitDebit } from "@/lib/scanner";
-import { WalletContext, PresetItem } from "@/lib/scanner/types";
+
 import { PresetGrid } from "@/components/scanner/PresetGrid";
 import { colors } from "@/lib/design/theme";
+import { fetchWalletByOrder, submitDebit } from "@/lib/scanner";
+import { WalletContext, PresetItem } from "@/lib/scanner/types";
+import { useScannerStore } from "@/store/scannerStore";
 
 type ChargeState =
     | "IDLE"

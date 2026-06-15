@@ -1,11 +1,13 @@
+import * as Haptics from "expo-haptics";
+import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { View, Text, ScrollView, Pressable, TextInput, Alert, ActivityIndicator, Share } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router, useLocalSearchParams } from "expo-router";
+
+import { initiateTransfer, acceptTransfer } from "@/lib/transfers";
 import { useAuthStore } from "@/store/authStore";
 import { useTicketsStore } from "@/store/ticketsStore";
-import { initiateTransfer, acceptTransfer } from "@/lib/transfers";
-import * as Haptics from "expo-haptics";
+
 
 export default function TransferScreen() {
     const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();

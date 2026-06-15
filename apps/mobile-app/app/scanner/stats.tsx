@@ -1,11 +1,11 @@
+import { useFocusEffect , router } from "expo-router";
 import { useState, useEffect, useCallback } from "react";
 import { View, Text, ScrollView, RefreshControl, Pressable, StyleSheet } from "react-native";
-import { useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { useScannerStore } from "@/store/scannerStore";
-import { refreshEventStats } from "@/lib/scanner";
+
 import { colors } from "@/lib/design/theme";
+import { refreshEventStats } from "@/lib/scanner";
+import { useScannerStore } from "@/store/scannerStore";
 
 interface StatsData {
     totalEntered: number;

@@ -1,3 +1,6 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -8,17 +11,16 @@ import {
     Alert
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
+import { apiFetch } from "@/lib/api";
 import {
     initiateDMRequest,
     blockUser,
     isUserBlocked,
     checkEventEntitlement,
 } from "@/lib/social";
-import { apiFetch } from "@/lib/api";
-import * as Haptics from "expo-haptics";
+import { useAuthStore } from "@/store/authStore";
+
 
 interface UserProfile {
     displayName: string;

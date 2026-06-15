@@ -1,3 +1,9 @@
+import { BlurView } from "expo-blur";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Location from "expo-location";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import {
     View,
@@ -11,12 +17,7 @@ import {
     Platform,
     Linking,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
-import { useLocalSearchParams, router } from "expo-router";
 import MapView, { Marker, PROVIDER_DEFAULT } from "react-native-maps";
-import * as Location from "expo-location";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -28,18 +29,18 @@ import Animated, {
     FadeInDown,
     SlideInRight,
 } from "react-native-reanimated";
-import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
-import { useEventsStore, Event, TicketTier } from "@/store/eventsStore";
-import { getEventImage, EVENT_PLACEHOLDER } from "@/lib/utils/event";
-import { useCartStore } from "@/store/cartStore";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { HostSheet } from "@/components/ui/HostSheet";
+import { VenueSheet } from "@/components/ui/VenueSheet";
+import { useAuth } from "@/hooks/useAuth";
+import { trackScreen } from "@/lib/analytics";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { safeDate, formatEventDate, formatEventTime } from "@/lib/utils/date";
-import { trackScreen } from "@/lib/analytics";
-import { VenueSheet } from "@/components/ui/VenueSheet";
-import { HostSheet } from "@/components/ui/HostSheet";
+import { getEventImage, EVENT_PLACEHOLDER } from "@/lib/utils/event";
+import { useCartStore } from "@/store/cartStore";
 import { useEventInterestStore } from "@/store/eventInterestStore";
-import { useAuth } from "@/hooks/useAuth";
+import { useEventsStore, Event, TicketTier } from "@/store/eventsStore";
 import { useProfileStore } from "@/store/profileStore";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");

@@ -1,3 +1,7 @@
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
     View,
@@ -14,20 +18,7 @@ import {
     type NativeScrollEvent,
     type NativeSyntheticEvent,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { Image } from "expo-image";
 import MapView, { PROVIDER_DEFAULT } from "react-native-maps";
-import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
-import { useRecommendationsStore } from "@/store/recommendationsStore";
-import { useProfileStore } from "@/store/profileStore";
-import { getEventImage } from "@/lib/utils/event";
-import { useTicketsStore } from "@/store/ticketsStore";
-import { cacheEvents, getCachedEvents, updateLastSyncTime } from "@/lib/cache";
-import { useEventInterestStore } from "@/store/eventInterestStore";
-import { useAuth } from "@/hooks/useAuth";
-import * as Haptics from "expo-haptics";
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -36,10 +27,22 @@ import Animated, {
     FadeInRight,
     FadeIn,
 } from "react-native-reanimated";
-import { colors } from "@/lib/design/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { NotificationBell } from "@/components/ui/NotificationBell";
+import { useAuth } from "@/hooks/useAuth";
 import { trackScreen } from "@/lib/analytics";
+import { cacheEvents, getCachedEvents, updateLastSyncTime } from "@/lib/cache";
+import { colors } from "@/lib/design/theme";
 import { formatEventDate, safeDate } from "@/lib/utils/date";
+import { getEventImage } from "@/lib/utils/event";
+import { useEventInterestStore } from "@/store/eventInterestStore";
+import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
+import { useRecommendationsStore } from "@/store/recommendationsStore";
+import { useProfileStore } from "@/store/profileStore";
+import { useTicketsStore } from "@/store/ticketsStore";
+
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_CARD_WIDTH = SCREEN_WIDTH - 64;

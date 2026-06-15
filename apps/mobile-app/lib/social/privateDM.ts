@@ -1,7 +1,8 @@
 // Private DM Service via API Gateway
-import { apiFetch } from "@/lib/api";
-import { PrivateConversation, DirectMessage } from "./types";
 import { canInitiateDM } from "./entitlements";
+import { PrivateConversation, DirectMessage } from "./types";
+
+import { apiFetch } from "@/lib/api";
 
 // Get or check existing conversation
 export async function getExistingConversation(

@@ -1,3 +1,7 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Eye, EyeOff, ChevronDown, Check, X } from "lucide-react-native";
 import { useState } from "react";
 import {
     View,
@@ -13,13 +17,10 @@ import {
     StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { Eye, EyeOff, ChevronDown, Check, X } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+
 import { useAuth } from "@/hooks/useAuth";
-import { useProfileStore } from "@/store/profileStore";
 import { getFirebaseAuth } from "@/lib/firebase";
+import { useProfileStore } from "@/store/profileStore";
 
 const CITIES = ["Mumbai", "Pune", "Bengaluru", "Goa", "Delhi", "Hyderabad"];
 

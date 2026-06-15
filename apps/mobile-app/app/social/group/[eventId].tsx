@@ -1,6 +1,7 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useRef, useCallback } from "react";
-import { useChatRateLimit } from "@/hooks/useChatRateLimit";
-import { useChatImagePicker } from "@/hooks/useChatImagePicker";
 import {
     View,
     Text,
@@ -13,10 +14,12 @@ import {
     Alert,
     Image,
 } from "react-native";
+import Animated, { FadeIn, FadeInDown, SlideInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
+import { useChatImagePicker } from "@/hooks/useChatImagePicker";
+import { useChatRateLimit } from "@/hooks/useChatRateLimit";
+import { trackScreen } from "@/lib/analytics";
 import {
     checkEventEntitlement,
     getEventGroupChat,
@@ -36,9 +39,9 @@ import {
     TypingStatus,
     initiateDMRequest,
 } from "@/lib/social";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeInDown, SlideInUp } from "react-native-reanimated";
-import { trackScreen } from "@/lib/analytics";
+import { useAuthStore } from "@/store/authStore";
+
+
 
 // Typing indicator component
 function TypingIndicator({ status }: { status: TypingStatus }) {
@@ -192,7 +195,7 @@ function AttendeesPreview({
     onPress,
     onGalleryPress,
 }: {
-    attendees: Array<{ userId: string; name: string; avatar?: string }>;
+    attendees: { userId: string; name: string; avatar?: string }[];
     total: number;
     mediaCount: number;
     onPress: () => void;
@@ -244,7 +247,7 @@ export default function EventGroupChatScreen() {
     const [hasAccess, setHasAccess] = useState(false);
     const [accessError, setAccessError] = useState<string | null>(null);
     const [phase, setPhase] = useState<EventPhase>("pre-event");
-    const [attendees, setAttendees] = useState<Array<{ userId: string; name: string }>>([]);
+    const [attendees, setAttendees] = useState<{ userId: string; name: string }[]>([]);
     const [attendeeCount, setAttendeeCount] = useState(0);
     const [mediaCount, setMediaCount] = useState(0);
     const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });

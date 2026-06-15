@@ -1,29 +1,30 @@
 import "../global.css";
-import { useEffect, useCallback, useRef, useState } from "react";
-import { Stack, router, useSegments, useRootNavigationState, type Href } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import * as SplashScreen from "expo-splash-screen";
 import { useFonts } from "expo-font";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { Stack, router, useSegments, useRootNavigationState, type Href } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { View, AppState, AppStateStatus, DeviceEventEmitter } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { initAuthListener, useAuthStore } from "@/store/authStore";
-import { useCartStore } from "@/store/cartStore";
-import { useProfileStore } from "@/store/profileStore";
+
+import { hasCompletedOnboarding } from "@/app/onboarding";
+import { hasCompletedProfileSetup } from "@/app/profile-setup";
+import { DemoDataProvider } from "@/components/DemoDataProvider";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { QueryProvider } from "@/components/providers/QueryProvider";
+import { OfflineBanner } from "@/components/ui/OfflineBanner";
+import { getOrder } from "@/lib/api";
 import { subscribeToDeepLinks, parseDeepLink } from "@/lib/deeplinks";
+import { colors } from "@/lib/design/theme";
 import {
     addNotificationReceivedListener,
     addNotificationResponseListener,
     refreshPushToken,
 } from "@/lib/notifications";
-import { getOrder } from "@/lib/api";
-import { OfflineBanner } from "@/components/ui/OfflineBanner";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { hasCompletedOnboarding } from "@/app/onboarding";
-import { hasCompletedProfileSetup } from "@/app/profile-setup";
-import { colors } from "@/lib/design/theme";
-import { QueryProvider } from "@/components/providers/QueryProvider";
-import { DemoDataProvider } from "@/components/DemoDataProvider";
+import { initAuthListener, useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
+import { useProfileStore } from "@/store/profileStore";
 
 // Prevent auto-hide until we're ready
 SplashScreen.preventAutoHideAsync().catch(() => {

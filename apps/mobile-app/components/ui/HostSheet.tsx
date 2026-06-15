@@ -3,6 +3,9 @@
  * Opened from event detail when user taps the host card.
  */
 
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -12,11 +15,9 @@ import {
     ScrollView,
     StyleSheet,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { apiFetch } from "@/lib/api";
 import { colors, radii, gradients } from "@/lib/design/theme";
 import { safeDate } from "@/lib/utils/date";

@@ -1,3 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
+import { Heart } from "lucide-react-native";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -10,21 +16,16 @@ import {
     Text,
     View,
 } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { Heart } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { colors, radii } from "@/lib/design/theme";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { EventCard } from "@/components/ui/EventCard";
 import { PremiumButton } from "@/components/ui/PremiumButton";
-import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from "@/store/venuePageStore";
-import { useFollowStore } from "@/store/followStore";
 import { useAuth } from "@/hooks/useAuth";
+import { colors, radii } from "@/lib/design/theme";
 import { formatCompactCount } from "@/lib/venueDiscovery";
+import { useFollowStore } from "@/store/followStore";
+import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from "@/store/venuePageStore";
 
 const AnyFlatList = FlatList as any;
 

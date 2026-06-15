@@ -1,3 +1,6 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState, useEffect } from "react";
 import {
   View,
@@ -10,9 +13,7 @@ import {
   Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
 import {
   triggerSOS,
   startLocationSharing,
@@ -22,7 +23,7 @@ import {
   requestSafeRide,
   EmergencyContact,
 } from "@/lib/safety";
-import * as Haptics from "expo-haptics";
+import { useAuthStore } from "@/store/authStore";
 
 // Emergency contact form
 function EmergencyContactForm({

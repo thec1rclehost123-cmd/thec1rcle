@@ -1,7 +1,7 @@
 // Deep linking configuration and helpers
+import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
 import { Share, Platform } from "react-native";
-import * as Clipboard from "expo-clipboard";
 
 // App scheme for deep links
 const APP_SCHEME = "c1rcle";

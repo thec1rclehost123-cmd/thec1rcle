@@ -4,6 +4,10 @@
  * Auto-advances with manual swipe support
  */
 
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Compass, Ticket, Shield } from "lucide-react-native";
 import { useState, useRef, useCallback } from "react";
 import {
     View,
@@ -18,10 +22,6 @@ import {
     type ListRenderItemInfo,
     type ViewToken,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Animated, {
     useAnimatedStyle,
     withSpring,
@@ -31,7 +31,8 @@ import Animated, {
     FadeIn,
     useAnimatedScrollHandler,
 } from "react-native-reanimated";
-import { Compass, Ticket, Shield } from "lucide-react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { colors } from "@/lib/design/theme";
 import { useAuthStore } from "@/store/authStore";
 

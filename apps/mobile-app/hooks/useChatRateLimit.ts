@@ -7,8 +7,8 @@
  * - Returns cooldown state for UI feedback
  */
 
-import { useState, useRef, useCallback } from "react";
 import * as Haptics from "expo-haptics";
+import { useState, useRef, useCallback } from "react";
 
 interface RateLimiterOptions {
   /** Min ms between messages (default: 1000) */

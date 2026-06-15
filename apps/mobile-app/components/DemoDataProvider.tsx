@@ -9,6 +9,7 @@
  */
 
 import { useEffect } from "react";
+
 import {
     DEMO_MODE,
     DEMO_EVENTS,
@@ -22,15 +23,14 @@ import {
     DEMO_USER_PROFILE,
     DEMO_SOCIAL_PROFILE,
 } from "@/lib/demo";
-
-import { useEventsStore } from "@/store/eventsStore";
-import { useVenuesStore } from "@/store/venuesStore";
-import { useTicketsStore } from "@/store/ticketsStore";
-import { useNotificationsStore } from "@/store/notificationsStore";
 import { useDatingStore } from "@/store/datingStore";
+import { useEventsStore } from "@/store/eventsStore";
+import { useFollowStore } from "@/store/followStore";
+import { useNotificationsStore } from "@/store/notificationsStore";
 import { useProfileStore } from "@/store/profileStore";
 import { useSocialProfileStore } from "@/store/socialProfileStore";
-import { useFollowStore } from "@/store/followStore";
+import { useTicketsStore } from "@/store/ticketsStore";
+import { useVenuesStore } from "@/store/venuesStore";
 
 // No-op async that returns immediately — replaces Firestore fetches in demo mode
 const noop = async () => {};

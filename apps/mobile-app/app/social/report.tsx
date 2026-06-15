@@ -1,3 +1,5 @@
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams, router } from "expo-router";
 import { useState } from "react";
 import {
   View,
@@ -9,17 +11,17 @@ import {
   Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
-import { reportUser, UserReport } from "@/lib/social";
-import * as Haptics from "expo-haptics";
 
-const REPORT_CATEGORIES: Array<{
+import { reportUser, UserReport } from "@/lib/social";
+import { useAuthStore } from "@/store/authStore";
+
+
+const REPORT_CATEGORIES: {
   id: UserReport["category"];
   label: string;
   icon: string;
   description: string;
-}> = [
+}[] = [
   {
     id: "harassment",
     label: "Harassment",

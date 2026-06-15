@@ -68,7 +68,7 @@ export function resolveVenueCoordinates(source: Record<string, unknown> | null |
     );
 }
 
-export function findKnownVenueCoordinates(...parts: Array<string | undefined | null>): Coordinates | null {
+export function findKnownVenueCoordinates(...parts: (string | undefined | null)[]): Coordinates | null {
     const haystack = parts
         .filter((value): value is string => Boolean(value && value.trim()))
         .join(" ")

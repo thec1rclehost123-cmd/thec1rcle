@@ -1,3 +1,6 @@
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { useLocalSearchParams, router } from "expo-router";
 import { useEffect, useState, useCallback } from "react";
 import {
   View,
@@ -9,10 +12,9 @@ import {
   Dimensions,
   Alert,
 } from "react-native";
+import Animated, { FadeIn, FadeInDown, ZoomIn, SlideInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Image } from "expo-image";
-import { useLocalSearchParams, router } from "expo-router";
-import { useAuthStore } from "@/store/authStore";
+
 import {
   EventMedia,
   MediaUploadProgress,
@@ -26,8 +28,8 @@ import {
   getEventPhase,
   checkEventEntitlement,
 } from "@/lib/social";
-import * as Haptics from "expo-haptics";
-import Animated, { FadeIn, FadeInDown, ZoomIn, SlideInUp } from "react-native-reanimated";
+import { useAuthStore } from "@/store/authStore";
+
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const COLUMN_COUNT = 3;

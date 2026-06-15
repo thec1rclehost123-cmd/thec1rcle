@@ -5,6 +5,7 @@
  */
 
 import Constants from "expo-constants";
+
 import { getFirebaseAuth } from "./firebase";
 
 // Fastify API Gateway base URL
@@ -188,11 +189,11 @@ export interface PricingResult {
         discount?: number;
         discountTotal?: number;
         totalQuantity?: number;
-        discounts?: Array<{
+        discounts?: {
             code?: string;
             label?: string;
             amount?: number;
-        }>;
+        }[];
         fees?: {
             platform?: number;
             platformFee?: number;

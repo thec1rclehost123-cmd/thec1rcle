@@ -1,8 +1,10 @@
 import { create } from "zustand";
+
+import { useNotificationsStore } from "./notificationsStore";
+import { useProfileStore } from "./profileStore";
+
 import { User, subscribeToAuthState } from "@/lib/firebase";
 import { wsManager } from "@/lib/websocket";
-import { useProfileStore } from "./profileStore";
-import { useNotificationsStore } from "./notificationsStore";
 
 interface AuthState {
     user: User | null;

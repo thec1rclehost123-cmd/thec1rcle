@@ -3,11 +3,12 @@
  * Liquid glass, parallax, and jaw-dropping animations
  */
 
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { useEffect } from "react";
+import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,7 +22,7 @@ import Animated, {
   FadeIn,
   SlideInUp,
 } from "react-native-reanimated";
-import { useEffect } from "react";
+
 import { colors, radii, shadows } from "@/lib/design/theme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");

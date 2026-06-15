@@ -3,6 +3,7 @@
  */
 
 import * as SecureStore from 'expo-secure-store';
+
 import { useScannerStore } from '../../store/scannerStore';
 
 const MOCK_EVENT_DATA = {

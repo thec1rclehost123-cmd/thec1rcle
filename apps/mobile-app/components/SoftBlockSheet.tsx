@@ -4,6 +4,9 @@
  * Triggered from useSocialProfileStore.checkAccess().
  * Render this once at the screen level (or inside a tab layout).
  */
+import * as Haptics from "expo-haptics";
+import { router } from "expo-router";
+import { ShieldCheck, Lock } from "lucide-react-native";
 import { useEffect } from "react";
 import {
     View,
@@ -19,9 +22,7 @@ import Animated, {
     withSpring,
     withTiming,
 } from "react-native-reanimated";
-import { router } from "expo-router";
-import { ShieldCheck, Lock } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+
 import { colors } from "@/lib/design/theme";
 import {
     useSocialProfileStore,

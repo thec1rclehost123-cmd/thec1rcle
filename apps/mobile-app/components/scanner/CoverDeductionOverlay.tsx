@@ -10,6 +10,8 @@
  *  - Every tap generates a fresh idempotencyKey (randomUUID) to prevent double-charge
  */
 
+import NetInfo from "@react-native-community/netinfo";
+import * as Haptics from "expo-haptics";
 import React, { useState, useCallback } from "react";
 import {
     Modal,
@@ -22,9 +24,9 @@ import {
     Alert,
     ActivityIndicator,
 } from "react-native";
-import * as Haptics from "expo-haptics";
-import NetInfo from "@react-native-community/netinfo";
+
 import { PresetGrid } from "./PresetGrid";
+
 import { submitDebit } from "@/lib/scanner/api";
 import { WalletContext, PresetItem } from "@/lib/scanner/types";
 

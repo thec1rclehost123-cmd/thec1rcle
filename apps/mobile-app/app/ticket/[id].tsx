@@ -1,3 +1,9 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
+import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
@@ -11,17 +17,12 @@ import {
     Text,
     View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import QRCode from "react-native-qrcode-svg";
-import * as Clipboard from "expo-clipboard";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { ActionSheet, ShareSheetContent, TransferSheetContent } from "@/components/tickets/TicketActionSheets";
-import { colors, gradients, radii } from "@/lib/design/theme";
+import { track, trackScreen, AnalyticsEvents } from "@/lib/analytics";
 import {
     API_BASE,
     cancelFormalTransfer,
@@ -32,12 +33,12 @@ import {
     initiateFormalTransfer,
     reclaimSharedTicket,
 } from "@/lib/api";
-import { track, trackScreen, AnalyticsEvents } from "@/lib/analytics";
-import { shareEventLink } from "@/lib/deeplinks";
-import { addToWallet, isWalletAvailable, type PassData } from "@/lib/wallet";
-import { safeDate, formatEventTime } from "@/lib/utils/date";
-import { type Order, type OrderTicket, useTicketsStore } from "@/store/ticketsStore";
 import { buildCalendarEventUrl } from "@/lib/calendar";
+import { shareEventLink } from "@/lib/deeplinks";
+import { colors, gradients, radii } from "@/lib/design/theme";
+import { safeDate, formatEventTime } from "@/lib/utils/date";
+import { addToWallet, isWalletAvailable, type PassData } from "@/lib/wallet";
+import { type Order, type OrderTicket, useTicketsStore } from "@/store/ticketsStore";
 
 type ActiveSheet = "share" | "transfer" | null;
 

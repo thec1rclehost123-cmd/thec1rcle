@@ -1,3 +1,7 @@
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import { Eye, EyeOff } from "lucide-react-native";
 import { useState } from "react";
 import {
     View,
@@ -11,10 +15,7 @@ import {
     StyleSheet,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { Eye, EyeOff } from "lucide-react-native";
-import * as Haptics from "expo-haptics";
+
 import { useAuth } from "@/hooks/useAuth";
 
 export default function LoginScreen() {

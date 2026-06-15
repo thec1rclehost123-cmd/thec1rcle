@@ -1,3 +1,7 @@
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useState, useEffect, useRef } from "react";
 import {
     View,
@@ -8,22 +12,19 @@ import {
     Modal,
     Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import * as Haptics from "expo-haptics";
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withSpring,
     withTiming,
 } from "react-native-reanimated";
-import { useScannerStore } from "@/store/scannerStore";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+import { CoverDeductionOverlay } from "@/components/scanner/CoverDeductionOverlay";
+import { colors, gradients } from "@/lib/design/theme";
 import { processQRScan, recordStaffDeny, fetchWalletByOrder, getScannerDeviceId } from "@/lib/scanner";
 import { ScanResultData, ScanResultType, WalletContext } from "@/lib/scanner/types";
-import { colors, gradients } from "@/lib/design/theme";
-import { CoverDeductionOverlay } from "@/components/scanner/CoverDeductionOverlay";
+import { useScannerStore } from "@/store/scannerStore";
 
 const { width } = Dimensions.get("window");
 const SCAN_AREA_SIZE = width * 0.68;

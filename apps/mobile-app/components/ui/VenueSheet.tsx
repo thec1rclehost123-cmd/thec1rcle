@@ -3,6 +3,9 @@
  * Opened from event detail when user taps the location row.
  */
 
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useEffect, useState } from "react";
 import {
     View,
@@ -13,11 +16,9 @@ import {
     StyleSheet,
     Linking,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
-import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import { router } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { apiFetch } from "@/lib/api";
 import { colors, radii } from "@/lib/design/theme";
 

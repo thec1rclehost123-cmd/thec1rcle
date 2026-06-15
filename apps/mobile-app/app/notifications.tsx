@@ -3,6 +3,9 @@
  * Activity center showing all app-wide notifications
  */
 
+import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
 import { useEffect, useCallback, useState } from "react";
 import {
     View,
@@ -13,9 +16,7 @@ import {
     StyleSheet,
     Alert,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { LinearGradient } from "expo-linear-gradient";
+import { Swipeable } from "react-native-gesture-handler";
 import Animated, {
     FadeIn,
     FadeInDown,
@@ -26,8 +27,13 @@ import Animated, {
     withSpring,
     Layout,
 } from "react-native-reanimated";
-import { Swipeable } from "react-native-gesture-handler";
-import * as Haptics from "expo-haptics";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+import { EmptyState, ErrorState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/Skeleton";
+import { trackScreen } from "@/lib/analytics";
+import { colors, radii, gradients } from "@/lib/design/theme";
+import { formatRelativeTime } from "@/lib/utils/date";
 import { useAuthStore } from "@/store/authStore";
 import {
     useNotificationsStore,
@@ -35,11 +41,6 @@ import {
     getNotificationIcon,
     getNotificationDeepLink,
 } from "@/store/notificationsStore";
-import { EmptyState, ErrorState } from "@/components/ui/EmptyState";
-import { SkeletonList } from "@/components/ui/Skeleton";
-import { colors, radii, gradients } from "@/lib/design/theme";
-import { trackScreen } from "@/lib/analytics";
-import { formatRelativeTime } from "@/lib/utils/date";
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 

@@ -1,6 +1,7 @@
 // Event Group Chat Service via API Gateway
-import { apiFetch } from "@/lib/api";
 import { GroupMessage, EventPhase, getEventPhase } from "./types";
+
+import { apiFetch } from "@/lib/api";
 
 /**
  * Get or create event group chat status.
