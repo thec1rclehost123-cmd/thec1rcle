@@ -9,7 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import clsx from "clsx";
 import { formatEventDate, formatTimeIST } from "@c1rcle/core/time";
 import { pickDominantColor, formatColor } from "@c1rcle/core/theme";
-import { ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Sparkles, XCircle } from "lucide-react";
+import { ArrowLeftRight, ChevronLeft, ChevronRight, ExternalLink, Crown, Sparkles, XCircle, Share2 } from "lucide-react";
 import { ShareModal } from "./ShareModal";
 import { TransferModal } from "./TransferModal";
 import { PartnerModal } from "./PartnerModal";
