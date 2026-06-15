@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useCallback, useMemo, useState } from "react";
-import { createVenueReservation } from "../api/venueReservationApi";
+import { useCallback, useMemo, useState } from 'react';
+import { createVenueReservation } from '../api/venueReservationApi';
 
 export const VENUE_RESERVATION_STEPS = {
-  CALENDAR: "calendar",
-  CHOOSE_TYPE: "choose_type",
-  EVENT_SELECT: "event_select",
-  TABLE_SELECT: "table_select",
-  RESTAURANT_DETAILS: "restaurant_details",
-  SUMMARY: "summary",
-  CONFIRMED: "confirmed",
+  CALENDAR: 'calendar',
+  CHOOSE_TYPE: 'choose_type',
+  EVENT_SELECT: 'event_select',
+  TABLE_SELECT: 'table_select',
+  RESTAURANT_DETAILS: 'restaurant_details',
+  SUMMARY: 'summary',
+  CONFIRMED: 'confirmed',
 };
 
 export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
   const venueId = venue?.id || venue?.venueId || null;
-  const venueName = venue?.name || "Venue";
+  const venueName = venue?.name || 'Venue';
   const [step, setStep] = useState(VENUE_RESERVATION_STEPS.CALENDAR);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(null);
@@ -24,10 +24,10 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
   const [selectedTable, setSelectedTable] = useState(null);
   const [selectedTier, setSelectedTier] = useState(null);
   const [guests, setGuests] = useState(2);
-  const [selectedTime, setSelectedTime] = useState("");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [specialRequests, setSpecialRequests] = useState("");
+  const [selectedTime, setSelectedTime] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [specialRequests, setSpecialRequests] = useState('');
   const [submitError, setSubmitError] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -66,11 +66,14 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
     return days;
   }, [currentMonth]);
 
-  const getEventsForDay = useCallback((date) => {
-    if (!date) return [];
-    const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-    return eventsByDate[key] || [];
-  }, [eventsByDate]);
+  const getEventsForDay = useCallback(
+    (date) => {
+      if (!date) return [];
+      const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+      return eventsByDate[key] || [];
+    },
+    [eventsByDate],
+  );
 
   const goBack = useCallback(() => {
     switch (step) {
@@ -87,7 +90,11 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
         setStep(VENUE_RESERVATION_STEPS.CHOOSE_TYPE);
         break;
       case VENUE_RESERVATION_STEPS.SUMMARY:
-        setStep(bookingType === "event" ? VENUE_RESERVATION_STEPS.TABLE_SELECT : VENUE_RESERVATION_STEPS.RESTAURANT_DETAILS);
+        setStep(
+          bookingType === 'event'
+            ? VENUE_RESERVATION_STEPS.TABLE_SELECT
+            : VENUE_RESERVATION_STEPS.RESTAURANT_DETAILS,
+        );
         break;
       default:
         onClose();
@@ -131,10 +138,10 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
     setSelectedTable(null);
     setSelectedTier(null);
     setGuests(2);
-    setSelectedTime("");
-    setName("");
-    setPhone("");
-    setSpecialRequests("");
+    setSelectedTime('');
+    setName('');
+    setPhone('');
+    setSpecialRequests('');
     setSubmitError(null);
     onClose();
   }, [onClose]);
@@ -144,19 +151,21 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
     setSubmitError(null);
     try {
       if (!venueId) {
-        throw new Error("This venue is missing its reservation identity. Please refresh and try again.");
+        throw new Error(
+          'This venue is missing its reservation identity. Please refresh and try again.',
+        );
       }
       await createVenueReservation({
         venueId,
         venueName,
         date: selectedDate?.toISOString(),
-        time: selectedTime || selectedEvent?.startTime || "",
+        time: selectedTime || selectedEvent?.startTime || '',
         guests,
         bookingType,
         guestName: name,
         guestPhone: phone,
         specialRequests,
-        ...(bookingType === "event" && {
+        ...(bookingType === 'event' && {
           eventId: selectedEvent?.id,
           eventTitle: selectedEvent?.title || selectedEvent?.name,
           tableId: selectedTable?.id,
@@ -167,20 +176,37 @@ export function useVenueReservationFlow({ venue, upcomingEvents, onClose }) {
       });
       setStep(VENUE_RESERVATION_STEPS.CONFIRMED);
     } catch (error) {
-      setSubmitError(error.message || "Something went wrong. Please try again.");
+      setSubmitError(error.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [bookingType, guests, name, phone, selectedDate, selectedEvent, selectedTable, selectedTier, selectedTime, specialRequests, venueId, venueName]);
+  }, [
+    bookingType,
+    guests,
+    name,
+    phone,
+    selectedDate,
+    selectedEvent,
+    selectedTable,
+    selectedTier,
+    selectedTime,
+    specialRequests,
+    venueId,
+    venueName,
+  ]);
 
   const stepTitle = {
-    [VENUE_RESERVATION_STEPS.CALENDAR]: "Select Date",
-    [VENUE_RESERVATION_STEPS.CHOOSE_TYPE]: selectedDate?.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" }),
-    [VENUE_RESERVATION_STEPS.EVENT_SELECT]: "Choose Event",
-    [VENUE_RESERVATION_STEPS.TABLE_SELECT]: selectedEvent?.title || "Select Package",
-    [VENUE_RESERVATION_STEPS.RESTAURANT_DETAILS]: "Restaurant Booking",
-    [VENUE_RESERVATION_STEPS.SUMMARY]: "Confirm Reservation",
-    [VENUE_RESERVATION_STEPS.CONFIRMED]: "Confirmed!",
+    [VENUE_RESERVATION_STEPS.CALENDAR]: 'Select Date',
+    [VENUE_RESERVATION_STEPS.CHOOSE_TYPE]: selectedDate?.toLocaleDateString('en-IN', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+    }),
+    [VENUE_RESERVATION_STEPS.EVENT_SELECT]: 'Choose Event',
+    [VENUE_RESERVATION_STEPS.TABLE_SELECT]: selectedEvent?.title || 'Select Package',
+    [VENUE_RESERVATION_STEPS.RESTAURANT_DETAILS]: 'Restaurant Booking',
+    [VENUE_RESERVATION_STEPS.SUMMARY]: 'Confirm Reservation',
+    [VENUE_RESERVATION_STEPS.CONFIRMED]: 'Confirmed!',
   };
 
   return {

@@ -1,45 +1,43 @@
-"use client";
+'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
-import Image from "next/image";
-import { getFirebaseStorage } from "../lib/firebase/client";
-import { EventPage } from "@c1rcle/ui";
-import { CITY_MAP } from "@c1rcle/core/events";
-import { pickDominantColor, formatColor } from "@c1rcle/core/theme";
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import Image from 'next/image';
+import { getFirebaseStorage } from '../lib/firebase/client';
+import { EventPage } from '@c1rcle/ui';
+import { CITY_MAP } from '@c1rcle/core/events';
+import { pickDominantColor, formatColor } from '@c1rcle/core/theme';
 
-const categories = ["Trending", "This Week", "Nearby"];
-const accentPalette = ["#8845FF", "#F59E0B", "#EC4899", "#10B981", "#3B82F6", "#F97316", "#8B5CF6"];
-const featuredGuests = ["David", "Anaya", "Karan", "Sana", "Vik", "Aarya", "Neel", "Rhea"];
+const categories = ['Trending', 'This Week', 'Nearby'];
+const accentPalette = ['#8845FF', '#F59E0B', '#EC4899', '#10B981', '#3B82F6', '#F97316', '#8B5CF6'];
+const featuredGuests = ['David', 'Anaya', 'Karan', 'Sana', 'Vik', 'Aarya', 'Neel', 'Rhea'];
 
 const createInitialFormState = () => ({
-  title: "",
-  summary: "",
-  startDate: "",
-  endDate: "",
-  startTime: "",
-  endTime: "",
-  description: "",
-  location: "",
-  city: "pune-in",
-  venue: "",
-  host: "",
+  title: '',
+  summary: '',
+  startDate: '',
+  endDate: '',
+  startTime: '',
+  endTime: '',
+  description: '',
+  location: '',
+  city: 'pune-in',
+  venue: '',
+  host: '',
   category: categories[0],
-  image: "/events/holi-edit.svg",
-  gradientStart: "#0b0b0b",
-  gradientEnd: "#050505",
-  guests: "",
-  tickets: [
-    { id: "default", name: "General Admission", price: "999", quantity: 150 }
-  ],
+  image: '/events/holi-edit.svg',
+  gradientStart: '#0b0b0b',
+  gradientEnd: '#050505',
+  guests: '',
+  tickets: [{ id: 'default', name: 'General Admission', price: '999', quantity: 150 }],
   accentColor: accentPalette[0],
   recurring: false,
-  youtube: "",
-  gallery: "",
-  spotifyTrack: "",
-  features: "",
-  eventPassword: ""
+  youtube: '',
+  gallery: '',
+  spotifyTrack: '',
+  features: '',
+  eventPassword: '',
 });
 
 export default function CreateEventForm() {
@@ -52,8 +50,8 @@ export default function CreateEventForm() {
   const [galleryEnabled, setGalleryEnabled] = useState(false);
   const [uploadingFlyer, setUploadingFlyer] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState({ type: "", message: "" });
-  const [activeTab, setActiveTab] = useState("sell");
+  const [status, setStatus] = useState({ type: '', message: '' });
+  const [activeTab, setActiveTab] = useState('sell');
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryImages, setGalleryImages] = useState([]);
   const [spotifyModalOpen, setSpotifyModalOpen] = useState(false);
@@ -64,14 +62,19 @@ export default function CreateEventForm() {
   const galleryInputRef = useRef(null);
 
   const spotifyTracks = [
-    { id: "none", title: "No Music", artist: "Skip this feature" },
-    { id: "sunset", title: "Sunset Vibes", artist: "Chill Beats" },
-    { id: "party", title: "Party Mode", artist: "DJ Collective" },
-    { id: "lounge", title: "Late Night Lounge", artist: "Ambient Dreams" },
+    { id: 'none', title: 'No Music', artist: 'Skip this feature' },
+    { id: 'sunset', title: 'Sunset Vibes', artist: 'Chill Beats' },
+    { id: 'party', title: 'Party Mode', artist: 'DJ Collective' },
+    { id: 'lounge', title: 'Late Night Lounge', artist: 'Ambient Dreams' },
   ];
 
   const guestNames = useMemo(() => {
-    const parsed = form.guests ? form.guests.split(",").map(n => n.trim()).filter(Boolean) : [];
+    const parsed = form.guests
+      ? form.guests
+          .split(',')
+          .map((n) => n.trim())
+          .filter(Boolean)
+      : [];
     return parsed.length ? parsed : featuredGuests;
   }, [form.guests]);
 
@@ -90,7 +93,7 @@ export default function CreateEventForm() {
 
   const uploadPosterToStorage = async (file) => {
     const storage = getFirebaseStorage();
-    const safeName = file.name?.toLowerCase().replace(/[^a-z0-9.]/g, "-") || "poster";
+    const safeName = file.name?.toLowerCase().replace(/[^a-z0-9.]/g, '-') || 'poster';
     const posterRef = ref(storage, `posters/${Date.now()}-${safeName}`);
     await uploadBytes(posterRef, file);
     return getDownloadURL(posterRef);
@@ -101,9 +104,9 @@ export default function CreateEventForm() {
     const file = input.files?.[0];
     if (!file) return;
 
-    if (!file.type.startsWith("image/")) {
-      setStatus({ type: "error", message: "Please upload an image file." });
-      input.value = "";
+    if (!file.type.startsWith('image/')) {
+      setStatus({ type: 'error', message: 'Please upload an image file.' });
+      input.value = '';
       return;
     }
 
@@ -113,7 +116,7 @@ export default function CreateEventForm() {
 
       // Auto-extract dominant color for theming
       const img = new window.Image();
-      img.crossOrigin = "Anonymous";
+      img.crossOrigin = 'Anonymous';
       img.src = url;
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -127,13 +130,13 @@ export default function CreateEventForm() {
         setForm((prev) => ({ ...prev, image: url, accentColor }));
       };
 
-      setStatus({ type: "success", message: "✨ Flyer uploaded successfully!" });
+      setStatus({ type: 'success', message: '✨ Flyer uploaded successfully!' });
     } catch (error) {
-      console.error("Flyer upload error:", error);
-      setStatus({ type: "error", message: "Failed to upload flyer." });
+      console.error('Flyer upload error:', error);
+      setStatus({ type: 'error', message: 'Failed to upload flyer.' });
     } finally {
       setUploadingFlyer(false);
-      input.value = "";
+      input.value = '';
     }
   };
 
@@ -143,30 +146,30 @@ export default function CreateEventForm() {
 
     if (files.length === 0) return;
     if (files.length > 6) {
-      setStatus({ type: "error", message: "Maximum 6 images allowed" });
+      setStatus({ type: 'error', message: 'Maximum 6 images allowed' });
       return;
     }
 
-    const invalidFiles = files.filter(f => !f.type.startsWith("image/"));
+    const invalidFiles = files.filter((f) => !f.type.startsWith('image/'));
     if (invalidFiles.length > 0) {
-      setStatus({ type: "error", message: "All files must be images" });
-      input.value = "";
+      setStatus({ type: 'error', message: 'All files must be images' });
+      input.value = '';
       return;
     }
 
     setUploadingGallery(true);
     try {
-      const uploadPromises = files.map(file => uploadPosterToStorage(file));
+      const uploadPromises = files.map((file) => uploadPosterToStorage(file));
       const urls = await Promise.all(uploadPromises);
 
       setGalleryImages(urls);
-      setForm((prev) => ({ ...prev, gallery: urls.join(", ") }));
-      setStatus({ type: "success", message: `✨ ${urls.length} images uploaded!` });
+      setForm((prev) => ({ ...prev, gallery: urls.join(', ') }));
+      setStatus({ type: 'success', message: `✨ ${urls.length} images uploaded!` });
     } catch (error) {
-      setStatus({ type: "error", message: "Failed to upload gallery images." });
+      setStatus({ type: 'error', message: 'Failed to upload gallery images.' });
     } finally {
       setUploadingGallery(false);
-      input.value = "";
+      input.value = '';
     }
   };
 
@@ -176,25 +179,25 @@ export default function CreateEventForm() {
 
     // Validation
     if (!form.title.trim()) {
-      setStatus({ type: "error", message: "Event name is required" });
+      setStatus({ type: 'error', message: 'Event name is required' });
       return;
     }
     if (!form.location.trim()) {
-      setStatus({ type: "error", message: "Location is required" });
+      setStatus({ type: 'error', message: 'Location is required' });
       return;
     }
     if (!form.startDate) {
-      setStatus({ type: "error", message: "Start date is required" });
+      setStatus({ type: 'error', message: 'Start date is required' });
       return;
     }
 
     setSubmitting(true);
-    setStatus({ type: "", message: "" });
+    setStatus({ type: '', message: '' });
 
     try {
-      const response = await fetch("/api/events", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: form.title,
           summary: form.summary,
@@ -213,34 +216,34 @@ export default function CreateEventForm() {
           gradientEnd: form.gradientEnd,
           guests: form.guests,
           // Feature fields
-          gallery: galleryEnabled ? form.gallery : "",
-          youtube: youtubeEnabled ? form.youtube : "",
+          gallery: galleryEnabled ? form.gallery : '',
+          youtube: youtubeEnabled ? form.youtube : '',
           spotifyTrack: form.spotifyTrack,
           features: form.features,
           accentColor: form.accentColor,
-          tickets: form.tickets.map(t => ({
+          tickets: form.tickets.map((t) => ({
             ...t,
             price: Number(t.price),
-            quantity: Number(t.quantity || 150)
+            quantity: Number(t.quantity || 150),
           })),
-          lifecycle: "scheduled",
+          lifecycle: 'scheduled',
           settings: {
             showExplore,
-            password: password ? form.eventPassword : "",
+            password: password ? form.eventPassword : '',
             activity,
             recurring: form.recurring,
-            showGuestlist
-          }
-        })
+            showGuestlist,
+          },
+        }),
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Unable to create event");
+        throw new Error(errorData.error || 'Unable to create event');
       }
 
       const created = await response.json();
-      setStatus({ type: "success", message: `🎉 ${created.title} is now live!` });
+      setStatus({ type: 'success', message: `🎉 ${created.title} is now live!` });
 
       // Reset form
       setForm(createInitialFormState());
@@ -251,7 +254,7 @@ export default function CreateEventForm() {
       setActivity(true);
       setShowGuestlist(false);
     } catch (error) {
-      setStatus({ type: "error", message: error.message || "Unable to create event" });
+      setStatus({ type: 'error', message: error.message || 'Unable to create event' });
     } finally {
       setSubmitting(false);
     }
@@ -280,34 +283,36 @@ export default function CreateEventForm() {
         <div className="inline-flex rounded-full bg-black/5 dark:bg-white/5 backdrop-blur-xl border border-black/10 dark:border-white/10 p-1 shadow-glow-lg">
           <button
             type="button"
-            onClick={() => setActiveTab("sell")}
-            className={`relative px-8 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${activeTab === "sell"
-              ? "text-white dark:text-black"
-              : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
-              }`}
+            onClick={() => setActiveTab('sell')}
+            className={`relative px-8 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+              activeTab === 'sell'
+                ? 'text-white dark:text-black'
+                : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+            }`}
           >
-            {activeTab === "sell" && (
+            {activeTab === 'sell' && (
               <motion.div
                 layoutId="activeTab"
                 className="absolute inset-0 bg-black dark:bg-white rounded-full shadow-lg"
-                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
               />
             )}
             <span className="relative z-10">Sell Tickets</span>
           </button>
           <button
             type="button"
-            onClick={() => setActiveTab("rsvp")}
-            className={`relative px-8 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${activeTab === "rsvp"
-              ? "text-white dark:text-black"
-              : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
-              }`}
+            onClick={() => setActiveTab('rsvp')}
+            className={`relative px-8 py-2.5 rounded-full text-sm font-medium transition-all duration-300 ${
+              activeTab === 'rsvp'
+                ? 'text-white dark:text-black'
+                : 'text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white'
+            }`}
           >
-            {activeTab === "rsvp" && (
+            {activeTab === 'rsvp' && (
               <motion.div
                 layoutId="activeTab"
                 className="absolute inset-0 bg-black dark:bg-white rounded-full shadow-lg"
-                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
               />
             )}
             <span className="relative z-10">RSVP Only</span>
@@ -332,7 +337,9 @@ export default function CreateEventForm() {
                 <IconLoader className="animate-spin w-3 h-3" />
                 Saving...
               </>
-            ) : "Changes saved"}
+            ) : (
+              'Changes saved'
+            )}
           </motion.div>
 
           <button
@@ -340,7 +347,7 @@ export default function CreateEventForm() {
             disabled={submitting}
             className="rounded-full bg-black dark:bg-white px-6 sm:px-8 py-2.5 text-[10px] sm:text-xs font-black uppercase tracking-widest text-white dark:text-black transition hover:scale-105"
           >
-            {submitting ? "Publishing..." : "Publish Event"}
+            {submitting ? 'Publishing...' : 'Publish Event'}
           </button>
         </div>
       </motion.div>
@@ -358,7 +365,7 @@ export default function CreateEventForm() {
             <input
               type="text"
               value={form.title}
-              onChange={handleChange("title")}
+              onChange={handleChange('title')}
               placeholder="Event Title..."
               className="w-full bg-transparent text-4xl font-bold text-black dark:text-white placeholder:text-black/20 dark:placeholder:text-white/20 focus:outline-none transition-all duration-300"
               required
@@ -378,7 +385,7 @@ export default function CreateEventForm() {
             <input
               type="text"
               value={form.summary}
-              onChange={handleChange("summary")}
+              onChange={handleChange('summary')}
               placeholder="One line that captures the vibe..."
               className="w-full bg-transparent text-black dark:text-white placeholder:text-black/30 dark:placeholder:text-white/30 focus:outline-none"
             />
@@ -391,16 +398,16 @@ export default function CreateEventForm() {
                 label="Start"
                 dateValue={form.startDate}
                 timeValue={form.startTime}
-                onDateChange={handleChange("startDate")}
-                onTimeChange={handleChange("startTime")}
+                onDateChange={handleChange('startDate')}
+                onTimeChange={handleChange('startTime')}
                 required
               />
               <DateTimeInput
                 label="End"
                 dateValue={form.endDate}
                 timeValue={form.endTime}
-                onDateChange={handleChange("endDate")}
-                onTimeChange={handleChange("endTime")}
+                onDateChange={handleChange('endDate')}
+                onTimeChange={handleChange('endTime')}
               />
             </div>
 
@@ -408,7 +415,7 @@ export default function CreateEventForm() {
               <Toggle
                 label="Recurring Series"
                 value={form.recurring}
-                onChange={(val) => setForm(prev => ({ ...prev, recurring: val }))}
+                onChange={(val) => setForm((prev) => ({ ...prev, recurring: val }))}
               />
             </motion.div>
           </GlassSection>
@@ -420,7 +427,7 @@ export default function CreateEventForm() {
                 icon={<IconAlignLeft />}
                 placeholder="Tell your story..."
                 value={form.description}
-                onChange={handleChange("description")}
+                onChange={handleChange('description')}
                 multiline
               />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -431,12 +438,16 @@ export default function CreateEventForm() {
                   </div>
                   <select
                     value={form.city}
-                    onChange={handleChange("city")}
+                    onChange={handleChange('city')}
                     className="w-full bg-transparent text-black dark:text-white font-semibold focus:outline-none appearance-none cursor-pointer"
                     required
                   >
-                    {CITY_MAP.map(city => (
-                      <option key={city.key} value={city.key} className="bg-white dark:bg-black text-black dark:text-white">
+                    {CITY_MAP.map((city) => (
+                      <option
+                        key={city.key}
+                        value={city.key}
+                        className="bg-white dark:bg-black text-black dark:text-white"
+                      >
                         {city.label}
                       </option>
                     ))}
@@ -448,7 +459,7 @@ export default function CreateEventForm() {
                   icon={<IconNavigation />}
                   placeholder="Area / Specific Location (e.g. Koregaon Park)"
                   value={form.location}
-                  onChange={handleChange("location")}
+                  onChange={handleChange('location')}
                   required
                 />
               </div>
@@ -456,7 +467,7 @@ export default function CreateEventForm() {
                 icon={<IconBuilding />}
                 placeholder="Venue Name (optional)"
                 value={form.venue}
-                onChange={handleChange("venue")}
+                onChange={handleChange('venue')}
               />
             </div>
           </GlassSection>
@@ -478,28 +489,32 @@ export default function CreateEventForm() {
                     </div>
                     <div className="flex-1 grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs text-black/50 dark:text-white/50 mb-1 block">Ticket Name</label>
+                        <label className="text-xs text-black/50 dark:text-white/50 mb-1 block">
+                          Ticket Name
+                        </label>
                         <input
                           type="text"
                           value={ticket.name}
                           onChange={(e) => {
                             const newTickets = [...form.tickets];
                             newTickets[index].name = e.target.value;
-                            setForm(prev => ({ ...prev, tickets: newTickets }));
+                            setForm((prev) => ({ ...prev, tickets: newTickets }));
                           }}
                           className="w-full bg-transparent text-black dark:text-white font-semibold placeholder:text-black/30 dark:placeholder:text-white/30 focus:outline-none border-b border-transparent focus:border-iris/50 transition-all"
                           placeholder="Ticket Name"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-black/50 dark:text-white/50 mb-1 block">Price (₹)</label>
+                        <label className="text-xs text-black/50 dark:text-white/50 mb-1 block">
+                          Price (₹)
+                        </label>
                         <input
                           type="number"
                           value={ticket.price}
                           onChange={(e) => {
                             const newTickets = [...form.tickets];
                             newTickets[index].price = e.target.value;
-                            setForm(prev => ({ ...prev, tickets: newTickets }));
+                            setForm((prev) => ({ ...prev, tickets: newTickets }));
                           }}
                           className="w-full bg-transparent text-black dark:text-white font-semibold placeholder:text-black/30 dark:placeholder:text-white/30 focus:outline-none border-b border-transparent focus:border-iris/50 transition-all"
                           placeholder="999"
@@ -511,7 +526,7 @@ export default function CreateEventForm() {
                         type="button"
                         onClick={() => {
                           const newTickets = form.tickets.filter((_, i) => i !== index);
-                          setForm(prev => ({ ...prev, tickets: newTickets }));
+                          setForm((prev) => ({ ...prev, tickets: newTickets }));
                         }}
                         className="text-black/40 dark:text-white/40 hover:text-red-500 transition-colors p-2"
                       >
@@ -528,12 +543,12 @@ export default function CreateEventForm() {
               whileTap={{ scale: 0.98 }}
               type="button"
               onClick={() => {
-                setForm(prev => ({
+                setForm((prev) => ({
                   ...prev,
                   tickets: [
                     ...prev.tickets,
-                    { id: Date.now().toString(), name: "", price: "", quantity: 150 }
-                  ]
+                    { id: Date.now().toString(), name: '', price: '', quantity: 150 },
+                  ],
                 }));
               }}
               className="w-full rounded-xl border-2 border-dashed border-black/20 dark:border-white/20 py-4 text-sm font-medium text-black/60 dark:text-white/60 hover:border-iris/50 hover:text-iris-glow transition-all duration-300 mt-4"
@@ -564,13 +579,15 @@ export default function CreateEventForm() {
               </div>
               <div className="text-sm">
                 <div className="text-black dark:text-white font-medium">{guestNames[0]}</div>
-                <div className="text-black/60 dark:text-white/60">and {guestNames.length - 1} others going</div>
+                <div className="text-black/60 dark:text-white/60">
+                  and {guestNames.length - 1} others going
+                </div>
               </div>
             </div>
             <input
               type="text"
               value={form.guests}
-              onChange={handleChange("guests")}
+              onChange={handleChange('guests')}
               placeholder="Add guests (comma separated)"
               className="w-full rounded-xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-black/30 px-4 py-3 text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:border-iris/50 focus:outline-none focus:ring-2 focus:ring-iris/20 transition-all"
             />
@@ -589,18 +606,20 @@ export default function CreateEventForm() {
               {youtubeEnabled && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
+                  animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className="pl-8"
                 >
                   <input
                     type="url"
                     value={form.youtube}
-                    onChange={handleChange("youtube")}
+                    onChange={handleChange('youtube')}
                     placeholder="https://youtube.com/watch?v=..."
                     className="w-full rounded-xl border border-iris/30 bg-black/5 dark:bg-black/30 px-4 py-2.5 text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:border-iris/50 focus:outline-none focus:ring-2 focus:ring-iris/20 transition-all"
                   />
-                  <p className="mt-2 text-xs text-black/50 dark:text-white/50">Paste a YouTube URL to embed on your event page</p>
+                  <p className="mt-2 text-xs text-black/50 dark:text-white/50">
+                    Paste a YouTube URL to embed on your event page
+                  </p>
                 </motion.div>
               )}
 
@@ -614,7 +633,7 @@ export default function CreateEventForm() {
               {galleryEnabled && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
+                  animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className="pl-8"
                 >
@@ -624,7 +643,11 @@ export default function CreateEventForm() {
                     disabled={uploadingGallery}
                     className="w-full rounded-xl border-2 border-dashed border-iris/30 bg-iris/5 px-4 py-6 text-sm font-medium text-black/80 dark:text-white/80 hover:border-iris/50 hover:bg-iris/10 transition-all disabled:opacity-50"
                   >
-                    {uploadingGallery ? "Uploading..." : galleryImages.length > 0 ? `${galleryImages.length} images uploaded` : "Click to upload images (max 6)"}
+                    {uploadingGallery
+                      ? 'Uploading...'
+                      : galleryImages.length > 0
+                        ? `${galleryImages.length} images uploaded`
+                        : 'Click to upload images (max 6)'}
                   </button>
                   <input
                     ref={galleryInputRef}
@@ -637,13 +660,24 @@ export default function CreateEventForm() {
                   {galleryImages.length > 0 && (
                     <div className="mt-3 grid grid-cols-3 gap-2">
                       {galleryImages.slice(0, 6).map((url, i) => (
-                        <div key={i} className="relative aspect-square rounded-lg overflow-hidden border border-black/10 dark:border-white/10">
-                          <Image src={url} alt={`Gallery ${i + 1}`} fill sizes="(max-width: 768px) 100vw, 200px" className="object-cover" />
+                        <div
+                          key={i}
+                          className="relative aspect-square rounded-lg overflow-hidden border border-black/10 dark:border-white/10"
+                        >
+                          <Image
+                            src={url}
+                            alt={`Gallery ${i + 1}`}
+                            fill
+                            sizes="(max-width: 768px) 100vw, 200px"
+                            className="object-cover"
+                          />
                         </div>
                       ))}
                     </div>
                   )}
-                  <p className="mt-2 text-xs text-black/50 dark:text-white/50">Upload up to 6 images to showcase</p>
+                  <p className="mt-2 text-xs text-black/50 dark:text-white/50">
+                    Upload up to 6 images to showcase
+                  </p>
                 </motion.div>
               )}
             </div>
@@ -653,25 +687,29 @@ export default function CreateEventForm() {
           <GlassSection icon={<IconSettings />} title="Page Settings">
             <div className="space-y-4">
               <Toggle label="Show on Explore Page" value={showExplore} onChange={setShowExplore} />
-              <Toggle label="Guestlist Visibility" value={showGuestlist} onChange={setShowGuestlist} />
+              <Toggle
+                label="Guestlist Visibility"
+                value={showGuestlist}
+                onChange={setShowGuestlist}
+              />
               <p className="text-[10px] text-black/40 dark:text-white/40 uppercase tracking-widest pl-1">
                 {showGuestlist
-                  ? "Confirmed attendees will be visible on your event page."
-                  : "Only individual interest list will be shown."}
+                  ? 'Confirmed attendees will be visible on your event page.'
+                  : 'Only individual interest list will be shown.'}
               </p>
 
               <Toggle label="Password Protected" value={password} onChange={setPassword} />
               {password && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: "auto" }}
+                  animate={{ opacity: 1, height: 'auto' }}
                   exit={{ opacity: 0, height: 0 }}
                   className="pl-8"
                 >
                   <input
                     type="text"
                     value={form.eventPassword}
-                    onChange={handleChange("eventPassword")}
+                    onChange={handleChange('eventPassword')}
                     placeholder="Enter event password"
                     className="w-full rounded-xl border border-iris/30 bg-black/5 dark:bg-black/30 px-4 py-2.5 text-sm text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 focus:border-iris/50 focus:outline-none focus:ring-2 focus:ring-iris/20 transition-all"
                   />
@@ -687,14 +725,26 @@ export default function CreateEventForm() {
               onClick={handleFlyerUploadClick}
             >
               {form.image && (
-                <Image src={form.image} alt="Flyer" fill sizes="(max-width: 768px) 100vw, 400px" className="object-cover" />
+                <Image
+                  src={form.image}
+                  alt="Flyer"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 400px"
+                  className="object-cover"
+                />
               )}
               <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                 <span className="text-white text-xs font-bold uppercase tracking-widest">
-                  {uploadingFlyer ? "Uploading..." : "Change Image"}
+                  {uploadingFlyer ? 'Uploading...' : 'Change Image'}
                 </span>
               </div>
-              <input ref={flyerInputRef} type="file" accept="image/*" onChange={handleFlyerFileChange} className="hidden" />
+              <input
+                ref={flyerInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFlyerFileChange}
+                className="hidden"
+              />
             </div>
           </GlassSection>
         </motion.div>
@@ -713,7 +763,9 @@ export default function CreateEventForm() {
                   <div className="w-2.5 h-2.5 rounded-full bg-amber-500/20" />
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-500/20" />
                 </div>
-                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 ml-2">Live Preview</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-white/40 ml-2">
+                  Live Preview
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-white/10 px-3 py-1 text-[9px] font-black uppercase tracking-widest text-white/60">
@@ -727,17 +779,17 @@ export default function CreateEventForm() {
                 <EventPage
                   event={{
                     ...form,
-                    id: "preview-id",
+                    id: 'preview-id',
                     settings: {
-                      showGuestlist
-                    }
+                      showGuestlist,
+                    },
                   }}
                   host={{
-                    name: "Studio Host",
-                    avatar: "/events/holi-edit.svg",
+                    name: 'Studio Host',
+                    avatar: '/events/holi-edit.svg',
                     followers: 1240,
-                    location: "Studio Mode",
-                    bio: "Preview of how your host profile appears to users."
+                    location: 'Studio Mode',
+                    bio: 'Preview of how your host profile appears to users.',
                   }}
                   isPreview={true}
                 />
@@ -760,10 +812,11 @@ export default function CreateEventForm() {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -20, scale: 0.9 }}
-            className={`rounded-xl border px-4 py-3 text-sm backdrop-blur-xl ${status.type === "error"
-              ? "border-red-500/30 text-red-300 bg-red-500/10"
-              : "border-emerald-500/30 text-emerald-300 bg-emerald-500/10"
-              }`}
+            className={`rounded-xl border px-4 py-3 text-sm backdrop-blur-xl ${
+              status.type === 'error'
+                ? 'border-red-500/30 text-red-300 bg-red-500/10'
+                : 'border-emerald-500/30 text-emerald-300 bg-emerald-500/10'
+            }`}
           >
             {status.message}
           </motion.div>
@@ -781,7 +834,9 @@ export default function CreateEventForm() {
           >
             <div className="flex flex-col h-full">
               <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-zinc-900 shadow-xl">
-                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Event Preview</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">
+                  Event Preview
+                </span>
                 <button
                   type="button"
                   onClick={() => setMobilePreviewOpen(false)}
@@ -794,17 +849,17 @@ export default function CreateEventForm() {
                 <EventPage
                   event={{
                     ...form,
-                    id: "preview-id",
+                    id: 'preview-id',
                     settings: {
-                      showGuestlist
-                    }
+                      showGuestlist,
+                    },
                   }}
                   host={{
-                    name: "Studio Host",
-                    avatar: "/events/holi-edit.svg",
+                    name: 'Studio Host',
+                    avatar: '/events/holi-edit.svg',
                     followers: 1240,
-                    location: "Studio Mode",
-                    bio: "Preview of how your host profile appears to users."
+                    location: 'Studio Mode',
+                    bio: 'Preview of how your host profile appears to users.',
                   }}
                   isPreview={true}
                 />
@@ -849,7 +904,9 @@ function GlassSection({ icon, title, badge, children }) {
 function DateTimeInput({ label, dateValue, timeValue, onDateChange, onTimeChange, required }) {
   return (
     <div>
-      <label className="block text-xs text-black/50 dark:text-white/50 mb-2 uppercase tracking-wider">{label}</label>
+      <label className="block text-xs text-black/50 dark:text-white/50 mb-2 uppercase tracking-wider">
+        {label}
+      </label>
       <div className="flex gap-2">
         <input
           type="date"
@@ -870,13 +927,12 @@ function DateTimeInput({ label, dateValue, timeValue, onDateChange, onTimeChange
 }
 
 function FloatingInput({ icon, placeholder, value, onChange, multiline, required }) {
-  const Component = multiline ? "textarea" : "input";
+  const Component = multiline ? 'textarea' : 'input';
   return (
-    <motion.div
-      whileHover={{ x: 2 }}
-      className="flex items-start gap-3 group"
-    >
-      <div className="text-black/60 dark:text-white/60 mt-1 group-hover:text-iris-glow transition-colors">{icon}</div>
+    <motion.div whileHover={{ x: 2 }} className="flex items-start gap-3 group">
+      <div className="text-black/60 dark:text-white/60 mt-1 group-hover:text-iris-glow transition-colors">
+        {icon}
+      </div>
       <Component
         value={value}
         onChange={onChange}
@@ -891,11 +947,10 @@ function FloatingInput({ icon, placeholder, value, onChange, multiline, required
 
 function Toggle({ label, value, onChange }) {
   return (
-    <motion.div
-      whileHover={{ x: 2 }}
-      className="flex items-center justify-between group"
-    >
-      <span className="text-sm text-black dark:text-white group-hover:text-iris-glow transition-colors">{label}</span>
+    <motion.div whileHover={{ x: 2 }} className="flex items-center justify-between group">
+      <span className="text-sm text-black dark:text-white group-hover:text-iris-glow transition-colors">
+        {label}
+      </span>
       <ToggleSwitch value={value} onChange={onChange} />
     </motion.div>
   );
@@ -907,14 +962,18 @@ function ToggleSwitch({ value, onChange }) {
       type="button"
       onClick={() => onChange(!value)}
       whileTap={{ scale: 0.95 }}
-      className={`relative h-6 w-11 rounded-full transition-all duration-300 ${value ? "bg-gradient-to-r from-iris to-iris-glow shadow-glow" : "bg-black/20 dark:bg-white/20"
-        }`}
+      className={`relative h-6 w-11 rounded-full transition-all duration-300 ${
+        value
+          ? 'bg-gradient-to-r from-iris to-iris-glow shadow-glow'
+          : 'bg-black/20 dark:bg-white/20'
+      }`}
     >
       <motion.span
         layout
-        transition={{ type: "spring", stiffness: 500, damping: 30 }}
-        className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${value ? "right-0.5 bg-white" : "left-0.5 bg-white/80"
-          }`}
+        transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        className={`absolute top-0.5 h-5 w-5 rounded-full transition-all ${
+          value ? 'right-0.5 bg-white' : 'left-0.5 bg-white/80'
+        }`}
       />
     </motion.button>
   );
@@ -951,7 +1010,12 @@ function IconSparkles() {
 function IconCalendar() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
     </svg>
   );
 }
@@ -959,7 +1023,12 @@ function IconCalendar() {
 function IconEdit() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+      />
     </svg>
   );
 }
@@ -967,7 +1036,12 @@ function IconEdit() {
 function IconAlignLeft() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 6h16M4 12h16M4 18h7"
+      />
     </svg>
   );
 }
@@ -975,8 +1049,18 @@ function IconAlignLeft() {
 function IconMapPin() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+      />
     </svg>
   );
 }
@@ -984,7 +1068,12 @@ function IconMapPin() {
 function IconBuilding() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
+      />
     </svg>
   );
 }
@@ -992,7 +1081,12 @@ function IconBuilding() {
 function IconTicket() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"
+      />
     </svg>
   );
 }
@@ -1008,7 +1102,12 @@ function IconPlus() {
 function IconUsers() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+      />
     </svg>
   );
 }
@@ -1024,8 +1123,18 @@ function IconStar() {
 function IconSettings() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+      />
     </svg>
   );
 }
@@ -1033,7 +1142,12 @@ function IconSettings() {
 function IconVideo() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
+      />
     </svg>
   );
 }
@@ -1041,7 +1155,12 @@ function IconVideo() {
 function IconImage() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+      />
     </svg>
   );
 }
@@ -1049,7 +1168,12 @@ function IconImage() {
 function IconMusic() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"
+      />
     </svg>
   );
 }
@@ -1066,7 +1190,11 @@ function IconLoader() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
     </svg>
   );
 }
@@ -1074,7 +1202,12 @@ function IconLoader() {
 function IconTrash() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
     </svg>
   );
 }
@@ -1082,7 +1215,12 @@ function IconTrash() {
 function IconNavigation() {
   return (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+      />
     </svg>
   );
 }

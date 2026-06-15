@@ -1,18 +1,18 @@
-import { randomUUID } from "node:crypto";
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { algoliasearch } from "algoliasearch";
+import { randomUUID } from 'node:crypto';
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { algoliasearch } from 'algoliasearch';
 import {
   EVENT_LIFECYCLE,
   PUBLIC_LIFECYCLE_STATES,
   normalizeCity,
   resolvePoster,
   mapEventForClient,
-} from "@c1rcle/core/events";
+} from '@c1rcle/core/events';
 import {
   filterAndSortEvents,
   calculateHeatScore as coreHeatScore,
-} from "@c1rcle/core/event-engine";
-import { events as seedEvents } from "../../data/events";
+} from '@c1rcle/core/event-engine';
+import { events as seedEvents } from '../../data/events';
 
 /**
  * Helper to serialize data for RSC
@@ -24,7 +24,7 @@ const serialize = (obj) => {
       // Handle Firestore Timestamps if they still exist in the object
       if (
         value &&
-        typeof value === "object" &&
+        typeof value === 'object' &&
         value.seconds !== undefined &&
         value.nanoseconds !== undefined
       ) {
@@ -35,58 +35,58 @@ const serialize = (obj) => {
   );
 };
 
-const EVENT_COLLECTION = "events";
-const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
+const EVENT_COLLECTION = 'events';
+const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || 'Pune';
 
 const fallbackCategories = [
-  "Parties",
-  "Fitness",
-  "Art",
-  "Fashion",
-  "Tech",
-  "Popups",
-  "Campus",
-  "Afters",
-  "Community",
-  "Culinary",
-  "Health & Wellness",
-  "Music",
-  "Events",
-  "Connections",
+  'Parties',
+  'Fitness',
+  'Art',
+  'Fashion',
+  'Tech',
+  'Popups',
+  'Campus',
+  'Afters',
+  'Community',
+  'Culinary',
+  'Health & Wellness',
+  'Music',
+  'Events',
+  'Connections',
 ];
 
-const ALGOLIA_APP_ID = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID || "";
-const ALGOLIA_SEARCH_KEY = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY || "";
+const ALGOLIA_APP_ID = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID || '';
+const ALGOLIA_SEARCH_KEY = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY || '';
 const algoliaClient =
   ALGOLIA_APP_ID && ALGOLIA_SEARCH_KEY ? algoliasearch(ALGOLIA_APP_ID, ALGOLIA_SEARCH_KEY) : null;
 
 const cityKeywords = [
   {
-    city: "Pune, IN",
+    city: 'Pune, IN',
     matchers: [
-      "pune",
-      "kp",
-      "koregaon",
-      "baner",
-      "fc road",
-      "viman",
-      "yerawada",
-      "mula",
-      "kalyani",
-      "magarpatta",
+      'pune',
+      'kp',
+      'koregaon',
+      'baner',
+      'fc road',
+      'viman',
+      'yerawada',
+      'mula',
+      'kalyani',
+      'magarpatta',
     ],
     fallback: true,
   },
   {
-    city: "Mumbai, IN",
-    matchers: ["mumbai", "bandra", "andheri", "juhu", "lower parel", "powai", "colaba"],
+    city: 'Mumbai, IN',
+    matchers: ['mumbai', 'bandra', 'andheri', 'juhu', 'lower parel', 'powai', 'colaba'],
   },
   {
-    city: "Bengaluru, IN",
-    matchers: ["bangalore", "bengaluru", "blr", "koramangala", "indiranagar", "hsr"],
-    label: "Bengaluru",
+    city: 'Bengaluru, IN',
+    matchers: ['bangalore', 'bengaluru', 'blr', 'koramangala', 'indiranagar', 'hsr'],
+    label: 'Bengaluru',
   },
-  { city: "Goa, IN", matchers: ["goa", "anjuna", "morjim", "panaji", "panjim"] },
+  { city: 'Goa, IN', matchers: ['goa', 'anjuna', 'morjim', 'panaji', 'panjim'] },
 ];
 
 const duplicateEvent = (event) => ({
@@ -108,8 +108,8 @@ const findFallbackEvent = (identifier) => {
 };
 
 const resolveStartingPrice = (event) => {
-  if (typeof event.startingPrice === "number") return event.startingPrice;
-  if (typeof event.priceRange?.min === "number") return event.priceRange.min;
+  if (typeof event.startingPrice === 'number') return event.startingPrice;
+  if (typeof event.priceRange?.min === 'number') return event.priceRange.min;
   if (Array.isArray(event.tickets) && event.tickets.length) {
     return event.tickets.reduce(
       (min, ticket) => Math.min(min, Number(ticket.price) || 0),
@@ -132,11 +132,11 @@ const fallbackSorters = {
 
 const parseList = (value) => {
   if (Array.isArray(value)) {
-    return value.map((entry) => (typeof entry === "string" ? entry.trim() : entry)).filter(Boolean);
+    return value.map((entry) => (typeof entry === 'string' ? entry.trim() : entry)).filter(Boolean);
   }
-  if (typeof value === "string") {
+  if (typeof value === 'string') {
     return value
-      .split(",")
+      .split(',')
       .map((entry) => entry.trim())
       .filter(Boolean);
   }
@@ -144,12 +144,12 @@ const parseList = (value) => {
 };
 
 const formatDateRange = (start, end) => {
-  if (!start) return "";
-  const formatter = new Intl.DateTimeFormat("en-IN", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "Asia/Kolkata",
+  if (!start) return '';
+  const formatter = new Intl.DateTimeFormat('en-IN', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'Asia/Kolkata',
   });
   const startDate = new Date(start);
   const endDate = end ? new Date(end) : null;
@@ -165,14 +165,14 @@ const formatDateRange = (start, end) => {
 };
 
 const formatTimeRange = (start, end) => {
-  if (!start && !end) return "";
-  const formatter = new Intl.DateTimeFormat("en-IN", {
-    hour: "numeric",
-    minute: "2-digit",
-    timeZone: "Asia/Kolkata",
+  if (!start && !end) return '';
+  const formatter = new Intl.DateTimeFormat('en-IN', {
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: 'Asia/Kolkata',
   });
   const safeFormat = (value) => {
-    if (!value) return "";
+    if (!value) return '';
     const date = new Date(`1970-01-01T${value}`);
     if (Number.isNaN(date)) return value;
     return formatter.format(date);
@@ -187,19 +187,19 @@ const getGradient = ({ gradientStart, gradientEnd }) => {
   if (gradientStart && gradientEnd) {
     return [gradientStart, gradientEnd];
   }
-  return ["#0b0b0b", "#050505"];
+  return ['#0b0b0b', '#050505'];
 };
 
 const getAccent = (value) => {
-  if (typeof value === "string" && value.trim()) return value.trim();
-  return "#ffffff";
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return '#ffffff';
 };
 
 const toIsoDate = (value) => {
-  if (!value) return "";
-  if (typeof value === "string") return value;
+  if (!value) return '';
+  if (typeof value === 'string') return value;
   if (value instanceof Date) return value.toISOString();
-  if (typeof value.toDate === "function") {
+  if (typeof value.toDate === 'function') {
     return value.toDate().toISOString();
   }
   return new Date(value).toISOString();
@@ -212,12 +212,12 @@ const formatTickets = (tickets, fallbackName, fallbackPrice, startDate) => {
     return {
       id: ticket.id || `ticket-${index + 1}`,
       name: ticket.name?.trim() || `Ticket Tier ${index + 1}`,
-      description: ticket.description?.trim() || "",
+      description: ticket.description?.trim() || '',
       price,
       quantity,
       isFree: price === 0,
-      salesStart: ticket.salesStart || startDate || "",
-      salesEnd: ticket.salesEnd || "",
+      salesStart: ticket.salesStart || startDate || '',
+      salesEnd: ticket.salesEnd || '',
       minPerOrder: Number(ticket.minPerOrder) || 1,
       maxPerOrder: Number(ticket.maxPerOrder) || Math.max(quantity, 1),
       rsvpOnly: Boolean(ticket.rsvpOnly),
@@ -231,8 +231,8 @@ const formatTickets = (tickets, fallbackName, fallbackPrice, startDate) => {
   return [
     normalize(
       {
-        id: "default-ticket",
-        name: fallbackName || "Default Ticket",
+        id: 'default-ticket',
+        name: fallbackName || 'Default Ticket',
         price: Number(fallbackPrice) || 0,
         quantity: 0,
       },
@@ -248,7 +248,7 @@ const derivePriceRange = (tickets) => {
   return {
     min,
     max,
-    currency: "INR",
+    currency: 'INR',
   };
 };
 
@@ -256,33 +256,33 @@ const determineStatus = (start, end) => {
   const now = Date.now();
   const startMs = start ? new Date(start).getTime() : now;
   const endMs = end ? new Date(end).getTime() : startMs;
-  if (now < startMs) return "upcoming";
-  if (now >= startMs && now <= endMs) return "live";
-  return "past";
+  if (now < startMs) return 'upcoming';
+  if (now >= startMs && now <= endMs) return 'live';
+  return 'past';
 };
 
 const normalizeCityLabel = (value) => {
-  if (!value) return "";
+  if (!value) return '';
   return value.trim().toLowerCase();
 };
 
-const inferCity = (providedCity, location = "") => {
-  const combined = `${providedCity || ""} ${location}`.toLowerCase();
+const inferCity = (providedCity, location = '') => {
+  const combined = `${providedCity || ''} ${location}`.toLowerCase();
   for (const entry of cityKeywords) {
     if (entry.matchers.some((keyword) => combined.includes(keyword))) {
       return entry.city;
     }
   }
-  if (providedCity && providedCity.includes(", IN")) return providedCity;
+  if (providedCity && providedCity.includes(', IN')) return providedCity;
   const fallback = cityKeywords.find((entry) => entry.fallback);
-  return fallback?.city || (DEFAULT_CITY.includes(", IN") ? DEFAULT_CITY : `${DEFAULT_CITY}, IN`);
+  return fallback?.city || (DEFAULT_CITY.includes(', IN') ? DEFAULT_CITY : `${DEFAULT_CITY}, IN`);
 };
 
 const calculateHeatScore = (event) => {
   return coreHeatScore(event);
 };
 
-const listFallbackEvents = ({ city, limit = 12, sort = "heat", host } = {}) => {
+const listFallbackEvents = ({ city, limit = 12, sort = 'heat', host } = {}) => {
   let events = getFallbackEvents();
 
   // Filter out past events
@@ -307,10 +307,10 @@ const listFallbackEvents = ({ city, limit = 12, sort = "heat", host } = {}) => {
 };
 
 const buildEvent = (payload = {}) => {
-  const required = ["title", "startDate", "location", "host"];
+  const required = ['title', 'startDate', 'location', 'host'];
   const missing = required.filter((field) => !payload[field]);
   if (missing.length) {
-    const error = new Error(`Missing fields: ${missing.join(", ")}`);
+    const error = new Error(`Missing fields: ${missing.join(', ')}`);
     error.statusCode = 400;
     throw error;
   }
@@ -339,7 +339,7 @@ const buildEvent = (payload = {}) => {
   const settings = {
     showExplore: payload.settings?.showExplore ?? true,
     password: payload.settings?.password ?? false,
-    passwordCode: payload.settings?.passwordCode || payload.settings?.password_value || "",
+    passwordCode: payload.settings?.passwordCode || payload.settings?.password_value || '',
     activity: payload.settings?.activity ?? true,
     recurring: payload.settings?.recurring ?? false,
     showGuestlist: payload.settings?.showGuestlist ?? false,
@@ -349,34 +349,34 @@ const buildEvent = (payload = {}) => {
     id: payload.id?.trim() || randomUUID(),
     slug: payload.slug?.trim() || payload.id?.trim() || randomUUID(),
     title: payload.title.trim(),
-    summary: payload.summary?.trim() || "",
-    description: payload.description?.trim() || payload.summary?.trim() || "",
-    category: payload.category?.trim() || "Trending",
+    summary: payload.summary?.trim() || '',
+    description: payload.description?.trim() || payload.summary?.trim() || '',
+    category: payload.category?.trim() || 'Trending',
     tags,
     host: payload.host.trim(),
     location: payload.location.trim(),
-    venue: payload.venue?.trim() || "",
+    venue: payload.venue?.trim() || '',
     city: inferCity(payload.city, payload.location),
-    country: payload.country?.trim() || "India",
+    country: payload.country?.trim() || 'India',
     date: formatDateRange(startDate, endDate),
     time: formatTimeRange(payload.startTime, payload.endTime),
     startDate,
     endDate,
-    startTime: payload.startTime || "",
-    endTime: payload.endTime || "",
-    timezone: payload.timezone || payload.timeZone || "Asia/Kolkata",
-    image: payload.image?.trim() || "/events/holi-edit.svg",
+    startTime: payload.startTime || '',
+    endTime: payload.endTime || '',
+    timezone: payload.timezone || payload.timeZone || 'Asia/Kolkata',
+    image: payload.image?.trim() || '/events/holi-edit.svg',
     gradient,
     accentColor,
-    spotifyTrack: payload.spotifyTrack || "",
-    guests: guests.length ? guests : ["New", "Guests"],
-    gallery: gallery.length ? gallery : [payload.image?.trim() || "/events/holi-edit.svg"],
+    spotifyTrack: payload.spotifyTrack || '',
+    guests: guests.length ? guests : ['New', 'Guests'],
+    gallery: gallery.length ? gallery : [payload.image?.trim() || '/events/holi-edit.svg'],
     tickets,
     priceRange,
     isRSVP: !!payload.isRSVP,
     settings: {
       ...settings,
-      visibility: settings.password ? "password" : settings.showExplore ? "public" : "link",
+      visibility: settings.password ? 'password' : settings.showExplore ? 'public' : 'link',
     },
     stats,
     createdAt: payload.createdAt || nowIso,
@@ -385,7 +385,7 @@ const buildEvent = (payload = {}) => {
 
   // Generate search keywords
   const searchString =
-    `${event.title} ${event.category} ${event.tags.join(" ")} ${event.host} ${event.location} ${event.venue}`.toLowerCase();
+    `${event.title} ${event.category} ${event.tags.join(' ')} ${event.host} ${event.location} ${event.venue}`.toLowerCase();
   // Create unique keywords array (simple tokenization)
   event.keywords = Array.from(new Set(searchString.split(/[\s,]+/).filter((k) => k.length > 2)));
 
@@ -412,13 +412,13 @@ const seedEventPayload = (seed, index) => {
     ...seed,
     startDate: start,
     endDate: end,
-    startTime: "19:00",
-    endTime: "23:59",
-    summary: seed.description?.slice(0, 140) || "",
+    startTime: '19:00',
+    endTime: '23:59',
+    summary: seed.description?.slice(0, 140) || '',
     tickets: seed.tickets || [
       {
-        id: "seed-ga",
-        name: "General Admission",
+        id: 'seed-ga',
+        name: 'General Admission',
         price: 0,
         quantity: 150,
       },
@@ -443,14 +443,14 @@ const ensureSeedEvents = async () => {
   await batch.commit();
 };
 
-export async function listEvents({ city, limit = 12, sort = "heat", search, host } = {}) {
+export async function listEvents({ city, limit = 12, sort = 'heat', search, host } = {}) {
   console.log(
     `[EventStore] listEvents called with city=${city}, limit=${limit}, sort=${sort}, search=${search}, host=${host}`,
   );
   const firebaseConfigured = isFirebaseConfigured();
 
   if (!firebaseConfigured) {
-    console.log("[EventStore] Using fallback events (no Firebase)");
+    console.log('[EventStore] Using fallback events (no Firebase)');
     let results = listFallbackEvents({ city, limit: 1000, sort, host });
     if (search) {
       const lowerSearch = search.toLowerCase();
@@ -471,10 +471,10 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
       const { results: algoliaResults } = await algoliaClient.search({
         requests: [
           {
-            indexName: "events",
-            query: search || "",
+            indexName: 'events',
+            query: search || '',
             params: {
-              filters: `(lifecycle:approved OR lifecycle:scheduled OR lifecycle:live)${cityKey ? ` AND cityKey:${cityKey}` : ""}`,
+              filters: `(lifecycle:approved OR lifecycle:scheduled OR lifecycle:live)${cityKey ? ` AND cityKey:${cityKey}` : ''}`,
               hitsPerPage: limit || 50,
             },
           },
@@ -495,7 +495,7 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
         }));
       }
     } catch (e) {
-      console.error("[EventStore] Algolia search/discovery failed, falling back to Firestore:", e);
+      console.error('[EventStore] Algolia search/discovery failed, falling back to Firestore:', e);
     }
   }
 
@@ -503,37 +503,37 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
   let query = db.collection(EVENT_COLLECTION);
 
   // Filter by lifecycle for guest visibility (Canonical States)
-  query = query.where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES);
+  query = query.where('lifecycle', 'in', PUBLIC_LIFECYCLE_STATES);
 
   // Exclude past events
   const now = new Date().toISOString();
-  query = query.where("endDate", ">=", now);
+  query = query.where('endDate', '>=', now);
 
   if (host) {
-    query = query.where("host", "==", host);
+    query = query.where('host', '==', host);
   }
 
   // Apply City Filter (Canonical Key)
   if (city) {
     const cityKey = normalizeCity(city);
-    query = query.where("cityKey", "==", cityKey);
+    query = query.where('cityKey', '==', cityKey);
   }
 
   // Apply search filter if present
   if (search) {
     const searchTerms = search
       .toLowerCase()
-      .split(" ")
+      .split(' ')
       .filter((t) => t.length > 0);
     if (searchTerms.length > 0) {
-      query = query.where("keywords", "array-contains", searchTerms[0]);
+      query = query.where('keywords', 'array-contains', searchTerms[0]);
     }
   } else {
     const ordering = {
-      heat: { field: "heatScore", direction: "desc" },
-      new: { field: "createdAt", direction: "desc" },
-      soonest: { field: "startDate", direction: "asc" },
-      price: { field: "priceRange.min", direction: "asc" },
+      heat: { field: 'heatScore', direction: 'desc' },
+      new: { field: 'createdAt', direction: 'desc' },
+      soonest: { field: 'startDate', direction: 'asc' },
+      price: { field: 'priceRange.min', direction: 'asc' },
     };
     const order = ordering[sort] || ordering.heat;
     query = query.orderBy(order.field, order.direction);
@@ -549,15 +549,15 @@ export async function listEvents({ city, limit = 12, sort = "heat", search, host
       // Silent fallback to avoid crash if index is missing
       snapshot = await db
         .collection(EVENT_COLLECTION)
-        .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
-        .where("endDate", ">=", nowIso)
+        .where('lifecycle', 'in', PUBLIC_LIFECYCLE_STATES)
+        .where('endDate', '>=', nowIso)
         .limit(100)
         .get();
     } catch (secondError) {
       // Ultimate fallback if even the date index is missing
       snapshot = await db
         .collection(EVENT_COLLECTION)
-        .where("lifecycle", "in", PUBLIC_LIFECYCLE_STATES)
+        .where('lifecycle', 'in', PUBLIC_LIFECYCLE_STATES)
         .limit(100)
         .get();
     }
@@ -611,7 +611,7 @@ export async function getEvent(identifier) {
   }
   const slugSnapshot = await db
     .collection(EVENT_COLLECTION)
-    .where("slug", "==", identifier)
+    .where('slug', '==', identifier)
     .limit(1)
     .get();
   if (!slugSnapshot.empty) {
@@ -625,11 +625,11 @@ export async function getEventInterested(eventId, limit = 20) {
 
   if (!isFirebaseConfigured()) {
     const mockUsers = [
-      { id: "u1", name: "Ari", handle: "@ari", color: "#FDE047", initials: "AR" },
-      { id: "u2", name: "Dev", handle: "@dev", color: "#F43F5E", initials: "DV" },
-      { id: "u3", name: "Ira", handle: "@ira", color: "#A855F7", initials: "IR" },
-      { id: "u4", name: "Nia", handle: "@nia", color: "#38BDF8", initials: "NI" },
-      { id: "u5", name: "Vik", handle: "@vik", color: "#34D399", initials: "VK" },
+      { id: 'u1', name: 'Ari', handle: '@ari', color: '#FDE047', initials: 'AR' },
+      { id: 'u2', name: 'Dev', handle: '@dev', color: '#F43F5E', initials: 'DV' },
+      { id: 'u3', name: 'Ira', handle: '@ira', color: '#A855F7', initials: 'IR' },
+      { id: 'u4', name: 'Nia', handle: '@nia', color: '#38BDF8', initials: 'NI' },
+      { id: 'u5', name: 'Vik', handle: '@vik', color: '#34D399', initials: 'VK' },
     ];
     return { count: 622, users: mockUsers };
   }
@@ -642,18 +642,18 @@ export async function getEventInterested(eventId, limit = 20) {
   let likesSnapshot;
   try {
     likesSnapshot = await db
-      .collection("likes")
-      .where("eventId", "==", eventId)
-      .orderBy("createdAt", "desc")
+      .collection('likes')
+      .where('eventId', '==', eventId)
+      .orderBy('createdAt', 'desc')
       .limit(limit)
       .get();
   } catch (e) {
-    if (e.message.includes("FAILED_PRECONDITION")) {
-      console.warn("Index missing for event likes. Falling back to in-memory filter.");
+    if (e.message.includes('FAILED_PRECONDITION')) {
+      console.warn('Index missing for event likes. Falling back to in-memory filter.');
       // Fallback: Just filter by eventId, then sort in memory
       likesSnapshot = await db
-        .collection("likes")
-        .where("eventId", "==", eventId)
+        .collection('likes')
+        .where('eventId', '==', eventId)
         .limit(limit * 2) // Get a bit more to allow for sorting
         .get();
 
@@ -676,7 +676,7 @@ export async function getEventInterested(eventId, limit = 20) {
 
   // Fetch user details
   const usersSnapshot = await Promise.all(
-    userIds.map((uid) => db.collection("users").doc(uid).get()),
+    userIds.map((uid) => db.collection('users').doc(uid).get()),
   );
   const users = usersSnapshot
     .filter((s) => s.exists)
@@ -684,13 +684,13 @@ export async function getEventInterested(eventId, limit = 20) {
       const d = s.data();
       return {
         id: s.id,
-        name: d.displayName || "C1RCLE Member",
-        handle: d.handle || `@${(d.displayName || "guest").toLowerCase().replace(/\s/g, "")}`,
+        name: d.displayName || 'C1RCLE Member',
+        handle: d.handle || `@${(d.displayName || 'guest').toLowerCase().replace(/\s/g, '')}`,
         photoURL: d.photoURL || null,
-        initials: (d.displayName || "G")
-          .split(" ")
+        initials: (d.displayName || 'G')
+          .split(' ')
           .map((n) => n[0])
-          .join("")
+          .join('')
           .toUpperCase()
           .slice(0, 2),
       };
@@ -705,20 +705,20 @@ export async function getEventGuestlist(eventId, limit = 50) {
   if (!isFirebaseConfigured()) {
     return [
       {
-        id: "g1",
-        name: "Luna",
-        handle: "@luna",
-        stats: "12 events",
-        color: "#FDE047",
-        initials: "LU",
+        id: 'g1',
+        name: 'Luna',
+        handle: '@luna',
+        stats: '12 events',
+        color: '#FDE047',
+        initials: 'LU',
       },
       {
-        id: "g2",
-        name: "Taj",
-        handle: "@taj",
-        stats: "8 events",
-        color: "#F43F5E",
-        initials: "TA",
+        id: 'g2',
+        name: 'Taj',
+        handle: '@taj',
+        stats: '8 events',
+        color: '#F43F5E',
+        initials: 'TA',
       },
     ];
   }
@@ -729,20 +729,20 @@ export async function getEventGuestlist(eventId, limit = 50) {
   let ordersSnapshot;
   try {
     ordersSnapshot = await db
-      .collection("orders")
-      .where("eventId", "==", eventId)
-      .where("status", "==", "confirmed")
+      .collection('orders')
+      .where('eventId', '==', eventId)
+      .where('status', '==', 'confirmed')
       .limit(limit)
       .get();
   } catch (e) {
-    if (e.message.includes("FAILED_PRECONDITION")) {
-      console.warn("Index missing for event orders. Falling back to in-memory filter.");
+    if (e.message.includes('FAILED_PRECONDITION')) {
+      console.warn('Index missing for event orders. Falling back to in-memory filter.');
       ordersSnapshot = await db
-        .collection("orders")
-        .where("eventId", "==", eventId)
+        .collection('orders')
+        .where('eventId', '==', eventId)
         .limit(limit)
         .get();
-      const docs = ordersSnapshot.docs.filter((doc) => doc.data().status === "confirmed");
+      const docs = ordersSnapshot.docs.filter((doc) => doc.data().status === 'confirmed');
       ordersSnapshot = { docs };
     } else {
       throw e;
@@ -755,9 +755,9 @@ export async function getEventGuestlist(eventId, limit = 50) {
 
   // 2. Get RSVPs (Users)
   const rsvpsQuerySnapshot = await db
-    .collection("rsvp_orders")
-    .where("eventId", "==", eventId)
-    .where("status", "==", "confirmed")
+    .collection('rsvp_orders')
+    .where('eventId', '==', eventId)
+    .where('status', '==', 'confirmed')
     .limit(limit)
     .get();
   const rsvpUserIds = Array.from(
@@ -766,8 +766,8 @@ export async function getEventGuestlist(eventId, limit = 50) {
 
   // 3. Get Claimants (Ticket Assignments)
   const assignmentsSnapshot = await db
-    .collection("ticket_assignments")
-    .where("eventId", "==", eventId)
+    .collection('ticket_assignments')
+    .where('eventId', '==', eventId)
     .limit(limit)
     .get();
   const claimantIds = Array.from(
@@ -783,20 +783,20 @@ export async function getEventGuestlist(eventId, limit = 50) {
   // Fetch full profiles
   const profiles = await Promise.all(
     combinedUserIds.map(async (uid) => {
-      const fresh = await db.collection("users").doc(uid).get();
+      const fresh = await db.collection('users').doc(uid).get();
       return fresh.exists ? { id: fresh.id, ...fresh.data() } : null;
     }),
   );
 
   const results = profiles.filter(Boolean).map((p) => ({
     id: p.id,
-    name: p.displayName || "C1RCLE Member",
-    handle: p.handle || `@${(p.displayName || "guest").toLowerCase().replace(/\s/g, "")}`,
+    name: p.displayName || 'C1RCLE Member',
+    handle: p.handle || `@${(p.displayName || 'guest').toLowerCase().replace(/\s/g, '')}`,
     photoURL: p.photoURL || null,
-    initials: (p.displayName || "G")
-      .split(" ")
+    initials: (p.displayName || 'G')
+      .split(' ')
       .map((n) => n[0])
-      .join("")
+      .join('')
       .toUpperCase()
       .slice(0, 2),
     stats: `${p.attendedEvents?.length || 0} events attended`,

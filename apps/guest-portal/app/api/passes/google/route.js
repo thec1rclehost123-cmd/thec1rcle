@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
-import { getOrderById } from "@/lib/server/orderStore";
-import { getEvent } from "@/lib/server/eventStore";
+import { NextResponse } from 'next/server';
+import { getOrderById } from '@/lib/server/orderStore';
+import { getEvent } from '@/lib/server/eventStore';
 
 /**
  * GET /api/passes/google?orderId=xxx
@@ -10,16 +10,16 @@ import { getEvent } from "@/lib/server/eventStore";
  */
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
-  const orderId = searchParams.get("orderId");
+  const orderId = searchParams.get('orderId');
 
   if (!orderId) {
-    return NextResponse.json({ error: "Missing orderId" }, { status: 400 });
+    return NextResponse.json({ error: 'Missing orderId' }, { status: 400 });
   }
 
   try {
     const order = await getOrderById(orderId);
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
     let eventData = {};
@@ -49,18 +49,18 @@ export async function GET(req) {
     }
 
     const passData = {
-      status: "preview",
+      status: 'preview',
       message:
-        "Google Wallet pass generation requires Google Cloud credentials. Download the ticket as PDF instead.",
+        'Google Wallet pass generation requires Google Cloud credentials. Download the ticket as PDF instead.',
       pass: {
         eventName: eventData.title || order.eventTitle,
-        venue: eventData.location || eventData.venueLocation || order.venue || "TBA",
+        venue: eventData.location || eventData.venueLocation || order.venue || 'TBA',
         ...(dateTimeIso && { dateTime: dateTimeIso }),
-        ticketType: order.tickets?.[0]?.tierName || "General",
+        ticketType: order.tickets?.[0]?.tierName || 'General',
         quantity: order.quantity || 1,
         orderId: orderId.substring(0, 8).toUpperCase(),
         barcode: {
-          type: "QR_CODE",
+          type: 'QR_CODE',
           value: `C1RCLE:${orderId}`,
         },
       },
@@ -68,7 +68,7 @@ export async function GET(req) {
 
     return NextResponse.json(passData, { status: 501 });
   } catch (error) {
-    console.error("[Google Pass] Error:", error);
-    return NextResponse.json({ error: "Failed to generate Google Wallet pass" }, { status: 500 });
+    console.error('[Google Pass] Error:', error);
+    return NextResponse.json({ error: 'Failed to generate Google Wallet pass' }, { status: 500 });
   }
 }

@@ -4,76 +4,78 @@
  * Unified source of truth for Apps, API, and Functions.
  */
 
-import { randomUUID } from "node:crypto";
-import { getRedisClient } from "./redis.js";
-import { getAdminDb } from "./admin.js";
+import { randomUUID } from 'node:crypto';
+import { getRedisClient } from './redis.js';
+import { getAdminDb } from './admin.js';
 
 // ---------------------------------------------------------------------------
 // Typed error classes — callers must catch these and return HTTP 503
 // ---------------------------------------------------------------------------
 export class InventoryUnavailableError extends Error {
-    constructor(message = "Inventory service unavailable") {
-        super(message);
-        this.name = "InventoryUnavailableError";
-    }
+  constructor(message = 'Inventory service unavailable') {
+    super(message);
+    this.name = 'InventoryUnavailableError';
+  }
 }
 export class LockAcquisitionError extends Error {
-    constructor(message = "Could not acquire inventory lock") {
-        super(message);
-        this.name = "LockAcquisitionError";
-    }
+  constructor(message = 'Could not acquire inventory lock') {
+    super(message);
+    this.name = 'LockAcquisitionError';
+  }
 }
 export class ReservationCommitError extends Error {
-    constructor(message = "Failed to commit reservation to Redis") {
-        super(message);
-        this.name = "ReservationCommitError";
-    }
+  constructor(message = 'Failed to commit reservation to Redis') {
+    super(message);
+    this.name = 'ReservationCommitError';
+  }
 }
 export class InventoryReadError extends Error {
-    constructor(message = "Failed to read effective inventory") {
-        super(message);
-        this.name = "InventoryReadError";
-    }
+  constructor(message = 'Failed to read effective inventory') {
+    super(message);
+    this.name = 'InventoryReadError';
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Redis circuit breaker — opens after 3 errors in 30s, half-opens after 30s
 // ---------------------------------------------------------------------------
 const _circuit = {
-    failures: 0,
-    lastFailureAt: 0,
-    openAt: 0,
-    THRESHOLD: 3,
-    RESET_MS: 10_000,
+  failures: 0,
+  lastFailureAt: 0,
+  openAt: 0,
+  THRESHOLD: 3,
+  RESET_MS: 10_000,
 };
 
 function circuitIsOpen() {
-    if (_circuit.openAt === 0) return false;
-    if (Date.now() - _circuit.openAt >= _circuit.RESET_MS) {
-        // Half-open: allow one probe
-        _circuit.openAt = 0;
-        return false;
-    }
-    return true;
+  if (_circuit.openAt === 0) return false;
+  if (Date.now() - _circuit.openAt >= _circuit.RESET_MS) {
+    // Half-open: allow one probe
+    _circuit.openAt = 0;
+    return false;
+  }
+  return true;
 }
 
 function recordCircuitSuccess() {
-    _circuit.failures = 0;
-    _circuit.openAt = 0;
-    _circuit.lastFailureAt = 0;
+  _circuit.failures = 0;
+  _circuit.openAt = 0;
+  _circuit.lastFailureAt = 0;
 }
 
 function recordCircuitFailure() {
-    const now = Date.now();
-    if (now - _circuit.lastFailureAt > _circuit.RESET_MS) {
-        _circuit.failures = 0;
-    }
-    _circuit.failures += 1;
-    _circuit.lastFailureAt = now;
-    if (_circuit.failures >= _circuit.THRESHOLD && _circuit.openAt === 0) {
-        _circuit.openAt = now;
-        console.error("[Inventory] Redis circuit OPEN after repeated failures — all reservations will fail until circuit resets");
-    }
+  const now = Date.now();
+  if (now - _circuit.lastFailureAt > _circuit.RESET_MS) {
+    _circuit.failures = 0;
+  }
+  _circuit.failures += 1;
+  _circuit.lastFailureAt = now;
+  if (_circuit.failures >= _circuit.THRESHOLD && _circuit.openAt === 0) {
+    _circuit.openAt = now;
+    console.error(
+      '[Inventory] Redis circuit OPEN after repeated failures — all reservations will fail until circuit resets',
+    );
+  }
 }
 
 // Cart reservation timeout (default 10 minutes)
@@ -88,75 +90,81 @@ const NUM_SHARDS = 10;
  * res:event:{eventId}:tier:{tierId} -> Set of active reservation IDs for a specific tier
  * inv:lock:{eventId} -> Mutex for atomic inventory checks
  */
-const REDIS_RES_PREFIX = "res:data:";
-const REDIS_TIER_RES_PREFIX = "res:event:";
+const REDIS_RES_PREFIX = 'res:data:';
+const REDIS_TIER_RES_PREFIX = 'res:event:';
 
 // Internal helper for inventory calculations
 function getBaseRemaining(tier) {
-    const inv = tier.inventory || {};
-    const totalCapacity = Number(inv.totalQuantity ?? tier.totalQuantity ?? tier.quantity ?? tier.capacity ?? 0);
-    const sold = Number(inv.soldQuantity ?? tier.soldQuantity ?? tier.sold ?? tier.soldCount ?? 0);
-    
-    let holdbackQuantity = 0;
-    if (inv.holdbacks && Array.isArray(inv.holdbacks)) {
-        const now = new Date();
-        for (const h of inv.holdbacks) {
-            if (h.expiresAt && new Date(h.expiresAt) < now) continue;
-            holdbackQuantity += Number(h.quantity || 0);
-        }
-    }
+  const inv = tier.inventory || {};
+  const totalCapacity = Number(
+    inv.totalQuantity ?? tier.totalQuantity ?? tier.quantity ?? tier.capacity ?? 0,
+  );
+  const sold = Number(inv.soldQuantity ?? tier.soldQuantity ?? tier.sold ?? tier.soldCount ?? 0);
 
-    const legacyRemaining = tier.remaining !== undefined ? Number(tier.remaining) : null;
-    
-    if (legacyRemaining !== null && (inv.soldQuantity === undefined && tier.sold === undefined)) {
-        return legacyRemaining;
+  let holdbackQuantity = 0;
+  if (inv.holdbacks && Array.isArray(inv.holdbacks)) {
+    const now = new Date();
+    for (const h of inv.holdbacks) {
+      if (h.expiresAt && new Date(h.expiresAt) < now) continue;
+      holdbackQuantity += Number(h.quantity || 0);
     }
-    
-    return Math.max(0, totalCapacity - sold - holdbackQuantity);
+  }
+
+  const legacyRemaining = tier.remaining !== undefined ? Number(tier.remaining) : null;
+
+  if (legacyRemaining !== null && inv.soldQuantity === undefined && tier.sold === undefined) {
+    return legacyRemaining;
+  }
+
+  return Math.max(0, totalCapacity - sold - holdbackQuantity);
 }
 
 function normalizeReservationItems(items = []) {
-    return items
-        .map((item) => ({
-            tierId: item?.tierId || item?.id || null,
-            quantity: Number(item?.quantity || 0)
-        }))
-        .filter((item) => item.tierId && item.quantity > 0)
-        .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
+  return items
+    .map((item) => ({
+      tierId: item?.tierId || item?.id || null,
+      quantity: Number(item?.quantity || 0),
+    }))
+    .filter((item) => item.tierId && item.quantity > 0)
+    .sort((a, b) => String(a.tierId).localeCompare(String(b.tierId)));
 }
 
 function reservationItemsMatch(left = [], right = []) {
-    const normalizedLeft = normalizeReservationItems(left);
-    const normalizedRight = normalizeReservationItems(right);
-    return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
+  const normalizedLeft = normalizeReservationItems(left);
+  const normalizedRight = normalizeReservationItems(right);
+  return JSON.stringify(normalizedLeft) === JSON.stringify(normalizedRight);
 }
 
 function isReservationUsable(reservation) {
-    if (!reservation || reservation.status !== "active") return false;
-    if (!reservation.expiresAt) return true;
-    return new Date(reservation.expiresAt) > new Date();
+  if (!reservation || reservation.status !== 'active') return false;
+  if (!reservation.expiresAt) return true;
+  return new Date(reservation.expiresAt) > new Date();
 }
 
 async function removeTrackedReservation(redis, reservationId, reservation, userResKey = null) {
-    const multi = redis.multi();
-    multi.del(`${REDIS_RES_PREFIX}${reservationId}`);
+  const multi = redis.multi();
+  multi.del(`${REDIS_RES_PREFIX}${reservationId}`);
 
-    for (const item of reservation?.items || []) {
-        if (!item?.tierId) continue;
-        multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
-    }
+  for (const item of reservation?.items || []) {
+    if (!item?.tierId) continue;
+    multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
+  }
 
-    if (userResKey) {
-        multi.srem(userResKey, reservationId);
-    } else if (reservation?.customerId && reservation.customerId !== "anonymous" && reservation?.eventId) {
-        multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
-    }
+  if (userResKey) {
+    multi.srem(userResKey, reservationId);
+  } else if (
+    reservation?.customerId &&
+    reservation.customerId !== 'anonymous' &&
+    reservation?.eventId
+  ) {
+    multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
+  }
 
-    try {
-        await multi.exec();
-    } catch (e) {
-        console.warn("[Redis] Failed to clean up stale reservation:", e.message);
-    }
+  try {
+    await multi.exec();
+  } catch (e) {
+    console.warn('[Redis] Failed to clean up stale reservation:', e.message);
+  }
 }
 
 /**
@@ -167,294 +175,328 @@ async function removeTrackedReservation(redis, reservationId, reservation, userR
  * 3. Redis Cart Reservations (live carts)
  * 4. (Optional) Firestore Shard Aggregation (for high-concurrency sold counts)
  */
-export async function calculateEffectiveInventory(tier, event, excludeReservationId = null, db = null, strictMode = false) {
-    // 1. Unlimited inventory
-    if ((tier.inventory?.type || tier.type) === 'unlimited') return Infinity;
+export async function calculateEffectiveInventory(
+  tier,
+  event,
+  excludeReservationId = null,
+  db = null,
+  strictMode = false,
+) {
+  // 1. Unlimited inventory
+  if ((tier.inventory?.type || tier.type) === 'unlimited') return Infinity;
 
-    // 2. Get base remaining quantity.
-    let remaining = getBaseRemaining(tier);
+  // 2. Get base remaining quantity.
+  let remaining = getBaseRemaining(tier);
 
-    // 3. Sharded counters (Functions mode) — authoritative sold count correction
-    if (db) {
-        let soldFromShards = 0;
-        const shardsRef = db.collection('events').doc(event.id).collection('ticket_shards')
-            .where('tierId', '==', tier.id);
-        const snapshot = await shardsRef.get();
-        snapshot.forEach(doc => {
-            const data = doc.data();
-            soldFromShards += (data.soldQuantity || 0);
-        });
-        // If sharded count exists, it overrides the document-level sold count
-        if (soldFromShards > 0) {
-            const totalCapacity = Number(tier.inventory?.totalQuantity ?? tier.totalQuantity ?? tier.quantity ?? tier.capacity ?? 0);
-            const sold = Number(tier.inventory?.soldQuantity ?? tier.soldQuantity ?? tier.sold ?? tier.soldCount ?? 0);
-            
-            let holdbackQuantity = 0;
-            if (tier.inventory?.holdbacks && Array.isArray(tier.inventory.holdbacks)) {
-                const now = new Date();
-                for (const h of tier.inventory.holdbacks) {
-                    if (h.expiresAt && new Date(h.expiresAt) < now) continue;
-                    holdbackQuantity += Number(h.quantity || 0);
-                }
-            }
+  // 3. Sharded counters (Functions mode) — authoritative sold count correction
+  if (db) {
+    let soldFromShards = 0;
+    const shardsRef = db
+      .collection('events')
+      .doc(event.id)
+      .collection('ticket_shards')
+      .where('tierId', '==', tier.id);
+    const snapshot = await shardsRef.get();
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      soldFromShards += data.soldQuantity || 0;
+    });
+    // If sharded count exists, it overrides the document-level sold count
+    if (soldFromShards > 0) {
+      const totalCapacity = Number(
+        tier.inventory?.totalQuantity ?? tier.totalQuantity ?? tier.quantity ?? tier.capacity ?? 0,
+      );
+      const sold = Number(
+        tier.inventory?.soldQuantity ?? tier.soldQuantity ?? tier.sold ?? tier.soldCount ?? 0,
+      );
 
-            remaining = Math.max(0, totalCapacity - (sold + soldFromShards) - holdbackQuantity);
+      let holdbackQuantity = 0;
+      if (tier.inventory?.holdbacks && Array.isArray(tier.inventory.holdbacks)) {
+        const now = new Date();
+        for (const h of tier.inventory.holdbacks) {
+          if (h.expiresAt && new Date(h.expiresAt) < now) continue;
+          holdbackQuantity += Number(h.quantity || 0);
         }
-    }
+      }
 
-    // 5. Subtract active cart reservations from Redis.
-    // strictMode = true (high-demand events): throw InventoryUnavailableError when Redis is down
-    //   so callers return 503 instead of overselling from stale Firestore counts.
-    // strictMode = false (default): fail-open to Firestore base count to avoid blocking all sales.
-    if (circuitIsOpen()) {
-        if (strictMode) throw new InventoryUnavailableError("Redis circuit open — cannot guarantee accurate inventory");
-        console.warn("[Inventory] Degraded mode: Redis circuit open, using Firestore base count only");
-        return Math.max(0, remaining);
+      remaining = Math.max(0, totalCapacity - (sold + soldFromShards) - holdbackQuantity);
     }
-    try {
-        const redis = getRedisClient();
-        if (redis && (redis.status === 'ready' || redis.status === 'connecting')) {
-            const tierResKey = `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`;
-            const activeResIds = await redis.smembers(tierResKey);
+  }
 
-            for (const resId of activeResIds) {
-                if (resId === excludeReservationId) continue;
-                const resData = await redis.get(`${REDIS_RES_PREFIX}${resId}`);
-                if (!resData) {
-                    redis.srem(tierResKey, resId).catch(() => { });
-                    continue;
-                }
-                const reservation = JSON.parse(resData);
-                const item = reservation.items.find(i => i.tierId === tier.id);
-                if (item) remaining -= item.quantity;
-            }
-            recordCircuitSuccess();
-        } else {
-            recordCircuitFailure();
-            if (strictMode) throw new InventoryUnavailableError("Redis not ready — cannot guarantee accurate inventory");
-            console.warn("[Inventory] Degraded mode: Redis client not ready, using Firestore base count only");
-            return Math.max(0, remaining);
-        }
-    } catch (e) {
-        if (e instanceof InventoryUnavailableError) throw e;
-        if (e instanceof InventoryReadError) throw e;
-        recordCircuitFailure();
-        if (strictMode) throw new InventoryUnavailableError(`Redis unavailable — cannot guarantee accurate inventory: ${e.message}`);
-        console.warn("[Inventory] Degraded mode: Redis unavailable, using Firestore base count only:", e.message);
-        return Math.max(0, remaining);
-    }
-
+  // 5. Subtract active cart reservations from Redis.
+  // strictMode = true (high-demand events): throw InventoryUnavailableError when Redis is down
+  //   so callers return 503 instead of overselling from stale Firestore counts.
+  // strictMode = false (default): fail-open to Firestore base count to avoid blocking all sales.
+  if (circuitIsOpen()) {
+    if (strictMode)
+      throw new InventoryUnavailableError(
+        'Redis circuit open — cannot guarantee accurate inventory',
+      );
+    console.warn('[Inventory] Degraded mode: Redis circuit open, using Firestore base count only');
     return Math.max(0, remaining);
+  }
+  try {
+    const redis = getRedisClient();
+    if (redis && (redis.status === 'ready' || redis.status === 'connecting')) {
+      const tierResKey = `${REDIS_TIER_RES_PREFIX}${event.id}:tier:${tier.id}`;
+      const activeResIds = await redis.smembers(tierResKey);
+
+      for (const resId of activeResIds) {
+        if (resId === excludeReservationId) continue;
+        const resData = await redis.get(`${REDIS_RES_PREFIX}${resId}`);
+        if (!resData) {
+          redis.srem(tierResKey, resId).catch(() => {});
+          continue;
+        }
+        const reservation = JSON.parse(resData);
+        const item = reservation.items.find((i) => i.tierId === tier.id);
+        if (item) remaining -= item.quantity;
+      }
+      recordCircuitSuccess();
+    } else {
+      recordCircuitFailure();
+      if (strictMode)
+        throw new InventoryUnavailableError(
+          'Redis not ready — cannot guarantee accurate inventory',
+        );
+      console.warn(
+        '[Inventory] Degraded mode: Redis client not ready, using Firestore base count only',
+      );
+      return Math.max(0, remaining);
+    }
+  } catch (e) {
+    if (e instanceof InventoryUnavailableError) throw e;
+    if (e instanceof InventoryReadError) throw e;
+    recordCircuitFailure();
+    if (strictMode)
+      throw new InventoryUnavailableError(
+        `Redis unavailable — cannot guarantee accurate inventory: ${e.message}`,
+      );
+    console.warn(
+      '[Inventory] Degraded mode: Redis unavailable, using Firestore base count only:',
+      e.message,
+    );
+    return Math.max(0, remaining);
+  }
+
+  return Math.max(0, remaining);
 }
 
 /**
  * Main availability and restriction check
  */
 export async function validatePurchase(event, items, options = {}) {
-    const {
-        timestamp = new Date(),
-        userId = null,
-        deviceId = null,
-        db = null, // Provide Firestore db instance for sharded check
-        strictMode = false // true = throw on Redis unavailability (high-demand events)
-    } = options;
+  const {
+    timestamp = new Date(),
+    userId = null,
+    deviceId = null,
+    db = null, // Provide Firestore db instance for sharded check
+    strictMode = false, // true = throw on Redis unavailability (high-demand events)
+  } = options;
 
-    const results = [];
-    let allValid = true;
+  const results = [];
+  let allValid = true;
 
-    for (const item of items) {
-        const tiers = event.ticketCatalog?.tiers || event.tickets || [];
-        const tier = tiers.find(t => t.id === item.tierId);
+  for (const item of items) {
+    const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+    const tier = tiers.find((t) => t.id === item.tierId);
 
-        if (!tier) {
-            results.push({ tierId: item.tierId, valid: false, error: 'Tier not found' });
-            allValid = false;
-            continue;
-        }
-
-        // 1. Sales Window Check
-        const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
-        const startsAt = new Date(tier.salesStart || tier.saleWindow?.startsAt || 0);
-        const endsAt = new Date(tier.salesEnd || tier.saleWindow?.endsAt || '2099-01-01');
-
-        if (now < startsAt) {
-            results.push({ tierId: tier.id, valid: false, error: `Sales haven't started` });
-            allValid = false;
-            continue;
-        }
-        if (now > endsAt) {
-            results.push({ tierId: tier.id, valid: false, error: `Sales have ended` });
-            allValid = false;
-            continue;
-        }
-
-        // 2. Inventory Check
-        const available = await calculateEffectiveInventory(tier, event, null, db, strictMode);
-        if (item.quantity > available) {
-            results.push({ tierId: tier.id, valid: false, error: `Only ${available} left` });
-            allValid = false;
-            continue;
-        }
-
-        // 3. Purchase Limit Check (Simpified for MVP)
-        const maxPerOrder = tier.limits?.maxPerOrder || 10;
-        if (item.quantity > maxPerOrder) {
-            results.push({ tierId: tier.id, valid: false, error: `Max ${maxPerOrder} per order` });
-            allValid = false;
-            continue;
-        }
-
-        results.push({ tierId: tier.id, valid: true, available });
+    if (!tier) {
+      results.push({ tierId: item.tierId, valid: false, error: 'Tier not found' });
+      allValid = false;
+      continue;
     }
 
-    return { success: allValid, items: results };
+    // 1. Sales Window Check
+    const now = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    const startsAt = new Date(tier.salesStart || tier.saleWindow?.startsAt || 0);
+    const endsAt = new Date(tier.salesEnd || tier.saleWindow?.endsAt || '2099-01-01');
+
+    if (now < startsAt) {
+      results.push({ tierId: tier.id, valid: false, error: `Sales haven't started` });
+      allValid = false;
+      continue;
+    }
+    if (now > endsAt) {
+      results.push({ tierId: tier.id, valid: false, error: `Sales have ended` });
+      allValid = false;
+      continue;
+    }
+
+    // 2. Inventory Check
+    const available = await calculateEffectiveInventory(tier, event, null, db, strictMode);
+    if (item.quantity > available) {
+      results.push({ tierId: tier.id, valid: false, error: `Only ${available} left` });
+      allValid = false;
+      continue;
+    }
+
+    // 3. Purchase Limit Check (Simpified for MVP)
+    const maxPerOrder = tier.limits?.maxPerOrder || 10;
+    if (item.quantity > maxPerOrder) {
+      results.push({ tierId: tier.id, valid: false, error: `Max ${maxPerOrder} per order` });
+      allValid = false;
+      continue;
+    }
+
+    results.push({ tierId: tier.id, valid: true, available });
+  }
+
+  return { success: allValid, items: results };
 }
 
 /**
  * Create a cart reservation with REDIS ATOMICITY
  */
 export async function createReservation(event, customerId, deviceId, items, options = {}) {
-    const { reservationMinutes = DEFAULT_RESERVATION_MINUTES } = options;
-    const redis = getRedisClient();
-    const reservationId = randomUUID();
-    const ttlSeconds = reservationMinutes * 60;
-    const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  const { reservationMinutes = DEFAULT_RESERVATION_MINUTES } = options;
+  const redis = getRedisClient();
+  const reservationId = randomUUID();
+  const ttlSeconds = reservationMinutes * 60;
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
 
-    if (!redis) {
-        throw new InventoryUnavailableError("Redis is required for reservation creation — not available");
+  if (!redis) {
+    throw new InventoryUnavailableError(
+      'Redis is required for reservation creation — not available',
+    );
+  }
+  if (circuitIsOpen()) {
+    throw new InventoryUnavailableError('Redis circuit is open — reservation creation suspended');
+  }
+
+  // Mutex Lock — fail-closed: never proceed without the lock
+  const lockKey = `inv:lock:${event.id}`;
+  let acquiredLock = false;
+  try {
+    acquiredLock = await redis.set(lockKey, 'locked', 'NX', 'EX', 5);
+    if (!acquiredLock) {
+      throw new Error('System busy, please retry in 1s');
     }
-    if (circuitIsOpen()) {
-        throw new InventoryUnavailableError("Redis circuit is open — reservation creation suspended");
-    }
+  } catch (e) {
+    if (e.message.includes('System busy')) throw e;
+    recordCircuitFailure();
+    throw new LockAcquisitionError(`Redis lock acquisition failed: ${e.message}`);
+  }
 
-    // Mutex Lock — fail-closed: never proceed without the lock
-    const lockKey = `inv:lock:${event.id}`;
-    let acquiredLock = false;
-    try {
-        acquiredLock = await redis.set(lockKey, "locked", "NX", "EX", 5);
-        if (!acquiredLock) {
-            throw new Error("System busy, please retry in 1s");
-        }
-    } catch (e) {
-        if (e.message.includes("System busy")) throw e;
-        recordCircuitFailure();
-        throw new LockAcquisitionError(`Redis lock acquisition failed: ${e.message}`);
-    }
+  try {
+    // 0. Per-user reservation cap: one active reservation per user per event
+    if (customerId && customerId !== 'anonymous') {
+      const userResKey = `res:user:${customerId}:event:${event.id}`;
+      try {
+        const existingResIds = await redis.smembers(userResKey);
+        for (const existingId of existingResIds) {
+          const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
+          if (existingData) {
+            const existingReservation = JSON.parse(existingData);
 
-    try {
-        // 0. Per-user reservation cap: one active reservation per user per event
-        if (customerId && customerId !== 'anonymous') {
-            const userResKey = `res:user:${customerId}:event:${event.id}`;
-            try {
-                const existingResIds = await redis.smembers(userResKey);
-                for (const existingId of existingResIds) {
-                    const existingData = await redis.get(`${REDIS_RES_PREFIX}${existingId}`);
-                    if (existingData) {
-                        const existingReservation = JSON.parse(existingData);
-
-                        if (isReservationUsable(existingReservation) && reservationItemsMatch(existingReservation.items, items)) {
-                            return {
-                                success: true,
-                                reservationId: existingReservation.id,
-                                items: existingReservation.items,
-                                expiresAt: existingReservation.expiresAt,
-                                expiresInSeconds: Math.max(
-                                    0,
-                                    Math.floor((new Date(existingReservation.expiresAt) - new Date()) / 1000)
-                                )
-                            };
-                        }
-
-                        await removeTrackedReservation(redis, existingId, existingReservation, userResKey);
-                        continue;
-                    }
-
-                    // Stale entry from an expired reservation — remove it
-                    await redis.srem(userResKey, existingId).catch(() => {});
-                }
-            } catch (e) {
-                console.warn("[Redis] Per-user check failed, skipping:", e.message);
+            if (
+              isReservationUsable(existingReservation) &&
+              reservationItemsMatch(existingReservation.items, items)
+            ) {
+              return {
+                success: true,
+                reservationId: existingReservation.id,
+                items: existingReservation.items,
+                expiresAt: existingReservation.expiresAt,
+                expiresInSeconds: Math.max(
+                  0,
+                  Math.floor((new Date(existingReservation.expiresAt) - new Date()) / 1000),
+                ),
+              };
             }
-        }
 
-        // 1. Double-check availability under lock
-        // strictInventory on the event doc opts this event into fail-closed Redis behaviour
-        const strictMode = !!(event.strictInventory || options.strictMode);
-        const validation = await validatePurchase(event, items, { strictMode });
-        if (!validation.success) {
-            const errors = validation.items.filter(i => !i.valid).map(i => i.error);
-            throw new Error(errors.join(', '));
-        }
+            await removeTrackedReservation(redis, existingId, existingReservation, userResKey);
+            continue;
+          }
 
-        // 2. Commit to Redis
-        const reservation = {
-            id: reservationId,
-            eventId: event.id,
-            customerId,
-            deviceId,
-            items: items.map(i => ({ tierId: i.tierId, quantity: i.quantity })),
-            status: 'active',
-            createdAt: new Date().toISOString(),
-            expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString()
-        };
-
-        const multi = redis.multi();
-        multi.set(`${REDIS_RES_PREFIX}${reservationId}`, JSON.stringify(reservation), "EX", ttlSeconds);
-        for (const item of items) {
-            multi.sadd(`${REDIS_TIER_RES_PREFIX}${event.id}:tier:${item.tierId}`, reservationId);
+          // Stale entry from an expired reservation — remove it
+          await redis.srem(userResKey, existingId).catch(() => {});
         }
-        // Track per-user active reservation for this event (same TTL as reservation)
-        if (customerId && customerId !== 'anonymous') {
-            const userResKey = `res:user:${customerId}:event:${event.id}`;
-            multi.sadd(userResKey, reservationId);
-            multi.expire(userResKey, ttlSeconds);
-        }
-        try {
-            await multi.exec();
-            recordCircuitSuccess();
-        } catch (e) {
-            recordCircuitFailure();
-            throw new ReservationCommitError(`Redis multi-exec failed — reservation not tracked: ${e.message}`);
-        }
-
-        return { success: true, reservationId, expiresAt: reservation.expiresAt };
-    } finally {
-        try {
-            await redis.del(lockKey);
-        } catch (e) {
-            // Lock TTL is 5s so it will expire naturally; log but don't throw from finally
-            console.warn("[Redis] Failed to release inventory lock (will expire in 5s):", e.message);
-        }
+      } catch (e) {
+        console.warn('[Redis] Per-user check failed, skipping:', e.message);
+      }
     }
+
+    // 1. Double-check availability under lock
+    // strictInventory on the event doc opts this event into fail-closed Redis behaviour
+    const strictMode = !!(event.strictInventory || options.strictMode);
+    const validation = await validatePurchase(event, items, { strictMode });
+    if (!validation.success) {
+      const errors = validation.items.filter((i) => !i.valid).map((i) => i.error);
+      throw new Error(errors.join(', '));
+    }
+
+    // 2. Commit to Redis
+    const reservation = {
+      id: reservationId,
+      eventId: event.id,
+      customerId,
+      deviceId,
+      items: items.map((i) => ({ tierId: i.tierId, quantity: i.quantity })),
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+    };
+
+    const multi = redis.multi();
+    multi.set(`${REDIS_RES_PREFIX}${reservationId}`, JSON.stringify(reservation), 'EX', ttlSeconds);
+    for (const item of items) {
+      multi.sadd(`${REDIS_TIER_RES_PREFIX}${event.id}:tier:${item.tierId}`, reservationId);
+    }
+    // Track per-user active reservation for this event (same TTL as reservation)
+    if (customerId && customerId !== 'anonymous') {
+      const userResKey = `res:user:${customerId}:event:${event.id}`;
+      multi.sadd(userResKey, reservationId);
+      multi.expire(userResKey, ttlSeconds);
+    }
+    try {
+      await multi.exec();
+      recordCircuitSuccess();
+    } catch (e) {
+      recordCircuitFailure();
+      throw new ReservationCommitError(
+        `Redis multi-exec failed — reservation not tracked: ${e.message}`,
+      );
+    }
+
+    return { success: true, reservationId, expiresAt: reservation.expiresAt };
+  } finally {
+    try {
+      await redis.del(lockKey);
+    } catch (e) {
+      // Lock TTL is 5s so it will expire naturally; log but don't throw from finally
+      console.warn('[Redis] Failed to release inventory lock (will expire in 5s):', e.message);
+    }
+  }
 }
 
 /**
  * Release a cart reservation
  */
 export async function releaseReservation(reservationId) {
-    const redis = getRedisClient();
-    if (!redis) return { success: false };
+  const redis = getRedisClient();
+  if (!redis) return { success: false };
 
-    const resKey = `${REDIS_RES_PREFIX}${reservationId}`;
-    const resData = await redis.get(resKey);
-    if (!resData) return { success: false, error: 'Not found' };
+  const resKey = `${REDIS_RES_PREFIX}${reservationId}`;
+  const resData = await redis.get(resKey);
+  if (!resData) return { success: false, error: 'Not found' };
 
-    const reservation = JSON.parse(resData);
-    const multi = redis.multi();
-    multi.del(resKey);
-    for (const item of reservation.items) {
-        multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
-    }
-    // Clean up per-user reservation tracking
-    if (reservation.customerId && reservation.customerId !== 'anonymous') {
-        multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
-    }
-    try {
-        await multi.exec();
-    } catch (e) {
-        console.warn("[Redis] Multi-exec failed in releaseReservation:", e.message);
-    }
-    return { success: true };
+  const reservation = JSON.parse(resData);
+  const multi = redis.multi();
+  multi.del(resKey);
+  for (const item of reservation.items) {
+    multi.srem(`${REDIS_TIER_RES_PREFIX}${reservation.eventId}:tier:${item.tierId}`, reservationId);
+  }
+  // Clean up per-user reservation tracking
+  if (reservation.customerId && reservation.customerId !== 'anonymous') {
+    multi.srem(`res:user:${reservation.customerId}:event:${reservation.eventId}`, reservationId);
+  }
+  try {
+    await multi.exec();
+  } catch (e) {
+    console.warn('[Redis] Multi-exec failed in releaseReservation:', e.message);
+  }
+  return { success: true };
 }
 
 /**
@@ -462,66 +504,71 @@ export async function releaseReservation(reservationId) {
  * Handles both sharded and standard Firestore structures.
  */
 export async function commitInventory(transaction, { event, items, reservationId = null }) {
-    const db = getAdminDb();
-    const eventRef = db.collection('events').doc(event.id);
-    const updatedTickets = [...(event.tickets || event.ticketCatalog?.tiers || [])];
-    const shardReads = [];
+  const db = getAdminDb();
+  const eventRef = db.collection('events').doc(event.id);
+  const updatedTickets = [...(event.tickets || event.ticketCatalog?.tiers || [])];
+  const shardReads = [];
 
-    for (const item of items) {
-        const ticketIndex = updatedTickets.findIndex(t => t.id === item.ticketId || t.id === item.tierId);
-        if (ticketIndex === -1) continue;
+  for (const item of items) {
+    const ticketIndex = updatedTickets.findIndex(
+      (t) => t.id === item.ticketId || t.id === item.tierId,
+    );
+    if (ticketIndex === -1) continue;
 
-        const tier = updatedTickets[ticketIndex];
-        const quantity = Number(item.quantity);
+    const tier = updatedTickets[ticketIndex];
+    const quantity = Number(item.quantity);
 
-        // Check for Sharded Counter sub-collection
-        const shardsRef = eventRef.collection('ticket_shards');
-        const shardsExist = (await transaction.get(shardsRef.limit(1))).size > 0;
+    // Check for Sharded Counter sub-collection
+    const shardsRef = eventRef.collection('ticket_shards');
+    const shardsExist = (await transaction.get(shardsRef.limit(1))).size > 0;
 
-        if (shardsExist) {
-            // Pick a random shard (or use same shard as reservation if we tracked it)
-            // For now, simpler random shard for 'sold' increment
-            const shardId = Math.floor(Math.random() * 10).toString();
-            const shardRef = shardsRef.doc(`${tier.id}_${shardId}`);
-            const shardDoc = await transaction.get(shardRef);
-            shardReads.push({ shardRef, shardDoc, quantity });
-        } else {
-            // Standard update
-            if (reservationId) {
-                updatedTickets[ticketIndex] = {
-                    ...tier,
-                    remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity),
-                    lockedQuantity: Math.max(0, (tier.lockedQuantity || 0) - quantity)
-                };
-            } else {
-                updatedTickets[ticketIndex] = {
-                    ...tier,
-                    remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity)
-                };
-            }
-        }
-    }
-
-    for (const { shardRef, shardDoc, quantity } of shardReads) {
-        if (reservationId && shardDoc.exists) {
-            transaction.update(shardRef, {
-                lockedQuantity: Math.max(0, (shardDoc.data().lockedQuantity || 0) - quantity),
-                soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
-                updatedAt: new Date().toISOString()
-            });
-        } else {
-            transaction.update(shardRef, {
-                soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
-                updatedAt: new Date().toISOString()
-            });
-        }
-    }
-
-    if (event.ticketCatalog) {
-        transaction.update(eventRef, { 'ticketCatalog.tiers': updatedTickets, updatedAt: new Date().toISOString() });
+    if (shardsExist) {
+      // Pick a random shard (or use same shard as reservation if we tracked it)
+      // For now, simpler random shard for 'sold' increment
+      const shardId = Math.floor(Math.random() * 10).toString();
+      const shardRef = shardsRef.doc(`${tier.id}_${shardId}`);
+      const shardDoc = await transaction.get(shardRef);
+      shardReads.push({ shardRef, shardDoc, quantity });
     } else {
-        transaction.update(eventRef, { tickets: updatedTickets, updatedAt: new Date().toISOString() });
+      // Standard update
+      if (reservationId) {
+        updatedTickets[ticketIndex] = {
+          ...tier,
+          remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity),
+          lockedQuantity: Math.max(0, (tier.lockedQuantity || 0) - quantity),
+        };
+      } else {
+        updatedTickets[ticketIndex] = {
+          ...tier,
+          remaining: Math.max(0, (tier.remaining ?? tier.quantity) - quantity),
+        };
+      }
     }
+  }
+
+  for (const { shardRef, shardDoc, quantity } of shardReads) {
+    if (reservationId && shardDoc.exists) {
+      transaction.update(shardRef, {
+        lockedQuantity: Math.max(0, (shardDoc.data().lockedQuantity || 0) - quantity),
+        soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      transaction.update(shardRef, {
+        soldQuantity: (shardDoc.data().soldQuantity || 0) + quantity,
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  if (event.ticketCatalog) {
+    transaction.update(eventRef, {
+      'ticketCatalog.tiers': updatedTickets,
+      updatedAt: new Date().toISOString(),
+    });
+  } else {
+    transaction.update(eventRef, { tickets: updatedTickets, updatedAt: new Date().toISOString() });
+  }
 }
 
 /**
@@ -530,37 +577,40 @@ export async function commitInventory(transaction, { event, items, reservationId
  * Throws if the tier is sold out.
  */
 export async function deductInventory(transaction, db, eventId, tierId, quantity) {
-    const eventRef = db.collection('events').doc(eventId);
-    const eDoc = await transaction.get(eventRef);
-    if (!eDoc.exists) return;
+  const eventRef = db.collection('events').doc(eventId);
+  const eDoc = await transaction.get(eventRef);
+  if (!eDoc.exists) return;
 
-    const eData = eDoc.data();
-    const isCatalog = !!eData.ticketCatalog;
-    const tiers = isCatalog ? [...(eData.ticketCatalog.tiers || [])] : [...(eData.tickets || [])];
-    const tIdx = tiers.findIndex(t => t.id === tierId);
-    if (tIdx === -1) return;
+  const eData = eDoc.data();
+  const isCatalog = !!eData.ticketCatalog;
+  const tiers = isCatalog ? [...(eData.ticketCatalog.tiers || [])] : [...(eData.tickets || [])];
+  const tIdx = tiers.findIndex((t) => t.id === tierId);
+  if (tIdx === -1) return;
 
-    const currentRem = Number(tiers[tIdx].remaining ?? tiers[tIdx].quantity) || 0;
-    if (currentRem <= 0) throw new Error("This ticket tier is now sold out");
+  const currentRem = Number(tiers[tIdx].remaining ?? tiers[tIdx].quantity) || 0;
+  if (currentRem <= 0) throw new Error('This ticket tier is now sold out');
 
-    tiers[tIdx] = { ...tiers[tIdx], remaining: currentRem - quantity };
+  tiers[tIdx] = { ...tiers[tIdx], remaining: currentRem - quantity };
 
-    if (isCatalog) {
-        transaction.update(eventRef, { 'ticketCatalog.tiers': tiers, updatedAt: new Date().toISOString() });
-    } else {
-        transaction.update(eventRef, { tickets: tiers, updatedAt: new Date().toISOString() });
-    }
+  if (isCatalog) {
+    transaction.update(eventRef, {
+      'ticketCatalog.tiers': tiers,
+      updatedAt: new Date().toISOString(),
+    });
+  } else {
+    transaction.update(eventRef, { tickets: tiers, updatedAt: new Date().toISOString() });
+  }
 }
 
 export default {
-    calculateEffectiveInventory,
-    validatePurchase,
-    createReservation,
-    releaseReservation,
-    commitInventory,
-    deductInventory,
-    InventoryUnavailableError,
-    LockAcquisitionError,
-    ReservationCommitError,
-    InventoryReadError,
+  calculateEffectiveInventory,
+  validatePurchase,
+  createReservation,
+  releaseReservation,
+  commitInventory,
+  deductInventory,
+  InventoryUnavailableError,
+  LockAcquisitionError,
+  ReservationCommitError,
+  InventoryReadError,
 };

@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
 /**
  * Intent Store Utility
  * Persists user actions that were interrupted by auth requirements.
  */
 
-const INTENT_KEY = "posh_user_intent";
+const INTENT_KEY = 'posh_user_intent';
 
 export const saveIntent = (type, eventId, payload = {}, returnUrl = null) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   const intent = {
     type, // "LIKE" | "RSVP" | "BOOK"
     eventId,
@@ -20,7 +20,7 @@ export const saveIntent = (type, eventId, payload = {}, returnUrl = null) => {
 };
 
 export const getIntent = () => {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   const data = sessionStorage.getItem(INTENT_KEY);
   if (!data) return null;
   try {
@@ -31,6 +31,6 @@ export const getIntent = () => {
 };
 
 export const clearIntent = () => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   sessionStorage.removeItem(INTENT_KEY);
 };

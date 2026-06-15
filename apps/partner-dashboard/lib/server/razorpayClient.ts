@@ -11,19 +11,19 @@
  * Razorpay API docs: https://razorpay.com/docs/api/orders/
  */
 
-const RAZORPAY_BASE_URL = "https://api.razorpay.com/v1";
+const RAZORPAY_BASE_URL = 'https://api.razorpay.com/v1';
 
 /** Returns the Basic Auth header value: "Basic base64(key_id:key_secret)" */
 function getAuthHeader(): string {
-    const keyId     = process.env.RAZORPAY_KEY_ID;
-    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
 
-    if (!keyId || !keySecret) {
-        throw new Error("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set");
-    }
+  if (!keyId || !keySecret) {
+    throw new Error('RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET must be set');
+  }
 
-    const credentials = Buffer.from(`${keyId}:${keySecret}`).toString("base64");
-    return `Basic ${credentials}`;
+  const credentials = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+  return `Basic ${credentials}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -31,24 +31,24 @@ function getAuthHeader(): string {
 // ---------------------------------------------------------------------------
 
 export interface RazorpayOrderCreateParams {
-    /** Amount in PAISE (smallest currency unit). e.g. ₹500 = 50000 paise */
-    amount: number;
-    currency?: string;          // defaults to "INR"
-    receipt: string;            // our reservationId — used for idempotency
-    notes?: Record<string, string>;
+  /** Amount in PAISE (smallest currency unit). e.g. ₹500 = 50000 paise */
+  amount: number;
+  currency?: string; // defaults to "INR"
+  receipt: string; // our reservationId — used for idempotency
+  notes?: Record<string, string>;
 }
 
 export interface RazorpayOrder {
-    id: string;                 // "order_xxxxx" — sent to frontend for Razorpay.js
-    entity: string;             // "order"
-    amount: number;             // paise
-    amount_paid: number;
-    amount_due: number;
-    currency: string;
-    receipt: string;            // mirrors what we sent (= reservationId)
-    status: "created" | "attempted" | "paid";
-    attempts: number;
-    created_at: number;         // Unix timestamp
+  id: string; // "order_xxxxx" — sent to frontend for Razorpay.js
+  entity: string; // "order"
+  amount: number; // paise
+  amount_paid: number;
+  amount_due: number;
+  currency: string;
+  receipt: string; // mirrors what we sent (= reservationId)
+  status: 'created' | 'attempted' | 'paid';
+  attempts: number;
+  created_at: number; // Unix timestamp
 }
 
 // ---------------------------------------------------------------------------
@@ -68,31 +68,31 @@ export interface RazorpayOrder {
  * Throws on non-2xx responses with the Razorpay error description.
  */
 export async function createRazorpayOrder(
-    params: RazorpayOrderCreateParams
+  params: RazorpayOrderCreateParams,
 ): Promise<RazorpayOrder> {
-    const body = {
-        amount:   params.amount,
-        currency: params.currency ?? "INR",
-        receipt:  params.receipt,
-        notes:    params.notes ?? {},
-    };
+  const body = {
+    amount: params.amount,
+    currency: params.currency ?? 'INR',
+    receipt: params.receipt,
+    notes: params.notes ?? {},
+  };
 
-    const response = await fetch(`${RAZORPAY_BASE_URL}/orders`, {
-        method: "POST",
-        headers: {
-            "Content-Type":  "application/json",
-            "Authorization": getAuthHeader(),
-        },
-        body: JSON.stringify(body),
-    });
+  const response = await fetch(`${RAZORPAY_BASE_URL}/orders`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: getAuthHeader(),
+    },
+    body: JSON.stringify(body),
+  });
 
-    const data = await response.json();
+  const data = await response.json();
 
-    if (!response.ok) {
-        // Razorpay error shape: { error: { code, description, reason, ... } }
-        const description = data?.error?.description || `Razorpay API error ${response.status}`;
-        throw new Error(description);
-    }
+  if (!response.ok) {
+    // Razorpay error shape: { error: { code, description, reason, ... } }
+    const description = data?.error?.description || `Razorpay API error ${response.status}`;
+    throw new Error(description);
+  }
 
-    return data as RazorpayOrder;
+  return data as RazorpayOrder;
 }

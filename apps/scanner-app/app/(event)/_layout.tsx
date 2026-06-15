@@ -1,7 +1,7 @@
-import { Tabs, Redirect } from "expo-router";
-import { View, Text } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { useEvent } from "@/store/eventContext";
+import { Tabs, Redirect } from 'expo-router';
+import { View, Text } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useEvent } from '@/store/eventContext';
 
 export default function EventLayout() {
   const { isAuthenticated, eventData } = useEvent();
@@ -20,7 +20,7 @@ export default function EventLayout() {
             {eventData?.event.title}
           </Text>
           <Text className="text-text-secondary text-sm">
-            {eventData?.event.venue} • {eventData?.gate || "All Gates"}
+            {eventData?.event.venue} • {eventData?.gate || 'All Gates'}
           </Text>
         </View>
         <View className="bg-success/20 px-3 py-1 rounded-full">
@@ -33,32 +33,32 @@ export default function EventLayout() {
         screenOptions={{
           headerShown: false,
           tabBarStyle: {
-            backgroundColor: "#141416",
-            borderTopColor: "#27272A",
+            backgroundColor: '#141416',
+            borderTopColor: '#27272A',
             borderTopWidth: 1,
             height: 80,
             paddingBottom: 20,
             paddingTop: 10,
           },
-          tabBarActiveTintColor: "#6366F1",
-          tabBarInactiveTintColor: "#71717A",
+          tabBarActiveTintColor: '#6366F1',
+          tabBarInactiveTintColor: '#71717A',
           tabBarLabelStyle: {
             fontSize: 12,
-            fontWeight: "600",
+            fontWeight: '600',
           },
         }}
       >
         <Tabs.Screen
           name="scan"
           options={{
-            title: "Scan",
+            title: 'Scan',
             tabBarIcon: ({ color, size }) => <Ionicons name="qr-code" size={size} color={color} />,
           }}
         />
         <Tabs.Screen
           name="door-entry"
           options={{
-            title: "Door Entry",
+            title: 'Door Entry',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="person-add" size={size} color={color} />
             ),
@@ -67,7 +67,7 @@ export default function EventLayout() {
         <Tabs.Screen
           name="stats"
           options={{
-            title: "Stats",
+            title: 'Stats',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="stats-chart" size={size} color={color} />
             ),
@@ -76,7 +76,7 @@ export default function EventLayout() {
         <Tabs.Screen
           name="guestlist"
           options={{
-            title: "Guests",
+            title: 'Guests',
             tabBarIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
           }}
         />

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 export default function Toggle({ label, value, onChange }) {
   return (
@@ -10,12 +10,12 @@ export default function Toggle({ label, value, onChange }) {
       <span className="uppercase tracking-[0.3em] text-[11px]">{label}</span>
       <span
         className={`relative inline-flex h-6 w-12 items-center rounded-full transition ${
-          value ? "bg-white" : "bg-white/20"
+          value ? 'bg-white' : 'bg-white/20'
         }`}
       >
         <span
           className={`inline-block h-5 w-5 transform rounded-full bg-black transition ${
-            value ? "translate-x-6" : "translate-x-1"
+            value ? 'translate-x-6' : 'translate-x-1'
           }`}
         />
       </span>

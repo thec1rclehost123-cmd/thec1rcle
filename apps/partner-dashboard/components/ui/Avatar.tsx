@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import { cn } from '@/lib/utils';
 
 /**
  * Avatar Component — User Representation
@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
  * Clean, simple, no decorative gradients.
  */
 
-type AvatarSize = "xs" | "sm" | "md" | "lg";
+type AvatarSize = 'xs' | 'sm' | 'md' | 'lg';
 
 const sizeMap: Record<AvatarSize, string> = {
-  xs: "h-7 w-7 text-[10px]",
-  sm: "h-8 w-8 text-[11px]",
-  md: "h-10 w-10 text-[13px]",
-  lg: "h-14 w-14 text-[16px]",
+  xs: 'h-7 w-7 text-[10px]',
+  sm: 'h-8 w-8 text-[11px]',
+  md: 'h-10 w-10 text-[13px]',
+  lg: 'h-14 w-14 text-[16px]',
 };
 
 export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -22,27 +22,27 @@ export interface AvatarProps extends React.HTMLAttributes<HTMLDivElement> {
   size?: AvatarSize;
 }
 
-export const Avatar = ({ src, alt = "", name, size = "md", className, ...rest }: AvatarProps) => {
+export const Avatar = ({ src, alt = '', name, size = 'md', className, ...rest }: AvatarProps) => {
   const initials = name
-    ?.split(" ")
+    ?.split(' ')
     .map((n) => n[0])
     .slice(0, 2)
-    .join("")
+    .join('')
     .toUpperCase();
 
   return (
     <div
       className={cn(
-        "relative overflow-hidden flex items-center justify-center rounded-full bg-surface-secondary text-stone-600 font-medium",
+        'relative overflow-hidden flex items-center justify-center rounded-full bg-surface-secondary text-stone-600 font-medium',
         sizeMap[size],
         className,
       )}
       {...rest}
     >
       {src ? (
-        <img src={src} alt={alt || name || "Avatar"} className="h-full w-full object-cover" />
+        <img src={src} alt={alt || name || 'Avatar'} className="h-full w-full object-cover" />
       ) : (
-        <span>{initials || "?"}</span>
+        <span>{initials || '?'}</span>
       )}
     </div>
   );

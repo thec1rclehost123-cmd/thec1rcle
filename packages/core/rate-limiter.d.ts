@@ -5,11 +5,16 @@
  * @param {boolean} [failClosed=false]
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number }>}
  */
-export function checkRateLimit(key: string, limit?: number | undefined, windowSeconds?: number | undefined, failClosed?: boolean | undefined): Promise<{
-    success: boolean;
-    limit: number;
-    remaining: number;
-    reset: number;
+export function checkRateLimit(
+  key: string,
+  limit?: number | undefined,
+  windowSeconds?: number | undefined,
+  failClosed?: boolean | undefined,
+): Promise<{
+  success: boolean;
+  limit: number;
+  remaining: number;
+  reset: number;
 }>;
 /**
  * Rate limit with automatic limit adjustment based on reputation score.
@@ -23,11 +28,18 @@ export function checkRateLimit(key: string, limit?: number | undefined, windowSe
  * @param {boolean}                 [failClosed=false]
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number, tier: string }>}
  */
-export function checkAdaptiveRateLimit(key: string, baseLimit: number, windowSeconds: number, reputationType: "ip" | "user" | "admin", reputationId: string, failClosed?: boolean | undefined): Promise<{
-    success: boolean;
-    limit: number;
-    remaining: number;
-    reset: number;
-    tier: string;
+export function checkAdaptiveRateLimit(
+  key: string,
+  baseLimit: number,
+  windowSeconds: number,
+  reputationType: 'ip' | 'user' | 'admin',
+  reputationId: string,
+  failClosed?: boolean | undefined,
+): Promise<{
+  success: boolean;
+  limit: number;
+  remaining: number;
+  reset: number;
+  tier: string;
 }>;
 export function clearRateLimit(key: any): Promise<void>;

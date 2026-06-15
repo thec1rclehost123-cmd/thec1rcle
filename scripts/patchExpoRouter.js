@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require('fs');
+const path = require('path');
 
 /**
  * React 18 (web apps) vs React 19 (mobile) version conflict prevents npm from
@@ -7,31 +7,31 @@ const path = require("path");
  * @expo/cli and @expo/metro-config need to find them. Create symlinks so they
  * can. These are safe because nothing else at root depends on these packages.
  */
-const rootNodeModules = path.join(__dirname, "..", "node_modules");
-const mobileNodeModules = path.join(__dirname, "..", "apps", "mobile-app", "node_modules");
+const rootNodeModules = path.join(__dirname, '..', 'node_modules');
+const mobileNodeModules = path.join(__dirname, '..', 'apps', 'mobile-app', 'node_modules');
 
-const MOBILE_SYMLINKS = ["expo", "expo-router", "react-native"];
+const MOBILE_SYMLINKS = ['expo', 'expo-router', 'react-native'];
 
 for (const pkg of MOBILE_SYMLINKS) {
-    const target = path.join(mobileNodeModules, pkg);
-    const linkPath = path.join(rootNodeModules, pkg);
+  const target = path.join(mobileNodeModules, pkg);
+  const linkPath = path.join(rootNodeModules, pkg);
 
-    if (!fs.existsSync(target)) continue; // mobile-app not installed yet
-    if (fs.existsSync(linkPath)) {
-        // Skip if it's already the correct symlink or a real directory installed by npm
-        const stat = fs.lstatSync(linkPath);
-        if (stat.isSymbolicLink()) continue; // already symlinked, leave it
-        // Real directory — npm installed it; don't overwrite
-        continue;
-    }
+  if (!fs.existsSync(target)) continue; // mobile-app not installed yet
+  if (fs.existsSync(linkPath)) {
+    // Skip if it's already the correct symlink or a real directory installed by npm
+    const stat = fs.lstatSync(linkPath);
+    if (stat.isSymbolicLink()) continue; // already symlinked, leave it
+    // Real directory — npm installed it; don't overwrite
+    continue;
+  }
 
-    try {
-        fs.symlinkSync(target, linkPath, "junction");
-        console.log(`[postinstall] Symlinked ${pkg} → apps/mobile-app/node_modules/${pkg}`);
-    } catch (e) {
-        // Non-fatal: symlink may already exist in a different form
-        console.warn(`[postinstall] Could not symlink ${pkg}: ${e.message}`);
-    }
+  try {
+    fs.symlinkSync(target, linkPath, 'junction');
+    console.log(`[postinstall] Symlinked ${pkg} → apps/mobile-app/node_modules/${pkg}`);
+  } catch (e) {
+    // Non-fatal: symlink may already exist in a different form
+    console.warn(`[postinstall] Could not symlink ${pkg}: ${e.message}`);
+  }
 }
 
 /**
@@ -71,49 +71,53 @@ module.exports = {
 `;
 
 const candidates = [
-    path.join(__dirname, "..", "node_modules", "expo-router"),
-    path.join(__dirname, "..", "apps", "mobile-app", "node_modules", "expo-router"),
+  path.join(__dirname, '..', 'node_modules', 'expo-router'),
+  path.join(__dirname, '..', 'apps', 'mobile-app', 'node_modules', 'expo-router'),
 ];
 
 let patched = 0;
 
 for (const routerDir of candidates) {
-    const packageJsonPath = path.join(routerDir, "package.json");
-    if (!fs.existsSync(packageJsonPath)) {
-        continue;
-    }
+  const packageJsonPath = path.join(routerDir, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    continue;
+  }
 
-    const version = JSON.parse(fs.readFileSync(packageJsonPath, "utf8")).version || "";
-    const major = Number(version.split(".")[0]);
-    const shimDir = path.join(routerDir, "internal");
+  const version = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')).version || '';
+  const major = Number(version.split('.')[0]);
+  const shimDir = path.join(routerDir, 'internal');
 
-    if (major === 5) {
-        const shimFile = path.join(shimDir, "routing.js");
-        if (fs.existsSync(shimFile)) continue;
-        fs.mkdirSync(shimDir, { recursive: true });
-        fs.writeFileSync(shimFile, V5_ROUTING_SHIM);
-        patched += 1;
-        console.log(`[postinstall] Patched expo-router v5 internal/routing in ${path.relative(path.join(__dirname, ".."), routerDir)}`);
-    } else if (major === 6) {
-        let didPatch = false;
-        const routingFile = path.join(shimDir, "routing.js");
-        const testingFile = path.join(shimDir, "testing.js");
-        fs.mkdirSync(shimDir, { recursive: true });
-        if (!fs.existsSync(routingFile)) {
-            fs.writeFileSync(routingFile, V6_ROUTING_SHIM);
-            didPatch = true;
-        }
-        if (!fs.existsSync(testingFile)) {
-            fs.writeFileSync(testingFile, V6_TESTING_SHIM);
-            didPatch = true;
-        }
-        if (didPatch) {
-            patched += 1;
-            console.log(`[postinstall] Patched expo-router v6 internal/ shims in ${path.relative(path.join(__dirname, ".."), routerDir)}`);
-        }
+  if (major === 5) {
+    const shimFile = path.join(shimDir, 'routing.js');
+    if (fs.existsSync(shimFile)) continue;
+    fs.mkdirSync(shimDir, { recursive: true });
+    fs.writeFileSync(shimFile, V5_ROUTING_SHIM);
+    patched += 1;
+    console.log(
+      `[postinstall] Patched expo-router v5 internal/routing in ${path.relative(path.join(__dirname, '..'), routerDir)}`,
+    );
+  } else if (major === 6) {
+    let didPatch = false;
+    const routingFile = path.join(shimDir, 'routing.js');
+    const testingFile = path.join(shimDir, 'testing.js');
+    fs.mkdirSync(shimDir, { recursive: true });
+    if (!fs.existsSync(routingFile)) {
+      fs.writeFileSync(routingFile, V6_ROUTING_SHIM);
+      didPatch = true;
     }
+    if (!fs.existsSync(testingFile)) {
+      fs.writeFileSync(testingFile, V6_TESTING_SHIM);
+      didPatch = true;
+    }
+    if (didPatch) {
+      patched += 1;
+      console.log(
+        `[postinstall] Patched expo-router v6 internal/ shims in ${path.relative(path.join(__dirname, '..'), routerDir)}`,
+      );
+    }
+  }
 }
 
 if (patched === 0) {
-    console.log("[postinstall] No Expo Router installs needed patching");
+  console.log('[postinstall] No Expo Router installs needed patching');
 }

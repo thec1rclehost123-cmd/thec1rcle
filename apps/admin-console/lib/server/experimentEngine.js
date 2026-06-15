@@ -1,4 +1,4 @@
-import { getAdminDb } from "../firebase/admin";
+import { getAdminDb } from '../firebase/admin';
 
 /**
  * THE C1RCLE - Experiment Engine (A/B Testing)
@@ -13,13 +13,13 @@ export const experimentEngine = {
     const db = getAdminDb();
     const experiment = {
       ...config,
-      status: "draft", // draft -> active -> paused -> archived
+      status: 'draft', // draft -> active -> paused -> archived
       createdAt: new Date(),
       adminId,
       results: {},
     };
 
-    const docRef = await db.collection("platform_experiments").add(experiment);
+    const docRef = await db.collection('platform_experiments').add(experiment);
     return docRef.id;
   },
 
@@ -29,8 +29,8 @@ export const experimentEngine = {
   async setFeatureFlag(flagName, value, adminId, reason) {
     const db = getAdminDb();
     await db
-      .collection("platform_settings")
-      .doc("feature_flags")
+      .collection('platform_settings')
+      .doc('feature_flags')
       .set(
         {
           [flagName]: value,
@@ -41,7 +41,7 @@ export const experimentEngine = {
         { merge: true },
       );
 
-    await db.collection("admin_logs").add({
+    await db.collection('admin_logs').add({
       adminId,
       action: `FLAG_${flagName.toUpperCase()}_${value.toString().toUpperCase()}`,
       timestamp: new Date(),
@@ -54,7 +54,7 @@ export const experimentEngine = {
    */
   async getPlatformParameters() {
     const db = getAdminDb();
-    const settings = await db.collection("platform_settings").doc("global").get();
+    const settings = await db.collection('platform_settings').doc('global').get();
     return settings.exists
       ? settings.data()
       : {

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 import {
   Shield,
   Info,
@@ -12,20 +12,20 @@ import {
   Baby,
   User,
   UserCheck,
-} from "lucide-react";
+} from 'lucide-react';
 
 export default function VenuePoliciesSection({ venue }) {
   const rules = venue?.rules || [];
-  const agePolicy = venue?.agePolicy || "all";
-  const dressCode = venue?.dressCode || "Casual";
+  const agePolicy = venue?.agePolicy || 'all';
+  const dressCode = venue?.dressCode || 'Casual';
   const timings = venue?.timings || {};
   const capacity = venue?.capacity || {};
 
   const agePolicyIcon = {
     all: <Baby className="w-5 h-5" />,
-    "18+": <User className="w-5 h-5" />,
-    "21+": <UserCheck className="w-5 h-5" />,
-    "25+": <Users className="w-5 h-5" />,
+    '18+': <User className="w-5 h-5" />,
+    '21+': <UserCheck className="w-5 h-5" />,
+    '25+': <Users className="w-5 h-5" />,
   }[agePolicy] || <Shield className="w-5 h-5" />;
 
   return (
@@ -79,16 +79,16 @@ export default function VenuePoliciesSection({ venue }) {
                   Hours of Operation
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-                  {["mon", "tue", "wed", "thu", "fri", "sat", "sun"].map((day) => {
+                  {['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'].map((day) => {
                     const timeVal = timings[day];
                     // Format timing value - handle objects like { closed: true }
-                    let displayTime = "Closed";
+                    let displayTime = 'Closed';
                     if (timeVal) {
-                      if (typeof timeVal === "string") {
+                      if (typeof timeVal === 'string') {
                         displayTime = timeVal;
-                      } else if (typeof timeVal === "object") {
+                      } else if (typeof timeVal === 'object') {
                         if (timeVal.closed) {
-                          displayTime = "Closed";
+                          displayTime = 'Closed';
                         } else if (timeVal.open && timeVal.close) {
                           displayTime = `${timeVal.open} - ${timeVal.close}`;
                         }
@@ -99,19 +99,19 @@ export default function VenuePoliciesSection({ venue }) {
                         key={day}
                         className={`p-4 rounded-2xl border text-center transition-all ${
                           new Date()
-                            .toLocaleDateString("en-US", { weekday: "short" })
+                            .toLocaleDateString('en-US', { weekday: 'short' })
                             .toLowerCase() === day
-                            ? "bg-red-500/5 border-red-500/20 shadow-sm"
-                            : "bg-black/[0.01] dark:bg-white/[0.01] border-black/5 dark:border-white/5"
+                            ? 'bg-red-500/5 border-red-500/20 shadow-sm'
+                            : 'bg-black/[0.01] dark:bg-white/[0.01] border-black/5 dark:border-white/5'
                         }`}
                       >
                         <p
                           className={`text-[10px] font-black uppercase tracking-widest mb-1 ${
                             new Date()
-                              .toLocaleDateString("en-US", { weekday: "short" })
+                              .toLocaleDateString('en-US', { weekday: 'short' })
                               .toLowerCase() === day
-                              ? "text-red-500"
-                              : "text-black/30 dark:text-white/30"
+                              ? 'text-red-500'
+                              : 'text-black/30 dark:text-white/30'
                           }`}
                         >
                           {day}
@@ -138,7 +138,7 @@ export default function VenuePoliciesSection({ venue }) {
                   Age Restriction
                 </h4>
                 <p className="text-3xl font-black text-white">
-                  {agePolicy === "all" ? "Family Friendly" : agePolicy}
+                  {agePolicy === 'all' ? 'Family Friendly' : agePolicy}
                 </p>
                 <p className="text-[11px] text-white/50 mt-4 leading-relaxed">
                   Valid physical identification is mandatory for entry. Digital copies may not be
@@ -160,7 +160,7 @@ export default function VenuePoliciesSection({ venue }) {
                 <p className="text-3xl font-black text-white">{dressCode}</p>
                 <p className="text-[11px] text-white/50 mt-4 leading-relaxed">
                   {venue?.dressCodeDescription ||
-                    "Elegance is expected. Avoid sportswear or casual slippers."}
+                    'Elegance is expected. Avoid sportswear or casual slippers.'}
                 </p>
               </div>
             </div>

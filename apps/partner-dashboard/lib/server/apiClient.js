@@ -1,9 +1,9 @@
-import { C1rcleApiClient } from "@c1rcle/core/api-client";
+import { C1rcleApiClient } from '@c1rcle/core/api-client';
 
 function normalizeGatewayBaseUrl(value) {
-    if (!value) return value;
-    const trimmed = value.replace(/\/+$/, "");
-    return trimmed.endsWith("/api/v1") ? trimmed : `${trimmed}/api/v1`;
+  if (!value) return value;
+  const trimmed = value.replace(/\/+$/, '');
+  return trimmed.endsWith('/api/v1') ? trimmed : `${trimmed}/api/v1`;
 }
 
 /**
@@ -11,18 +11,16 @@ function normalizeGatewayBaseUrl(value) {
  * @param {string} token - The user's Firebase ID token
  */
 export function getApiClient(token) {
-    const baseUrl = normalizeGatewayBaseUrl(
-        process.env.GATEWAY_URL || process.env.PUBLIC_API_URL
-    );
+  const baseUrl = normalizeGatewayBaseUrl(process.env.GATEWAY_URL || process.env.PUBLIC_API_URL);
 
-    if (!baseUrl) {
-        throw new Error('API gateway URL is not configured. Set GATEWAY_URL.');
-    }
+  if (!baseUrl) {
+    throw new Error('API gateway URL is not configured. Set GATEWAY_URL.');
+  }
 
-    return new C1rcleApiClient({
-        baseUrl,
-        getAuthToken: async () => token
-    });
+  return new C1rcleApiClient({
+    baseUrl,
+    getAuthToken: async () => token,
+  });
 }
 
 /**
@@ -30,12 +28,10 @@ export function getApiClient(token) {
  * Uses a system service token (to be configured).
  */
 export function getSystemApiClient() {
-    const baseUrl = normalizeGatewayBaseUrl(
-        process.env.GATEWAY_URL || process.env.PUBLIC_API_URL
-    );
-    if (!baseUrl) throw new Error('GATEWAY_URL is not configured.');
-    return new C1rcleApiClient({
-        baseUrl,
-        getAuthToken: async () => process.env.INTERNAL_API_KEY
-    });
+  const baseUrl = normalizeGatewayBaseUrl(process.env.GATEWAY_URL || process.env.PUBLIC_API_URL);
+  if (!baseUrl) throw new Error('GATEWAY_URL is not configured.');
+  return new C1rcleApiClient({
+    baseUrl,
+    getAuthToken: async () => process.env.INTERNAL_API_KEY,
+  });
 }

@@ -43,7 +43,41 @@ export function getCityLabel(key: any): string;
  * Normalizes a Partner (Venue or Host) document into a standard snapshot.
  * Used for denormalized storage in events and orders.
  */
-export function buildPartnerSnapshot(doc: any, type: any, fallbackName: any): {
+export function buildPartnerSnapshot(
+  doc: any,
+  type: any,
+  fallbackName: any,
+): {
+  id: any;
+  type: any;
+  slug: any;
+  handle: any;
+  name: any;
+  avatar: any;
+  photoURL: any;
+  image: any;
+  cover: any;
+  coverURL: any;
+  verified: boolean;
+  role: any;
+  city: any;
+  neighborhood: any;
+};
+export function resolvePoster(event: any): any;
+/**
+ * Maps a raw Firestore document to a consistent client-side object.
+ * Used by Guest Portal, Partner Dashboard, and Admin Console.
+ */
+export function mapEventForClient(data: any, id: any): any;
+/**
+ * Resolves Host and Venue snapshots from a payload containing IDs.
+ * Used for server-side normalization of partner metadata.
+ */
+export function resolvePartnerSnapshots(
+  db: any,
+  payload?: {},
+): Promise<{
+  hostData: {
     id: any;
     type: any;
     slug: any;
@@ -58,63 +92,36 @@ export function buildPartnerSnapshot(doc: any, type: any, fallbackName: any): {
     role: any;
     city: any;
     neighborhood: any;
-};
-export function resolvePoster(event: any): any;
-/**
- * Maps a raw Firestore document to a consistent client-side object.
- * Used by Guest Portal, Partner Dashboard, and Admin Console.
- */
-export function mapEventForClient(data: any, id: any): any;
-/**
- * Resolves Host and Venue snapshots from a payload containing IDs.
- * Used for server-side normalization of partner metadata.
- */
-export function resolvePartnerSnapshots(db: any, payload?: {}): Promise<{
-    hostData: {
-        id: any;
-        type: any;
-        slug: any;
-        handle: any;
-        name: any;
-        avatar: any;
-        photoURL: any;
-        image: any;
-        cover: any;
-        coverURL: any;
-        verified: boolean;
-        role: any;
-        city: any;
-        neighborhood: any;
-    };
-    venueData: {
-        id: any;
-        type: any;
-        slug: any;
-        handle: any;
-        name: any;
-        avatar: any;
-        photoURL: any;
-        image: any;
-        cover: any;
-        coverURL: any;
-        verified: boolean;
-        role: any;
-        city: any;
-        neighborhood: any;
-    };
+  };
+  venueData: {
+    id: any;
+    type: any;
+    slug: any;
+    handle: any;
+    name: any;
+    avatar: any;
+    photoURL: any;
+    image: any;
+    cover: any;
+    coverURL: any;
+    verified: boolean;
+    role: any;
+    city: any;
+    neighborhood: any;
+  };
 }>;
 export namespace EVENT_LIFECYCLE {
-    let DRAFT: string;
-    let SUBMITTED: string;
-    let NEEDS_CHANGES: string;
-    let APPROVED: string;
-    let SCHEDULED: string;
-    let LIVE: string;
-    let COMPLETED: string;
-    let PAUSED: string;
-    let CANCELLED: string;
-    let DENIED: string;
-    let DELETED: string;
+  let DRAFT: string;
+  let SUBMITTED: string;
+  let NEEDS_CHANGES: string;
+  let APPROVED: string;
+  let SCHEDULED: string;
+  let LIVE: string;
+  let COMPLETED: string;
+  let PAUSED: string;
+  let CANCELLED: string;
+  let DENIED: string;
+  let DELETED: string;
 }
 /**
  * States that appear in the guest-facing public portal (explore, search, event pages).
@@ -122,8 +129,8 @@ export namespace EVENT_LIFECYCLE {
  */
 export const PUBLIC_LIFECYCLE_STATES: string[];
 export const CITY_MAP: {
-    key: string;
-    label: string;
-    matches: string[];
+  key: string;
+  label: string;
+  matches: string[];
 }[];
 export function slugifyPartnerValue(value: any): string;

@@ -1,13 +1,13 @@
-import { motion } from "framer-motion";
-import clsx from "clsx";
-import { forwardRef, type HTMLAttributes } from "react";
-import { type AccentName, getAccentToken } from "../../lib/design-system/tokens";
+import { motion } from 'framer-motion';
+import clsx from 'clsx';
+import { forwardRef, type HTMLAttributes } from 'react';
+import { type AccentName, getAccentToken } from '../../lib/design-system/tokens';
 
 const paddingMap = {
-  none: "p-0",
-  sm: "p-4",
-  md: "p-6",
-  lg: "p-8",
+  none: 'p-0',
+  sm: 'p-4',
+  md: 'p-6',
+  lg: 'p-8',
 };
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -21,8 +21,8 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
   (
     {
       interactive = true,
-      padding = "md",
-      accent = "iris",
+      padding = 'md',
+      accent = 'iris',
       blur = true,
       className,
       children,
@@ -35,10 +35,10 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
       <article
         ref={ref}
         className={clsx(
-          "group relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] text-white",
-          blur && "backdrop-blur-xl",
+          'group relative overflow-hidden rounded-[32px] border border-white/10 bg-white/[0.03] text-white',
+          blur && 'backdrop-blur-xl',
           interactive &&
-            "transition-all hover:-translate-y-1 hover:border-white/30 hover:scale-[1.01]",
+            'transition-all hover:-translate-y-1 hover:border-white/30 hover:scale-[1.01]',
           paddingMap[padding],
           className,
         )}
@@ -55,16 +55,16 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
   },
 );
 
-CardBase.displayName = "Card";
+CardBase.displayName = 'Card';
 
 export interface CardMediaProps extends HTMLAttributes<HTMLDivElement> {
   src: string;
   alt?: string;
 }
 
-export const CardMedia = ({ src, alt = "", className, ...rest }: CardMediaProps) => (
+export const CardMedia = ({ src, alt = '', className, ...rest }: CardMediaProps) => (
   <div
-    className={clsx("relative aspect-[4/3] overflow-hidden rounded-[28px]", className)}
+    className={clsx('relative aspect-[4/3] overflow-hidden rounded-[28px]', className)}
     {...rest}
   >
     <img
@@ -90,11 +90,11 @@ export const CardStat = ({ label, value }: CardStatProps) => (
 );
 
 export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("flex flex-col gap-3", className)} {...rest} />
+  <div className={clsx('flex flex-col gap-3', className)} {...rest} />
 );
 
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("mt-auto flex flex-wrap items-center gap-4", className)} {...rest} />
+  <div className={clsx('mt-auto flex flex-wrap items-center gap-4', className)} {...rest} />
 );
 
 export const Card = Object.assign(CardBase, {

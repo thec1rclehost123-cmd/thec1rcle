@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
-import Link from "next/link";
-import { cn } from "@/lib/utils";
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
+import Link from 'next/link';
+import { cn } from '@/lib/utils';
 
 export default function ExploreCarouselHeader({ slides = [] }) {
   const [activeIndex, setActiveIndex] = useState(0);
@@ -47,7 +47,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
           initial={{ opacity: 0, scale: 1.1 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
-          transition={{ duration: 1.2, ease: "easeInOut" }}
+          transition={{ duration: 1.2, ease: 'easeInOut' }}
           className="absolute inset-0 z-0"
         >
           <Image src={activeEvent.image} alt="" fill className="object-cover" priority />
@@ -82,7 +82,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             >
               <div className="px-4 py-1.5 lg:px-6 lg:py-2 rounded-full bg-[#F44A22]/20 border border-[#F44A22]/40 backdrop-blur-md">
                 <p className="text-xs lg:text-sm font-black uppercase tracking-[0.3em] text-[#F44A22]">
-                  {activeEvent.category || "Featured Event"}
+                  {activeEvent.category || 'Featured Event'}
                 </p>
               </div>
             </motion.div>
@@ -94,7 +94,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               transition={{ duration: 0.6, delay: 0.4 }}
               className="text-3xl sm:text-5xl md:text-6xl lg:text-8xl font-heading font-black text-white uppercase leading-[0.9] tracking-tight"
               style={{
-                textShadow: "0 4px 20px rgba(0,0,0,0.5), 0 0 40px rgba(244,74,34,0.3)",
+                textShadow: '0 4px 20px rgba(0,0,0,0.5), 0 0 40px rgba(244,74,34,0.3)',
               }}
             >
               {activeEvent.title}
@@ -204,7 +204,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             key={`card-${activeEvent.id}`}
             initial={{ opacity: 0, scale: 0.9, rotateY: -15 }}
             animate={{ opacity: 1, scale: 1, rotateY: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
             className="relative order-1 lg:order-2 group perspective-1000 w-full max-w-[220px] lg:max-w-[500px] mx-auto mb-8 lg:mb-0"
           >
             <div className="relative aspect-[3/4] w-full max-w-[500px] mx-auto rounded-[32px] overflow-hidden shadow-[0_25px_80px_rgba(0,0,0,0.6)] border border-white/20 transform transition-all duration-500 group-hover:scale-[1.02] group-hover:shadow-[0_30px_100px_rgba(244,74,34,0.4)]">
@@ -222,7 +222,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
               {/* Shimmer Effect on Hover */}
               <div
                 className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full"
-                style={{ transform: "translateX(-100%)" }}
+                style={{ transform: 'translateX(-100%)' }}
               />
             </div>
 
@@ -286,10 +286,10 @@ export default function ExploreCarouselHeader({ slides = [] }) {
                 key={idx}
                 onClick={() => goToSlide(idx)}
                 className={cn(
-                  "h-2 rounded-full transition-all duration-500",
+                  'h-2 rounded-full transition-all duration-500',
                   idx === activeIndex
-                    ? "w-12 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]"
-                    : "w-2 bg-white/30 hover:bg-white/50 hover:scale-125",
+                    ? 'w-12 bg-white shadow-[0_0_15px_rgba(255,255,255,0.8)]'
+                    : 'w-2 bg-white/30 hover:bg-white/50 hover:scale-125',
                 )}
                 aria-label={`Go to slide ${idx + 1}`}
               />
@@ -308,7 +308,7 @@ export default function ExploreCarouselHeader({ slides = [] }) {
             <span className="text-[10px] uppercase tracking-[0.3em] text-white/50">Scroll</span>
             <motion.div
               animate={{ y: [0, 10, 0] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
               className="w-6 h-10 rounded-full border border-white/20 flex justify-center p-1"
             >
               <motion.div className="w-1 h-2 bg-white/50 rounded-full" />

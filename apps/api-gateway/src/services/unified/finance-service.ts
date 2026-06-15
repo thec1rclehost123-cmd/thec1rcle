@@ -71,7 +71,7 @@ export class FinanceService {
     if (durationMs > 500) {
       this.log.warn(
         { service: 'FinanceService', method: 'getOverview', partnerId, durationMs },
-        'Slow finance overview computation'
+        'Slow finance overview computation',
       );
     }
 
@@ -89,7 +89,8 @@ export class FinanceService {
     const [balances, doc, payoutsSnap] = await Promise.all([
       this.readBalanceAggregate(partnerId),
       this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get(),
-      this.db.collection('payouts')
+      this.db
+        .collection('payouts')
         .where('partnerId', '==', partnerId)
         .where('status', 'in', ['completed', 'paid', 'cleared'])
         .get(),
@@ -97,31 +98,39 @@ export class FinanceService {
 
     const aggregate = doc.exists ? doc.data() : {};
     const totalsByType = aggregate?.totalsByType || {};
-    
+
     // Sum all successful payouts
     const paidOut = payoutsSnap.docs.reduce((sum, d) => sum + Math.abs(toNum(d.data().amount)), 0);
 
     // Get pending refunds from ledger (this might be slow if many, but aggregate doesn't split pending by type)
-    // Actually, let's just use 0 if not easily available from aggregate for now, 
+    // Actually, let's just use 0 if not easily available from aggregate for now,
     // OR query the ledger for the last few days of pending refunds.
     // Given it's a P0, let's try to get it right.
-    const pendingRefundsSnap = await this.db.collection('partner_ledger')
+    const pendingRefundsSnap = await this.db
+      .collection('partner_ledger')
       .where('toPartnerId', '==', partnerId)
       .where('type', '==', 'refund')
       .where('status', '==', 'pending')
       .limit(50)
       .get();
-    
-    const refundPending = pendingRefundsSnap.docs.reduce((sum, d) => sum + Math.abs(toNum(d.data().amount)), 0);
+
+    const refundPending = pendingRefundsSnap.docs.reduce(
+      (sum, d) => sum + Math.abs(toNum(d.data().amount)),
+      0,
+    );
 
     // Get total tickets sold from orders collection
-    const ticketsSnap = await this.db.collection('orders')
+    const ticketsSnap = await this.db
+      .collection('orders')
       .where('hostId', '==', partnerId)
       .where('status', 'in', ['paid', 'checked_in'])
       .get()
       .catch(() => ({ size: 0, docs: [] }));
-    
-    const totalTicketsSold = (ticketsSnap as any).docs.reduce((sum: number, doc: any) => sum + toNum(doc.data().ticketCount || 1), 0);
+
+    const totalTicketsSold = (ticketsSnap as any).docs.reduce(
+      (sum: number, doc: any) => sum + toNum(doc.data().ticketCount || 1),
+      0,
+    );
 
     return {
       netRevenue: balances.settled + balances.pending,
@@ -136,7 +145,10 @@ export class FinanceService {
 
   // ── Ledger ────────────────────────────────────────────────────────────────
 
-  async getLedger(ctx: PartnerContext, filters: LedgerFilters): Promise<PaginatedResult<LedgerEntry>> {
+  async getLedger(
+    ctx: PartnerContext,
+    filters: LedgerFilters,
+  ): Promise<PaginatedResult<LedgerEntry>> {
     const { from, to, type, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 200);
     const partnerId = ctx.partnerId;
@@ -161,54 +173,68 @@ export class FinanceService {
       snap = await q.get();
     } catch (err: any) {
       this.log.warn(
-        { service: 'FinanceService', method: 'getLedger', partnerId, error: err?.message ?? String(err) },
-        'Ledger query failed, attempting in-memory fallback'
+        {
+          service: 'FinanceService',
+          method: 'getLedger',
+          partnerId,
+          error: err?.message ?? String(err),
+        },
+        'Ledger query failed, attempting in-memory fallback',
       );
-      
+
       try {
         const fallbackSnap = await this.db
           .collection('partner_ledger')
           .where('toPartnerId', '==', partnerId)
           .get();
-          
+
         let allItems = fallbackSnap.docs.map((doc: any) => this.docToLedgerEntry(doc));
-        
+
         if (type) {
-          allItems = allItems.filter(item => item.type === type);
+          allItems = allItems.filter((item) => item.type === type);
         }
         if (from) {
           const fromTime = new Date(from).getTime();
-          allItems = allItems.filter(item => item.createdAt && new Date(item.createdAt).getTime() >= fromTime);
+          allItems = allItems.filter(
+            (item) => item.createdAt && new Date(item.createdAt).getTime() >= fromTime,
+          );
         }
         if (to) {
           const toTime = new Date(to).getTime();
-          allItems = allItems.filter(item => item.createdAt && new Date(item.createdAt).getTime() <= toTime);
+          allItems = allItems.filter(
+            (item) => item.createdAt && new Date(item.createdAt).getTime() <= toTime,
+          );
         }
-        
+
         allItems.sort((a, b) => {
           const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
           const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
           return bTime - aTime;
         });
-        
+
         let startIndex = 0;
         if (cursor) {
-          const cursorIndex = allItems.findIndex(item => item.entryId === cursor);
+          const cursorIndex = allItems.findIndex((item) => item.entryId === cursor);
           if (cursorIndex !== -1) {
             startIndex = cursorIndex + 1;
           }
         }
-        
+
         const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
         const hasMore = slicedItems.length > cap;
         const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? items[items.length - 1]?.entryId ?? null : null;
-        
+        const nextCursor = hasMore ? (items[items.length - 1]?.entryId ?? null) : null;
+
         return { data: items, hasMore, nextCursor };
       } catch (fallbackErr: any) {
         this.log.error(
-          { service: 'FinanceService', method: 'getLedger', partnerId, error: fallbackErr?.message ?? String(fallbackErr) },
-          'Ledger fallback query failed'
+          {
+            service: 'FinanceService',
+            method: 'getLedger',
+            partnerId,
+            error: fallbackErr?.message ?? String(fallbackErr),
+          },
+          'Ledger fallback query failed',
         );
         return { data: [], hasMore: false, nextCursor: null };
       }
@@ -217,15 +243,21 @@ export class FinanceService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
-        { service: 'FinanceService', method: 'getLedger', partnerId, durationMs, filters: { from, to, type } },
-        'Slow ledger query'
+        {
+          service: 'FinanceService',
+          method: 'getLedger',
+          partnerId,
+          durationMs,
+          filters: { from, to, type },
+        },
+        'Slow ledger query',
       );
     }
 
     const docs: any[] = snap.docs ?? [];
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToLedgerEntry(doc));
-    const nextCursor = hasMore ? items[items.length - 1]?.entryId ?? null : null;
+    const nextCursor = hasMore ? (items[items.length - 1]?.entryId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
   }
@@ -253,46 +285,56 @@ export class FinanceService {
       snap = await q.get();
     } catch (err: any) {
       this.log.warn(
-        { service: 'FinanceService', method: 'getPayouts', partnerId: ctx.partnerId, error: err?.message ?? String(err) },
-        'Payouts query failed, attempting in-memory fallback'
+        {
+          service: 'FinanceService',
+          method: 'getPayouts',
+          partnerId: ctx.partnerId,
+          error: err?.message ?? String(err),
+        },
+        'Payouts query failed, attempting in-memory fallback',
       );
-      
+
       try {
         const fallbackSnap = await this.db
           .collection('payouts')
           .where('partnerId', '==', ctx.partnerId)
           .get();
-          
+
         let allItems = fallbackSnap.docs.map((doc: any) => this.docToPayout(doc));
-        
+
         if (status) {
-          allItems = allItems.filter(item => item.status === status);
+          allItems = allItems.filter((item) => item.status === status);
         }
-        
+
         allItems.sort((a, b) => {
           const aTime = a.requestedAt ? new Date(a.requestedAt).getTime() : 0;
           const bTime = b.requestedAt ? new Date(b.requestedAt).getTime() : 0;
           return bTime - aTime;
         });
-        
+
         let startIndex = 0;
         if (cursor) {
-          const cursorIndex = allItems.findIndex(item => item.payoutId === cursor);
+          const cursorIndex = allItems.findIndex((item) => item.payoutId === cursor);
           if (cursorIndex !== -1) {
             startIndex = cursorIndex + 1;
           }
         }
-        
+
         const slicedItems = allItems.slice(startIndex, startIndex + cap + 1);
         const hasMore = slicedItems.length > cap;
         const items = slicedItems.slice(0, cap);
-        const nextCursor = hasMore ? items[items.length - 1]?.payoutId ?? null : null;
-        
+        const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
+
         return { data: items, hasMore, nextCursor };
       } catch (fallbackErr: any) {
         this.log.error(
-          { service: 'FinanceService', method: 'getPayouts', partnerId: ctx.partnerId, error: fallbackErr?.message ?? String(fallbackErr) },
-          'Payouts fallback query failed'
+          {
+            service: 'FinanceService',
+            method: 'getPayouts',
+            partnerId: ctx.partnerId,
+            error: fallbackErr?.message ?? String(fallbackErr),
+          },
+          'Payouts fallback query failed',
         );
         return { data: [], hasMore: false, nextCursor: null };
       }
@@ -301,7 +343,7 @@ export class FinanceService {
     const docs: any[] = (snap as any).docs;
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToPayout(doc));
-    const nextCursor = hasMore ? items[items.length - 1]?.payoutId ?? null : null;
+    const nextCursor = hasMore ? (items[items.length - 1]?.payoutId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
   }
@@ -320,8 +362,13 @@ export class FinanceService {
         const cached = await this.redis.get(cacheKey);
         if (cached) {
           this.log.info(
-            { service: 'FinanceService', method: 'getBalances', partnerId: ctx.partnerId, cacheHit: true },
-            'Balance served from Redis cache'
+            {
+              service: 'FinanceService',
+              method: 'getBalances',
+              partnerId: ctx.partnerId,
+              cacheHit: true,
+            },
+            'Balance served from Redis cache',
           );
           return JSON.parse(cached);
         }
@@ -335,13 +382,17 @@ export class FinanceService {
     // Compute from ledger — sole source of truth
     const balances = await this.readBalanceAggregate(ctx.partnerId);
 
-    const result: BalanceSummary = { available: balances.settled, pending: balances.pending, currency: 'INR' };
+    const result: BalanceSummary = {
+      available: balances.settled,
+      pending: balances.pending,
+      currency: 'INR',
+    };
 
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
         { service: 'FinanceService', method: 'getBalances', partnerId: ctx.partnerId, durationMs },
-        'Slow balance computation from ledger'
+        'Slow balance computation from ledger',
       );
     }
 
@@ -363,8 +414,13 @@ export class FinanceService {
       .get()
       .catch((err: any) => {
         this.log.error(
-          { service: 'FinanceService', method: 'getBankAccounts', partnerId: ctx.partnerId, error: err?.message ?? String(err) },
-          'Bank accounts query failed'
+          {
+            service: 'FinanceService',
+            method: 'getBankAccounts',
+            partnerId: ctx.partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Bank accounts query failed',
         );
         return { docs: [] };
       });
@@ -394,8 +450,13 @@ export class FinanceService {
 
     const snap = await q.get().catch((err: any) => {
       this.log.error(
-        { service: 'FinanceService', method: 'getDisputes', partnerId: ctx.partnerId, error: err?.message ?? String(err) },
-        'Disputes query failed'
+        {
+          service: 'FinanceService',
+          method: 'getDisputes',
+          partnerId: ctx.partnerId,
+          error: err?.message ?? String(err),
+        },
+        'Disputes query failed',
       );
       return { docs: [] };
     });
@@ -428,7 +489,7 @@ export class FinanceService {
       platformFeeRate: number;
       venueShareRate: number;
       promoterCommissionRate?: number;
-    }
+    },
   ): Promise<void> {
     const now = new Date();
     const createdAt = toIso(now) || now.toISOString();
@@ -442,10 +503,42 @@ export class FinanceService {
     const base = { eventId, currency: 'INR' as const, referenceId: orderId, createdAt };
 
     const entries: Omit<LedgerEntry, 'entryId'>[] = [
-      { ...base, type: 'ticket_revenue', amount: grossAmount, fromPartnerId: null, toPartnerId: 'platform', status: 'settled', settledAt: toIso(now) },
-      { ...base, type: 'platform_fee', amount: platformFee, fromPartnerId: participants.hostId, toPartnerId: 'platform', status: 'settled', settledAt: toIso(now) },
-      { ...base, type: 'venue_share', amount: venueShare, fromPartnerId: participants.hostId, toPartnerId: participants.venueId, status: 'pending', settledAt: null },
-      { ...base, type: 'host_payout', amount: hostPayout, fromPartnerId: null, toPartnerId: participants.hostId, status: 'pending', settledAt: null },
+      {
+        ...base,
+        type: 'ticket_revenue',
+        amount: grossAmount,
+        fromPartnerId: null,
+        toPartnerId: 'platform',
+        status: 'settled',
+        settledAt: toIso(now),
+      },
+      {
+        ...base,
+        type: 'platform_fee',
+        amount: platformFee,
+        fromPartnerId: participants.hostId,
+        toPartnerId: 'platform',
+        status: 'settled',
+        settledAt: toIso(now),
+      },
+      {
+        ...base,
+        type: 'venue_share',
+        amount: venueShare,
+        fromPartnerId: participants.hostId,
+        toPartnerId: participants.venueId,
+        status: 'pending',
+        settledAt: null,
+      },
+      {
+        ...base,
+        type: 'host_payout',
+        amount: hostPayout,
+        fromPartnerId: null,
+        toPartnerId: participants.hostId,
+        status: 'pending',
+        settledAt: null,
+      },
     ];
 
     if (participants.promoterId && promoterCommission > 0) {
@@ -476,7 +569,11 @@ export class FinanceService {
       txn.set(idempotencyRef, {
         orderId,
         eventId,
-        partnerIds: Array.from(new Set([participants.hostId, participants.venueId, participants.promoterId].filter(Boolean))),
+        partnerIds: Array.from(
+          new Set(
+            [participants.hostId, participants.venueId, participants.promoterId].filter(Boolean),
+          ),
+        ),
         entryCount: entries.length,
         createdAt,
       });
@@ -487,19 +584,28 @@ export class FinanceService {
     if (!created) {
       this.log.warn(
         { service: 'FinanceService', method: 'recordTicketSale', eventId, orderId },
-        'Skipped duplicate ledger write for ticket sale'
+        'Skipped duplicate ledger write for ticket sale',
       );
       return;
     }
 
     this.log.info(
-      { service: 'FinanceService', method: 'recordTicketSale', eventId, orderId, gross: grossAmount, entryCount: entries.length },
-      'Ledger entries created for ticket sale'
+      {
+        service: 'FinanceService',
+        method: 'recordTicketSale',
+        eventId,
+        orderId,
+        gross: grossAmount,
+        entryCount: entries.length,
+      },
+      'Ledger entries created for ticket sale',
     );
 
     // Invalidate Redis balance cache for all affected partners
     if (this.redis && this.redis.status === 'ready') {
-      const partnerIds = new Set([participants.hostId, participants.venueId, participants.promoterId].filter(Boolean));
+      const partnerIds = new Set(
+        [participants.hostId, participants.venueId, participants.promoterId].filter(Boolean),
+      );
       for (const pid of partnerIds) {
         this.redis.del(`finance:balance:${pid}`).catch(() => {});
       }
@@ -510,23 +616,25 @@ export class FinanceService {
     eventId: string,
     orderId: string,
     amount: number,
-    partnerId: string
+    partnerId: string,
   ): Promise<void> {
-      const createdAt = toIso(new Date()) || new Date().toISOString();
-      const entry: Omit<LedgerEntry, 'entryId'> = {
-        eventId,
-        type: 'refund' as LedgerEntryType,
-        amount: -Math.abs(amount),
-        currency: 'INR',
-        fromPartnerId: null,
-        toPartnerId: partnerId,
-        status: 'settled' as LedgerEntryStatus,
-        referenceId: orderId,
-        settledAt: createdAt,
-        createdAt,
-      };
+    const createdAt = toIso(new Date()) || new Date().toISOString();
+    const entry: Omit<LedgerEntry, 'entryId'> = {
+      eventId,
+      type: 'refund' as LedgerEntryType,
+      amount: -Math.abs(amount),
+      currency: 'INR',
+      fromPartnerId: null,
+      toPartnerId: partnerId,
+      status: 'settled' as LedgerEntryStatus,
+      referenceId: orderId,
+      settledAt: createdAt,
+      createdAt,
+    };
 
-    const idempotencyRef = this.db.collection(LEDGER_IDEMPOTENCY_COLLECTION).doc(`refund_${orderId}`);
+    const idempotencyRef = this.db
+      .collection(LEDGER_IDEMPOTENCY_COLLECTION)
+      .doc(`refund_${orderId}`);
 
     await this.db.runTransaction(async (txn) => {
       const markerDoc = await txn.get(idempotencyRef);
@@ -546,20 +654,22 @@ export class FinanceService {
       });
     });
 
-      this.log.info(
-        { service: 'FinanceService', method: 'recordRefund', eventId, orderId, amount, partnerId },
-        'Refund ledger entry created'
-      );
+    this.log.info(
+      { service: 'FinanceService', method: 'recordRefund', eventId, orderId, amount, partnerId },
+      'Refund ledger entry created',
+    );
 
-      // Invalidate Redis balance cache
-      if (this.redis && this.redis.status === 'ready') {
-        this.redis.del(`finance:balance:${partnerId}`).catch(() => {});
-      }
+    // Invalidate Redis balance cache
+    if (this.redis && this.redis.status === 'ready') {
+      this.redis.del(`finance:balance:${partnerId}`).catch(() => {});
+    }
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private docToLedgerEntry(doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot): LedgerEntry {
+  private docToLedgerEntry(
+    doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot,
+  ): LedgerEntry {
     const d = (doc.data() ?? {}) as Record<string, any>;
     return {
       entryId: doc.id,
@@ -611,8 +721,14 @@ export class FinanceService {
       .get()
       .catch((err: any) => {
         this.log.error(
-          { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId: ctx.partnerId, days, error: err?.message ?? String(err) },
-          'Revenue period query failed'
+          {
+            service: 'FinanceService',
+            method: 'getRevenueByPeriod',
+            partnerId: ctx.partnerId,
+            days,
+            error: err?.message ?? String(err),
+          },
+          'Revenue period query failed',
         );
         throw err;
       });
@@ -620,8 +736,13 @@ export class FinanceService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
-        { service: 'FinanceService', method: 'getRevenueByPeriod', partnerId: ctx.partnerId, durationMs },
-        'Slow revenue aggregation'
+        {
+          service: 'FinanceService',
+          method: 'getRevenueByPeriod',
+          partnerId: ctx.partnerId,
+          durationMs,
+        },
+        'Slow revenue aggregation',
       );
     }
 
@@ -635,13 +756,22 @@ export class FinanceService {
   }
 
   private async readBalanceAggregate(partnerId: string): Promise<AggregateBalances> {
-    const doc = await this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId).get().catch((err: any) => {
-      this.log.error(
-        { service: 'FinanceService', method: 'readBalanceAggregate', partnerId, error: err?.message ?? String(err) },
-        'Ledger aggregate read failed'
-      );
-      throw err;
-    });
+    const doc = await this.db
+      .collection(LEDGER_AGGREGATES_COLLECTION)
+      .doc(partnerId)
+      .get()
+      .catch((err: any) => {
+        this.log.error(
+          {
+            service: 'FinanceService',
+            method: 'readBalanceAggregate',
+            partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Ledger aggregate read failed',
+        );
+        throw err;
+      });
 
     if (!doc.exists) return this.rebuildPartnerLedgerAggregate(partnerId);
 
@@ -660,12 +790,19 @@ export class FinanceService {
     return 'hostPayout';
   }
 
-  private applyAggregateWrites(txn: any, entries: Omit<LedgerEntry, 'entryId'>[], createdAt: string) {
-    const aggregateMap = new Map<string, {
-      balances: Partial<Record<LedgerEntryStatus, number>>;
-      totalsByType: Partial<Record<LedgerEntryType, number>>;
-      daily: Map<string, Partial<Record<RevenueFieldName, number>>>;
-    }>();
+  private applyAggregateWrites(
+    txn: any,
+    entries: Omit<LedgerEntry, 'entryId'>[],
+    createdAt: string,
+  ) {
+    const aggregateMap = new Map<
+      string,
+      {
+        balances: Partial<Record<LedgerEntryStatus, number>>;
+        totalsByType: Partial<Record<LedgerEntryType, number>>;
+        daily: Map<string, Partial<Record<RevenueFieldName, number>>>;
+      }
+    >();
 
     for (const entry of entries) {
       const partnerId = entry.toPartnerId;
@@ -679,10 +816,11 @@ export class FinanceService {
       next.balances[entry.status] = (next.balances[entry.status] ?? 0) + entry.amount;
       next.totalsByType[entry.type] = (next.totalsByType[entry.type] ?? 0) + entry.amount;
 
-      const revenueField = REVENUE_FIELDS_BY_TYPE[entry.type as keyof typeof REVENUE_FIELDS_BY_TYPE];
+      const revenueField =
+        REVENUE_FIELDS_BY_TYPE[entry.type as keyof typeof REVENUE_FIELDS_BY_TYPE];
       const dateKey = String(entry.createdAt || createdAt).slice(0, 10);
       if (revenueField && dateKey) {
-        const daily = next.daily.get(dateKey) || {} as Partial<Record<RevenueFieldName, number>>;
+        const daily = next.daily.get(dateKey) || ({} as Partial<Record<RevenueFieldName, number>>);
         daily[revenueField] = (daily[revenueField] ?? 0) + entry.amount;
         next.daily.set(dateKey, daily);
       }
@@ -693,29 +831,46 @@ export class FinanceService {
     for (const [partnerId, aggregate] of aggregateMap.entries()) {
       const aggregateRef = this.db.collection(LEDGER_AGGREGATES_COLLECTION).doc(partnerId);
       const balancePayload = Object.fromEntries(
-        Object.entries(aggregate.balances).map(([status, amount]) => [status, FieldValue.increment(amount as number)])
+        Object.entries(aggregate.balances).map(([status, amount]) => [
+          status,
+          FieldValue.increment(amount as number),
+        ]),
       );
       const totalsPayload = Object.fromEntries(
-        Object.entries(aggregate.totalsByType).map(([type, amount]) => [type, FieldValue.increment(amount as number)])
+        Object.entries(aggregate.totalsByType).map(([type, amount]) => [
+          type,
+          FieldValue.increment(amount as number),
+        ]),
       );
-      txn.set(aggregateRef, {
-        partnerId,
-        currency: 'INR',
-        balances: balancePayload,
-        totalsByType: totalsPayload,
-        updatedAt: createdAt,
-      }, { merge: true });
+      txn.set(
+        aggregateRef,
+        {
+          partnerId,
+          currency: 'INR',
+          balances: balancePayload,
+          totalsByType: totalsPayload,
+          updatedAt: createdAt,
+        },
+        { merge: true },
+      );
 
       for (const [dateKey, daily] of aggregate.daily.entries()) {
         const dailyPayload = Object.fromEntries(
-          Object.entries(daily).map(([field, amount]) => [field, FieldValue.increment(amount as number)])
+          Object.entries(daily).map(([field, amount]) => [
+            field,
+            FieldValue.increment(amount as number),
+          ]),
         );
-        txn.set(aggregateRef.collection('daily').doc(dateKey), {
-          date: dateKey,
-          createdAt: dateKey,
-          updatedAt: createdAt,
-          ...dailyPayload,
-        }, { merge: true });
+        txn.set(
+          aggregateRef.collection('daily').doc(dateKey),
+          {
+            date: dateKey,
+            createdAt: dateKey,
+            updatedAt: createdAt,
+            ...dailyPayload,
+          },
+          { merge: true },
+        );
       }
     }
   }
@@ -728,8 +883,13 @@ export class FinanceService {
       .get()
       .catch((err: any) => {
         this.log.error(
-          { service: 'FinanceService', method: 'rebuildPartnerLedgerAggregate', partnerId, error: err?.message ?? String(err) },
-          'Ledger aggregate rebuild query failed'
+          {
+            service: 'FinanceService',
+            method: 'rebuildPartnerLedgerAggregate',
+            partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Ledger aggregate rebuild query failed',
         );
         throw err;
       });
@@ -765,36 +925,51 @@ export class FinanceService {
     const chunkSize = 400;
 
     if (dailyEntries.length === 0) {
-      await this.db.batch().set(aggregateRef, {
-        partnerId,
-        currency: 'INR',
-        balances,
-        totalsByType,
-        rebuiltAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }, { merge: false }).commit();
-    } else {
-      for (let start = 0; start < dailyEntries.length; start += chunkSize) {
-        const batch = this.db.batch();
-        if (start === 0) {
-          batch.set(aggregateRef, {
+      await this.db
+        .batch()
+        .set(
+          aggregateRef,
+          {
             partnerId,
             currency: 'INR',
             balances,
             totalsByType,
             rebuiltAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          }, { merge: false });
+          },
+          { merge: false },
+        )
+        .commit();
+    } else {
+      for (let start = 0; start < dailyEntries.length; start += chunkSize) {
+        const batch = this.db.batch();
+        if (start === 0) {
+          batch.set(
+            aggregateRef,
+            {
+              partnerId,
+              currency: 'INR',
+              balances,
+              totalsByType,
+              rebuiltAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: false },
+          );
         }
         for (const [dateKey, bucket] of dailyEntries.slice(start, start + chunkSize)) {
-          batch.set(aggregateRef.collection('daily').doc(dateKey), {
-            date: dateKey,
-            createdAt: dateKey,
-            updatedAt: new Date().toISOString(),
-            hostPayout: toNum(bucket.hostPayout),
-            venueShare: toNum(bucket.venueShare),
-            promoterCommission: toNum(bucket.promoterCommission),
-          }, { merge: false });
+          batch.set(
+            aggregateRef.collection('daily').doc(dateKey),
+            {
+              date: dateKey,
+              createdAt: dateKey,
+              updatedAt: new Date().toISOString(),
+              hostPayout: toNum(bucket.hostPayout),
+              venueShare: toNum(bucket.venueShare),
+              promoterCommission: toNum(bucket.promoterCommission),
+            },
+            { merge: false },
+          );
         }
         await batch.commit();
       }
@@ -803,8 +978,14 @@ export class FinanceService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
-        { service: 'FinanceService', method: 'rebuildPartnerLedgerAggregate', partnerId, durationMs, docCount: snap.docs.length },
-        'Rebuilt partner ledger aggregate from source ledger'
+        {
+          service: 'FinanceService',
+          method: 'rebuildPartnerLedgerAggregate',
+          partnerId,
+          durationMs,
+          docCount: snap.docs.length,
+        },
+        'Rebuilt partner ledger aggregate from source ledger',
       );
     }
 

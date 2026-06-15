@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { motion } from "framer-motion";
+import { useEffect } from 'react';
+import { motion } from 'framer-motion';
 
 export default function Error({ error, reset }) {
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function Error({ error, reset }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5, ease: "easeOut" }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
         className="glass-panel max-w-md space-y-8 p-10 relative overflow-hidden"
       >
         {/* Decorative background glow */}
@@ -54,7 +54,7 @@ export default function Error({ error, reset }) {
               Try Again
             </button>
             <button
-              onClick={() => (window.location.href = "/")}
+              onClick={() => (window.location.href = '/')}
               className="text-white/40 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-[0.4em] pt-2"
             >
               Return Home

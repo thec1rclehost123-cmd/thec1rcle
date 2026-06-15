@@ -1,13 +1,12 @@
-import * as Haptics from "expo-haptics";
-import { useLocalSearchParams, router } from "expo-router";
-import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getEventAttendees, initiateDMRequest, checkEventEntitlement } from "@/lib/social";
-import { useAuthStore } from "@/store/authStore";
-
+import { getEventAttendees, initiateDMRequest, checkEventEntitlement } from '@/lib/social';
+import { useAuthStore } from '@/store/authStore';
 
 // Attendee card
 function AttendeeCard({
@@ -109,7 +108,7 @@ export default function AttendeesScreen() {
     if (result.success && result.conversationId) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.push({
-        pathname: "/social/dm/[id]",
+        pathname: '/social/dm/[id]',
         params: {
           id: result.conversationId,
           recipientName: attendee.name,
@@ -117,13 +116,13 @@ export default function AttendeesScreen() {
         },
       });
     } else {
-      Alert.alert("Error", result.error || "Unable to start conversation");
+      Alert.alert('Error', result.error || 'Unable to start conversation');
     }
   };
 
   const handleViewProfile = (userId: string) => {
     router.push({
-      pathname: "/social/profile/[id]",
+      pathname: '/social/profile/[id]',
       params: { id: userId, eventId },
     });
   };

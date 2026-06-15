@@ -3,27 +3,26 @@
  * Premium, branded empty states for all app screens
  */
 
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { View, Text, StyleSheet, Pressable } from "react-native";
-import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
-import { colors, radii, gradients } from "@/lib/design/theme";
-
+import { colors, radii, gradients } from '@/lib/design/theme';
 
 export type EmptyStateType =
-  | "no-tickets"
-  | "no-past-tickets"
-  | "no-events"
-  | "no-search-results"
-  | "no-notifications"
-  | "no-contacts"
-  | "no-messages"
-  | "no-gallery"
-  | "no-connection"
-  | "error"
-  | "forbidden"
-  | "custom";
+  | 'no-tickets'
+  | 'no-past-tickets'
+  | 'no-events'
+  | 'no-search-results'
+  | 'no-notifications'
+  | 'no-contacts'
+  | 'no-messages'
+  | 'no-gallery'
+  | 'no-connection'
+  | 'error'
+  | 'forbidden'
+  | 'custom';
 
 interface EmptyStateProps {
   type: EmptyStateType;
@@ -40,73 +39,73 @@ const EMPTY_STATE_CONTENT: Record<
   EmptyStateType,
   { emoji: string; title: string; message: string; action?: string }
 > = {
-  "no-tickets": {
-    emoji: "🎟️",
-    title: "No Upcoming Tickets",
-    message: "Your purchased tickets will appear here. Time to find your next event!",
-    action: "Explore Events",
+  'no-tickets': {
+    emoji: '🎟️',
+    title: 'No Upcoming Tickets',
+    message: 'Your purchased tickets will appear here. Time to find your next event!',
+    action: 'Explore Events',
   },
-  "no-past-tickets": {
-    emoji: "📜",
-    title: "No Past Tickets",
-    message: "Your event history will appear here after you attend your first event.",
+  'no-past-tickets': {
+    emoji: '📜',
+    title: 'No Past Tickets',
+    message: 'Your event history will appear here after you attend your first event.',
   },
-  "no-events": {
-    emoji: "🎉",
-    title: "No Events Found",
-    message: "There are no events matching your criteria. Try adjusting your filters.",
-    action: "Clear Filters",
+  'no-events': {
+    emoji: '🎉',
+    title: 'No Events Found',
+    message: 'There are no events matching your criteria. Try adjusting your filters.',
+    action: 'Clear Filters',
   },
-  "no-search-results": {
-    emoji: "🔍",
-    title: "No Results",
+  'no-search-results': {
+    emoji: '🔍',
+    title: 'No Results',
     message: "We couldn't find anything matching your search. Try different keywords.",
-    action: "Search Again",
+    action: 'Search Again',
   },
-  "no-notifications": {
-    emoji: "🔔",
-    title: "All Caught Up",
+  'no-notifications': {
+    emoji: '🔔',
+    title: 'All Caught Up',
     message: "You have no new notifications. We'll let you know when something important happens.",
   },
-  "no-contacts": {
-    emoji: "👥",
-    title: "No Saved Contacts",
-    message: "Save contacts from event chats to connect with them later.",
-    action: "Find Events",
+  'no-contacts': {
+    emoji: '👥',
+    title: 'No Saved Contacts',
+    message: 'Save contacts from event chats to connect with them later.',
+    action: 'Find Events',
   },
-  "no-messages": {
-    emoji: "💬",
-    title: "No Messages Yet",
-    message: "Start the conversation! Send a message to break the ice.",
+  'no-messages': {
+    emoji: '💬',
+    title: 'No Messages Yet',
+    message: 'Start the conversation! Send a message to break the ice.',
   },
-  "no-gallery": {
-    emoji: "📸",
-    title: "No Photos Yet",
-    message: "Photos from this event will appear here. Be the first to share!",
-    action: "Add Photo",
+  'no-gallery': {
+    emoji: '📸',
+    title: 'No Photos Yet',
+    message: 'Photos from this event will appear here. Be the first to share!',
+    action: 'Add Photo',
   },
-  "no-connection": {
-    emoji: "📡",
-    title: "No Connection",
-    message: "Check your internet connection and try again.",
-    action: "Retry",
+  'no-connection': {
+    emoji: '📡',
+    title: 'No Connection',
+    message: 'Check your internet connection and try again.',
+    action: 'Retry',
   },
   error: {
-    emoji: "😕",
-    title: "Something Went Wrong",
+    emoji: '😕',
+    title: 'Something Went Wrong',
     message: "We're having trouble loading this. Please try again.",
-    action: "Retry",
+    action: 'Retry',
   },
   forbidden: {
-    emoji: "🚫",
-    title: "Access Denied",
+    emoji: '🚫',
+    title: 'Access Denied',
     message: "You don't have permission to view this content.",
-    action: "Go Back",
+    action: 'Go Back',
   },
   custom: {
-    emoji: "📋",
-    title: "Nothing Here",
-    message: "This section is empty.",
+    emoji: '📋',
+    title: 'Nothing Here',
+    message: 'This section is empty.',
   },
 };
 
@@ -172,7 +171,7 @@ export function EmptyState({
 
 // Error State Component
 export function ErrorState({
-  title = "Something Went Wrong",
+  title = 'Something Went Wrong',
   message = "We're having trouble loading this content.",
   onRetry,
 }: {
@@ -198,7 +197,7 @@ export function NetworkError({ onRetry }: { onRetry?: () => void }) {
 
 const styles = StyleSheet.create({
   container: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingVertical: 60,
     paddingHorizontal: 40,
   },
@@ -209,15 +208,15 @@ const styles = StyleSheet.create({
   title: {
     color: colors.gold,
     fontSize: 22,
-    fontWeight: "700",
+    fontWeight: '700',
     marginBottom: 12,
-    textAlign: "center",
+    textAlign: 'center',
   },
   message: {
     color: colors.goldMetallic,
     fontSize: 15,
     lineHeight: 22,
-    textAlign: "center",
+    textAlign: 'center',
     marginBottom: 28,
   },
   primaryButton: {
@@ -227,10 +226,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   primaryButtonText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 16,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: '600',
+    textAlign: 'center',
   },
   secondaryButton: {
     paddingVertical: 12,
@@ -239,7 +238,7 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: colors.iris,
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
   },
 });
 

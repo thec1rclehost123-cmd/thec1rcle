@@ -3,9 +3,9 @@
  * Calculates order total with discounts and fees
  */
 
-import { NextResponse } from "next/server";
-import { calculatePricing, getReservation } from "@/lib/server/checkoutService";
-import { withRateLimit } from "@/lib/server/rateLimit";
+import { NextResponse } from 'next/server';
+import { calculatePricing, getReservation } from '@/lib/server/checkoutService';
+import { withRateLimit } from '@/lib/server/rateLimit';
 
 async function handler(request) {
   try {
@@ -20,10 +20,10 @@ async function handler(request) {
       const reservation = await getReservation(payload.reservationId);
 
       if (!reservation) {
-        return NextResponse.json({ error: "Reservation not found" }, { status: 404 });
+        return NextResponse.json({ error: 'Reservation not found' }, { status: 404 });
       }
 
-      if (reservation.status !== "active") {
+      if (reservation.status !== 'active') {
         return NextResponse.json(
           { error: `Reservation is ${reservation.status}` },
           { status: 400 },
@@ -31,7 +31,7 @@ async function handler(request) {
       }
 
       if (new Date(reservation.expiresAt) < new Date()) {
-        return NextResponse.json({ error: "Reservation has expired" }, { status: 400 });
+        return NextResponse.json({ error: 'Reservation has expired' }, { status: 400 });
       }
 
       eventId = reservation.eventId;
@@ -40,11 +40,11 @@ async function handler(request) {
 
     // Validate required fields
     if (!eventId) {
-      return NextResponse.json({ error: "Event ID is required" }, { status: 400 });
+      return NextResponse.json({ error: 'Event ID is required' }, { status: 400 });
     }
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return NextResponse.json({ error: "Items are required" }, { status: 400 });
+      return NextResponse.json({ error: 'Items are required' }, { status: 400 });
     }
 
     // Calculate pricing
@@ -62,9 +62,9 @@ async function handler(request) {
       pricing: result.pricing,
     });
   } catch (error) {
-    console.error("POST /api/checkout/calculate error:", error);
+    console.error('POST /api/checkout/calculate error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to calculate pricing" },
+      { error: error.message || 'Failed to calculate pricing' },
       { status: 500 },
     );
   }

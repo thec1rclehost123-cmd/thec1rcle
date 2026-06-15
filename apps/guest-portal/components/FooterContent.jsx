@@ -1,17 +1,20 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 const links = [
-  { label: "Download App", href: "/app" },
-  { label: "Explore", href: "/explore" },
-  { label: "University", href: "/about#university" },
-  { label: "Careers", href: "/about#careers" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" }
+  { label: 'Download App', href: '/app' },
+  { label: 'Explore', href: '/explore' },
+  { label: 'University', href: '/about#university' },
+  { label: 'Careers', href: '/about#careers' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
 ];
 
 export default function FooterContent() {
   return (
-    <footer className="bg-black text-white pt-24 md:pt-32 pb-40 md:pb-12 px-4 sm:px-6" style={{ paddingBottom: 'max(160px, calc(140px + env(safe-area-inset-bottom, 0px)))' }}>
+    <footer
+      className="bg-black text-white pt-24 md:pt-32 pb-40 md:pb-12 px-4 sm:px-6"
+      style={{ paddingBottom: 'max(160px, calc(140px + env(safe-area-inset-bottom, 0px)))' }}
+    >
       <div className="max-w-[1400px] mx-auto flex flex-col items-center">
         {/* Large Brand Text */}
         <div className="relative mb-32 w-full text-center">

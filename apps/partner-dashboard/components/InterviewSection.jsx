@@ -1,7 +1,7 @@
-import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import ScrollReveal from "./ScrollReveal";
+import Link from 'next/link';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import ScrollReveal from './ScrollReveal';
 
 export default function InterviewSection({ interviews }) {
   return (
@@ -20,7 +20,7 @@ export default function InterviewSection({ interviews }) {
           <article
             key={item.slug}
             className={`flex flex-col gap-8 lg:items-center lg:gap-16 ${
-              index % 2 === 1 ? "lg:flex-row-reverse" : "lg:flex-row"
+              index % 2 === 1 ? 'lg:flex-row-reverse' : 'lg:flex-row'
             }`}
           >
             <div className="relative aspect-[4/3] flex-1 overflow-hidden rounded-[32px] border border-black/10 dark:border-white/10 bg-black/5 dark:bg-surface lg:aspect-[16/10]">

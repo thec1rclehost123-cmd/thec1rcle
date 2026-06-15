@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { useEffect, useState, useCallback } from "react";
-import AuthModal from "./AuthModal";
-import { useAuth } from "./providers/AuthProvider";
-import { getIntent, clearIntent } from "../lib/utils/intentStore";
-import { useRouter } from "next/navigation";
-import { trackEvent } from "../lib/utils/analytics";
+import { useEffect, useState, useCallback } from 'react';
+import AuthModal from './AuthModal';
+import { useAuth } from './providers/AuthProvider';
+import { getIntent, clearIntent } from '../lib/utils/intentStore';
+import { useRouter } from 'next/navigation';
+import { trackEvent } from '../lib/utils/analytics';
 
 export default function GlobalAuthManager() {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,19 +16,19 @@ export default function GlobalAuthManager() {
     const intent = getIntent();
     if (!intent || !user) return;
 
-    trackEvent("auth_completed", {
+    trackEvent('auth_completed', {
       intent: intent.type,
       eventId: intent.eventId,
     });
 
     try {
-      if (intent.type === "RSVP") {
-        await updateEventList("attendedEvents", intent.eventId, true);
-      } else if (intent.type === "BOOK") {
+      if (intent.type === 'RSVP') {
+        await updateEventList('attendedEvents', intent.eventId, true);
+      } else if (intent.type === 'BOOK') {
         // Force the ticket modal to open on the event page if we are there
         // or redirect to checkout if that's the preferred flow
         if (window.location.pathname.includes(`/event/${intent.eventId}`)) {
-          window.dispatchEvent(new CustomEvent("OPEN_TICKET_MODAL"));
+          window.dispatchEvent(new CustomEvent('OPEN_TICKET_MODAL'));
         } else {
           router.push(`/event/${intent.eventId}?autoBook=true`);
         }
@@ -36,20 +36,20 @@ export default function GlobalAuthManager() {
       // After replay, clear it
       clearIntent();
     } catch (error) {
-      console.error("Failed to replay intent:", error);
+      console.error('Failed to replay intent:', error);
     }
   }, [user, updateEventList, router]);
 
   useEffect(() => {
     const handleOpenModal = (e) => {
       setIsModalOpen(true);
-      trackEvent("auth_prompt_opened", {
-        intent: e.detail?.intent || "unknown",
-        eventId: e.detail?.eventId || "unknown",
+      trackEvent('auth_prompt_opened', {
+        intent: e.detail?.intent || 'unknown',
+        eventId: e.detail?.eventId || 'unknown',
       });
     };
-    window.addEventListener("OPEN_AUTH_MODAL", handleOpenModal);
-    return () => window.removeEventListener("OPEN_AUTH_MODAL", handleOpenModal);
+    window.addEventListener('OPEN_AUTH_MODAL', handleOpenModal);
+    return () => window.removeEventListener('OPEN_AUTH_MODAL', handleOpenModal);
   }, []);
 
   useEffect(() => {

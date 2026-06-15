@@ -16,7 +16,7 @@
  *   critical  (score 50+)    → 10% of baseLimit (effectively deny)
  */
 
-import { getRedisClient } from "./redis.js";
+import { getRedisClient } from './redis.js';
 
 // Module-level cache for high-risk mode status.
 // Refreshed at most once every 5 seconds — avoids an extra Redis read on every rate-limit check
@@ -34,43 +34,48 @@ const HIGH_RISK_CACHE_TTL_MS = 5_000;
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number }>}
  */
 export async function checkRateLimit(key, limit = 20, windowSeconds = 60, failClosed = false) {
-    const redis   = getRedisClient();
-    const fullKey = `ratelimit:${key}`;
+  const redis = getRedisClient();
+  const fullKey = `ratelimit:${key}`;
 
-    try {
-        if (!redis || (redis.status !== "ready" && redis.status !== "connecting")) {
-            console.warn(`[Redis] Client not ready, ${failClosed ? "FAILING CLOSED" : "failing open"} for rate limit`);
-            return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
-        }
-
-        const pipeline = redis.pipeline();
-        pipeline.incr(fullKey);
-        pipeline.ttl(fullKey);
-        const results = await pipeline.exec();
-
-        if (!results || results.some(r => r[0])) {
-            const err = results?.find(r => r[0])?.[0];
-            console.warn(`[Redis] Rate limit pipeline failed (${failClosed ? "FAIL CLOSED" : "FAIL OPEN"}):`, err?.message);
-            return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
-        }
-
-        const count = results[0][1];
-        const ttl   = results[1][1];
-
-        if (ttl === -1) {
-            await redis.expire(fullKey, windowSeconds).catch(() => {});
-        }
-
-        return {
-            success:   count <= limit,
-            limit,
-            remaining: Math.max(0, limit - count),
-            reset:     ttl > 0 ? ttl : windowSeconds,
-        };
-    } catch (error) {
-        console.warn(`[RateLimit] Error (${failClosed ? "FAIL CLOSED" : "FAIL OPEN"}):`, error.message);
-        return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
+  try {
+    if (!redis || (redis.status !== 'ready' && redis.status !== 'connecting')) {
+      console.warn(
+        `[Redis] Client not ready, ${failClosed ? 'FAILING CLOSED' : 'failing open'} for rate limit`,
+      );
+      return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
     }
+
+    const pipeline = redis.pipeline();
+    pipeline.incr(fullKey);
+    pipeline.ttl(fullKey);
+    const results = await pipeline.exec();
+
+    if (!results || results.some((r) => r[0])) {
+      const err = results?.find((r) => r[0])?.[0];
+      console.warn(
+        `[Redis] Rate limit pipeline failed (${failClosed ? 'FAIL CLOSED' : 'FAIL OPEN'}):`,
+        err?.message,
+      );
+      return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
+    }
+
+    const count = results[0][1];
+    const ttl = results[1][1];
+
+    if (ttl === -1) {
+      await redis.expire(fullKey, windowSeconds).catch(() => {});
+    }
+
+    return {
+      success: count <= limit,
+      limit,
+      remaining: Math.max(0, limit - count),
+      reset: ttl > 0 ? ttl : windowSeconds,
+    };
+  } catch (error) {
+    console.warn(`[RateLimit] Error (${failClosed ? 'FAIL CLOSED' : 'FAIL OPEN'}):`, error.message);
+    return { success: !failClosed, limit, remaining: 0, reset: windowSeconds };
+  }
 }
 
 // ── Adaptive rate limit ───────────────────────────────────────────────────────
@@ -87,44 +92,51 @@ export async function checkRateLimit(key, limit = 20, windowSeconds = 60, failCl
  * @param {boolean}                 [failClosed=false]
  * @returns {Promise<{ success: boolean, limit: number, remaining: number, reset: number, tier: string }>}
  */
-export async function checkAdaptiveRateLimit(key, baseLimit, windowSeconds, reputationType, reputationId, failClosed = false) {
-    // Lazy import to avoid circular dependency — reputation imports redis, not rate-limiter
-    let adaptiveLimit = baseLimit;
-    let tier = "normal";
+export async function checkAdaptiveRateLimit(
+  key,
+  baseLimit,
+  windowSeconds,
+  reputationType,
+  reputationId,
+  failClosed = false,
+) {
+  // Lazy import to avoid circular dependency — reputation imports redis, not rate-limiter
+  let adaptiveLimit = baseLimit;
+  let tier = 'normal';
 
+  try {
+    const { getAdaptiveLimit } = await import('./reputation.js');
+    const result = await getAdaptiveLimit(baseLimit, reputationType, reputationId);
+    adaptiveLimit = result.limit;
+    tier = result.tier;
+  } catch (_) {
+    // Reputation system failure → fall back to base limit
+  }
+
+  // Apply 50% reduction when the system is in high-risk mode (distributed botnet detected).
+  // The module-level cache means at most one Redis read per 5 seconds across all requests
+  // on this instance — negligible overhead on the hot path.
+  const now = Date.now();
+  if (now > _highRiskCache.expiresAt) {
     try {
-        const { getAdaptiveLimit } = await import("./reputation.js");
-        const result = await getAdaptiveLimit(baseLimit, reputationType, reputationId);
-        adaptiveLimit = result.limit;
-        tier          = result.tier;
+      const { isHighRiskMode } = await import('./security-state.js');
+      _highRiskCache = { active: await isHighRiskMode(), expiresAt: now + HIGH_RISK_CACHE_TTL_MS };
     } catch (_) {
-        // Reputation system failure → fall back to base limit
+      // Keep stale value — do not block the request on a cache refresh failure
+      _highRiskCache.expiresAt = now + HIGH_RISK_CACHE_TTL_MS;
     }
+  }
+  if (_highRiskCache.active) {
+    adaptiveLimit = Math.max(1, Math.floor(adaptiveLimit / 2));
+  }
 
-    // Apply 50% reduction when the system is in high-risk mode (distributed botnet detected).
-    // The module-level cache means at most one Redis read per 5 seconds across all requests
-    // on this instance — negligible overhead on the hot path.
-    const now = Date.now();
-    if (now > _highRiskCache.expiresAt) {
-        try {
-            const { isHighRiskMode } = await import("./security-state.js");
-            _highRiskCache = { active: await isHighRiskMode(), expiresAt: now + HIGH_RISK_CACHE_TTL_MS };
-        } catch (_) {
-            // Keep stale value — do not block the request on a cache refresh failure
-            _highRiskCache.expiresAt = now + HIGH_RISK_CACHE_TTL_MS;
-        }
-    }
-    if (_highRiskCache.active) {
-        adaptiveLimit = Math.max(1, Math.floor(adaptiveLimit / 2));
-    }
-
-    const result = await checkRateLimit(key, adaptiveLimit, windowSeconds, failClosed);
-    return { ...result, tier, highRiskMode: _highRiskCache.active };
+  const result = await checkRateLimit(key, adaptiveLimit, windowSeconds, failClosed);
+  return { ...result, tier, highRiskMode: _highRiskCache.active };
 }
 
 // ── Cleanup helper ────────────────────────────────────────────────────────────
 
 export async function clearRateLimit(key) {
-    const redis = getRedisClient();
-    await redis.del(`ratelimit:${key}`);
+  const redis = getRedisClient();
+  await redis.del(`ratelimit:${key}`);
 }

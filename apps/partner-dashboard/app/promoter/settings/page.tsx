@@ -1,5 +1,5 @@
-import PageClient from "./SettingsHub";
+import PageClient from './SettingsHub';
 
 export default function Page() {
-    return <PageClient />;
+  return <PageClient />;
 }

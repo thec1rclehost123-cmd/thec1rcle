@@ -45,7 +45,22 @@ export class VenueService {
     const venueId = ctx.partnerId;
 
     const [statsSnap, tonightSnap] = await Promise.all([
-      this.db.collection('venue_stats').doc(venueId).get().catch((err) => { this.log.error({ service: 'VenueService', method: 'getOverview', venueId, error: err?.message ?? String(err) }, 'venue_stats read failed'); return null; }),
+      this.db
+        .collection('venue_stats')
+        .doc(venueId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'VenueService',
+              method: 'getOverview',
+              venueId,
+              error: err?.message ?? String(err),
+            },
+            'venue_stats read failed',
+          );
+          return null;
+        }),
       this.db
         .collection('events')
         .where('venueId', '==', venueId)
@@ -53,7 +68,18 @@ export class VenueService {
         .orderBy('startDate', 'asc')
         .limit(1)
         .get()
-        .catch((err) => { this.log.error({ service: 'VenueService', method: 'getOverview', venueId, error: err?.message ?? String(err) }, 'Tonight ops query failed'); return null; }),
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'VenueService',
+              method: 'getOverview',
+              venueId,
+              error: err?.message ?? String(err),
+            },
+            'Tonight ops query failed',
+          );
+          return null;
+        }),
     ]);
 
     const raw = statsSnap?.exists ? (statsSnap.data() as Record<string, any>) : {};
@@ -84,7 +110,10 @@ export class VenueService {
 
   // ── Events ────────────────────────────────────────────────────────────────
 
-  async getEvents(ctx: PartnerContext, filters: EventFilters): Promise<PaginatedResult<EventSummary>> {
+  async getEvents(
+    ctx: PartnerContext,
+    filters: EventFilters,
+  ): Promise<PaginatedResult<EventSummary>> {
     const { status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
     const venueId = ctx.partnerId;
@@ -101,11 +130,22 @@ export class VenueService {
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
     }
 
-    const snap = await q.get().catch((err: any) => { this.log.error({ service: 'VenueService', method: 'getEvents', venueId: ctx.partnerId, error: err?.message ?? String(err) }, 'Events query failed'); return { docs: [] }; });
+    const snap = await q.get().catch((err: any) => {
+      this.log.error(
+        {
+          service: 'VenueService',
+          method: 'getEvents',
+          venueId: ctx.partnerId,
+          error: err?.message ?? String(err),
+        },
+        'Events query failed',
+      );
+      return { docs: [] };
+    });
     const docs: FirebaseFirestore.QueryDocumentSnapshot[] = (snap as any).docs;
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc) => this.docToEventSummary(doc));
-    const nextCursor = hasMore ? items[items.length - 1]?.eventId ?? null : null;
+    const nextCursor = hasMore ? (items[items.length - 1]?.eventId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
   }
@@ -114,24 +154,57 @@ export class VenueService {
 
   async getGuestOps(ctx: PartnerContext, eventId: string): Promise<GuestOpsSummary> {
     const [ordersSnap, checkInsSnap] = await Promise.all([
-      this.db.collection('orders').where('eventId', '==', eventId).get().catch((err) => {
-        this.log.error({ service: 'VenueService', method: 'getGuestOps', venueId: ctx.partnerId, eventId, collection: 'orders', error: err?.message ?? String(err) }, 'Guest orders query failed');
-        return { docs: [] as any[] };
-      }),
-      this.db.collection('check_ins').where('eventId', '==', eventId).get().catch((err) => {
-        this.log.error({ service: 'VenueService', method: 'getGuestOps', venueId: ctx.partnerId, eventId, collection: 'check_ins', error: err?.message ?? String(err) }, 'Guest check-ins query failed');
-        return { docs: [] as any[], size: 0 };
-      }),
+      this.db
+        .collection('orders')
+        .where('eventId', '==', eventId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'VenueService',
+              method: 'getGuestOps',
+              venueId: ctx.partnerId,
+              eventId,
+              collection: 'orders',
+              error: err?.message ?? String(err),
+            },
+            'Guest orders query failed',
+          );
+          return { docs: [] as any[] };
+        }),
+      this.db
+        .collection('check_ins')
+        .where('eventId', '==', eventId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'VenueService',
+              method: 'getGuestOps',
+              venueId: ctx.partnerId,
+              eventId,
+              collection: 'check_ins',
+              error: err?.message ?? String(err),
+            },
+            'Guest check-ins query failed',
+          );
+          return { docs: [] as any[], size: 0 };
+        }),
     ]);
 
     const paidOrders = (ordersSnap as any).docs.filter((doc: any) => {
       const status = String(doc.data()?.status || '').toLowerCase();
       return ['paid', 'confirmed', 'completed'].includes(status);
     });
-    const totalGuests = paidOrders.reduce((sum: number, doc: any) => sum + toNum(doc.data()?.ticketCount ?? 1), 0);
-    const denied = paidOrders.reduce((sum: number, doc: any) => (
-      doc.data()?.deniedAt ? sum + toNum(doc.data()?.ticketCount ?? 1) : sum
-    ), 0);
+    const totalGuests = paidOrders.reduce(
+      (sum: number, doc: any) => sum + toNum(doc.data()?.ticketCount ?? 1),
+      0,
+    );
+    const denied = paidOrders.reduce(
+      (sum: number, doc: any) =>
+        doc.data()?.deniedAt ? sum + toNum(doc.data()?.ticketCount ?? 1) : sum,
+      0,
+    );
     const checkedIn = (checkInsSnap as any).size ?? (checkInsSnap as any).docs?.length ?? 0;
 
     return {
@@ -152,7 +225,18 @@ export class VenueService {
       .where('isActive', '==', true)
       .limit(100)
       .get()
-      .catch((err) => { this.log.error({ service: 'VenueService', method: 'getPartnerships', venueId: ctx.partnerId, error: err?.message ?? String(err) }, 'Partnerships query failed'); return { docs: [] }; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'VenueService',
+            method: 'getPartnerships',
+            venueId: ctx.partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Partnerships query failed',
+        );
+        return { docs: [] };
+      });
 
     return (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
@@ -171,7 +255,22 @@ export class VenueService {
 
   async getSettings(ctx: PartnerContext): Promise<Record<string, any>> {
     const venueId = ctx.partnerId;
-    const snap = await this.db.collection('venues').doc(venueId).get().catch((err) => { this.log.error({ service: 'VenueService', method: 'getSettings', venueId, error: err?.message ?? String(err) }, 'Venue settings read failed'); return null; });
+    const snap = await this.db
+      .collection('venues')
+      .doc(venueId)
+      .get()
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'VenueService',
+            method: 'getSettings',
+            venueId,
+            error: err?.message ?? String(err),
+          },
+          'Venue settings read failed',
+        );
+        return null;
+      });
     if (!snap?.exists) return {};
     const d = snap.data() as Record<string, any>;
     return {
@@ -219,7 +318,18 @@ export class VenueService {
       .orderBy('createdAt', 'desc')
       .limit(10)
       .get()
-      .catch((err) => { this.log.error({ service: 'VenueService', method: 'getAlerts', venueId, error: err?.message ?? String(err) }, 'Alerts query failed'); return { docs: [] }; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'VenueService',
+            method: 'getAlerts',
+            venueId,
+            error: err?.message ?? String(err),
+          },
+          'Alerts query failed',
+        );
+        return { docs: [] };
+      });
 
     return (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;

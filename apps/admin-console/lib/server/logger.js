@@ -15,11 +15,11 @@
  *   logAuthEvent("UNAUTHORIZED_ADMIN_ACCESS", { requestId, uid, ip, path });
  */
 
-import * as Sentry from "@sentry/nextjs";
-import { randomUUID } from "node:crypto";
+import * as Sentry from '@sentry/nextjs';
+import { randomUUID } from 'node:crypto';
 
-const isProd = process.env.NODE_ENV === "production";
-const APP = "admin-console";
+const isProd = process.env.NODE_ENV === 'production';
+const APP = 'admin-console';
 
 // ── Request ID helper ────────────────────────────────────────────────────────
 
@@ -30,48 +30,53 @@ const APP = "admin-console";
  * @returns {string}
  */
 export function getRequestId(request) {
-    if (!request) return randomUUID();
-    const fromHeader = request.headers?.get?.("x-request-id");
-    return fromHeader || randomUUID();
+  if (!request) return randomUUID();
+  const fromHeader = request.headers?.get?.('x-request-id');
+  return fromHeader || randomUUID();
 }
 
 // ── Core emit ────────────────────────────────────────────────────────────────
 
 function emit(level, route, message, context = {}) {
-    const entry = {
-        level,
-        app: APP,
-        route,
-        message,
-        ts: new Date().toISOString(),
-        env: process.env.NODE_ENV ?? "development",
-        ...(context.requestId && { requestId: context.requestId }),
-        ...(context.uid       && { uid: context.uid }),
-        ...(context.ip        && { ip: context.ip }),
-        ...context,
-    };
+  const entry = {
+    level,
+    app: APP,
+    route,
+    message,
+    ts: new Date().toISOString(),
+    env: process.env.NODE_ENV ?? 'development',
+    ...(context.requestId && { requestId: context.requestId }),
+    ...(context.uid && { uid: context.uid }),
+    ...(context.ip && { ip: context.ip }),
+    ...context,
+  };
 
-    if (isProd) {
-        const consoleFn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-        consoleFn(JSON.stringify(entry));
-    } else {
-        const prefix = level === "error" ? "❌" : level === "warn" ? "⚠️ " : "ℹ️ ";
-        const ctxStr = Object.keys(context).length ? ` ${JSON.stringify(context)}` : "";
-        const consoleFn = level === "error" ? console.error : level === "warn" ? console.warn : console.log;
-        consoleFn(`${prefix} [${APP}/${route}] ${message}${ctxStr}`);
-    }
+  if (isProd) {
+    const consoleFn =
+      level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    consoleFn(JSON.stringify(entry));
+  } else {
+    const prefix = level === 'error' ? '❌' : level === 'warn' ? '⚠️ ' : 'ℹ️ ';
+    const ctxStr = Object.keys(context).length ? ` ${JSON.stringify(context)}` : '';
+    const consoleFn =
+      level === 'error' ? console.error : level === 'warn' ? console.warn : console.log;
+    consoleFn(`${prefix} [${APP}/${route}] ${message}${ctxStr}`);
+  }
 }
 
 export const logger = {
-    info:  (route, message, context) => emit("info",  route, message, context),
-    warn:  (route, message, context) => emit("warn",  route, message, context),
-    error: (route, message, context) => emit("error", route, message, context),
+  info: (route, message, context) => emit('info', route, message, context),
+  warn: (route, message, context) => emit('warn', route, message, context),
+  error: (route, message, context) => emit('error', route, message, context),
 };
 
 // ── Security Event Helpers ───────────────────────────────────────────────────
 
 const CRITICAL_ACTIONS = new Set([
-    "DATABASE_CORRECTION", "ADMIN_PROVISION", "FINANCIAL_REFUND", "PAYOUT_BATCH_RUN",
+  'DATABASE_CORRECTION',
+  'ADMIN_PROVISION',
+  'FINANCIAL_REFUND',
+  'PAYOUT_BATCH_RUN',
 ]);
 
 /**
@@ -80,16 +85,16 @@ const CRITICAL_ACTIONS = new Set([
  * @param {{ requestId?: string, adminId: string, adminRole: string, targetId: string }} context
  */
 export function logAdminAction(action, context = {}) {
-    const entry = { securityEvent: "ADMIN_ACTION", action, ...context };
-    emit(CRITICAL_ACTIONS.has(action) ? "error" : "warn", "security/admin-action", action, entry);
+  const entry = { securityEvent: 'ADMIN_ACTION', action, ...context };
+  emit(CRITICAL_ACTIONS.has(action) ? 'error' : 'warn', 'security/admin-action', action, entry);
 
-    // Every admin action is Sentry-visible; critical ones are errors
-    Sentry.captureEvent({
-        message: `[Admin] ${action}`,
-        level: CRITICAL_ACTIONS.has(action) ? "error" : "warning",
-        extra: entry,
-        tags: { securityEvent: "ADMIN_ACTION", action, app: APP },
-    });
+  // Every admin action is Sentry-visible; critical ones are errors
+  Sentry.captureEvent({
+    message: `[Admin] ${action}`,
+    level: CRITICAL_ACTIONS.has(action) ? 'error' : 'warning',
+    extra: entry,
+    tags: { securityEvent: 'ADMIN_ACTION', action, app: APP },
+  });
 }
 
 /**
@@ -99,15 +104,15 @@ export function logAdminAction(action, context = {}) {
  * @param {{ requestId?: string, uid?: string, ip?: string, path?: string }} context
  */
 export function logAuthEvent(eventType, context = {}) {
-    const entry = { securityEvent: "AUTH", eventType, ...context };
-    emit("warn", "security/auth", eventType, entry);
+  const entry = { securityEvent: 'AUTH', eventType, ...context };
+  emit('warn', 'security/auth', eventType, entry);
 
-    Sentry.captureEvent({
-        message: `[Security/Auth/Admin] ${eventType}`,
-        level: "warning",
-        extra: entry,
-        tags: { securityEvent: "AUTH", app: APP },
-    });
+  Sentry.captureEvent({
+    message: `[Security/Auth/Admin] ${eventType}`,
+    level: 'warning',
+    extra: entry,
+    tags: { securityEvent: 'AUTH', app: APP },
+  });
 }
 
 /**
@@ -115,13 +120,13 @@ export function logAuthEvent(eventType, context = {}) {
  * @param {{ requestId?: string, adminId?: string, ip?: string, path?: string }} context
  */
 export function logRateLimit(context = {}) {
-    const entry = { securityEvent: "RATE_LIMIT", eventType: "RATE_LIMIT_HIT", ...context };
-    emit("warn", "security/rate-limit", "Rate limit exceeded on admin route", entry);
+  const entry = { securityEvent: 'RATE_LIMIT', eventType: 'RATE_LIMIT_HIT', ...context };
+  emit('warn', 'security/rate-limit', 'Rate limit exceeded on admin route', entry);
 
-    Sentry.captureEvent({
-        message: "[Security/RateLimit] Admin route rate limited",
-        level: "warning",
-        extra: entry,
-        tags: { securityEvent: "RATE_LIMIT", app: APP },
-    });
+  Sentry.captureEvent({
+    message: '[Security/RateLimit] Admin route rate limited',
+    level: 'warning',
+    extra: entry,
+    tags: { securityEvent: 'RATE_LIMIT', app: APP },
+  });
 }

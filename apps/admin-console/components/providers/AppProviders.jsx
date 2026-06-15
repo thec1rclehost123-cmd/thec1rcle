@@ -1,7 +1,7 @@
-import ThemeProvider from "./ThemeProvider";
-import AuthProvider from "./AuthProvider";
-import ToastProvider from "./ToastProvider";
-import GlobalAuthManager from "../GlobalAuthManager";
+import ThemeProvider from './ThemeProvider';
+import AuthProvider from './AuthProvider';
+import ToastProvider from './ToastProvider';
+import GlobalAuthManager from '../GlobalAuthManager';
 
 export default function AppProviders({ children }) {
   return (

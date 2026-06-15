@@ -2,16 +2,16 @@
  * THE C1RCLE - Pending Transfers API
  */
 
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
-import { getPendingTransfers } from "@/lib/server/ticketShareStore";
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/server/auth';
+import { getPendingTransfers } from '@/lib/server/ticketShareStore';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
     const user = await verifyAuth(request);
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const transfers = await getPendingTransfers(user.uid, user.email);
 
@@ -20,7 +20,7 @@ export async function GET(request) {
       transfers,
     });
   } catch (error) {
-    console.error("[Pending Transfers API] Error:", error);
+    console.error('[Pending Transfers API] Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

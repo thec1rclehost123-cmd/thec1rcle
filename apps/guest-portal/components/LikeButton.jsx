@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useRouter, usePathname } from "next/navigation";
-import { Heart } from "lucide-react";
-import { motion } from "framer-motion";
-import { trackEvent } from "../lib/utils/analytics";
+import { useRouter, usePathname } from 'next/navigation';
+import { Heart } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { trackEvent } from '../lib/utils/analytics';
 
 export default function LikeButton({ eventId }) {
   const router = useRouter();
@@ -13,14 +13,14 @@ export default function LikeButton({ eventId }) {
     e.preventDefault();
     e.stopPropagation();
 
-    trackEvent("web_like_clicked", {
+    trackEvent('web_like_clicked', {
       eventId,
       path: pathname,
-      source: "web",
+      source: 'web',
     });
 
     const returnTo = encodeURIComponent(pathname);
-    router.push(`/app?reason=like&eventId=${eventId || ""}&source=web&returnTo=${returnTo}`);
+    router.push(`/app?reason=like&eventId=${eventId || ''}&source=web&returnTo=${returnTo}`);
   };
 
   return (
@@ -31,7 +31,7 @@ export default function LikeButton({ eventId }) {
       aria-label="Like event in app"
       className="group relative flex h-11 w-11 items-center justify-center rounded-full border border-white/18 bg-white/12 backdrop-blur-[14px] transition-all duration-300"
       style={{
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
       }}
     >
       <Heart

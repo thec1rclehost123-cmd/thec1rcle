@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 export default function BuyTicketsModal({ open, onClose }) {
   if (!open) return null;

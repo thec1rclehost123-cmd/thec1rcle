@@ -3,12 +3,12 @@
  * Liquid glass, parallax, and jaw-dropping animations
  */
 
-import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { useEffect } from "react";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -21,11 +21,11 @@ import Animated, {
   FadeInRight,
   FadeIn,
   SlideInUp,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { colors, radii, shadows } from "@/lib/design/theme";
+import { colors, radii, shadows } from '@/lib/design/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 48;
 const CARD_HEIGHT = 440;
 
@@ -148,11 +148,11 @@ export function PremiumHeroCard({
       {/* Multi-layer gradient overlay */}
       <LinearGradient
         colors={[
-          "transparent",
-          "rgba(0,0,0,0.1)",
-          "rgba(0,0,0,0.4)",
-          "rgba(0,0,0,0.85)",
-          "rgba(0,0,0,0.95)",
+          'transparent',
+          'rgba(0,0,0,0.1)',
+          'rgba(0,0,0,0.4)',
+          'rgba(0,0,0,0.85)',
+          'rgba(0,0,0,0.95)',
         ]}
         locations={[0, 0.3, 0.5, 0.75, 1]}
         style={styles.gradient}
@@ -161,7 +161,7 @@ export function PremiumHeroCard({
       {/* Shimmer effect */}
       <Animated.View style={[styles.shimmerOverlay, shimmerStyle]}>
         <LinearGradient
-          colors={["transparent", "rgba(255,255,255,0.15)", "transparent"]}
+          colors={['transparent', 'rgba(255,255,255,0.15)', 'transparent']}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={StyleSheet.absoluteFill}
@@ -175,7 +175,7 @@ export function PremiumHeroCard({
           <Animated.View entering={FadeIn.delay(300)} style={styles.categoryBadge}>
             <BlurView intensity={40} tint="dark" style={styles.categoryBlur}>
               <LinearGradient
-                colors={["rgba(244,74,34,0.9)", "rgba(255,107,74,0.9)"]}
+                colors={['rgba(244,74,34,0.9)', 'rgba(255,107,74,0.9)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
                 style={styles.categoryGradient}
@@ -222,7 +222,7 @@ export function PremiumHeroCard({
 
         {/* Divider line with gradient */}
         <LinearGradient
-          colors={["transparent", "rgba(255,255,255,0.2)", "transparent"]}
+          colors={['transparent', 'rgba(255,255,255,0.2)', 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={styles.divider}
@@ -246,7 +246,7 @@ export function PremiumHeroCard({
                       ]}
                       style={styles.avatarGradient}
                     >
-                      <Text style={styles.avatarEmoji}>{["👩", "👨", "👩‍🦰", "🧑"][i]}</Text>
+                      <Text style={styles.avatarEmoji}>{['👩', '👨', '👩‍🦰', '🧑'][i]}</Text>
                     </LinearGradient>
                   </View>
                 ))}
@@ -264,7 +264,7 @@ export function PremiumHeroCard({
               <Text style={styles.priceFrom}>from</Text>
               <View style={styles.priceRow}>
                 <Text style={styles.priceCurrency}>₹</Text>
-                <Text style={styles.priceAmount}>{price.replace("₹", "").replace(",", "")}</Text>
+                <Text style={styles.priceAmount}>{price.replace('₹', '').replace(',', '')}</Text>
               </View>
             </View>
           )}
@@ -293,11 +293,11 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: CARD_HEIGHT,
     borderRadius: 28,
-    overflow: "hidden",
+    overflow: 'hidden',
     marginHorizontal: 10,
   },
   outerGlow: {
-    position: "absolute",
+    position: 'absolute',
     top: -20,
     left: -20,
     right: -20,
@@ -315,49 +315,49 @@ const styles = StyleSheet.create({
   },
   shimmerOverlay: {
     ...StyleSheet.absoluteFillObject,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   glassBorder: {
     ...StyleSheet.absoluteFillObject,
     borderRadius: 28,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
+    borderColor: 'rgba(255,255,255,0.15)',
   },
   cornerTL: {
-    position: "absolute",
+    position: 'absolute',
     top: 16,
     left: 16,
     width: 24,
     height: 24,
     borderTopWidth: 2,
     borderLeftWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: 'rgba(255,255,255,0.3)',
     borderTopLeftRadius: 8,
   },
   cornerBR: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 16,
     right: 16,
     width: 24,
     height: 24,
     borderBottomWidth: 2,
     borderRightWidth: 2,
-    borderColor: "rgba(255,255,255,0.2)",
+    borderColor: 'rgba(255,255,255,0.2)',
     borderBottomRightRadius: 8,
   },
   topRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     padding: 20,
   },
   categoryBadge: {
     borderRadius: radii.pill,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   categoryBlur: {
     borderRadius: radii.pill,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   categoryGradient: {
     paddingHorizontal: 16,
@@ -365,15 +365,15 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   categoryText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: 1.5,
   },
   liveBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(255, 59, 48, 0.9)",
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 59, 48, 0.9)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.pill,
@@ -383,35 +383,35 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#fff",
+    backgroundColor: '#fff',
   },
   liveText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 11,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: 1,
   },
   content: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     padding: 24,
   },
   dateChip: {
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
     borderRadius: radii.pill,
-    overflow: "hidden",
+    overflow: 'hidden',
     marginBottom: 14,
   },
   dateBlur: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
     gap: 6,
     borderRadius: radii.pill,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   dateIcon: {
     fontSize: 12,
@@ -419,37 +419,37 @@ const styles = StyleSheet.create({
   dateText: {
     color: colors.gold,
     fontSize: 13,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   title: {
     color: colors.gold,
     fontSize: 30,
-    fontWeight: "900",
+    fontWeight: '900',
     lineHeight: 36,
     marginBottom: 10,
     letterSpacing: -0.5,
-    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
   },
   venueRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
   venueIcon: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
     marginRight: 8,
   },
   venue: {
     color: colors.goldMetallic,
     fontSize: 15,
-    fontWeight: "500",
+    fontWeight: '500',
     flex: 1,
   },
   divider: {
@@ -457,29 +457,29 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   attendees: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   avatarStack: {
-    flexDirection: "row",
+    flexDirection: 'row',
   },
   avatar: {
     width: 32,
     height: 32,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: "rgba(0,0,0,0.6)",
-    overflow: "hidden",
+    borderColor: 'rgba(0,0,0,0.6)',
+    overflow: 'hidden',
   },
   avatarGradient: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   avatarEmoji: {
     fontSize: 14,
@@ -490,51 +490,51 @@ const styles = StyleSheet.create({
   attendeeCount: {
     color: colors.gold,
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   attendeeLabel: {
     color: colors.goldMetallic,
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: '500',
     marginTop: -2,
   },
   priceTag: {
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
   },
   priceFrom: {
     color: colors.goldMetallic,
     fontSize: 11,
-    fontWeight: "500",
+    fontWeight: '500',
     marginBottom: 2,
   },
   priceRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    alignItems: 'flex-start',
   },
   priceCurrency: {
     color: colors.iris,
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: '700',
     marginTop: 2,
   },
   priceAmount: {
     color: colors.iris,
     fontSize: 28,
-    fontWeight: "900",
+    fontWeight: '900',
     letterSpacing: -1,
   },
   soldOutBadge: {
-    backgroundColor: "rgba(255,59,48,0.2)",
+    backgroundColor: 'rgba(255,59,48,0.2)',
     borderWidth: 1,
-    borderColor: "rgba(255,59,48,0.5)",
+    borderColor: 'rgba(255,59,48,0.5)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: radii.pill,
   },
   soldOutText: {
-    color: "#FF3B30",
+    color: '#FF3B30',
     fontSize: 12,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: 1,
   },
 });

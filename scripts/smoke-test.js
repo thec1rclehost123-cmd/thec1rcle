@@ -10,72 +10,93 @@ import { promisify } from 'util';
 const lookup = promisify(dns.lookup);
 
 const services = [
-    { name: 'Guest Portal', url: process.env.STAGING_GUEST_URL || 'https://thec1rcle-guest-portal-git-staging-thec1rcles-projects.vercel.app/' },
-    { name: 'Admin Console', url: process.env.STAGING_ADMIN_URL || 'https://thec1rcle-admin-panel-git-staging-thec1rcles-projects.vercel.app/' },
-    { name: 'API Gateway', url: process.env.STAGING_API_URL || 'https://thec1rcle-partner-dashboard-git-staging-thec1rcles-projects.vercel.app/api/health' }
+  {
+    name: 'Guest Portal',
+    url:
+      process.env.STAGING_GUEST_URL ||
+      'https://thec1rcle-guest-portal-git-staging-thec1rcles-projects.vercel.app/',
+  },
+  {
+    name: 'Admin Console',
+    url:
+      process.env.STAGING_ADMIN_URL ||
+      'https://thec1rcle-admin-panel-git-staging-thec1rcles-projects.vercel.app/',
+  },
+  {
+    name: 'API Gateway',
+    url:
+      process.env.STAGING_API_URL ||
+      'https://thec1rcle-partner-dashboard-git-staging-thec1rcles-projects.vercel.app/api/health',
+  },
 ];
 
 async function checkUrl(service) {
+  try {
+    const urlObj = new URL(service.url);
+
+    // 1. Check if hostname is resolvable
     try {
-        const urlObj = new URL(service.url);
-
-        // 1. Check if hostname is resolvable
-        try {
-            await lookup(urlObj.hostname);
-        } catch (dnsErr) {
-            console.warn(`⚠️ Warning: Hostname ${urlObj.hostname} for ${service.name} is NOT resolvable in DNS yet.`);
-            console.log(`💡 Tip: If you just deployed, DNS might still be propagating or the domain isn't registered.`);
-            // We report failure but keep going
-            return false;
-        }
-
-        return new Promise((resolve) => {
-            console.log(`🔍 Checking ${service.name} at ${service.url}...`);
-
-            const timeout = setTimeout(() => {
-                console.error(`❌ ${service.name} timed out.`);
-                resolve(false);
-            }, 10000);
-
-            https.get(service.url, (res) => {
-                clearTimeout(timeout);
-                const isOk = res.statusCode >= 200 && res.statusCode < 400;
-                if (isOk) {
-                    console.log(`✅ ${service.name} is UP (Status: ${res.statusCode})`);
-                } else {
-                    console.error(`❌ ${service.name} is DOWN (Status: ${res.statusCode})`);
-                }
-                resolve(isOk);
-            }).on('error', (err) => {
-                clearTimeout(timeout);
-                console.error(`❌ ${service.name} Error: ${err.message}`);
-                resolve(false);
-            });
-        });
-    } catch (e) {
-        console.error(`❌ Invalid URL for ${service.name}: ${service.url}`);
-        return false;
+      await lookup(urlObj.hostname);
+    } catch (dnsErr) {
+      console.warn(
+        `⚠️ Warning: Hostname ${urlObj.hostname} for ${service.name} is NOT resolvable in DNS yet.`,
+      );
+      console.log(
+        `💡 Tip: If you just deployed, DNS might still be propagating or the domain isn't registered.`,
+      );
+      // We report failure but keep going
+      return false;
     }
+
+    return new Promise((resolve) => {
+      console.log(`🔍 Checking ${service.name} at ${service.url}...`);
+
+      const timeout = setTimeout(() => {
+        console.error(`❌ ${service.name} timed out.`);
+        resolve(false);
+      }, 10000);
+
+      https
+        .get(service.url, (res) => {
+          clearTimeout(timeout);
+          const isOk = res.statusCode >= 200 && res.statusCode < 400;
+          if (isOk) {
+            console.log(`✅ ${service.name} is UP (Status: ${res.statusCode})`);
+          } else {
+            console.error(`❌ ${service.name} is DOWN (Status: ${res.statusCode})`);
+          }
+          resolve(isOk);
+        })
+        .on('error', (err) => {
+          clearTimeout(timeout);
+          console.error(`❌ ${service.name} Error: ${err.message}`);
+          resolve(false);
+        });
+    });
+  } catch (e) {
+    console.error(`❌ Invalid URL for ${service.name}: ${service.url}`);
+    return false;
+  }
 }
 
 async function runAll() {
-    console.log('--- 🚀 Starting Daily Health Check ---');
-    let allPassed = true;
+  console.log('--- 🚀 Starting Daily Health Check ---');
+  let allPassed = true;
 
-    for (const service of services) {
-        const result = await checkUrl(service);
-        if (!result) allPassed = false;
-    }
+  for (const service of services) {
+    const result = await checkUrl(service);
+    if (!result) allPassed = false;
+  }
 
-    console.log('---------------------------------------');
-    if (allPassed) {
-        console.log('🎉 All critical services are HEALTHY.');
-        process.exit(0);
-    } else {
-        console.error('⚠️ One or more services are UNSTABLE or DNS is not configured.');
-        // We still exit with 1 because and error is an error, but the logs are clearer now.
-        process.exit(1);
-    }
+  console.log('---------------------------------------');
+  if (allPassed) {
+    console.log('🎉 All critical services are HEALTHY.');
+    process.exit(0);
+  } else {
+    console.error('⚠️ One or more services are UNSTABLE or DNS is not configured.');
+    // We still exit with 1 because and error is an error, but the logs are clearer now.
+    process.exit(1);
+  }
 }
 
 runAll();

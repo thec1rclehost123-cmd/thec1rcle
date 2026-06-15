@@ -3,10 +3,10 @@
  * Provides access to user settings with automatic sync
  */
 
-import { useEffect } from "react";
+import { useEffect } from 'react';
 
-import { useAuthStore } from "@/store/authStore";
-import { useSettingsStore, UserSettings } from "@/store/settingsStore";
+import { useAuthStore } from '@/store/authStore';
+import { useSettingsStore, UserSettings } from '@/store/settingsStore';
 
 export function useSettings() {
   const { user } = useAuthStore();
@@ -27,24 +27,24 @@ export function useSettings() {
   }, [user?.uid, loadSettings]);
 
   // Wrapper functions that include userId
-  const setNotificationSetting = (key: keyof UserSettings["notifications"], value: boolean) => {
+  const setNotificationSetting = (key: keyof UserSettings['notifications'], value: boolean) => {
     if (user?.uid) {
       updateNotificationSetting(user.uid, key, value);
     }
   };
 
-  const setPrivacySetting = <K extends keyof UserSettings["privacy"]>(
+  const setPrivacySetting = <K extends keyof UserSettings['privacy']>(
     key: K,
-    value: UserSettings["privacy"][K],
+    value: UserSettings['privacy'][K],
   ) => {
     if (user?.uid) {
       updatePrivacySetting(user.uid, key, value);
     }
   };
 
-  const setAppearanceSetting = <K extends keyof UserSettings["appearance"]>(
+  const setAppearanceSetting = <K extends keyof UserSettings['appearance']>(
     key: K,
-    value: UserSettings["appearance"][K],
+    value: UserSettings['appearance'][K],
   ) => {
     updateAppearanceSetting(key, value);
   };
@@ -71,4 +71,4 @@ export function useSettings() {
 }
 
 // Convenience exports
-export { useHapticsEnabled, useReduceMotion } from "@/store/settingsStore";
+export { useHapticsEnabled, useReduceMotion } from '@/store/settingsStore';

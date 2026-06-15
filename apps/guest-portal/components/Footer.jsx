@@ -1,27 +1,37 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 const links = [
-  { label: "Download App", href: "/app" },
-  { label: "Explore", href: "/explore" },
-  { label: "University", href: "/about#university" },
-  { label: "Careers", href: "/about#careers" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" }
+  { label: 'Download App', href: '/app' },
+  { label: 'Explore', href: '/explore' },
+  { label: 'University', href: '/about#university' },
+  { label: 'Careers', href: '/about#careers' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
 ];
 
 export default function Footer() {
   const pathname = usePathname();
 
-  const isHostDashboard = pathname?.startsWith("/host") && !pathname.includes("%40") && !pathname.includes("@");
-  const isFocusedFlow = pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/auth";
+  const isHostDashboard =
+    pathname?.startsWith('/host') && !pathname.includes('%40') && !pathname.includes('@');
+  const isFocusedFlow =
+    pathname?.startsWith('/checkout') ||
+    pathname?.startsWith('/confirmation') ||
+    pathname === '/forgot-password' ||
+    pathname === '/auth/callback' ||
+    pathname === '/login' ||
+    pathname === '/auth';
 
   if (isHostDashboard || isFocusedFlow) return null;
 
   return (
-    <footer className="bg-black text-white pt-12 md:pt-24 px-4 sm:px-6" style={{ paddingBottom: 'max(120px, calc(100px + env(safe-area-inset-bottom, 0px)))' }}>
+    <footer
+      className="bg-black text-white pt-12 md:pt-24 px-4 sm:px-6"
+      style={{ paddingBottom: 'max(120px, calc(100px + env(safe-area-inset-bottom, 0px)))' }}
+    >
       <div className="max-w-[1400px] mx-auto flex flex-col items-center">
         {/* Large Brand Text */}
         <div className="relative mb-32 w-full text-center">

@@ -14,11 +14,11 @@
  *   if (!result.valid) return NextResponse.json({ error: result.reason }, { status: 403 });
  */
 
-import { getAdminDb } from "@/lib/firebase/admin";
+import { getAdminDb } from '@/lib/firebase/admin';
 
 interface ValidationResult {
-    valid: boolean;
-    reason?: string;
+  valid: boolean;
+  reason?: string;
 }
 
 /**
@@ -28,43 +28,43 @@ interface ValidationResult {
  * @param venueId    - Firestore ID of the venue partner
  */
 export async function validatePartnership(
-    agentId: string,
-    venueId: string
+  agentId: string,
+  venueId: string,
 ): Promise<ValidationResult> {
-    if (!agentId || !venueId) {
-        return { valid: false, reason: "Missing agentId or venueId" };
-    }
+  if (!agentId || !venueId) {
+    return { valid: false, reason: 'Missing agentId or venueId' };
+  }
 
-    const db = getAdminDb();
+  const db = getAdminDb();
 
-    // Check host-venue partnerships collection (field is hostId, status is "active" after approval)
-    const partnershipSnap = await db
-        .collection("partnerships")
-        .where("hostId", "==", agentId)
-        .where("venueId", "==", venueId)
-        .where("status", "==", "active")
-        .limit(1)
-        .get();
+  // Check host-venue partnerships collection (field is hostId, status is "active" after approval)
+  const partnershipSnap = await db
+    .collection('partnerships')
+    .where('hostId', '==', agentId)
+    .where('venueId', '==', venueId)
+    .where('status', '==', 'active')
+    .limit(1)
+    .get();
 
-    // Also check promoter connections collection
-    const connectionSnap = await db
-        .collection("promoter_connections")
-        .where("promoterId", "==", agentId)
-        .where("venueId", "==", venueId)
-        .where("status", "==", "active")
-        .limit(1)
-        .get();
+  // Also check promoter connections collection
+  const connectionSnap = await db
+    .collection('promoter_connections')
+    .where('promoterId', '==', agentId)
+    .where('venueId', '==', venueId)
+    .where('status', '==', 'active')
+    .limit(1)
+    .get();
 
-    const doc = partnershipSnap.docs[0] ?? connectionSnap.docs[0];
+  const doc = partnershipSnap.docs[0] ?? connectionSnap.docs[0];
 
-    if (!doc) {
-        return {
-            valid: false,
-            reason: "No approved partnership found. Request access from the venue first.",
-        };
-    }
+  if (!doc) {
+    return {
+      valid: false,
+      reason: 'No approved partnership found. Request access from the venue first.',
+    };
+  }
 
-    return { valid: true };
+  return { valid: true };
 }
 
 /**

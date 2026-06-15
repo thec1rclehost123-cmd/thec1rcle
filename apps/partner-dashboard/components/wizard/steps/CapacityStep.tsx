@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { Section, FieldGroup, WizardInput, Reassurance, Hint } from "../WizardUI";
-import { ShieldCheck } from "lucide-react";
+import { Section, FieldGroup, WizardInput, Reassurance, Hint } from '../WizardUI';
+import { ShieldCheck } from 'lucide-react';
 
 /**
  * Step 5 — Capacity & Inventory
@@ -39,10 +39,10 @@ export function CapacityStep({ formData, updateFormData, validationErrors }: Cap
             type="number"
             min={1}
             placeholder="500"
-            value={formData.capacity || ""}
+            value={formData.capacity || ''}
             onChange={(e) =>
               updateFormData({
-                capacity: e.target.value === "" ? "" : parseInt(e.target.value) || 0,
+                capacity: e.target.value === '' ? '' : parseInt(e.target.value) || 0,
               })
             }
             hint="Set this based on the venue's legal or practical limit."
@@ -60,7 +60,7 @@ export function CapacityStep({ formData, updateFormData, validationErrors }: Cap
             <span className="text-[14px] text-stone-600">Total Ticket Inventory</span>
             <span
               className={`text-[18px] font-semibold ${
-                capacityExceeded ? "text-red-600" : "text-stone-900"
+                capacityExceeded ? 'text-red-600' : 'text-stone-900'
               }`}
             >
               {totalTickets}

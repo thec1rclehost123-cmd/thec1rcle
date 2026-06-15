@@ -1,12 +1,12 @@
-import { Suspense } from "react";
-import PartnersPageClient from "./PageClient";
+import { Suspense } from 'react';
+import PartnersPageClient from './PageClient';
 
-export const metadata = { title: "Partners — Venue" };
+export const metadata = { title: 'Partners — Venue' };
 
 export default function PartnersPage() {
-    return (
-        <Suspense>
-            <PartnersPageClient />
-        </Suspense>
-    );
+  return (
+    <Suspense>
+      <PartnersPageClient />
+    </Suspense>
+  );
 }

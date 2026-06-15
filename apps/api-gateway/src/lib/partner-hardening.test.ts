@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { buildPayoutAccountRecord, normalizePromoterCommissionRate, sanitizeEventResubmissionPatch } from './partner-hardening.js';
+import {
+  buildPayoutAccountRecord,
+  normalizePromoterCommissionRate,
+  sanitizeEventResubmissionPatch,
+} from './partner-hardening.js';
 
 describe('partner hardening helpers', () => {
   it('strips unsafe event resubmission fields', () => {
@@ -24,16 +28,19 @@ describe('partner hardening helpers', () => {
   });
 
   it('builds payout account records without storing raw account numbers', () => {
-    const account = buildPayoutAccountRecord({
-      accountNumber: '123456789012',
-      bankName: 'HDFC',
-      accountHolderName: 'Test User',
-      ifscCode: 'HDFC0001234',
-      isDefault: true,
-    }, {
-      partnerId: 'venue_123',
-      ownerType: 'venue',
-    });
+    const account = buildPayoutAccountRecord(
+      {
+        accountNumber: '123456789012',
+        bankName: 'HDFC',
+        accountHolderName: 'Test User',
+        ifscCode: 'HDFC0001234',
+        isDefault: true,
+      },
+      {
+        partnerId: 'venue_123',
+        ownerType: 'venue',
+      },
+    );
 
     expect(account.last4).toBe('9012');
     expect(account.record).toMatchObject({

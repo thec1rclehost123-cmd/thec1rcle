@@ -1,4 +1,4 @@
-import { getSiteUrl } from "../features/seo/seoUtils";
+import { getSiteUrl } from '../features/seo/seoUtils';
 
 export default function robots() {
   const siteUrl = getSiteUrl();
@@ -6,9 +6,9 @@ export default function robots() {
   return {
     rules: [
       {
-        userAgent: "*",
-        allow: "/",
-        disallow: ["/api/", "/admin/"],
+        userAgent: '*',
+        allow: '/',
+        disallow: ['/api/', '/admin/'],
       },
     ],
     sitemap: `${siteUrl}/sitemap.xml`,

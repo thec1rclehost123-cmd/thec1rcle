@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export default function TicketModal({ open, onClose, tickets = [], eventId }) {
   const router = useRouter();
@@ -42,7 +42,7 @@ export default function TicketModal({ open, onClose, tickets = [], eventId }) {
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
+            transition={{ duration: 0.3, ease: 'easeOut' }}
             onClick={(event) => event.stopPropagation()}
             className="w-full max-w-md overflow-hidden rounded-[32px] border border-white/10 bg-black p-6 shadow-2xl shadow-glow"
           >

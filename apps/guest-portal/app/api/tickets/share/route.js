@@ -3,27 +3,27 @@
  * Creates a share bundle for an order/tier
  */
 
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/server/auth';
 import {
   createShareBundle,
   getOrderShareBundles,
   getOrderAssignments,
-} from "@/lib/server/ticketShareStore";
-import { withRateLimit } from "@/lib/server/rateLimit";
+} from '@/lib/server/ticketShareStore';
+import { withRateLimit } from '@/lib/server/rateLimit';
 
 async function handler(request) {
   try {
     const user = await verifyAuth(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
     const { orderId, eventId, quantity, tierId, expiresAt: customExpiresAt } = body;
 
     if (!orderId || !eventId || !quantity) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     // Create share bundle
@@ -41,10 +41,10 @@ async function handler(request) {
       bundle,
     });
   } catch (error) {
-    console.error("[Share API] Error:", error);
+    console.error('[Share API] Error:', error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to create share link",
+        error: error.message || 'Failed to create share link',
       },
       { status: 500 },
     );
@@ -59,14 +59,14 @@ export async function GET(request) {
   try {
     const user = await verifyAuth(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get("orderId");
+    const orderId = searchParams.get('orderId');
 
     if (!orderId) {
-      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+      return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
     }
 
     // Fetch bundles and assignments
@@ -81,10 +81,10 @@ export async function GET(request) {
       assignments,
     });
   } catch (error) {
-    console.error("[Share API] GET Error:", error);
+    console.error('[Share API] GET Error:', error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to fetch sharing info",
+        error: error.message || 'Failed to fetch sharing info',
       },
       { status: 500 },
     );
@@ -99,14 +99,14 @@ async function deleteHandler(request) {
   try {
     const user = await verifyAuth(request);
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const body = await request.json();
     const { bundleId, slotIndex } = body;
 
     const { reclaimUnclaimedSlot, cancelShareBundle } =
-      await import("@/lib/server/ticketShareStore");
+      await import('@/lib/server/ticketShareStore');
 
     if (slotIndex !== undefined) {
       await reclaimUnclaimedSlot(bundleId, user.uid, slotIndex);
@@ -116,10 +116,10 @@ async function deleteHandler(request) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error("[Share API] DELETE Error:", error);
+    console.error('[Share API] DELETE Error:', error);
     return NextResponse.json(
       {
-        error: error.message || "Failed to reclaim ticket",
+        error: error.message || 'Failed to reclaim ticket',
       },
       { status: 500 },
     );

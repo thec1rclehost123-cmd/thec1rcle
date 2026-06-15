@@ -1,31 +1,47 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useAuth } from "./providers/AuthProvider";
-import { saveIntent } from "../lib/utils/intentStore";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useAuth } from './providers/AuthProvider';
+import { saveIntent } from '../lib/utils/intentStore';
 
-import { Compass, Ticket, Smartphone, User } from "lucide-react";
-import { motion } from "framer-motion";
+import { Compass, Ticket, Smartphone, User } from 'lucide-react';
+import { motion } from 'framer-motion';
 
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { user } = useAuth();
-  if (pathname?.startsWith("/host") || pathname?.startsWith("/venue") || pathname?.startsWith("/checkout") || pathname?.startsWith("/confirmation") || pathname?.startsWith("/event/") || pathname === "/forgot-password" || pathname === "/auth/callback" || pathname === "/login" || pathname === "/signup" || pathname === "/auth") return null;
+  if (
+    pathname?.startsWith('/host') ||
+    pathname?.startsWith('/venue') ||
+    pathname?.startsWith('/checkout') ||
+    pathname?.startsWith('/confirmation') ||
+    pathname?.startsWith('/event/') ||
+    pathname === '/forgot-password' ||
+    pathname === '/auth/callback' ||
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname === '/auth'
+  )
+    return null;
 
   const navItems = [
-    { label: "Explore", href: "/explore", icon: Compass },
-    { label: "Tickets", href: "/tickets", icon: Ticket },
-    { label: "App", href: "/app", icon: Smartphone },
-    { label: user ? "Profile" : "Login", href: user ? "/profile" : "/login?next=/profile", icon: User }
+    { label: 'Explore', href: '/explore', icon: Compass },
+    { label: 'Tickets', href: '/tickets', icon: Ticket },
+    { label: 'App', href: '/app', icon: Smartphone },
+    {
+      label: user ? 'Profile' : 'Login',
+      href: user ? '/profile' : '/login?next=/profile',
+      icon: User,
+    },
   ];
 
   const handleNavClick = (e, href) => {
-    if (href === "/tickets" && !user) {
+    if (href === '/tickets' && !user) {
       e.preventDefault();
-      saveIntent("VIEW_TICKETS", null, {}, "/tickets");
+      saveIntent('VIEW_TICKETS', null, {}, '/tickets');
       window.dispatchEvent(
-        new CustomEvent("OPEN_AUTH_MODAL", { detail: { intent: "VIEW_TICKETS" } })
+        new CustomEvent('OPEN_AUTH_MODAL', { detail: { intent: 'VIEW_TICKETS' } }),
       );
     }
   };
@@ -46,19 +62,26 @@ export default function MobileBottomNav() {
                 <Link
                   href={item.href}
                   onClick={(e) => handleNavClick(e, item.href)}
-                  className={`group flex flex-col items-center gap-1 transition-all duration-300 ${active ? "text-white" : "text-white/40 hover:text-white"}`}
+                  className={`group flex flex-col items-center gap-1 transition-all duration-300 ${active ? 'text-white' : 'text-white/40 hover:text-white'}`}
                 >
-                  <div className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all duration-300 ${active ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "group-active:scale-90"}`}>
-                    <Icon className={`h-5 w-5 transition-transform duration-300 ${active ? "scale-110" : ""}`} strokeWidth={active ? 2.5 : 2} />
+                  <div
+                    className={`relative flex h-10 w-10 items-center justify-center rounded-2xl transition-all duration-300 ${active ? 'bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]' : 'group-active:scale-90'}`}
+                  >
+                    <Icon
+                      className={`h-5 w-5 transition-transform duration-300 ${active ? 'scale-110' : ''}`}
+                      strokeWidth={active ? 2.5 : 2}
+                    />
                     {active && (
                       <motion.div
                         layoutId="bottom-nav-glow"
                         className="absolute inset-0 rounded-2xl bg-gradient-to-tr from-orange/20 to-transparent opacity-50"
-                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                        transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                       />
                     )}
                   </div>
-                  <span className="text-[9px] font-bold uppercase tracking-wider">{item.label}</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider">
+                    {item.label}
+                  </span>
                 </Link>
               </li>
             );

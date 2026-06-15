@@ -3,10 +3,10 @@
  * Consistent header pattern for all main tab screens
  */
 
-import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import { View, Text, StyleSheet, Pressable, TextInput } from "react-native";
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -14,13 +14,12 @@ import Animated, {
   FadeIn,
   interpolate,
   SharedValue,
-} from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NotificationBell } from "./NotificationBell";
+import { NotificationBell } from './NotificationBell';
 
-import { colors, radii } from "@/lib/design/theme";
-
+import { colors, radii } from '@/lib/design/theme';
 
 interface GlobalHeaderProps {
   title: string;
@@ -65,7 +64,7 @@ export function GlobalHeader({
     if (onSearchPress) {
       onSearchPress();
     } else {
-      router.push("/search");
+      router.push('/search');
     }
   };
 
@@ -172,7 +171,7 @@ export function SearchHeader({
   onChangeText,
   onSubmit,
   onCancel,
-  placeholder = "Search events, venues...",
+  placeholder = 'Search events, venues...',
   autoFocus = true,
 }: {
   value: string;
@@ -199,7 +198,7 @@ export function SearchHeader({
           onSubmitEditing={onSubmit}
         />
         {value.length > 0 && (
-          <Pressable onPress={() => onChangeText("")} style={styles.clearButton}>
+          <Pressable onPress={() => onChangeText('')} style={styles.clearButton}>
             <Text style={styles.clearIcon}>✕</Text>
           </Pressable>
         )}
@@ -218,20 +217,20 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   transparent: {
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
   },
   content: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingTop: 8,
   },
   left: {
     flex: 1,
   },
   right: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 8,
   },
   logoContainer: {
@@ -239,18 +238,18 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
     backgroundColor: colors.iris,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   logoText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: '800',
   },
   title: {
     color: colors.gold,
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '800',
     letterSpacing: -0.5,
   },
   subtitle: {
@@ -260,8 +259,8 @@ const styles = StyleSheet.create({
   },
   searchButton: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.base[50],
     borderRadius: radii.xl,
     paddingVertical: 10,
@@ -279,7 +278,7 @@ const styles = StyleSheet.create({
 
   // Compact Header
   compactContainer: {
-    position: "absolute",
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
@@ -288,12 +287,12 @@ const styles = StyleSheet.create({
   compactSolid: {
     backgroundColor: colors.base.DEFAULT,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
   },
   compactContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
@@ -302,22 +301,22 @@ const styles = StyleSheet.create({
   },
   compactRight: {
     width: 60,
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
   },
   compactTitle: {
     flex: 1,
     color: colors.gold,
     fontSize: 17,
-    fontWeight: "600",
-    textAlign: "center",
+    fontWeight: '600',
+    textAlign: 'center',
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
-    alignItems: "center",
-    justifyContent: "center",
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   backIcon: {
     color: colors.gold,
@@ -326,16 +325,16 @@ const styles = StyleSheet.create({
 
   // Search Header
   searchHeader: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.base.DEFAULT,
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   searchInputContainer: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.base[50],
     borderRadius: radii.xl,
     paddingHorizontal: 14,
@@ -364,7 +363,7 @@ const styles = StyleSheet.create({
   cancelText: {
     color: colors.iris,
     fontSize: 16,
-    fontWeight: "500",
+    fontWeight: '500',
   },
 });
 

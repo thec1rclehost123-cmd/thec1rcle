@@ -1,4 +1,4 @@
-import { normalizeCheckoutEventDetail } from "../../features/checkout/checkoutEventModel.js";
+import { normalizeCheckoutEventDetail } from '../../features/checkout/checkoutEventModel.js';
 import {
   GUEST_BFF_CACHE,
   buildGuestBffError,
@@ -6,12 +6,10 @@ import {
   buildGuestBffUpstreamTrace,
   guestBffUpstreamJson,
   getGuestBffUpstreamError,
-} from "./server.js";
+} from './server.js';
 
 export async function buildOrderConfirmationView(orderId) {
-  const orderResult = await guestBffUpstreamJson(
-    `/orders/${encodeURIComponent(orderId)}`,
-  );
+  const orderResult = await guestBffUpstreamJson(`/orders/${encodeURIComponent(orderId)}`);
 
   if (orderResult.response.status === 404 || orderResult.response.status === 403) {
     return buildGuestBffResult({
@@ -19,10 +17,10 @@ export async function buildOrderConfirmationView(orderId) {
       data: {
         event: null,
         order: null,
-        status: "missing",
+        status: 'missing',
       },
-      error: buildGuestBffError("We could not find that order.", {
-        code: orderResult.response.status === 404 ? "NOT_FOUND" : "FORBIDDEN",
+      error: buildGuestBffError('We could not find that order.', {
+        code: orderResult.response.status === 404 ? 'NOT_FOUND' : 'FORBIDDEN',
         requestId: orderResult.requestId,
         status: orderResult.response.status,
       }),
@@ -39,10 +37,10 @@ export async function buildOrderConfirmationView(orderId) {
       data: {
         event: null,
         order: null,
-        status: "missing",
+        status: 'missing',
       },
       error: buildGuestBffError(
-        getGuestBffUpstreamError(orderResult.data, "We could not load your confirmation yet."),
+        getGuestBffUpstreamError(orderResult.data, 'We could not load your confirmation yet.'),
         {
           requestId: orderResult.requestId,
           status: orderResult.response.status || 502,
@@ -78,11 +76,7 @@ export async function buildOrderConfirmationView(orderId) {
     data: {
       event,
       order,
-      status: !order
-        ? "missing"
-        : order.status === "confirmed"
-          ? "ready"
-          : "pending",
+      status: !order ? 'missing' : order.status === 'confirmed' ? 'ready' : 'pending',
     },
     meta: {
       requestId: orderResult.requestId,

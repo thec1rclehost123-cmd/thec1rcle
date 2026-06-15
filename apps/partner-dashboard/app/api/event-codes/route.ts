@@ -2,22 +2,18 @@
  * THE C1RCLE - Event Codes API (BFF Proxy)
  * Delegates to API Gateway for scanner code management
  */
-import { NextRequest, NextResponse } from "next/server";
-import { withAuth } from "@/lib/server/withAuth";
-import { fail } from "@/lib/server/apiResponse";
-import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/server/withAuth';
+import { fail } from '@/lib/server/apiResponse';
+import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 
 /**
  * GET /api/event-codes?eventId=XXX
  */
 export const GET = withAuth(async (req: NextRequest) => {
-    if (!GATEWAY_URL) return fail("Service unavailable", 503);
-    const { searchParams } = new URL(req.url);
-    return proxyToGateway(
-        req,
-        `${GATEWAY_URL}/api/v1/scan/codes?${searchParams.toString()}`,
-        {}
-    );
+  if (!GATEWAY_URL) return fail('Service unavailable', 503);
+  const { searchParams } = new URL(req.url);
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/codes?${searchParams.toString()}`, {});
 });
 
 /**
@@ -25,13 +21,16 @@ export const GET = withAuth(async (req: NextRequest) => {
  * Create a new scanner access code
  */
 export const POST = withAuth(async (req: NextRequest, auth) => {
-    if (!GATEWAY_URL) return fail("Service unavailable", 503);
-    const body = await req.json();
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/codes`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, createdBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })
-    });
+  if (!GATEWAY_URL) return fail('Service unavailable', 503);
+  const body = await req.json();
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/codes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...body,
+      createdBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email },
+    }),
+  });
 });
 
 /**
@@ -39,14 +38,16 @@ export const POST = withAuth(async (req: NextRequest, auth) => {
  * Revoke a scanner access code
  */
 export const DELETE = withAuth(async (req: NextRequest, auth) => {
-    if (!GATEWAY_URL) return fail("Service unavailable", 503);
-    const { searchParams } = new URL(req.url);
-    const codeId = searchParams.get("id");
-    if (!codeId) return fail("id required", 400);
+  if (!GATEWAY_URL) return fail('Service unavailable', 503);
+  const { searchParams } = new URL(req.url);
+  const codeId = searchParams.get('id');
+  if (!codeId) return fail('id required', 400);
 
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/codes/${codeId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ revokedBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email } })
-    });
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/scan/codes/${codeId}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      revokedBy: { uid: auth.uid, name: (auth as any).name || (auth as any).email },
+    }),
+  });
 });

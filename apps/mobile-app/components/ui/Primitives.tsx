@@ -1,7 +1,7 @@
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { useEffect } from "react";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, {
   FadeIn,
   useSharedValue,
@@ -9,22 +9,22 @@ import Animated, {
   withRepeat,
   withTiming,
   withSequence,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { colors, radii, gradients } from "@/lib/design/theme";
+import { colors, radii, gradients } from '@/lib/design/theme';
 
 // Badge component
 interface BadgeProps {
   children: string;
-  variant?: "default" | "success" | "warning" | "error" | "iris" | "outline";
-  size?: "sm" | "md";
+  variant?: 'default' | 'success' | 'warning' | 'error' | 'iris' | 'outline';
+  size?: 'sm' | 'md';
   animated?: boolean;
 }
 
 export function Badge({
   children,
-  variant = "default",
-  size = "sm",
+  variant = 'default',
+  size = 'sm',
   animated = false,
 }: BadgeProps) {
   const pulse = useSharedValue(1);
@@ -48,8 +48,8 @@ export function Badge({
     success: { bg: colors.successMuted, text: colors.success },
     warning: { bg: colors.warningMuted, text: colors.warning },
     error: { bg: colors.errorMuted, text: colors.error },
-    iris: { bg: "rgba(244, 74, 34, 0.15)", text: colors.iris },
-    outline: { bg: "transparent", text: colors.goldMetallic },
+    iris: { bg: 'rgba(244, 74, 34, 0.15)', text: colors.iris },
+    outline: { bg: 'transparent', text: colors.goldMetallic },
   };
 
   const sizeStyles = {
@@ -65,7 +65,7 @@ export function Badge({
           backgroundColor: variantStyles[variant].bg,
           paddingVertical: sizeStyles[size].paddingVertical,
           paddingHorizontal: sizeStyles[size].paddingHorizontal,
-          borderWidth: variant === "outline" ? 1 : 0,
+          borderWidth: variant === 'outline' ? 1 : 0,
           borderColor: colors.base[200],
         },
         animatedStyle,
@@ -154,17 +154,17 @@ interface AvatarProps {
 export function Avatar({ size = 48, imageUrl, name, badge }: AvatarProps) {
   const initials = name
     ? name
-        .split(" ")
+        .split(' ')
         .map((n) => n[0])
-        .join("")
+        .join('')
         .toUpperCase()
         .slice(0, 2)
-    : "?";
+    : '?';
 
   return (
     <View style={[styles.avatar, { width: size, height: size, borderRadius: size / 2 }]}>
       <LinearGradient
-        colors={["rgba(244, 74, 34, 0.25)", "rgba(244, 74, 34, 0.08)"]}
+        colors={['rgba(244, 74, 34, 0.25)', 'rgba(244, 74, 34, 0.08)']}
         style={[styles.avatarGradient, { borderRadius: size / 2 }]}
       >
         <Text style={[styles.avatarText, { fontSize: size * 0.38 }]}>{initials}</Text>
@@ -183,11 +183,11 @@ export function Avatar({ size = 48, imageUrl, name, badge }: AvatarProps) {
 interface IconButtonProps {
   icon: string;
   onPress?: () => void;
-  size?: "sm" | "md" | "lg";
-  variant?: "default" | "filled" | "outline";
+  size?: 'sm' | 'md' | 'lg';
+  variant?: 'default' | 'filled' | 'outline';
 }
 
-export function IconButton({ icon, onPress, size = "md", variant = "default" }: IconButtonProps) {
+export function IconButton({ icon, onPress, size = 'md', variant = 'default' }: IconButtonProps) {
   const sizeMap = { sm: 32, md: 44, lg: 56 };
   const iconSizeMap = { sm: 16, md: 20, lg: 24 };
 
@@ -199,7 +199,7 @@ export function IconButton({ icon, onPress, size = "md", variant = "default" }: 
     onPress?.();
   };
 
-  if (variant === "filled") {
+  if (variant === 'filled') {
     return (
       <Pressable onPress={handlePress}>
         <LinearGradient
@@ -229,7 +229,7 @@ export function IconButton({ icon, onPress, size = "md", variant = "default" }: 
           height: buttonSize,
           borderRadius: buttonSize / 2,
         },
-        variant === "outline" && styles.iconButtonOutline,
+        variant === 'outline' && styles.iconButtonOutline,
       ]}
     >
       <Text style={{ fontSize: iconSize }}>{icon}</Text>
@@ -241,18 +241,18 @@ const styles = StyleSheet.create({
   // Badge
   badge: {
     borderRadius: radii.pill,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
   },
   badgeText: {
-    fontWeight: "600",
-    textTransform: "uppercase",
+    fontWeight: '600',
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
 
   // Chip
   chip: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.base[100],
     borderRadius: radii.pill,
     paddingVertical: 10,
@@ -261,8 +261,8 @@ const styles = StyleSheet.create({
     borderColor: colors.base[200],
   },
   chipSelected: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     borderRadius: radii.pill,
     paddingVertical: 10,
     paddingHorizontal: 16,
@@ -270,10 +270,10 @@ const styles = StyleSheet.create({
   chipText: {
     color: colors.goldMetallic,
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: '500',
   },
   chipTextSelected: {
-    color: "#fff",
+    color: '#fff',
   },
   chipIcon: {
     marginRight: 6,
@@ -286,8 +286,8 @@ const styles = StyleSheet.create({
     marginVertical: 16,
   },
   dividerWithLabel: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginVertical: 16,
   },
   dividerLine: {
@@ -299,29 +299,29 @@ const styles = StyleSheet.create({
     color: colors.goldMetallic,
     fontSize: 11,
     marginHorizontal: 12,
-    textTransform: "uppercase",
+    textTransform: 'uppercase',
     letterSpacing: 1.5,
-    fontWeight: "500",
+    fontWeight: '500',
   },
 
   // Avatar
   avatar: {
     backgroundColor: colors.base[100],
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarGradient: {
-    width: "100%",
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   avatarText: {
     color: colors.iris,
-    fontWeight: "700",
+    fontWeight: '700',
   },
   avatarBadge: {
-    position: "absolute",
+    position: 'absolute',
     right: -2,
     bottom: -2,
     backgroundColor: colors.success,
@@ -338,11 +338,11 @@ const styles = StyleSheet.create({
   // Icon Button
   iconButton: {
     backgroundColor: colors.base[100],
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   iconButtonOutline: {
-    backgroundColor: "transparent",
+    backgroundColor: 'transparent',
     borderWidth: 1.5,
     borderColor: colors.base[200],
   },

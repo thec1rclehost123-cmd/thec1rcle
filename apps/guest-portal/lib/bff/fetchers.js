@@ -1,4 +1,4 @@
-import { guestBffJson, getGuestBffErrorMessage, unwrapGuestBffPayload } from "./client.js";
+import { guestBffJson, getGuestBffErrorMessage, unwrapGuestBffPayload } from './client.js';
 
 async function request(path, options, fallbackMessage) {
   const { response, data } = await guestBffJson(path, options);
@@ -9,7 +9,7 @@ async function request(path, options, fallbackMessage) {
 }
 
 export async function fetchGuestBffTicketsOverview(options = {}) {
-  return request("/tickets/overview", options, "Failed to load ticket overview.");
+  return request('/tickets/overview', options, 'Failed to load ticket overview.');
 }
 
 export async function fetchGuestBffEventDetail(eventId, options = {}) {
@@ -19,67 +19,67 @@ export async function fetchGuestBffEventDetail(eventId, options = {}) {
   );
   if (response.status === 404) return null;
   if (!response.ok) {
-    throw new Error(getGuestBffErrorMessage(data, "Unable to load event detail."));
+    throw new Error(getGuestBffErrorMessage(data, 'Unable to load event detail.'));
   }
   return unwrapGuestBffPayload(data);
 }
 
 export async function fetchGuestBffCheckoutSummary(body, options = {}) {
-  const { response, data } = await guestBffJson("/checkout/summary", {
-    method: "POST",
+  const { response, data } = await guestBffJson('/checkout/summary', {
+    method: 'POST',
     body,
     ...options,
   });
   if (response.status === 404) return unwrapGuestBffPayload(data);
   if (!response.ok) {
-    throw new Error(getGuestBffErrorMessage(data, "Unable to refresh checkout summary."));
+    throw new Error(getGuestBffErrorMessage(data, 'Unable to refresh checkout summary.'));
   }
   return unwrapGuestBffPayload(data);
 }
 
 export async function fetchGuestBffProfileOverview(options = {}) {
-  return request("/profile/overview", options, "Unable to load profile overview.");
+  return request('/profile/overview', options, 'Unable to load profile overview.');
 }
 
 export async function fetchGuestBffNotificationsSummary(query = {}, options = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query || {})) {
-    if (value === undefined || value === null || value === "") continue;
+    if (value === undefined || value === null || value === '') continue;
     params.set(key, String(value));
   }
 
   return request(
-    `/notifications/summary${params.toString() ? `?${params.toString()}` : ""}`,
+    `/notifications/summary${params.toString() ? `?${params.toString()}` : ''}`,
     options,
-    "Unable to load notifications summary.",
+    'Unable to load notifications summary.',
   );
 }
 
 export async function fetchGuestBffExploreFeed(query = {}, options = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query || {})) {
-    if (value === undefined || value === null || value === "") continue;
+    if (value === undefined || value === null || value === '') continue;
     params.set(key, String(value));
   }
 
   return request(
-    `/explore/feed${params.toString() ? `?${params.toString()}` : ""}`,
+    `/explore/feed${params.toString() ? `?${params.toString()}` : ''}`,
     options,
-    "Unable to load explore feed.",
+    'Unable to load explore feed.',
   );
 }
 
 export async function fetchGuestBffHomeOverview(query = {}, options = {}) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query || {})) {
-    if (value === undefined || value === null || value === "") continue;
+    if (value === undefined || value === null || value === '') continue;
     params.set(key, String(value));
   }
 
   return request(
-    `/home/overview${params.toString() ? `?${params.toString()}` : ""}`,
+    `/home/overview${params.toString() ? `?${params.toString()}` : ''}`,
     options,
-    "Unable to load homepage overview.",
+    'Unable to load homepage overview.',
   );
 }
 
@@ -92,7 +92,7 @@ export async function fetchGuestBffConfirmation(orderId, options = {}) {
     return unwrapGuestBffPayload(data);
   }
   if (!response.ok) {
-    throw new Error(getGuestBffErrorMessage(data, "Unable to load order confirmation."));
+    throw new Error(getGuestBffErrorMessage(data, 'Unable to load order confirmation.'));
   }
   return unwrapGuestBffPayload(data);
 }
@@ -101,6 +101,6 @@ export async function fetchGuestBffProfileDetail(userId, options = {}) {
   return request(
     `/profiles/${encodeURIComponent(userId)}/detail`,
     options,
-    "Unable to load profile detail.",
+    'Unable to load profile detail.',
   );
 }

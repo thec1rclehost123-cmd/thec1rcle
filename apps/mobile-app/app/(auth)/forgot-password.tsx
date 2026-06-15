@@ -1,6 +1,6 @@
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { useState } from "react";
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ForgotPasswordScreen() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const { sendResetEmail, loading, error, clearError } = useAuth();
 
@@ -32,7 +32,7 @@ export default function ForgotPasswordScreen() {
     return (
       <SafeAreaView className="flex-1 bg-midnight">
         <LinearGradient
-          colors={["rgba(244, 74, 34, 0.15)", "transparent"]}
+          colors={['rgba(244, 74, 34, 0.15)', 'transparent']}
           className="absolute top-0 left-0 right-0 h-96"
           start={{ x: 0.5, y: 0 }}
           end={{ x: 0.5, y: 1 }}
@@ -44,11 +44,11 @@ export default function ForgotPasswordScreen() {
             Check Your Email
           </Text>
           <Text className="text-gold-stone text-center mb-8">
-            We've sent a password reset link to{"\n"}
+            We've sent a password reset link to{'\n'}
             <Text className="text-iris">{email}</Text>
           </Text>
           <Pressable
-            onPress={() => router.push("/(auth)/login")}
+            onPress={() => router.push('/(auth)/login')}
             className="bg-iris px-8 py-4 rounded-pill"
           >
             <Text className="text-white font-semibold text-lg">Back to Login</Text>
@@ -62,14 +62,14 @@ export default function ForgotPasswordScreen() {
     <SafeAreaView className="flex-1 bg-midnight">
       {/* Background Gradient */}
       <LinearGradient
-        colors={["rgba(244, 74, 34, 0.15)", "transparent"]}
+        colors={['rgba(244, 74, 34, 0.15)', 'transparent']}
         className="absolute top-0 left-0 right-0 h-96"
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1 px-6"
       >
         {/* Back Button */}
@@ -117,7 +117,7 @@ export default function ForgotPasswordScreen() {
             onPress={handleSendReset}
             disabled={loading || !email.trim()}
             className={`py-4 rounded-pill items-center mb-4 ${
-              loading || !email.trim() ? "bg-iris/50" : "bg-iris"
+              loading || !email.trim() ? 'bg-iris/50' : 'bg-iris'
             }`}
           >
             {loading ? (
@@ -131,7 +131,7 @@ export default function ForgotPasswordScreen() {
         {/* Back to Login Link */}
         <View className="flex-row justify-center">
           <Text className="text-gold-stone">Remember your password? </Text>
-          <Pressable onPress={() => router.push("/(auth)/login")}>
+          <Pressable onPress={() => router.push('/(auth)/login')}>
             <Text className="text-iris font-semibold">Login</Text>
           </Pressable>
         </View>

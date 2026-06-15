@@ -4,9 +4,9 @@
  * In production, reports errors to Sentry.
  */
 
-import React, { Component, type ErrorInfo, type ReactNode } from "react";
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 
-import { CrashScreen } from "./CrashScreen";
+import { CrashScreen } from './CrashScreen';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("ErrorBoundary caught:", error, errorInfo);
+    console.error('ErrorBoundary caught:', error, errorInfo);
 
     // Report to Sentry in production
     // When Sentry is configured, uncomment:

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import Image from "next/image";
-import Link from "next/link";
+import { motion } from 'framer-motion';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export default function HeroCarousel({ cards = [] }) {
   if (!cards.length) return null;
@@ -21,7 +21,7 @@ export default function HeroCarousel({ cards = [] }) {
           </p>
         </div>
         <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-black uppercase tracking-tight text-black dark:text-white">
-          Featured{" "}
+          Featured{' '}
           <span className="inline-block bg-gradient-to-r from-[#F44A22] to-[#FF6B4A] bg-clip-text text-transparent">
             Drops
           </span>
@@ -32,14 +32,14 @@ export default function HeroCarousel({ cards = [] }) {
         <motion.div
           className="flex"
           animate={{
-            x: ["0%", "-25%"],
+            x: ['0%', '-25%'],
           }}
           transition={{
             x: {
               repeat: Infinity,
-              repeatType: "loop",
+              repeatType: 'loop',
               duration: 45,
-              ease: "linear",
+              ease: 'linear',
             },
           }}
         >
@@ -71,7 +71,7 @@ export default function HeroCarousel({ cards = [] }) {
                     {/* Shimmer Effect on Hover */}
                     <div
                       className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/0 to-transparent group-hover:via-white/10 transition-all duration-700 group-hover:translate-x-full"
-                      style={{ transform: "translateX(-100%)" }}
+                      style={{ transform: 'translateX(-100%)' }}
                     />
 
                     {/* Content */}

@@ -1,28 +1,28 @@
-import { headers } from "next/headers";
-import { resolveGuestApiBaseUrl } from "./base-url.js";
+import { headers } from 'next/headers';
+import { resolveGuestApiBaseUrl } from './base-url.js';
 
 const API_BASE_URL = resolveGuestApiBaseUrl(process.env);
 
-export function getApiErrorMessage(data, fallback = "Request failed") {
+export function getApiErrorMessage(data, fallback = 'Request failed') {
   return data?.error?.message || data?.message || data?.error || fallback;
 }
 
 function normalizeServerApiPath(path) {
   if (!path) return API_BASE_URL;
   if (/^https?:\/\//.test(path)) return path;
-  if (path.startsWith("/api/v1/")) return `${API_BASE_URL}${path.slice("/api/v1".length)}`;
-  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (path.startsWith('/api/v1/')) return `${API_BASE_URL}${path.slice('/api/v1'.length)}`;
+  const normalized = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${normalized}`;
 }
 
 async function getForwardedCookieHeader() {
   const incomingHeaders = await headers();
-  return incomingHeaders.get("cookie") || "";
+  return incomingHeaders.get('cookie') || '';
 }
 
 export async function guestServerFetch(path, options = {}) {
   const {
-    method = "GET",
+    method = 'GET',
     headers: requestHeaders,
     body,
     cache,
@@ -34,12 +34,15 @@ export async function guestServerFetch(path, options = {}) {
   const nextHeaders = new Headers(requestHeaders || {});
   if (forwardCookies) {
     const cookie = await getForwardedCookieHeader();
-    if (cookie && !nextHeaders.has("cookie")) {
-      nextHeaders.set("cookie", cookie);
+    if (cookie && !nextHeaders.has('cookie')) {
+      nextHeaders.set('cookie', cookie);
     }
   }
-  if (!nextHeaders.has("x-request-id")) {
-    nextHeaders.set("x-request-id", `guest-rsc-${Date.now()}-${Math.random().toString(16).slice(2)}`);
+  if (!nextHeaders.has('x-request-id')) {
+    nextHeaders.set(
+      'x-request-id',
+      `guest-rsc-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    );
   }
 
   const requestInit = {
@@ -51,11 +54,11 @@ export async function guestServerFetch(path, options = {}) {
   };
 
   if (body !== undefined) {
-    if (typeof body === "string" || body instanceof URLSearchParams) {
+    if (typeof body === 'string' || body instanceof URLSearchParams) {
       requestInit.body = body;
     } else {
-      if (!nextHeaders.has("Content-Type")) {
-        nextHeaders.set("Content-Type", "application/json");
+      if (!nextHeaders.has('Content-Type')) {
+        nextHeaders.set('Content-Type', 'application/json');
       }
       requestInit.body = JSON.stringify(body);
     }
@@ -66,15 +69,15 @@ export async function guestServerFetch(path, options = {}) {
   } catch (error) {
     const payload = {
       success: false,
-      error: "Upstream API unavailable",
-      message: error?.message || "Unable to reach the guest API gateway.",
+      error: 'Upstream API unavailable',
+      message: error?.message || 'Unable to reach the guest API gateway.',
     };
     return new Response(JSON.stringify(payload), {
       status: 503,
       headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        "x-guest-fetch-error": "1",
+        'Content-Type': 'application/json',
+        'Cache-Control': 'no-store',
+        'x-guest-fetch-error': '1',
       },
     });
   }

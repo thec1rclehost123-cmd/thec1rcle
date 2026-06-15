@@ -1,4 +1,4 @@
-import { getAdminDb } from "../firebase/admin";
+import { getAdminDb } from '../firebase/admin';
 
 /**
  * THE C1RCLE - Discovery Algorithm & Discovery Engine
@@ -46,15 +46,15 @@ export const discoveryEngine = {
    */
   async setManualOverride(eventId, weight, adminId, reason) {
     const db = getAdminDb();
-    await db.collection("events").doc(eventId).update({
+    await db.collection('events').doc(eventId).update({
       adminWeightOverride: weight,
       adminOverrideReason: reason,
       updatedAt: new Date(),
     });
 
-    await db.collection("admin_logs").add({
+    await db.collection('admin_logs').add({
       adminId,
-      action: "DISCOVERY_OVERRIDE",
+      action: 'DISCOVERY_OVERRIDE',
       targetId: eventId,
       timestamp: new Date(),
       metadata: { newWeight: weight, reason },
@@ -66,7 +66,7 @@ export const discoveryEngine = {
    */
   async throttleContent(targetId, targetType, isThrottled, adminId, reason) {
     const db = getAdminDb();
-    const collection = targetType === "event" ? "events" : "venues";
+    const collection = targetType === 'event' ? 'events' : 'venues';
 
     await db
       .collection(collection)
@@ -77,9 +77,9 @@ export const discoveryEngine = {
         throttleReason: reason,
       });
 
-    await db.collection("admin_logs").add({
+    await db.collection('admin_logs').add({
       adminId,
-      action: isThrottled ? "THROTTLE_ON" : "THROTTLE_OFF",
+      action: isThrottled ? 'THROTTLE_ON' : 'THROTTLE_OFF',
       targetId,
       timestamp: new Date(),
       reason,

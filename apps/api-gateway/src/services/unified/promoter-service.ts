@@ -60,8 +60,13 @@ export class PromoterService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'getOverview', promoterId, error: err?.message ?? String(err) },
-          'Top links query failed'
+          {
+            service: 'PromoterService',
+            method: 'getOverview',
+            promoterId,
+            error: err?.message ?? String(err),
+          },
+          'Top links query failed',
         );
         return { docs: [] };
       });
@@ -74,7 +79,7 @@ export class PromoterService {
     if (durationMs > 500) {
       this.log.warn(
         { service: 'PromoterService', method: 'getOverview', promoterId, durationMs },
-        'Slow overview computation'
+        'Slow overview computation',
       );
     }
 
@@ -89,10 +94,16 @@ export class PromoterService {
 
   async getAnalytics(
     ctx: PartnerContext,
-    filters: { from?: string; to?: string; linkId?: string }
+    filters: { from?: string; to?: string; linkId?: string },
   ): Promise<{
     timeSeries: DataPoint[];
-    byLink: Array<{ linkId: string; code: string; clicks: number; conversions: number; revenue: number }>;
+    byLink: Array<{
+      linkId: string;
+      code: string;
+      clicks: number;
+      conversions: number;
+      revenue: number;
+    }>;
   }> {
     const promoterId = ctx.partnerId;
     const startedAt = Date.now();
@@ -106,8 +117,13 @@ export class PromoterService {
 
     const snap = await q.get().catch((err: any) => {
       this.log.error(
-        { service: 'PromoterService', method: 'getAnalytics', promoterId, error: err?.message ?? String(err) },
-        'Analytics links query failed'
+        {
+          service: 'PromoterService',
+          method: 'getAnalytics',
+          promoterId,
+          error: err?.message ?? String(err),
+        },
+        'Analytics links query failed',
       );
       return { docs: [] };
     });
@@ -130,8 +146,14 @@ export class PromoterService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 500) {
       this.log.warn(
-        { service: 'PromoterService', method: 'getAnalytics', promoterId, durationMs, linkCount: linkIds.length },
-        'Slow analytics aggregation'
+        {
+          service: 'PromoterService',
+          method: 'getAnalytics',
+          promoterId,
+          durationMs,
+          linkCount: linkIds.length,
+        },
+        'Slow analytics aggregation',
       );
     }
 
@@ -140,7 +162,10 @@ export class PromoterService {
 
   // ── Links ─────────────────────────────────────────────────────────────────
 
-  async getLinks(ctx: PartnerContext, filters: LinkFilters): Promise<PaginatedResult<PromoterLink>> {
+  async getLinks(
+    ctx: PartnerContext,
+    filters: LinkFilters,
+  ): Promise<PaginatedResult<PromoterLink>> {
     const { eventId, active, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 200);
     const promoterId = ctx.partnerId;
@@ -160,22 +185,27 @@ export class PromoterService {
 
     const snap = await q.get().catch((err: any) => {
       this.log.error(
-        { service: 'PromoterService', method: 'getLinks', promoterId, error: err?.message ?? String(err) },
-        'Links query failed'
+        {
+          service: 'PromoterService',
+          method: 'getLinks',
+          promoterId,
+          error: err?.message ?? String(err),
+        },
+        'Links query failed',
       );
       return { docs: [] };
     });
     const docs: any[] = (snap as any).docs;
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc) => this.docToLink(doc));
-    const nextCursor = hasMore ? items[items.length - 1]?.linkId ?? null : null;
+    const nextCursor = hasMore ? (items[items.length - 1]?.linkId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
   }
 
   async createLink(
     ctx: PartnerContext,
-    input: { eventId: string; commissionRate: number }
+    input: { eventId: string; commissionRate: number },
   ): Promise<PromoterLink> {
     const code = this.generateCode();
     const now = new Date();
@@ -194,8 +224,14 @@ export class PromoterService {
     });
 
     this.log.info(
-      { service: 'PromoterService', method: 'createLink', promoterId: ctx.partnerId, linkId: ref.id, eventId: input.eventId },
-      'Promoter link created'
+      {
+        service: 'PromoterService',
+        method: 'createLink',
+        promoterId: ctx.partnerId,
+        linkId: ref.id,
+        eventId: input.eventId,
+      },
+      'Promoter link created',
     );
 
     const doc = await ref.get();
@@ -205,7 +241,7 @@ export class PromoterService {
   async updateLink(
     ctx: PartnerContext,
     linkId: string,
-    input: { active?: boolean }
+    input: { active?: boolean },
   ): Promise<PromoterLink | null> {
     const ref = this.db.collection('promoter_links').doc(linkId);
     const doc = await ref.get();
@@ -258,8 +294,13 @@ export class PromoterService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'trackClick', linkCode, error: err?.message ?? String(err) },
-          'Link lookup failed for click tracking'
+          {
+            service: 'PromoterService',
+            method: 'trackClick',
+            linkCode,
+            error: err?.message ?? String(err),
+          },
+          'Link lookup failed for click tracking',
         );
         return null;
       });
@@ -274,8 +315,13 @@ export class PromoterService {
       .update({ clickCount: FieldValue.increment(1), updatedAt: new Date() })
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'trackClick', linkId: linkDoc.id, error: err?.message ?? String(err) },
-          'Link click count increment failed'
+          {
+            service: 'PromoterService',
+            method: 'trackClick',
+            linkId: linkDoc.id,
+            error: err?.message ?? String(err),
+          },
+          'Link click count increment failed',
         );
       });
 
@@ -287,14 +333,17 @@ export class PromoterService {
       .doc(linkDoc.id)
       .collection('daily')
       .doc(today)
-      .set(
-        { clicks: FieldValue.increment(1), date: today, linkId: linkDoc.id },
-        { merge: true }
-      )
+      .set({ clicks: FieldValue.increment(1), date: today, linkId: linkDoc.id }, { merge: true })
       .catch((err) => {
         this.log.warn(
-          { service: 'PromoterService', method: 'trackClick', linkId: linkDoc.id, date: today, error: err?.message ?? String(err) },
-          'Daily bucket write failed (non-critical)'
+          {
+            service: 'PromoterService',
+            method: 'trackClick',
+            linkId: linkDoc.id,
+            date: today,
+            error: err?.message ?? String(err),
+          },
+          'Daily bucket write failed (non-critical)',
         );
       });
   }
@@ -308,7 +357,10 @@ export class PromoterService {
   // P1: Pagination validated — ordering is by eventId (stable), cursor is
   // index-based into the sorted allEventIds array, and chunked `in` queries
   // are reassembled in insertion order via docsMap.
-  async getEvents(ctx: PartnerContext, filters: EventFilters): Promise<PaginatedResult<EventSummary>> {
+  async getEvents(
+    ctx: PartnerContext,
+    filters: EventFilters,
+  ): Promise<PaginatedResult<EventSummary>> {
     const { cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
     const startedAt = Date.now();
@@ -322,17 +374,22 @@ export class PromoterService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'getEvents', promoterId: ctx.partnerId, error: err?.message ?? String(err) },
-          'Event links query failed'
+          {
+            service: 'PromoterService',
+            method: 'getEvents',
+            promoterId: ctx.partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Event links query failed',
         );
         return { docs: [] };
       });
 
-    const allEventIds = [...new Set(
-      (linksSnap as any).docs
-        .map((d: any) => safeStr(d.data().eventId))
-        .filter(Boolean)
-    )] as string[];
+    const allEventIds = [
+      ...new Set(
+        (linksSnap as any).docs.map((d: any) => safeStr(d.data().eventId)).filter(Boolean),
+      ),
+    ] as string[];
 
     // P1: Sort eventIds for deterministic pagination ordering.
     // Without this, Set iteration order depends on insertion order which
@@ -346,8 +403,13 @@ export class PromoterService {
     if (cursor && startIdx === 0) {
       // Cursor not found in ID list — start from beginning to avoid data loss
       this.log.warn(
-        { service: 'PromoterService', method: 'getEvents', promoterId: ctx.partnerId, invalidCursor: cursor },
-        'Invalid cursor — resetting to start'
+        {
+          service: 'PromoterService',
+          method: 'getEvents',
+          promoterId: ctx.partnerId,
+          invalidCursor: cursor,
+        },
+        'Invalid cursor — resetting to start',
       );
     }
     const effectiveStartIdx = cursor && startIdx === 0 ? 0 : startIdx;
@@ -366,17 +428,23 @@ export class PromoterService {
 
     const snapResults = await Promise.all(
       chunks.map((chunk) =>
-        this.db.collection('events')
+        this.db
+          .collection('events')
           .where('__name__', 'in', chunk)
           .get()
           .catch((err) => {
             this.log.error(
-              { service: 'PromoterService', method: 'getEvents', chunkSize: chunk.length, error: err?.message ?? String(err) },
-              'Event batch query failed'
+              {
+                service: 'PromoterService',
+                method: 'getEvents',
+                chunkSize: chunk.length,
+                error: err?.message ?? String(err),
+              },
+              'Event batch query failed',
             );
             return { docs: [] };
-          })
-      )
+          }),
+      ),
     );
 
     const docsMap = new Map<string, any>();
@@ -411,8 +479,15 @@ export class PromoterService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 500) {
       this.log.warn(
-        { service: 'PromoterService', method: 'getEvents', promoterId: ctx.partnerId, durationMs, totalEvents: allEventIds.length, pageSize: items.length },
-        'Slow event listing'
+        {
+          service: 'PromoterService',
+          method: 'getEvents',
+          promoterId: ctx.partnerId,
+          durationMs,
+          totalEvents: allEventIds.length,
+          pageSize: items.length,
+        },
+        'Slow event listing',
       );
     }
 
@@ -427,7 +502,10 @@ export class PromoterService {
 
   // P0-6: Fixed — now queries both fromPartnerId (outgoing) and toPartnerId (incoming)
   // in parallel, then merges and deduplicates results.
-  async getConnections(ctx: PartnerContext, status?: ConnectionStatus): Promise<PromoterConnection[]> {
+  async getConnections(
+    ctx: PartnerContext,
+    status?: ConnectionStatus,
+  ): Promise<PromoterConnection[]> {
     const base = this.db.collection('promoter_connections');
 
     const buildQ = (field: 'fromPartnerId' | 'toPartnerId') => {
@@ -435,8 +513,14 @@ export class PromoterService {
       if (status) q = q.where('status', '==', status);
       return q.get().catch((err: any) => {
         this.log.error(
-          { service: 'PromoterService', method: 'getConnections', field, partnerId: ctx.partnerId, error: err?.message ?? String(err) },
-          'Connections query failed'
+          {
+            service: 'PromoterService',
+            method: 'getConnections',
+            field,
+            partnerId: ctx.partnerId,
+            error: err?.message ?? String(err),
+          },
+          'Connections query failed',
         );
         return { docs: [] };
       });
@@ -473,7 +557,7 @@ export class PromoterService {
   async requestConnection(
     ctx: PartnerContext,
     targetPartnerId: string,
-    eventId?: string
+    eventId?: string,
   ): Promise<PromoterConnection> {
     const now = new Date();
     const ref = await this.db.collection('promoter_connections').add({
@@ -486,8 +570,14 @@ export class PromoterService {
     });
 
     this.log.info(
-      { service: 'PromoterService', method: 'requestConnection', from: ctx.partnerId, to: targetPartnerId, connectionId: ref.id },
-      'Connection request created'
+      {
+        service: 'PromoterService',
+        method: 'requestConnection',
+        from: ctx.partnerId,
+        to: targetPartnerId,
+        connectionId: ref.id,
+      },
+      'Connection request created',
     );
 
     const doc = await ref.get();
@@ -506,7 +596,7 @@ export class PromoterService {
   async respondToConnection(
     ctx: PartnerContext,
     connectionId: string,
-    action: 'accepted' | 'rejected'
+    action: 'accepted' | 'rejected',
   ): Promise<PromoterConnection | null> {
     const ref = this.db.collection('promoter_connections').doc(connectionId);
     const doc = await ref.get();
@@ -519,8 +609,14 @@ export class PromoterService {
     await ref.update({ status: action, updatedAt: new Date() });
 
     this.log.info(
-      { service: 'PromoterService', method: 'respondToConnection', connectionId, action, respondedBy: ctx.partnerId },
-      'Connection response recorded'
+      {
+        service: 'PromoterService',
+        method: 'respondToConnection',
+        connectionId,
+        action,
+        respondedBy: ctx.partnerId,
+      },
+      'Connection response recorded',
     );
 
     const updated = await ref.get();
@@ -538,7 +634,9 @@ export class PromoterService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private docToLink(doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot): PromoterLink {
+  private docToLink(
+    doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot,
+  ): PromoterLink {
     const d = (doc.data() ?? {}) as Record<string, any>;
     return {
       linkId: doc.id,
@@ -567,8 +665,13 @@ export class PromoterService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'computeStats', promoterId, error: err?.message ?? String(err) },
-          'Links stats query failed'
+          {
+            service: 'PromoterService',
+            method: 'computeStats',
+            promoterId,
+            error: err?.message ?? String(err),
+          },
+          'Links stats query failed',
         );
         return { docs: [] };
       });
@@ -595,8 +698,13 @@ export class PromoterService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'PromoterService', method: 'computeStats', promoterId, error: err?.message ?? String(err) },
-          'Ledger commission query failed'
+          {
+            service: 'PromoterService',
+            method: 'computeStats',
+            promoterId,
+            error: err?.message ?? String(err),
+          },
+          'Ledger commission query failed',
         );
         return { docs: [] };
       });
@@ -611,8 +719,14 @@ export class PromoterService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 300) {
       this.log.warn(
-        { service: 'PromoterService', method: 'computeStats', promoterId, durationMs, linkCount: totalLinks },
-        'Slow stats computation'
+        {
+          service: 'PromoterService',
+          method: 'computeStats',
+          promoterId,
+          durationMs,
+          linkCount: totalLinks,
+        },
+        'Slow stats computation',
       );
     }
 
@@ -638,12 +752,12 @@ export class PromoterService {
   private async buildTimeSeries(
     linkIds: string[],
     from?: string,
-    to?: string
+    to?: string,
   ): Promise<DataPoint[]> {
     if (!linkIds.length) return [];
 
     const start = from ?? new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
-    const end   = to   ?? new Date().toISOString().slice(0, 10);
+    const end = to ?? new Date().toISOString().slice(0, 10);
 
     const byDate = new Map<string, { clicks: number; revenue: number }>();
 
@@ -658,8 +772,13 @@ export class PromoterService {
           .get()
           .catch((err) => {
             this.log.warn(
-              { service: 'PromoterService', method: 'buildTimeSeries', linkId, error: err?.message ?? String(err) },
-              'Daily bucket query failed for link'
+              {
+                service: 'PromoterService',
+                method: 'buildTimeSeries',
+                linkId,
+                error: err?.message ?? String(err),
+              },
+              'Daily bucket query failed for link',
             );
             return { docs: [] };
           });
@@ -674,7 +793,7 @@ export class PromoterService {
             revenue: existing.revenue + toNum(d.revenue ?? 0),
           });
         }
-      })
+      }),
     );
 
     return [...byDate.entries()]

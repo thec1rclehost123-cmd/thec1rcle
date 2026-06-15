@@ -3,11 +3,11 @@
  * Validates a promo code for an event and calculates discount
  */
 
-import { NextResponse } from "next/server";
-import { validateAndCalculatePromoDiscount } from "@/lib/server/checkoutService";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextResponse } from 'next/server';
+import { validateAndCalculatePromoDiscount } from '@/lib/server/checkoutService';
+import { verifyAuth } from '@/lib/server/auth';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function POST(request) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request) {
     const { eventId, code, items } = payload;
 
     if (!eventId || !code) {
-      return NextResponse.json({ error: "Event ID and code are required" }, { status: 400 });
+      return NextResponse.json({ error: 'Event ID and code are required' }, { status: 400 });
     }
 
     // Validate and calculate discount
@@ -31,13 +31,13 @@ export async function POST(request) {
     } else {
       return NextResponse.json({
         valid: false,
-        error: result.error || "Invalid promo code",
+        error: result.error || 'Invalid promo code',
       });
     }
   } catch (error) {
-    console.error("POST /api/checkout/promo error:", error);
+    console.error('POST /api/checkout/promo error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to validate promo code" },
+      { error: error.message || 'Failed to validate promo code' },
       { status: 500 },
     );
   }

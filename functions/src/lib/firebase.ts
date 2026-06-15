@@ -2,7 +2,7 @@ import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin
 if (!admin.apps.length) {
-    admin.initializeApp();
+  admin.initializeApp();
 }
 
 export const db = admin.firestore();

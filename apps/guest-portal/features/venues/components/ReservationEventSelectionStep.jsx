@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { ChevronRight, Clock } from "lucide-react";
-import { formatCurrency } from "./reservationModalUtils";
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { ChevronRight, Clock } from 'lucide-react';
+import { formatCurrency } from './reservationModalUtils';
 
 export function ReservationEventSelectionStep({ eventsOnDate, handleEventSelect }) {
   return (
@@ -22,17 +22,19 @@ export function ReservationEventSelectionStep({ eventsOnDate, handleEventSelect 
         >
           <div className="relative h-16 w-16 flex-shrink-0 overflow-hidden rounded-xl">
             <Image
-              src={event.image || event.poster || "/events/neon-nights.jpg"}
+              src={event.image || event.poster || '/events/neon-nights.jpg'}
               fill
               className="object-cover"
               alt={event.title || event.name}
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h4 className="truncate text-sm font-black uppercase tracking-tight text-white">{event.title || event.name}</h4>
+            <h4 className="truncate text-sm font-black uppercase tracking-tight text-white">
+              {event.title || event.name}
+            </h4>
             <div className="mt-1 flex items-center gap-2 text-white/40">
               <Clock className="h-3 w-3" />
-              <span className="text-[10px] font-bold">{event.time || event.startTime || "—"}</span>
+              <span className="text-[10px] font-bold">{event.time || event.startTime || '—'}</span>
               {event.host ? (
                 <>
                   <span className="text-white/15">•</span>
@@ -42,7 +44,9 @@ export function ReservationEventSelectionStep({ eventsOnDate, handleEventSelect 
             </div>
             {event.priceRange ? (
               <p className="mt-1 text-[10px] font-bold text-[#F44A22]">
-                {event.priceRange.min === 0 ? "Free Entry" : `From ${formatCurrency(event.priceRange.min)}`}
+                {event.priceRange.min === 0
+                  ? 'Free Entry'
+                  : `From ${formatCurrency(event.priceRange.min)}`}
               </p>
             ) : null}
           </div>

@@ -13,10 +13,10 @@
  *   scheduler expires    → status: "expired"           (either pending or payment_pending)
  */
 
-import { randomBytes } from "node:crypto";
-import { getAdminDb } from "../firebase/admin";
-import { writeAuditLog } from "./auditLogStore";
-import type { ReservationDoc, EventDoc } from "../types/booking";
+import { randomBytes } from 'node:crypto';
+import { getAdminDb } from '../firebase/admin';
+import { writeAuditLog } from './auditLogStore';
+import type { ReservationDoc, EventDoc } from '../types/booking';
 
 /** Reservation expires 15 minutes after creation */
 const RESERVATION_TTL_MS = 15 * 60 * 1000;
@@ -28,18 +28,18 @@ const MAX_QUANTITY = 10;
 // Error codes — caught by the API route to return the right HTTP status
 // ---------------------------------------------------------------------------
 export class ReservationError extends Error {
-    constructor(
-        public readonly code:
-            | "EVENT_NOT_FOUND"
-            | "EVENT_NOT_AVAILABLE"
-            | "INSUFFICIENT_SEATS"
-            | "INVALID_QUANTITY"
-            | "ALREADY_RESERVED",
-        message: string
-    ) {
-        super(message);
-        this.name = "ReservationError";
-    }
+  constructor(
+    public readonly code:
+      | 'EVENT_NOT_FOUND'
+      | 'EVENT_NOT_AVAILABLE'
+      | 'INSUFFICIENT_SEATS'
+      | 'INVALID_QUANTITY'
+      | 'ALREADY_RESERVED',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ReservationError';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -79,119 +79,124 @@ export class ReservationError extends Error {
  *   the query will find the newly created reservation and throw ALREADY_RESERVED.
  */
 export async function createReservation(
-    eventId: string,
-    userId: string,
-    quantity: number
+  eventId: string,
+  userId: string,
+  quantity: number,
 ): Promise<ReservationDoc> {
-    // Validate quantity before hitting Firestore
-    if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
-        throw new ReservationError(
-            "INVALID_QUANTITY",
-            `Quantity must be between 1 and ${MAX_QUANTITY}`
-        );
+  // Validate quantity before hitting Firestore
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_QUANTITY) {
+    throw new ReservationError(
+      'INVALID_QUANTITY',
+      `Quantity must be between 1 and ${MAX_QUANTITY}`,
+    );
+  }
+
+  const db = getAdminDb();
+  const eventRef = db.collection('events').doc(eventId);
+
+  // Generate the reservation ID upfront so we can reference it inside the
+  // transaction. Using crypto.randomBytes for collision-safe IDs.
+  const reservationId = randomBytes(16).toString('hex');
+  const reservationRef = db.collection('reservations').doc(reservationId);
+
+  // Build the idempotency query — checks for any active reservation from
+  // this user for this event BEFORE we decrement seats or create a new doc.
+  const existingQuery = db
+    .collection('reservations')
+    .where('userId', '==', userId)
+    .where('eventId', '==', eventId)
+    .where('status', 'in', ['pending', 'payment_pending'])
+    .limit(1);
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + RESERVATION_TTL_MS);
+
+  let reservationData: ReservationDoc;
+
+  await db.runTransaction(async (tx: any) => {
+    // ── READ 1: Idempotency check ─────────────────────────────────────────
+    // Query for an existing active reservation. Firestore version-tracks
+    // this query result, so concurrent duplicate requests are caught on retry.
+    const existingSnap = await tx.get(existingQuery);
+    if (!existingSnap.empty) {
+      const existing = existingSnap.docs[0].data() as ReservationDoc;
+      throw new ReservationError(
+        'ALREADY_RESERVED',
+        // Pass existing ID in message — API route surfaces it to frontend
+        // so the client can resume the existing payment flow.
+        `Reservation already active: ${existing.id}`,
+      );
     }
 
-    const db = getAdminDb();
-    const eventRef = db.collection("events").doc(eventId);
+    // ── READ 2: Event availability ────────────────────────────────────────
+    // Firestore tracks this doc's version. If any other request changes
+    // availableSeats between now and commit, the transaction retries.
+    const eventSnap = await tx.get(eventRef);
 
-    // Generate the reservation ID upfront so we can reference it inside the
-    // transaction. Using crypto.randomBytes for collision-safe IDs.
-    const reservationId = randomBytes(16).toString("hex");
-    const reservationRef = db.collection("reservations").doc(reservationId);
+    if (!eventSnap.exists) {
+      throw new ReservationError('EVENT_NOT_FOUND', `Event ${eventId} not found`);
+    }
 
-    // Build the idempotency query — checks for any active reservation from
-    // this user for this event BEFORE we decrement seats or create a new doc.
-    const existingQuery = db.collection("reservations")
-        .where("userId", "==", userId)
-        .where("eventId", "==", eventId)
-        .where("status", "in", ["pending", "payment_pending"])
-        .limit(1);
+    const event = eventSnap.data() as EventDoc;
 
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + RESERVATION_TTL_MS);
+    // ── BUSINESS RULES ────────────────────────────────────────────────────
+    if (event.status !== 'published') {
+      throw new ReservationError(
+        'EVENT_NOT_AVAILABLE',
+        `Event is not available for booking (status: ${event.status})`,
+      );
+    }
 
-    let reservationData: ReservationDoc;
+    if (event.availableSeats < quantity) {
+      throw new ReservationError(
+        'INSUFFICIENT_SEATS',
+        event.availableSeats === 0
+          ? 'This event is sold out'
+          : `Only ${event.availableSeats} seat(s) remaining`,
+      );
+    }
 
-    await db.runTransaction(async (tx: any) => {
-        // ── READ 1: Idempotency check ─────────────────────────────────────────
-        // Query for an existing active reservation. Firestore version-tracks
-        // this query result, so concurrent duplicate requests are caught on retry.
-        const existingSnap = await tx.get(existingQuery);
-        if (!existingSnap.empty) {
-            const existing = existingSnap.docs[0].data() as ReservationDoc;
-            throw new ReservationError(
-                "ALREADY_RESERVED",
-                // Pass existing ID in message — API route surfaces it to frontend
-                // so the client can resume the existing payment flow.
-                `Reservation already active: ${existing.id}`
-            );
-        }
+    // ── WRITE: Atomic decrement + reservation creation ────────────────────
+    // Both writes land in the same Firestore commit — they succeed or fail
+    // together. No partial state is possible.
 
-        // ── READ 2: Event availability ────────────────────────────────────────
-        // Firestore tracks this doc's version. If any other request changes
-        // availableSeats between now and commit, the transaction retries.
-        const eventSnap = await tx.get(eventRef);
+    const totalAmount = event.price * quantity;
 
-        if (!eventSnap.exists) {
-            throw new ReservationError("EVENT_NOT_FOUND", `Event ${eventId} not found`);
-        }
+    reservationData = {
+      id: reservationId,
+      eventId,
+      userId,
+      quantity,
+      pricePerSeat: event.price,
+      totalAmount,
+      razorpayOrderId: null, // Written in initiatePayment() — Step 3
+      status: 'pending', // → "payment_pending" after Razorpay order creation
+      expiresAt: expiresAt.toISOString(),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
 
-        const event = eventSnap.data() as EventDoc;
-
-        // ── BUSINESS RULES ────────────────────────────────────────────────────
-        if (event.status !== "published") {
-            throw new ReservationError(
-                "EVENT_NOT_AVAILABLE",
-                `Event is not available for booking (status: ${event.status})`
-            );
-        }
-
-        if (event.availableSeats < quantity) {
-            throw new ReservationError(
-                "INSUFFICIENT_SEATS",
-                event.availableSeats === 0
-                    ? "This event is sold out"
-                    : `Only ${event.availableSeats} seat(s) remaining`
-            );
-        }
-
-        // ── WRITE: Atomic decrement + reservation creation ────────────────────
-        // Both writes land in the same Firestore commit — they succeed or fail
-        // together. No partial state is possible.
-
-        const totalAmount = event.price * quantity;
-
-        reservationData = {
-            id: reservationId,
-            eventId,
-            userId,
-            quantity,
-            pricePerSeat: event.price,
-            totalAmount,
-            razorpayOrderId: null,  // Written in initiatePayment() — Step 3
-            status: "pending",      // → "payment_pending" after Razorpay order creation
-            expiresAt: expiresAt.toISOString(),
-            createdAt: now.toISOString(),
-            updatedAt: now.toISOString(),
-        };
-
-        // Decrement available seats atomically
-        tx.update(eventRef, {
-            availableSeats: event.availableSeats - quantity,
-            updatedAt: now.toISOString(),
-        });
-
-        // Create the reservation doc
-        tx.set(reservationRef, reservationData);
+    // Decrement available seats atomically
+    tx.update(eventRef, {
+      availableSeats: event.availableSeats - quantity,
+      updatedAt: now.toISOString(),
     });
 
-    // Audit log — non-critical, swallowed on failure
-    await writeAuditLog("RESERVED", {
-        eventId:       reservationData!.eventId,
-        reservationId: reservationData!.id,
-        userId:        reservationData!.userId,
-        metadata: { quantity, totalAmount: reservationData!.totalAmount, expiresAt: reservationData!.expiresAt },
-    });
+    // Create the reservation doc
+    tx.set(reservationRef, reservationData);
+  });
 
-    return reservationData!;
+  // Audit log — non-critical, swallowed on failure
+  await writeAuditLog('RESERVED', {
+    eventId: reservationData!.eventId,
+    reservationId: reservationData!.id,
+    userId: reservationData!.userId,
+    metadata: {
+      quantity,
+      totalAmount: reservationData!.totalAmount,
+      expiresAt: reservationData!.expiresAt,
+    },
+  });
+
+  return reservationData!;
 }

@@ -1,5 +1,5 @@
-import { useState, useCallback } from "react";
-import { Platform } from "react-native";
+import { useState, useCallback } from 'react';
+import { Platform } from 'react-native';
 
 import {
   loginWithEmail,
@@ -8,8 +8,8 @@ import {
   resetPassword,
   loginWithApple as firebaseLoginWithApple,
   loginWithGoogle as firebaseLoginWithGoogle,
-} from "@/lib/firebase";
-import { useAuthStore } from "@/store/authStore";
+} from '@/lib/firebase';
+import { useAuthStore } from '@/store/authStore';
 
 export function useAuth() {
   const { user, loading, initialized } = useAuthStore();
@@ -77,9 +77,9 @@ export function useAuth() {
   // ─── Social Login ────────────────────────────────────────────
 
   const loginApple = useCallback(async () => {
-    if (Platform.OS !== "ios") {
-      setError("Apple Sign-In is only available on iOS");
-      return { success: false, error: "Apple Sign-In is only available on iOS" };
+    if (Platform.OS !== 'ios') {
+      setError('Apple Sign-In is only available on iOS');
+      return { success: false, error: 'Apple Sign-In is only available on iOS' };
     }
 
     setAuthLoading(true);
@@ -89,11 +89,11 @@ export function useAuth() {
       return { success: true };
     } catch (err: any) {
       // User cancelled Apple Sign-In — not an error
-      if (err.code === "ERR_REQUEST_CANCELED") {
+      if (err.code === 'ERR_REQUEST_CANCELED') {
         setAuthLoading(false);
         return { success: false, error: null };
       }
-      const message = err.message || "Apple Sign-In failed";
+      const message = err.message || 'Apple Sign-In failed';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -109,11 +109,11 @@ export function useAuth() {
       return { success: true };
     } catch (err: any) {
       // User cancelled Google Sign-In — not an error
-      if (err.code === "SIGN_IN_CANCELLED" || err.code === "12501") {
+      if (err.code === 'SIGN_IN_CANCELLED' || err.code === '12501') {
         setAuthLoading(false);
         return { success: false, error: null };
       }
-      const message = err.message || "Google Sign-In failed";
+      const message = err.message || 'Google Sign-In failed';
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -139,25 +139,25 @@ export function useAuth() {
 // Convert Firebase error codes to user-friendly messages
 function getErrorMessage(code: string): string {
   switch (code) {
-    case "auth/invalid-email":
-      return "Please enter a valid email address";
-    case "auth/user-disabled":
-      return "This account has been disabled";
-    case "auth/user-not-found":
-      return "No account found with this email";
-    case "auth/wrong-password":
-      return "Incorrect password";
-    case "auth/email-already-in-use":
-      return "An account with this email already exists";
-    case "auth/weak-password":
-      return "Password should be at least 6 characters";
-    case "auth/too-many-requests":
-      return "Too many failed attempts. Please try again later";
-    case "auth/network-request-failed":
-      return "Network error. Please check your connection";
-    case "auth/account-exists-with-different-credential":
-      return "An account with this email already exists. Try a different login method.";
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address';
+    case 'auth/user-disabled':
+      return 'This account has been disabled';
+    case 'auth/user-not-found':
+      return 'No account found with this email';
+    case 'auth/wrong-password':
+      return 'Incorrect password';
+    case 'auth/email-already-in-use':
+      return 'An account with this email already exists';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please try again later';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection';
+    case 'auth/account-exists-with-different-credential':
+      return 'An account with this email already exists. Try a different login method.';
     default:
-      return "Something went wrong. Please try again";
+      return 'Something went wrong. Please try again';
   }
 }

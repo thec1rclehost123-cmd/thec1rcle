@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { X, Calendar, Clock, Users, ChevronRight, CheckCircle2, Loader2 } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState } from 'react';
+import { X, Calendar, Clock, Users, ChevronRight, CheckCircle2, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ReservationModal({ venue, isOpen, onClose }) {
   const [step, setStep] = useState(1); // 1: Date/Time, 2: Guests/Details, 3: Success
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
   const [guests, setGuests] = useState(2);
   const [loading, setLoading] = useState(false);
 
@@ -79,11 +79,11 @@ export default function ReservationModal({ venue, isOpen, onClose }) {
                     <Clock className="h-3 w-3" /> Select Time
                   </label>
                   <div className="grid grid-cols-3 gap-3">
-                    {["20:00", "21:00", "22:00", "23:00", "00:00", "01:00"].map((t) => (
+                    {['20:00', '21:00', '22:00', '23:00', '00:00', '01:00'].map((t) => (
                       <button
                         key={t}
                         onClick={() => setTime(t)}
-                        className={`p-3 rounded-xl border text-sm font-bold transition-all ${time === t ? "bg-indigo-600 border-indigo-500 text-white" : "bg-white/5 border-white/10 text-white/60 hover:border-white/20"}`}
+                        className={`p-3 rounded-xl border text-sm font-bold transition-all ${time === t ? 'bg-indigo-600 border-indigo-500 text-white' : 'bg-white/5 border-white/10 text-white/60 hover:border-white/20'}`}
                       >
                         {t}
                       </button>
@@ -118,7 +118,7 @@ export default function ReservationModal({ venue, isOpen, onClose }) {
                       <button
                         key={n}
                         onClick={() => setGuests(n)}
-                        className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${guests === n ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white"}`}
+                        className={`flex-1 py-3 rounded-xl text-sm font-bold transition-all ${guests === n ? 'bg-white text-black shadow-lg' : 'text-white/40 hover:text-white'}`}
                       >
                         {n}
                       </button>
@@ -140,7 +140,7 @@ export default function ReservationModal({ venue, isOpen, onClose }) {
                   disabled={loading}
                   className="w-full py-5 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-indigo-700 transition-all"
                 >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Request Reservation"}
+                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Request Reservation'}
                 </button>
                 <button
                   onClick={() => setStep(1)}

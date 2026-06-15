@@ -1,15 +1,15 @@
 // Event Social Layer - Core Types and Utilities
 
 // Event Lifecycle Phases
-export type EventPhase = "pre-event" | "during" | "post-event" | "expired";
+export type EventPhase = 'pre-event' | 'during' | 'post-event' | 'expired';
 
 // Entitlement types that grant chat access
 export type EntitlementType =
-  | "ticket_purchased"
-  | "guestlist_approved"
-  | "ticket_claimed"
-  | "group_ticket_share"
-  | "couple_ticket";
+  | 'ticket_purchased'
+  | 'guestlist_approved'
+  | 'ticket_claimed'
+  | 'group_ticket_share'
+  | 'couple_ticket';
 
 // User's entitlement to an event
 export interface EventEntitlement {
@@ -17,7 +17,7 @@ export interface EventEntitlement {
   userId: string;
   eventId: string;
   type: EntitlementType;
-  status: "active" | "transferred" | "cancelled" | "expired";
+  status: 'active' | 'transferred' | 'cancelled' | 'expired';
   ticketTier?: string;
   orderId?: string;
   grantedAt: any; // Timestamp
@@ -47,7 +47,7 @@ export interface ChatParticipant {
   userId: string;
   displayName: string;
   avatar?: string;
-  badge?: "host" | "venue" | "vip" | "promoter";
+  badge?: 'host' | 'venue' | 'vip' | 'promoter';
   joinedAt: any;
   isOnline?: boolean;
   lastSeen?: any;
@@ -62,7 +62,7 @@ export interface GroupMessage {
   senderAvatar?: string;
   senderBadge?: string;
   content: string;
-  type: "text" | "image" | "announcement" | "system";
+  type: 'text' | 'image' | 'announcement' | 'system';
   createdAt: any;
   isDeleted?: boolean;
   deletedBy?: string;
@@ -74,7 +74,7 @@ export interface PrivateConversation {
   id: string;
   eventId: string;
   participants: [string, string]; // Two user IDs
-  status: "pending" | "accepted" | "declined" | "blocked";
+  status: 'pending' | 'accepted' | 'declined' | 'blocked';
   initiatedBy: string;
   acceptedAt?: any;
   createdAt: any;
@@ -94,7 +94,7 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   content: string;
-  type: "text" | "image";
+  type: 'text' | 'image';
   createdAt: any;
   readAt?: any;
   isDeleted?: boolean;
@@ -118,13 +118,13 @@ export interface UserReport {
   reportedId: string;
   eventId?: string;
   messageId?: string;
-  category: "harassment" | "spam" | "inappropriate" | "safety" | "other";
+  category: 'harassment' | 'spam' | 'inappropriate' | 'safety' | 'other';
   description?: string;
-  status: "pending" | "reviewed" | "resolved" | "dismissed";
+  status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
   createdAt: any;
   reviewedAt?: any;
   reviewedBy?: string;
-  action?: "warned" | "muted" | "removed" | "banned";
+  action?: 'warned' | 'muted' | 'removed' | 'banned';
 }
 
 // Saved contact (persists after event)
@@ -146,7 +146,7 @@ export interface MatchingProfile {
   eventId: string;
   isOptedIn: boolean;
   interests?: string[];
-  lookingFor?: "networking" | "dating" | "friends" | "any";
+  lookingFor?: 'networking' | 'dating' | 'friends' | 'any';
   musicTaste?: string[];
   bio?: string;
   isVisible: boolean;
@@ -163,24 +163,24 @@ export function getEventPhase(eventDate: Date): EventPhase {
   const postEventEnd = eventTime + 7 * dayInMs;
 
   if (nowTime < preEventStart) {
-    return "expired"; // Too early, chat not active yet
+    return 'expired'; // Too early, chat not active yet
   }
 
   if (nowTime >= preEventStart && nowTime < eventTime) {
-    return "pre-event";
+    return 'pre-event';
   }
 
   // During event - assume event lasts up to 12 hours from start
   const eventEnd = eventTime + 12 * 60 * 60 * 1000;
   if (nowTime >= eventTime && nowTime < eventEnd) {
-    return "during";
+    return 'during';
   }
 
   if (nowTime >= eventEnd && nowTime < postEventEnd) {
-    return "post-event";
+    return 'post-event';
   }
 
-  return "expired";
+  return 'expired';
 }
 
 // Get phase description for UI
@@ -191,33 +191,33 @@ export function getPhaseInfo(phase: EventPhase): {
   icon: string;
 } {
   switch (phase) {
-    case "pre-event":
+    case 'pre-event':
       return {
-        label: "Pre-Party",
+        label: 'Pre-Party',
         description: "Build the hype! Share what you're wearing, coordinate meetups.",
-        color: "#8B5CF6", // Purple
-        icon: "🎉",
+        color: '#8B5CF6', // Purple
+        icon: '🎉',
       };
-    case "during":
+    case 'during':
       return {
-        label: "Live Now",
-        description: "Real-time updates, find your crew, share the moment.",
-        color: "#F44A22", // C1RCLE orange
-        icon: "🔥",
+        label: 'Live Now',
+        description: 'Real-time updates, find your crew, share the moment.',
+        color: '#F44A22', // C1RCLE orange
+        icon: '🔥',
       };
-    case "post-event":
+    case 'post-event':
       return {
-        label: "After Party",
-        description: "Share photos, exchange contacts, relive the night.",
-        color: "#10B981", // Green
-        icon: "📸",
+        label: 'After Party',
+        description: 'Share photos, exchange contacts, relive the night.',
+        color: '#10B981', // Green
+        icon: '📸',
       };
-    case "expired":
+    case 'expired':
       return {
-        label: "Archived",
-        description: "This chat has ended. Saved contacts remain in your profile.",
-        color: "#6B7280", // Gray
-        icon: "📁",
+        label: 'Archived',
+        description: 'This chat has ended. Saved contacts remain in your profile.',
+        color: '#6B7280', // Gray
+        icon: '📁',
       };
   }
 }
@@ -228,15 +228,15 @@ export function canAccessEventChat(
   phase: EventPhase,
 ): { allowed: boolean; reason?: string } {
   if (!entitlement) {
-    return { allowed: false, reason: "You need a ticket to join this chat" };
+    return { allowed: false, reason: 'You need a ticket to join this chat' };
   }
 
-  if (entitlement.status !== "active") {
-    return { allowed: false, reason: "Your ticket is no longer valid" };
+  if (entitlement.status !== 'active') {
+    return { allowed: false, reason: 'Your ticket is no longer valid' };
   }
 
-  if (phase === "expired") {
-    return { allowed: false, reason: "This event chat has ended" };
+  if (phase === 'expired') {
+    return { allowed: false, reason: 'This event chat has ended' };
   }
 
   return { allowed: true };
@@ -246,25 +246,25 @@ export function canAccessEventChat(
 export function formatTimeAgo(date: Date): string {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
 
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return 'just now';
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
   return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 // Get DM request status label
-export function getDMStatusLabel(status: PrivateConversation["status"]): {
+export function getDMStatusLabel(status: PrivateConversation['status']): {
   label: string;
   canChat: boolean;
 } {
   switch (status) {
-    case "pending":
-      return { label: "Awaiting acceptance", canChat: false };
-    case "accepted":
-      return { label: "Connected", canChat: true };
-    case "declined":
-      return { label: "Request declined", canChat: false };
-    case "blocked":
-      return { label: "Blocked", canChat: false };
+    case 'pending':
+      return { label: 'Awaiting acceptance', canChat: false };
+    case 'accepted':
+      return { label: 'Connected', canChat: true };
+    case 'declined':
+      return { label: 'Request declined', canChat: false };
+    case 'blocked':
+      return { label: 'Blocked', canChat: false };
   }
 }

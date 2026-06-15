@@ -5,7 +5,7 @@
  * All logic moved to @c1rcle/core/waitlist-engine via API Gateway.
  */
 
-import { getApiClient } from "./apiClient";
+import { getApiClient } from './apiClient';
 
 export async function joinWaitlist({ eventId, ticketId, userId, email, phone }, token) {
   const client = getApiClient(token);
@@ -17,7 +17,7 @@ export async function getWaitlistPosition(eventId, email, token) {
   try {
     return await client.getWaitlistPosition(eventId, email);
   } catch (error) {
-    console.error("[WaitlistStore] getWaitlistPosition failed:", error.message);
+    console.error('[WaitlistStore] getWaitlistPosition failed:', error.message);
     return null;
   }
 }
@@ -27,7 +27,7 @@ export async function getWaitlist(eventId, token) {
   try {
     return await client.getWaitlist(eventId);
   } catch (error) {
-    console.error("[WaitlistStore] getWaitlist failed:", error.message);
+    console.error('[WaitlistStore] getWaitlist failed:', error.message);
     return [];
   }
 }

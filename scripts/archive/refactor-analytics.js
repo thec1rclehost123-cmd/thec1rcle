@@ -1,15 +1,19 @@
 const fs = require('fs');
 const path = require('path');
 
-const filePath = path.join(__dirname, 'apps/partner-dashboard/components/analytics/UnifiedAnalyticsClient.tsx');
+const filePath = path.join(
+  __dirname,
+  'apps/partner-dashboard/components/analytics/UnifiedAnalyticsClient.tsx',
+);
 const content = fs.readFileSync(filePath, 'utf8');
 
-const splitMarker = '// ── Section: KPI Grid ─────────────────────────────────────────────────────────';
+const splitMarker =
+  '// ── Section: KPI Grid ─────────────────────────────────────────────────────────';
 const splitIndex = content.indexOf(splitMarker);
 
 if (splitIndex === -1) {
-    console.error("Split marker not found");
-    process.exit(1);
+  console.error('Split marker not found');
+  process.exit(1);
 }
 
 const beforeSections = content.substring(0, splitIndex);
@@ -17,17 +21,29 @@ const sections = content.substring(splitIndex);
 
 // We need the imports and lazy components from `beforeSections` to put in the new sections file.
 // Let's find where the `export default function UnifiedAnalyticsClient` starts.
-const clientStartMarker = '// ── Main client ───────────────────────────────────────────────────────────────';
+const clientStartMarker =
+  '// ── Main client ───────────────────────────────────────────────────────────────';
 const clientStartIndex = content.indexOf(clientStartMarker);
 
-const importsAndHelpers = content.substring(0, clientStartIndex).replace('"use client";\n', '"use client";\nimport { LegendDot } from "@/components/ui/VenueChart";\n');
+const importsAndHelpers = content
+  .substring(0, clientStartIndex)
+  .replace(
+    '"use client";\n',
+    '"use client";\nimport { LegendDot } from "@/components/ui/VenueChart";\n',
+  );
 
 // Make the section functions exported
-let modifiedSections = sections.replace(/function (KPISection|PerformanceRingsSection|RevenueSection|TicketsGuestlistSection|AudienceSection|FunnelSection|ScannerSection|EventComparisonSection|SourceHeatmapSection|FinanceSection|TableSection|InsightsSection|RadialRing)/g, 'export function $1');
+let modifiedSections = sections.replace(
+  /function (KPISection|PerformanceRingsSection|RevenueSection|TicketsGuestlistSection|AudienceSection|FunnelSection|ScannerSection|EventComparisonSection|SourceHeatmapSection|FinanceSection|TableSection|InsightsSection|RadialRing)/g,
+  'export function $1',
+);
 
 const sectionsFileContent = importsAndHelpers + '\n' + modifiedSections;
 
-const sectionsDirPath = path.join(__dirname, 'apps/partner-dashboard/components/analytics/sections');
+const sectionsDirPath = path.join(
+  __dirname,
+  'apps/partner-dashboard/components/analytics/sections',
+);
 if (!fs.existsSync(sectionsDirPath)) fs.mkdirSync(sectionsDirPath, { recursive: true });
 
 fs.writeFileSync(path.join(sectionsDirPath, 'index.tsx'), sectionsFileContent);
@@ -80,4 +96,4 @@ const unifiedClientComponent = content.substring(clientStartIndex, splitIndex);
 
 fs.writeFileSync(filePath, remainingClientImports + '\n' + unifiedClientComponent);
 
-console.log("Refactoring complete.");
+console.log('Refactoring complete.');

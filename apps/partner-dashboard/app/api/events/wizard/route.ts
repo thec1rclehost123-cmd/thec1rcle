@@ -1,5 +1,5 @@
-import { NextRequest } from "next/server";
-import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { NextRequest } from 'next/server';
+import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 
 /**
  * POST /api/events/wizard
@@ -8,8 +8,8 @@ import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
  * creation wizard. Frontend renders the result — never computes these locally.
  */
 export async function POST(req: NextRequest) {
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/events/wizard/preview-breakdown`, {
-        method: "POST",
-        body: await req.text(),
-    });
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/events/wizard/preview-breakdown`, {
+    method: 'POST',
+    body: await req.text(),
+  });
 }

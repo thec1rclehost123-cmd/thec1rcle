@@ -1,12 +1,12 @@
-import HostsClient from "./HostsClient";
-import { guestServerJson } from "../../lib/api/server";
-import { getSiteUrl } from "../../features/seo/seoUtils";
+import HostsClient from './HostsClient';
+import { guestServerJson } from '../../lib/api/server';
+import { getSiteUrl } from '../../features/seo/seoUtils';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export const metadata = {
-  title: "Hosts & Venues | THE.C1RCLE",
-  description: "Discover C1RCLE venues, hosts, DJs, collectives, and nightlife curators.",
+  title: 'Hosts & Venues | THE.C1RCLE',
+  description: 'Discover C1RCLE venues, hosts, DJs, collectives, and nightlife curators.',
   alternates: { canonical: `${getSiteUrl()}/hosts` },
 };
 
@@ -19,17 +19,20 @@ function extractItems(payload, primaryKey) {
 
 async function loadHostsDirectoryData() {
   const [venuesResult, hostsResult] = await Promise.all([
-    guestServerJson("/public/venues?limit=24", { forwardCookies: false, next: { revalidate: 120 } }),
-    guestServerJson("/public/hosts?limit=24", { forwardCookies: false, next: { revalidate: 120 } }),
+    guestServerJson('/public/venues?limit=24', {
+      forwardCookies: false,
+      next: { revalidate: 120 },
+    }),
+    guestServerJson('/public/hosts?limit=24', { forwardCookies: false, next: { revalidate: 120 } }),
   ]);
 
   const errors = [];
-  if (!venuesResult.response.ok) errors.push("Venue directory data is temporarily unavailable.");
-  if (!hostsResult.response.ok) errors.push("Host directory data is temporarily unavailable.");
+  if (!venuesResult.response.ok) errors.push('Venue directory data is temporarily unavailable.');
+  if (!hostsResult.response.ok) errors.push('Host directory data is temporarily unavailable.');
 
   return {
-    venues: venuesResult.response.ok ? extractItems(venuesResult.data, "venues") : [],
-    hosts: hostsResult.response.ok ? extractItems(hostsResult.data, "hosts") : [],
+    venues: venuesResult.response.ok ? extractItems(venuesResult.data, 'venues') : [],
+    hosts: hostsResult.response.ok ? extractItems(hostsResult.data, 'hosts') : [],
     errors,
   };
 }

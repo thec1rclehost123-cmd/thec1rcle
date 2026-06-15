@@ -5,7 +5,7 @@
 
 // Polling intervals (ms)
 export const POLL_INTERVAL_GUEST_OPS_MS = 15_000; // 15s live KPI refresh
-export const POLL_INTERVAL_TONIGHT_MS = 30_000;   // 30s tonight pulse refresh
+export const POLL_INTERVAL_TONIGHT_MS = 30_000; // 30s tonight pulse refresh
 
 // Pagination limits
 export const PAGE_SIZE_DEFAULT = 50;
@@ -18,4 +18,9 @@ export const REVENUE_COMPACT_THRESHOLD = 100_000; // ₹1L — show compact form
 
 // File upload
 export const MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-export const ALLOWED_IMAGE_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
+export const ALLOWED_IMAGE_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+] as const;

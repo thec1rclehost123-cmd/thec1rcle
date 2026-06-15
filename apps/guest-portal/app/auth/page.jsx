@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 function buildLoginRedirect(searchParams = {}) {
   const params = new URLSearchParams();
@@ -13,7 +13,7 @@ function buildLoginRedirect(searchParams = {}) {
   }
 
   const query = params.toString();
-  return query ? `/login?${query}` : "/login";
+  return query ? `/login?${query}` : '/login';
 }
 
 export default function Page({ searchParams }) {

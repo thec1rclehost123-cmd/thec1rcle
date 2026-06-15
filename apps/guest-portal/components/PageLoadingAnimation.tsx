@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState, useMemo } from "react";
+import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState, useMemo } from 'react';
 
 /**
  * PageLoadingAnimation - Highly Refined Production Version
@@ -12,7 +12,7 @@ import { useEffect, useState, useMemo } from "react";
  * - Responsive sizing with fluid transitions.
  * - Perfectly timed "Portal" exit reveal.
  */
-const SPLASH_KEY = "c1rcle:splash_played";
+const SPLASH_KEY = 'c1rcle:splash_played';
 
 export default function PageLoadingAnimation() {
   // ⚡ PERF FIX: Only show the splash animation ONCE per browser session.
@@ -29,7 +29,7 @@ export default function PageLoadingAnimation() {
     }
   }, []);
 
-  const BRAND_COLOR = "#FF3D00";
+  const BRAND_COLOR = '#FF3D00';
   const circumference = useMemo(() => 2 * Math.PI * radius, [radius]);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ export default function PageLoadingAnimation() {
     if (!shouldRender) return;
 
     // Mark it as played immediately so future loads skip the splash
-    sessionStorage.setItem(SPLASH_KEY, "1");
+    sessionStorage.setItem(SPLASH_KEY, '1');
 
     const updateSizing = () => {
       const screenWidth = window.innerWidth;
@@ -46,11 +46,11 @@ export default function PageLoadingAnimation() {
     };
 
     updateSizing();
-    window.addEventListener("resize", updateSizing);
+    window.addEventListener('resize', updateSizing);
 
     // Lock scroll only while showing the animation
-    document.documentElement.style.overflow = "hidden";
-    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
 
     const PORTAL_EXPAND_TIME = 2200;
     const COMPONENT_EXIT_TIME = PORTAL_EXPAND_TIME + 1200;
@@ -59,9 +59,9 @@ export default function PageLoadingAnimation() {
     const exitTimer = setTimeout(() => setIsLoading(false), COMPONENT_EXIT_TIME);
 
     return () => {
-      window.removeEventListener("resize", updateSizing);
-      document.documentElement.style.overflow = "";
-      document.body.style.overflow = "";
+      window.removeEventListener('resize', updateSizing);
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
       clearTimeout(portalTimer);
       clearTimeout(exitTimer);
     };
@@ -75,23 +75,23 @@ export default function PageLoadingAnimation() {
       scale: isFinished ? 2.5 : 1,
       opacity: isFinished ? 0 : 1,
       transition: {
-        rotate: { duration: 12, repeat: Infinity, ease: "linear" },
+        rotate: { duration: 12, repeat: Infinity, ease: 'linear' },
         scale: { duration: 1.5, ease: [0.16, 1, 0.3, 1] },
-        opacity: { duration: 1, ease: "easeInOut" },
+        opacity: { duration: 1, ease: 'easeInOut' },
       },
     },
   };
 
   const textVariants = {
-    initial: { opacity: 0, scale: 1.4, letterSpacing: "0.6em" },
+    initial: { opacity: 0, scale: 1.4, letterSpacing: '0.6em' },
     animate: {
       opacity: 1,
       scale: 1,
-      letterSpacing: "-0.03em",
+      letterSpacing: '-0.03em',
       transition: {
         opacity: { duration: 0.8, delay: 1.1 },
         scale: {
-          type: "spring",
+          type: 'spring',
           damping: 15,
           stiffness: 90,
           mass: 1.2,
@@ -112,13 +112,13 @@ export default function PageLoadingAnimation() {
           key="splash-container"
           className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden bg-black font-heading select-none pointer-events-none"
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, transition: { duration: 0.8, ease: "easeInOut" } }}
+          exit={{ opacity: 0, transition: { duration: 0.8, ease: 'easeInOut' } }}
         >
           {/* Background Layer Reveal */}
           <motion.div
             className="absolute inset-0 bg-black"
             animate={{ opacity: isFinished ? 0 : 1 }}
-            transition={{ duration: 1, ease: "easeInOut" }}
+            transition={{ duration: 1, ease: 'easeInOut' }}
           />
 
           {/* Glowing Portal Ring */}
@@ -163,7 +163,7 @@ export default function PageLoadingAnimation() {
             <motion.span
               className="text-white text-xl md:text-2xl font-light tracking-[0.7em] mb-4 uppercase opacity-0"
               animate={{ opacity: 0.5, y: [10, 0] }}
-              transition={{ duration: 1.2, delay: 0.8, ease: "easeOut" }}
+              transition={{ duration: 1.2, delay: 0.8, ease: 'easeOut' }}
             >
               THE
             </motion.span>
@@ -185,8 +185,8 @@ export default function PageLoadingAnimation() {
                 <motion.div
                   key={`shine-${stagger}`}
                   className="absolute inset-0 z-20 pointer-events-none"
-                  initial={{ x: "-150%", opacity: 0 }}
-                  animate={{ x: "180%", opacity: [0, 1, 0] }}
+                  initial={{ x: '-150%', opacity: 0 }}
+                  animate={{ x: '180%', opacity: [0, 1, 0] }}
                   transition={{
                     duration: 2, // 2s duration
                     delay: 1.8 + stagger,
@@ -202,9 +202,9 @@ export default function PageLoadingAnimation() {
             <div className="h-[2px] w-64 mt-8 bg-white/5 rounded-full overflow-hidden">
               <motion.div
                 className="h-full bg-white/30"
-                initial={{ x: "-100%" }}
-                animate={{ x: "0%" }}
-                transition={{ duration: 2.5, ease: "easeInOut" }}
+                initial={{ x: '-100%' }}
+                animate={{ x: '0%' }}
+                transition={{ duration: 2.5, ease: 'easeInOut' }}
               />
             </div>
           </div>

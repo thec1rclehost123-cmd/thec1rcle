@@ -1,31 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
+import { useQuery } from '@tanstack/react-query';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 /**
  * Shared hook: fetches data from a partner-dashboard API route with auth.
  * Handles token retrieval, caching, and deduplication automatically.
  */
 function useAuthenticatedQuery<T = any>(
-    key: string[],
-    url: string,
-    options: { enabled?: boolean; staleTime?: number; refetchInterval?: number } = {}
+  key: string[],
+  url: string,
+  options: { enabled?: boolean; staleTime?: number; refetchInterval?: number } = {},
 ) {
-    const { user } = useDashboardAuth();
+  const { user } = useDashboardAuth();
 
-    return useQuery<T>({
-        queryKey: key,
-        queryFn: async () => {
-            const token = await user!.getIdToken();
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-            if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-            return res.json();
-        },
-        enabled: !!user && (options.enabled !== false),
-        staleTime: options.staleTime ?? 5 * 60 * 1000, // 5 min default
-        refetchInterval: options.refetchInterval,
-    });
+  return useQuery<T>({
+    queryKey: key,
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      return res.json();
+    },
+    enabled: !!user && options.enabled !== false,
+    staleTime: options.staleTime ?? 5 * 60 * 1000, // 5 min default
+    refetchInterval: options.refetchInterval,
+  });
 }
 
 /**
@@ -33,12 +33,12 @@ function useAuthenticatedQuery<T = any>(
  * Used by KPIGridModule — range can be "today", "7d", "30d", "custom:YYYY-MM-DD:YYYY-MM-DD"
  */
 export function useVenueOverviewSummary(venueId: string | undefined, range?: string) {
-    const rangeParam = range ? `&range=${encodeURIComponent(range)}` : "";
-    return useAuthenticatedQuery(
-        ["venue-overview-summary", venueId || "", range || "30d"],
-        `/api/partners/venues/overview/summary?venueId=${venueId}${rangeParam}`,
-        { enabled: !!venueId, staleTime: 2 * 60 * 1000 }
-    );
+  const rangeParam = range ? `&range=${encodeURIComponent(range)}` : '';
+  return useAuthenticatedQuery(
+    ['venue-overview-summary', venueId || '', range || '30d'],
+    `/api/partners/venues/overview/summary?venueId=${venueId}${rangeParam}`,
+    { enabled: !!venueId, staleTime: 2 * 60 * 1000 },
+  );
 }
 
 /**
@@ -46,11 +46,11 @@ export function useVenueOverviewSummary(venueId: string | undefined, range?: str
  * Used by venue/connections/requests/PageClient.tsx
  */
 export function useVenueConnections(venueId: string | undefined) {
-    return useAuthenticatedQuery(
-        ["venue-connections", venueId || ""],
-        "/api/partners/venues/partnerships",
-        { enabled: !!venueId }
-    );
+  return useAuthenticatedQuery(
+    ['venue-connections', venueId || ''],
+    '/api/partners/venues/partnerships',
+    { enabled: !!venueId },
+  );
 }
 
 /**
@@ -58,30 +58,30 @@ export function useVenueConnections(venueId: string | undefined) {
  * Used by TonightOpsModule — refetches every 30s for live ops
  */
 export function useTonightEvent(venueId: string | undefined) {
-    // Step 1: Fetch today's events (uses the ?date=today server filter)
-    const eventsQuery = useAuthenticatedQuery<{ events: any[] }>(
-        ["venue-events-today", venueId || ""],
-        `/api/partners/venues/events?venueId=${venueId}&date=today`,
-        { enabled: !!venueId, staleTime: 2 * 60 * 1000 }
-    );
+  // Step 1: Fetch today's events (uses the ?date=today server filter)
+  const eventsQuery = useAuthenticatedQuery<{ events: any[] }>(
+    ['venue-events-today', venueId || ''],
+    `/api/partners/venues/events?venueId=${venueId}&date=today`,
+    { enabled: !!venueId, staleTime: 2 * 60 * 1000 },
+  );
 
-    const tonightEventId = eventsQuery.data?.events?.[0]?.id;
+  const tonightEventId = eventsQuery.data?.events?.[0]?.id;
 
-    // Step 2: Fetch tonight's ops data (only if there's an event today)
-    const tonightQuery = useAuthenticatedQuery(
-        ["venue-tonight-ops", tonightEventId || ""],
-        `/api/partners/venues/overview/tonight?eventId=${tonightEventId}`,
-        {
-            enabled: !!tonightEventId,
-            staleTime: 30 * 1000, // 30s — live ops data
-            refetchInterval: 30 * 1000,
-        }
-    );
+  // Step 2: Fetch tonight's ops data (only if there's an event today)
+  const tonightQuery = useAuthenticatedQuery(
+    ['venue-tonight-ops', tonightEventId || ''],
+    `/api/partners/venues/overview/tonight?eventId=${tonightEventId}`,
+    {
+      enabled: !!tonightEventId,
+      staleTime: 30 * 1000, // 30s — live ops data
+      refetchInterval: 30 * 1000,
+    },
+  );
 
-    return {
-        tonight: tonightQuery.data,
-        isLoading: eventsQuery.isLoading || tonightQuery.isLoading,
-        error: eventsQuery.error || tonightQuery.error,
-        todayEvent: eventsQuery.data?.events?.[0],
-    };
+  return {
+    tonight: tonightQuery.data,
+    isLoading: eventsQuery.isLoading || tonightQuery.isLoading,
+    error: eventsQuery.error || tonightQuery.error,
+    todayEvent: eventsQuery.data?.events?.[0],
+  };
 }

@@ -1,5 +1,5 @@
-import Link from "next/link";
-import Image from "next/image";
+import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Selects({ items }) {
   return (
@@ -10,7 +10,7 @@ export default function Selects({ items }) {
             Curated Collections
           </p>
           <h2 className="font-heading text-4xl font-black uppercase tracking-tight text-black dark:text-white sm:text-7xl leading-none">
-            The C1rcle{" "}
+            The C1rcle{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris to-iris-glow">
               Selects
             </span>
@@ -39,8 +39,8 @@ export default function Selects({ items }) {
 
       <div className="flex snap-x snap-mandatory gap-6 overflow-x-auto pb-8 scrollbar-hide sm:flex-wrap sm:justify-center sm:gap-10 sm:overflow-visible sm:pb-0 px-4 sm:px-0 -mx-4 sm:mx-0">
         {items.map((item, index) => {
-          const [year, ...rest] = item.title.split(" ");
-          const activity = rest.join(" ");
+          const [year, ...rest] = item.title.split(' ');
+          const activity = rest.join(' ');
 
           return (
             <div

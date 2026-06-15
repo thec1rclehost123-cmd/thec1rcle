@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { motion, useScroll, useSpring } from "framer-motion";
+import { motion, useScroll, useSpring } from 'framer-motion';
 
 export default function ScrollProgressBar() {
-    const { scrollYProgress } = useScroll();
-    const scaleX = useSpring(scrollYProgress, {
-        stiffness: 400,
-        damping: 40,
-        restDelta: 0.005
-    });
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, {
+    stiffness: 400,
+    damping: 40,
+    restDelta: 0.005,
+  });
 
-    return (
-        <motion.div
-            className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-iris via-gold to-iris z-[100] origin-left"
-            style={{ scaleX }}
-        />
-    );
+  return (
+    <motion.div
+      className="fixed top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-iris via-gold to-iris z-[100] origin-left"
+      style={{ scaleX }}
+    />
+  );
 }

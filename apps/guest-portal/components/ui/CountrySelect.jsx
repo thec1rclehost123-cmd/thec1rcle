@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { useState, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Search, ChevronDown, Check } from "lucide-react";
-import { countries } from "../../lib/data/countries";
-import clsx from "clsx";
+import { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Search, ChevronDown, Check } from 'lucide-react';
+import { countries } from '../../lib/data/countries';
+import clsx from 'clsx';
 
 export default function CountrySelect({ value, onChange, disabled }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const dropdownRef = useRef(null);
 
   const selectedCountry =
-    countries.find((c) => c.code === value) || countries.find((c) => c.code === "IN"); // Default to India
+    countries.find((c) => c.code === value) || countries.find((c) => c.code === 'IN'); // Default to India
 
   const filteredCountries = countries.filter(
     (c) => c.name.toLowerCase().includes(search.toLowerCase()) || c.dialCode.includes(search),
@@ -24,8 +24,8 @@ export default function CountrySelect({ value, onChange, disabled }) {
         setIsOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
@@ -38,8 +38,8 @@ export default function CountrySelect({ value, onChange, disabled }) {
         disabled={disabled}
         onClick={() => setIsOpen(!isOpen)}
         className={clsx(
-          "w-full flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white transition-all hover:bg-white/[0.06] focus:outline-none focus:border-orange/50",
-          disabled && "opacity-50 cursor-not-allowed",
+          'w-full flex items-center justify-between bg-white/[0.03] border border-white/10 rounded-2xl px-5 py-4 text-sm font-bold tracking-widest text-white transition-all hover:bg-white/[0.06] focus:outline-none focus:border-orange/50',
+          disabled && 'opacity-50 cursor-not-allowed',
         )}
       >
         <div className="flex items-center gap-3">
@@ -49,7 +49,7 @@ export default function CountrySelect({ value, onChange, disabled }) {
           </span>
         </div>
         <ChevronDown
-          className={clsx("w-4 h-4 text-white/40 transition-transform", isOpen && "rotate-180")}
+          className={clsx('w-4 h-4 text-white/40 transition-transform', isOpen && 'rotate-180')}
         />
       </button>
 
@@ -83,11 +83,11 @@ export default function CountrySelect({ value, onChange, disabled }) {
                   onClick={() => {
                     onChange(country.code);
                     setIsOpen(false);
-                    setSearch("");
+                    setSearch('');
                   }}
                   className={clsx(
-                    "w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/5 transition-colors",
-                    country.code === value && "bg-white/[0.08]",
+                    'w-full flex items-center justify-between px-5 py-4 text-left hover:bg-white/5 transition-colors',
+                    country.code === value && 'bg-white/[0.08]',
                   )}
                 >
                   <div className="flex items-center gap-4">

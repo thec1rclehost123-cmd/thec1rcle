@@ -1,16 +1,16 @@
-export type PlanKey = "basic" | "silver" | "gold" | "diamond";
-export type PlanAlias = "pro" | "enterprise";
+export type PlanKey = 'basic' | 'silver' | 'gold' | 'diamond';
+export type PlanAlias = 'pro' | 'enterprise';
 export type WorkspacePlan = PlanKey | PlanAlias;
 
 export interface PlanDefinition {
-    key: PlanKey;
-    label: string;
-    rank: number;
-    rateLimit: number;
-    maxEvents: number;
-    maxStudents?: number;
-    features: string[];
-    aliases: PlanAlias[];
+  key: PlanKey;
+  label: string;
+  rank: number;
+  rateLimit: number;
+  maxEvents: number;
+  maxStudents?: number;
+  features: string[];
+  aliases: PlanAlias[];
 }
 
 export const PLAN_KEYS: readonly PlanKey[];

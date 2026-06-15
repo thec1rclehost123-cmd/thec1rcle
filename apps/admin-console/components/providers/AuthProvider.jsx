@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
@@ -11,34 +11,34 @@ import {
   browserLocalPersistence,
   browserSessionPersistence,
   GoogleAuthProvider,
-  signInWithPopup
-} from "firebase/auth";
-import { getFirebaseAuth } from "../../lib/firebase/client";
+  signInWithPopup,
+} from 'firebase/auth';
+import { getFirebaseAuth } from '../../lib/firebase/client';
 
 const AuthContext = createContext({
   user: null,
   profile: null,
   loading: true,
-  login: async () => { },
-  register: async () => { },
-  logout: async () => { },
-  updateEventList: async () => { }
+  login: async () => {},
+  register: async () => {},
+  logout: async () => {},
+  updateEventList: async () => {},
 });
 
 const buildProfilePayload = (firebaseUser, overrides = {}) => {
   const now = new Date().toISOString();
   return {
     uid: firebaseUser.uid,
-    email: firebaseUser.email || "",
-    displayName: firebaseUser.displayName || "Member",
-    photoURL: firebaseUser.photoURL || "",
+    email: firebaseUser.email || '',
+    displayName: firebaseUser.displayName || 'Member',
+    photoURL: firebaseUser.photoURL || '',
 
     attendedEvents: [],
-    city: "",
-    instagram: "",
+    city: '',
+    instagram: '',
     createdAt: now,
     updatedAt: now,
-    ...overrides
+    ...overrides,
   };
 };
 
@@ -46,13 +46,13 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
 
   const ensureProfile = useCallback(async (firebaseUser) => {
     try {
       const token = await firebaseUser.getIdToken();
       const res = await fetch('/api/auth/me', {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${token}` },
       });
 
       const payload = buildProfilePayload(firebaseUser);
@@ -70,15 +70,15 @@ export function AuthProvider({ children }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
       setProfile(payload);
       return payload;
     } catch (profileError) {
-      console.error("ensureProfile error", profileError);
-      setError("Unable to ensure profile via API.");
+      console.error('ensureProfile error', profileError);
+      setError('Unable to ensure profile via API.');
       return null;
     }
   }, []);
@@ -93,7 +93,7 @@ export function AuthProvider({ children }) {
           try {
             await ensureProfile(authUser);
           } catch (profileError) {
-            console.error("Failed to load user profile", profileError);
+            console.error('Failed to load user profile', profileError);
           }
         } else {
           setProfile(null);
@@ -101,20 +101,23 @@ export function AuthProvider({ children }) {
         setLoading(false);
       });
     } catch (authError) {
-      console.error("Firebase auth unavailable", authError);
-      setError("Firebase is not configured. Check NEXT_PUBLIC_FIREBASE_* env vars.");
+      console.error('Firebase auth unavailable', authError);
+      setError('Firebase is not configured. Check NEXT_PUBLIC_FIREBASE_* env vars.');
       setLoading(false);
     }
     return () => unsubscribe?.();
   }, [ensureProfile]);
 
-  const login = useCallback(async (email, password, rememberMe = true) => {
-    const auth = getFirebaseAuth();
-    await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-    const credential = await signInWithEmailAndPassword(auth, email, password);
-    await ensureProfile(credential.user);
-    return credential.user;
-  }, [ensureProfile]);
+  const login = useCallback(
+    async (email, password, rememberMe = true) => {
+      const auth = getFirebaseAuth();
+      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      await ensureProfile(credential.user);
+      return credential.user;
+    },
+    [ensureProfile],
+  );
 
   const register = useCallback(
     async (email, password, displayName) => {
@@ -125,11 +128,11 @@ export function AuthProvider({ children }) {
       }
       await ensureProfile({
         ...credential.user,
-        displayName: displayName || credential.user.displayName
+        displayName: displayName || credential.user.displayName,
       });
       return credential.user;
     },
-    [ensureProfile]
+    [ensureProfile],
   );
 
   const logout = useCallback(async () => {
@@ -150,7 +153,7 @@ export function AuthProvider({ children }) {
   const updateEventList = useCallback(
     async (field, eventId, shouldInclude) => {
       if (!user?.uid) {
-        throw new Error("You must be logged in to manage events.");
+        throw new Error('You must be logged in to manage events.');
       }
 
       const token = await user.getIdToken();
@@ -164,39 +167,39 @@ export function AuthProvider({ children }) {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } })
+        body: JSON.stringify({ type: 'user', updates: { [field]: updatedArray } }),
       });
 
       setProfile((prev) => {
         if (!prev) return prev;
         return {
           ...prev,
-          [field]: updatedArray
+          [field]: updatedArray,
         };
       });
     },
-    [user?.uid, profile]
+    [user?.uid, profile],
   );
 
   const updateUserProfile = useCallback(
     async (updates) => {
-      if (!user?.uid) throw new Error("Not logged in");
+      if (!user?.uid) throw new Error('Not logged in');
 
       const token = await user.getIdToken();
       await fetch('/api/auth/profile', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ type: 'user', updates })
+        body: JSON.stringify({ type: 'user', updates }),
       });
 
       setProfile((prev) => ({ ...prev, ...updates }));
     },
-    [user?.uid]
+    [user?.uid],
   );
 
   const value = useMemo(
@@ -210,9 +213,20 @@ export function AuthProvider({ children }) {
       loginWithGoogle,
       logout,
       updateEventList,
-      updateUserProfile
+      updateUserProfile,
     }),
-    [user, profile, loading, error, login, register, loginWithGoogle, logout, updateEventList, updateUserProfile]
+    [
+      user,
+      profile,
+      loading,
+      error,
+      login,
+      register,
+      loginWithGoogle,
+      logout,
+      updateEventList,
+      updateUserProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

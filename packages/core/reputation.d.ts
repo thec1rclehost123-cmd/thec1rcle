@@ -1,7 +1,7 @@
 export function getRiskTier(score: any): {
-    minScore: number;
-    multiplier: number;
-    label: string;
+  minScore: number;
+  multiplier: number;
+  label: string;
 };
 /**
  * Record a security event against an entity. Applies decay to existing score
@@ -12,14 +12,18 @@ export function getRiskTier(score: any): {
  * @param {keyof SCORE_EVENTS}   event  - e.g. "AUTH_FAIL"
  * @returns {Promise<{ score: number, tier: string }>}
  */
-export function addReputation(type: "ip" | "user" | "admin", id: string, event: keyof {
+export function addReputation(
+  type: 'ip' | 'user' | 'admin',
+  id: string,
+  event: keyof {
     AUTH_FAIL: number;
     RATE_LIMIT: number;
     PAYMENT_ANOMALY: number;
     ADMIN_ABUSE: number;
-}): Promise<{
-    score: number;
-    tier: string;
+  },
+): Promise<{
+  score: number;
+  tier: string;
 }>;
 /**
  * Get the current (decay-adjusted) score for an entity.
@@ -29,7 +33,7 @@ export function addReputation(type: "ip" | "user" | "admin", id: string, event: 
  * @param {string} id
  * @returns {Promise<number>}
  */
-export function getReputationScore(type: "ip" | "user" | "admin", id: string): Promise<number>;
+export function getReputationScore(type: 'ip' | 'user' | 'admin', id: string): Promise<number>;
 /**
  * Compute an adaptive rate limit for an entity based on its reputation score.
  * Returns the adjusted limit (always at least 1).
@@ -39,9 +43,13 @@ export function getReputationScore(type: "ip" | "user" | "admin", id: string): P
  * @param {string} id
  * @returns {Promise<{ limit: number, tier: string }>}
  */
-export function getAdaptiveLimit(baseLimit: number, type: "ip" | "user" | "admin", id: string): Promise<{
-    limit: number;
-    tier: string;
+export function getAdaptiveLimit(
+  baseLimit: number,
+  type: 'ip' | 'user' | 'admin',
+  id: string,
+): Promise<{
+  limit: number;
+  tier: string;
 }>;
 /**
  * Get the top-N riskiest entities of a given type.
@@ -52,11 +60,16 @@ export function getAdaptiveLimit(baseLimit: number, type: "ip" | "user" | "admin
  * @param {number} [n=10]
  * @returns {Promise<Array<{ id: string, score: number, tier: string }>>}
  */
-export function getTopRiskyEntities(type: "ip" | "user" | "admin", n?: number | undefined): Promise<Array<{
+export function getTopRiskyEntities(
+  type: 'ip' | 'user' | 'admin',
+  n?: number | undefined,
+): Promise<
+  Array<{
     id: string;
     score: number;
     tier: string;
-}>>;
+  }>
+>;
 /**
  * Increment the attack trend counter for the current hour bucket.
  * Called automatically by attack-detection on every detected event.
@@ -73,13 +86,13 @@ export function recordAttackTrend(eventType: string, endpoint?: string | undefin
  */
 export function getAttackTrends(): Promise<Record<string, Record<string, number>>>;
 export namespace SCORE_EVENTS {
-    let AUTH_FAIL: number;
-    let RATE_LIMIT: number;
-    let PAYMENT_ANOMALY: number;
-    let ADMIN_ABUSE: number;
+  let AUTH_FAIL: number;
+  let RATE_LIMIT: number;
+  let PAYMENT_ANOMALY: number;
+  let ADMIN_ABUSE: number;
 }
 export const RISK_TIERS: {
-    minScore: number;
-    multiplier: number;
-    label: string;
+  minScore: number;
+  multiplier: number;
+  label: string;
 }[];

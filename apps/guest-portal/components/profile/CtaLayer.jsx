@@ -1,35 +1,35 @@
-"use client";
+'use client';
 
-import { Phone, MessageCircle, Globe, Navigation, Ticket, Heart } from "lucide-react";
+import { Phone, MessageCircle, Globe, Navigation, Ticket, Heart } from 'lucide-react';
 
 export default function CtaLayer({ venue, isFollowing, onFollow }) {
-  const primaryCta = venue.primaryCta || (venue.categoryTag === "Host" ? "follow" : "reserve");
-  const whatsapp = venue.whatsapp?.replace(/\D/g, "");
+  const primaryCta = venue.primaryCta || (venue.categoryTag === 'Host' ? 'follow' : 'reserve');
+  const whatsapp = venue.whatsapp?.replace(/\D/g, '');
 
   const handleAction = () => {
     switch (primaryCta) {
-      case "whatsapp":
-        if (whatsapp) window.open(`https://wa.me/${whatsapp}`, "_blank");
+      case 'whatsapp':
+        if (whatsapp) window.open(`https://wa.me/${whatsapp}`, '_blank');
         break;
-      case "call":
+      case 'call':
         if (venue.phone) window.location.href = `tel:${venue.phone}`;
         break;
-      case "website":
+      case 'website':
         if (venue.website)
           window.open(
-            venue.website.startsWith("http") ? venue.website : `https://${venue.website}`,
-            "_blank",
+            venue.website.startsWith('http') ? venue.website : `https://${venue.website}`,
+            '_blank',
           );
         break;
-      case "directions":
+      case 'directions':
         if (venue.address)
           window.open(
             `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(venue.address)}`,
-            "_blank",
+            '_blank',
           );
         break;
-      case "tickets":
-        document.getElementById("events-section")?.scrollIntoView({ behavior: "smooth" });
+      case 'tickets':
+        document.getElementById('events-section')?.scrollIntoView({ behavior: 'smooth' });
         break;
       default:
         onFollow?.();
@@ -39,34 +39,34 @@ export default function CtaLayer({ venue, isFollowing, onFollow }) {
 
   const getCtaLabel = () => {
     switch (primaryCta) {
-      case "whatsapp":
-        return "Book a Table";
-      case "call":
-        return "Call Now";
-      case "website":
-        return "Visit Website";
-      case "directions":
-        return "Get Directions";
-      case "tickets":
-        return "Buy Tickets";
-      case "follow":
-        return isFollowing ? "Following" : "Follow";
+      case 'whatsapp':
+        return 'Book a Table';
+      case 'call':
+        return 'Call Now';
+      case 'website':
+        return 'Visit Website';
+      case 'directions':
+        return 'Get Directions';
+      case 'tickets':
+        return 'Buy Tickets';
+      case 'follow':
+        return isFollowing ? 'Following' : 'Follow';
       default:
-        return "Reserve Spot";
+        return 'Reserve Spot';
     }
   };
 
   const getIcon = () => {
     switch (primaryCta) {
-      case "whatsapp":
+      case 'whatsapp':
         return <MessageCircle className="w-4 h-4" />;
-      case "call":
+      case 'call':
         return <Phone className="w-4 h-4" />;
-      case "website":
+      case 'website':
         return <Globe className="w-4 h-4" />;
-      case "directions":
+      case 'directions':
         return <Navigation className="w-4 h-4" />;
-      case "tickets":
+      case 'tickets':
         return <Ticket className="w-4 h-4" />;
       default:
         return <Heart className="w-4 h-4" />;
@@ -83,17 +83,17 @@ export default function CtaLayer({ venue, isFollowing, onFollow }) {
         <span>{getCtaLabel()}</span>
       </button>
 
-      {primaryCta !== "follow" && (
+      {primaryCta !== 'follow' && (
         <button
           onClick={onFollow}
           className={`px-10 py-4 backdrop-blur-md rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 border ${
             isFollowing
-              ? "bg-white/20 border-white/20 text-white"
-              : "bg-white/10 border-white/10 text-white/70 hover:bg-white/20"
+              ? 'bg-white/20 border-white/20 text-white'
+              : 'bg-white/10 border-white/10 text-white/70 hover:bg-white/20'
           }`}
         >
-          <Heart className={`w-3.5 h-3.5 ${isFollowing ? "fill-white" : ""}`} />
-          <span>{isFollowing ? "Following" : "Follow"}</span>
+          <Heart className={`w-3.5 h-3.5 ${isFollowing ? 'fill-white' : ''}`} />
+          <span>{isFollowing ? 'Following' : 'Follow'}</span>
         </button>
       )}
 

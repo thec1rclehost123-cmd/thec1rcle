@@ -1,6 +1,6 @@
-import { getAdminDb } from "../firebase/admin";
-import { ENTITLEMENT_STATES } from "@c1rcle/core/entitlement-engine";
-import { MONEY_STATES } from "@c1rcle/core/ledger-engine";
+import { getAdminDb } from '../firebase/admin';
+import { ENTITLEMENT_STATES } from '@c1rcle/core/entitlement-engine';
+import { MONEY_STATES } from '@c1rcle/core/ledger-engine';
 
 /**
  * THE C1RCLE Analytics Rollup Engine
@@ -8,19 +8,19 @@ import { MONEY_STATES } from "@c1rcle/core/ledger-engine";
  */
 
 const ROLLUP_COLLECTIONS = {
-  EVENT: "event_analytics_rollup",
-  CLUB: "venue_analytics_rollup",
-  HOST: "host_analytics_rollup",
-  PROMOTER: "promoter_analytics_rollup",
-  GATE: "gate_ops_rollup",
-  SURGE: "surge_analytics_rollup",
+  EVENT: 'event_analytics_rollup',
+  CLUB: 'venue_analytics_rollup',
+  HOST: 'host_analytics_rollup',
+  PROMOTER: 'promoter_analytics_rollup',
+  GATE: 'gate_ops_rollup',
+  SURGE: 'surge_analytics_rollup',
 };
 
 const BUCKET_TYPES = {
-  LIVE: "5m",
-  HOURLY: "1h",
-  NIGHT: "night",
-  DAILY: "1d",
+  LIVE: '5m',
+  HOURLY: '1h',
+  NIGHT: 'night',
+  DAILY: '1d',
 };
 
 /**
@@ -65,17 +65,17 @@ export async function computeEventRollup(eventId, options = {}) {
         e.consumedAt <= endTime,
     ).length,
     issued: entitlements.length, // This might be total, usually you query total issued up to endTime
-    denied_scans: scans.filter((s) => s.result === "DENIED").length,
-    granted_scans: scans.filter((s) => s.result === "GRANTED").length,
+    denied_scans: scans.filter((s) => s.result === 'DENIED').length,
+    granted_scans: scans.filter((s) => s.result === 'GRANTED').length,
     demand_joins: queue.length,
-    conversions: queue.filter((q) => q.status === "consumed").length,
+    conversions: queue.filter((q) => q.status === 'consumed').length,
   };
 
   // 5. Build Rollup Doc
   const rollupDoc = {
     id: rollupId,
     entityId: eventId,
-    type: "event",
+    type: 'event',
     bucketType,
     bucketStartIST: startTime,
     bucketEndIST: endTime,
@@ -87,7 +87,7 @@ export async function computeEventRollup(eventId, options = {}) {
       queue: queue.length,
     },
     computedAt: new Date().toISOString(),
-    version: "v1",
+    version: 'v1',
   };
 
   // 6. Write to DB
@@ -101,8 +101,8 @@ export async function computeEventRollup(eventId, options = {}) {
  */
 export async function backfillEventAnalytics(eventId) {
   const db = getAdminDb();
-  const eventDoc = await db.collection("events").doc(eventId).get();
-  if (!eventDoc.exists) throw new Error("Event not found");
+  const eventDoc = await db.collection('events').doc(eventId).get();
+  if (!eventDoc.exists) throw new Error('Event not found');
 
   const event = eventDoc.data();
   const start = new Date(event.startDate);
@@ -147,36 +147,36 @@ export async function backfillEventAnalytics(eventId) {
 async function fetchEntitlements(db, eventId, start, end) {
   // Note: Entitlements are often issued before the window,
   // but consumed within the window.
-  const snapshot = await db.collection("entitlements").where("eventId", "==", eventId).get();
+  const snapshot = await db.collection('entitlements').where('eventId', '==', eventId).get();
   return snapshot.docs.map((doc) => doc.data());
 }
 
 async function fetchLedger(db, eventId, start, end) {
   const snapshot = await db
-    .collection("ledger_entries")
-    .where("metadata.eventId", "==", eventId)
-    .where("timestamp", ">=", start)
-    .where("timestamp", "<=", end)
+    .collection('ledger_entries')
+    .where('metadata.eventId', '==', eventId)
+    .where('timestamp', '>=', start)
+    .where('timestamp', '<=', end)
     .get();
   return snapshot.docs.map((doc) => doc.data());
 }
 
 async function fetchScans(db, eventId, start, end) {
   const snapshot = await db
-    .collection("scan_ledger")
-    .where("eventId", "==", eventId)
-    .where("timestamp", ">=", start)
-    .where("timestamp", "<=", end)
+    .collection('scan_ledger')
+    .where('eventId', '==', eventId)
+    .where('timestamp', '>=', start)
+    .where('timestamp', '<=', end)
     .get();
   return snapshot.docs.map((doc) => doc.data());
 }
 
 async function fetchQueue(db, eventId, start, end) {
   const snapshot = await db
-    .collection("event_queues")
-    .where("eventId", "==", eventId)
-    .where("joinedAt", ">=", start)
-    .where("joinedAt", "<=", end)
+    .collection('event_queues')
+    .where('eventId', '==', eventId)
+    .where('joinedAt', '>=', start)
+    .where('joinedAt', '<=', end)
     .get();
   return snapshot.docs.map((doc) => doc.data());
 }
@@ -185,13 +185,13 @@ async function fetchQueue(db, eventId, start, end) {
  * RECONCILIATION & FETCHING
  */
 
-export async function getLatestRollup(entityId, bucketType = "night") {
+export async function getLatestRollup(entityId, bucketType = 'night') {
   const db = getAdminDb();
   const snapshot = await db
-    .collection("event_analytics_rollup")
-    .where("entityId", "==", entityId)
-    .where("bucketType", "==", bucketType)
-    .orderBy("bucketStartIST", "desc")
+    .collection('event_analytics_rollup')
+    .where('entityId', '==', entityId)
+    .where('bucketType', '==', bucketType)
+    .orderBy('bucketStartIST', 'desc')
     .limit(1)
     .get();
 

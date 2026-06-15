@@ -25,7 +25,7 @@ export interface PosterGenerationInput {
   stylePreset?: string; // e.g. "neon_nights", "minimal_luxury"
   mood?: string; // e.g. "energetic", "chill", "luxury"
   aspectRatio?: string; // e.g. "poster", "story", "square"
-  quality?: "quality" | "default" | "turbo";
+  quality?: 'quality' | 'default' | 'turbo';
   colorScheme?: string; // e.g. "black and gold", "neon pink and blue"
 
   // Context (auto-populated from form)
@@ -90,89 +90,89 @@ export interface StyleOption {
 
 export const STYLE_OPTIONS: StyleOption[] = [
   {
-    id: "neon_nights",
-    label: "Neon Nights",
-    description: "Electric neon glow with cyberpunk energy",
-    emoji: "💜",
+    id: 'neon_nights',
+    label: 'Neon Nights',
+    description: 'Electric neon glow with cyberpunk energy',
+    emoji: '💜',
   },
   {
-    id: "minimal_luxury",
-    label: "Minimal Luxury",
-    description: "Clean elegance with gold accents on black",
-    emoji: "✨",
+    id: 'minimal_luxury',
+    label: 'Minimal Luxury',
+    description: 'Clean elegance with gold accents on black',
+    emoji: '✨',
   },
   {
-    id: "dark_elegance",
-    label: "Dark Elegance",
-    description: "Moody sophistication with smoke and shadows",
-    emoji: "🖤",
+    id: 'dark_elegance',
+    label: 'Dark Elegance',
+    description: 'Moody sophistication with smoke and shadows',
+    emoji: '🖤',
   },
   {
-    id: "street_hype",
-    label: "Street Hype",
-    description: "Bold urban energy with graffiti vibes",
-    emoji: "🔥",
+    id: 'street_hype',
+    label: 'Street Hype',
+    description: 'Bold urban energy with graffiti vibes',
+    emoji: '🔥',
   },
   {
-    id: "holographic",
-    label: "Holographic",
-    description: "Prismatic iridescent futurism",
-    emoji: "🌈",
+    id: 'holographic',
+    label: 'Holographic',
+    description: 'Prismatic iridescent futurism',
+    emoji: '🌈',
   },
   {
-    id: "retro_wave",
-    label: "Retro Wave",
-    description: "Synthwave sunset with 80s nostalgia",
-    emoji: "🌅",
+    id: 'retro_wave',
+    label: 'Retro Wave',
+    description: 'Synthwave sunset with 80s nostalgia',
+    emoji: '🌅',
   },
-  { id: "ethereal", label: "Ethereal", description: "Dreamy celestial atmosphere", emoji: "🌌" },
+  { id: 'ethereal', label: 'Ethereal', description: 'Dreamy celestial atmosphere', emoji: '🌌' },
   {
-    id: "brutalist",
-    label: "Brutalist",
-    description: "Raw concrete geometry with stark contrast",
-    emoji: "🏗️",
-  },
-  {
-    id: "tropical_heat",
-    label: "Tropical Heat",
-    description: "Lush jungle vibes with warm golden light",
-    emoji: "🌴",
+    id: 'brutalist',
+    label: 'Brutalist',
+    description: 'Raw concrete geometry with stark contrast',
+    emoji: '🏗️',
   },
   {
-    id: "film_noir",
-    label: "Film Noir",
-    description: "Cinematic mystery with dramatic shadows",
-    emoji: "🎬",
+    id: 'tropical_heat',
+    label: 'Tropical Heat',
+    description: 'Lush jungle vibes with warm golden light',
+    emoji: '🌴',
   },
   {
-    id: "psychedelic",
-    label: "Psychedelic",
-    description: "Vivid kaleidoscopic patterns and fractals",
-    emoji: "🍄",
+    id: 'film_noir',
+    label: 'Film Noir',
+    description: 'Cinematic mystery with dramatic shadows',
+    emoji: '🎬',
   },
   {
-    id: "abstract_art",
-    label: "Abstract Art",
-    description: "Gallery-quality contemporary art",
-    emoji: "🎨",
+    id: 'psychedelic',
+    label: 'Psychedelic',
+    description: 'Vivid kaleidoscopic patterns and fractals',
+    emoji: '🍄',
   },
   {
-    id: "cinematic",
-    label: "Cinematic",
-    description: "Movie poster blockbuster aesthetic",
-    emoji: "🎞️",
+    id: 'abstract_art',
+    label: 'Abstract Art',
+    description: 'Gallery-quality contemporary art',
+    emoji: '🎨',
   },
   {
-    id: "glitch_digital",
-    label: "Digital Glitch",
-    description: "Corrupted digital aesthetics",
-    emoji: "📟",
+    id: 'cinematic',
+    label: 'Cinematic',
+    description: 'Movie poster blockbuster aesthetic',
+    emoji: '🎞️',
   },
   {
-    id: "indian_festival",
-    label: "Desi Festival",
-    description: "Vibrant Indian celebration energy",
-    emoji: "🪔",
+    id: 'glitch_digital',
+    label: 'Digital Glitch',
+    description: 'Corrupted digital aesthetics',
+    emoji: '📟',
+  },
+  {
+    id: 'indian_festival',
+    label: 'Desi Festival',
+    description: 'Vibrant Indian celebration energy',
+    emoji: '🪔',
   },
 ];
 
@@ -183,16 +183,16 @@ export interface MoodOption {
 }
 
 export const MOOD_OPTIONS: MoodOption[] = [
-  { id: "energetic", label: "Energetic", emoji: "⚡" },
-  { id: "chill", label: "Chill", emoji: "🧊" },
-  { id: "luxury", label: "Luxury", emoji: "💎" },
-  { id: "underground", label: "Underground", emoji: "🕳️" },
-  { id: "romantic", label: "Romantic", emoji: "🌹" },
-  { id: "wild", label: "Wild", emoji: "🐆" },
-  { id: "mysterious", label: "Mysterious", emoji: "🌑" },
-  { id: "futuristic", label: "Futuristic", emoji: "🚀" },
-  { id: "spiritual", label: "Spiritual", emoji: "🕉️" },
-  { id: "rebellious", label: "Rebellious", emoji: "🤘" },
+  { id: 'energetic', label: 'Energetic', emoji: '⚡' },
+  { id: 'chill', label: 'Chill', emoji: '🧊' },
+  { id: 'luxury', label: 'Luxury', emoji: '💎' },
+  { id: 'underground', label: 'Underground', emoji: '🕳️' },
+  { id: 'romantic', label: 'Romantic', emoji: '🌹' },
+  { id: 'wild', label: 'Wild', emoji: '🐆' },
+  { id: 'mysterious', label: 'Mysterious', emoji: '🌑' },
+  { id: 'futuristic', label: 'Futuristic', emoji: '🚀' },
+  { id: 'spiritual', label: 'Spiritual', emoji: '🕉️' },
+  { id: 'rebellious', label: 'Rebellious', emoji: '🤘' },
 ];
 
 export interface AspectRatioOption {
@@ -202,11 +202,11 @@ export interface AspectRatioOption {
 }
 
 export const ASPECT_RATIO_OPTIONS: AspectRatioOption[] = [
-  { id: "poster", label: "Poster", ratio: "3:4" },
-  { id: "story", label: "Story", ratio: "9:16" },
-  { id: "square", label: "Square", ratio: "1:1" },
-  { id: "landscape", label: "Landscape", ratio: "16:9" },
-  { id: "tall", label: "Tall", ratio: "2:3" },
+  { id: 'poster', label: 'Poster', ratio: '3:4' },
+  { id: 'story', label: 'Story', ratio: '9:16' },
+  { id: 'square', label: 'Square', ratio: '1:1' },
+  { id: 'landscape', label: 'Landscape', ratio: '16:9' },
+  { id: 'tall', label: 'Tall', ratio: '2:3' },
 ];
 
 // ============================================
@@ -215,39 +215,39 @@ export const ASPECT_RATIO_OPTIONS: AspectRatioOption[] = [
 
 export const POSTER_ERRORS = {
   EVENT_NAME_REQUIRED: {
-    code: "EVENT_NAME_REQUIRED",
-    message: "Event name is required for poster generation",
-    userFriendlyMessage: "Please enter your event name before generating a poster.",
+    code: 'EVENT_NAME_REQUIRED',
+    message: 'Event name is required for poster generation',
+    userFriendlyMessage: 'Please enter your event name before generating a poster.',
     isRetryable: false,
   },
   GENERATION_FAILED: {
-    code: "GENERATION_FAILED",
-    message: "AI image generation failed",
-    userFriendlyMessage: "Poster generation failed. Please wait a moment and try again.",
+    code: 'GENERATION_FAILED',
+    message: 'AI image generation failed',
+    userFriendlyMessage: 'Poster generation failed. Please wait a moment and try again.',
     isRetryable: true,
   },
   NETWORK_ERROR: {
-    code: "NETWORK_ERROR",
-    message: "Network request failed",
-    userFriendlyMessage: "Unable to connect to AI service. Check your connection and try again.",
+    code: 'NETWORK_ERROR',
+    message: 'Network request failed',
+    userFriendlyMessage: 'Unable to connect to AI service. Check your connection and try again.',
     isRetryable: true,
   },
   TIMEOUT: {
-    code: "TIMEOUT",
-    message: "Generation request timed out",
-    userFriendlyMessage: "Generation is taking longer than expected. Please try again.",
+    code: 'TIMEOUT',
+    message: 'Generation request timed out',
+    userFriendlyMessage: 'Generation is taking longer than expected. Please try again.',
     isRetryable: true,
   },
   RATE_LIMITED: {
-    code: "RATE_LIMITED",
-    message: "Too many generation requests",
-    userFriendlyMessage: "Too many requests. Please wait 1 minute and try again.",
+    code: 'RATE_LIMITED',
+    message: 'Too many generation requests',
+    userFriendlyMessage: 'Too many requests. Please wait 1 minute and try again.',
     isRetryable: true,
   },
   CREDIT_EXHAUSTED: {
-    code: "CREDIT_EXHAUSTED",
-    message: "API credits exhausted",
-    userFriendlyMessage: "AI generation credits have been exhausted. Contact support.",
+    code: 'CREDIT_EXHAUSTED',
+    message: 'API credits exhausted',
+    userFriendlyMessage: 'AI generation credits have been exhausted. Contact support.',
     isRetryable: false,
   },
 } as const;
@@ -263,21 +263,21 @@ export function generateUniqueSignature(): string {
 }
 
 export function validatePosterInput(input: PosterGenerationInput): PosterGenerationError | null {
-  if (!input.eventName || input.eventName.trim() === "") {
+  if (!input.eventName || input.eventName.trim() === '') {
     return POSTER_ERRORS.EVENT_NAME_REQUIRED;
   }
   return null;
 }
 
 export function sanitizeDesignPrompt(prompt: string): string {
-  if (!prompt) return "";
+  if (!prompt) return '';
 
   return prompt
-    .replace(/EVENT\s*(TITLE|NAME)\s*:/gi, "")
-    .replace(/DESIGN\s*RULES\s*:/gi, "")
-    .replace(/STYLE\s*CONSTRAINTS\s*:/gi, "")
-    .replace(/IMPORTANT\s*:/gi, "")
-    .replace(/my\s*event\s*(is|name|called|titled)\s*[:=]/gi, "")
+    .replace(/EVENT\s*(TITLE|NAME)\s*:/gi, '')
+    .replace(/DESIGN\s*RULES\s*:/gi, '')
+    .replace(/STYLE\s*CONSTRAINTS\s*:/gi, '')
+    .replace(/IMPORTANT\s*:/gi, '')
+    .replace(/my\s*event\s*(is|name|called|titled)\s*[:=]/gi, '')
     .substring(0, 500)
     .trim();
 }
@@ -291,7 +291,7 @@ export class PosterGenerationService {
   private generationHistory: GenerationHistoryEntry[] = [];
   private currentGenerationId: string | null = null;
 
-  constructor(baseUrl: string = "/api/poster/generate") {
+  constructor(baseUrl: string = '/api/poster/generate') {
     this.baseUrl = baseUrl;
   }
 
@@ -306,7 +306,7 @@ export class PosterGenerationService {
       return {
         success: false,
         imageUrl: null,
-        generationId: "",
+        generationId: '',
         timestamp: new Date().toISOString(),
         error: validationError,
       };
@@ -321,28 +321,28 @@ export class PosterGenerationService {
     try {
       // 4. Call the API with Ideogram-specific params
       const response = await fetch(this.baseUrl, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          "X-Generation-Signature": requestSignature,
-          "Cache-Control": "no-cache, no-store, must-revalidate",
+          'Content-Type': 'application/json',
+          'X-Generation-Signature': requestSignature,
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
         },
         body: JSON.stringify({
           eventName: input.eventName.trim(),
           designPrompt: sanitizedPrompt,
-          stylePreset: input.stylePreset || "neon_nights",
-          mood: input.mood || "energetic",
-          category: input.eventType || "Party",
-          city: input.city || "Pune",
-          aspectRatio: input.aspectRatio || "poster",
-          quality: input.quality || "quality",
-          colorScheme: input.colorScheme || "",
+          stylePreset: input.stylePreset || 'neon_nights',
+          mood: input.mood || 'energetic',
+          category: input.eventType || 'Party',
+          city: input.city || 'Pune',
+          aspectRatio: input.aspectRatio || 'poster',
+          quality: input.quality || 'quality',
+          colorScheme: input.colorScheme || '',
           eventDate: input.eventDate || null,
           includeDate: input.includeDate || false,
           includeTextOnPoster: input.includeTextOnPoster ?? true,
-          artists: input.artists || "",
+          artists: input.artists || '',
         }),
-        cache: "no-store",
+        cache: 'no-store',
       });
 
       if (!response.ok) {
@@ -352,7 +352,7 @@ export class PosterGenerationService {
           return {
             success: false,
             imageUrl: null,
-            generationId: "",
+            generationId: '',
             timestamp: new Date().toISOString(),
             error: POSTER_ERRORS.RATE_LIMITED,
           };
@@ -362,7 +362,7 @@ export class PosterGenerationService {
           return {
             success: false,
             imageUrl: null,
-            generationId: "",
+            generationId: '',
             timestamp: new Date().toISOString(),
             error: POSTER_ERRORS.CREDIT_EXHAUSTED,
           };
@@ -371,11 +371,11 @@ export class PosterGenerationService {
         return {
           success: false,
           imageUrl: null,
-          generationId: "",
+          generationId: '',
           timestamp: new Date().toISOString(),
           error: {
-            code: errorData.error || "API_ERROR",
-            message: errorData.message || "API request failed",
+            code: errorData.error || 'API_ERROR',
+            message: errorData.message || 'API request failed',
             userFriendlyMessage:
               errorData.message || POSTER_ERRORS.GENERATION_FAILED.userFriendlyMessage,
             isRetryable: true,
@@ -393,8 +393,8 @@ export class PosterGenerationService {
           timestamp: data.timestamp,
           eventName: input.eventName,
           designPrompt: sanitizedPrompt,
-          stylePreset: input.stylePreset || "neon_nights",
-          mood: input.mood || "energetic",
+          stylePreset: input.stylePreset || 'neon_nights',
+          mood: input.mood || 'energetic',
           isSelected: true,
         };
 
@@ -414,14 +414,14 @@ export class PosterGenerationService {
           metadata: {
             eventName: input.eventName,
             designPrompt: sanitizedPrompt,
-            styleUsed: data.styleUsed || input.stylePreset || "neon_nights",
+            styleUsed: data.styleUsed || input.stylePreset || 'neon_nights',
             enhancedPrompt: data.enhancedPrompt,
             resolution: data.resolution,
             seed: data.seed,
             renderingSpeed: data.renderingSpeed,
             systemContext: {
-              city: input.city || "Pune",
-              eventType: input.eventType || "Party",
+              city: input.city || 'Pune',
+              eventType: input.eventType || 'Party',
               dateIncluded: input.includeDate || false,
             },
           },
@@ -431,24 +431,24 @@ export class PosterGenerationService {
       return {
         success: false,
         imageUrl: null,
-        generationId: data.generationId || "",
+        generationId: data.generationId || '',
         timestamp: data.timestamp || new Date().toISOString(),
         error: {
-          code: data.error || "UNKNOWN_ERROR",
-          message: data.message || "Generation failed",
+          code: data.error || 'UNKNOWN_ERROR',
+          message: data.message || 'Generation failed',
           userFriendlyMessage: data.message || POSTER_ERRORS.GENERATION_FAILED.userFriendlyMessage,
           isRetryable: true,
         },
       };
     } catch (error: any) {
-      console.error("Poster generation service error:", error);
+      console.error('Poster generation service error:', error);
 
-      const isTimeout = error.name === "AbortError" || error.message?.includes("timeout");
+      const isTimeout = error.name === 'AbortError' || error.message?.includes('timeout');
 
       return {
         success: false,
         imageUrl: null,
-        generationId: "",
+        generationId: '',
         timestamp: new Date().toISOString(),
         error: isTimeout ? POSTER_ERRORS.TIMEOUT : POSTER_ERRORS.NETWORK_ERROR,
       };

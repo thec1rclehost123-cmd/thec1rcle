@@ -3,10 +3,10 @@
  * Shows unread notification count with animated badge
  */
 
-import { BlurView } from "expo-blur";
-import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import { View, Text, StyleSheet, Pressable } from "react-native";
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -15,23 +15,23 @@ import Animated, {
   withSequence,
   withTiming,
   FadeIn,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { colors, radii } from "@/lib/design/theme";
+import { colors, radii } from '@/lib/design/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface NotificationBellProps {
   count?: number;
   hasUnread?: boolean;
-  variant?: "default" | "blur" | "solid";
+  variant?: 'default' | 'blur' | 'solid';
   onPress?: () => void;
 }
 
 export function NotificationBell({
   count = 0,
   hasUnread = false,
-  variant = "default",
+  variant = 'default',
   onPress,
 }: NotificationBellProps) {
   const scale = useSharedValue(1);
@@ -67,12 +67,12 @@ export function NotificationBell({
     if (onPress) {
       onPress();
     } else {
-      router.push("/notifications");
+      router.push('/notifications');
     }
   };
 
   const showBadge = count > 0 || hasUnread;
-  const displayCount = count > 99 ? "99+" : count.toString();
+  const displayCount = count > 99 ? '99+' : count.toString();
 
   const renderContent = () => (
     <>
@@ -92,7 +92,7 @@ export function NotificationBell({
     </>
   );
 
-  if (variant === "blur") {
+  if (variant === 'blur') {
     return (
       <AnimatedPressable
         onPressIn={handlePressIn}
@@ -107,7 +107,7 @@ export function NotificationBell({
     );
   }
 
-  if (variant === "solid") {
+  if (variant === 'solid') {
     return (
       <AnimatedPressable
         onPressIn={handlePressIn}
@@ -134,35 +134,35 @@ export function NotificationBell({
 
 const styles = StyleSheet.create({
   container: {
-    position: "relative",
+    position: 'relative',
   },
   defaultContainer: {
     width: 44,
     height: 44,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   blurContainer: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   solidContainer: {
     width: 44,
     height: 44,
     backgroundColor: colors.base[50],
     borderRadius: 22,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   icon: {
     fontSize: 20,
   },
   badge: {
-    position: "absolute",
+    position: 'absolute',
     backgroundColor: colors.iris,
     borderWidth: 2,
     borderColor: colors.base.DEFAULT,
@@ -181,13 +181,13 @@ const styles = StyleSheet.create({
     height: 18,
     borderRadius: 9,
     paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   badgeText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 10,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 });
 

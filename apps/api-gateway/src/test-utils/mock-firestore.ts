@@ -34,7 +34,10 @@ function isDirectChild(parentPath: string, candidatePath: string) {
 }
 
 class MockDocumentSnapshot {
-  constructor(public readonly id: string, private readonly payload: any) {}
+  constructor(
+    public readonly id: string,
+    private readonly payload: any,
+  ) {}
 
   get exists() {
     return this.payload !== undefined;
@@ -46,7 +49,10 @@ class MockDocumentSnapshot {
 }
 
 class MockDocRef {
-  constructor(private readonly db: MockFirestore, public readonly path: string) {}
+  constructor(
+    private readonly db: MockFirestore,
+    public readonly path: string,
+  ) {}
 
   get id() {
     return getPathId(this.path);
@@ -74,15 +80,36 @@ class MockQuery {
   ) {}
 
   where(field: string, op: FilterOp, value: any) {
-    return new MockQuery(this.db, this.collectionPath, [...this.filters, { field, op, value }], this.orderField, this.orderDirection, this.limitSize);
+    return new MockQuery(
+      this.db,
+      this.collectionPath,
+      [...this.filters, { field, op, value }],
+      this.orderField,
+      this.orderDirection,
+      this.limitSize,
+    );
   }
 
   orderBy(field: string, direction: 'asc' | 'desc' = 'asc') {
-    return new MockQuery(this.db, this.collectionPath, this.filters, field, direction, this.limitSize);
+    return new MockQuery(
+      this.db,
+      this.collectionPath,
+      this.filters,
+      field,
+      direction,
+      this.limitSize,
+    );
   }
 
   limit(size: number) {
-    return new MockQuery(this.db, this.collectionPath, this.filters, this.orderField, this.orderDirection, size);
+    return new MockQuery(
+      this.db,
+      this.collectionPath,
+      this.filters,
+      this.orderField,
+      this.orderDirection,
+      size,
+    );
   }
 
   async get() {
@@ -123,7 +150,10 @@ class MockQuery {
 }
 
 class MockCollectionRef {
-  constructor(private readonly db: MockFirestore, private readonly path: string) {}
+  constructor(
+    private readonly db: MockFirestore,
+    private readonly path: string,
+  ) {}
 
   doc(id?: string) {
     const resolvedId = id || this.db.nextId();
@@ -244,7 +274,11 @@ export class MockFirestore {
   listCollection(path: string) {
     return Array.from(this.docs.entries())
       .filter(([candidate]) => isDirectChild(path, candidate))
-      .map(([candidate, payload]) => ({ path: candidate, id: getPathId(candidate), data: payload }));
+      .map(([candidate, payload]) => ({
+        path: candidate,
+        id: getPathId(candidate),
+        data: payload,
+      }));
   }
 
   getDoc(path: string) {

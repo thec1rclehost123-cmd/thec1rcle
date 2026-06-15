@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { createContext, useContext, useState, useCallback } from "react";
-import { AnimatePresence } from "framer-motion";
-import Toast from "../ui/Toast";
+import { createContext, useContext, useState, useCallback } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import Toast from '../ui/Toast';
 
 const ToastContext = createContext({
   toast: (props) => {},
@@ -11,7 +11,7 @@ const ToastContext = createContext({
 export const useToast = () => {
   const context = useContext(ToastContext);
   if (!context) {
-    throw new Error("useToast must be used within a ToastProvider");
+    throw new Error('useToast must be used within a ToastProvider');
   }
   return context;
 };
@@ -19,7 +19,7 @@ export const useToast = () => {
 export default function ToastProvider({ children }) {
   const [toasts, setToasts] = useState([]);
 
-  const toast = useCallback(({ type = "info", message, duration = 4000 }) => {
+  const toast = useCallback(({ type = 'info', message, duration = 4000 }) => {
     const id = Math.random().toString(36).substring(2, 9);
     setToasts((prev) => [...prev, { id, type, message, duration }]);
   }, []);

@@ -1,5 +1,5 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import * as surgeCore from "@c1rcle/core";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import * as surgeCore from '@c1rcle/core';
 
 export async function recordMetric(eventId, type) {
   if (!isFirebaseConfigured()) return;
@@ -7,6 +7,6 @@ export async function recordMetric(eventId, type) {
 }
 
 export async function getSurgeStatus(eventId) {
-  if (!isFirebaseConfigured()) return { status: "normal" };
+  if (!isFirebaseConfigured()) return { status: 'normal' };
   return surgeCore.getSurgeStatus(getAdminDb(), eventId);
 }

@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { MapPin, Loader2 } from "lucide-react";
-import { countries } from "../../lib/data/countries";
-import clsx from "clsx";
+import { useState, useEffect } from 'react';
+import { MapPin, Loader2 } from 'lucide-react';
+import { countries } from '../../lib/data/countries';
+import clsx from 'clsx';
 
 export default function PhoneInput({
   value,
@@ -15,25 +15,25 @@ export default function PhoneInput({
 }) {
   const [detecting, setDetecting] = useState(false);
   const selectedCountry =
-    countries.find((c) => c.code === countryCode) || countries.find((c) => c.code === "IN");
+    countries.find((c) => c.code === countryCode) || countries.find((c) => c.code === 'IN');
 
   const handleLocation = async () => {
     setDetecting(true);
     try {
-      const res = await fetch("https://ipapi.co/json/");
+      const res = await fetch('https://ipapi.co/json/');
       const data = await res.json();
       if (data.country_code) {
         onCountryChange(data.country_code);
       }
     } catch (err) {
-      console.error("Failed to detect location", err);
+      console.error('Failed to detect location', err);
     } finally {
       setDetecting(false);
     }
   };
 
   const handlePhoneChange = (e) => {
-    const val = e.target.value.replace(/\D/g, "");
+    const val = e.target.value.replace(/\D/g, '');
     // Basic length limitation based on common rules (can be refined)
     if (val.length <= 15) {
       onChange(val);

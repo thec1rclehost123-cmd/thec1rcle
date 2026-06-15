@@ -1,5 +1,5 @@
-import HostDiscoverPage from "./PageClient";
+import HostDiscoverPage from './PageClient';
 
 export default function Page() {
-    return <HostDiscoverPage />;
+  return <HostDiscoverPage />;
 }

@@ -5,7 +5,7 @@
  * All validation and DB access moved to @c1rcle/core/promo-service via API Gateway.
  */
 
-import { getApiClient } from "./apiClient";
+import { getApiClient } from './apiClient';
 
 /**
  * Get all promo codes for an event
@@ -15,7 +15,7 @@ export async function getEventPromoCodes(eventId, options = {}, token) {
   try {
     return await client.getEventPromos(eventId);
   } catch (error) {
-    console.error("[PromoCodeService] getEventPromoCodes failed:", error.message);
+    console.error('[PromoCodeService] getEventPromoCodes failed:', error.message);
     return [];
   }
 }
@@ -33,8 +33,8 @@ export async function validatePromoCode(eventId, code, userId, items, token) {
  */
 export async function createPromoCode(eventId, codeData, token) {
   const client = getApiClient(token);
-  return client.request("/promos/create", {
-    method: "POST",
+  return client.request('/promos/create', {
+    method: 'POST',
     body: JSON.stringify({ eventId, ...codeData }),
   });
 }

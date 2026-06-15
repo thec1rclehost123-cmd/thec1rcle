@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
-import { accentNames, getAccentToken, type AccentName } from "../design-system/tokens";
+import { useMemo, useState } from 'react';
+import { accentNames, getAccentToken, type AccentName } from '../design-system/tokens';
 
-export const useAccentColor = (initial: AccentName = "iris") => {
+export const useAccentColor = (initial: AccentName = 'iris') => {
   const [accent, setAccent] = useState<AccentName>(initial);
   const token = useMemo(() => getAccentToken(accent), [accent]);
 

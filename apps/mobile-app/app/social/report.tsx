@@ -1,6 +1,6 @@
-import * as Haptics from "expo-haptics";
-import { useLocalSearchParams, router } from "expo-router";
-import { useState } from "react";
+import * as Haptics from 'expo-haptics';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -9,48 +9,47 @@ import {
   TextInput,
   ActivityIndicator,
   Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { reportUser, UserReport } from "@/lib/social";
-import { useAuthStore } from "@/store/authStore";
-
+import { reportUser, UserReport } from '@/lib/social';
+import { useAuthStore } from '@/store/authStore';
 
 const REPORT_CATEGORIES: {
-  id: UserReport["category"];
+  id: UserReport['category'];
   label: string;
   icon: string;
   description: string;
 }[] = [
   {
-    id: "harassment",
-    label: "Harassment",
-    icon: "😡",
-    description: "Bullying, threats, or intimidation",
+    id: 'harassment',
+    label: 'Harassment',
+    icon: '😡',
+    description: 'Bullying, threats, or intimidation',
   },
   {
-    id: "spam",
-    label: "Spam",
-    icon: "📧",
-    description: "Promotional content or repetitive messages",
+    id: 'spam',
+    label: 'Spam',
+    icon: '📧',
+    description: 'Promotional content or repetitive messages',
   },
   {
-    id: "inappropriate",
-    label: "Inappropriate Content",
-    icon: "🚫",
-    description: "Explicit, offensive, or harmful content",
+    id: 'inappropriate',
+    label: 'Inappropriate Content',
+    icon: '🚫',
+    description: 'Explicit, offensive, or harmful content',
   },
   {
-    id: "safety",
-    label: "Safety Concern",
-    icon: "⚠️",
-    description: "Potential danger to you or others",
+    id: 'safety',
+    label: 'Safety Concern',
+    icon: '⚠️',
+    description: 'Potential danger to you or others',
   },
   {
-    id: "other",
-    label: "Other",
-    icon: "📝",
-    description: "Something else that breaks our guidelines",
+    id: 'other',
+    label: 'Other',
+    icon: '📝',
+    description: 'Something else that breaks our guidelines',
   },
 ];
 
@@ -62,8 +61,8 @@ export default function ReportScreen() {
   }>();
   const { user } = useAuthStore();
 
-  const [selectedCategory, setSelectedCategory] = useState<UserReport["category"] | null>(null);
-  const [description, setDescription] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<UserReport['category'] | null>(null);
+  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
@@ -86,12 +85,12 @@ export default function ReportScreen() {
     if (result.success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert(
-        "Report Submitted",
+        'Report Submitted',
         "Thank you for helping keep THE C1RCLE safe. We'll review this report within 24 hours.",
-        [{ text: "OK", onPress: () => router.back() }],
+        [{ text: 'OK', onPress: () => router.back() }],
       );
     } else {
-      Alert.alert("Error", result.error || "Failed to submit report");
+      Alert.alert('Error', result.error || 'Failed to submit report');
     }
   };
 
@@ -130,15 +129,15 @@ export default function ReportScreen() {
             }}
             className={`flex-row items-center p-4 rounded-bubble mb-3 border ${
               selectedCategory === cat.id
-                ? "bg-iris/20 border-iris/50"
-                : "bg-midnight-100 border-white/10"
+                ? 'bg-iris/20 border-iris/50'
+                : 'bg-midnight-100 border-white/10'
             }`}
           >
             <Text className="text-2xl mr-4">{cat.icon}</Text>
             <View className="flex-1">
               <Text
                 className={`font-semibold ${
-                  selectedCategory === cat.id ? "text-iris" : "text-gold"
+                  selectedCategory === cat.id ? 'text-iris' : 'text-gold'
                 }`}
               >
                 {cat.label}
@@ -165,7 +164,7 @@ export default function ReportScreen() {
         />
 
         {/* Safety Warning */}
-        {selectedCategory === "safety" && (
+        {selectedCategory === 'safety' && (
           <View className="bg-red-500/20 border border-red-500/50 rounded-bubble p-4 mb-6">
             <Text className="text-red-400 font-semibold mb-2">⚠️ Safety First</Text>
             <Text className="text-red-300 text-sm">
@@ -180,7 +179,7 @@ export default function ReportScreen() {
           onPress={handleSubmit}
           disabled={!selectedCategory || loading}
           className={`py-4 rounded-pill items-center ${
-            selectedCategory && !loading ? "bg-red-600" : "bg-red-600/50"
+            selectedCategory && !loading ? 'bg-red-600' : 'bg-red-600/50'
           }`}
         >
           {loading ? (

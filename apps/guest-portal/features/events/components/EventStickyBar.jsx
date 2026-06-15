@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { SectionLabel, GlassCard } from "../EventDetailPrimitives";
+import { SectionLabel, GlassCard } from '../EventDetailPrimitives';
 
 export function EventStickyBar({
   dominantColor,
@@ -22,11 +22,11 @@ export function EventStickyBar({
             <div className="mt-2 text-[clamp(1.15rem,2vw,1.45rem)] font-semibold leading-tight text-white">
               {ticketsCount > 0
                 ? isFreeEntry
-                  ? "Free RSVP is open now."
+                  ? 'Free RSVP is open now.'
                   : startsFree
-                    ? "Entry starts free."
+                    ? 'Entry starts free.'
                     : `Tickets start at ${startingPriceLabel}.`
-                : "Ticket drop coming soon."}
+                : 'Ticket drop coming soon.'}
             </div>
             <div className="mt-2 truncate text-[14px] text-white/48">{stickySupportLabel}</div>
           </div>

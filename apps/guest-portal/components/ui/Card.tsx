@@ -1,15 +1,15 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import clsx from "clsx";
-import { forwardRef, type HTMLAttributes } from "react";
-import { type AccentName, getAccentToken } from "../../lib/design-system/tokens";
+import { motion } from 'framer-motion';
+import clsx from 'clsx';
+import { forwardRef, type HTMLAttributes } from 'react';
+import { type AccentName, getAccentToken } from '../../lib/design-system/tokens';
 
 const paddingMap = {
-  none: "p-0",
-  sm: "p-4",
-  md: "p-6",
-  lg: "p-8",
+  none: 'p-0',
+  sm: 'p-4',
+  md: 'p-6',
+  lg: 'p-8',
 };
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
@@ -20,17 +20,29 @@ export interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const CardBase = forwardRef<HTMLDivElement, CardProps>(
-  ({ interactive = true, padding = "md", accent = "iris", blur = true, className, children, ...rest }, ref) => {
+  (
+    {
+      interactive = true,
+      padding = 'md',
+      accent = 'iris',
+      blur = true,
+      className,
+      children,
+      ...rest
+    },
+    ref,
+  ) => {
     const accentToken = getAccentToken(accent);
     return (
       <article
         ref={ref}
         className={clsx(
-          "group relative overflow-hidden rounded-[32px] border border-black/[0.06] dark:border-white/10 bg-white dark:bg-white/[0.03] text-black dark:text-white",
-          blur && "backdrop-blur-xl",
-          interactive && "transition-all hover:-translate-y-1 hover:border-black/20 dark:hover:border-white/30 hover:scale-[1.01]",
+          'group relative overflow-hidden rounded-[32px] border border-black/[0.06] dark:border-white/10 bg-white dark:bg-white/[0.03] text-black dark:text-white',
+          blur && 'backdrop-blur-xl',
+          interactive &&
+            'transition-all hover:-translate-y-1 hover:border-black/20 dark:hover:border-white/30 hover:scale-[1.01]',
           paddingMap[padding],
-          className
+          className,
         )}
         style={{ boxShadow: accentToken.soft }}
         {...rest}
@@ -42,19 +54,27 @@ const CardBase = forwardRef<HTMLDivElement, CardProps>(
         <div className="relative z-10 flex flex-col gap-4">{children}</div>
       </article>
     );
-  }
+  },
 );
 
-CardBase.displayName = "Card";
+CardBase.displayName = 'Card';
 
 export interface CardMediaProps extends HTMLAttributes<HTMLDivElement> {
   src: string;
   alt?: string;
 }
 
-export const CardMedia = ({ src, alt = "", className, ...rest }: CardMediaProps) => (
-  <div className={clsx("relative aspect-[4/3] overflow-hidden rounded-[28px]", className)} {...rest}>
-    <img src={src} alt={alt} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy" />
+export const CardMedia = ({ src, alt = '', className, ...rest }: CardMediaProps) => (
+  <div
+    className={clsx('relative aspect-[4/3] overflow-hidden rounded-[28px]', className)}
+    {...rest}
+  >
+    <img
+      src={src}
+      alt={alt}
+      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+      loading="lazy"
+    />
     <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
   </div>
 );
@@ -66,17 +86,19 @@ export interface CardStatProps {
 
 export const CardStat = ({ label, value }: CardStatProps) => (
   <div className="flex flex-col rounded-2xl border border-black/[0.04] dark:border-white/5 bg-black/[0.02] dark:bg-white/[0.02] px-4 py-3 text-left">
-    <span className="text-xs uppercase tracking-[0.35em] text-black/40 dark:text-white/40">{label}</span>
+    <span className="text-xs uppercase tracking-[0.35em] text-black/40 dark:text-white/40">
+      {label}
+    </span>
     <span className="text-2xl font-heading text-black dark:text-white">{value}</span>
   </div>
 );
 
 export const CardBody = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("flex flex-col gap-3", className)} {...rest} />
+  <div className={clsx('flex flex-col gap-3', className)} {...rest} />
 );
 
 export const CardFooter = ({ className, ...rest }: HTMLAttributes<HTMLDivElement>) => (
-  <div className={clsx("mt-auto flex flex-wrap items-center gap-4", className)} {...rest} />
+  <div className={clsx('mt-auto flex flex-wrap items-center gap-4', className)} {...rest} />
 );
 
 export const Card = Object.assign(CardBase, {

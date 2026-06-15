@@ -1,12 +1,12 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 const links = [
-  { label: "Download App", href: "/app" },
-  { label: "Explore", href: "/explore" },
-  { label: "University", href: "/about" },
-  { label: "Careers", href: "/about#careers" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Terms", href: "/terms" }
+  { label: 'Download App', href: '/app' },
+  { label: 'Explore', href: '/explore' },
+  { label: 'University', href: '/about' },
+  { label: 'Careers', href: '/about#careers' },
+  { label: 'Privacy', href: '/privacy' },
+  { label: 'Terms', href: '/terms' },
 ];
 
 export default function Footer() {

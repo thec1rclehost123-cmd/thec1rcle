@@ -34,26 +34,26 @@
  * availableSeats and soldCount are ONLY mutated inside Firestore transactions.
  */
 export interface EventDoc {
-    id: string;
-    title: string;
-    description: string;
-    date: string;           // "2026-04-15"
-    startTime: string;      // "20:00"
-    endTime: string;        // "23:00"
-    city: string;
-    hostId: string;
-    venueId: string;
-    venueName: string;
+  id: string;
+  title: string;
+  description: string;
+  date: string; // "2026-04-15"
+  startTime: string; // "20:00"
+  endTime: string; // "23:00"
+  city: string;
+  hostId: string;
+  venueId: string;
+  venueName: string;
 
-    // Ticketing — all in PAISE
-    price: number;
-    totalSeats: number;     // set at creation, never changed
-    availableSeats: number; // decremented by reservation transaction
-    soldCount: number;      // incremented by FieldValue.increment on confirmation
+  // Ticketing — all in PAISE
+  price: number;
+  totalSeats: number; // set at creation, never changed
+  availableSeats: number; // decremented by reservation transaction
+  soldCount: number; // incremented by FieldValue.increment on confirmation
 
-    status: "draft" | "published" | "cancelled" | "completed";
-    createdAt: string;
-    updatedAt: string;
+  status: 'draft' | 'published' | 'cancelled' | 'completed';
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,30 +71,30 @@ export interface EventDoc {
  * razorpayOrderId is null at creation. Written when Razorpay order is created.
  */
 export type ReservationStatus =
-    | "pending"          // seats held, no payment started
-    | "payment_pending"  // Razorpay order created, awaiting user payment
-    | "processing"       // webhook received, writing booking (~100–500ms window)
-    | "confirmed"        // booking confirmed by webhook
-    | "expired"          // scheduler released seats after 15 min
-    | "cancelled";       // explicitly cancelled
+  | 'pending' // seats held, no payment started
+  | 'payment_pending' // Razorpay order created, awaiting user payment
+  | 'processing' // webhook received, writing booking (~100–500ms window)
+  | 'confirmed' // booking confirmed by webhook
+  | 'expired' // scheduler released seats after 15 min
+  | 'cancelled'; // explicitly cancelled
 
 export interface ReservationDoc {
-    id: string;             // Also used as Razorpay receipt for idempotency
+  id: string; // Also used as Razorpay receipt for idempotency
 
-    eventId: string;
-    userId: string;
-    quantity: number;
+  eventId: string;
+  userId: string;
+  quantity: number;
 
-    // Financials — PAISE
-    pricePerSeat: number;
-    totalAmount: number;
+  // Financials — PAISE
+  pricePerSeat: number;
+  totalAmount: number;
 
-    razorpayOrderId: string | null;
+  razorpayOrderId: string | null;
 
-    status: ReservationStatus;
-    expiresAt: string;      // ISO — createdAt + 15 min
-    createdAt: string;
-    updatedAt: string;
+  status: ReservationStatus;
+  expiresAt: string; // ISO — createdAt + 15 min
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -115,33 +115,33 @@ export interface ReservationDoc {
  * bookingRef is the user-facing reference (e.g. "CIR-7F3K2A").
  * qrToken is the opaque token encoded in the QR code at the event gate.
  */
-export type BookingStatus = "confirmed" | "checked_in" | "cancelled" | "refunded";
+export type BookingStatus = 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
 
 export interface BookingDoc {
-    id: string;
+  id: string;
 
-    bookingRef: string;     // "CIR-XXXXXX" — human-readable, shown in UI and emails
+  bookingRef: string; // "CIR-XXXXXX" — human-readable, shown in UI and emails
 
-    // Traceability
-    reservationId: string;
-    eventId: string;
-    userId: string;
+  // Traceability
+  reservationId: string;
+  eventId: string;
+  userId: string;
 
-    // Ticket details
-    quantity: number;
-    pricePerSeat: number;
-    totalAmount: number;
+  // Ticket details
+  quantity: number;
+  pricePerSeat: number;
+  totalAmount: number;
 
-    // Payment proof
-    razorpayOrderId: string;
-    razorpayPaymentId: string;
+  // Payment proof
+  razorpayOrderId: string;
+  razorpayPaymentId: string;
 
-    // Check-in
-    qrToken: string;
+  // Check-in
+  qrToken: string;
 
-    status: BookingStatus;
-    createdAt: string;
-    updatedAt: string;
+  status: BookingStatus;
+  createdAt: string;
+  updatedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -159,28 +159,28 @@ export interface BookingDoc {
  *   reservationId ASC, timestamp ASC → full lifecycle of a reservation
  */
 export type AuditAction =
-    | "RESERVED"            // Reservation created, seats held
-    | "PAYMENT_INITIATED"   // Razorpay order created
-    | "PROCESSING"          // Webhook received, confirmation starting
-    | "CONFIRMED"           // Booking created successfully
-    | "EXPIRED"             // Scheduler expired stale reservation
-    | "CANCELLED"           // User/admin cancelled
-    | "EXPIRED_REFUND_NEEDED"; // Payment received for expired reservation
+  | 'RESERVED' // Reservation created, seats held
+  | 'PAYMENT_INITIATED' // Razorpay order created
+  | 'PROCESSING' // Webhook received, confirmation starting
+  | 'CONFIRMED' // Booking created successfully
+  | 'EXPIRED' // Scheduler expired stale reservation
+  | 'CANCELLED' // User/admin cancelled
+  | 'EXPIRED_REFUND_NEEDED'; // Payment received for expired reservation
 
 export interface BookingAuditLog {
-    id: string;
-    action: AuditAction;
+  id: string;
+  action: AuditAction;
 
-    // Context
-    eventId: string;
-    reservationId: string;
-    bookingId?: string;     // set for CONFIRMED action
-    userId: string;
+  // Context
+  eventId: string;
+  reservationId: string;
+  bookingId?: string; // set for CONFIRMED action
+  userId: string;
 
-    // Optional detail
-    metadata?: Record<string, unknown>;
+  // Optional detail
+  metadata?: Record<string, unknown>;
 
-    timestamp: string;      // ISO
+  timestamp: string; // ISO
 }
 
 // ---------------------------------------------------------------------------
@@ -188,14 +188,14 @@ export interface BookingAuditLog {
 // ---------------------------------------------------------------------------
 
 export interface CreateReservationBody {
-    eventId: string;
-    quantity: number;
+  eventId: string;
+  quantity: number;
 }
 
 export interface CreateReservationResponse {
-    reservationId: string;
-    eventId: string;
-    quantity: number;
-    totalAmount: number;
-    expiresAt: string;
+  reservationId: string;
+  eventId: string;
+  quantity: number;
+  totalAmount: number;
+  expiresAt: string;
 }

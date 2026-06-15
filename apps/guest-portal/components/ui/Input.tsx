@@ -1,12 +1,12 @@
-import clsx from "clsx";
+import clsx from 'clsx';
 import {
   forwardRef,
   type HTMLInputTypeAttribute,
   type InputHTMLAttributes,
   type ReactNode,
-} from "react";
+} from 'react';
 
-type InputTone = "default" | "light";
+type InputTone = 'default' | 'light';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -19,12 +19,12 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 }
 
 const baseFieldStyles =
-  "peer w-full rounded-[28px] border bg-white/[0.04] px-5 py-3 text-base text-white placeholder:text-white/30 transition focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none";
+  'peer w-full rounded-[28px] border bg-white/[0.04] px-5 py-3 text-base text-white placeholder:text-white/30 transition focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none';
 
 const toneClasses: Record<InputTone, string> = {
-  default: "border-white/10 hover:border-white/20 focus-visible:border-white/40",
+  default: 'border-white/10 hover:border-white/20 focus-visible:border-white/40',
   light:
-    "border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 hover:border-black/20 focus-visible:ring-black/20",
+    'border-white/30 bg-white/[0.08] text-black placeholder:text-black/40 hover:border-black/20 focus-visible:ring-black/20',
 };
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(
@@ -35,10 +35,10 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       errorText,
       leadingIcon,
       trailingIcon,
-      tone = "default",
+      tone = 'default',
       className,
       required,
-      type = "text",
+      type = 'text',
       ...rest
     },
     ref,
@@ -46,9 +46,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     const fieldClasses = clsx(
       baseFieldStyles,
       toneClasses[tone],
-      (leadingIcon || trailingIcon) && "pl-12",
-      trailingIcon && "pr-12",
-      errorText && "border-red-400/50 focus-visible:ring-red-300/60",
+      (leadingIcon || trailingIcon) && 'pl-12',
+      trailingIcon && 'pr-12',
+      errorText && 'border-red-400/50 focus-visible:ring-red-300/60',
       className,
     );
 
@@ -80,6 +80,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   },
 );
 
-Input.displayName = "Input";
+Input.displayName = 'Input';
 
 export default Input;

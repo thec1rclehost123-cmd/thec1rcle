@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { usePathname } from "next/navigation";
+import { usePathname } from 'next/navigation';
 
 // Tab routes that should switch instantly with no animation
-const TAB_ROUTES = new Set(["/explore", "/hosts", "/tickets", "/app"]);
+const TAB_ROUTES = new Set(['/explore', '/hosts', '/tickets', '/app']);
 
 export default function RouteTransition({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

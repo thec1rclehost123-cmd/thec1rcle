@@ -1,28 +1,28 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useAuth } from "../../../components/providers/AuthProvider";
-import { useAvatarCropper } from "./useAvatarCropper";
+import { useEffect, useState } from 'react';
+import { useAuth } from '../../../components/providers/AuthProvider';
+import { useAvatarCropper } from './useAvatarCropper';
 
 function buildInitialForm(profile) {
   return {
-    city: profile?.city || "",
-    displayName: profile?.displayName || "",
-    gender: profile?.gender || "",
-    instagram: profile?.instagram || "",
-    phoneNumber: profile?.phoneNumber || "",
-    photoURL: profile?.photoURL || profile?.avatar || "",
+    city: profile?.city || '',
+    displayName: profile?.displayName || '',
+    gender: profile?.gender || '',
+    instagram: profile?.instagram || '',
+    phoneNumber: profile?.phoneNumber || '',
+    photoURL: profile?.photoURL || profile?.avatar || '',
   };
 }
 
 function normalizeProfileUpdate(formData, user) {
   const nextProfile = { ...formData };
-  if (nextProfile.photoURL?.includes("firebasestorage.googleapis.com")) {
+  if (nextProfile.photoURL?.includes('firebasestorage.googleapis.com')) {
     const isSocialUser =
       user?.photoURL &&
-      (user.photoURL.includes("googleusercontent.com") ||
-        user.photoURL.includes("facebook") ||
-        user.photoURL.includes("dicebear"));
+      (user.photoURL.includes('googleusercontent.com') ||
+        user.photoURL.includes('facebook') ||
+        user.photoURL.includes('dicebear'));
     if (isSocialUser) {
       nextProfile.photoURL = user.photoURL;
       nextProfile.avatar = user.photoURL;
@@ -33,17 +33,17 @@ function normalizeProfileUpdate(formData, user) {
 
 export function useEditProfileFlow({ onClose }) {
   const { changePassword, profile, updateUserProfile, user } = useAuth();
-  const isGoogleUser = user?.providerData?.some((provider) => provider.providerId === "google.com");
+  const isGoogleUser = user?.providerData?.some((provider) => provider.providerId === 'google.com');
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
-  const [imagePreview, setImagePreview] = useState(profile?.photoURL || profile?.avatar || "");
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [imagePreview, setImagePreview] = useState(profile?.photoURL || profile?.avatar || '');
   const [formData, setFormData] = useState(() => buildInitialForm(profile));
   const [passwordData, setPasswordData] = useState({
-    confirmPassword: "",
-    currentPassword: "",
-    newPassword: "",
+    confirmPassword: '',
+    currentPassword: '',
+    newPassword: '',
   });
   const [mounted, setMounted] = useState(false);
 
@@ -71,7 +71,7 @@ export function useEditProfileFlow({ onClose }) {
     },
     handleCropCancel: avatarCropper.resetCropper,
     handleCropSave: async () => {
-      setError("");
+      setError('');
       setUploadingImage(true);
       const result = await avatarCropper.handleCropSave();
       if (result?.error) {
@@ -80,7 +80,7 @@ export function useEditProfileFlow({ onClose }) {
       setUploadingImage(false);
     },
     handleFileChange: async (event) => {
-      setError("");
+      setError('');
       const result = await avatarCropper.handleFileChange(event);
       if (result?.error) {
         setError(result.error);
@@ -93,28 +93,28 @@ export function useEditProfileFlow({ onClose }) {
     handleSubmit: async (event) => {
       event.preventDefault();
       setLoading(true);
-      setError("");
-      setSuccess("");
+      setError('');
+      setSuccess('');
       try {
         const normalizedProfile = normalizeProfileUpdate(formData, user);
         await updateUserProfile(normalizedProfile);
 
         if (passwordData.newPassword) {
           if (passwordData.newPassword !== passwordData.confirmPassword) {
-            throw new Error("New passwords do not match");
+            throw new Error('New passwords do not match');
           }
           if (!passwordData.currentPassword) {
-            throw new Error("Current password is required to change password");
+            throw new Error('Current password is required to change password');
           }
           await changePassword(passwordData.currentPassword, passwordData.newPassword);
         }
 
-        setSuccess("Profile updated successfully!");
+        setSuccess('Profile updated successfully!');
         setTimeout(() => {
           onClose();
         }, 1000);
       } catch (submitError) {
-        setError(submitError.message || "Failed to update profile. Please try again.");
+        setError(submitError.message || 'Failed to update profile. Please try again.');
       } finally {
         setLoading(false);
       }

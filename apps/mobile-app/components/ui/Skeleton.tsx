@@ -3,9 +3,9 @@
  * Shimmer loading placeholders for better perceived performance
  */
 
-import { LinearGradient } from "expo-linear-gradient";
-import React, { useEffect } from "react";
-import { View, StyleSheet, Dimensions } from "react-native";
+import { LinearGradient } from 'expo-linear-gradient';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -13,11 +13,11 @@ import Animated, {
   withTiming,
   interpolate,
   Easing,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { colors, radii } from "@/lib/design/theme";
+import { colors, radii } from '@/lib/design/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Base shimmer component
 export function Shimmer({ style }: { style?: any }) {
@@ -39,7 +39,7 @@ export function Shimmer({ style }: { style?: any }) {
     <View style={[styles.shimmerContainer, style]}>
       <Animated.View style={[styles.shimmerGradient, animatedStyle]}>
         <LinearGradient
-          colors={["transparent", "rgba(255, 255, 255, 0.08)", "transparent"]}
+          colors={['transparent', 'rgba(255, 255, 255, 0.08)', 'transparent']}
           start={{ x: 0, y: 0.5 }}
           end={{ x: 1, y: 0.5 }}
           style={StyleSheet.absoluteFill}
@@ -158,10 +158,10 @@ export function SearchResultSkeleton() {
 // List skeleton wrapper
 export function SkeletonList({
   count = 5,
-  type = "event",
+  type = 'event',
 }: {
   count?: number;
-  type?: "event" | "hero" | "ticket" | "chat" | "notification" | "search";
+  type?: 'event' | 'hero' | 'ticket' | 'chat' | 'notification' | 'search';
 }) {
   const SkeletonComponent = {
     event: EventCardSkeleton,
@@ -186,7 +186,7 @@ export function SkeletonList({
 const styles = StyleSheet.create({
   shimmerContainer: {
     backgroundColor: colors.base[50],
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   shimmerGradient: {
     ...StyleSheet.absoluteFillObject,
@@ -197,12 +197,12 @@ const styles = StyleSheet.create({
 const skeletonStyles = StyleSheet.create({
   // Event Card
   eventCard: {
-    flexDirection: "row",
+    flexDirection: 'row',
     backgroundColor: colors.base[50],
     borderRadius: radii.xl,
     padding: 12,
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: 'rgba(255, 255, 255, 0.06)',
   },
   eventImage: {
     width: 80,
@@ -212,27 +212,27 @@ const skeletonStyles = StyleSheet.create({
   eventContent: {
     flex: 1,
     marginLeft: 14,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   titleLine: {
     height: 18,
     borderRadius: 6,
     marginBottom: 8,
-    width: "80%",
+    width: '80%',
   },
   subtitleLine: {
     height: 14,
     borderRadius: 6,
     marginBottom: 8,
-    width: "60%",
+    width: '60%',
   },
   bodyLine: {
     height: 12,
     borderRadius: 6,
-    width: "90%",
+    width: '90%',
   },
   eventMeta: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 8,
   },
   metaChip: {
@@ -245,14 +245,14 @@ const skeletonStyles = StyleSheet.create({
   heroCard: {
     width: SCREEN_WIDTH - 48,
     height: 200,
-    borderRadius: radii["2xl"],
-    overflow: "hidden",
+    borderRadius: radii['2xl'],
+    overflow: 'hidden',
   },
   heroImage: {
     ...StyleSheet.absoluteFillObject,
   },
   heroOverlay: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 20,
     left: 20,
     right: 20,
@@ -261,31 +261,31 @@ const skeletonStyles = StyleSheet.create({
     height: 24,
     borderRadius: 8,
     marginBottom: 8,
-    width: "70%",
+    width: '70%',
   },
   heroSubtitle: {
     height: 16,
     borderRadius: 6,
-    width: "50%",
+    width: '50%',
   },
 
   // Ticket Card
   ticketCard: {
     backgroundColor: colors.base[50],
     borderRadius: radii.xl,
-    overflow: "hidden",
+    overflow: 'hidden',
   },
   ticketImage: {
     height: 140,
-    width: "100%",
+    width: '100%',
   },
   ticketContent: {
     padding: 16,
   },
   ticketMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 8,
   },
   ticketDate: {
@@ -301,8 +301,8 @@ const skeletonStyles = StyleSheet.create({
 
   // Chat
   chatItem: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingVertical: 12,
   },
   avatar: {
@@ -323,7 +323,7 @@ const skeletonStyles = StyleSheet.create({
   chatMessage: {
     height: 14,
     borderRadius: 6,
-    width: "70%",
+    width: '70%',
   },
   chatTime: {
     width: 40,
@@ -333,8 +333,8 @@ const skeletonStyles = StyleSheet.create({
 
   // Notification
   notificationItem: {
-    flexDirection: "row",
-    alignItems: "flex-start",
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     paddingVertical: 14,
     paddingHorizontal: 20,
   },
@@ -350,7 +350,7 @@ const skeletonStyles = StyleSheet.create({
 
   // Profile Header
   profileHeader: {
-    alignItems: "center",
+    alignItems: 'center',
     paddingVertical: 24,
   },
   profileAvatar: {
@@ -372,7 +372,7 @@ const skeletonStyles = StyleSheet.create({
     marginBottom: 20,
   },
   profileStats: {
-    flexDirection: "row",
+    flexDirection: 'row',
     gap: 16,
   },
   statBox: {
@@ -383,8 +383,8 @@ const skeletonStyles = StyleSheet.create({
 
   // Search Result
   searchResult: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.base[50],
     padding: 12,
     borderRadius: radii.xl,

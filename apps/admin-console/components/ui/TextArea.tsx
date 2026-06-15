@@ -1,7 +1,7 @@
-import clsx from "clsx";
-import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from "react";
+import clsx from 'clsx';
+import { forwardRef, type ReactNode, type TextareaHTMLAttributes } from 'react';
 
-type TextAreaTone = "default" | "surface";
+type TextAreaTone = 'default' | 'surface';
 
 export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: string;
@@ -12,16 +12,16 @@ export interface TextAreaProps extends TextareaHTMLAttributes<HTMLTextAreaElemen
 }
 
 const baseStyles =
-  "peer min-h-[140px] w-full rounded-[32px] border bg-white/[0.04] px-5 py-4 text-base text-white placeholder:text-white/30 transition focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none";
+  'peer min-h-[140px] w-full rounded-[32px] border bg-white/[0.04] px-5 py-4 text-base text-white placeholder:text-white/30 transition focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none';
 
 const tones: Record<TextAreaTone, string> = {
-  default: "border-white/10 focus-visible:border-white/40",
-  surface: "border-white/15 bg-white/[0.08] focus-visible:ring-white/20",
+  default: 'border-white/10 focus-visible:border-white/40',
+  surface: 'border-white/15 bg-white/[0.08] focus-visible:ring-white/20',
 };
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
   (
-    { label, helperText, errorText, tone = "default", leadingIcon, className, required, ...rest },
+    { label, helperText, errorText, tone = 'default', leadingIcon, className, required, ...rest },
     ref,
   ) => (
     <label className="flex w-full flex-col gap-2 text-sm text-white/70">
@@ -41,8 +41,8 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
           className={clsx(
             baseStyles,
             tones[tone],
-            leadingIcon && "pl-12",
-            errorText && "border-red-400/50",
+            leadingIcon && 'pl-12',
+            errorText && 'border-red-400/50',
             className,
           )}
           {...rest}
@@ -57,6 +57,6 @@ export const TextArea = forwardRef<HTMLTextAreaElement, TextAreaProps>(
   ),
 );
 
-TextArea.displayName = "TextArea";
+TextArea.displayName = 'TextArea';
 
 export default TextArea;

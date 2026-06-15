@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
-import { Info, Minus, Plus } from "lucide-react";
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Info, Minus, Plus } from 'lucide-react';
 
 export default function TicketModal({
   open,
@@ -32,7 +32,7 @@ export default function TicketModal({
 
     if (queryParams.toString()) {
       if (promoterCode) {
-        queryParams.append("ref", promoterCode);
+        queryParams.append('ref', promoterCode);
       }
       router.push(`/checkout/${eventId}?${queryParams.toString()}`);
     }
@@ -63,10 +63,10 @@ export default function TicketModal({
           onClick={onClose}
         >
           <motion.div
-            initial={{ y: "100%", opacity: 0.5 }}
+            initial={{ y: '100%', opacity: 0.5 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: "100%", opacity: 0.5 }}
-            transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            exit={{ y: '100%', opacity: 0.5 }}
+            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             onClick={(event) => event.stopPropagation()}
             className="w-full sm:max-w-md overflow-hidden rounded-t-[40px] sm:rounded-[32px] border-t sm:border border-white/10 bg-black p-6 sm:p-8 shadow-2xl shadow-glow"
           >
@@ -102,8 +102,8 @@ export default function TicketModal({
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-base font-semibold text-white">{ticket.name}</p>
-                        {(ticket.name.toLowerCase().includes("couple") ||
-                          ticket.name.toLowerCase().includes("pair")) && (
+                        {(ticket.name.toLowerCase().includes('couple') ||
+                          ticket.name.toLowerCase().includes('pair')) && (
                           <span className="rounded-full bg-orange/20 border border-orange/40 px-2 py-0.5 text-[8px] font-black uppercase tracking-widest text-orange">
                             Couple
                           </span>
@@ -115,7 +115,7 @@ export default function TicketModal({
                             title="Ticket Information"
                           >
                             <Info
-                              className={`w-3.5 h-3.5 ${showDescription[ticket.id] ? "text-white" : "text-white/30"}`}
+                              className={`w-3.5 h-3.5 ${showDescription[ticket.id] ? 'text-white' : 'text-white/30'}`}
                             />
                           </button>
                         )}
@@ -129,7 +129,7 @@ export default function TicketModal({
                     {showDescription[ticket.id] && ticket.description && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: "auto", opacity: 1 }}
+                        animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
                         className="mt-3 text-[11px] text-white/60 leading-relaxed border-t border-white/5 pt-3"
                       >
@@ -185,7 +185,7 @@ export default function TicketModal({
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] text-white/40 uppercase tracking-widest">Quantity</p>
                   <p
-                    className={`text-[10px] font-bold ${isAboveMax ? "text-red-500" : "text-white/60"}`}
+                    className={`text-[10px] font-bold ${isAboveMax ? 'text-red-500' : 'text-white/60'}`}
                   >
                     {totalQuantity} / {maxTicketsPerOrder}
                   </p>
@@ -208,7 +208,7 @@ export default function TicketModal({
               disabled={totalQuantity === 0 || isBelowMin || isAboveMax}
               className="w-full rounded-full bg-white py-4 text-xs font-bold uppercase tracking-[0.3em] text-black transition hover:bg-white/90 active:scale-[0.98] mt-4"
             >
-              {total === 0 ? "Confirm RSVP" : "Purchase Tickets"}
+              {total === 0 ? 'Confirm RSVP' : 'Purchase Tickets'}
             </button>
           </motion.div>
         </motion.div>

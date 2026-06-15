@@ -1,16 +1,16 @@
-import { normalizeBootstrapPayload } from "../../features/auth/utils/authSessionModel.js";
+import { normalizeBootstrapPayload } from '../../features/auth/utils/authSessionModel.js';
 import {
   EMPTY_TICKETS,
   getTicketsWalletOrderIds,
   normalizeTicketsWallet,
-} from "../../features/tickets/ticketsModel.js";
+} from '../../features/tickets/ticketsModel.js';
 import {
   buildGuestBffError,
   buildGuestBffResult,
   buildGuestBffUpstreamTrace,
   getGuestBffUpstreamError,
   guestBffUpstreamJson,
-} from "./server.js";
+} from './server.js';
 
 function extractCoverWallets(payload) {
   if (Array.isArray(payload?.wallets)) return payload.wallets;
@@ -29,9 +29,9 @@ async function backfillMissingCoverWallets(wallet) {
     return { coverWalletsByOrder: nextByOrder, upstreamCall: null };
   }
 
-  const batchResult = await guestBffUpstreamJson("/tickets/cover-wallets", {
+  const batchResult = await guestBffUpstreamJson('/tickets/cover-wallets', {
     body: { orderIds },
-    method: "POST",
+    method: 'POST',
   });
   if (batchResult.response.ok) {
     const upstreamMap = batchResult.data?.walletsByOrder || {};
@@ -63,8 +63,8 @@ function deriveWalletActions(wallet = EMPTY_TICKETS) {
 
 export async function buildTicketsOverviewView() {
   const [authResult, ticketsResult] = await Promise.all([
-    guestBffUpstreamJson("/auth/me"),
-    guestBffUpstreamJson("/tickets"),
+    guestBffUpstreamJson('/auth/me'),
+    guestBffUpstreamJson('/tickets'),
   ]);
 
   const auth = authResult.response.ok
@@ -81,8 +81,8 @@ export async function buildTicketsOverviewView() {
         wallet: EMPTY_TICKETS,
         actions: {},
       },
-      error: buildGuestBffError("Authentication required.", {
-        code: "UNAUTHORIZED",
+      error: buildGuestBffError('Authentication required.', {
+        code: 'UNAUTHORIZED',
         requestId: authResult.requestId,
         status: 401,
       }),
@@ -104,7 +104,7 @@ export async function buildTicketsOverviewView() {
         actions: deriveWalletActions(EMPTY_TICKETS),
       },
       error: buildGuestBffError(
-        getGuestBffUpstreamError(ticketsResult.data, "Failed to load tickets."),
+        getGuestBffUpstreamError(ticketsResult.data, 'Failed to load tickets.'),
         {
           requestId: ticketsResult.requestId,
           status: ticketsResult.response.status || 502,

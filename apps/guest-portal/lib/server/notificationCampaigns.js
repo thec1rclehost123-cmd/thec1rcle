@@ -1,4 +1,4 @@
-import { getAdminDb } from "../firebase/admin";
+import { getAdminDb } from '../firebase/admin';
 
 /**
  * THE C1RCLE - Sponsored Notification & Push Campaigns
@@ -14,7 +14,7 @@ export const campaignStore = {
 
     const campaign = {
       ...campaignData,
-      status: "pending", // pending -> approved -> active -> completed
+      status: 'pending', // pending -> approved -> active -> completed
       adminId,
       createdAt: new Date(),
       metrics: {
@@ -24,11 +24,11 @@ export const campaignStore = {
       },
     };
 
-    const docRef = await db.collection("notification_campaigns").add(campaign);
+    const docRef = await db.collection('notification_campaigns').add(campaign);
 
-    await db.collection("admin_logs").add({
+    await db.collection('admin_logs').add({
       adminId,
-      action: "CAMPAIGN_CREATE",
+      action: 'CAMPAIGN_CREATE',
       targetId: docRef.id,
       timestamp: new Date(),
     });
@@ -43,10 +43,10 @@ export const campaignStore = {
     const db = getAdminDb();
 
     await db
-      .collection("notification_campaigns")
+      .collection('notification_campaigns')
       .doc(campaignId)
       .update({
-        status: "approved",
+        status: 'approved',
         scheduledAt: new Date(scheduleTime),
         approvedBy: adminId,
         updatedAt: new Date(),
@@ -59,16 +59,16 @@ export const campaignStore = {
    */
   async getTargetAudience(criteria) {
     const db = getAdminDb();
-    let query = db.collection("users");
+    let query = db.collection('users');
 
     if (criteria.city) {
-      query = query.where("city", "==", criteria.city);
+      query = query.where('city', '==', criteria.city);
     }
 
     if (criteria.lastActiveDays) {
       const dateLimit = new Date();
       dateLimit.setDate(dateLimit.getDate() - criteria.lastActiveDays);
-      query = query.where("lastActive", ">=", dateLimit);
+      query = query.where('lastActive', '>=', dateLimit);
     }
 
     const snapshot = await query.get();

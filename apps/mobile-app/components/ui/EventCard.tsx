@@ -1,19 +1,19 @@
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInDown,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { Badge } from "./Primitives";
+import { Badge } from './Primitives';
 
-import { colors, radii, gradients } from "@/lib/design/theme";
+import { colors, radii, gradients } from '@/lib/design/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -31,7 +31,7 @@ interface EventCardProps {
   isFeatured?: boolean;
   onPress?: () => void;
   animationDelay?: number;
-  variant?: "default" | "compact" | "featured";
+  variant?: 'default' | 'compact' | 'featured';
 }
 
 export function EventCard({
@@ -47,7 +47,7 @@ export function EventCard({
   isFeatured = false,
   onPress,
   animationDelay = 0,
-  variant = "default",
+  variant = 'default',
 }: EventCardProps) {
   const scale = useSharedValue(1);
 
@@ -69,7 +69,7 @@ export function EventCard({
   };
 
   // Compact variant
-  if (variant === "compact") {
+  if (variant === 'compact') {
     return (
       <AnimatedPressable
         entering={FadeInDown.delay(animationDelay).springify().damping(15)}
@@ -101,7 +101,7 @@ export function EventCard({
   }
 
   // Featured variant (larger, more premium)
-  if (variant === "featured" || isFeatured) {
+  if (variant === 'featured' || isFeatured) {
     return (
       <AnimatedPressable
         entering={FadeInDown.delay(animationDelay).springify().damping(15)}
@@ -119,7 +119,7 @@ export function EventCard({
 
         {/* Gradient overlay */}
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.8)", "rgba(0,0,0,0.95)"]}
+          colors={['transparent', 'rgba(0,0,0,0.8)', 'rgba(0,0,0,0.95)']}
           style={styles.featuredGradient}
         />
 
@@ -179,7 +179,7 @@ export function EventCard({
 
       {/* Gradient overlay */}
       <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.7)", "rgba(0,0,0,0.9)"]}
+        colors={['transparent', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.9)']}
         style={styles.defaultGradient}
       />
 
@@ -205,7 +205,7 @@ export function EventCard({
         <View style={styles.defaultFooter}>
           <Text style={styles.defaultDate}>
             {date}
-            {time ? ` • ${time}` : ""}
+            {time ? ` • ${time}` : ''}
           </Text>
           {price && <Text style={styles.defaultPrice}>{price}</Text>}
         </View>
@@ -220,24 +220,24 @@ const styles = StyleSheet.create({
     width: CARD_WIDTH,
     height: 220,
     borderRadius: radii.xl,
-    overflow: "hidden",
+    overflow: 'hidden',
     backgroundColor: colors.base[50],
     marginBottom: 16,
   },
   defaultImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   defaultGradient: {
     ...StyleSheet.absoluteFillObject,
   },
   categoryBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: 12,
     left: 12,
   },
   defaultContent: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
@@ -246,12 +246,12 @@ const styles = StyleSheet.create({
   defaultTitle: {
     color: colors.gold,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: '700',
     marginBottom: 4,
   },
   defaultMeta: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 8,
   },
   defaultVenue: {
@@ -259,9 +259,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   defaultFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   defaultDate: {
     color: colors.goldMetallic,
@@ -270,17 +270,17 @@ const styles = StyleSheet.create({
   defaultPrice: {
     color: colors.iris,
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 
   // Compact Card
   compactCard: {
-    flexDirection: "row",
+    flexDirection: 'row',
     backgroundColor: colors.base[50],
     borderRadius: radii.xl,
-    overflow: "hidden",
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.06)",
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   compactImage: {
     width: 100,
@@ -289,12 +289,12 @@ const styles = StyleSheet.create({
   compactContent: {
     flex: 1,
     padding: 12,
-    justifyContent: "center",
+    justifyContent: 'center',
   },
   compactTitle: {
     color: colors.gold,
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: '600',
     marginBottom: 4,
   },
   compactVenue: {
@@ -303,9 +303,9 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   compactMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   compactDate: {
     color: colors.goldMetallic,
@@ -314,27 +314,27 @@ const styles = StyleSheet.create({
   compactPrice: {
     color: colors.iris,
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: '600',
   },
 
   // Featured Card
   featuredCard: {
     width: CARD_WIDTH,
     height: 320,
-    borderRadius: radii["2xl"],
-    overflow: "hidden",
+    borderRadius: radii['2xl'],
+    overflow: 'hidden',
     backgroundColor: colors.base[50],
     marginBottom: 20,
   },
   featuredImage: {
-    width: "100%",
-    height: "100%",
+    width: '100%',
+    height: '100%',
   },
   featuredGradient: {
     ...StyleSheet.absoluteFillObject,
   },
   featuredBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: 16,
     left: 16,
   },
@@ -344,13 +344,13 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   featuredBadgeText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: '700',
     letterSpacing: 0.5,
   },
   featuredContent: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
@@ -359,14 +359,14 @@ const styles = StyleSheet.create({
   featuredTitle: {
     color: colors.gold,
     fontSize: 24,
-    fontWeight: "800",
+    fontWeight: '800',
     marginTop: 8,
     marginBottom: 8,
     lineHeight: 30,
   },
   featuredMeta: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 12,
   },
   featuredVenue: {
@@ -382,13 +382,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   featuredFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   attendeePreview: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   attendeeText: {
     color: colors.goldMetallic,
@@ -397,7 +397,7 @@ const styles = StyleSheet.create({
   featuredPrice: {
     color: colors.iris,
     fontSize: 18,
-    fontWeight: "700",
+    fontWeight: '700',
   },
 });
 

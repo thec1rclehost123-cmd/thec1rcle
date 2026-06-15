@@ -1,23 +1,23 @@
-import { formatEventTime, getEventHref } from "../../lib/eventCardUtils";
+import { formatEventTime, getEventHref } from '../../lib/eventCardUtils';
 
-export const heroVideoSrc = "/background-video.mp4";
+export const heroVideoSrc = '/background-video.mp4';
 
-const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || "Pune";
+const DEFAULT_CITY = process.env.NEXT_PUBLIC_DEFAULT_CITY || 'Pune';
 const FALLBACK_CATEGORIES = [
-  "Parties",
-  "Fitness",
-  "Art",
-  "Fashion",
-  "Tech",
-  "Popups",
-  "Campus",
-  "Afters",
-  "Community",
-  "Culinary",
-  "Health & Wellness",
-  "Music",
-  "Events",
-  "Connections",
+  'Parties',
+  'Fitness',
+  'Art',
+  'Fashion',
+  'Tech',
+  'Popups',
+  'Campus',
+  'Afters',
+  'Community',
+  'Culinary',
+  'Health & Wellness',
+  'Music',
+  'Events',
+  'Connections',
 ];
 
 const mapHeroCards = (events) =>
@@ -41,8 +41,8 @@ const getCategoryFilters = (events = []) => {
       events
         .map((event) => event.category)
         .filter(Boolean)
-        .map((category) => category.trim())
-    )
+        .map((category) => category.trim()),
+    ),
   );
 
   return unique.length ? unique : [...FALLBACK_CATEGORIES];
@@ -63,7 +63,7 @@ const buildStats = (events, city) => {
     const updatedAt = event.updatedAt ? new Date(event.updatedAt) : now;
     if (updatedAt < sevenDaysAgo) return count;
     const stats = event.stats || {};
-    if (typeof stats.rsvps === "number") return count + stats.rsvps;
+    if (typeof stats.rsvps === 'number') return count + stats.rsvps;
     if (Array.isArray(event.guests)) return count + event.guests.length;
     return count;
   }, 0);
@@ -74,7 +74,13 @@ export function getHomepageCity(city) {
   return city || DEFAULT_CITY;
 }
 
-export function buildHomepageContent({ featuredEvents = [], events = [], selects = [], interviews = [], city } = {}) {
+export function buildHomepageContent({
+  featuredEvents = [],
+  events = [],
+  selects = [],
+  interviews = [],
+  city,
+} = {}) {
   const selectedCity = getHomepageCity(city);
 
   return {

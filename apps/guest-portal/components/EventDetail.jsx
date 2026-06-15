@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useMemo } from "react";
-import { useAuth } from "@/components/providers/AuthProvider";
-import { AmbientDots } from "../features/events/EventDetailPrimitives";
-import { EventCrowdModal } from "../features/events/components/EventCrowdModal";
-import { EventOverviewColumn } from "../features/events/components/EventOverviewColumn";
-import { EventStickyBar } from "../features/events/components/EventStickyBar";
-import { EventTicketsSidebar } from "../features/events/components/EventTicketsSidebar";
+import { useMemo } from 'react';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { AmbientDots } from '../features/events/EventDetailPrimitives';
+import { EventCrowdModal } from '../features/events/components/EventCrowdModal';
+import { EventOverviewColumn } from '../features/events/components/EventOverviewColumn';
+import { EventStickyBar } from '../features/events/components/EventStickyBar';
+import { EventTicketsSidebar } from '../features/events/components/EventTicketsSidebar';
 import {
   buildHostUrl,
   buildPosterGradient,
@@ -16,9 +16,9 @@ import {
   resolveBackdropPoster,
   resolveEventImage,
   resolveInstagramProfile,
-} from "../features/events/eventDetailUtils";
-import { useEventTicketSelection } from "../features/events/hooks/useEventTicketSelection";
-import { useDominantColor } from "../features/events/useDominantColor";
+} from '../features/events/eventDetailUtils';
+import { useEventTicketSelection } from '../features/events/hooks/useEventTicketSelection';
+import { useDominantColor } from '../features/events/useDominantColor';
 
 export default function EventDetail({
   event,
@@ -28,8 +28,10 @@ export default function EventDetail({
 }) {
   const { user } = useAuth();
 
-
-  const posterArtwork = useMemo(() => resolveBackdropPoster(event) || resolveEventImage(event), [event]);
+  const posterArtwork = useMemo(
+    () => resolveBackdropPoster(event) || resolveEventImage(event),
+    [event],
+  );
   const eventImage = posterArtwork;
   const dominantColor = useDominantColor(eventImage);
   const {
@@ -75,25 +77,25 @@ export default function EventDetail({
     user,
   });
   const addressLabel = event?.address || venueLabel;
-  const hostName = host?.name || event?.host || "THE C1RCLE";
+  const hostName = host?.name || event?.host || 'THE C1RCLE';
   const organizerLabel = hostName && hostName !== venueLabel ? hostName : venueLabel;
   const hostUrl = buildHostUrl(host);
   const posterGradient = buildPosterGradient(event);
-  const appUrl = "https://thec1rcle.com/app";
+  const appUrl = 'https://thec1rcle.com/app';
   const mapHref = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressLabel)}`;
   const mapEmbed = `https://maps.google.com/maps?q=${encodeURIComponent(addressLabel)}&z=14&ie=UTF8&iwloc=&output=embed`;
   const hostAvatar = host?.avatar || host?.photoURL || eventImage;
   const hostInstagram = resolveInstagramProfile(host);
   const displayTitle = formatDisplayTitle(event?.title);
-  const description = event?.description || event?.summary || "";
+  const description = event?.description || event?.summary || '';
   const descriptionParagraphs = parseParagraphs(description);
-  const aboutText = event?.summary || descriptionParagraphs[0] || "";
+  const aboutText = event?.summary || descriptionParagraphs[0] || '';
   const startingPriceLabel = formatINR(startingPrice);
 
   return (
     <div
       className="relative min-h-screen overflow-x-hidden bg-[#0A0A0A] text-white"
-      style={{ "--event-accent": dominantColor }}
+      style={{ '--event-accent': dominantColor }}
     >
       <div className="pointer-events-none fixed inset-0 z-0">
         <div className="absolute inset-0 bg-black" />
@@ -109,7 +111,15 @@ export default function EventDetail({
             background: `radial-gradient(circle at 50% 50%, rgba(var(--event-accent), 0.5), transparent 85%)`,
           }}
         />
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")", backgroundRepeat: "repeat", backgroundSize: "256px 256px" }} />
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E\")",
+            backgroundRepeat: 'repeat',
+            backgroundSize: '256px 256px',
+          }}
+        />
         <div className="absolute left-0 right-0 top-0 h-[15vh] bg-gradient-to-b from-black via-black/60 to-transparent" />
         <div className="absolute left-0 right-0 bottom-0 h-[40vh] bg-gradient-to-t from-black via-black/90 to-transparent" />
         <div className="absolute top-0 bottom-0 left-0 w-[25vw] bg-gradient-to-r from-black via-black/80 to-transparent" />

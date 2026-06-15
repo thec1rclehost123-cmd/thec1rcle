@@ -1,5 +1,5 @@
 export function normalizeRegistrationDetails(detailsOrName, gender, age) {
-  if (detailsOrName && typeof detailsOrName === "object") return detailsOrName;
+  if (detailsOrName && typeof detailsOrName === 'object') return detailsOrName;
   return {
     displayName: detailsOrName,
     gender,
@@ -17,10 +17,10 @@ export function normalizeBootstrapPayload(data) {
     user: identity?.uid
       ? {
           uid: identity.uid,
-          email: identity.email || "",
-          displayName: identity.displayName || profile?.displayName || "Member",
-          photoURL: identity.photoURL || profile?.photoURL || profile?.avatar || "",
-          phoneNumber: identity.phoneNumber || profile?.phone || profile?.phoneNumber || "",
+          email: identity.email || '',
+          displayName: identity.displayName || profile?.displayName || 'Member',
+          photoURL: identity.photoURL || profile?.photoURL || profile?.avatar || '',
+          phoneNumber: identity.phoneNumber || profile?.phone || profile?.phoneNumber || '',
           emailVerified: identity.emailVerified === true,
           providerId,
           providerData: providerId ? [{ providerId }] : [],

@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { memo, Suspense } from "react";
-import DesktopNavLinks from "./DesktopNavLinks";
-import NavControls from "./NavControls";
+import Link from 'next/link';
+import { memo, Suspense } from 'react';
+import DesktopNavLinks from './DesktopNavLinks';
+import NavControls from './NavControls';
 
 function Navbar() {
   return (
@@ -11,7 +11,7 @@ function Navbar() {
     >
       <nav
         id="navbar-inner"
-        style={{ width: "100%" }}
+        style={{ width: '100%' }}
         className="pointer-events-auto flex items-center justify-between px-4 py-2 sm:px-6 sm:py-2.5 border border-transparent rounded-full max-w-5xl mx-auto"
       >
         <Link href="/" className="group flex items-center gap-2 sm:gap-4">
@@ -24,7 +24,14 @@ function Navbar() {
           </span>
         </Link>
         <DesktopNavLinks />
-        <Suspense fallback={<div className="hidden lg:block h-9 w-24 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10" aria-hidden="true" />}>
+        <Suspense
+          fallback={
+            <div
+              className="hidden lg:block h-9 w-24 rounded-full bg-black/[0.03] dark:bg-white/5 border border-black/5 dark:border-white/10"
+              aria-hidden="true"
+            />
+          }
+        >
           <NavControls />
         </Suspense>
       </nav>

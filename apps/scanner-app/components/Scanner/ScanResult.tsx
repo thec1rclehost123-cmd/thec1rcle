@@ -1,9 +1,9 @@
-import { View, Text, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { View, Text, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 
 interface ScanResultProps {
   result: {
-    type: "valid" | "already_scanned" | "invalid" | "wrong_event" | "not_confirmed" | null;
+    type: 'valid' | 'already_scanned' | 'invalid' | 'wrong_event' | 'not_confirmed' | null;
     message: string;
     guest?: {
       name: string;
@@ -22,26 +22,26 @@ interface ScanResultProps {
 export default function ScanResult({ result, onDismiss }: ScanResultProps) {
   const getConfig = () => {
     switch (result.type) {
-      case "valid":
+      case 'valid':
         return {
-          bg: "bg-success",
-          icon: "checkmark-circle" as const,
-          iconColor: "#FFFFFF",
-          title: "Entry Approved",
+          bg: 'bg-success',
+          icon: 'checkmark-circle' as const,
+          iconColor: '#FFFFFF',
+          title: 'Entry Approved',
         };
-      case "already_scanned":
+      case 'already_scanned':
         return {
-          bg: "bg-warning",
-          icon: "alert-circle" as const,
-          iconColor: "#FFFFFF",
-          title: "Already Scanned",
+          bg: 'bg-warning',
+          icon: 'alert-circle' as const,
+          iconColor: '#FFFFFF',
+          title: 'Already Scanned',
         };
       default:
         return {
-          bg: "bg-error",
-          icon: "close-circle" as const,
-          iconColor: "#FFFFFF",
-          title: "Entry Denied",
+          bg: 'bg-error',
+          icon: 'close-circle' as const,
+          iconColor: '#FFFFFF',
+          title: 'Entry Denied',
         };
     }
   };
@@ -59,7 +59,7 @@ export default function ScanResult({ result, onDismiss }: ScanResultProps) {
 
         <Text className="text-white text-3xl font-bold mt-6 text-center">{config.title}</Text>
 
-        {result.guest && result.type === "valid" && (
+        {result.guest && result.type === 'valid' && (
           <View className="mt-6 items-center">
             <Text className="text-white/90 text-2xl font-semibold">{result.guest.name}</Text>
             <View className="flex-row items-center mt-2">
@@ -78,7 +78,7 @@ export default function ScanResult({ result, onDismiss }: ScanResultProps) {
           </View>
         )}
 
-        {result.type === "already_scanned" && result.previousScan && (
+        {result.type === 'already_scanned' && result.previousScan && (
           <View className="mt-6 items-center">
             <Text className="text-white/90 text-lg">Scanned at {result.previousScan.time}</Text>
             {result.previousScan.by && (
@@ -87,7 +87,7 @@ export default function ScanResult({ result, onDismiss }: ScanResultProps) {
           </View>
         )}
 
-        {result.type !== "valid" && result.type !== "already_scanned" && (
+        {result.type !== 'valid' && result.type !== 'already_scanned' && (
           <Text className="text-white/80 text-lg mt-4 text-center">{result.message}</Text>
         )}
 

@@ -1,1 +1,1 @@
-export * from "@c1rcle/core/admin";
+export * from '@c1rcle/core/admin';

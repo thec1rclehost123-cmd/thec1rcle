@@ -1,27 +1,27 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { CreditCard, Smartphone, Building2, ArrowLeft, Lock, CheckCircle2 } from "lucide-react";
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { CreditCard, Smartphone, Building2, ArrowLeft, Lock, CheckCircle2 } from 'lucide-react';
 
-import { useAuth } from "./providers/AuthProvider";
+import { useAuth } from './providers/AuthProvider';
 
 export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
   const router = useRouter();
   const { user, updateEventList } = useAuth();
-  const [paymentMethod, setPaymentMethod] = useState("card");
+  const [paymentMethod, setPaymentMethod] = useState('card');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentError, setPaymentError] = useState("");
+  const [paymentError, setPaymentError] = useState('');
 
   const handlePayment = async () => {
     setIsProcessing(true);
-    setPaymentError("");
+    setPaymentError('');
 
     try {
       // Get token if user is logged in
-      let token = "";
+      let token = '';
       if (user) {
         token = await user.getIdToken();
       }
@@ -30,8 +30,8 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
       const orderPayload = {
         eventId: event.id,
         userId: user?.uid || null,
-        userEmail: user?.email || "",
-        userName: user?.displayName || "",
+        userEmail: user?.email || '',
+        userName: user?.displayName || '',
         paymentMethod,
         tickets: selectedTickets.map((ticket) => ({
           ticketId: ticket.id,
@@ -41,15 +41,15 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
 
       // Create order via API
       const headers = {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
       };
 
       if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
+        headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch("/api/orders", {
-        method: "POST",
+      const response = await fetch('/api/orders', {
+        method: 'POST',
         headers,
         body: JSON.stringify(orderPayload),
       });
@@ -57,7 +57,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Payment failed");
+        throw new Error(data.error || 'Payment failed');
       }
 
       // Update local profile to show ticket
@@ -65,17 +65,17 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
         try {
           // Assuming we have access to updateEventList from useAuth
           // We need to destructure it from useAuth() first
-          await updateEventList("attendedEvents", event.id, true);
+          await updateEventList('attendedEvents', event.id, true);
         } catch (err) {
-          console.error("Failed to update local profile:", err);
+          console.error('Failed to update local profile:', err);
         }
       }
 
       // Redirect to confirmation with real order ID
       router.push(`/confirmation/${data.id}?eventId=${event.id}`);
     } catch (error) {
-      console.error("Payment error:", error);
-      setPaymentError(error.message || "Payment failed. Please try again.");
+      console.error('Payment error:', error);
+      setPaymentError(error.message || 'Payment failed. Please try again.');
       setIsProcessing(false);
     }
   };
@@ -119,29 +119,29 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
               id="card"
               label="Card"
               icon={CreditCard}
-              selected={paymentMethod === "card"}
-              onClick={() => setPaymentMethod("card")}
+              selected={paymentMethod === 'card'}
+              onClick={() => setPaymentMethod('card')}
             />
             <PaymentMethodOption
               id="upi"
               label="UPI"
               icon={Smartphone}
-              selected={paymentMethod === "upi"}
-              onClick={() => setPaymentMethod("upi")}
+              selected={paymentMethod === 'upi'}
+              onClick={() => setPaymentMethod('upi')}
             />
             <PaymentMethodOption
               id="netbanking"
               label="Net Banking"
               icon={Building2}
-              selected={paymentMethod === "netbanking"}
-              onClick={() => setPaymentMethod("netbanking")}
+              selected={paymentMethod === 'netbanking'}
+              onClick={() => setPaymentMethod('netbanking')}
             />
           </div>
         </div>
 
         {/* Payment Form */}
         <div className="glass-panel p-6 rounded-3xl border border-white/10 bg-white/5">
-          {paymentMethod === "card" && (
+          {paymentMethod === 'card' && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-white/60">
@@ -183,7 +183,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
               </div>
             </div>
           )}
-          {paymentMethod === "upi" && (
+          {paymentMethod === 'upi' && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-white/60">UPI ID</label>
@@ -198,7 +198,7 @@ export default function CheckoutForm({ event, selectedTickets, totalAmount }) {
               </p>
             </div>
           )}
-          {paymentMethod === "netbanking" && (
+          {paymentMethod === 'netbanking' && (
             <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-xs uppercase tracking-wider text-white/60">
@@ -309,8 +309,8 @@ function PaymentMethodOption({ id, label, icon: Icon, selected, onClick }) {
       onClick={onClick}
       className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all duration-200 ${
         selected
-          ? "bg-white text-black border-white"
-          : "bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:border-white/20"
+          ? 'bg-white text-black border-white'
+          : 'bg-white/5 text-white/60 border-white/10 hover:bg-white/10 hover:border-white/20'
       }`}
     >
       <Icon className="w-6 h-6 mb-2" />

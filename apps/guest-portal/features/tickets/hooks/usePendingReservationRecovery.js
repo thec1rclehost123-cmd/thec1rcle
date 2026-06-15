@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 import {
   clearPersistedReservationSnapshot,
   readPersistedReservation,
-} from "../../checkout/hooks/useReservationStorage";
+} from '../../checkout/hooks/useReservationStorage';
 
 export function usePendingReservationRecovery() {
   const [pendingReservation, setPendingReservation] = useState(null);

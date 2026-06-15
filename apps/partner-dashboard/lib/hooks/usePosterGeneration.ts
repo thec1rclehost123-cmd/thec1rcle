@@ -10,14 +10,14 @@
  * - Generation history management
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef } from 'react';
 import {
   PosterGenerationService,
   PosterGenerationInput,
   PosterGenerationResult,
   GenerationHistoryEntry,
   POSTER_ERRORS,
-} from "@/lib/services/posterGeneration";
+} from '@/lib/services/posterGeneration';
 
 // ============================================
 // TYPES
@@ -84,7 +84,7 @@ export function usePosterGeneration(
   // ============================================
 
   const canGenerate = useCallback((eventName: string): boolean => {
-    if (!eventName || eventName.trim() === "") {
+    if (!eventName || eventName.trim() === '') {
       setValidationMessage(POSTER_ERRORS.EVENT_NAME_REQUIRED.userFriendlyMessage);
       return false;
     }
@@ -103,7 +103,7 @@ export function usePosterGeneration(
         const errorResult: PosterGenerationResult = {
           success: false,
           imageUrl: null,
-          generationId: "",
+          generationId: '',
           timestamp: new Date().toISOString(),
           error: POSTER_ERRORS.EVENT_NAME_REQUIRED,
         };
@@ -144,7 +144,7 @@ export function usePosterGeneration(
         return {
           success: false,
           imageUrl: null,
-          generationId: "",
+          generationId: '',
           timestamp: new Date().toISOString(),
           error: POSTER_ERRORS.GENERATION_FAILED,
         };
@@ -200,7 +200,7 @@ export function usePosterGeneration(
         return {
           success: false,
           imageUrl: null,
-          generationId: "",
+          generationId: '',
           timestamp: new Date().toISOString(),
           error: POSTER_ERRORS.GENERATION_FAILED,
         };

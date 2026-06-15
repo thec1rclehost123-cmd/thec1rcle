@@ -1,10 +1,19 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import { ChevronRight, Clock, Users } from "lucide-react";
+import { motion } from 'framer-motion';
+import { ChevronRight, Clock, Users } from 'lucide-react';
 
 const RESTAURANT_GUEST_OPTIONS = [1, 2, 4, 6, 8, 10];
-const RESTAURANT_TIME_OPTIONS = ["12:00", "13:00", "14:00", "18:00", "19:00", "20:00", "21:00", "22:00"];
+const RESTAURANT_TIME_OPTIONS = [
+  '12:00',
+  '13:00',
+  '14:00',
+  '18:00',
+  '19:00',
+  '20:00',
+  '21:00',
+  '22:00',
+];
 
 export function ReservationRestaurantDetailsStep({
   guests,
@@ -38,7 +47,9 @@ export function ReservationRestaurantDetailsStep({
               key={option}
               onClick={() => setGuests(option)}
               className={`flex-1 rounded-xl py-3 text-sm font-black transition-all ${
-                guests === option ? "bg-white text-black shadow-lg" : "text-white/40 hover:text-white"
+                guests === option
+                  ? 'bg-white text-black shadow-lg'
+                  : 'text-white/40 hover:text-white'
               }`}
             >
               {option}
@@ -58,8 +69,8 @@ export function ReservationRestaurantDetailsStep({
               onClick={() => setSelectedTime(option)}
               className={`rounded-xl border py-3 text-xs font-bold transition-all ${
                 selectedTime === option
-                  ? "border-emerald-400 bg-emerald-500 text-white"
-                  : "border-white/10 bg-white/5 text-white/50 hover:border-white/20"
+                  ? 'border-emerald-400 bg-emerald-500 text-white'
+                  : 'border-white/10 bg-white/5 text-white/50 hover:border-white/20'
               }`}
             >
               {option}
@@ -69,7 +80,9 @@ export function ReservationRestaurantDetailsStep({
       </div>
 
       <div className="space-y-3">
-        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Your Name</label>
+        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+          Your Name
+        </label>
         <input
           type="text"
           placeholder="Enter your name"
@@ -80,7 +93,9 @@ export function ReservationRestaurantDetailsStep({
       </div>
 
       <div className="space-y-3">
-        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Phone Number</label>
+        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+          Phone Number
+        </label>
         <input
           type="tel"
           placeholder="+91 98765 43210"
@@ -91,7 +106,9 @@ export function ReservationRestaurantDetailsStep({
       </div>
 
       <div className="space-y-3">
-        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">Special Requests (Optional)</label>
+        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30">
+          Special Requests (Optional)
+        </label>
         <textarea
           placeholder="Birthday, dietary requirements, seating preference..."
           value={specialRequests}

@@ -1,12 +1,12 @@
-import Link from "next/link";
-import { motion } from "framer-motion";
+import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 export default function CategoryBar({ categories }) {
   return (
     <section className="mx-auto mb-10 max-w-7xl px-4 sm:mb-20 sm:px-6">
       <div className="flex snap-x gap-4 overflow-x-auto pb-4 scrollbar-hide justify-start md:justify-center">
         {categories.map((category, index) => {
-          const param = category.toLowerCase().replace(/\s+/g, "-");
+          const param = category.toLowerCase().replace(/\s+/g, '-');
           return (
             <Link
               key={category}

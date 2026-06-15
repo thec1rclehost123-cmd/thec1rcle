@@ -9,42 +9,44 @@ import { getAdminDb } from '@c1rcle/core/admin';
 import { telemetry } from '@c1rcle/core/telemetry';
 
 export class FulfillmentService {
-    constructor() { }
+  constructor() {}
 
-    async processFulfillment(order: Order, queueId?: string | null): Promise<void> {
-        // 1. Consume admission if part of a surge queue
-        if (queueId) {
-            try {
-                const db = await getAdminDb();
-                await consumeAdmission(db, queueId);
-                telemetry.track("QUEUE_ADMISSION_CONSUMED", { queueId, orderId: order.id });
-            } catch (e: any) {
-                telemetry.error('[Fulfillment] Failed to consume queue admission', e, { queueId, orderId: order.id });
-            }
-        }
-
-        // 2. Trigger Inngest workflow for ticket issuance, emails, and stats.
-        // Stats (ticketsSold, totalRevenue) are updated by the background Inngest handler
-        // using sharded counters — direct FieldValue.increment on the event doc would hit
-        // Firestore's ~1 write/s/doc limit during high-volume drops.
-        const ticketsCount = (order.tickets || []).reduce(
-            (s: number, t: any) => s + (t.quantity || 1), 0
-        ) || 1;
-
-        try {
-            await sendEvent(Events.TICKET_PURCHASED, {
-                orderId: order.id,
-                userId: order.userId,
-                userEmail: order.userEmail,
-                eventId: order.eventId,
-                tickets: order.tickets,
-                totalAmount: order.totalAmount,
-                ticketsCount,
-                promoterCode: order.promoterCode
-            });
-            telemetry.track("FULFILLMENT_TRIGGERED", { orderId: order.id, userId: order.userId });
-        } catch (e: any) {
-            telemetry.error('[Fulfillment] Inngest trigger failed', e, { orderId: order.id });
-        }
+  async processFulfillment(order: Order, queueId?: string | null): Promise<void> {
+    // 1. Consume admission if part of a surge queue
+    if (queueId) {
+      try {
+        const db = await getAdminDb();
+        await consumeAdmission(db, queueId);
+        telemetry.track('QUEUE_ADMISSION_CONSUMED', { queueId, orderId: order.id });
+      } catch (e: any) {
+        telemetry.error('[Fulfillment] Failed to consume queue admission', e, {
+          queueId,
+          orderId: order.id,
+        });
+      }
     }
+
+    // 2. Trigger Inngest workflow for ticket issuance, emails, and stats.
+    // Stats (ticketsSold, totalRevenue) are updated by the background Inngest handler
+    // using sharded counters — direct FieldValue.increment on the event doc would hit
+    // Firestore's ~1 write/s/doc limit during high-volume drops.
+    const ticketsCount =
+      (order.tickets || []).reduce((s: number, t: any) => s + (t.quantity || 1), 0) || 1;
+
+    try {
+      await sendEvent(Events.TICKET_PURCHASED, {
+        orderId: order.id,
+        userId: order.userId,
+        userEmail: order.userEmail,
+        eventId: order.eventId,
+        tickets: order.tickets,
+        totalAmount: order.totalAmount,
+        ticketsCount,
+        promoterCode: order.promoterCode,
+      });
+      telemetry.track('FULFILLMENT_TRIGGERED', { orderId: order.id, userId: order.userId });
+    } catch (e: any) {
+      telemetry.error('[Fulfillment] Inngest trigger failed', e, { orderId: order.id });
+    }
+  }
 }

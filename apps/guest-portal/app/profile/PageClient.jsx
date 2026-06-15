@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "../../components/providers/AuthProvider";
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../../components/providers/AuthProvider';
 
 export default function ProfileRedirect() {
   const { user, loading } = useAuth();
@@ -13,7 +13,7 @@ export default function ProfileRedirect() {
       if (user) {
         router.replace(`/profile/${user.uid}`);
       } else {
-        router.replace("/login?next=/profile");
+        router.replace('/login?next=/profile');
       }
     }
   }, [user, loading, router]);

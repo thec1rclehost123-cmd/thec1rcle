@@ -15,22 +15,22 @@
  *   Firestore → permanent audit trail (what happened, when, and what was done)
  */
 
-import { getAdminDb } from "./admin.js";
-import { FieldValue } from "firebase-admin/firestore";
+import { getAdminDb } from './admin.js';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // ── Severity mapping ──────────────────────────────────────────────────────────
 
 const SEVERITY_MAP = {
-    CREDENTIAL_STUFFING:    "high",
-    PAYMENT_FRAUD:          "high",
-    ADMIN_ABUSE:            "critical",
-    RATE_LIMIT_BURST:       "medium",
-    PATTERN_DETECTED:       "medium",
-    SUSPICIOUS_PATTERN:     "medium",
-    IP_BLOCKED:             "high",
-    USER_BLOCKED:           "high",
-    ADMIN_SUSPENDED:        "critical",
-    USER_FLAGGED:           "low",
+  CREDENTIAL_STUFFING: 'high',
+  PAYMENT_FRAUD: 'high',
+  ADMIN_ABUSE: 'critical',
+  RATE_LIMIT_BURST: 'medium',
+  PATTERN_DETECTED: 'medium',
+  SUSPICIOUS_PATTERN: 'medium',
+  IP_BLOCKED: 'high',
+  USER_BLOCKED: 'high',
+  ADMIN_SUSPENDED: 'critical',
+  USER_FLAGGED: 'low',
 };
 
 // ── Write ─────────────────────────────────────────────────────────────────────
@@ -52,29 +52,31 @@ const SEVERITY_MAP = {
  * @param {object}      data.metadata    - any additional context
  */
 export function logSecurityEvent(type, data = {}) {
-    const event = {
-        type,
-        severity: SEVERITY_MAP[type] || "low",
-        ip:               data.ip              ?? null,
-        uid:              data.uid             ?? null,
-        adminId:          data.adminId         ?? null,
-        endpoint:         data.endpoint        ?? null,
-        reason:           data.reason          ?? null,
-        count:            data.count           ?? 0,
-        mitigated:        data.mitigated       ?? false,
-        mitigationAction: data.mitigationAction ?? null,
-        patterns:         data.patterns        ?? [],
-        metadata:         data.metadata        ?? {},
-        createdAt:        FieldValue.serverTimestamp(),
-    };
+  const event = {
+    type,
+    severity: SEVERITY_MAP[type] || 'low',
+    ip: data.ip ?? null,
+    uid: data.uid ?? null,
+    adminId: data.adminId ?? null,
+    endpoint: data.endpoint ?? null,
+    reason: data.reason ?? null,
+    count: data.count ?? 0,
+    mitigated: data.mitigated ?? false,
+    mitigationAction: data.mitigationAction ?? null,
+    patterns: data.patterns ?? [],
+    metadata: data.metadata ?? {},
+    createdAt: FieldValue.serverTimestamp(),
+  };
 
-    // Deliberately fire-and-forget — errors here must not affect the request
-    try {
-        const db = getAdminDb();
-        db.collection("security_events").add(event).catch(() => {});
-    } catch (_) {
-        // Firebase not configured (e.g. dev/test without creds) — skip silently
-    }
+  // Deliberately fire-and-forget — errors here must not affect the request
+  try {
+    const db = getAdminDb();
+    db.collection('security_events')
+      .add(event)
+      .catch(() => {});
+  } catch (_) {
+    // Firebase not configured (e.g. dev/test without creds) — skip silently
+  }
 }
 
 // ── Read ──────────────────────────────────────────────────────────────────────
@@ -90,29 +92,35 @@ export function logSecurityEvent(type, data = {}) {
  * @param {any}          [opts.after]  - Firestore cursor for pagination
  * @returns {Promise<Array<{id: string, [key: string]: any}>>}
  */
-export async function querySecurityEvents({ limit = 50, type, severity, mitigatedOnly, after } = {}) {
-    try {
-        const db = getAdminDb();
-        let q = db.collection("security_events").orderBy("createdAt", "desc");
-        if (type)     q = q.where("type",      "==", type);
-        if (severity) q = q.where("severity",  "==", severity);
-        if (mitigatedOnly) q = q.where("mitigated", "==", true);
-        if (after)    q = q.startAfter(after);
-        q = q.limit(Math.min(limit, 200));
+export async function querySecurityEvents({
+  limit = 50,
+  type,
+  severity,
+  mitigatedOnly,
+  after,
+} = {}) {
+  try {
+    const db = getAdminDb();
+    let q = db.collection('security_events').orderBy('createdAt', 'desc');
+    if (type) q = q.where('type', '==', type);
+    if (severity) q = q.where('severity', '==', severity);
+    if (mitigatedOnly) q = q.where('mitigated', '==', true);
+    if (after) q = q.startAfter(after);
+    q = q.limit(Math.min(limit, 200));
 
-        const snap = await q.get();
-        return snap.docs.map(d => {
-            const data = d.data();
-            return {
-                id: d.id,
-                ...data,
-                // Convert Firestore Timestamp → ISO string for JSON serialisation
-                createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-            };
-        });
-    } catch (_) {
-        return [];
-    }
+    const snap = await q.get();
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        // Convert Firestore Timestamp → ISO string for JSON serialisation
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+      };
+    });
+  } catch (_) {
+    return [];
+  }
 }
 
 // ── Incident helpers ──────────────────────────────────────────────────────────
@@ -127,23 +135,23 @@ export async function querySecurityEvents({ limit = 50, type, severity, mitigate
  * @returns {Promise<string>} incidentId
  */
 export async function createIncident(payload) {
-    const db = getAdminDb();
-    const doc = await db.collection("security_incidents").add({
-        entityType:       payload.entityType,       // 'user' | 'ip' | 'admin'
-        entityId:         payload.entityId,
-        status:           "flagged",
-        severity:         payload.severity || "medium",
-        reason:           payload.reason,
-        evidence:         payload.evidence || {},
-        linkedEventId:    payload.linkedEventId || null,
-        assignedTo:       null,
-        createdBy:        payload.createdBy,
-        resolvedBy:       null,
-        resolution:       null,
-        createdAt:        FieldValue.serverTimestamp(),
-        updatedAt:        FieldValue.serverTimestamp(),
-    });
-    return doc.id;
+  const db = getAdminDb();
+  const doc = await db.collection('security_incidents').add({
+    entityType: payload.entityType, // 'user' | 'ip' | 'admin'
+    entityId: payload.entityId,
+    status: 'flagged',
+    severity: payload.severity || 'medium',
+    reason: payload.reason,
+    evidence: payload.evidence || {},
+    linkedEventId: payload.linkedEventId || null,
+    assignedTo: null,
+    createdBy: payload.createdBy,
+    resolvedBy: null,
+    resolution: null,
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  });
+  return doc.id;
 }
 
 /**
@@ -153,14 +161,15 @@ export async function createIncident(payload) {
  * @param {object} updates  - subset of { status, assignedTo, resolution, resolvedBy }
  */
 export async function updateIncident(incidentId, updates) {
-    const db = getAdminDb();
-    const allowed = ["status", "assignedTo", "resolution", "resolvedBy", "severity"];
-    const safe = Object.fromEntries(
-        Object.entries(updates).filter(([k]) => allowed.includes(k))
-    );
-    await db.collection("security_incidents").doc(incidentId).update({
-        ...safe,
-        updatedAt: FieldValue.serverTimestamp(),
+  const db = getAdminDb();
+  const allowed = ['status', 'assignedTo', 'resolution', 'resolvedBy', 'severity'];
+  const safe = Object.fromEntries(Object.entries(updates).filter(([k]) => allowed.includes(k)));
+  await db
+    .collection('security_incidents')
+    .doc(incidentId)
+    .update({
+      ...safe,
+      updatedAt: FieldValue.serverTimestamp(),
     });
 }
 
@@ -176,46 +185,46 @@ export async function updateIncident(incidentId, updates) {
  * @returns {Promise<Array>}
  */
 export async function queryIncidents({ status, severity, entityType, limit = 50, after } = {}) {
-    try {
-        const db = getAdminDb();
-        let q = db.collection("security_incidents").orderBy("createdAt", "desc");
-        if (status)     q = q.where("status",     "==", status);
-        if (severity)   q = q.where("severity",   "==", severity);
-        if (entityType) q = q.where("entityType", "==", entityType);
-        if (after)      q = q.startAfter(after);
-        q = q.limit(Math.min(limit, 200));
+  try {
+    const db = getAdminDb();
+    let q = db.collection('security_incidents').orderBy('createdAt', 'desc');
+    if (status) q = q.where('status', '==', status);
+    if (severity) q = q.where('severity', '==', severity);
+    if (entityType) q = q.where('entityType', '==', entityType);
+    if (after) q = q.startAfter(after);
+    q = q.limit(Math.min(limit, 200));
 
-        const snap = await q.get();
-        return snap.docs.map(d => {
-            const data = d.data();
-            return {
-                id: d.id,
-                ...data,
-                createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-                updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
-            };
-        });
-    } catch (_) {
-        return [];
-    }
+    const snap = await q.get();
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+      };
+    });
+  } catch (_) {
+    return [];
+  }
 }
 
 /**
  * Get a single incident by ID.
  */
 export async function getIncident(incidentId) {
-    try {
-        const db = getAdminDb();
-        const doc = await db.collection("security_incidents").doc(incidentId).get();
-        if (!doc.exists) return null;
-        const data = doc.data();
-        return {
-            id: doc.id,
-            ...data,
-            createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
-            updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
-        };
-    } catch (_) {
-        return null;
-    }
+  try {
+    const db = getAdminDb();
+    const doc = await db.collection('security_incidents').doc(incidentId).get();
+    if (!doc.exists) return null;
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate?.()?.toISOString() ?? null,
+      updatedAt: data.updatedAt?.toDate?.()?.toISOString() ?? null,
+    };
+  } catch (_) {
+    return null;
+  }
 }

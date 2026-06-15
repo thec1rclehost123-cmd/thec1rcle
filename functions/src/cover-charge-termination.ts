@@ -10,10 +10,13 @@
 
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
-import { terminateExpiredWallets, generateReconciliation } from '../../packages/core/cover-charge-engine.js';
+import {
+  terminateExpiredWallets,
+  generateReconciliation,
+} from '../../packages/core/cover-charge-engine.js';
 
 if (!admin.apps.length) {
-    admin.initializeApp();
+  admin.initializeApp();
 }
 
 const logger = functions.logger;
@@ -23,53 +26,54 @@ const logger = functions.logger;
 // ---------------------------------------------------------------------------
 
 export const sweepExpiredCoverWallets = functions.scheduler.onSchedule(
-    {
-        schedule: 'every 15 minutes',
-        timeZone: 'Asia/Kolkata',
-        region: 'asia-south1',
-    },
-    async () => {
-        const db = admin.firestore();
+  {
+    schedule: 'every 15 minutes',
+    timeZone: 'Asia/Kolkata',
+    region: 'asia-south1',
+  },
+  async () => {
+    const db = admin.firestore();
 
-        // Find all active wallets whose terminationTime has passed
-        const now = new Date().toISOString();
-        const expiredWalletsSnap = await db.collection('cover_wallets')
-            .where('state', '==', 'ACTIVE')
-            .where('rules.terminationTime', '<=', now)
-            .get();
+    // Find all active wallets whose terminationTime has passed
+    const now = new Date().toISOString();
+    const expiredWalletsSnap = await db
+      .collection('cover_wallets')
+      .where('state', '==', 'ACTIVE')
+      .where('rules.terminationTime', '<=', now)
+      .get();
 
-        if (expiredWalletsSnap.empty) {
-            logger.info('[CoverWallet] No expired wallets to process');
-            return;
-        }
-
-        // Group by eventId for batched reconciliation
-        const eventIds = new Set<string>();
-        for (const doc of expiredWalletsSnap.docs) {
-            eventIds.add(doc.data().eventId);
-        }
-
-        for (const eventId of eventIds) {
-            try {
-                const { terminated, errors } = await terminateExpiredWallets(eventId);
-                logger.info(`[CoverWallet] Event ${eventId}: terminated=${terminated}`);
-
-                if (errors.length > 0) {
-                    logger.error(`[CoverWallet] Event ${eventId} errors: ${errors.join(', ')}`);
-                }
-
-                // Check if the event is completed — if so, generate reconciliation
-                const eventDoc = await db.collection('events').doc(eventId).get();
-                if (eventDoc.exists && eventDoc.data()?.lifecycle === 'completed') {
-                    const venueId = eventDoc.data()?.venueId || '';
-                    await generateReconciliation(eventId, venueId);
-                    logger.info(`[CoverWallet] Reconciliation generated for event ${eventId}`);
-                }
-            } catch (err: any) {
-                logger.error(`[CoverWallet] Failed to process event ${eventId}: ${err.message}`);
-            }
-        }
+    if (expiredWalletsSnap.empty) {
+      logger.info('[CoverWallet] No expired wallets to process');
+      return;
     }
+
+    // Group by eventId for batched reconciliation
+    const eventIds = new Set<string>();
+    for (const doc of expiredWalletsSnap.docs) {
+      eventIds.add(doc.data().eventId);
+    }
+
+    for (const eventId of eventIds) {
+      try {
+        const { terminated, errors } = await terminateExpiredWallets(eventId);
+        logger.info(`[CoverWallet] Event ${eventId}: terminated=${terminated}`);
+
+        if (errors.length > 0) {
+          logger.error(`[CoverWallet] Event ${eventId} errors: ${errors.join(', ')}`);
+        }
+
+        // Check if the event is completed — if so, generate reconciliation
+        const eventDoc = await db.collection('events').doc(eventId).get();
+        if (eventDoc.exists && eventDoc.data()?.lifecycle === 'completed') {
+          const venueId = eventDoc.data()?.venueId || '';
+          await generateReconciliation(eventId, venueId);
+          logger.info(`[CoverWallet] Reconciliation generated for event ${eventId}`);
+        }
+      } catch (err: any) {
+        logger.error(`[CoverWallet] Failed to process event ${eventId}: ${err.message}`);
+      }
+    }
+  },
 );
 
 // ---------------------------------------------------------------------------
@@ -77,35 +81,35 @@ export const sweepExpiredCoverWallets = functions.scheduler.onSchedule(
 // ---------------------------------------------------------------------------
 
 export const onEventCompleted = functions.firestore.onDocumentUpdated(
-    {
-        document: 'events/{eventId}',
-        region: 'asia-south1',
-    },
-    async (event) => {
-        const before = event.data?.before.data();
-        const after = event.data?.after.data();
+  {
+    document: 'events/{eventId}',
+    region: 'asia-south1',
+  },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
 
-        if (!before || !after) return;
-        if (before.lifecycle === after.lifecycle) return;
-        if (after.lifecycle !== 'completed') return;
+    if (!before || !after) return;
+    if (before.lifecycle === after.lifecycle) return;
+    if (after.lifecycle !== 'completed') return;
 
-        const eventId = event.params.eventId;
-        const venueId = after.venueId || '';
+    const eventId = event.params.eventId;
+    const venueId = after.venueId || '';
 
-        logger.info(`[CoverWallet] Event ${eventId} completed — running termination sweep`);
+    logger.info(`[CoverWallet] Event ${eventId} completed — running termination sweep`);
 
-        try {
-            const { terminated, errors } = await terminateExpiredWallets(eventId);
-            logger.info(`[CoverWallet] Terminated ${terminated} wallets for event ${eventId}`);
+    try {
+      const { terminated, errors } = await terminateExpiredWallets(eventId);
+      logger.info(`[CoverWallet] Terminated ${terminated} wallets for event ${eventId}`);
 
-            if (errors.length > 0) {
-                logger.error(`[CoverWallet] Errors: ${errors.join(', ')}`);
-            }
+      if (errors.length > 0) {
+        logger.error(`[CoverWallet] Errors: ${errors.join(', ')}`);
+      }
 
-            await generateReconciliation(eventId, venueId);
-            logger.info(`[CoverWallet] Reconciliation generated for event ${eventId}`);
-        } catch (err: any) {
-            logger.error(`[CoverWallet] Failed to terminate/reconcile event ${eventId}: ${err.message}`);
-        }
+      await generateReconciliation(eventId, venueId);
+      logger.info(`[CoverWallet] Reconciliation generated for event ${eventId}`);
+    } catch (err: any) {
+      logger.error(`[CoverWallet] Failed to terminate/reconcile event ${eventId}: ${err.message}`);
     }
+  },
 );

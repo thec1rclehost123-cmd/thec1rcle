@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 import {
   followEntity,
   unfollowEntity,
   isFollowing,
-} from "../../../../../lib/server/notificationStore";
-import { verifyAuth } from "../../../../../lib/server/auth";
+} from '../../../../../lib/server/notificationStore';
+import { verifyAuth } from '../../../../../lib/server/auth';
 
 /**
  * GET /api/venues/[venueId]/follow-status
@@ -22,7 +22,7 @@ export async function GET(request, { params }) {
     const following = await isFollowing(decodedToken.uid, venueId);
     return NextResponse.json({ isFollowing: following });
   } catch (error) {
-    console.error("[Venue Follow Status API] Error:", error);
+    console.error('[Venue Follow Status API] Error:', error);
     return NextResponse.json({ isFollowing: false });
   }
 }

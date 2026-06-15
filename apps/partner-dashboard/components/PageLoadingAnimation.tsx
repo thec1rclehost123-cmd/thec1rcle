@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
 
 export default function PageLoadingAnimation() {
   const [isLoading, setIsLoading] = useState(true);
@@ -9,7 +9,7 @@ export default function PageLoadingAnimation() {
 
   useEffect(() => {
     if (isLoading) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden';
 
       // Smooth progress simulation
       const interval = setInterval(() => {
@@ -33,7 +33,7 @@ export default function PageLoadingAnimation() {
         clearInterval(interval);
         clearTimeout(timer);
         clearTimeout(safetyTimer);
-        document.body.style.overflow = "";
+        document.body.style.overflow = '';
       };
     }
   }, [isLoading]);
@@ -43,17 +43,17 @@ export default function PageLoadingAnimation() {
       {isLoading && (
         <motion.div
           initial={{ opacity: 1 }}
-          exit={{ opacity: 0, filter: "blur(20px)" }}
-          transition={{ duration: 0.8, ease: "easeInOut" }}
+          exit={{ opacity: 0, filter: 'blur(20px)' }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
           className="fixed inset-0 z-[9999] bg-black overflow-hidden flex items-center justify-center"
         >
           {/* CSS-based Scanlines (High Performance) */}
           <div
             className="absolute inset-0 opacity-20 pointer-events-none"
             style={{
-              backgroundImage: "linear-gradient(transparent 50%, rgba(0, 255, 255, 0.05) 50%)",
-              backgroundSize: "100% 4px",
-              animation: "scanline 10s linear infinite",
+              backgroundImage: 'linear-gradient(transparent 50%, rgba(0, 255, 255, 0.05) 50%)',
+              backgroundSize: '100% 4px',
+              animation: 'scanline 10s linear infinite',
             }}
           />
 

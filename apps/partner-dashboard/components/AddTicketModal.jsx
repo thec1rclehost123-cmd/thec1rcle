@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import Input from "./ui/Input";
+import { useEffect, useState } from 'react';
+import Input from './ui/Input';
 
-const initialTicket = { name: "", price: "", quantity: 50 };
+const initialTicket = { name: '', price: '', quantity: 50 };
 
 export default function AddTicketModal({ open, onClose, onSave }) {
   const [ticket, setTicket] = useState(initialTicket);
@@ -52,7 +52,7 @@ export default function AddTicketModal({ open, onClose, onSave }) {
             label="Ticket Name"
             placeholder="Sunset VIP"
             value={ticket.name}
-            onChange={handleChange("name")}
+            onChange={handleChange('name')}
             required
           />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -61,7 +61,7 @@ export default function AddTicketModal({ open, onClose, onSave }) {
               label="Price (₹)"
               placeholder="2200"
               value={ticket.price}
-              onChange={handleChange("price")}
+              onChange={handleChange('price')}
               min="0"
             />
             <Input
@@ -69,7 +69,7 @@ export default function AddTicketModal({ open, onClose, onSave }) {
               label="Quantity"
               placeholder="50"
               value={ticket.quantity}
-              onChange={handleChange("quantity")}
+              onChange={handleChange('quantity')}
               min="0"
             />
           </div>

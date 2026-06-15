@@ -73,7 +73,9 @@ export function sanitizeEventResubmissionPatch(value: unknown): Record<string, a
 }
 
 export function normalizePromoterCommissionRate(value: unknown): number {
-  const tiers = PROMOTER_COMMISSION_TIERS.map((tier) => Number(tier.rate)).filter((rate) => Number.isFinite(rate)).sort((a, b) => a - b);
+  const tiers = PROMOTER_COMMISSION_TIERS.map((tier) => Number(tier.rate))
+    .filter((rate) => Number.isFinite(rate))
+    .sort((a, b) => a - b);
   const baseRate = tiers[0] ?? 0;
   const maxRate = tiers[tiers.length - 1] ?? baseRate;
   const requested = Number(value);
@@ -92,17 +94,25 @@ export function normalizePromoterCommissionRate(value: unknown): number {
 const STRIP_TAGS = /<[^>]*>/g;
 
 function sanitize(val: string): string {
-  return String(val || '').replace(STRIP_TAGS, '').trim().slice(0, 200);
+  return String(val || '')
+    .replace(STRIP_TAGS, '')
+    .trim()
+    .slice(0, 200);
 }
 
 export function buildPayoutAccountRecord(
   body: Record<string, any>,
-  owner: { partnerId: string; ownerType: BankAccountOwnerType }
+  owner: { partnerId: string; ownerType: BankAccountOwnerType },
 ) {
   const paymentType = body.paymentType === 'debit_card' ? 'debit_card' : 'bank_account';
-  const rawNumber = paymentType === 'debit_card'
-    ? String(body.cardNumber || '').replace(/[^\d]/g, '').trim()
-    : String(body.accountNumber || '').replace(/[^\d]/g, '').trim();
+  const rawNumber =
+    paymentType === 'debit_card'
+      ? String(body.cardNumber || '')
+          .replace(/[^\d]/g, '')
+          .trim()
+      : String(body.accountNumber || '')
+          .replace(/[^\d]/g, '')
+          .trim();
 
   if (!rawNumber) throw makeBadRequest('Account number or card number required');
   if (rawNumber.length < 9) throw makeBadRequest('Account number must be at least 9 digits');
@@ -110,7 +120,10 @@ export function buildPayoutAccountRecord(
   const last4 = rawNumber.slice(-4);
   const bankName = sanitize(body.bankName || body.cardBrand || 'Bank Account');
   const accountHolderName = sanitize(body.accountHolderName || body.cardHolderName || '');
-  const ifscCode = String(body.ifscCode || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11);
+  const ifscCode = String(body.ifscCode || '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .toUpperCase()
+    .slice(0, 11);
   const isDefault = body.isDefault !== false;
   const now = new Date().toISOString();
 
@@ -127,7 +140,7 @@ export function buildPayoutAccountRecord(
       accountHolderName,
       bankName,
       ifscCode: ifscCode || null,
-      cardBrand: paymentType === 'debit_card' ? (body.cardBrand || null) : null,
+      cardBrand: paymentType === 'debit_card' ? body.cardBrand || null : null,
       cardLast4: paymentType === 'debit_card' ? last4 : null,
       last4,
       isDefault,

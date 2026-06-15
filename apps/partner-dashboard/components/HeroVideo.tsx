@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
-import Link from "next/link";
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { useRef } from 'react';
+import Link from 'next/link';
 
 export default function HeroVideo({ src }: { src: string }) {
   const ref = useRef(null);
@@ -40,7 +40,7 @@ export default function HeroVideo({ src }: { src: string }) {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1, ease: "easeOut" }}
+          transition={{ duration: 0.8, delay: 0.1, ease: 'easeOut' }}
           className="relative max-w-7xl space-y-6 md:space-y-12"
         >
           {/* Main Title - THE C1RCLE with Premium Effects */}
@@ -51,13 +51,13 @@ export default function HeroVideo({ src }: { src: string }) {
               transition={{ duration: 0.8, delay: 0.2 }}
               className="text-5xl sm:text-7xl md:text-8xl lg:text-9xl xl:text-[10rem] font-heading font-black tracking-tighter leading-none"
               style={{
-                background: "linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%)",
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                backgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                animation: "gradient-shift 15s ease-in-out infinite",
-                filter: "drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))",
+                background: 'linear-gradient(135deg, #e5e7eb 0%, #d1d5db 50%, #e5e7eb 100%)',
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                animation: 'gradient-shift 15s ease-in-out infinite',
+                filter: 'drop-shadow(0 2px 8px rgba(0, 0, 0, 0.1))',
               }}
             >
               THE C1RCLE
@@ -134,12 +134,12 @@ export default function HeroVideo({ src }: { src: string }) {
         <motion.div
           className="w-6 h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-2"
           animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
         >
           <motion.div
             className="w-1.5 h-1.5 rounded-full bg-white"
             animate={{ y: [0, 16, 0] }}
-            transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           />
         </motion.div>
       </motion.div>

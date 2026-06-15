@@ -1,20 +1,24 @@
-"use client";
+'use client';
 
-import EventCard from "./EventCard";
-import { VirtuosoGrid } from "react-virtuoso";
-import { forwardRef } from "react";
+import EventCard from './EventCard';
+import { VirtuosoGrid } from 'react-virtuoso';
+import { forwardRef } from 'react';
 
 const GridContainer = forwardRef((props, ref) => (
-  <div {...props} ref={ref} className="grid grid-cols-1 gap-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8" />
+  <div
+    {...props}
+    ref={ref}
+    className="grid grid-cols-1 gap-6 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:gap-8"
+  />
 ));
-GridContainer.displayName = "GridContainer";
+GridContainer.displayName = 'GridContainer';
 
 const ItemContainer = forwardRef((props, ref) => (
   <div {...props} ref={ref} className="h-full w-full" />
 ));
-ItemContainer.displayName = "ItemContainer";
+ItemContainer.displayName = 'ItemContainer';
 
-import { ErrorBoundary } from "@c1rcle/ui";
+import { ErrorBoundary } from '@c1rcle/ui';
 
 export default function EventGrid({ events = [] }) {
   if (!events.length) {
@@ -35,7 +39,7 @@ export default function EventGrid({ events = [] }) {
           data={events}
           components={{
             List: GridContainer,
-            Item: ItemContainer
+            Item: ItemContainer,
           }}
           itemContent={(index, event) => (
             <EventCard key={event.id || index} event={event} index={index} />

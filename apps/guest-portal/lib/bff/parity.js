@@ -1,4 +1,4 @@
-import { getGuestBffFlags } from "./flags.js";
+import { getGuestBffFlags } from './flags.js';
 
 function safeStableStringify(value) {
   try {
@@ -9,10 +9,7 @@ function safeStableStringify(value) {
 }
 
 function buildDiffSummary(legacyData, bffData) {
-  const keys = new Set([
-    ...Object.keys(legacyData || {}),
-    ...Object.keys(bffData || {}),
-  ]);
+  const keys = new Set([...Object.keys(legacyData || {}), ...Object.keys(bffData || {})]);
   const changedKeys = [];
 
   for (const key of keys) {
@@ -30,7 +27,7 @@ function buildDiffSummary(legacyData, bffData) {
 export function logGuestBffParity(surface, legacyData, bffData, context = {}) {
   if (!getGuestBffFlags(process.env).parity) return;
 
-  console.info("[guest-bff-parity]", {
+  console.info('[guest-bff-parity]', {
     diff: buildDiffSummary(legacyData, bffData),
     context,
     legacyData,

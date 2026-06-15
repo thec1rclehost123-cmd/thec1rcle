@@ -1,5 +1,5 @@
-import { getAdminAuth, isFirebaseConfigured } from "../firebase/admin";
-import { headers } from "next/headers";
+import { getAdminAuth, isFirebaseConfigured } from '../firebase/admin';
+import { headers } from 'next/headers';
 
 /**
  * Verify the Firebase ID token from the Authorization header.
@@ -9,11 +9,11 @@ import { headers } from "next/headers";
  */
 export async function verifyAuth(request) {
   if (!isFirebaseConfigured()) {
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === 'development') {
       return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1", // Use the actual dev UID for Aayush
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
+        uid: 'TraOjbiHwiOauY5ymPhSi3b6ODv1', // Use the actual dev UID for Aayush
+        email: 'aayushdivase2020333@gmail.com',
+        name: 'Aayush Divase',
       };
     }
     return null;
@@ -21,36 +21,36 @@ export async function verifyAuth(request) {
 
   let authHeader;
   if (request) {
-    authHeader = request.headers.get("Authorization");
+    authHeader = request.headers.get('Authorization');
   } else {
     const headerList = await headers();
-    authHeader = headerList.get("Authorization");
+    authHeader = headerList.get('Authorization');
   }
 
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    if (process.env.NODE_ENV === "development") {
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (process.env.NODE_ENV === 'development') {
       return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
+        uid: 'TraOjbiHwiOauY5ymPhSi3b6ODv1',
+        email: 'aayushdivase2020333@gmail.com',
+        name: 'Aayush Divase',
       };
     }
     return null;
   }
 
-  const token = authHeader.split("Bearer ")[1];
+  const token = authHeader.split('Bearer ')[1];
 
   try {
     const auth = getAdminAuth();
     const decodedToken = await auth.verifyIdToken(token);
     return decodedToken;
   } catch (error) {
-    console.error("Auth verification failed:", error);
-    if (process.env.NODE_ENV === "development") {
+    console.error('Auth verification failed:', error);
+    if (process.env.NODE_ENV === 'development') {
       return {
-        uid: "TraOjbiHwiOauY5ymPhSi3b6ODv1",
-        email: "aayushdivase2020333@gmail.com",
-        name: "Aayush Divase",
+        uid: 'TraOjbiHwiOauY5ymPhSi3b6ODv1',
+        email: 'aayushdivase2020333@gmail.com',
+        name: 'Aayush Divase',
       };
     }
     return null;

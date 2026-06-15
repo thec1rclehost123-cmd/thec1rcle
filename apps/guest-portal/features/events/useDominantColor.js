@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 const colorCache = {};
 
@@ -66,14 +66,14 @@ export function useDominantColor(imageUrl) {
       return;
     }
     const img = new window.Image();
-    img.crossOrigin = "anonymous";
+    img.crossOrigin = 'anonymous';
     img.src = imageUrl;
     img.onload = () => {
       try {
-        const canvas = document.createElement("canvas");
+        const canvas = document.createElement('canvas');
         canvas.width = 40;
         canvas.height = 40;
-        const ctx = canvas.getContext("2d");
+        const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, 40, 40);
         const data = ctx.getImageData(0, 0, 40, 40).data;
 
@@ -98,16 +98,20 @@ export function useDominantColor(imageUrl) {
         }
 
         if (count > 0) {
-          const result = clampColor(Math.round(rTotal / count), Math.round(gTotal / count), Math.round(bTotal / count));
+          const result = clampColor(
+            Math.round(rTotal / count),
+            Math.round(gTotal / count),
+            Math.round(bTotal / count),
+          );
           colorCache[imageUrl] = result;
           setColor(result);
         }
       } catch {
-        setColor("244, 74, 34");
+        setColor('244, 74, 34');
       }
     };
-    img.onerror = () => setColor("244, 74, 34");
+    img.onerror = () => setColor('244, 74, 34');
   }, [imageUrl]);
 
-  return color || "244, 74, 34";
+  return color || '244, 74, 34';
 }

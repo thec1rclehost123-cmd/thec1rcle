@@ -1,14 +1,14 @@
-"use client";
+'use client';
 
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { type Permission } from "@/lib/rbac/types";
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { type Permission } from '@/lib/rbac/types';
 
 interface PermissionGateProps {
-    /** One permission or an array — ALL must match for the gate to open */
-    require: Permission | Permission[];
-    /** Rendered when permission is denied. Defaults to nothing. */
-    fallback?: React.ReactNode;
-    children: React.ReactNode;
+  /** One permission or an array — ALL must match for the gate to open */
+  require: Permission | Permission[];
+  /** Rendered when permission is denied. Defaults to nothing. */
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
 }
 
 /**
@@ -21,10 +21,10 @@ interface PermissionGateProps {
  * server-side permission check independently.
  */
 export function PermissionGate({ require, fallback = null, children }: PermissionGateProps) {
-    const { hasPermission } = useDashboardAuth();
+  const { hasPermission } = useDashboardAuth();
 
-    const required = Array.isArray(require) ? require : [require];
-    const allowed = required.every((p) => hasPermission(p));
+  const required = Array.isArray(require) ? require : [require];
+  const allowed = required.every((p) => hasPermission(p));
 
-    return allowed ? <>{children}</> : <>{fallback}</>;
+  return allowed ? <>{children}</> : <>{fallback}</>;
 }

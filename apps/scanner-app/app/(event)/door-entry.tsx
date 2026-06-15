@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -7,24 +7,24 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { useEvent, EventTier } from "@/store/eventContext";
-import { createDoorEntry } from "@/lib/api/doorEntry";
-import DoorEntrySuccess from "@/components/DoorEntry/DoorEntrySuccess";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useEvent, EventTier } from '@/store/eventContext';
+import { createDoorEntry } from '@/lib/api/doorEntry';
+import DoorEntrySuccess from '@/components/DoorEntry/DoorEntrySuccess';
 
-type PaymentMethod = "cash" | "upi" | "card";
+type PaymentMethod = 'cash' | 'upi' | 'card';
 
 export default function DoorEntryScreen() {
   const { eventData } = useEvent();
 
-  const [guestName, setGuestName] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
+  const [guestName, setGuestName] = useState('');
+  const [guestPhone, setGuestPhone] = useState('');
   const [selectedTier, setSelectedTier] = useState<EventTier | null>(null);
   const [quantity, setQuantity] = useState(1);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successData, setSuccessData] = useState<any>(null);
 
@@ -37,23 +37,23 @@ export default function DoorEntryScreen() {
   };
 
   const resetForm = () => {
-    setGuestName("");
-    setGuestPhone("");
+    setGuestName('');
+    setGuestPhone('');
     setSelectedTier(null);
     setQuantity(1);
-    setPaymentMethod("cash");
+    setPaymentMethod('cash');
     setSuccessData(null);
   };
 
   const handleSubmit = async () => {
     if (!guestName.trim()) {
-      Alert.alert("Required", "Please enter guest name");
+      Alert.alert('Required', 'Please enter guest name');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
 
     if (!selectedTier) {
-      Alert.alert("Required", "Please select a ticket type");
+      Alert.alert('Required', 'Please select a ticket type');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
@@ -63,8 +63,8 @@ export default function DoorEntryScreen() {
 
     try {
       const result = await createDoorEntry({
-        eventCode: eventData?.code || "",
-        eventId: eventData?.event.id || "",
+        eventCode: eventData?.code || '',
+        eventId: eventData?.event.id || '',
         guestName: guestName.trim(),
         guestPhone: guestPhone.trim() || undefined,
         tierId: selectedTier.id,
@@ -87,11 +87,11 @@ export default function DoorEntryScreen() {
           total: calculateTotal(),
         });
       } else {
-        Alert.alert("Error", result.error || "Failed to create entry");
+        Alert.alert('Error', result.error || 'Failed to create entry');
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
+      Alert.alert('Error', error.message || 'Something went wrong');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setIsSubmitting(false);
@@ -119,7 +119,7 @@ export default function DoorEntryScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background-primary" edges={["bottom"]}>
+    <SafeAreaView className="flex-1 bg-background-primary" edges={['bottom']}>
       <ScrollView className="flex-1 px-4 pt-4" keyboardShouldPersistTaps="handled">
         {/* Guest Info Section */}
         <View className="mb-6">
@@ -160,20 +160,20 @@ export default function DoorEntryScreen() {
                   flex-1 min-w-[100px] p-4 rounded-xl border-2
                   ${
                     selectedTier?.id === tier.id
-                      ? "bg-accent/20 border-accent"
+                      ? 'bg-accent/20 border-accent'
                       : tier.available
-                        ? "bg-background-secondary border-border"
-                        : "bg-background-secondary/50 border-border/50"
+                        ? 'bg-background-secondary border-border'
+                        : 'bg-background-secondary/50 border-border/50'
                   }
                 `}
               >
                 <Text
                   className={`text-lg font-bold text-center ${
                     selectedTier?.id === tier.id
-                      ? "text-accent"
+                      ? 'text-accent'
                       : tier.available
-                        ? "text-text-primary"
-                        : "text-text-muted"
+                        ? 'text-text-primary'
+                        : 'text-text-muted'
                   }`}
                 >
                   {tier.name}
@@ -181,10 +181,10 @@ export default function DoorEntryScreen() {
                 <Text
                   className={`text-2xl font-bold text-center mt-1 ${
                     selectedTier?.id === tier.id
-                      ? "text-accent-light"
+                      ? 'text-accent-light'
                       : tier.available
-                        ? "text-text-primary"
-                        : "text-text-muted"
+                        ? 'text-text-primary'
+                        : 'text-text-muted'
                   }`}
                 >
                   ₹{tier.price}
@@ -210,7 +210,7 @@ export default function DoorEntryScreen() {
               }}
               disabled={quantity <= 1}
               className={`w-14 h-14 rounded-xl items-center justify-center ${
-                quantity <= 1 ? "bg-border" : "bg-accent"
+                quantity <= 1 ? 'bg-border' : 'bg-accent'
               }`}
             >
               <Ionicons name="remove" size={24} color="#FFFFFF" />
@@ -237,9 +237,9 @@ export default function DoorEntryScreen() {
           <Text className="text-text-secondary text-sm font-medium mb-2">PAYMENT METHOD</Text>
           <View className="flex-row gap-3">
             {[
-              { id: "cash" as const, icon: "cash-outline" as const, label: "Cash" },
-              { id: "upi" as const, icon: "qr-code-outline" as const, label: "UPI" },
-              { id: "card" as const, icon: "card-outline" as const, label: "Card" },
+              { id: 'cash' as const, icon: 'cash-outline' as const, label: 'Cash' },
+              { id: 'upi' as const, icon: 'qr-code-outline' as const, label: 'UPI' },
+              { id: 'card' as const, icon: 'card-outline' as const, label: 'Card' },
             ].map((method) => (
               <TouchableOpacity
                 key={method.id}
@@ -251,19 +251,19 @@ export default function DoorEntryScreen() {
                   flex-1 py-4 rounded-xl border-2 items-center
                   ${
                     paymentMethod === method.id
-                      ? "bg-accent/20 border-accent"
-                      : "bg-background-secondary border-border"
+                      ? 'bg-accent/20 border-accent'
+                      : 'bg-background-secondary border-border'
                   }
                 `}
               >
                 <Ionicons
                   name={method.icon}
                   size={24}
-                  color={paymentMethod === method.id ? "#6366F1" : "#A1A1AA"}
+                  color={paymentMethod === method.id ? '#6366F1' : '#A1A1AA'}
                 />
                 <Text
                   className={`mt-1 font-medium ${
-                    paymentMethod === method.id ? "text-accent" : "text-text-secondary"
+                    paymentMethod === method.id ? 'text-accent' : 'text-text-secondary'
                   }`}
                 >
                   {method.label}
@@ -291,7 +291,7 @@ export default function DoorEntryScreen() {
           disabled={isSubmitting || !selectedTier || !guestName.trim()}
           className={`
             py-4 rounded-xl flex-row items-center justify-center
-            ${isSubmitting || !selectedTier || !guestName.trim() ? "bg-success/50" : "bg-success"}
+            ${isSubmitting || !selectedTier || !guestName.trim() ? 'bg-success/50' : 'bg-success'}
           `}
           activeOpacity={0.8}
         >

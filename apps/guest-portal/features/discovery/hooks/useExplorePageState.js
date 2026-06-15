@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useExploreStore } from "../../../store/exploreStore";
-import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useExploreStore } from '../../../store/exploreStore';
+import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
 import {
   curatedCategoryMatchers,
   formatTypeLabel,
@@ -14,58 +14,62 @@ import {
   sortTabs,
   toDate,
   toEventEndDate,
-} from "../exploreModel";
+} from '../exploreModel';
 
 function getBackendSort(sortLabel) {
-  return sortLabel === "Trending" || sortLabel === "This Week"
-    ? "heat"
-    : sortLabel === "New"
-      ? "new"
-      : sortLabel === "Price Low to High"
-        ? "price"
-        : "soonest";
+  return sortLabel === 'Trending' || sortLabel === 'This Week'
+    ? 'heat'
+    : sortLabel === 'New'
+      ? 'new'
+      : sortLabel === 'Price Low to High'
+        ? 'price'
+        : 'soonest';
 }
 
 export function useExplorePageState({ initialEvents = [], initialFeaturedEvents = [] }) {
   const seedRef = useRef(false);
-  const bffEnabled = isGuestBffEnabled("explore");
+  const bffEnabled = isGuestBffEnabled('explore');
 
   const [activeSort, setActiveSort] = useState(sortTabs[0]);
-  const [selectedCity, setSelectedCity] = useState("");
+  const [selectedCity, setSelectedCity] = useState('');
   const [filters, setFilters] = useState({
-    curatedCategory: "all",
-    datePreset: "any",
-    endDate: "",
-    eventType: "all",
-    price: "all",
-    startDate: "",
+    curatedCategory: 'all',
+    datePreset: 'any',
+    endDate: '',
+    eventType: 'all',
+    price: 'all',
+    startDate: '',
   });
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const filtersKey = useMemo(() => JSON.stringify({
-    curatedCategory: filters.curatedCategory,
-    datePreset: filters.datePreset,
-    endDate: filters.endDate,
-    eventType: filters.eventType,
-    price: filters.price,
-    search: debouncedSearch.trim().toLowerCase(),
-    startDate: filters.startDate,
-  }), [debouncedSearch, filters]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const filtersKey = useMemo(
+    () =>
+      JSON.stringify({
+        curatedCategory: filters.curatedCategory,
+        datePreset: filters.datePreset,
+        endDate: filters.endDate,
+        eventType: filters.eventType,
+        price: filters.price,
+        search: debouncedSearch.trim().toLowerCase(),
+        startDate: filters.startDate,
+      }),
+    [debouncedSearch, filters],
+  );
   const backendFilters = useMemo(() => {
     const nextFilters = {};
     const trimmedSearch = debouncedSearch.trim().toLowerCase();
 
     if (trimmedSearch) nextFilters.search = trimmedSearch;
-    if (filters.eventType !== "all") nextFilters.eventType = filters.eventType;
-    if (filters.curatedCategory !== "all") nextFilters.curatedCategory = filters.curatedCategory;
-    if (filters.price === "free" || filters.price === "paid") nextFilters.priceType = filters.price;
+    if (filters.eventType !== 'all') nextFilters.eventType = filters.eventType;
+    if (filters.curatedCategory !== 'all') nextFilters.curatedCategory = filters.curatedCategory;
+    if (filters.price === 'free' || filters.price === 'paid') nextFilters.priceType = filters.price;
 
-    if (filters.datePreset === "today") {
+    if (filters.datePreset === 'today') {
       nextFilters.dayKey = new Date().toISOString().slice(0, 10);
-    } else if (filters.datePreset === "weekend") {
-      nextFilters.datePreset = "weekend";
-    } else if (filters.datePreset === "custom") {
-      nextFilters.datePreset = "custom";
+    } else if (filters.datePreset === 'weekend') {
+      nextFilters.datePreset = 'weekend';
+    } else if (filters.datePreset === 'custom') {
+      nextFilters.datePreset = 'custom';
       if (filters.startDate) nextFilters.startDate = filters.startDate;
       if (filters.endDate) nextFilters.endDate = filters.endDate;
     }
@@ -108,8 +112,8 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
   }, [activeSort, backendFilters, fetchEvents, filtersKey, selectedCity]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem("c1rcle:city");
+    if (typeof window === 'undefined') return;
+    const stored = window.localStorage.getItem('c1rcle:city');
     if (stored) {
       setSelectedCity(stored);
     }
@@ -118,12 +122,12 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
   const cityOptions = useMemo(() => {
     const citySource = bffEnabled && initialEvents.length > 0 ? initialEvents : events;
     if (!citySource.length) {
-      return [{ count: 0, label: "Pune, IN", value: "pune-in" }];
+      return [{ count: 0, label: 'Pune, IN', value: 'pune-in' }];
     }
     const map = new Map();
     citySource.forEach((event) => {
-      const value = event.cityKey || "other-in";
-      const label = event.cityLabel || "Other City, IN";
+      const value = event.cityKey || 'other-in';
+      const label = event.cityLabel || 'Other City, IN';
       if (!map.has(value)) {
         map.set(value, { count: 0, label, value });
       }
@@ -136,21 +140,21 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     if (!cityOptions.length) return;
     setSelectedCity((previous) => {
       if (previous && cityOptions.some((option) => option.value === previous)) return previous;
-      const pune = cityOptions.find((option) => option.value === "pune-in");
+      const pune = cityOptions.find((option) => option.value === 'pune-in');
       return pune ? pune.value : cityOptions[0].value;
     });
   }, [cityOptions]);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !selectedCity) return;
-    window.localStorage.setItem("c1rcle:city", selectedCity);
+    if (typeof window === 'undefined' || !selectedCity) return;
+    window.localStorage.setItem('c1rcle:city', selectedCity);
   }, [selectedCity]);
 
   const eventTypeOptions = useMemo(() => {
     const map = new Map();
     events.forEach((event) => {
-      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : "";
-      const key = slugify(primaryTag || event.eventType || event.category || "venue");
+      const primaryTag = Array.isArray(event.tags) ? event.tags[0] : '';
+      const key = slugify(primaryTag || event.eventType || event.category || 'venue');
       const label = primaryTag || formatTypeLabel(key);
       if (!map.has(key)) {
         map.set(key, { count: 0, label, value: key });
@@ -168,7 +172,7 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
 
   const cityDropdownOptions = useMemo(() => {
     if (!cityOptions.length) {
-      return [{ description: "", label: "Loading city", value: "" }];
+      return [{ description: '', label: 'Loading city', value: '' }];
     }
     return cityOptions.map((option) => ({
       description: `${option.count} events`,
@@ -185,10 +189,10 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
       return {
         ...event,
         _eventType: slugify(
-          (Array.isArray(event.tags) ? event.tags[0] : "") ||
+          (Array.isArray(event.tags) ? event.tags[0] : '') ||
             event.eventType ||
             event.category ||
-            "venue"
+            'venue',
         ),
         _searchHaystack: [
           event.title,
@@ -198,7 +202,7 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
           event.description,
           ...(event.tags || []),
         ]
-          .join(" ")
+          .join(' ')
           .toLowerCase(),
         _startingPrice: getStartingPrice(event),
         _time: parsedDate ? parsedDate.getTime() : Number.MAX_SAFE_INTEGER,
@@ -219,9 +223,9 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     const matchesDatePreset = (event) => {
       const parsedDate = toDate(event.startDateTime || event.startDate);
       if (!parsedDate) return false;
-      if (filters.datePreset === "today") return isSameDay(parsedDate, now);
-      if (filters.datePreset === "weekend") return isWeekend(parsedDate);
-      if (filters.datePreset === "custom") {
+      if (filters.datePreset === 'today') return isSameDay(parsedDate, now);
+      if (filters.datePreset === 'weekend') return isWeekend(parsedDate);
+      if (filters.datePreset === 'custom') {
         const start = filters.startDate ? toDate(filters.startDate) : null;
         const end = filters.endDate ? toEventEndDate(filters.endDate) : null;
         if (start && parsedDate < start) return false;
@@ -237,13 +241,13 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
         const eventEnd = toEventEndDate(event.endDate || event.startDate);
         if (eventEnd && eventEnd < now) return false;
         if (targetCity && event.cityKey !== targetCity) return false;
-        if (filters.eventType !== "all" && event._eventType !== filters.eventType) return false;
-        if (filters.curatedCategory !== "all") {
+        if (filters.eventType !== 'all' && event._eventType !== filters.eventType) return false;
+        if (filters.curatedCategory !== 'all') {
           const keywords = curatedCategoryMatchers[filters.curatedCategory] || [];
           if (!keywords.some((keyword) => event._searchHaystack.includes(keyword))) return false;
         }
-        if (priceFilter === "free" && !(event._startingPrice <= 0 || event.isFree)) return false;
-        if (priceFilter === "paid" && !(event._startingPrice > 0)) return false;
+        if (priceFilter === 'free' && !(event._startingPrice <= 0 || event.isFree)) return false;
+        if (priceFilter === 'paid' && !(event._startingPrice > 0)) return false;
         if (normalizedSearch && !event._searchHaystack.includes(normalizedSearch)) return false;
         return matchesDatePreset(event);
       })
@@ -252,10 +256,10 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
-    if (filters.datePreset !== "any") count += 1;
-    if (filters.price !== "all") count += 1;
-    if (filters.eventType !== "all") count += 1;
-    if (filters.curatedCategory !== "all") count += 1;
+    if (filters.datePreset !== 'any') count += 1;
+    if (filters.price !== 'all') count += 1;
+    if (filters.eventType !== 'all') count += 1;
+    if (filters.curatedCategory !== 'all') count += 1;
     if (filters.startDate || filters.endDate) count += 1;
     if (searchTerm.trim()) count += 1;
     return count;
@@ -265,20 +269,20 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     activeCityLabel:
       cityOptions.find((option) => option.value === selectedCity)?.label ||
       cityOptions[0]?.label ||
-      "your city",
+      'your city',
     activeFilterCount,
     activeSort,
     cityDropdownOptions,
     clearFilters: () => {
       setFilters({
-        curatedCategory: "all",
-        datePreset: "any",
-        endDate: "",
-        eventType: "all",
-        price: "all",
-        startDate: "",
+        curatedCategory: 'all',
+        datePreset: 'any',
+        endDate: '',
+        eventType: 'all',
+        price: 'all',
+        startDate: '',
       });
-      setSearchTerm("");
+      setSearchTerm('');
     },
     error,
     eventTypeOptions,
@@ -291,7 +295,8 @@ export function useExplorePageState({ initialEvents = [], initialFeaturedEvents 
     },
     hasMore,
     heroStatus: status,
-    loadMore: () => fetchEvents(selectedCity, false, getBackendSort(activeSort), filtersKey, backendFilters),
+    loadMore: () =>
+      fetchEvents(selectedCity, false, getBackendSort(activeSort), filtersKey, backendFilters),
     searchTerm,
     selectedCity,
     setActiveSort,

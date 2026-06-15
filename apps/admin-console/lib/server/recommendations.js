@@ -1,5 +1,5 @@
-import { listEvents } from "./eventStore";
-import { getUserOrders } from "./orderStore";
+import { listEvents } from './eventStore';
+import { getUserOrders } from './orderStore';
 
 /**
  * Calculate a "match score" between a user profile/history and an event.
@@ -79,14 +79,14 @@ async function buildUserProfile(userId) {
 export async function getRecommendedEvents(userId, limit = 5) {
   if (!userId) {
     // If no user, return trending events
-    return listEvents({ sort: "heat", limit });
+    return listEvents({ sort: 'heat', limit });
   }
 
   const userProfile = await buildUserProfile(userId);
   const allEvents = await listEvents({ limit: 100 }); // Candidate pool
 
   // Filter out past events
-  const candidates = allEvents.filter((e) => e.status !== "past");
+  const candidates = allEvents.filter((e) => e.status !== 'past');
 
   // Score candidates
   const scoredCandidates = candidates.map((event) => ({
@@ -112,7 +112,7 @@ export async function getSimilarEvents(eventId, limit = 3) {
   const sourceTags = new Set((sourceEvent.tags || []).map((t) => t.toLowerCase()));
 
   const candidates = allEvents
-    .filter((e) => e.id !== eventId && e.status !== "past")
+    .filter((e) => e.id !== eventId && e.status !== 'past')
     .map((event) => {
       let score = 0;
       // Tag overlap

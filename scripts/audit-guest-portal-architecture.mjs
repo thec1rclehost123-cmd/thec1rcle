@@ -8,12 +8,7 @@ const outputPath = path.join(repoRoot, 'docs/guest-portal-architecture-truth.md'
 
 const ignoredDirs = new Set(['.next', 'node_modules', 'coverage']);
 const runtimeRoots = ['app', 'components', 'hooks', 'lib', 'store'];
-const staleScriptPatterns = [
-  /firebase-admin/,
-  /serviceAccount/,
-  /Downloads\//,
-  /lib\/server/,
-];
+const staleScriptPatterns = [/firebase-admin/, /serviceAccount/, /Downloads\//, /lib\/server/];
 const forbiddenRuntimePatterns = [
   /firebase-admin/,
   /firebase\/auth/,
@@ -120,7 +115,9 @@ function collect() {
 
 function list(values, fallback = '- None.') {
   if (!values.length) return fallback;
-  return values.map((value) => `- ${typeof value === 'string' ? value : JSON.stringify(value)}`).join('\n');
+  return values
+    .map((value) => `- ${typeof value === 'string' ? value : JSON.stringify(value)}`)
+    .join('\n');
 }
 
 function render(report) {

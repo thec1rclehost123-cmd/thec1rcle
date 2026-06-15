@@ -1,31 +1,31 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 
 export default function PrivacyPage() {
   const sections = [
     {
-      title: "Our Manifesto on Privacy",
+      title: 'Our Manifesto on Privacy',
       content:
         "At The C1rcle, we believe your data is your digital soul. We don't trade it, we don't leak it, and we definitely don't use it to turn you into a product. Our mission is to facilitate life offline—your online presence with us is purely a utility to make that happen.",
     },
     {
-      title: "Data We Collect",
+      title: 'Data We Collect',
       content:
         "We collect only what's necessary to get you into the event: your name, email, and phone number for ticketing and communication. If you're a host, we collect payout information to ensure you get paid on time. We also use anonymized analytics to understand how our community uses the platform, making it better for everyone.",
     },
     {
       title: "The 'No-Creep' Policy",
       content:
-        "We do not track your location across other apps. We do not sell your contact list. We do not listen to your microphone. Period.",
+        'We do not track your location across other apps. We do not sell your contact list. We do not listen to your microphone. Period.',
     },
     {
-      title: "Your Control",
+      title: 'Your Control',
       content:
         "You can purge your account and all associated data at any time from the profile settings. No questions asked. No hidden 'cool-down' periods.",
     },
     {
-      title: "Updates",
+      title: 'Updates',
       content:
         "If we update this manifesto, we'll let you know via email. Not a 50-page legal doc, but a clear explanation of what changed and why.",
     },

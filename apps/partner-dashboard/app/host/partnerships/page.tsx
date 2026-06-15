@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-    redirect("/host/network?tab=venues");
+  redirect('/host/network?tab=venues');
 }

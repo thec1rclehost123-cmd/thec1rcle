@@ -1,10 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 import {
   getUserNotifications,
   markNotificationRead,
   markAllNotificationsRead,
   getUnreadCount,
-} from "../../../lib/server/notificationStore";
+} from '../../../lib/server/notificationStore';
 
 /**
  * GET /api/notifications
@@ -13,13 +13,13 @@ import {
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get("userId");
-    const unreadOnly = searchParams.get("unreadOnly") === "true";
-    const countOnly = searchParams.get("countOnly") === "true";
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const userId = searchParams.get('userId');
+    const unreadOnly = searchParams.get('unreadOnly') === 'true';
+    const countOnly = searchParams.get('countOnly') === 'true';
+    const limit = parseInt(searchParams.get('limit') || '50');
 
     if (!userId) {
-      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
     if (countOnly) {
@@ -30,9 +30,9 @@ export async function GET(request) {
     const notifications = await getUserNotifications(userId, { limit, unreadOnly });
     return NextResponse.json({ notifications });
   } catch (error) {
-    console.error("[Notifications API] GET Error:", error);
+    console.error('[Notifications API] GET Error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch notifications" },
+      { error: error.message || 'Failed to fetch notifications' },
       { status: 500 },
     );
   }
@@ -54,7 +54,7 @@ export async function PATCH(request) {
 
     if (!notificationId) {
       return NextResponse.json(
-        { error: "notificationId or markAll with userId required" },
+        { error: 'notificationId or markAll with userId required' },
         { status: 400 },
       );
     }
@@ -62,9 +62,9 @@ export async function PATCH(request) {
     const result = await markNotificationRead(notificationId);
     return NextResponse.json(result);
   } catch (error) {
-    console.error("[Notifications API] PATCH Error:", error);
+    console.error('[Notifications API] PATCH Error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to update notification" },
+      { error: error.message || 'Failed to update notification' },
       { status: 500 },
     );
   }

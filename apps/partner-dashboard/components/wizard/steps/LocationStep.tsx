@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
-import { MapPin, Building2, ArrowRight } from "lucide-react";
+import { MapPin, Building2, ArrowRight } from 'lucide-react';
 
 interface LocationStepProps {
   formData: any;
   updateFormData: (updates: any) => void;
   validationErrors: Record<string, string>;
-  role: "venue" | "host";
+  role: 'venue' | 'host';
 }
 
 function AppleInput({
   label,
   error,
-  className = "",
+  className = '',
   icon: Icon,
   hint,
   suffix,
@@ -40,7 +40,7 @@ function AppleInput({
           </div>
         )}
         <input
-          className={`input ${error ? "input-error" : ""} ${Icon ? "pl-11" : "pl-4"} ${suffix ? "pr-12" : "pr-4"} ${className}`}
+          className={`input ${error ? 'input-error' : ''} ${Icon ? 'pl-11' : 'pl-4'} ${suffix ? 'pr-12' : 'pr-4'} ${className}`}
           {...props}
         />
         {suffix && <div className="absolute right-2 top-1/2 -translate-y-1/2">{suffix}</div>}
@@ -114,12 +114,12 @@ export function LocationStep({
           placeholder="e.g., The Grand Ballroom, Rooftop Terrace"
           value={formData.venueName}
           onChange={(e) => updateFormData({ venueName: e.target.value })}
-          disabled={role === "host" && formData.venueId}
+          disabled={role === 'host' && formData.venueId}
           autoCapitalize="words"
-          hint={role === "host" ? "From partnership" : "Required"}
+          hint={role === 'host' ? 'From partnership' : 'Required'}
         />
 
-        {role === "host" && formData.venueId && (
+        {role === 'host' && formData.venueId && (
           <p className="text-caption text-[#86868b]">
             Venue name is set by your partnership agreement. Contact the venue to request changes.
           </p>
@@ -152,16 +152,16 @@ export function LocationStep({
           <AppleSelect
             label="City"
             options={[
-              "Pune",
-              "Mumbai",
-              "Goa",
-              "Bengaluru",
-              "Delhi",
-              "Hyderabad",
-              "Chennai",
-              "Kolkata",
-              "Jaipur",
-              "Ahmedabad",
+              'Pune',
+              'Mumbai',
+              'Goa',
+              'Bengaluru',
+              'Delhi',
+              'Hyderabad',
+              'Chennai',
+              'Kolkata',
+              'Jaipur',
+              'Ahmedabad',
             ].map((c) => ({ label: c, value: c }))}
             value={formData.city}
             onChange={(e) => updateFormData({ city: e.target.value })}
@@ -185,7 +185,7 @@ export function LocationStep({
               <button
                 type="button"
                 className="btn btn-icon-sm btn-ghost"
-                onClick={() => window.open(formData.mapsLink, "_blank")}
+                onClick={() => window.open(formData.mapsLink, '_blank')}
                 title="Test Link"
               >
                 <ArrowRight className="w-4 h-4" />
@@ -198,11 +198,11 @@ export function LocationStep({
         {formData.address && formData.city && (
           <div className="p-4 rounded-xl bg-[#f5f5f7] border border-[#e5e5e7]">
             <p className="text-label mb-2">Location Preview</p>
-            <p className="text-body font-medium text-[#1d1d1f]">{formData.venueName || "Venue"}</p>
+            <p className="text-body font-medium text-[#1d1d1f]">{formData.venueName || 'Venue'}</p>
             <p className="text-body-sm text-[#86868b]">{formData.address}</p>
             <p className="text-body-sm text-[#86868b]">
               {formData.city}
-              {formData.pincode ? ` - ${formData.pincode}` : ""}
+              {formData.pincode ? ` - ${formData.pincode}` : ''}
             </p>
           </div>
         )}
@@ -222,7 +222,7 @@ export function LocationStep({
 
         <textarea
           placeholder="e.g., Enter through the main lobby, take elevator to 5th floor. Parking available in basement level B2."
-          value={formData.arrivalInstructions || ""}
+          value={formData.arrivalInstructions || ''}
           onChange={(e) => updateFormData({ arrivalInstructions: e.target.value })}
           className="input min-h-[100px] resize-none"
         />

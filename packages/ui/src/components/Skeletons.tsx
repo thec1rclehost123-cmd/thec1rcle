@@ -1,4 +1,4 @@
-import React from "react";
+import React from 'react';
 
 export const Skeleton = ({ className }: { className?: string }) => (
   <div className={`animate-pulse rounded-md bg-white/5 ${className}`} />
@@ -29,7 +29,13 @@ export const VenueCardSkeleton = () => (
   </div>
 );
 
-export const GridSkeleton = ({ count = 6, columns = "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" }: { count?: number, columns?: string }) => (
+export const GridSkeleton = ({
+  count = 6,
+  columns = 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
+}: {
+  count?: number;
+  columns?: string;
+}) => (
   <div className={`grid gap-6 ${columns}`}>
     {Array.from({ length: count }).map((_, i) => (
       <EventCardSkeleton key={i} />

@@ -50,14 +50,29 @@ export class HostService {
 
   async getOverview(
     ctx: PartnerContext,
-    options: { range?: OverviewRange; metric?: OverviewMetric } = {}
+    options: { range?: OverviewRange; metric?: OverviewMetric } = {},
   ): Promise<HostDashboardOverview> {
     const partnerId = ctx.partnerId;
     const range = options.range ?? '1m';
     const metric = options.metric ?? 'tickets';
 
     const [statsSnap, upcomingEvents, latestOrders, performance, balances] = await Promise.all([
-      this.db.collection('host_stats').doc(partnerId).get().catch((err) => { this.log.error({ service: 'HostService', method: 'getOverview', partnerId, error: err?.message ?? String(err) }, 'host_stats read failed'); return null; }),
+      this.db
+        .collection('host_stats')
+        .doc(partnerId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'HostService',
+              method: 'getOverview',
+              partnerId,
+              error: err?.message ?? String(err),
+            },
+            'host_stats read failed',
+          );
+          return null;
+        }),
       this.getUpcomingEvents(partnerId),
       this.getLatestOrders(partnerId),
       this.getPerformance(partnerId, range, metric),
@@ -81,7 +96,10 @@ export class HostService {
 
   // ── Events ────────────────────────────────────────────────────────────────
 
-  async getEvents(ctx: PartnerContext, filters: EventFilters): Promise<PaginatedResult<EventSummary>> {
+  async getEvents(
+    ctx: PartnerContext,
+    filters: EventFilters,
+  ): Promise<PaginatedResult<EventSummary>> {
     const { status, cursor, limit = 20 } = filters;
     const cap = Math.min(limit, 100);
     const partnerId = ctx.partnerId;
@@ -98,7 +116,19 @@ export class HostService {
       if (cursorDoc.exists) q = q.startAfter(cursorDoc);
     }
 
-    let snap = await q.get().catch((err: any) => { this.log.error({ service: 'HostService', method: 'getEvents', partnerId, field: 'creatorId', error: err?.message ?? String(err) }, 'Events query failed'); return null; });
+    let snap = await q.get().catch((err: any) => {
+      this.log.error(
+        {
+          service: 'HostService',
+          method: 'getEvents',
+          partnerId,
+          field: 'creatorId',
+          error: err?.message ?? String(err),
+        },
+        'Events query failed',
+      );
+      return null;
+    });
 
     // Fallback: try hostId field if creatorId returned nothing
     if (!snap || snap.empty) {
@@ -108,13 +138,25 @@ export class HostService {
         .orderBy('startDate', 'desc')
         .limit(cap + 1);
       if (status) q2 = q2.where('lifecycle', '==', status);
-      snap = await q2.get().catch((err: any) => { this.log.error({ service: 'HostService', method: 'getEvents', partnerId, field: 'hostId', error: err?.message ?? String(err) }, 'Events hostId fallback query failed'); return { docs: [] }; });
+      snap = await q2.get().catch((err: any) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'getEvents',
+            partnerId,
+            field: 'hostId',
+            error: err?.message ?? String(err),
+          },
+          'Events hostId fallback query failed',
+        );
+        return { docs: [] };
+      });
     }
 
     const docs = snap?.docs ?? [];
     const hasMore = docs.length > cap;
     const items = docs.slice(0, cap).map((doc: any) => this.docToEventSummary(doc));
-    const nextCursor = hasMore ? items[items.length - 1]?.eventId ?? null : null;
+    const nextCursor = hasMore ? (items[items.length - 1]?.eventId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
   }
@@ -136,8 +178,40 @@ export class HostService {
     const partnerId = ctx.partnerId;
 
     const [profileSnap, payoutSnap] = await Promise.all([
-      this.db.collection('hosts').doc(partnerId).get().catch((err) => { this.log.error({ service: 'HostService', method: 'getSettings', partnerId, collection: 'hosts', error: err?.message ?? String(err) }, 'Host profile read failed'); return null; }),
-      this.db.collection('payout_configs').doc(partnerId).get().catch((err) => { this.log.error({ service: 'HostService', method: 'getSettings', partnerId, collection: 'payout_configs', error: err?.message ?? String(err) }, 'Payout config read failed'); return null; }),
+      this.db
+        .collection('hosts')
+        .doc(partnerId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'HostService',
+              method: 'getSettings',
+              partnerId,
+              collection: 'hosts',
+              error: err?.message ?? String(err),
+            },
+            'Host profile read failed',
+          );
+          return null;
+        }),
+      this.db
+        .collection('payout_configs')
+        .doc(partnerId)
+        .get()
+        .catch((err) => {
+          this.log.error(
+            {
+              service: 'HostService',
+              method: 'getSettings',
+              partnerId,
+              collection: 'payout_configs',
+              error: err?.message ?? String(err),
+            },
+            'Payout config read failed',
+          );
+          return null;
+        }),
     ]);
 
     const profile = profileSnap?.exists ? (profileSnap.data() as Record<string, any>) : {};
@@ -171,7 +245,13 @@ export class HostService {
       .where('partnerType', '==', 'host')
       .limit(50)
       .get()
-      .catch((err) => { this.log.error({ service: 'HostService', method: 'getTeam', error: err?.message ?? String(err) }, 'Team query failed'); return { docs: [] }; });
+      .catch((err) => {
+        this.log.error(
+          { service: 'HostService', method: 'getTeam', error: err?.message ?? String(err) },
+          'Team query failed',
+        );
+        return { docs: [] };
+      });
 
     return (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
@@ -189,7 +269,9 @@ export class HostService {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
-  private docToEventSummary(doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot): EventSummary {
+  private docToEventSummary(
+    doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
+  ): EventSummary {
     const d = (doc.data() ?? {}) as Record<string, any>;
     return {
       eventId: doc.id,
@@ -247,7 +329,17 @@ export class HostService {
       .orderBy('createdAt', 'desc')
       .limit(10)
       .get()
-      .catch((err) => { this.log.error({ service: 'HostService', method: 'getRecentActivity', error: err?.message ?? String(err) }, 'Recent activity query failed'); return { docs: [] }; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'getRecentActivity',
+            error: err?.message ?? String(err),
+          },
+          'Recent activity query failed',
+        );
+        return { docs: [] };
+      });
 
     return (snap as any).docs.map((doc: any) => {
       const d = doc.data() as Record<string, any>;
@@ -274,8 +366,10 @@ export class HostService {
 
     return [...docsById.values()]
       .sort((left, right) => {
-        const leftDate = this.toDateValue(left.data()?.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-        const rightDate = this.toDateValue(right.data()?.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const leftDate =
+          this.toDateValue(left.data()?.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightDate =
+          this.toDateValue(right.data()?.startDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         return leftDate - rightDate;
       })
       .slice(0, 8)
@@ -284,7 +378,7 @@ export class HostService {
 
   private async fetchUpcomingEventDocs(
     ownerField: 'creatorId' | 'hostId',
-    partnerId: string
+    partnerId: string,
   ): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
     const snap = await this.db
       .collection('events')
@@ -293,7 +387,17 @@ export class HostService {
       .orderBy('startDate', 'asc')
       .limit(12)
       .get()
-      .catch((err) => { this.log.error({ service: 'HostService', method: 'fetchUpcomingEventDocs', error: err?.message ?? String(err) }, 'Upcoming events query failed'); return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'fetchUpcomingEventDocs',
+            error: err?.message ?? String(err),
+          },
+          'Upcoming events query failed',
+        );
+        return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] };
+      });
 
     return (snap as any).docs ?? [];
   }
@@ -306,7 +410,7 @@ export class HostService {
   private async getPerformance(
     partnerId: string,
     range: OverviewRange,
-    metric: OverviewMetric
+    metric: OverviewMetric,
   ): Promise<OverviewSeries> {
     const buckets = this.buildOverviewBuckets(range);
     const series: OverviewSeriesPoint[] = buckets.map((bucket) => ({
@@ -329,7 +433,9 @@ export class HostService {
       const createdAt = this.toDateValue(raw.createdAt);
       if (!createdAt || createdAt < earliestStart) continue;
 
-      const bucketIndex = buckets.findIndex((bucket) => createdAt >= bucket.start && createdAt < bucket.end);
+      const bucketIndex = buckets.findIndex(
+        (bucket) => createdAt >= bucket.start && createdAt < bucket.end,
+      );
       if (bucketIndex === -1) continue;
 
       series[bucketIndex].revenue += this.getOrderAmount(raw);
@@ -346,7 +452,7 @@ export class HostService {
 
   private async fetchRecentOrderDocs(
     partnerId: string,
-    limit: number
+    limit: number,
   ): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
     const ordered = await this.db
       .collection('orders')
@@ -354,7 +460,17 @@ export class HostService {
       .orderBy('createdAt', 'desc')
       .limit(limit)
       .get()
-      .catch((err) => { this.log.error({ service: 'HostService', method: 'fetchRecentOrderDocs', error: err?.message ?? String(err) }, 'Orders query failed'); return null; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'fetchRecentOrderDocs',
+            error: err?.message ?? String(err),
+          },
+          'Orders query failed',
+        );
+        return null;
+      });
 
     if (ordered) return ordered.docs;
 
@@ -363,7 +479,17 @@ export class HostService {
       .where('hostId', '==', partnerId)
       .limit(limit)
       .get()
-      .catch((err) => { this.log.error({ service: 'HostService', method: 'fetchRecentOrderDocs', error: err?.message ?? String(err) }, 'Orders fallback query failed'); return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] }; });
+      .catch((err) => {
+        this.log.error(
+          {
+            service: 'HostService',
+            method: 'fetchRecentOrderDocs',
+            error: err?.message ?? String(err),
+          },
+          'Orders fallback query failed',
+        );
+        return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] };
+      });
 
     return (fallback as any).docs ?? [];
   }
@@ -373,8 +499,12 @@ export class HostService {
 
     return {
       orderId: doc.id,
-      orderNumber: safeStr(d.orderNumber || d.displayOrderNumber || `ORD-${doc.id.slice(-6).toUpperCase()}`),
-      customerName: safeStr(d.customerName || d.buyerName || d.guestName || d.userName || d.attendeeName || 'Guest'),
+      orderNumber: safeStr(
+        d.orderNumber || d.displayOrderNumber || `ORD-${doc.id.slice(-6).toUpperCase()}`,
+      ),
+      customerName: safeStr(
+        d.customerName || d.buyerName || d.guestName || d.userName || d.attendeeName || 'Guest',
+      ),
       eventId: safeStr(d.eventId),
       eventName: safeStr(d.eventName || d.eventTitle || d.title),
       amount: this.getOrderAmount(d),
@@ -402,12 +532,16 @@ export class HostService {
   }
 
   private getOrderSource(d: Record<string, any>): 'ticket' | 'rsvp' {
-    const raw = String(d.source || d.orderType || '').trim().toLowerCase();
+    const raw = String(d.source || d.orderType || '')
+      .trim()
+      .toLowerCase();
     if (raw === 'rsvp' || d.isRsvp === true) return 'rsvp';
     return 'ticket';
   }
 
-  private buildOverviewBuckets(range: OverviewRange): Array<{ start: Date; end: Date; label: string }> {
+  private buildOverviewBuckets(
+    range: OverviewRange,
+  ): Array<{ start: Date; end: Date; label: string }> {
     const now = new Date();
     const starts: Date[] = [];
 
@@ -472,7 +606,11 @@ export class HostService {
     if (!value) return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
 
-    if (typeof value === 'object' && value !== null && 'toDate' in (value as Record<string, unknown>)) {
+    if (
+      typeof value === 'object' &&
+      value !== null &&
+      'toDate' in (value as Record<string, unknown>)
+    ) {
       try {
         const converted = (value as { toDate: () => Date }).toDate();
         return Number.isNaN(converted.getTime()) ? null : converted;

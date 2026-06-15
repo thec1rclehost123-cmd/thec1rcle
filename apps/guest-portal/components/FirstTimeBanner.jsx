@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles } from "lucide-react";
-import { useAuth } from "./providers/AuthProvider";
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Sparkles } from 'lucide-react';
+import { useAuth } from './providers/AuthProvider';
 
 export default function FirstTimeBanner() {
   const { user } = useAuth();
@@ -11,7 +11,7 @@ export default function FirstTimeBanner() {
 
   useEffect(() => {
     // Show only if not logged in and not dismissed
-    const isDismissed = localStorage.getItem("posh_banner_dismissed");
+    const isDismissed = localStorage.getItem('posh_banner_dismissed');
     if (!user && !isDismissed) {
       // Small delay for better UX
       const timer = setTimeout(() => setIsVisible(true), 2000);
@@ -23,11 +23,11 @@ export default function FirstTimeBanner() {
 
   const handleDismiss = () => {
     setIsVisible(false);
-    localStorage.setItem("posh_banner_dismissed", "true");
+    localStorage.setItem('posh_banner_dismissed', 'true');
   };
 
   const handleSignIn = () => {
-    window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL"));
+    window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'));
   };
 
   return (

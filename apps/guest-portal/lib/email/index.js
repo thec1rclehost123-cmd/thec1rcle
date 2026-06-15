@@ -7,11 +7,11 @@
  * - Gmail structured data for native calendar card
  */
 
-import { Resend } from "resend";
-import TicketEmail from "../../components/emails/TicketEmail";
-import { generateICSBuffer } from "./generateICS";
-import { generateTicketPDF } from "./generateTicketPDF";
-import { generateOrderQRCodes } from "../server/qrStore";
+import { Resend } from 'resend';
+import TicketEmail from '../../components/emails/TicketEmail';
+import { generateICSBuffer } from './generateICS';
+import { generateTicketPDF } from './generateTicketPDF';
+import { generateOrderQRCodes } from '../server/qrStore';
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
@@ -19,15 +19,15 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
  * Format date for display in emails
  */
 function formatEventDate(startDate, endDate) {
-  if (!startDate) return "";
+  if (!startDate) return '';
   try {
     const start = new Date(startDate);
-    const formatter = new Intl.DateTimeFormat("en-IN", {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "Asia/Kolkata",
+    const formatter = new Intl.DateTimeFormat('en-IN', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata',
     });
     const result = formatter.format(start);
 
@@ -48,14 +48,14 @@ function formatEventDate(startDate, endDate) {
  * Format time for display
  */
 function formatEventTime(startTime, endTime) {
-  if (!startTime) return "";
+  if (!startTime) return '';
 
   const formatTime = (t) => {
     try {
-      const [h, m] = t.split(":").map(Number);
-      const period = h >= 12 ? "PM" : "AM";
+      const [h, m] = t.split(':').map(Number);
+      const period = h >= 12 ? 'PM' : 'AM';
       const hour12 = h % 12 || 12;
-      return `${hour12}:${m.toString().padStart(2, "0")} ${period}`;
+      return `${hour12}:${m.toString().padStart(2, '0')} ${period}`;
     } catch {
       return t;
     }
@@ -106,37 +106,37 @@ export async function sendTicketEmail({
   tickets,
   totalAmount,
   // Enhanced params
-  eventId = "",
-  eventVenue = "",
-  startDate = "",
-  endDate = "",
-  startTime = "",
-  endTime = "",
-  eventDescription = "",
+  eventId = '',
+  eventVenue = '',
+  startDate = '',
+  endDate = '',
+  startTime = '',
+  endTime = '',
+  eventDescription = '',
   isRSVP = false,
-  userId = "",
+  userId = '',
   order = null,
   event = null,
 }) {
   if (!resend) {
-    console.warn("[Email] Resend API key not found. Skipping email send.");
-    console.log("[Email] Would have sent ticket email to:", to, "for order:", orderId);
-    return { success: false, error: "Missing API key" };
+    console.warn('[Email] Resend API key not found. Skipping email send.');
+    console.log('[Email] Would have sent ticket email to:', to, 'for order:', orderId);
+    return { success: false, error: 'Missing API key' };
   }
 
   try {
     // ── Resolve display values ──────────────────────────────
     const displayDate = eventDate || formatEventDate(startDate, endDate);
     const displayTime = formatEventTime(startTime, endTime);
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://thec1rcle.com";
-    const eventUrl = eventId ? `${siteUrl}/event/${eventId}` : "";
-    const orderDate = new Date().toLocaleDateString("en-IN", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-      timeZone: "Asia/Kolkata",
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://thec1rcle.com';
+    const eventUrl = eventId ? `${siteUrl}/event/${eventId}` : '';
+    const orderDate = new Date().toLocaleDateString('en-IN', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Asia/Kolkata',
     });
 
     // ── Generate QR code data ───────────────────────────────
@@ -149,7 +149,7 @@ export async function sendTicketEmail({
           qrCodeData = qrCodes[0].qrData; // Use the signed QR payload
         }
       } catch (qrError) {
-        console.warn("[Email] QR generation failed, using orderId fallback:", qrError.message);
+        console.warn('[Email] QR generation failed, using orderId fallback:', qrError.message);
       }
     }
 
@@ -173,10 +173,10 @@ export async function sendTicketEmail({
       attachments.push({
         filename: `ticket-${orderId}.pdf`,
         content: pdfBuffer,
-        contentType: "application/pdf",
+        contentType: 'application/pdf',
       });
     } catch (pdfError) {
-      console.warn("[Email] PDF generation failed:", pdfError.message);
+      console.warn('[Email] PDF generation failed:', pdfError.message);
     }
 
     // 2. ICS Calendar File
@@ -190,22 +190,22 @@ export async function sendTicketEmail({
         location: eventVenue ? `${eventVenue}, ${eventLocation}` : eventLocation,
         description: eventDescription || `You have tickets for ${eventName}`,
         eventUrl,
-        organizer: "THE C1RCLE",
+        organizer: 'THE C1RCLE',
         orderId,
       });
 
       attachments.push({
-        filename: `${eventName.replace(/[^a-zA-Z0-9 ]/g, "").trim()}.ics`,
+        filename: `${eventName.replace(/[^a-zA-Z0-9 ]/g, '').trim()}.ics`,
         content: icsBuffer,
-        contentType: "text/calendar; method=PUBLISH",
+        contentType: 'text/calendar; method=PUBLISH',
       });
     } catch (icsError) {
-      console.warn("[Email] ICS generation failed:", icsError.message);
+      console.warn('[Email] ICS generation failed:', icsError.message);
     }
 
     // ── Send via Resend ─────────────────────────────────────
     const data = await resend.emails.send({
-      from: "THE C1RCLE <tickets@thec1rcle.com>",
+      from: 'THE C1RCLE <tickets@thec1rcle.com>',
       to: [to],
       subject: `Your Ticket for ${eventName}`,
       react: TicketEmail({
@@ -228,7 +228,7 @@ export async function sendTicketEmail({
       }),
       attachments: attachments.length > 0 ? attachments : undefined,
       headers: {
-        "X-Entity-Ref-ID": orderId,
+        'X-Entity-Ref-ID': orderId,
       },
     });
 

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 // Types
 export interface EventTier {
@@ -70,7 +70,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
 export function useEvent() {
   const context = useContext(EventContext);
   if (context === undefined) {
-    throw new Error("useEvent must be used within an EventProvider");
+    throw new Error('useEvent must be used within an EventProvider');
   }
   return context;
 }

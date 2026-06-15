@@ -1,41 +1,41 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useAuth } from "@/components/providers/AuthProvider";
-import { useRouter } from "next/navigation";
-import { Lock, Shield, ArrowRight, AlertCircle, Terminal, Activity } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/components/providers/AuthProvider';
+import { useRouter } from 'next/navigation';
+import { Lock, Shield, ArrowRight, AlertCircle, Terminal, Activity } from 'lucide-react';
 
 export default function AdminLogin() {
   const { login, user, profile, loading } = useAuth();
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [status, setStatus] = useState("idle"); // idle, authenticating, success, error
-  const [errorMessage, setErrorMessage] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState('idle'); // idle, authenticating, success, error
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Redirect if already logged in and verified
   useEffect(() => {
-    if (!loading && user && (profile?.role === "admin" || profile?.admin_role)) {
-      router.replace("/");
+    if (!loading && user && (profile?.role === 'admin' || profile?.admin_role)) {
+      router.replace('/');
     }
   }, [user, profile, loading, router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setStatus("authenticating");
-    setErrorMessage("");
+    setStatus('authenticating');
+    setErrorMessage('');
 
     try {
       await login(email, password);
-      setStatus("success");
-      router.push("/");
+      setStatus('success');
+      router.push('/');
     } catch (err) {
-      console.error("Login failed", err);
-      setStatus("error");
+      console.error('Login failed', err);
+      setStatus('error');
       setErrorMessage(
-        err.message === "UNAUTHORIZED_ACCESS_BLOCKED"
-          ? "Security Protocol: Access denied for standard user credentials."
-          : "Authentication Failure: Credentials could not be verified by Authority Node.",
+        err.message === 'UNAUTHORIZED_ACCESS_BLOCKED'
+          ? 'Security Protocol: Access denied for standard user credentials.'
+          : 'Authentication Failure: Credentials could not be verified by Authority Node.',
       );
     }
   };
@@ -111,7 +111,7 @@ export default function AdminLogin() {
             </div>
 
             {/* Error Messaging */}
-            {status === "error" && (
+            {status === 'error' && (
               <div className="flex items-start gap-4 p-5 rounded-2xl bg-iris/10 border border-iris/20 animate-in fade-in slide-in-from-top-2">
                 <AlertCircle className="h-5 w-5 text-iris shrink-0 mt-0.5" />
                 <p className="text-xs text-iris/80 font-bold leading-relaxed">{errorMessage}</p>
@@ -121,11 +121,11 @@ export default function AdminLogin() {
             {/* Submit Action */}
             <button
               type="submit"
-              disabled={status === "authenticating"}
+              disabled={status === 'authenticating'}
               className="w-full h-16 rounded-[1.5rem] bg-white text-black font-bold uppercase tracking-[0.2em] text-[11px] hover:bg-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] overflow-hidden shadow-lg shadow-white/5"
             >
               <span className="relative z-10 flex items-center justify-center gap-3">
-                {status === "authenticating" ? (
+                {status === 'authenticating' ? (
                   <>
                     <div className="h-4 w-4 border-2 border-black/20 border-t-black rounded-full animate-spin" />
                     Validating...
@@ -151,7 +151,7 @@ export default function AdminLogin() {
 
         {/* Security Notice */}
         <p className="mt-8 text-center text-[10px] font-bold text-zinc-700 leading-relaxed max-w-[280px] mx-auto uppercase tracking-[0.1em]">
-          Restricted Terminal. Unauthorized access attempts trigger immediate{" "}
+          Restricted Terminal. Unauthorized access attempts trigger immediate{' '}
           <span className="text-zinc-500">Security Protocols</span>.
         </p>
       </div>

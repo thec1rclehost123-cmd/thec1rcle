@@ -1,23 +1,23 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Mail, Github, Chrome, Loader2 } from "lucide-react";
-import { useAuth } from "./providers/AuthProvider";
-import { getIntent, clearIntent } from "../lib/utils/intentStore";
-import { useRouter } from "next/navigation";
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Mail, Github, Chrome, Loader2 } from 'lucide-react';
+import { useAuth } from './providers/AuthProvider';
+import { getIntent, clearIntent } from '../lib/utils/intentStore';
+import { useRouter } from 'next/navigation';
 
 export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const { login, register, loginWithGoogle } = useAuth();
-  const [mode, setMode] = useState("login"); // "login" | "register" | "email_otp"
-  const [form, setForm] = useState({ email: "", password: "", name: "" });
+  const [mode, setMode] = useState('login'); // "login" | "register" | "email_otp"
+  const [form, setForm] = useState({ email: '', password: '', name: '' });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const router = useRouter();
 
   const handleGoogleLogin = async () => {
     setLoading(true);
-    setError("");
+    setError('');
     try {
       await loginWithGoogle();
       handleSuccess();
@@ -31,12 +31,12 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
     try {
-      if (mode === "login") {
+      if (mode === 'login') {
         await login(form.email, form.password);
       } else {
-        if (!form.name.trim()) throw new Error("Name is required");
+        if (!form.name.trim()) throw new Error('Name is required');
         await register(form.email, form.password, form.name);
       }
       handleSuccess();
@@ -116,7 +116,7 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
             </div>
 
             <form onSubmit={handleEmailAuth} className="space-y-4">
-              {mode === "register" && (
+              {mode === 'register' && (
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase tracking-[0.2em] text-white/40 ml-4">
                     Full Name
@@ -165,22 +165,22 @@ export default function AuthModal({ isOpen, onClose, onAuthSuccess }) {
               >
                 {loading ? (
                   <Loader2 className="animate-spin mx-auto" size={20} />
-                ) : mode === "login" ? (
-                  "Sign In"
+                ) : mode === 'login' ? (
+                  'Sign In'
                 ) : (
-                  "Create Account"
+                  'Create Account'
                 )}
               </button>
             </form>
 
             <div className="mt-6 text-center">
               <button
-                onClick={() => setMode(mode === "login" ? "register" : "login")}
+                onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
                 className="text-xs text-white/40 transition hover:text-white"
               >
-                {mode === "login"
+                {mode === 'login'
                   ? "Don't have an account? Sign up"
-                  : "Already have an account? Sign in"}
+                  : 'Already have an account? Sign in'}
               </button>
             </div>
           </div>

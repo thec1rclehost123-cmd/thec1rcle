@@ -1,12 +1,12 @@
-import { Link, Stack } from "expo-router";
-import { View, Text } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { Link, Stack } from 'expo-router';
+import { View, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function NotFoundScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background-primary items-center justify-center px-6">
-      <Stack.Screen options={{ title: "Oops!" }} />
+      <Stack.Screen options={{ title: 'Oops!' }} />
 
       <Ionicons name="alert-circle-outline" size={64} color="#71717A" />
 

@@ -1,7 +1,7 @@
-import { getApp, getApps, initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-import { getStorage } from "firebase/storage";
+import { getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -21,12 +21,12 @@ const hasRequiredClientConfig = () =>
 export function getFirebaseApp() {
   if (!firebaseApp) {
     if (!hasRequiredClientConfig()) {
-      if (process.env.DEV_TOY_MODE === "true" || process.env.NEXT_PUBLIC_DEV_TOY_MODE === "true") {
-        console.warn("⚠️  [CORE] Firebase client configuration is missing. Operating in TOY MODE.");
+      if (process.env.DEV_TOY_MODE === 'true' || process.env.NEXT_PUBLIC_DEV_TOY_MODE === 'true') {
+        console.warn('⚠️  [CORE] Firebase client configuration is missing. Operating in TOY MODE.');
         return null;
       }
       throw new Error(
-        "Missing Firebase client configuration. Set NEXT_PUBLIC_FIREBASE_* env vars.",
+        'Missing Firebase client configuration. Set NEXT_PUBLIC_FIREBASE_* env vars.',
       );
     }
     firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);

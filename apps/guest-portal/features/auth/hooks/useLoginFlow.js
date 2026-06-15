@@ -1,11 +1,16 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "../../../components/providers/AuthProvider";
-import { useToast } from "../../../components/providers/ToastProvider";
-import { buildAuthCallbackUrl, buildLoginUrl, buildSignupUrl, getReturnUrl } from "../../../lib/auth/guestRouteAccess";
-import { checkGuestEmail, sendGuestOtp, verifyGuestOtp } from "../api/authApi";
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useAuth } from '../../../components/providers/AuthProvider';
+import { useToast } from '../../../components/providers/ToastProvider';
+import {
+  buildAuthCallbackUrl,
+  buildLoginUrl,
+  buildSignupUrl,
+  getReturnUrl,
+} from '../../../lib/auth/guestRouteAccess';
+import { checkGuestEmail, sendGuestOtp, verifyGuestOtp } from '../api/authApi';
 import {
   baseAuthForm,
   buildCleanAuthForm,
@@ -18,11 +23,19 @@ import {
   getPreviousLoginStep,
   resolveAuthMode,
   shouldRedirectAuthenticatedUser,
-} from "../utils/loginFlowModel";
-import { clearSessionPersistence, useOnboardingDraft } from "./useOnboardingDraft";
+} from '../utils/loginFlowModel';
+import { clearSessionPersistence, useOnboardingDraft } from './useOnboardingDraft';
 
 export function useLoginFlow() {
-  const { error: authError, loading, login, loginWithGoogle, register, updateUserProfile, user } = useAuth();
+  const {
+    error: authError,
+    loading,
+    login,
+    loginWithGoogle,
+    register,
+    updateUserProfile,
+    user,
+  } = useAuth();
   const { toast } = useToast();
   const pathname = usePathname();
   const router = useRouter();
@@ -33,22 +46,14 @@ export function useLoginFlow() {
   );
 
   const [isLoginMode, setIsLoginMode] = useState(() => initialLoginMode);
-  const {
-    form,
-    isNewUser,
-    isOnboarding,
-    setForm,
-    setIsNewUser,
-    setIsOnboarding,
-    setStep,
-    step,
-  } = useOnboardingDraft({
-    baseForm: baseAuthForm,
-    forceOnboarding,
-    initialLoginMode: isLoginMode,
-  });
+  const { form, isNewUser, isOnboarding, setForm, setIsNewUser, setIsOnboarding, setStep, step } =
+    useOnboardingDraft({
+      baseForm: baseAuthForm,
+      forceOnboarding,
+      initialLoginMode: isLoginMode,
+    });
 
-  const [status, setStatus] = useState({ message: "", type: "" });
+  const [status, setStatus] = useState({ message: '', type: '' });
   const [mounted, setMounted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef(null);
@@ -91,7 +96,7 @@ export function useLoginFlow() {
 
   useEffect(() => {
     if (authError && step < 3) {
-      setStatus({ message: authError, type: "error" });
+      setStatus({ message: authError, type: 'error' });
     }
   }, [authError, step]);
 
@@ -99,12 +104,12 @@ export function useLoginFlow() {
 
   const handleGoogleLogin = async () => {
     setSubmitting(true);
-    setStatus({ message: "", type: "" });
+    setStatus({ message: '', type: '' });
     try {
       await loginWithGoogle(buildAuthCallbackUrl(redirectUrl));
     } catch (error) {
-      console.error("Google Auth error:", error);
-      setStatus({ message: getLoginErrorMessage(error), type: "error" });
+      console.error('Google Auth error:', error);
+      setStatus({ message: getLoginErrorMessage(error), type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -122,12 +127,15 @@ export function useLoginFlow() {
         setStep(nextState.step);
       }
     } catch (error) {
-      if (error?.code === "auth/user-not-found") {
+      if (error?.code === 'auth/user-not-found') {
         setIsLoginMode(false);
         setIsNewUser(true);
-        setStatus({ message: "No account found. Enter a password to create your access.", type: "info" });
+        setStatus({
+          message: 'No account found. Enter a password to create your access.',
+          type: 'info',
+        });
       } else {
-        setStatus({ message: getLoginErrorMessage(error), type: "error" });
+        setStatus({ message: getLoginErrorMessage(error), type: 'error' });
       }
     } finally {
       setSubmitting(false);
@@ -136,15 +144,15 @@ export function useLoginFlow() {
 
   const handleStartRegistration = async () => {
     setSubmitting(true);
-    setStatus({ message: "", type: "" });
+    setStatus({ message: '', type: '' });
     try {
       if (!form.password || form.password.length < 6) {
-        throw new Error("Password is required. Please go back to step 1 and re-enter.");
+        throw new Error('Password is required. Please go back to step 1 and re-enter.');
       }
-      await sendGuestOtp("phone", cleanForm.phone);
+      await sendGuestOtp('phone', cleanForm.phone);
       setStep(8);
     } catch (error) {
-      setStatus({ message: error.message, type: "error" });
+      setStatus({ message: error.message, type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -154,8 +162,8 @@ export function useLoginFlow() {
     setSubmitting(true);
     if (!form.password || form.password.length < 8) {
       setStatus({
-        message: "Password must be at least 8 characters long. Please go back to step 1.",
-        type: "error",
+        message: 'Password must be at least 8 characters long. Please go back to step 1.',
+        type: 'error',
       });
       setSubmitting(false);
       return;
@@ -173,7 +181,7 @@ export function useLoginFlow() {
       clearSessionPersistence();
       router.replace(buildAuthCallbackUrl(redirectUrl));
     } catch (error) {
-      setStatus({ message: error.message, type: "error" });
+      setStatus({ message: error.message, type: 'error' });
     } finally {
       setSubmitting(false);
     }
@@ -185,7 +193,7 @@ export function useLoginFlow() {
       await updateUserProfile({
         age: form.age,
         city: cityOverride ?? form.city,
-        displayName: form.name || user?.displayName || "Member",
+        displayName: form.name || user?.displayName || 'Member',
         gender: form.gender,
         onboardingComplete: true,
         phone: cleanForm.phone,
@@ -194,24 +202,24 @@ export function useLoginFlow() {
       setIsOnboarding(false);
       router.replace(buildAuthCallbackUrl(redirectUrl));
     } catch (error) {
-      setStatus({ message: error.message, type: "error" });
+      setStatus({ message: error.message, type: 'error' });
     } finally {
       setSubmitting(false);
     }
   };
 
   const nextStep = async () => {
-    setStatus({ message: "", type: "" });
+    setStatus({ message: '', type: '' });
 
     const nextAction = getNextLoginAction({ form, isLoginMode, isNewUser, step });
 
-    if (nextAction.type === "begin_registration") {
+    if (nextAction.type === 'begin_registration') {
       setIsNewUser(true);
       setStep(nextAction.step);
       return;
     }
 
-    if (nextAction.type === "resolve_login") {
+    if (nextAction.type === 'resolve_login') {
       setSubmitting(true);
       try {
         const data = await checkGuestEmail(form.email);
@@ -222,31 +230,31 @@ export function useLoginFlow() {
         }
         setIsLoginMode(false);
         setIsNewUser(true);
-        setStatus({ message: "No account found. Set your password to join.", type: "info" });
+        setStatus({ message: 'No account found. Set your password to join.', type: 'info' });
       } catch (error) {
-        console.error("Check protocol failed:", error);
+        console.error('Check protocol failed:', error);
         if (isLoginMode) {
           await handleInitialAuth();
           return;
         }
-        setStatus({ message: "Unable to verify email. Please try again.", type: "error" });
+        setStatus({ message: 'Unable to verify email. Please try again.', type: 'error' });
       } finally {
         setSubmitting(false);
       }
       return;
     }
 
-    if (nextAction.type === "advance") {
+    if (nextAction.type === 'advance') {
       setStep(nextAction.step);
       return;
     }
 
-    if (nextAction.type === "start_registration") {
+    if (nextAction.type === 'start_registration') {
       await handleStartRegistration();
       return;
     }
 
-    if (nextAction.type === "complete_onboarding") {
+    if (nextAction.type === 'complete_onboarding') {
       await handleCompleteOnboarding(nextAction.city);
     }
   };
@@ -263,13 +271,13 @@ export function useLoginFlow() {
   const handleCitySelect = (city) => {
     setForm((previous) => ({ ...previous, city }));
     const nextAction = getCitySelectionAction({ city, isNewUser, isOnboarding });
-    if (nextAction.type === "complete_onboarding") {
+    if (nextAction.type === 'complete_onboarding') {
       setTimeout(() => {
         void handleCompleteOnboarding(city);
       }, 150);
       return;
     }
-    if (nextAction.type === "start_registration") {
+    if (nextAction.type === 'start_registration') {
       setTimeout(() => {
         void handleStartRegistration();
       }, 150);
@@ -277,17 +285,17 @@ export function useLoginFlow() {
   };
 
   const handleVerify = async (type, code) => {
-    if (type === "final") return handleFinalizeRegistration();
-    return verifyGuestOtp("phone", cleanForm.phone, code);
+    if (type === 'final') return handleFinalizeRegistration();
+    return verifyGuestOtp('phone', cleanForm.phone, code);
   };
 
   const handleResend = async (type) => {
     try {
-      const recipient = type === "phone" ? cleanForm.phone : cleanForm.email;
+      const recipient = type === 'phone' ? cleanForm.phone : cleanForm.email;
       await sendGuestOtp(type, recipient);
-      toast?.({ description: "Check your phone.", title: "Code sent" });
+      toast?.({ description: 'Check your phone.', title: 'Code sent' });
     } catch (error) {
-      toast?.({ description: error.message, title: "Send failed", variant: "destructive" });
+      toast?.({ description: error.message, title: 'Send failed', variant: 'destructive' });
     }
   };
 
@@ -309,14 +317,14 @@ export function useLoginFlow() {
     mounted,
     nextStep,
     prevStep,
-    primaryActionLabel: "Continue",
+    primaryActionLabel: 'Continue',
     setForm,
     setStep,
     status,
     step,
     submitting,
     toggleMode: () => {
-      setStatus({ message: "", type: "" });
+      setStatus({ message: '', type: '' });
       clearSessionPersistence();
       if (isLoginMode) {
         router.push(buildSignupUrl(redirectUrl));

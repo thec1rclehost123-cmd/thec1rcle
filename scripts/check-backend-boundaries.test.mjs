@@ -16,7 +16,7 @@ describe('Backend Boundary Guardrails', () => {
     });
     assert.ok(
       output.includes('All backend boundary checks passed'),
-      `Expected success message in:\n${output}`
+      `Expected success message in:\n${output}`,
     );
   });
 
@@ -31,7 +31,7 @@ describe('Backend Boundary Guardrails', () => {
       const output = err.stdout || err.message;
       assert.ok(
         output.includes('apps/guest-portal/lib/server'),
-        `Expected guest-portal violations in:\n${output}`
+        `Expected guest-portal violations in:\n${output}`,
       );
     }
   });
@@ -47,7 +47,7 @@ describe('Backend Boundary Guardrails', () => {
       const output = err.stdout || err.message;
       assert.ok(
         output.includes('apps/partner-dashboard/lib/server'),
-        `Expected partner-dashboard violations in:\n${output}`
+        `Expected partner-dashboard violations in:\n${output}`,
       );
     }
   });

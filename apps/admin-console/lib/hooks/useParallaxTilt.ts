@@ -1,5 +1,5 @@
-import { useCallback } from "react";
-import { useMotionValue, useSpring, type MotionValue } from "framer-motion";
+import { useCallback } from 'react';
+import { useMotionValue, useSpring, type MotionValue } from 'framer-motion';
 
 export interface UseParallaxTiltOptions {
   intensity?: number;

@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 export function useCancelOrderBridge() {
   const [cancellingOrder, setCancellingOrder] = useState(null);
@@ -13,8 +13,8 @@ export function useCancelOrderBridge() {
       window.__cancelOrderData = null;
     };
 
-    window.addEventListener("openCancelOrder", handler);
-    return () => window.removeEventListener("openCancelOrder", handler);
+    window.addEventListener('openCancelOrder', handler);
+    return () => window.removeEventListener('openCancelOrder', handler);
   }, []);
 
   return {

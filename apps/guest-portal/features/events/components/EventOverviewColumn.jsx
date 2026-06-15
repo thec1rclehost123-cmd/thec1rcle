@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
+import Image from 'next/image';
+import Link from 'next/link';
 import {
   ArrowUpRight,
   Calendar,
@@ -12,13 +12,8 @@ import {
   Sparkles,
   TrendingUp,
   Users,
-} from "lucide-react";
-import {
-  EventCountdown,
-  GlassCard,
-  MiniAvatar,
-  SectionLabel,
-} from "../EventDetailPrimitives";
+} from 'lucide-react';
+import { EventCountdown, GlassCard, MiniAvatar, SectionLabel } from '../EventDetailPrimitives';
 
 export function EventOverviewColumn({
   aboutText,
@@ -53,7 +48,7 @@ export function EventOverviewColumn({
         <div className="min-w-0">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.26em] text-white/60">
             <Sparkles className="h-3 w-3" />
-            {event?.category || "Announcement"}
+            {event?.category || 'Announcement'}
           </div>
 
           <h1 className="mt-4 max-w-4xl font-heading text-[clamp(1.75rem,7vw,4.5rem)] font-black uppercase leading-[0.9] tracking-tight text-white">
@@ -61,14 +56,26 @@ export function EventOverviewColumn({
           </h1>
 
           {tagline ? (
-            <p className="mt-4 max-w-[58ch] text-[15px] leading-7 text-white/65 sm:text-[16px]">{tagline}</p>
+            <p className="mt-4 max-w-[58ch] text-[15px] leading-7 text-white/65 sm:text-[16px]">
+              {tagline}
+            </p>
           ) : null}
 
           <div className="mt-5 flex flex-wrap items-center gap-4">
-            <Link href={hostUrl} className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 transition hover:border-white/20 hover:bg-white/[0.1]">
+            <Link
+              href={hostUrl}
+              className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.06] px-4 py-2.5 transition hover:border-white/20 hover:bg-white/[0.1]"
+            >
               <div className="h-9 w-9 overflow-hidden rounded-full border border-white/15 bg-white/10">
                 {hostAvatar ? (
-                  <Image src={hostAvatar} alt={hostName} width={36} height={36} className="h-full w-full object-cover" unoptimized />
+                  <Image
+                    src={hostAvatar}
+                    alt={hostName}
+                    width={36}
+                    height={36}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
                 ) : (
                   <div className="flex h-full w-full items-center justify-center text-[10px] font-bold text-white/70">
                     {hostName.charAt(0)}
@@ -108,8 +115,12 @@ export function EventOverviewColumn({
             <div className="mt-6 flex flex-col gap-3.5 rounded-[22px] border border-white/10 bg-black/30 p-4 backdrop-blur-md">
               <div className="flex items-center gap-3">
                 <div className="min-w-0">
-                  <div className="text-[14px] font-semibold text-white">{goingLabel || "The line is forming"}</div>
-                  <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">Verified interest on THE C1RCLE</div>
+                  <div className="text-[14px] font-semibold text-white">
+                    {goingLabel || 'The line is forming'}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-white/40">
+                    Verified interest on THE C1RCLE
+                  </div>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap gap-2">
@@ -137,8 +148,11 @@ export function EventOverviewColumn({
       <GlassCard className="p-5 sm:p-6" glowColor={dominantColor}>
         <SectionLabel>About the event</SectionLabel>
 
-        <div className={`mt-4 space-y-3 ${!isDescriptionExpanded ? "line-clamp-4" : ""}`}>
-          {(descriptionParagraphs.length ? descriptionParagraphs : [aboutText || "Details coming soon."]).map((paragraph) => (
+        <div className={`mt-4 space-y-3 ${!isDescriptionExpanded ? 'line-clamp-4' : ''}`}>
+          {(descriptionParagraphs.length
+            ? descriptionParagraphs
+            : [aboutText || 'Details coming soon.']
+          ).map((paragraph) => (
             <p key={paragraph} className="text-[14px] leading-7 text-white/66">
               {paragraph}
             </p>
@@ -150,7 +164,10 @@ export function EventOverviewColumn({
             <SectionLabel>Lineup</SectionLabel>
             <div className="mt-3 flex flex-wrap gap-2">
               {event.artists.map((artist, index) => (
-                <span key={index} className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[12px] font-semibold text-white/80">
+                <span
+                  key={index}
+                  className="rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[12px] font-semibold text-white/80"
+                >
                   {artist.name || artist}
                 </span>
               ))}
@@ -165,9 +182,13 @@ export function EventOverviewColumn({
             className="mt-3 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-white/50 transition hover:text-white"
           >
             {isDescriptionExpanded ? (
-              <>Show Less <ChevronUp className="h-3.5 w-3.5" /></>
+              <>
+                Show Less <ChevronUp className="h-3.5 w-3.5" />
+              </>
             ) : (
-              <>View More <ChevronDown className="h-3.5 w-3.5" /></>
+              <>
+                View More <ChevronDown className="h-3.5 w-3.5" />
+              </>
             )}
           </button>
         ) : null}
@@ -176,7 +197,9 @@ export function EventOverviewColumn({
           className="mt-5 rounded-[22px] border border-white/10 bg-black/20 px-4 py-3"
           style={{ boxShadow: `0 0 28px rgba(${dominantColor}, 0.08)` }}
         >
-          <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">{noteLabel}</div>
+          <div className="text-[9px] font-black uppercase tracking-[0.22em] text-white/35">
+            {noteLabel}
+          </div>
           <div className="mt-2 text-[13px] leading-6 text-white/62">{noteValue}</div>
         </div>
       </GlassCard>
@@ -189,8 +212,12 @@ export function EventOverviewColumn({
                 <Users className="h-3.5 w-3.5" />
                 Guestlist
               </SectionLabel>
-              <div className="mt-3 text-[24px] font-black tracking-[-0.04em] text-white">Who&apos;s Going</div>
-              <div className="mt-2 text-[13px] text-white/48">{goingLabel || "Community arrivals show up here first."}</div>
+              <div className="mt-3 text-[24px] font-black tracking-[-0.04em] text-white">
+                Who&apos;s Going
+              </div>
+              <div className="mt-2 text-[13px] text-white/48">
+                {goingLabel || 'Community arrivals show up here first.'}
+              </div>
             </div>
             <a
               href={appUrl}
@@ -219,7 +246,9 @@ export function EventOverviewColumn({
           <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5">
             <div>
               <SectionLabel>Location</SectionLabel>
-              <div className="mt-3 text-[22px] font-black tracking-[-0.04em] text-white">{venueLabel}</div>
+              <div className="mt-3 text-[22px] font-black tracking-[-0.04em] text-white">
+                {venueLabel}
+              </div>
               {addressLabel ? (
                 <div className="mt-2 flex items-center gap-2 text-[13px] text-white/50">
                   <MapPin className="h-3.5 w-3.5 shrink-0" />
@@ -241,7 +270,7 @@ export function EventOverviewColumn({
 
           <div className="relative h-[200px] sm:h-[280px] md:h-[320px] w-full">
             <iframe
-              title={`${event?.title || "Event"} location`}
+              title={`${event?.title || 'Event'} location`}
               src={mapEmbed}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"

@@ -1,16 +1,17 @@
-import { NextRequest, NextResponse } from "next/server";
-import { requireVenueAccess } from "@/lib/rbac/staffProfileEnforcer";
-import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { NextRequest, NextResponse } from 'next/server';
+import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
+import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-    const { id } = await params;
-    const ctx = await requireVenueAccess(req);
-    if ("error" in ctx) return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
-    const body = await req.json().catch(() => ({}));
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/alerts/${id}/dismiss`, {
-        method: "PATCH",
-        body: JSON.stringify({ venueId: ctx.venueId, ...body }),
-    });
+  const { id } = await params;
+  const ctx = await requireVenueAccess(req);
+  if ('error' in ctx)
+    return NextResponse.json({ success: false, error: ctx.error }, { status: ctx.status });
+  const body = await req.json().catch(() => ({}));
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/alerts/${id}/dismiss`, {
+    method: 'PATCH',
+    body: JSON.stringify({ venueId: ctx.venueId, ...body }),
+  });
 }

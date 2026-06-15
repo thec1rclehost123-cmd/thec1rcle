@@ -1,7 +1,7 @@
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { useLocalSearchParams, router } from "expo-router";
-import { useEffect, useState, useCallback } from "react";
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { useLocalSearchParams, router } from 'expo-router';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,9 @@ import {
   Modal,
   Dimensions,
   Alert,
-} from "react-native";
-import Animated, { FadeIn, FadeInDown, ZoomIn, SlideInUp } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import Animated, { FadeIn, FadeInDown, ZoomIn, SlideInUp } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   EventMedia,
@@ -27,11 +27,10 @@ import {
   takePhoto,
   getEventPhase,
   checkEventEntitlement,
-} from "@/lib/social";
-import { useAuthStore } from "@/store/authStore";
+} from '@/lib/social';
+import { useAuthStore } from '@/store/authStore';
 
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
 const GAP = 2;
 const ITEM_SIZE = (SCREEN_WIDTH - GAP * (COLUMN_COUNT + 1)) / COLUMN_COUNT;
@@ -51,7 +50,7 @@ function MediaGridItem({
       <Pressable onPress={onPress} style={{ width: ITEM_SIZE, height: ITEM_SIZE, margin: GAP / 2 }}>
         <Image
           source={{ uri: media.thumbnailUrl || media.mediaUrl }}
-          style={{ width: "100%", height: "100%" }}
+          style={{ width: '100%', height: '100%' }}
           contentFit="cover"
           transition={200}
         />
@@ -89,13 +88,13 @@ function MediaViewer({
   const isLiked = media.likedBy?.includes(currentUserId);
 
   const formattedDate = media.createdAt?.toDate?.()
-    ? new Date(media.createdAt.toDate()).toLocaleDateString("en-IN", {
-        month: "short",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
+    ? new Date(media.createdAt.toDate()).toLocaleDateString('en-IN', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
       })
-    : "";
+    : '';
 
   return (
     <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
@@ -120,12 +119,12 @@ function MediaViewer({
             <Pressable
               onPress={() => {
                 Alert.alert(
-                  "Options",
+                  'Options',
                   undefined,
                   [
-                    { text: "Cancel", style: "cancel" },
-                    isOwn && { text: "Delete", style: "destructive", onPress: onDelete },
-                    !isOwn && { text: "Report", onPress: onReport },
+                    { text: 'Cancel', style: 'cancel' },
+                    isOwn && { text: 'Delete', style: 'destructive', onPress: onDelete },
+                    !isOwn && { text: 'Report', onPress: onReport },
                   ].filter(Boolean) as any,
                 );
               }}
@@ -160,7 +159,7 @@ function MediaViewer({
               }}
               className="items-center"
             >
-              <Text className="text-3xl">{isLiked ? "❤️" : "🤍"}</Text>
+              <Text className="text-3xl">{isLiked ? '❤️' : '🤍'}</Text>
               <Text className="text-white mt-1">{media.likes}</Text>
             </Pressable>
           </View>
@@ -172,12 +171,12 @@ function MediaViewer({
 
 // Upload progress overlay
 function UploadProgress({ progress }: { progress: MediaUploadProgress | null }) {
-  if (!progress || progress.status === "complete") return null;
+  if (!progress || progress.status === 'complete') return null;
 
   return (
     <View className="absolute inset-0 bg-black/80 items-center justify-center z-50">
       <Animated.View entering={ZoomIn} className="bg-surface rounded-bubble p-8 items-center">
-        {progress.status === "error" ? (
+        {progress.status === 'error' ? (
           <>
             <Text className="text-4xl mb-4">❌</Text>
             <Text className="text-red-400 font-semibold mb-2">Upload Failed</Text>
@@ -187,7 +186,7 @@ function UploadProgress({ progress }: { progress: MediaUploadProgress | null }) 
           <>
             <ActivityIndicator size="large" color="#F44A22" />
             <Text className="text-gold mt-4 font-semibold">
-              {progress.status === "processing" ? "Processing..." : "Uploading..."}
+              {progress.status === 'processing' ? 'Processing...' : 'Uploading...'}
             </Text>
             <View className="w-48 h-2 bg-midnight rounded-full mt-4 overflow-hidden">
               <View
@@ -249,26 +248,26 @@ export default function MediaGalleryScreen() {
     if (!user?.uid || !eventId) return;
 
     Alert.prompt(
-      "Add Caption",
-      "Optional caption for your photo",
+      'Add Caption',
+      'Optional caption for your photo',
       [
-        { text: "Skip", onPress: () => doUpload(uri, undefined) },
+        { text: 'Skip', onPress: () => doUpload(uri, undefined) },
         {
-          text: "Add",
+          text: 'Add',
           onPress: (caption?: string) => doUpload(uri, caption),
         },
       ],
-      "plain-text",
+      'plain-text',
     );
   };
 
   const doUpload = async (uri: string, caption?: string) => {
-    setUploadProgress({ progress: 0, status: "uploading" });
+    setUploadProgress({ progress: 0, status: 'uploading' });
 
     const result = await uploadEventMedia(
       eventId!,
       user!.uid,
-      user!.displayName || "Guest",
+      user!.displayName || 'Guest',
       uri,
       caption,
       setUploadProgress,
@@ -293,10 +292,10 @@ export default function MediaGalleryScreen() {
   };
 
   const handleAddMedia = () => {
-    Alert.alert("Add Photo", "Share a moment from this event", [
-      { text: "Cancel", style: "cancel" },
-      { text: "📷 Take Photo", onPress: handleTakePhoto },
-      { text: "🖼️ From Gallery", onPress: handlePickImage },
+    Alert.alert('Add Photo', 'Share a moment from this event', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: '📷 Take Photo', onPress: handleTakePhoto },
+      { text: '🖼️ From Gallery', onPress: handlePickImage },
     ]);
   };
 
@@ -341,11 +340,11 @@ export default function MediaGalleryScreen() {
   const handleDelete = async () => {
     if (!selectedMedia || !user?.uid) return;
 
-    Alert.alert("Delete Photo", "This cannot be undone.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert('Delete Photo', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: "Delete",
-        style: "destructive",
+        text: 'Delete',
+        style: 'destructive',
         onPress: async () => {
           const result = await deleteMedia(selectedMedia.id, user.uid);
           if (result.success) {
@@ -353,7 +352,7 @@ export default function MediaGalleryScreen() {
             setSelectedMedia(null);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           } else {
-            Alert.alert("Error", result.error || "Failed to delete");
+            Alert.alert('Error', result.error || 'Failed to delete');
           }
         },
       },
@@ -363,15 +362,15 @@ export default function MediaGalleryScreen() {
   const handleReport = async () => {
     if (!selectedMedia || !user?.uid) return;
 
-    Alert.alert("Report Photo", "Report this photo for violating community guidelines?", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert('Report Photo', 'Report this photo for violating community guidelines?', [
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: "Report",
-        style: "destructive",
+        text: 'Report',
+        style: 'destructive',
         onPress: async () => {
-          await reportMedia(selectedMedia.id, user.uid, "inappropriate");
+          await reportMedia(selectedMedia.id, user.uid, 'inappropriate');
           setShowViewer(false);
-          Alert.alert("Reported", "Thank you. We'll review this photo.");
+          Alert.alert('Reported', "Thank you. We'll review this photo.");
         },
       },
     ]);
@@ -395,7 +394,7 @@ export default function MediaGalleryScreen() {
             You need a ticket to view and share event photos
           </Text>
           <Pressable
-            onPress={() => router.push({ pathname: "/event/[id]", params: { id: eventId } })}
+            onPress={() => router.push({ pathname: '/event/[id]', params: { id: eventId } })}
             className="bg-iris px-6 py-3 rounded-pill"
           >
             <Text className="text-white font-semibold">Get Tickets</Text>
@@ -418,7 +417,7 @@ export default function MediaGalleryScreen() {
           setShowViewer(false);
           setSelectedMedia(null);
         }}
-        currentUserId={user?.uid || ""}
+        currentUserId={user?.uid || ''}
         onLike={handleLike}
         onDelete={handleDelete}
         onReport={handleReport}

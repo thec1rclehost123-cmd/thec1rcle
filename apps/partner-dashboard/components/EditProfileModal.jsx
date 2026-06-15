@@ -1,19 +1,19 @@
-"use client";
+'use client';
 
-import { useState, useRef, useCallback, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "./providers/AuthProvider";
-import { getFirebaseStorage } from "../lib/firebase/client";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import Image from "next/image";
-import Cropper from "react-easy-crop";
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useAuth } from './providers/AuthProvider';
+import { getFirebaseStorage } from '../lib/firebase/client';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import Image from 'next/image';
+import Cropper from 'react-easy-crop';
 
 export default function EditProfileModal({ open, onClose }) {
   const { profile, updateUserProfile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [error, setError] = useState("");
-  const [imagePreview, setImagePreview] = useState(profile?.photoURL || "");
+  const [error, setError] = useState('');
+  const [imagePreview, setImagePreview] = useState(profile?.photoURL || '');
   const [cropperOpen, setCropperOpen] = useState(false);
   const [imageSrc, setImageSrc] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -21,10 +21,10 @@ export default function EditProfileModal({ open, onClose }) {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
   const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
-    displayName: profile?.displayName || "",
-    instagram: profile?.instagram || "",
-    photoURL: profile?.photoURL || "",
-    city: profile?.city || "",
+    displayName: profile?.displayName || '',
+    instagram: profile?.instagram || '',
+    photoURL: profile?.photoURL || '',
+    city: profile?.city || '',
   });
 
   const handleChange = (e) => {
@@ -42,16 +42,16 @@ export default function EditProfileModal({ open, onClose }) {
   const createImage = (url) =>
     new Promise((resolve, reject) => {
       const image = new window.Image();
-      image.addEventListener("load", () => resolve(image));
-      image.addEventListener("error", (error) => reject(error));
-      image.setAttribute("crossOrigin", "anonymous");
+      image.addEventListener('load', () => resolve(image));
+      image.addEventListener('error', (error) => reject(error));
+      image.setAttribute('crossOrigin', 'anonymous');
       image.src = url;
     });
 
   const getCroppedImg = async (imageSrc, pixelCrop) => {
     const image = await createImage(imageSrc);
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
 
     canvas.width = pixelCrop.width;
     canvas.height = pixelCrop.height;
@@ -73,7 +73,7 @@ export default function EditProfileModal({ open, onClose }) {
         (blob) => {
           resolve(blob);
         },
-        "image/jpeg",
+        'image/jpeg',
         0.95,
       );
     });
@@ -84,18 +84,18 @@ export default function EditProfileModal({ open, onClose }) {
     if (!file) return;
 
     // Validate file type
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload an image file (JPG, PNG, GIF, etc.)");
+    if (!file.type.startsWith('image/')) {
+      setError('Please upload an image file (JPG, PNG, GIF, etc.)');
       return;
     }
 
     // Validate file size (max 10MB before crop)
     if (file.size > 10 * 1024 * 1024) {
-      setError("Image must be smaller than 10MB");
+      setError('Image must be smaller than 10MB');
       return;
     }
 
-    setError("");
+    setError('');
     const reader = new FileReader();
     reader.onload = () => {
       setImageSrc(reader.result);
@@ -108,7 +108,7 @@ export default function EditProfileModal({ open, onClose }) {
     if (!croppedAreaPixels || !imageSrc) return;
 
     setUploadingImage(true);
-    setError("");
+    setError('');
     setCropperOpen(false);
 
     try {
@@ -127,12 +127,12 @@ export default function EditProfileModal({ open, onClose }) {
       setImagePreview(downloadURL);
       setImageSrc(null);
     } catch (err) {
-      console.error("Upload error:", err);
-      setError("Failed to upload image. Please try again.");
+      console.error('Upload error:', err);
+      setError('Failed to upload image. Please try again.');
     } finally {
       setUploadingImage(false);
       if (fileInputRef.current) {
-        fileInputRef.current.value = "";
+        fileInputRef.current.value = '';
       }
     }
   };
@@ -143,19 +143,19 @@ export default function EditProfileModal({ open, onClose }) {
     setCrop({ x: 0, y: 0 });
     setZoom(1);
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = '';
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    setError("");
+    setError('');
     try {
       await updateUserProfile(formData);
       onClose();
     } catch (err) {
-      setError("Failed to update profile. Please try again.");
+      setError('Failed to update profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -171,7 +171,7 @@ export default function EditProfileModal({ open, onClose }) {
 
   // Use React Portal to render outside of the parent container (which has transforms)
   // This ensures fixed positioning works relative to the viewport
-  const { createPortal } = require("react-dom");
+  const { createPortal } = require('react-dom');
 
   return createPortal(
     <AnimatePresence>
@@ -239,7 +239,7 @@ export default function EditProfileModal({ open, onClose }) {
                       disabled={uploadingImage}
                       className="flex-1 rounded-full bg-gradient-to-r from-iris to-iris-glow px-6 py-3 text-sm uppercase tracking-widest text-white font-bold hover:shadow-lg transition-all disabled:opacity-50"
                     >
-                      {uploadingImage ? "Uploading..." : "Save"}
+                      {uploadingImage ? 'Uploading...' : 'Save'}
                     </button>
                   </div>
                 </div>
@@ -298,7 +298,7 @@ export default function EditProfileModal({ open, onClose }) {
                             />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-2xl font-bold uppercase text-white/40">
-                              {formData.displayName?.charAt(0) || "?"}
+                              {formData.displayName?.charAt(0) || '?'}
                             </div>
                           )}
                         </div>
@@ -318,7 +318,7 @@ export default function EditProfileModal({ open, onClose }) {
                             disabled={uploadingImage}
                             className="w-full rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm text-white transition hover:bg-white/10 disabled:opacity-50"
                           >
-                            {uploadingImage ? "Uploading..." : "Upload Image"}
+                            {uploadingImage ? 'Uploading...' : 'Upload Image'}
                           </button>
                           <p className="mt-2 text-[10px] text-white/40">
                             JPG, PNG, or GIF. Max 10MB.
@@ -379,7 +379,7 @@ export default function EditProfileModal({ open, onClose }) {
                       disabled={loading || uploadingImage}
                       className="w-full rounded-full bg-gradient-to-r from-iris to-iris-glow py-4 text-xs font-bold uppercase tracking-[0.2em] text-white transition hover:shadow-lg hover:scale-105 disabled:opacity-50"
                     >
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? 'Saving...' : 'Save Changes'}
                     </button>
                   </form>
                 </div>

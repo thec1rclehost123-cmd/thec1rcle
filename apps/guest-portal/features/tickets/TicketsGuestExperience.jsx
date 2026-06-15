@@ -1,51 +1,51 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
-import clsx from "clsx";
-import { ChevronLeft, ChevronRight, Crown, Heart, Ticket, User, Users } from "lucide-react";
+import { useState } from 'react';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
+import { ChevronLeft, ChevronRight, Crown, Heart, Ticket, User, Users } from 'lucide-react';
 
 const TICKETS_DATA = [
   {
     id: 1,
-    title: "ACCESS",
-    price: "Free",
+    title: 'ACCESS',
+    price: 'Free',
     icon: Ticket,
-    color: "bg-zinc-900",
-    type: "Standard",
+    color: 'bg-zinc-900',
+    type: 'Standard',
   },
   {
     id: 2,
-    title: "MEMBER",
-    price: "Claim",
+    title: 'MEMBER',
+    price: 'Claim',
     icon: User,
-    color: "bg-zinc-900",
-    type: "Member",
+    color: 'bg-zinc-900',
+    type: 'Member',
   },
   {
     id: 3,
-    title: "VIP",
-    price: "$45.00",
+    title: 'VIP',
+    price: '$45.00',
     icon: Crown,
-    color: "from-orange/20 to-orange/5 border-orange/20",
-    type: "VIP",
+    color: 'from-orange/20 to-orange/5 border-orange/20',
+    type: 'VIP',
   },
   {
     id: 4,
-    title: "COUPLE",
-    price: "$60.00",
+    title: 'COUPLE',
+    price: '$60.00',
     icon: Heart,
-    color: "bg-zinc-900",
-    type: "Standard",
+    color: 'bg-zinc-900',
+    type: 'Standard',
   },
   {
     id: 5,
-    title: "SQUAD",
-    price: "$120.00",
+    title: 'SQUAD',
+    price: '$120.00',
     icon: Users,
-    color: "bg-zinc-900",
-    type: "Standard",
+    color: 'bg-zinc-900',
+    type: 'Standard',
   },
 ];
 
@@ -72,20 +72,26 @@ function TicketCarousel() {
   };
 
   return (
-    <div className="relative w-full h-[400px] sm:h-[500px] flex flex-col items-center justify-center" style={{ perspective: "1000px" }}>
+    <div
+      className="relative w-full h-[400px] sm:h-[500px] flex flex-col items-center justify-center"
+      style={{ perspective: '1000px' }}
+    >
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-orange/10 rounded-full blur-[120px] pointer-events-none" />
 
       <div className="relative h-[450px] w-full flex justify-center items-center">
         <motion.div
           className="absolute w-[600px] h-[600px] rounded-full blur-[120px] pointer-events-none"
           animate={{
-            backgroundColor: TICKETS_DATA[activeIndex].type === "VIP" ? "rgba(255, 165, 0, 0.5)" : "rgba(255, 255, 255, 0.2)",
+            backgroundColor:
+              TICKETS_DATA[activeIndex].type === 'VIP'
+                ? 'rgba(255, 165, 0, 0.5)'
+                : 'rgba(255, 255, 255, 0.2)',
             scale: [1, 1.3],
             opacity: [0.15, 0.45],
           }}
           transition={{
-            scale: { duration: 8, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" },
-            opacity: { duration: 8, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" },
+            scale: { duration: 8, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
+            opacity: { duration: 8, repeat: Infinity, repeatType: 'mirror', ease: 'easeInOut' },
             backgroundColor: { duration: 1 },
           }}
         />
@@ -100,15 +106,15 @@ function TicketCarousel() {
                 layout
                 onClick={() => setActiveIndex(index)}
                 className={clsx(
-                  "absolute w-[260px] h-[420px] rounded-[32px] cursor-pointer flex flex-col justify-between p-6 overflow-hidden",
-                  "bg-gradient-to-br border shadow-2xl backdrop-blur-md",
-                  isActive ? "border-white/20 z-50" : "border-white/5",
-                  ticket.color.includes("from-") ? ticket.color : "bg-zinc-900",
+                  'absolute w-[260px] h-[420px] rounded-[32px] cursor-pointer flex flex-col justify-between p-6 overflow-hidden',
+                  'bg-gradient-to-br border shadow-2xl backdrop-blur-md',
+                  isActive ? 'border-white/20 z-50' : 'border-white/5',
+                  ticket.color.includes('from-') ? ticket.color : 'bg-zinc-900',
                 )}
                 style={{
                   boxShadow: isActive
-                    ? "0 25px 50px -12px rgba(0, 0, 0, 0.5)"
-                    : "0 10px 30px -10px rgba(0, 0, 0, 0.8)",
+                    ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                    : '0 10px 30px -10px rgba(0, 0, 0, 0.8)',
                 }}
                 initial={false}
                 animate={{
@@ -128,8 +134,8 @@ function TicketCarousel() {
               >
                 <motion.div
                   className="absolute inset-x-0 top-0 h-[200%] w-[100%] bg-gradient-to-b from-transparent via-white/5 to-transparent -skew-y-12 pointer-events-none"
-                  animate={{ y: ["-100%", "100%"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear", delay: index * 0.4 }}
+                  animate={{ y: ['-100%', '100%'] }}
+                  transition={{ duration: 3, repeat: Infinity, ease: 'linear', delay: index * 0.4 }}
                 />
 
                 {isActive && (
@@ -157,7 +163,7 @@ function TicketCarousel() {
                       duration: 3 + sparkIndex,
                       repeat: Infinity,
                       delay: sparkIndex * 1,
-                      ease: "easeInOut",
+                      ease: 'easeInOut',
                     }}
                     style={{
                       left: `${20 + sparkIndex * 30}%`,
@@ -167,17 +173,29 @@ function TicketCarousel() {
                 ))}
 
                 <div className="relative flex justify-between items-start">
-                  <div className={clsx(
-                    "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
-                    isActive ? "bg-white/10 border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "bg-white/5 border border-white/5",
-                  )}>
-                    <ticket.icon className={clsx(
-                      "w-6 h-6 transition-all duration-500",
-                      isActive ? (ticket.type === "VIP" ? "text-orange animate-pulse" : "text-white") : "text-white/20",
-                    )} />
+                  <div
+                    className={clsx(
+                      'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500',
+                      isActive
+                        ? 'bg-white/10 border border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.1)]'
+                        : 'bg-white/5 border border-white/5',
+                    )}
+                  >
+                    <ticket.icon
+                      className={clsx(
+                        'w-6 h-6 transition-all duration-500',
+                        isActive
+                          ? ticket.type === 'VIP'
+                            ? 'text-orange animate-pulse'
+                            : 'text-white'
+                          : 'text-white/20',
+                      )}
+                    />
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[9px] font-bold tracking-[0.2em] text-white/40">THE C1RCLE</span>
+                    <span className="text-[9px] font-bold tracking-[0.2em] text-white/40">
+                      THE C1RCLE
+                    </span>
                     <div className="h-0.5 w-8 bg-white/20 mt-1" />
                   </div>
                 </div>
@@ -185,18 +203,18 @@ function TicketCarousel() {
                 <div className="relative text-center my-auto transform rotate-[-90deg] translate-y-4">
                   <h2
                     className={clsx(
-                      ticket.title.length > 6 ? "text-4xl md:text-6xl" : "text-5xl md:text-7xl",
-                      "font-heading font-black uppercase tracking-tighter whitespace-nowrap transition-all duration-500",
-                      isActive ? "text-white" : "text-white/20",
+                      ticket.title.length > 6 ? 'text-4xl md:text-6xl' : 'text-5xl md:text-7xl',
+                      'font-heading font-black uppercase tracking-tighter whitespace-nowrap transition-all duration-500',
+                      isActive ? 'text-white' : 'text-white/20',
                     )}
                   >
                     {ticket.title}
                   </h2>
-                  {isActive && ticket.type === "VIP" && (
+                  {isActive && ticket.type === 'VIP' && (
                     <motion.div
                       className="absolute -inset-2 bg-orange/20 blur-xl rounded-full -z-10"
                       animate={{ opacity: [0.4, 0.7, 0.4] }}
-                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                      transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
                     />
                   )}
                 </div>
@@ -204,7 +222,9 @@ function TicketCarousel() {
                 <div className="relative w-full">
                   <div className="flex justify-between items-end mb-4">
                     <div>
-                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">Price</p>
+                      <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest mb-1">
+                        Price
+                      </p>
                       <p className="text-lg font-bold text-white">{ticket.price}</p>
                     </div>
                     <div className="h-8 w-12 rounded bg-white/10 flex items-center justify-center">
@@ -215,12 +235,14 @@ function TicketCarousel() {
                     </div>
                   </div>
 
-                  <div className={clsx(
-                    "w-full py-3 rounded-xl flex items-center justify-center gap-2 transition-colors",
-                    isActive ? "bg-white text-black" : "bg-white/10 text-white/60",
-                  )}>
+                  <div
+                    className={clsx(
+                      'w-full py-3 rounded-xl flex items-center justify-center gap-2 transition-colors',
+                      isActive ? 'bg-white text-black' : 'bg-white/10 text-white/60',
+                    )}
+                  >
                     <span className="text-[10px] font-bold uppercase tracking-widest">
-                      {isActive ? "Select Ticket" : "View"}
+                      {isActive ? 'Select Ticket' : 'View'}
                     </span>
                   </div>
                 </div>
@@ -269,12 +291,17 @@ export function TicketsGuestView() {
             transition={{ duration: 0.5 }}
           >
             <h2 className="text-3xl sm:text-5xl md:text-7xl font-heading font-black uppercase tracking-tighter text-black dark:text-white mb-6 leading-[0.85]">
-              Your <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">Pass</span> <br />
+              Your{' '}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange to-gold">
+                Pass
+              </span>{' '}
+              <br />
               To The Circle
             </h2>
 
             <p className="text-sm font-medium text-black/60 dark:text-white/60 leading-relaxed max-w-md mb-10 mx-auto lg:mx-0">
-              Secure your spot at exclusive events. Your digital wallet for instant access, live updates, and effortless entry.
+              Secure your spot at exclusive events. Your digital wallet for instant access, live
+              updates, and effortless entry.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full max-w-md mx-auto lg:mx-0">

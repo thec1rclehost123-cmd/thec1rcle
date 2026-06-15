@@ -1,33 +1,33 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
+import { motion } from 'framer-motion';
 
 export default function TermsPage() {
   const sections = [
     {
-      title: "The Vibe Agreement",
+      title: 'The Vibe Agreement',
       content:
-        "By using The C1rcle, you agree to contribute to a positive, safe, and exciting ecosystem. This is a community platform for discovering real-life experiences. Hostile, discriminatory, or harassing behavior will result in an immediate and permanent shadow-ban.",
+        'By using The C1rcle, you agree to contribute to a positive, safe, and exciting ecosystem. This is a community platform for discovering real-life experiences. Hostile, discriminatory, or harassing behavior will result in an immediate and permanent shadow-ban.',
     },
     {
-      title: "Ticketing & Refuns",
+      title: 'Ticketing & Refuns',
       content:
-        "The C1rcle is a platform that facilitates transactions between hosts and attendees. Refund policies are set by individual event hosts. Unless an event is cancelled, all ticket sales are final. If an event is cancelled, we will work with the host to ensure your funds are returned safely.",
+        'The C1rcle is a platform that facilitates transactions between hosts and attendees. Refund policies are set by individual event hosts. Unless an event is cancelled, all ticket sales are final. If an event is cancelled, we will work with the host to ensure your funds are returned safely.',
     },
     {
-      title: "Host Responsibilities",
+      title: 'Host Responsibilities',
       content:
-        "Hosts are responsible for the safety and execution of their events. The C1rcle provides the tools, but the host provides the experience. All hosts must adhere to local laws and regulations regarding venue safety and alcohol service.",
+        'Hosts are responsible for the safety and execution of their events. The C1rcle provides the tools, but the host provides the experience. All hosts must adhere to local laws and regulations regarding venue safety and alcohol service.',
     },
     {
-      title: "Intellectual Property",
+      title: 'Intellectual Property',
       content:
         "The designs, code, and brand 'The C1rcle' are our property. The content you upload (event descriptions, images) remains yours, but you grant us a license to display it on our platform for your event's promotion.",
     },
     {
-      title: "Account Security",
+      title: 'Account Security',
       content:
-        "You are responsible for keeping your login credentials safe. If you suspect your account has been compromised, notify us immediately. We will never ask for your password via email or social media.",
+        'You are responsible for keeping your login credentials safe. If you suspect your account has been compromised, notify us immediately. We will never ask for your password via email or social media.',
     },
   ];
 

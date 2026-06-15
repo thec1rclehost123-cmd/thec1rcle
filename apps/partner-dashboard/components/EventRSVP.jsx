@@ -1,42 +1,42 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
-import { motion } from "framer-motion";
-import TicketModal from "./TicketModal";
-import GuestlistModal from "./GuestlistModal";
-import { useAuth } from "./providers/AuthProvider";
-import { useToast } from "./providers/ToastProvider";
-import LikeButton from "./LikeButton";
-import { saveIntent } from "../lib/utils/intentStore";
+import Image from 'next/image';
+import Link from 'next/link';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import TicketModal from './TicketModal';
+import GuestlistModal from './GuestlistModal';
+import { useAuth } from './providers/AuthProvider';
+import { useToast } from './providers/ToastProvider';
+import LikeButton from './LikeButton';
+import { saveIntent } from '../lib/utils/intentStore';
 
-const avatarPalette = ["#FDE047", "#F43F5E", "#A855F7", "#38BDF8", "#34D399", "#F97316"];
+const avatarPalette = ['#FDE047', '#F43F5E', '#A855F7', '#38BDF8', '#34D399', '#F97316'];
 const fallbackGuests = [
-  "Ari",
-  "Dev",
-  "Ira",
-  "Nia",
-  "Vik",
-  "Reva",
-  "Luna",
-  "Taj",
-  "Mira",
-  "Noah",
-  "Kian",
-  "Sara",
+  'Ari',
+  'Dev',
+  'Ira',
+  'Nia',
+  'Vik',
+  'Reva',
+  'Luna',
+  'Taj',
+  'Mira',
+  'Noah',
+  'Kian',
+  'Sara',
 ];
 const fallbackTickets = [
-  { id: "ga", name: "General Admission", price: 899, quantity: 200 },
-  { id: "vip", name: "VIP Booth", price: 3200, quantity: 12 },
-  { id: "crew", name: "Creator Tables", price: 0, quantity: 0 },
+  { id: 'ga', name: 'General Admission', price: 899, quantity: 200 },
+  { id: 'vip', name: 'VIP Booth', price: 3200, quantity: 12 },
+  { id: 'crew', name: 'Creator Tables', price: 0, quantity: 0 },
 ];
 
 const shareActions = [
-  { id: "copy", label: "Copy link", Icon: CopyIcon },
-  { id: "whatsapp", label: "Share on WhatsApp", Icon: WhatsappIcon },
-  { id: "instagram", label: "Share on Instagram", Icon: InstagramIcon },
+  { id: 'copy', label: 'Copy link', Icon: CopyIcon },
+  { id: 'whatsapp', label: 'Share on WhatsApp', Icon: WhatsappIcon },
+  { id: 'instagram', label: 'Share on Instagram', Icon: InstagramIcon },
 ];
 
 const sectionVariants = {
@@ -44,16 +44,16 @@ const sectionVariants = {
   visible: { opacity: 1, y: 0 },
 };
 
-const initials = (name = "") =>
+const initials = (name = '') =>
   name
-    .split(" ")
+    .split(' ')
     .map((part) => part[0])
-    .join("")
+    .join('')
     .slice(0, 2)
     .toUpperCase();
 
 const buildHandle = (name, index) => {
-  const safe = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const safe = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   return `@${safe || `guest${index}`}`;
 };
 
@@ -74,12 +74,12 @@ const createGuestDirectory = (guests = []) => {
 
 const ticketState = (quantity = 0) => {
   if (quantity <= 0) {
-    return { label: "Sold Out", tone: "border-red-500/20 text-red-200 bg-red-500/10" };
+    return { label: 'Sold Out', tone: 'border-red-500/20 text-red-200 bg-red-500/10' };
   }
   if (quantity < 35) {
-    return { label: "Few Left", tone: "border-amber-400/40 text-amber-200 bg-amber-500/10" };
+    return { label: 'Few Left', tone: 'border-amber-400/40 text-amber-200 bg-amber-500/10' };
   }
-  return { label: "Available", tone: "border-emerald-400/30 text-emerald-200 bg-emerald-500/10" };
+  return { label: 'Available', tone: 'border-emerald-400/30 text-emerald-200 bg-emerald-500/10' };
 };
 
 export default function EventRSVP({ event, host }) {
@@ -95,40 +95,40 @@ export default function EventRSVP({ event, host }) {
   const guestDirectory = useMemo(() => createGuestDirectory(event?.guests), [event?.guests]);
   const previewGuests = guestDirectory.slice(0, 6);
   const tickets = event?.tickets?.length ? event.tickets : fallbackTickets;
-  const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(event?.location || "Pune, India")}&z=14&ie=UTF8&iwloc=&output=embed`;
+  const mapSrc = `https://maps.google.com/maps?q=${encodeURIComponent(event?.location || 'Pune, India')}&z=14&ie=UTF8&iwloc=&output=embed`;
   const gradientStart = Array.isArray(event?.gradient)
     ? event.gradient[0]
-    : event?.gradientStart || "#18181b";
+    : event?.gradientStart || '#18181b';
   const gradientEnd = Array.isArray(event?.gradient)
     ? event.gradient[1]
-    : event?.gradientEnd || "#0b0b0f";
+    : event?.gradientEnd || '#0b0b0f';
   const guestCount = event?.guestCount ?? 580 + previewGuests.length * 14;
 
   const hasRSVPd = Boolean(event?.id && profile?.attendedEvents?.includes(event.id));
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("autoBook") === "true") {
+      if (params.get('autoBook') === 'true') {
         setTicketModalOpen(true);
         // Clean up the URL
         const newUrl = window.location.pathname;
-        window.history.replaceState({ ...window.history.state }, "", newUrl);
+        window.history.replaceState({ ...window.history.state }, '', newUrl);
       }
     }
   }, []);
 
   useEffect(() => {
     const handleOpenTicketModal = () => setTicketModalOpen(true);
-    window.addEventListener("OPEN_TICKET_MODAL", handleOpenTicketModal);
-    return () => window.removeEventListener("OPEN_TICKET_MODAL", handleOpenTicketModal);
+    window.addEventListener('OPEN_TICKET_MODAL', handleOpenTicketModal);
+    return () => window.removeEventListener('OPEN_TICKET_MODAL', handleOpenTicketModal);
   }, []);
 
   const ensureAuthenticated = (type) => {
     if (user) return true;
     saveIntent(type, event?.id);
     window.dispatchEvent(
-      new CustomEvent("OPEN_AUTH_MODAL", {
+      new CustomEvent('OPEN_AUTH_MODAL', {
         detail: { intent: type, eventId: event?.id },
       }),
     );
@@ -140,10 +140,10 @@ export default function EventRSVP({ event, host }) {
 
     if (openTickets) {
       if (!user) {
-        saveIntent("BOOK", event.id);
+        saveIntent('BOOK', event.id);
         window.dispatchEvent(
-          new CustomEvent("OPEN_AUTH_MODAL", {
-            detail: { intent: "BOOK", eventId: event.id },
+          new CustomEvent('OPEN_AUTH_MODAL', {
+            detail: { intent: 'BOOK', eventId: event.id },
           }),
         );
         return;
@@ -152,40 +152,40 @@ export default function EventRSVP({ event, host }) {
       return;
     }
 
-    if (!ensureAuthenticated("RSVP")) return;
+    if (!ensureAuthenticated('RSVP')) return;
     setRsvpLoading(true);
     try {
-      await updateEventList("attendedEvents", event.id, !hasRSVPd);
-      toast(!hasRSVPd ? "RSVP confirmed" : "RSVP removed", "success");
+      await updateEventList('attendedEvents', event.id, !hasRSVPd);
+      toast(!hasRSVPd ? 'RSVP confirmed' : 'RSVP removed', 'success');
     } catch (error) {
-      console.error("RSVP update failed", error);
-      toast("Unable to update RSVP status.", "error");
+      console.error('RSVP update failed', error);
+      toast('Unable to update RSVP status.', 'error');
     } finally {
       setRsvpLoading(false);
     }
   };
 
   const handleShare = (target) => {
-    if (typeof window === "undefined") return;
+    if (typeof window === 'undefined') return;
     const url = window.location.href;
-    const payload = `${event?.title || "THE C1RCLE event"} • ${url}`;
-    if (target === "copy") {
+    const payload = `${event?.title || 'THE C1RCLE event'} • ${url}`;
+    if (target === 'copy') {
       navigator.clipboard
         ?.writeText(url)
-        .then(() => toast("Link copied to clipboard", "success"))
-        .catch(() => toast("Unable to copy link", "error"));
+        .then(() => toast('Link copied to clipboard', 'success'))
+        .catch(() => toast('Unable to copy link', 'error'));
       return;
     }
     const encoded = encodeURIComponent(payload);
-    if (target === "whatsapp") {
-      window.open(`https://wa.me/?text=${encoded}`, "_blank", "noopener,noreferrer");
+    if (target === 'whatsapp') {
+      window.open(`https://wa.me/?text=${encoded}`, '_blank', 'noopener,noreferrer');
       return;
     }
-    if (target === "instagram") {
+    if (target === 'instagram') {
       window.open(
         `https://www.instagram.com/?url=${encodeURIComponent(url)}`,
-        "_blank",
-        "noopener,noreferrer",
+        '_blank',
+        'noopener,noreferrer',
       );
     }
   };
@@ -194,7 +194,7 @@ export default function EventRSVP({ event, host }) {
     backgroundImage: `linear-gradient(120deg, ${gradientStart}, ${gradientEnd})`,
   };
 
-  console.log("EventRSVP render:", { eventId: event?.id, image: event?.image });
+  console.log('EventRSVP render:', { eventId: event?.id, image: event?.image });
 
   return (
     <div className="relative isolate overflow-hidden pb-28 pt-2 text-white">
@@ -206,7 +206,7 @@ export default function EventRSVP({ event, host }) {
         {event?.image ? (
           <motion.div
             className="relative h-full w-full"
-            layoutId={`event-image-${event?.id || ""}`}
+            layoutId={`event-image-${event?.id || ''}`}
           >
             <Image
               src={event.image}
@@ -222,7 +222,7 @@ export default function EventRSVP({ event, host }) {
             className="absolute inset-0"
             style={{
               backgroundImage: `linear-gradient(180deg, ${gradientStart}, rgba(0,0,0,0.1) 60%, #000)`,
-              filter: "blur(50px)",
+              filter: 'blur(50px)',
               opacity: 0.5,
             }}
           />
@@ -238,13 +238,13 @@ export default function EventRSVP({ event, host }) {
           <div>
             <p>{event?.host}</p>
             <p className="text-[11px] text-white/70">
-              {event?.date} · {event?.time || "Time TBA"}
+              {event?.date} · {event?.time || 'Time TBA'}
             </p>
           </div>
           <div className="flex items-center gap-3 text-white">
             <LikeButton
               eventId={event?.id}
-              onAuthRequired={() => window.dispatchEvent(new CustomEvent("OPEN_AUTH_MODAL"))}
+              onAuthRequired={() => window.dispatchEvent(new CustomEvent('OPEN_AUTH_MODAL'))}
             />
             {shareActions.map(({ id, label, Icon }) => (
               <button
@@ -280,7 +280,7 @@ export default function EventRSVP({ event, host }) {
             </div>
             <div className="flex flex-col items-end gap-2 text-right text-sm text-white/70">
               <span className="rounded-full border border-white/20 px-4 py-1 text-[11px] uppercase tracking-[0.4em] text-white/60">
-                {event?.category || "Drop"}
+                {event?.category || 'Drop'}
               </span>
             </div>
           </div>
@@ -315,7 +315,7 @@ export default function EventRSVP({ event, host }) {
                 }
                 className="rounded-full bg-white/90 px-6 py-2 text-[11px] uppercase tracking-[0.45em] text-black transition hover:bg-white"
               >
-                {event?.isFree ? "Get On List" : "Buy Tickets"}
+                {event?.isFree ? 'Get On List' : 'Buy Tickets'}
               </button>
             </div>
           </div>
@@ -327,7 +327,7 @@ export default function EventRSVP({ event, host }) {
               variants={sectionVariants}
               initial="hidden"
               whileInView="visible"
-              viewport={{ once: true, margin: "-120px" }}
+              viewport={{ once: true, margin: '-120px' }}
               transition={{ duration: 0.55 }}
               className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow"
             >
@@ -336,7 +336,7 @@ export default function EventRSVP({ event, host }) {
               <div className="mt-6 rounded-3xl border border-white/10 bg-gradient-to-br from-white/5 via-transparent to-white/5 p-4 text-sm text-white/70">
                 <p className="text-xs uppercase tracking-[0.4em] text-white/40">Schedule</p>
                 <p className="mt-2 text-white">
-                  {event?.date} · {event?.time || "Time TBA"}
+                  {event?.date} · {event?.time || 'Time TBA'}
                 </p>
                 <p className="text-white/60">
                   Doors hold your RSVP for 30 minutes past start time.
@@ -348,7 +348,7 @@ export default function EventRSVP({ event, host }) {
               variants={sectionVariants}
               initial="hidden"
               whileInView="visible"
-              viewport={{ once: true, margin: "-120px" }}
+              viewport={{ once: true, margin: '-120px' }}
               transition={{ duration: 0.55, delay: 0.05 }}
               className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow"
             >
@@ -400,7 +400,7 @@ export default function EventRSVP({ event, host }) {
               variants={sectionVariants}
               initial="hidden"
               whileInView="visible"
-              viewport={{ once: true, margin: "-120px" }}
+              viewport={{ once: true, margin: '-120px' }}
               transition={{ duration: 0.55, delay: 0.1 }}
               className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow"
             >
@@ -429,7 +429,7 @@ export default function EventRSVP({ event, host }) {
               variants={sectionVariants}
               initial="hidden"
               whileInView="visible"
-              viewport={{ once: true, margin: "-120px" }}
+              viewport={{ once: true, margin: '-120px' }}
               transition={{ duration: 0.55, delay: 0.15 }}
               className="glass-panel rounded-[36px] border border-white/10 bg-black/70 p-6 shadow-glow space-y-6"
             >
@@ -439,8 +439,8 @@ export default function EventRSVP({ event, host }) {
               >
                 <div className="relative h-16 w-16 overflow-hidden rounded-2xl border border-white/15 transition-all group-hover:border-white/40 group-hover:scale-105">
                   <Image
-                    src={host?.avatar || "/events/holi-edit.svg"}
-                    alt={host?.name || "Host"}
+                    src={host?.avatar || '/events/holi-edit.svg'}
+                    alt={host?.name || 'Host'}
                     fill
                     className="object-cover"
                   />
@@ -476,7 +476,7 @@ export default function EventRSVP({ event, host }) {
             variants={sectionVariants}
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true, margin: "-120px" }}
+            viewport={{ once: true, margin: '-120px' }}
             transition={{ duration: 0.55, delay: 0.2 }}
             className="mt-8 space-y-6 lg:mt-0"
           >
@@ -516,11 +516,11 @@ export default function EventRSVP({ event, host }) {
                   onClick={() => setTicketModalOpen(true)}
                   className="w-full rounded-full bg-white px-5 py-3 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90"
                 >
-                  {event?.isFree ? "RSVP Options" : "See Tickets"}
+                  {event?.isFree ? 'RSVP Options' : 'See Tickets'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleShare("copy")}
+                  onClick={() => handleShare('copy')}
                   className="w-full rounded-full border border-white/20 px-5 py-3 text-[11px] uppercase tracking-[0.4em] text-white/90 transition hover:border-white/50"
                 >
                   Get RSVP Link
@@ -574,7 +574,7 @@ export default function EventRSVP({ event, host }) {
           {hasRSVPd ? (
             <>
               <p className="text-white/80">
-                You have {event?.isFree ? "RSVP’d to" : "tickets for"} this event.
+                You have {event?.isFree ? 'RSVP’d to' : 'tickets for'} this event.
               </p>
               {event?.isFree && (
                 <button
@@ -583,7 +583,7 @@ export default function EventRSVP({ event, host }) {
                   onClick={() => handleRSVP()}
                   className="rounded-full border border-white/20 px-4 py-1 text-[11px] uppercase tracking-[0.35em] text-white/80 transition hover:border-white/60 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {rsvpLoading ? "Updating..." : "Cancel RSVP"}
+                  {rsvpLoading ? 'Updating...' : 'Cancel RSVP'}
                 </button>
               )}
               {!event?.isFree && (
@@ -600,11 +600,11 @@ export default function EventRSVP({ event, host }) {
             <>
               <div>
                 <p className="text-white font-semibold uppercase tracking-[0.35em]">
-                  {event?.isFree ? "Get on the list" : "Tickets Available"}
+                  {event?.isFree ? 'Get on the list' : 'Tickets Available'}
                 </p>
                 <p className="text-xs text-white/60">
                   {event?.isFree
-                    ? "Secure your RSVP before doors close."
+                    ? 'Secure your RSVP before doors close.'
                     : `Starting from ₹${event?.priceRange?.min || event?.startingPrice || 0}`}
                 </p>
               </div>
@@ -616,7 +616,7 @@ export default function EventRSVP({ event, host }) {
                 }
                 className="rounded-full bg-white px-6 py-2 text-[11px] uppercase tracking-[0.4em] text-black transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
               >
-                {rsvpLoading ? "Processing..." : event?.isFree ? "RSVP Now" : "Buy Tickets"}
+                {rsvpLoading ? 'Processing...' : event?.isFree ? 'RSVP Now' : 'Buy Tickets'}
               </button>
             </>
           )}

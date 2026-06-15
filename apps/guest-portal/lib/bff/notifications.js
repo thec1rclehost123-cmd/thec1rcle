@@ -1,18 +1,18 @@
-import { normalizeBootstrapPayload } from "../../features/auth/utils/authSessionModel.js";
+import { normalizeBootstrapPayload } from '../../features/auth/utils/authSessionModel.js';
 import {
   buildGuestBffError,
   buildGuestBffResult,
   buildGuestBffUpstreamTrace,
   getGuestBffUpstreamError,
   guestBffUpstreamJson,
-} from "./server.js";
+} from './server.js';
 
 export async function buildNotificationsSummaryView({
   countOnly = false,
   limit = 50,
   unreadOnly = false,
 } = {}) {
-  const authResult = await guestBffUpstreamJson("/auth/me");
+  const authResult = await guestBffUpstreamJson('/auth/me');
   const auth = authResult.response.ok
     ? normalizeBootstrapPayload(authResult.data)
     : { user: null, profile: null, unreadNotificationCount: 0 };
@@ -31,8 +31,8 @@ export async function buildNotificationsSummaryView({
           count: 0,
         },
       },
-      error: buildGuestBffError("Authentication required.", {
-        code: "UNAUTHORIZED",
+      error: buildGuestBffError('Authentication required.', {
+        code: 'UNAUTHORIZED',
         requestId: authResult.requestId,
         status: 401,
       }),
@@ -46,15 +46,15 @@ export async function buildNotificationsSummaryView({
   }
 
   const listParams = new URLSearchParams();
-  const countParams = new URLSearchParams({ countOnly: "true" });
-  if (unreadOnly) listParams.set("unreadOnly", "true");
-  if (limit) listParams.set("limit", String(limit));
+  const countParams = new URLSearchParams({ countOnly: 'true' });
+  if (unreadOnly) listParams.set('unreadOnly', 'true');
+  if (limit) listParams.set('limit', String(limit));
 
   const [notificationsResult, unreadCountResult] = await Promise.all([
     countOnly
       ? Promise.resolve(null)
       : guestBffUpstreamJson(
-          `/guest-notifications${listParams.toString() ? `?${listParams.toString()}` : ""}`,
+          `/guest-notifications${listParams.toString() ? `?${listParams.toString()}` : ''}`,
         ),
     guestBffUpstreamJson(`/guest-notifications?${countParams.toString()}`),
   ]);
@@ -75,10 +75,7 @@ export async function buildNotificationsSummaryView({
         },
       },
       error: buildGuestBffError(
-        getGuestBffUpstreamError(
-          failingResult?.data,
-          "Failed to load notifications.",
-        ),
+        getGuestBffUpstreamError(failingResult?.data, 'Failed to load notifications.'),
         {
           requestId: failingResult?.requestId || authResult.requestId,
           status: failingResult?.response?.status || 502,
@@ -88,7 +85,11 @@ export async function buildNotificationsSummaryView({
         countOnly,
         requestId: authResult.requestId,
         unreadOnly,
-        upstreamCalls: buildGuestBffUpstreamTrace(authResult, notificationsResult, unreadCountResult),
+        upstreamCalls: buildGuestBffUpstreamTrace(
+          authResult,
+          notificationsResult,
+          unreadCountResult,
+        ),
       },
     });
   }

@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowLeft, Moon, Search } from "lucide-react";
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { ArrowLeft, Moon, Search } from 'lucide-react';
 
 export default function NotFound() {
   return (
@@ -18,7 +18,7 @@ export default function NotFound() {
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
           className="mb-8 relative"
         >
           <h1 className="font-heading text-[12rem] font-black leading-none tracking-tighter text-transparent sm:text-[16rem]">
@@ -30,7 +30,7 @@ export default function NotFound() {
           {/* Floating Elements */}
           <motion.div
             animate={{ y: [-10, 10, -10] }}
-            transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
             className="absolute -right-12 top-1/2 hidden sm:block"
           >
             <Moon className="h-16 w-16 text-gold/50" />

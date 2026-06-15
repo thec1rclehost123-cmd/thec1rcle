@@ -1,14 +1,14 @@
-import { Suspense } from "react";
-import PageClient from "./PageClient";
+import { Suspense } from 'react';
+import PageClient from './PageClient';
 
 export const metadata = {
-    title: "Marketing — Venue",
+  title: 'Marketing — Venue',
 };
 
 export default function VenueMarketingPage() {
-    return (
-        <Suspense>
-            <PageClient />
-        </Suspense>
-    );
+  return (
+    <Suspense>
+      <PageClient />
+    </Suspense>
+  );
 }

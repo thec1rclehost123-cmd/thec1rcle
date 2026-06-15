@@ -5,7 +5,7 @@
  * Heavy lifting moved to @c1rcle/core/inventory-engine via API Gateway.
  */
 
-import { getApiClient } from "./apiClient";
+import { getApiClient } from './apiClient';
 
 /**
  * Get inventory summary for an event
@@ -16,7 +16,7 @@ export async function getInventorySummary(eventId, token) {
     const data = await client.getEventInventory(eventId);
     return data.summary || null;
   } catch (error) {
-    console.error("[InventoryService] getInventorySummary failed:", error.message);
+    console.error('[InventoryService] getInventorySummary failed:', error.message);
     throw error;
   }
 }
@@ -27,7 +27,7 @@ export async function getInventorySummary(eventId, token) {
 export async function checkAvailability(eventId, items, token) {
   const client = getApiClient(token);
   return client.request(`/inventory/${eventId}/check`, {
-    method: "POST",
+    method: 'POST',
     body: JSON.stringify({ items }),
   });
 }
@@ -38,7 +38,7 @@ export async function checkAvailability(eventId, items, token) {
 export async function releaseReservation(reservationId, token) {
   const client = getApiClient(token);
   return client.request(`/inventory/reservations/${reservationId}`, {
-    method: "DELETE",
+    method: 'DELETE',
   });
 }
 

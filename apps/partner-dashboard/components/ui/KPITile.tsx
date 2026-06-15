@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { ReactNode } from "react";
-import { motion } from "framer-motion";
-import { ArrowUp, ArrowDown, Minus } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowUp, ArrowDown, Minus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
  * KPI Tile Component — Bloomberg-Style Metric Display
- * 
+ *
  * Features:
  * - Large, readable numbers with tabular numeric alignment
  * - Trend indicators with color coding
@@ -16,333 +16,318 @@ import { cn } from "@/lib/utils";
  * - Currency formatting support (₹ and $)
  */
 
-export type KPIState = "default" | "success" | "warning" | "error" | "info" | "accent";
-export type TrendDirection = "up" | "down" | "neutral";
-export type CurrencyType = "INR" | "USD" | "none";
+export type KPIState = 'default' | 'success' | 'warning' | 'error' | 'info' | 'accent';
+export type TrendDirection = 'up' | 'down' | 'neutral';
+export type CurrencyType = 'INR' | 'USD' | 'none';
 
 interface KPITileProps {
-    label: string;
-    value: string | number;
-    trend?: {
-        value: string;
-        direction: TrendDirection;
-        isPositive?: boolean; // Override: sometimes down is good
-    };
-    subtext?: string;
-    icon?: ReactNode;
-    state?: KPIState;
-    currency?: CurrencyType;
-    compact?: boolean;
-    interactive?: boolean;
-    onClick?: () => void;
-    className?: string;
+  label: string;
+  value: string | number;
+  trend?: {
+    value: string;
+    direction: TrendDirection;
+    isPositive?: boolean; // Override: sometimes down is good
+  };
+  subtext?: string;
+  icon?: ReactNode;
+  state?: KPIState;
+  currency?: CurrencyType;
+  compact?: boolean;
+  interactive?: boolean;
+  onClick?: () => void;
+  className?: string;
 }
 
 const stateStyles: Record<KPIState, { icon: string; border: string }> = {
-    default: {
-        icon: "bg-surface-tertiary text-text-tertiary",
-        border: "border-border-subtle"
-    },
-    success: {
-        icon: "bg-green-500/10 text-accent-primary",
-        border: "border-emerald-500/20"
-    },
-    warning: {
-        icon: "bg-yellow-500/10 text-yellow-500",
-        border: "border-amber-500/20"
-    },
-    error: {
-        icon: "bg-red-500/10 text-red-500",
-        border: "border-red-500/20"
-    },
-    info: {
-        icon: "bg-blue-500/10 text-blue-500",
-        border: "border-indigo-500/20"
-    },
-    accent: {
-        icon: "bg-accent-glow text-accent-primary",
-        border: "border-orange-500/20"
-    },
+  default: {
+    icon: 'bg-surface-tertiary text-text-tertiary',
+    border: 'border-border-subtle',
+  },
+  success: {
+    icon: 'bg-green-500/10 text-accent-primary',
+    border: 'border-emerald-500/20',
+  },
+  warning: {
+    icon: 'bg-yellow-500/10 text-yellow-500',
+    border: 'border-amber-500/20',
+  },
+  error: {
+    icon: 'bg-red-500/10 text-red-500',
+    border: 'border-red-500/20',
+  },
+  info: {
+    icon: 'bg-blue-500/10 text-blue-500',
+    border: 'border-indigo-500/20',
+  },
+  accent: {
+    icon: 'bg-accent-glow text-accent-primary',
+    border: 'border-orange-500/20',
+  },
 };
 
 export function KPITile({
-    label,
-    value,
-    trend,
-    subtext,
-    icon,
-    state = "default",
-    currency = "none",
-    compact = false,
-    interactive = false,
-    onClick,
-    className,
+  label,
+  value,
+  trend,
+  subtext,
+  icon,
+  state = 'default',
+  currency = 'none',
+  compact = false,
+  interactive = false,
+  onClick,
+  className,
 }: KPITileProps) {
-    const styles = stateStyles[state];
+  const styles = stateStyles[state];
 
-    // Format currency
-    const formattedValue = (() => {
-        if (currency === "INR") return `₹${value}`;
-        if (currency === "USD") return `$${value}`;
-        return value;
-    })();
+  // Format currency
+  const formattedValue = (() => {
+    if (currency === 'INR') return `₹${value}`;
+    if (currency === 'USD') return `$${value}`;
+    return value;
+  })();
 
-    // Determine trend color
-    const getTrendColor = () => {
-        if (!trend) return "";
-        const isPositive = trend.isPositive ?? (trend.direction === "up");
-        if (trend.direction === "neutral") return "text-text-tertiary bg-surface-tertiary";
-        return isPositive
-            ? "text-[var(--trend-up)] bg-[var(--trend-up-bg)]"
-            : "text-[var(--trend-down)] bg-[var(--trend-down-bg)]";
-    };
+  // Determine trend color
+  const getTrendColor = () => {
+    if (!trend) return '';
+    const isPositive = trend.isPositive ?? trend.direction === 'up';
+    if (trend.direction === 'neutral') return 'text-text-tertiary bg-surface-tertiary';
+    return isPositive
+      ? 'text-[var(--trend-up)] bg-[var(--trend-up-bg)]'
+      : 'text-[var(--trend-down)] bg-[var(--trend-down-bg)]';
+  };
 
-    const Wrapper = interactive ? motion.button : motion.div;
+  const Wrapper = interactive ? motion.button : motion.div;
 
-    return (
-        <Wrapper
-            onClick={interactive ? onClick : undefined}
-            whileHover={interactive ? { scale: 1.01, y: -2 } : undefined}
-            whileTap={interactive ? { scale: 0.99 } : undefined}
-            className={cn(
-                "kpi-tile group text-left w-full",
-                state !== "default" && styles.border,
-                interactive && "cursor-pointer hover:shadow-md",
-                compact ? "p-4" : "p-6",
-                className
-            )}
+  return (
+    <Wrapper
+      onClick={interactive ? onClick : undefined}
+      whileHover={interactive ? { scale: 1.01, y: -2 } : undefined}
+      whileTap={interactive ? { scale: 0.99 } : undefined}
+      className={cn(
+        'kpi-tile group text-left w-full',
+        state !== 'default' && styles.border,
+        interactive && 'cursor-pointer hover:shadow-md',
+        compact ? 'p-4' : 'p-6',
+        className,
+      )}
+    >
+      {/* Icon */}
+      {icon && (
+        <div
+          className={cn(
+            'kpi-icon transition-transform group-hover:scale-105',
+            compact ? 'w-10 h-10 mb-3' : 'w-12 h-12 mb-4',
+            styles.icon,
+          )}
         >
-            {/* Icon */}
-            {icon && (
-                <div className={cn(
-                    "kpi-icon transition-transform group-hover:scale-105",
-                    compact ? "w-10 h-10 mb-3" : "w-12 h-12 mb-4",
-                    styles.icon
-                )}>
-                    {icon}
-                </div>
+          {icon}
+        </div>
+      )}
+
+      {/* Label */}
+      <p className={cn('kpi-label', compact ? 'text-[11px] mb-2' : 'text-[13px] mb-3')}>{label}</p>
+
+      {/* Value + Trend */}
+      <div className="flex items-end gap-3 flex-wrap">
+        <h3
+          className={cn(
+            'kpi-value font-semibold tracking-tight text-text-primary',
+            compact ? 'text-2xl' : 'text-[32px]',
+          )}
+        >
+          {formattedValue}
+        </h3>
+
+        {trend && (
+          <span
+            className={cn(
+              'inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold',
+              getTrendColor(),
             )}
+          >
+            {trend.direction === 'up' && <ArrowUp className="w-3 h-3" />}
+            {trend.direction === 'down' && <ArrowDown className="w-3 h-3" />}
+            {trend.direction === 'neutral' && <Minus className="w-3 h-3" />}
+            {trend.value}
+          </span>
+        )}
+      </div>
 
-            {/* Label */}
-            <p className={cn(
-                "kpi-label",
-                compact ? "text-[11px] mb-2" : "text-[13px] mb-3"
-            )}>
-                {label}
-            </p>
-
-            {/* Value + Trend */}
-            <div className="flex items-end gap-3 flex-wrap">
-                <h3 className={cn(
-                    "kpi-value font-semibold tracking-tight text-text-primary",
-                    compact ? "text-2xl" : "text-[32px]"
-                )}>
-                    {formattedValue}
-                </h3>
-
-                {trend && (
-                    <span className={cn(
-                        "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-semibold",
-                        getTrendColor()
-                    )}>
-                        {trend.direction === "up" && <ArrowUp className="w-3 h-3" />}
-                        {trend.direction === "down" && <ArrowDown className="w-3 h-3" />}
-                        {trend.direction === "neutral" && <Minus className="w-3 h-3" />}
-                        {trend.value}
-                    </span>
-                )}
-            </div>
-
-            {/* Subtext */}
-            {subtext && (
-                <p className="text-[12px] text-text-tertiary mt-2">
-                    {subtext}
-                </p>
-            )}
-        </Wrapper>
-    );
+      {/* Subtext */}
+      {subtext && <p className="text-[12px] text-text-tertiary mt-2">{subtext}</p>}
+    </Wrapper>
+  );
 }
 
 /**
  * KPI Grid — Responsive container for multiple KPI tiles
  */
 interface KPIGridProps {
-    children: ReactNode;
-    columns?: 2 | 3 | 4 | 5;
-    className?: string;
+  children: ReactNode;
+  columns?: 2 | 3 | 4 | 5;
+  className?: string;
 }
 
 export function KPIGrid({ children, columns = 4, className }: KPIGridProps) {
-    const colClasses = {
-        2: "grid-cols-1 sm:grid-cols-2",
-        3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
-        4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
-        5: "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
-    };
+  const colClasses = {
+    2: 'grid-cols-1 sm:grid-cols-2',
+    3: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3',
+    4: 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4',
+    5: 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5',
+  };
 
-    return (
-        <div className={cn("grid gap-4 md:gap-6", colClasses[columns], className)}>
-            {children}
-        </div>
-    );
+  return (
+    <div className={cn('grid gap-4 md:gap-6', colClasses[columns], className)}>{children}</div>
+  );
 }
 
 /**
  * Mini Stats Row — Compact inline statistics
  */
 interface MiniStatProps {
-    label: string;
-    value: string | number;
-    trend?: TrendDirection;
-    trendValue?: string;
+  label: string;
+  value: string | number;
+  trend?: TrendDirection;
+  trendValue?: string;
 }
 
 export function MiniStat({ label, value, trend, trendValue }: MiniStatProps) {
-    return (
-        <div className="flex items-center justify-between py-3 border-b border-border-subtle last:border-b-0">
-            <span className="text-[13px] text-text-secondary">{label}</span>
-            <div className="flex items-center gap-2">
-                <span className="text-[15px] font-semibold text-text-primary tabular-nums">
-                    {value}
-                </span>
-                {trend && trendValue && (
-                    <span className={cn(
-                        "text-[11px] font-medium flex items-center gap-0.5",
-                        trend === "up" && "text-[var(--trend-up)]",
-                        trend === "down" && "text-[var(--trend-down)]",
-                        trend === "neutral" && "text-text-tertiary"
-                    )}>
-                        {trend === "up" && <ArrowUp className="w-3 h-3" />}
-                        {trend === "down" && <ArrowDown className="w-3 h-3" />}
-                        {trendValue}
-                    </span>
-                )}
-            </div>
-        </div>
-    );
+  return (
+    <div className="flex items-center justify-between py-3 border-b border-border-subtle last:border-b-0">
+      <span className="text-[13px] text-text-secondary">{label}</span>
+      <div className="flex items-center gap-2">
+        <span className="text-[15px] font-semibold text-text-primary tabular-nums">{value}</span>
+        {trend && trendValue && (
+          <span
+            className={cn(
+              'text-[11px] font-medium flex items-center gap-0.5',
+              trend === 'up' && 'text-[var(--trend-up)]',
+              trend === 'down' && 'text-[var(--trend-down)]',
+              trend === 'neutral' && 'text-text-tertiary',
+            )}
+          >
+            {trend === 'up' && <ArrowUp className="w-3 h-3" />}
+            {trend === 'down' && <ArrowDown className="w-3 h-3" />}
+            {trendValue}
+          </span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**
  * Large Hero Stat — For prominent single metrics
  */
 interface HeroStatProps {
-    label: string;
-    value: string | number;
-    prefix?: string;
-    suffix?: string;
-    trend?: {
-        value: string;
-        direction: TrendDirection;
-    };
-    description?: string;
-    className?: string;
+  label: string;
+  value: string | number;
+  prefix?: string;
+  suffix?: string;
+  trend?: {
+    value: string;
+    direction: TrendDirection;
+  };
+  description?: string;
+  className?: string;
 }
 
 export function HeroStat({
-    label,
-    value,
-    prefix,
-    suffix,
-    trend,
-    description,
-    className
+  label,
+  value,
+  prefix,
+  suffix,
+  trend,
+  description,
+  className,
 }: HeroStatProps) {
-    return (
-        <div className={cn("text-center py-8", className)}>
-            <p className="text-label-sm text-text-tertiary mb-4 uppercase tracking-widest">
-                {label}
-            </p>
-            <div className="flex items-baseline justify-center gap-2">
-                {prefix && (
-                    <span className="text-stat-lg text-text-tertiary">{prefix}</span>
-                )}
-                <motion.span
-                    className="text-stat-hero text-text-primary"
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                >
-                    {value}
-                </motion.span>
-                {suffix && (
-                    <span className="text-stat-lg text-text-tertiary">{suffix}</span>
-                )}
-            </div>
-            {trend && (
-                <div className="flex justify-center mt-4">
-                    <span className={cn(
-                        "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold",
-                        trend.direction === "up" && "bg-[var(--trend-up-bg)] text-[var(--trend-up)]",
-                        trend.direction === "down" && "bg-[var(--trend-down-bg)] text-[var(--trend-down)]",
-                        trend.direction === "neutral" && "bg-surface-tertiary text-text-tertiary"
-                    )}>
-                        {trend.direction === "up" && <ArrowUp className="w-3.5 h-3.5" />}
-                        {trend.direction === "down" && <ArrowDown className="w-3.5 h-3.5" />}
-                        {trend.value}
-                    </span>
-                </div>
+  return (
+    <div className={cn('text-center py-8', className)}>
+      <p className="text-label-sm text-text-tertiary mb-4 uppercase tracking-widest">{label}</p>
+      <div className="flex items-baseline justify-center gap-2">
+        {prefix && <span className="text-stat-lg text-text-tertiary">{prefix}</span>}
+        <motion.span
+          className="text-stat-hero text-text-primary"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: 'easeOut' }}
+        >
+          {value}
+        </motion.span>
+        {suffix && <span className="text-stat-lg text-text-tertiary">{suffix}</span>}
+      </div>
+      {trend && (
+        <div className="flex justify-center mt-4">
+          <span
+            className={cn(
+              'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold',
+              trend.direction === 'up' && 'bg-[var(--trend-up-bg)] text-[var(--trend-up)]',
+              trend.direction === 'down' && 'bg-[var(--trend-down-bg)] text-[var(--trend-down)]',
+              trend.direction === 'neutral' && 'bg-surface-tertiary text-text-tertiary',
             )}
-            {description && (
-                <p className="text-body-sm text-text-tertiary mt-3">
-                    {description}
-                </p>
-            )}
+          >
+            {trend.direction === 'up' && <ArrowUp className="w-3.5 h-3.5" />}
+            {trend.direction === 'down' && <ArrowDown className="w-3.5 h-3.5" />}
+            {trend.value}
+          </span>
         </div>
-    );
+      )}
+      {description && <p className="text-body-sm text-text-tertiary mt-3">{description}</p>}
+    </div>
+  );
 }
 
 /**
  * Progress Stat — Metric with progress bar
  */
 interface ProgressStatProps {
-    label: string;
-    value: number;
-    max: number;
-    displayValue?: string;
-    color?: "accent" | "success" | "warning" | "info";
-    showPercentage?: boolean;
+  label: string;
+  value: number;
+  max: number;
+  displayValue?: string;
+  color?: 'accent' | 'success' | 'warning' | 'info';
+  showPercentage?: boolean;
 }
 
 export function ProgressStat({
-    label,
-    value,
-    max,
-    displayValue,
-    color = "accent",
-    showPercentage = true
+  label,
+  value,
+  max,
+  displayValue,
+  color = 'accent',
+  showPercentage = true,
 }: ProgressStatProps) {
-    const percentage = Math.min((value / max) * 100, 100);
+  const percentage = Math.min((value / max) * 100, 100);
 
-    const colorClasses = {
-        accent: "bg-accent-primary",
-        success: "bg-green-500",
-        warning: "bg-[var(--state-warning)]",
-        info: "bg-[var(--state-info)]",
-    };
+  const colorClasses = {
+    accent: 'bg-accent-primary',
+    success: 'bg-green-500',
+    warning: 'bg-[var(--state-warning)]',
+    info: 'bg-[var(--state-info)]',
+  };
 
-    return (
-        <div className="space-y-2">
-            <div className="flex items-center justify-between">
-                <span className="text-[13px] text-text-secondary">{label}</span>
-                <span className="text-[15px] font-semibold text-text-primary tabular-nums">
-                    {displayValue || value}
-                    {showPercentage && (
-                        <span className="text-[11px] text-text-tertiary ml-1">
-                            ({percentage.toFixed(0)}%)
-                        </span>
-                    )}
-                </span>
-            </div>
-            <div className="progress-bar">
-                <motion.div
-                    className={cn("progress-bar-fill", colorClasses[color])}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${percentage}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                />
-            </div>
-        </div>
-    );
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-text-secondary">{label}</span>
+        <span className="text-[15px] font-semibold text-text-primary tabular-nums">
+          {displayValue || value}
+          {showPercentage && (
+            <span className="text-[11px] text-text-tertiary ml-1">({percentage.toFixed(0)}%)</span>
+          )}
+        </span>
+      </div>
+      <div className="progress-bar">
+        <motion.div
+          className={cn('progress-bar-fill', colorClasses[color])}
+          initial={{ width: 0 }}
+          animate={{ width: `${percentage}%` }}
+          transition={{ duration: 0.8, ease: 'easeOut' }}
+        />
+      </div>
+    </div>
+  );
 }
 
 export default KPITile;

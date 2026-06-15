@@ -12,7 +12,7 @@ async function testGmail() {
     // 1. App Password (if 2FA is enabled)
     // 2. OAuth2 credentials
     // The API key alone won't work
-    
+
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: {

@@ -1,17 +1,17 @@
-"use client";
+'use client';
 
-import { useQuery } from "@tanstack/react-query";
-import { getApiErrorMessage, guestApi } from "../../lib/api/client";
-import { isGuestBffEnabled } from "../../lib/bff/flags.js";
-import { fetchGuestBffProfileDetail } from "../../lib/bff/fetchers.js";
-import { logGuestBffParity } from "../../lib/bff/parity.js";
+import { useQuery } from '@tanstack/react-query';
+import { getApiErrorMessage, guestApi } from '../../lib/api/client';
+import { isGuestBffEnabled } from '../../lib/bff/flags.js';
+import { fetchGuestBffProfileDetail } from '../../lib/bff/fetchers.js';
+import { logGuestBffParity } from '../../lib/bff/parity.js';
 
 export function guestProfileQueryKey(userId, viewerId) {
-  return ["profile", userId, viewerId || "anonymous"];
+  return ['profile', userId, viewerId || 'anonymous'];
 }
 
 export async function fetchGuestProfile(userId, viewerId) {
-  if (isGuestBffEnabled("profile")) {
+  if (isGuestBffEnabled('profile')) {
     const overview = await fetchGuestBffProfileDetail(userId);
     const nextData = {
       profile: overview?.profile || null,
@@ -23,9 +23,9 @@ export async function fetchGuestProfile(userId, viewerId) {
     };
 
     try {
-      const { response, data } = await guestApi.profiles.get(userId, { credentials: "include" });
+      const { response, data } = await guestApi.profiles.get(userId, { credentials: 'include' });
       if (response.ok) {
-        logGuestBffParity("profile.detail", data, nextData, {
+        logGuestBffParity('profile.detail', data, nextData, {
           userId,
           viewerId,
         });
@@ -35,8 +35,8 @@ export async function fetchGuestProfile(userId, viewerId) {
     return nextData;
   }
 
-  const { response, data } = await guestApi.profiles.get(userId, { credentials: "include" });
-  if (!response.ok) throw new Error(getApiErrorMessage(data, "Profile not found"));
+  const { response, data } = await guestApi.profiles.get(userId, { credentials: 'include' });
+  if (!response.ok) throw new Error(getApiErrorMessage(data, 'Profile not found'));
   return data;
 }
 
@@ -44,7 +44,7 @@ export function useGuestProfileQuery({ userId, viewerId }) {
   return useQuery({
     queryKey: guestProfileQueryKey(userId, viewerId),
     queryFn: async () => fetchGuestProfile(userId, viewerId),
-    enabled: Boolean(userId) && userId !== "[userId]",
+    enabled: Boolean(userId) && userId !== '[userId]',
     staleTime: 2 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,

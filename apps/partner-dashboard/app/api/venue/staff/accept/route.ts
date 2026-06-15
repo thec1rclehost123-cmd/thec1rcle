@@ -1,15 +1,15 @@
-import { NextRequest } from "next/server";
-import { proxyToGateway, GATEWAY_URL } from "@/lib/server/apiGateway";
+import { NextRequest } from 'next/server';
+import { proxyToGateway, GATEWAY_URL } from '@/lib/server/apiGateway';
 
 export async function GET(req: NextRequest) {
-    const { search } = new URL(req.url);
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff/accept${search}`, {});
+  const { search } = new URL(req.url);
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff/accept${search}`, {});
 }
 
 export async function POST(req: NextRequest) {
-    const body = await req.json().catch(() => ({}));
-    return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff/accept`, {
-        method: "POST",
-        body: JSON.stringify(body),
-    });
+  const body = await req.json().catch(() => ({}));
+  return proxyToGateway(req, `${GATEWAY_URL}/api/v1/venue/staff/accept`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
 }

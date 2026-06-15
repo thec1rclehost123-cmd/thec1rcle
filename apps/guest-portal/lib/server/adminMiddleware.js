@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { getAdminAuth } from "../firebase/admin";
+import { NextResponse } from 'next/server';
+import { getAdminAuth } from '../firebase/admin';
 
 /**
  * THE C1RCLE - Admin Authorization Middleware (Hardened)
@@ -7,18 +7,18 @@ import { getAdminAuth } from "../firebase/admin";
  * - Enforces mandatory 'admin' and 'admin_role' claims
  * - Returns generic 404s to unauthorized requests (Red-Team Obscurity)
  */
-export function withAdminAuth(handler, requiredRole = "admin") {
+export function withAdminAuth(handler, requiredRole = 'admin') {
   return async (req, ...args) => {
-    const authHeader = req.headers.get("authorization");
+    const authHeader = req.headers.get('authorization');
 
     // Security Pass: Generic 404 for any auth failure to prevent endpoint discovery
-    const genericNotFound = () => NextResponse.json({ error: "Not Found" }, { status: 404 });
+    const genericNotFound = () => NextResponse.json({ error: 'Not Found' }, { status: 404 });
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return genericNotFound();
     }
 
-    const token = authHeader.split("Bearer ")[1];
+    const token = authHeader.split('Bearer ')[1];
 
     try {
       const auth = getAdminAuth();
@@ -30,13 +30,13 @@ export function withAdminAuth(handler, requiredRole = "admin") {
       const { role, admin_role, admin: isAdminClaim } = decodedToken;
 
       // Strict Role Enforcement: Must have both role='admin' and explicit admin:true
-      if (role !== "admin" || isAdminClaim !== true) {
+      if (role !== 'admin' || isAdminClaim !== true) {
         console.error(`[SECURITY] Unauthorized admin access attempt by UID: ${decodedToken.uid}`);
         return genericNotFound();
       }
 
       // Task 1: Granular Role Hierarchy
-      if (requiredRole !== "admin") {
+      if (requiredRole !== 'admin') {
         const hierarchy = {
           super: 100,
           ops: 50,
@@ -72,7 +72,7 @@ export function withAdminAuth(handler, requiredRole = "admin") {
       return handler(req, ...args);
     } catch (error) {
       // Log real error for debugging, but return generic 404
-      console.error("[SECURITY] Admin Auth Failed:", error.code || error.message);
+      console.error('[SECURITY] Admin Auth Failed:', error.code || error.message);
       return genericNotFound();
     }
   };

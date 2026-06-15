@@ -1,21 +1,21 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import CheckoutContainer from "../../../features/checkout/CheckoutContainer";
-import { normalizeCheckoutEventDetail } from "../../../features/checkout/checkoutEventModel.js";
-import FunnelShell from "../../../components/FunnelShell";
-import { fetchPublicEvent } from "../../../features/discovery/publicDiscovery";
-import { fetchGuestBffCheckoutSummary } from "../../../lib/bff/fetchers.js";
-import { isGuestBffEnabled } from "../../../lib/bff/flags.js";
+import { useEffect, useMemo, useState } from 'react';
+import { useParams, useSearchParams } from 'next/navigation';
+import CheckoutContainer from '../../../features/checkout/CheckoutContainer';
+import { normalizeCheckoutEventDetail } from '../../../features/checkout/checkoutEventModel.js';
+import FunnelShell from '../../../components/FunnelShell';
+import { fetchPublicEvent } from '../../../features/discovery/publicDiscovery';
+import { fetchGuestBffCheckoutSummary } from '../../../lib/bff/fetchers.js';
+import { isGuestBffEnabled } from '../../../lib/bff/flags.js';
 
 function readSelectedTicketsFromQuery(searchParams) {
   const items = [];
   if (!searchParams) return items;
 
   for (const [key, value] of searchParams.entries()) {
-    if (!key.startsWith("t_")) continue;
-    const quantity = Number.parseInt(String(value || "0"), 10);
+    if (!key.startsWith('t_')) continue;
+    const quantity = Number.parseInt(String(value || '0'), 10);
     if (!Number.isFinite(quantity) || quantity <= 0) continue;
     items.push({
       id: key.slice(2),
@@ -39,16 +39,16 @@ function buildInitialTickets(event, searchParams) {
 export default function CheckoutPageClient({
   initialEvent = null,
   initialSummary = null,
-  initialStatus = "loading",
-  initialEventId = "",
+  initialStatus = 'loading',
+  initialEventId = '',
 }) {
   const params = useParams();
   const searchParams = useSearchParams();
-  const eventId = decodeURIComponent(String(params?.eventId || initialEventId || ""));
+  const eventId = decodeURIComponent(String(params?.eventId || initialEventId || ''));
   const [event, setEvent] = useState(initialEvent);
   const [summary, setSummary] = useState(initialSummary);
-  const [status, setStatus] = useState(initialEvent ? "ready" : initialStatus);
-  const searchKey = searchParams?.toString() || "";
+  const [status, setStatus] = useState(initialEvent ? 'ready' : initialStatus);
+  const searchKey = searchParams?.toString() || '';
 
   useEffect(() => {
     let cancelled = false;
@@ -56,26 +56,26 @@ export default function CheckoutPageClient({
     if (initialEvent && eventId === initialEventId) {
       setEvent(initialEvent);
       setSummary(initialSummary);
-      setStatus(initialStatus === "error" ? "error" : "ready");
+      setStatus(initialStatus === 'error' ? 'error' : 'ready');
       return () => {
         cancelled = true;
       };
     }
 
     async function loadEvent() {
-      setStatus("loading");
+      setStatus('loading');
       try {
-        if (isGuestBffEnabled("checkout")) {
+        if (isGuestBffEnabled('checkout')) {
           const payload = await fetchGuestBffCheckoutSummary({
             eventId,
-            promoterCode: searchParams?.get("ref") || null,
+            promoterCode: searchParams?.get('ref') || null,
             selectedTickets: readSelectedTicketsFromQuery(searchParams),
           });
           if (cancelled) return;
           const nextEvent = normalizeCheckoutEventDetail(payload?.event);
           setEvent(nextEvent);
           setSummary(payload);
-          setStatus(nextEvent ? "ready" : "missing");
+          setStatus(nextEvent ? 'ready' : 'missing');
           return;
         }
 
@@ -84,11 +84,11 @@ export default function CheckoutPageClient({
         const nextEvent = normalizeCheckoutEventDetail(detail);
         setEvent(nextEvent);
         setSummary(null);
-        setStatus(nextEvent ? "ready" : "missing");
+        setStatus(nextEvent ? 'ready' : 'missing');
       } catch (error) {
         if (!cancelled) {
-          console.error("[CheckoutPage] Failed to load event", error);
-          setStatus("error");
+          console.error('[CheckoutPage] Failed to load event', error);
+          setStatus('error');
         }
       }
     }
@@ -96,19 +96,27 @@ export default function CheckoutPageClient({
     if (eventId) {
       loadEvent();
     } else {
-      setStatus("missing");
+      setStatus('missing');
     }
 
     return () => {
       cancelled = true;
     };
-  }, [eventId, initialEvent, initialEventId, initialStatus, initialSummary, searchKey, searchParams]);
+  }, [
+    eventId,
+    initialEvent,
+    initialEventId,
+    initialStatus,
+    initialSummary,
+    searchKey,
+    searchParams,
+  ]);
 
   const initialTickets = useMemo(() => {
     return buildInitialTickets(event, searchParams);
   }, [event, searchKey, searchParams]);
 
-  if (status === "loading") {
+  if (status === 'loading') {
     return (
       <FunnelShell title="Checkout" showLogo backHref="/explore">
         <div className="flex min-h-[60vh] items-center justify-center">
@@ -118,24 +126,34 @@ export default function CheckoutPageClient({
     );
   }
 
-  if (status === "missing" || !event) {
+  if (status === 'missing' || !event) {
     return (
       <FunnelShell title="Checkout" showLogo backHref="/explore">
         <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Checkout unavailable</p>
-          <h1 className="text-3xl font-black uppercase tracking-tight text-white">That event could not be found.</h1>
-          <p className="text-sm text-white/60">The event may have moved, expired, or no longer be available for guests.</p>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">
+            Checkout unavailable
+          </p>
+          <h1 className="text-3xl font-black uppercase tracking-tight text-white">
+            That event could not be found.
+          </h1>
+          <p className="text-sm text-white/60">
+            The event may have moved, expired, or no longer be available for guests.
+          </p>
         </div>
       </FunnelShell>
     );
   }
 
-  if (status === "error") {
+  if (status === 'error') {
     return (
       <FunnelShell title="Checkout" showLogo backHref={`/event/${event.id || eventId}`}>
         <div className="mx-auto flex min-h-[60vh] max-w-xl flex-col items-center justify-center gap-4 px-4 sm:px-6 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">Gateway sync error</p>
-          <h1 className="text-3xl font-black uppercase tracking-tight text-white">We could not load checkout right now.</h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-orange">
+            Gateway sync error
+          </p>
+          <h1 className="text-3xl font-black uppercase tracking-tight text-white">
+            We could not load checkout right now.
+          </h1>
           <p className="text-sm text-white/60">Please refresh and try again in a moment.</p>
         </div>
       </FunnelShell>

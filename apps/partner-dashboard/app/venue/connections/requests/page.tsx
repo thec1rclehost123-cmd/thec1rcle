@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-    redirect("/venue/partners?tab=pending");
+  redirect('/venue/partners?tab=pending');
 }

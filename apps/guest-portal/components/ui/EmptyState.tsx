@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import React from "react";
+import { motion } from 'framer-motion';
+import React from 'react';
 
 interface EmptyStateProps {
   icon?: React.ReactNode;
@@ -11,7 +11,7 @@ interface EmptyStateProps {
   className?: string;
 }
 
-export function EmptyState({ icon, title, description, action, className = "" }: EmptyStateProps) {
+export function EmptyState({ icon, title, description, action, className = '' }: EmptyStateProps) {
   return (
     <div
       className={`flex flex-col items-center justify-center py-20 px-6 text-center ${className}`}

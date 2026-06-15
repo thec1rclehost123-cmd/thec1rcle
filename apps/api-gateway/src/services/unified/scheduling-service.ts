@@ -17,7 +17,7 @@ const SLOTS_COLLECTION = 'availability_slots';
 
 export interface DateRange {
   startDate: string; // YYYY-MM-DD
-  endDate: string;   // YYYY-MM-DD
+  endDate: string; // YYYY-MM-DD
 }
 
 export interface CreateSlotInput {
@@ -69,8 +69,13 @@ export class SchedulingService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'SchedulingService', method: 'getCalendar', venueId, error: err?.message ?? String(err) },
-          'Firestore query failed'
+          {
+            service: 'SchedulingService',
+            method: 'getCalendar',
+            venueId,
+            error: err?.message ?? String(err),
+          },
+          'Firestore query failed',
         );
         return { docs: [] as any[] };
       });
@@ -78,8 +83,14 @@ export class SchedulingService {
     const durationMs = Date.now() - startedAt;
     if (durationMs > 200) {
       this.log.warn(
-        { service: 'SchedulingService', method: 'getCalendar', venueId, durationMs, resultCount: (snap as any).docs.length },
-        'Slow query detected'
+        {
+          service: 'SchedulingService',
+          method: 'getCalendar',
+          venueId,
+          durationMs,
+          resultCount: (snap as any).docs.length,
+        },
+        'Slow query detected',
       );
     }
 
@@ -95,8 +106,13 @@ export class SchedulingService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'SchedulingService', method: 'getSlot', slotId, error: err?.message ?? String(err) },
-          'Firestore read failed'
+          {
+            service: 'SchedulingService',
+            method: 'getSlot',
+            slotId,
+            error: err?.message ?? String(err),
+          },
+          'Firestore read failed',
         );
         return null;
       });
@@ -107,16 +123,21 @@ export class SchedulingService {
     return slot;
   }
 
-  async createSlot(ctx: PartnerContext, venueId: string, input: CreateSlotInput): Promise<VenueSlot> {
+  async createSlot(
+    ctx: PartnerContext,
+    venueId: string,
+    input: CreateSlotInput,
+  ): Promise<VenueSlot> {
     const now = new Date();
     let createdSlotId: string | null = null;
 
     await this.db.runTransaction(async (txn) => {
       const existingSnap = await txn.get(
-        this.db.collection(SLOTS_COLLECTION)
+        this.db
+          .collection(SLOTS_COLLECTION)
           .where('venueId', '==', venueId)
           .where('date', '==', input.date)
-          .limit(100)
+          .limit(100),
       );
 
       for (const doc of existingSnap.docs) {
@@ -158,8 +179,14 @@ export class SchedulingService {
     });
 
     this.log.info(
-      { service: 'SchedulingService', method: 'createSlot', venueId, slotId: createdSlotId, status: input.status ?? 'open' },
-      'Slot created'
+      {
+        service: 'SchedulingService',
+        method: 'createSlot',
+        venueId,
+        slotId: createdSlotId,
+        status: input.status ?? 'open',
+      },
+      'Slot created',
     );
 
     const doc = await this.db.collection(SLOTS_COLLECTION).doc(createdSlotId!).get();
@@ -171,7 +198,7 @@ export class SchedulingService {
     venueId: string,
     slotId: string,
     status: SlotStatus,
-    notes?: string
+    notes?: string,
   ): Promise<VenueSlot | null> {
     const ref = this.db.collection(SLOTS_COLLECTION).doc(slotId);
     let updatedSlot: VenueSlot | null = null;
@@ -202,16 +229,19 @@ export class SchedulingService {
         }
 
         const sameDaySnap = await txn.get(
-          this.db.collection(SLOTS_COLLECTION)
+          this.db
+            .collection(SLOTS_COLLECTION)
             .where('venueId', '==', venueId)
             .where('date', '==', approvalDate)
-            .limit(100)
+            .limit(100),
         );
 
         for (const slotDoc of sameDaySnap.docs) {
           if (slotDoc.id === slotId) continue;
           const candidate = slotDoc.data() as Record<string, any>;
-          const candidateStatus = normalizeLegacyStatus(safeStr(candidate.status || candidate.slotStatus || 'open'));
+          const candidateStatus = normalizeLegacyStatus(
+            safeStr(candidate.status || candidate.slotStatus || 'open'),
+          );
           if (!['approved', 'occupied', 'blocked'].includes(candidateStatus)) continue;
 
           const candidateStart = safeStr(candidate.requestedStartTime || candidate.startTime);
@@ -219,7 +249,9 @@ export class SchedulingService {
           if (!candidateStart || !candidateEnd) continue;
           if (!timesOverlap(approvalStart, approvalEnd, candidateStart, candidateEnd)) continue;
 
-          const err: any = new Error('Time slot conflict: another event is already scheduled at this time');
+          const err: any = new Error(
+            'Time slot conflict: another event is already scheduled at this time',
+          );
           err.statusCode = 409;
           err.code = 'SLOT_CONFLICT';
           throw err;
@@ -238,15 +270,24 @@ export class SchedulingService {
       }
 
       txn.update(ref, updates);
-      updatedSlot = this.legacyDocToSlot({
-        id: doc.id,
-        data: () => ({ ...(doc.data() || {}), ...updates }),
-      } as any, venueId);
+      updatedSlot = this.legacyDocToSlot(
+        {
+          id: doc.id,
+          data: () => ({ ...(doc.data() || {}), ...updates }),
+        } as any,
+        venueId,
+      );
     });
 
     this.log.info(
-      { service: 'SchedulingService', method: 'updateSlotStatus', venueId, slotId, newStatus: status },
-      'Slot status updated'
+      {
+        service: 'SchedulingService',
+        method: 'updateSlotStatus',
+        venueId,
+        slotId,
+        newStatus: status,
+      },
+      'Slot status updated',
     );
 
     return updatedSlot;
@@ -266,8 +307,13 @@ export class SchedulingService {
       .get()
       .catch((err) => {
         this.log.error(
-          { service: 'SchedulingService', method: 'getPendingRequests', venueId, error: err?.message ?? String(err) },
-          'Firestore query failed'
+          {
+            service: 'SchedulingService',
+            method: 'getPendingRequests',
+            venueId,
+            error: err?.message ?? String(err),
+          },
+          'Firestore query failed',
         );
         return { docs: [] };
       });
@@ -276,7 +322,7 @@ export class SchedulingService {
     if (durationMs > 200) {
       this.log.warn(
         { service: 'SchedulingService', method: 'getPendingRequests', venueId, durationMs },
-        'Slow query detected'
+        'Slow query detected',
       );
     }
 
@@ -293,22 +339,33 @@ export class SchedulingService {
     // TOCTOU race condition that allows double-bookings.
     await this.db.runTransaction(async (txn) => {
       const conflictSnap = await txn.get(
-        this.db.collection(SLOTS_COLLECTION)
+        this.db
+          .collection(SLOTS_COLLECTION)
           .where('venueId', '==', input.venueId)
           .where('date', '==', input.date)
-          .limit(100)
+          .limit(100),
       );
 
       for (const doc of conflictSnap.docs) {
         const d = doc.data() as Record<string, any>;
         const status = normalizeLegacyStatus(safeStr(d.status || d.slotStatus || 'open'));
         if (!['requested', 'approved', 'occupied', 'blocked'].includes(status)) continue;
-        if (timesOverlap(input.startTime, input.endTime, safeStr(d.startTime), safeStr(d.endTime))) {
+        if (
+          timesOverlap(input.startTime, input.endTime, safeStr(d.startTime), safeStr(d.endTime))
+        ) {
           this.log.warn(
-            { service: 'SchedulingService', method: 'requestSlot', venueId: input.venueId, date: input.date, conflictSlotId: doc.id },
-            'Slot conflict detected — rejecting request'
+            {
+              service: 'SchedulingService',
+              method: 'requestSlot',
+              venueId: input.venueId,
+              date: input.date,
+              conflictSlotId: doc.id,
+            },
+            'Slot conflict detected — rejecting request',
           );
-          const err: any = new Error('Time slot conflict: another event is already scheduled at this time');
+          const err: any = new Error(
+            'Time slot conflict: another event is already scheduled at this time',
+          );
           err.statusCode = 409;
           err.code = 'SLOT_CONFLICT';
           throw err;
@@ -339,19 +396,35 @@ export class SchedulingService {
     });
 
     this.log.info(
-      { service: 'SchedulingService', method: 'requestSlot', venueId: input.venueId, slotId: newSlotId, hostId: ctx.partnerId },
-      'Slot request created via transaction'
+      {
+        service: 'SchedulingService',
+        method: 'requestSlot',
+        venueId: input.venueId,
+        slotId: newSlotId,
+        hostId: ctx.partnerId,
+      },
+      'Slot request created via transaction',
     );
 
     const doc = await this.db.collection(SLOTS_COLLECTION).doc(newSlotId!).get();
     return this.legacyDocToSlot(doc as any, input.venueId);
   }
 
-  async approveRequest(ctx: PartnerContext, venueId: string, slotId: string, notes?: string): Promise<VenueSlot | null> {
+  async approveRequest(
+    ctx: PartnerContext,
+    venueId: string,
+    slotId: string,
+    notes?: string,
+  ): Promise<VenueSlot | null> {
     return this.updateSlotStatus(ctx, venueId, slotId, 'approved', notes);
   }
 
-  async rejectRequest(ctx: PartnerContext, venueId: string, slotId: string, notes?: string): Promise<VenueSlot | null> {
+  async rejectRequest(
+    ctx: PartnerContext,
+    venueId: string,
+    slotId: string,
+    notes?: string,
+  ): Promise<VenueSlot | null> {
     return this.updateSlotStatus(ctx, venueId, slotId, 'rejected', notes);
   }
 
@@ -359,7 +432,7 @@ export class SchedulingService {
 
   private docToSlot(
     doc: FirebaseFirestore.DocumentSnapshot | FirebaseFirestore.QueryDocumentSnapshot,
-    venueId: string
+    venueId: string,
   ): VenueSlot {
     const d = (doc.data() ?? {}) as Record<string, any>;
     return {
@@ -380,7 +453,7 @@ export class SchedulingService {
 
   private legacyDocToSlot(
     doc: FirebaseFirestore.QueryDocumentSnapshot,
-    venueId: string
+    venueId: string,
   ): VenueSlot {
     const d = doc.data() as Record<string, any>;
     // Normalize legacy field names

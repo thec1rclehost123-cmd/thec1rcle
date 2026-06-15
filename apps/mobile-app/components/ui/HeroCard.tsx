@@ -1,17 +1,17 @@
-import * as Haptics from "expo-haptics";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { View, Text, StyleSheet, Pressable, Dimensions } from "react-native";
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInRight,
-} from "react-native-reanimated";
+} from 'react-native-reanimated';
 
-import { colors, radii, gradients } from "@/lib/design/theme";
+import { colors, radii, gradients } from '@/lib/design/theme';
 
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const HERO_CARD_WIDTH = SCREEN_WIDTH - 40;
 const HERO_CARD_HEIGHT = 400;
 
@@ -76,7 +76,7 @@ export function HeroCard({
 
       {/* Gradient Overlay */}
       <LinearGradient
-        colors={["transparent", "rgba(0,0,0,0.3)", "rgba(0,0,0,0.85)", "rgba(0,0,0,0.95)"]}
+        colors={['transparent', 'rgba(0,0,0,0.3)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.95)']}
         locations={[0, 0.4, 0.7, 1]}
         style={styles.gradient}
       />
@@ -119,7 +119,7 @@ export function HeroCard({
                 {[0, 1, 2].map((i) => (
                   <View key={i} style={[styles.attendeeAvatar, { marginLeft: i > 0 ? -8 : 0 }]}>
                     <LinearGradient
-                      colors={["rgba(244, 74, 34, 0.3)", "rgba(244, 74, 34, 0.1)"]}
+                      colors={['rgba(244, 74, 34, 0.3)', 'rgba(244, 74, 34, 0.1)']}
                       style={styles.attendeeGradient}
                     >
                       <Text style={styles.attendeeEmoji}>👤</Text>
@@ -151,8 +151,8 @@ const styles = StyleSheet.create({
   container: {
     width: HERO_CARD_WIDTH,
     height: HERO_CARD_HEIGHT,
-    borderRadius: radii["2xl"],
-    overflow: "hidden",
+    borderRadius: radii['2xl'],
+    overflow: 'hidden',
     marginHorizontal: 8,
   },
   image: {
@@ -163,12 +163,12 @@ const styles = StyleSheet.create({
   },
   borderOverlay: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: radii["2xl"],
+    borderRadius: radii['2xl'],
     borderWidth: 1,
-    borderColor: "rgba(255, 255, 255, 0.1)",
+    borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   categoryBadge: {
-    position: "absolute",
+    position: 'absolute',
     top: 20,
     left: 20,
   },
@@ -178,35 +178,35 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
   },
   categoryText: {
-    color: "#fff",
+    color: '#fff',
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: '700',
     letterSpacing: 1,
   },
   content: {
-    position: "absolute",
+    position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     padding: 24,
   },
   datePill: {
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: radii.pill,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start',
     marginBottom: 12,
   },
   dateText: {
     color: colors.gold,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: '600',
   },
   title: {
     color: colors.gold,
     fontSize: 28,
-    fontWeight: "800",
+    fontWeight: '800',
     lineHeight: 34,
     marginBottom: 8,
     letterSpacing: -0.3,
@@ -217,16 +217,16 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   footer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   attendees: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   attendeeAvatars: {
-    flexDirection: "row",
+    flexDirection: 'row',
     marginRight: 8,
   },
   attendeeAvatar: {
@@ -234,13 +234,13 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: 14,
     borderWidth: 2,
-    borderColor: "rgba(0, 0, 0, 0.8)",
-    overflow: "hidden",
+    borderColor: 'rgba(0, 0, 0, 0.8)',
+    overflow: 'hidden',
   },
   attendeeGradient: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   attendeeEmoji: {
     fontSize: 12,
@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   priceContainer: {
-    alignItems: "flex-end",
+    alignItems: 'flex-end',
   },
   priceLabel: {
     color: colors.goldMetallic,
@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   price: {
     color: colors.iris,
     fontSize: 22,
-    fontWeight: "800",
+    fontWeight: '800',
   },
 });
 

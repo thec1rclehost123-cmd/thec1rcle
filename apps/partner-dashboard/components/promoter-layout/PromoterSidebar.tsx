@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Ticket,
@@ -19,9 +19,9 @@ import {
   Handshake,
   BarChart3,
   Activity,
-} from "lucide-react";
-import { useDashboardAuth } from "../../components/providers/DashboardAuthProvider";
-import { cleanJargon } from "@/lib/utils/jargon";
+} from 'lucide-react';
+import { useDashboardAuth } from '../../components/providers/DashboardAuthProvider';
+import { cleanJargon } from '@/lib/utils/jargon';
 
 export default function PromoterSidebar() {
   const pathname = usePathname();
@@ -29,41 +29,41 @@ export default function PromoterSidebar() {
 
   const menuItems = [
     {
-      category: "analytics_studio",
+      category: 'analytics_studio',
       items: [
-        { icon: Activity, label: "overview", href: "/promoter/analytics/overview" },
-        { icon: TrendingUp, label: "reach", href: "/promoter/analytics/reach" },
-        { icon: Zap, label: "engagement", href: "/promoter/analytics/engagement" },
-        { icon: DollarSign, label: "revenue", href: "/promoter/analytics/revenue" },
-        { icon: Users, label: "audience", href: "/promoter/analytics/audience" },
-        { icon: Handshake, label: "attribution", href: "/promoter/analytics/attribution" },
+        { icon: Activity, label: 'overview', href: '/promoter/analytics/overview' },
+        { icon: TrendingUp, label: 'reach', href: '/promoter/analytics/reach' },
+        { icon: Zap, label: 'engagement', href: '/promoter/analytics/engagement' },
+        { icon: DollarSign, label: 'revenue', href: '/promoter/analytics/revenue' },
+        { icon: Users, label: 'audience', href: '/promoter/analytics/audience' },
+        { icon: Handshake, label: 'attribution', href: '/promoter/analytics/attribution' },
       ],
     },
     {
-      category: "earnings",
+      category: 'earnings',
       items: [
-        { icon: LayoutDashboard, label: "overview", href: "/promoter" },
-        { icon: TrendingUp, label: "stats", href: "/promoter/stats" },
-        { icon: Wallet, label: "payouts", href: "/promoter/payouts" },
+        { icon: LayoutDashboard, label: 'overview', href: '/promoter' },
+        { icon: TrendingUp, label: 'stats', href: '/promoter/stats' },
+        { icon: Wallet, label: 'payouts', href: '/promoter/payouts' },
       ],
     },
     {
-      category: "sales_tools",
+      category: 'sales_tools',
       items: [
-        { icon: Ticket, label: "events", href: "/promoter/events" },
-        { icon: LinkIcon, label: "links", href: "/promoter/links" },
-        { icon: Users, label: "guests", href: "/promoter/guests" },
+        { icon: Ticket, label: 'events', href: '/promoter/events' },
+        { icon: LinkIcon, label: 'links', href: '/promoter/links' },
+        { icon: Users, label: 'guests', href: '/promoter/guests' },
       ],
     },
     {
-      category: "account",
-      items: [{ icon: Settings, label: "settings", href: "/promoter/settings" }],
+      category: 'account',
+      items: [{ icon: Settings, label: 'settings', href: '/promoter/settings' }],
     },
   ];
 
   const isActive = (path: string) => {
-    if (path === "/promoter" && pathname === "/promoter") return true;
-    if (path !== "/promoter" && pathname.startsWith(path)) return true;
+    if (path === '/promoter' && pathname === '/promoter') return true;
+    if (path !== '/promoter' && pathname.startsWith(path)) return true;
     return false;
   };
 
@@ -102,13 +102,13 @@ export default function PromoterSidebar() {
                   href={item.href}
                   className={`flex items-center justify-between px-4 py-3 rounded-xl transition-all duration-200 group ${
                     isActive(item.href)
-                      ? "bg-black/10 text-[var(--text-primary)] backdrop-blur-md border border-black/10"
-                      : "text-[var(--text-secondary)] hover:text-black hover:bg-black/5"
+                      ? 'bg-black/10 text-[var(--text-primary)] backdrop-blur-md border border-black/10'
+                      : 'text-[var(--text-secondary)] hover:text-black hover:bg-black/5'
                   }`}
                 >
                   <div className="flex items-center gap-4">
                     <item.icon
-                      className={`w-4 h-4 ${isActive(item.href) ? "text-black" : "text-black/30 group-hover:text-black/50"}`}
+                      className={`w-4 h-4 ${isActive(item.href) ? 'text-black' : 'text-black/30 group-hover:text-black/50'}`}
                     />
                     <span className="text-sm font-medium tracking-tight">
                       {cleanJargon(item.label)}
@@ -132,10 +132,10 @@ export default function PromoterSidebar() {
           </p>
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-black/5 flex items-center justify-center text-[11px] font-bold text-black/80 border border-black/5">
-              {profile?.displayName?.charAt(0) || "U"}
+              {profile?.displayName?.charAt(0) || 'U'}
             </div>
             <p className="text-sm font-medium text-[var(--text-primary)] truncate">
-              {profile?.displayName || "Promoter"}
+              {profile?.displayName || 'Promoter'}
             </p>
           </div>
         </div>

@@ -17,9 +17,15 @@ export interface ServiceLogger {
  *  Only used during testing or service bootstrap — in production, services
  *  always receive the Fastify Pino logger. */
 export const consoleLogger: ServiceLogger = {
-  info(obj, msg) { console.log(JSON.stringify({ level: 'info', msg, ...obj })); },
-  warn(obj, msg) { console.warn(JSON.stringify({ level: 'warn', msg, ...obj })); },
-  error(obj, msg) { console.error(JSON.stringify({ level: 'error', msg, ...obj })); },
+  info(obj, msg) {
+    console.log(JSON.stringify({ level: 'info', msg, ...obj }));
+  },
+  warn(obj, msg) {
+    console.warn(JSON.stringify({ level: 'warn', msg, ...obj }));
+  },
+  error(obj, msg) {
+    console.error(JSON.stringify({ level: 'error', msg, ...obj }));
+  },
 };
 
 // ─── ServiceContext ───────────────────────────────────────────────────────────

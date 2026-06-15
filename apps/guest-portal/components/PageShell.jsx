@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import React from "react";
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
+import React from 'react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { ArrowLeft } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 
 export default function PageShell({ children, title, backHref, showLogo = true }) {
   const router = useRouter();
@@ -44,7 +44,7 @@ export default function PageShell({ children, title, backHref, showLogo = true }
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
+          transition={{ duration: 0.4, ease: 'easeOut' }}
         >
           {children}
         </motion.div>

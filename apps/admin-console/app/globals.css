@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 :root {
-  --font-heading: "Inter", "SF Pro Display", sans-serif;
-  --font-body: "Inter", "SF Pro Text", sans-serif;
+  --font-heading: 'Inter', 'SF Pro Display', sans-serif;
+  --font-body: 'Inter', 'SF Pro Text', sans-serif;
   --bg-color: #0c0c0b;
   --text-primary: #fafafa;
   --text-secondary: #a1a1aa;

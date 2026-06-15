@@ -1,4 +1,4 @@
-import VenuePlaceholderPage from "@/components/venue-layout/VenuePlaceholderPage";
+import VenuePlaceholderPage from '@/components/venue-layout/VenuePlaceholderPage';
 
 export default function HistoryAnalyticsPage() {
   return (

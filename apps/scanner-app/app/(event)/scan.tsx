@@ -1,30 +1,30 @@
-import { useState, useEffect, useRef } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from "expo-camera";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { useState, useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
   runOnJS,
-} from "react-native-reanimated";
-import { useEvent } from "@/store/eventContext";
-import { processQRScan } from "@/lib/api/scan";
-import ScanResult from "@/components/Scanner/ScanResult";
-import CoupleConfirmModal from "@/components/Scanner/CoupleConfirmModal";
+} from 'react-native-reanimated';
+import { useEvent } from '@/store/eventContext';
+import { processQRScan } from '@/lib/api/scan';
+import ScanResult from '@/components/Scanner/ScanResult';
+import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
 
-const { width, height } = Dimensions.get("window");
+const { width, height } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScanResultType =
-  | "valid"
-  | "already_scanned"
-  | "invalid"
-  | "wrong_event"
-  | "not_confirmed"
+  | 'valid'
+  | 'already_scanned'
+  | 'invalid'
+  | 'wrong_event'
+  | 'not_confirmed'
   | null;
 
 interface ScanResultData {
@@ -71,9 +71,9 @@ export default function ScanScreen() {
     resultOpacity.value = withTiming(1, { duration: 200 });
 
     // Haptic feedback
-    if (result.type === "valid") {
+    if (result.type === 'valid') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } else if (result.type === "already_scanned") {
+    } else if (result.type === 'already_scanned') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     } else {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -106,13 +106,13 @@ export default function ScanScreen() {
     try {
       const result = await processQRScan({
         qrData: data,
-        eventId: eventData?.event.id || "",
-        eventCode: eventData?.code || "",
+        eventId: eventData?.event.id || '',
+        eventCode: eventData?.code || '',
         gate: eventData?.gate,
       });
 
       // Check for couple ticket that needs partner confirmation
-      if (result.success && result.ticket?.entryType === "couple") {
+      if (result.success && result.ticket?.entryType === 'couple') {
         setPendingCoupleData(result);
         setShowCoupleModal(true);
         return;
@@ -121,8 +121,8 @@ export default function ScanScreen() {
       handleScanResult(result);
     } catch (error: any) {
       showResult({
-        type: "invalid",
-        message: error.message || "Scan failed",
+        type: 'invalid',
+        message: error.message || 'Scan failed',
       });
     }
   };
@@ -131,19 +131,19 @@ export default function ScanScreen() {
     if (result.success) {
       setEntryCount((prev) => prev + (result.ticket?.quantity || 1));
       showResult({
-        type: "valid",
-        message: result.message || "Entry approved!",
+        type: 'valid',
+        message: result.message || 'Entry approved!',
         guest: {
-          name: result.ticket?.userName || "Guest",
-          ticketType: result.ticket?.ticketName || "Entry",
+          name: result.ticket?.userName || 'Guest',
+          ticketType: result.ticket?.ticketName || 'Entry',
           quantity: result.ticket?.quantity || 1,
-          entryType: result.ticket?.entryType || "general",
+          entryType: result.ticket?.entryType || 'general',
         },
       });
     } else {
       showResult({
-        type: result.result || "invalid",
-        message: result.error || "Invalid ticket",
+        type: result.result || 'invalid',
+        message: result.error || 'Invalid ticket',
         previousScan: result.previousScan,
       });
     }
@@ -158,8 +158,8 @@ export default function ScanScreen() {
     } else {
       // Reject - partner not present
       showResult({
-        type: "invalid",
-        message: "Couple entry requires both guests present",
+        type: 'invalid',
+        message: 'Couple entry requires both guests present',
       });
     }
     setPendingCoupleData(null);
@@ -204,7 +204,7 @@ export default function ScanScreen() {
         facing="back"
         enableTorch={flashEnabled}
         barcodeScannerSettings={{
-          barcodeTypes: ["qr"],
+          barcodeTypes: ['qr'],
         }}
         onBarcodeScanned={isScanning ? handleBarCodeScanned : undefined}
       />
@@ -231,13 +231,13 @@ export default function ScanScreen() {
               height: SCAN_AREA_SIZE,
               borderWidth: 3,
               borderColor:
-                scanResult?.type === "valid"
-                  ? "#22C55E"
-                  : scanResult?.type === "already_scanned"
-                    ? "#F59E0B"
+                scanResult?.type === 'valid'
+                  ? '#22C55E'
+                  : scanResult?.type === 'already_scanned'
+                    ? '#F59E0B'
                     : scanResult?.type
-                      ? "#EF4444"
-                      : "#FFFFFF",
+                      ? '#EF4444'
+                      : '#FFFFFF',
               borderRadius: 24,
             }}
           >
@@ -256,10 +256,10 @@ export default function ScanScreen() {
           <TouchableOpacity
             onPress={() => setFlashEnabled(!flashEnabled)}
             className={`w-14 h-14 rounded-full items-center justify-center ${
-              flashEnabled ? "bg-warning" : "bg-white/20"
+              flashEnabled ? 'bg-warning' : 'bg-white/20'
             }`}
           >
-            <Ionicons name={flashEnabled ? "flash" : "flash-off"} size={24} color="#FFFFFF" />
+            <Ionicons name={flashEnabled ? 'flash' : 'flash-off'} size={24} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       </View>

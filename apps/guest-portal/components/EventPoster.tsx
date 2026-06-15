@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { motion } from "framer-motion";
-import clsx from "clsx";
-import { useParallaxTilt } from "../lib/hooks/useParallaxTilt";
-import { gradients } from "../lib/designSystem";
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import clsx from 'clsx';
+import { useParallaxTilt } from '../lib/hooks/useParallaxTilt';
+import { gradients } from '../lib/designSystem';
 
 interface EventPosterProps {
   event: {
@@ -21,7 +21,7 @@ export default function EventPoster({ event, className }: EventPosterProps) {
   return (
     <motion.div
       className={clsx(
-        "relative overflow-hidden rounded-[36px] border border-white/10 bg-white/5 p-2 shadow-[0_40px_120px_rgba(0,0,0,0.4)]",
+        'relative overflow-hidden rounded-[36px] border border-white/10 bg-white/5 p-2 shadow-[0_40px_120px_rgba(0,0,0,0.4)]',
         className,
       )}
       style={{ rotateX: tilt.rotateX, rotateY: tilt.rotateY, scale: tilt.scale }}
@@ -29,7 +29,14 @@ export default function EventPoster({ event, className }: EventPosterProps) {
       onMouseLeave={tilt.handleLeave}
     >
       <div className="relative h-[420px] w-full overflow-hidden rounded-[28px]">
-        <Image src={event.image} alt={event.title} fill priority sizes="(max-width: 768px) 100vw, 800px" className="object-cover" />
+        <Image
+          src={event.image}
+          alt={event.title}
+          fill
+          priority
+          sizes="(max-width: 768px) 100vw, 800px"
+          className="object-cover"
+        />
         <span
           className="pointer-events-none absolute inset-0 opacity-0 transition duration-500 hover:opacity-60"
           style={{ background: gradients.aurora }}

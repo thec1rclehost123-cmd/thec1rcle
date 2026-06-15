@@ -1,88 +1,88 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { FieldValue } from "@c1rcle/core/firestore-admin";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { FieldValue } from '@c1rcle/core/firestore-admin';
 
 const fallbackVenues = [
   {
-    id: "high-spirits",
-    slug: "high-spirits",
-    name: "High Spirits",
-    area: "Koregaon Park",
-    image: "/events/neon-nights.jpg",
+    id: 'high-spirits',
+    slug: 'high-spirits',
+    name: 'High Spirits',
+    area: 'Koregaon Park',
+    image: '/events/neon-nights.jpg',
     followers: 12500,
-    tags: ["Techno", "Rooftop", "Indie"],
+    tags: ['Techno', 'Rooftop', 'Indie'],
     tablesAvailable: true,
     description: "Pune's legendary home for indie music and high energy nights.",
-    rules: ["Must be 21+", "Casual dress encouraged"],
-    dressCode: "Casual / House party vibes",
+    rules: ['Must be 21+', 'Casual dress encouraged'],
+    dressCode: 'Casual / House party vibes',
   },
   {
-    id: "kp-social",
-    slug: "kp-social",
-    name: "Koregaon Park Social",
-    area: "Koregaon Park",
-    image: "/events/techno-bunker.jpg",
+    id: 'kp-social',
+    slug: 'kp-social',
+    name: 'Koregaon Park Social',
+    area: 'Koregaon Park',
+    image: '/events/techno-bunker.jpg',
     followers: 45000,
-    tags: ["Bollywood", "College", "Lounge"],
+    tags: ['Bollywood', 'College', 'Lounge'],
     tablesAvailable: true,
     description: "The neighborhood's favorite haunt for work and play.",
-    rules: ["Smart casual", "Valid ID mandatory"],
-    dressCode: "Smart Casual",
+    rules: ['Smart casual', 'Valid ID mandatory'],
+    dressCode: 'Smart Casual',
   },
   {
-    id: "fc-road-courtyard",
-    slug: "fc-road-courtyard",
-    name: "FC Road Courtyard",
-    area: "FC Road",
-    image: "/events/poolside-vibes.jpg",
+    id: 'fc-road-courtyard',
+    slug: 'fc-road-courtyard',
+    name: 'FC Road Courtyard',
+    area: 'FC Road',
+    image: '/events/poolside-vibes.jpg',
     followers: 8200,
-    tags: ["Hip-Hop", "Rooftop", "College"],
+    tags: ['Hip-Hop', 'Rooftop', 'College'],
     tablesAvailable: true,
     description: "Vibrant outdoor space in the heart of the city's student hub.",
-    rules: ["Casual", "No outsiders after 11 PM"],
-    dressCode: "Streetwear / Casual",
+    rules: ['Casual', 'No outsiders after 11 PM'],
+    dressCode: 'Streetwear / Casual',
   },
   {
-    id: "baner-loft",
-    slug: "baner-loft",
-    name: "Baner Terrace Loft",
-    area: "Baner",
-    image: "/events/rooftop-jazz.jpg",
+    id: 'baner-loft',
+    slug: 'baner-loft',
+    name: 'Baner Terrace Loft',
+    area: 'Baner',
+    image: '/events/rooftop-jazz.jpg',
     followers: 6100,
-    tags: ["House", "Lounge", "Rooftop"],
+    tags: ['House', 'Lounge', 'Rooftop'],
     tablesAvailable: true,
-    description: "Sophisticated penthouse vibes with panoramic city views.",
-    rules: ["Must be 25+", "Reserved tables only"],
-    dressCode: "Luxury / Chic",
+    description: 'Sophisticated penthouse vibes with panoramic city views.',
+    rules: ['Must be 25+', 'Reserved tables only'],
+    dressCode: 'Luxury / Chic',
   },
   {
-    id: "kalyani-mansion",
-    slug: "kalyani-mansion",
-    name: "Kalyani Nagar Mansion",
-    area: "Kalyani Nagar",
-    image: "/events/genz-night.svg",
+    id: 'kalyani-mansion',
+    slug: 'kalyani-mansion',
+    name: 'Kalyani Nagar Mansion',
+    area: 'Kalyani Nagar',
+    image: '/events/genz-night.svg',
     followers: 8400,
-    tags: ["Luxury", "Techno", "Private"],
+    tags: ['Luxury', 'Techno', 'Private'],
     tablesAvailable: false,
-    description: "An exclusive heritage estate turned into a late-night sonic paradise.",
-    rules: ["Guestlist only", "Formal valid ID required"],
-    dressCode: "Elevated / Black tie optional",
+    description: 'An exclusive heritage estate turned into a late-night sonic paradise.',
+    rules: ['Guestlist only', 'Formal valid ID required'],
+    dressCode: 'Elevated / Black tie optional',
   },
   {
-    id: "viman-studio",
-    slug: "viman-studio",
-    name: "Underground Studio",
-    area: "Viman Nagar",
-    image: "/events/art-bazaar.svg",
+    id: 'viman-studio',
+    slug: 'viman-studio',
+    name: 'Underground Studio',
+    area: 'Viman Nagar',
+    image: '/events/art-bazaar.svg',
     followers: 5200,
-    tags: ["Underground", "Afro", "Art"],
+    tags: ['Underground', 'Afro', 'Art'],
     tablesAvailable: true,
-    description: "Industrial space dedicated to the warehouse sound and immersive AV.",
-    rules: ["Zero tolerance for harassment", "No flash photography"],
-    dressCode: "All black / Streetwear",
+    description: 'Industrial space dedicated to the warehouse sound and immersive AV.',
+    rules: ['Zero tolerance for harassment', 'No flash photography'],
+    dressCode: 'All black / Streetwear',
   },
 ];
 
-const VENUES_COLLECTION = "venues";
+const VENUES_COLLECTION = 'venues';
 
 export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
   if (!isFirebaseConfigured()) {
@@ -103,7 +103,7 @@ export async function listVenues({ area, vibe, search, tablesOnly } = {}) {
   const db = getAdminDb();
   let query = db.collection(VENUES_COLLECTION);
 
-  if (area) query = query.where("area", "==", area);
+  if (area) query = query.where('area', '==', area);
 
   const snapshot = await query.get();
   let venues = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -135,7 +135,7 @@ export async function getVenueBySlug(slug) {
   }
 
   const db = getAdminDb();
-  const snapshot = await db.collection(VENUES_COLLECTION).where("slug", "==", slug).limit(1).get();
+  const snapshot = await db.collection(VENUES_COLLECTION).where('slug', '==', slug).limit(1).get();
 
   if (!snapshot.empty) {
     return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };

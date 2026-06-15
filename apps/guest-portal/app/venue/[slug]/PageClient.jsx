@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import VenuePageClient from "../../../components/venue/VenuePageClient";
-import { fetchPublicVenue } from "../../../features/discovery/publicDiscovery";
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import VenuePageClient from '../../../components/venue/VenuePageClient';
+import { fetchPublicVenue } from '../../../features/discovery/publicDiscovery';
 
 function normalizeEventCard(event) {
   return {
@@ -27,34 +27,34 @@ function normalizeVenuePayload(payload) {
   };
 }
 
-export default function VenuePublicPageClient({ initialData = null, initialSlug = "" }) {
+export default function VenuePublicPageClient({ initialData = null, initialSlug = '' }) {
   const params = useParams();
-  const slug = decodeURIComponent(String(params?.slug || initialSlug || ""));
+  const slug = decodeURIComponent(String(params?.slug || initialSlug || ''));
   const [data, setData] = useState(normalizeVenuePayload(initialData));
-  const [status, setStatus] = useState(initialData?.venue ? "ready" : "loading");
+  const [status, setStatus] = useState(initialData?.venue ? 'ready' : 'loading');
 
   useEffect(() => {
     let cancelled = false;
 
     if (initialData?.venue && slug === initialSlug) {
       setData(normalizeVenuePayload(initialData));
-      setStatus("ready");
+      setStatus('ready');
       return () => {
         cancelled = true;
       };
     }
 
     async function loadVenue() {
-      setStatus("loading");
+      setStatus('loading');
       try {
         const nextData = await fetchPublicVenue(slug);
         if (cancelled) return;
         setData(normalizeVenuePayload(nextData));
-        setStatus(nextData?.venue ? "ready" : "missing");
+        setStatus(nextData?.venue ? 'ready' : 'missing');
       } catch (error) {
         if (!cancelled) {
-          console.error("[VenuePublicPage] Failed to load venue", error);
-          setStatus("error");
+          console.error('[VenuePublicPage] Failed to load venue', error);
+          setStatus('error');
         }
       }
     }
@@ -62,7 +62,7 @@ export default function VenuePublicPageClient({ initialData = null, initialSlug 
     if (slug) {
       loadVenue();
     } else {
-      setStatus("missing");
+      setStatus('missing');
     }
 
     return () => {
@@ -70,16 +70,20 @@ export default function VenuePublicPageClient({ initialData = null, initialSlug 
     };
   }, [slug, initialData, initialSlug]);
 
-  if (status === "loading") {
+  if (status === 'loading') {
     return <div className="min-h-screen animate-pulse bg-white dark:bg-[#0A0A0A]" />;
   }
 
-  if (status !== "ready" || !data?.venue) {
+  if (status !== 'ready' || !data?.venue) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-white px-6 text-center text-black dark:bg-[#0A0A0A] dark:text-white">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#F44A22]">Venue unavailable</p>
-          <h1 className="mt-4 text-3xl font-black uppercase tracking-tight">We could not load this venue.</h1>
+          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-[#F44A22]">
+            Venue unavailable
+          </p>
+          <h1 className="mt-4 text-3xl font-black uppercase tracking-tight">
+            We could not load this venue.
+          </h1>
         </div>
       </main>
     );

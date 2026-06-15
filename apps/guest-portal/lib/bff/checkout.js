@@ -1,10 +1,10 @@
-import { normalizeBootstrapPayload } from "../../features/auth/utils/authSessionModel.js";
-import { normalizeCheckoutEventDetail } from "../../features/checkout/checkoutEventModel.js";
+import { normalizeBootstrapPayload } from '../../features/auth/utils/authSessionModel.js';
+import { normalizeCheckoutEventDetail } from '../../features/checkout/checkoutEventModel.js';
 import {
   buildCheckoutQuotePayload,
   buildCheckoutRequestIdempotencyKey,
-} from "../../features/checkout/utils/checkoutSessionModel.js";
-import { normalizeReservationItems } from "../../features/checkout/utils/checkoutViewModel.js";
+} from '../../features/checkout/utils/checkoutSessionModel.js';
+import { normalizeReservationItems } from '../../features/checkout/utils/checkoutViewModel.js';
 import {
   GUEST_BFF_CACHE,
   buildGuestBffError,
@@ -13,9 +13,16 @@ import {
   getGuestBffUpstreamError,
   guestBffUpstreamJson,
   readIntegerParam,
-} from "./server.js";
+} from './server.js';
 
-function normalizeQuoteInput({ appliedPromoCode, cartReservation, eventId, promoterCode, quoteInput, selectedTickets }) {
+function normalizeQuoteInput({
+  appliedPromoCode,
+  cartReservation,
+  eventId,
+  promoterCode,
+  quoteInput,
+  selectedTickets,
+}) {
   if (quoteInput) return quoteInput;
   return buildCheckoutQuotePayload({
     appliedPromoCode: appliedPromoCode || null,
@@ -30,7 +37,7 @@ export function readSelectedTicketsFromSearchParams(searchParams) {
   const items = [];
 
   for (const [key, value] of searchParams.entries()) {
-    if (!key.startsWith("t_")) continue;
+    if (!key.startsWith('t_')) continue;
     const quantity = readIntegerParam(value, 0);
     if (quantity <= 0) continue;
     items.push({
@@ -52,7 +59,7 @@ export async function buildCheckoutSummaryView({
   requestHeaders = {},
   selectedTickets = [],
 } = {}) {
-  const fallbackRequestId = new Headers(requestHeaders || {}).get("x-request-id") || undefined;
+  const fallbackRequestId = new Headers(requestHeaders || {}).get('x-request-id') || undefined;
   if (!eventId) {
     return buildGuestBffResult({
       status: 400,
@@ -67,8 +74,8 @@ export async function buildCheckoutSummaryView({
         constraints: null,
         payment: null,
       },
-      error: buildGuestBffError("Missing eventId.", {
-        code: "BAD_REQUEST",
+      error: buildGuestBffError('Missing eventId.', {
+        code: 'BAD_REQUEST',
         requestId: fallbackRequestId,
         status: 400,
       }),
@@ -83,8 +90,8 @@ export async function buildCheckoutSummaryView({
       cacheMode: GUEST_BFF_CACHE.PUBLIC_REVALIDATED,
       forwardCookies: false,
     }),
-    guestBffUpstreamJson("/auth/me"),
-    guestBffUpstreamJson("/payments/config"),
+    guestBffUpstreamJson('/auth/me'),
+    guestBffUpstreamJson('/payments/config'),
   ]);
 
   if (!eventResult.response.ok) {
@@ -102,7 +109,7 @@ export async function buildCheckoutSummaryView({
         payment: paymentResult.response.ok ? paymentResult.data : null,
       },
       error: buildGuestBffError(
-        getGuestBffUpstreamError(eventResult.data, "Unable to load checkout event."),
+        getGuestBffUpstreamError(eventResult.data, 'Unable to load checkout event.'),
         {
           requestId: eventResult.requestId,
           status: eventResult.response.status || 404,
@@ -129,13 +136,13 @@ export async function buildCheckoutSummaryView({
   });
 
   const nextHeaders = new Headers(requestHeaders || {});
-  if (!nextHeaders.has("x-idempotency-key")) {
+  if (!nextHeaders.has('x-idempotency-key')) {
     nextHeaders.set(
-      "x-idempotency-key",
+      'x-idempotency-key',
       buildCheckoutRequestIdempotencyKey({
         code: nextQuoteInput?.promoCode,
         eventId,
-        prefix: "quote",
+        prefix: 'quote',
         promoterCode: nextQuoteInput?.promoterCode,
         reservationId: nextQuoteInput?.reservationId || null,
         selectedTickets: nextQuoteInput?.items || [],
@@ -143,8 +150,8 @@ export async function buildCheckoutSummaryView({
     );
   }
 
-  const quoteResult = await guestBffUpstreamJson("/checkout/calculate", {
-    method: "POST",
+  const quoteResult = await guestBffUpstreamJson('/checkout/calculate', {
+    method: 'POST',
     headers: nextHeaders,
     body: nextQuoteInput,
   });
@@ -169,7 +176,7 @@ export async function buildCheckoutSummaryView({
     error: quoteResult.response.ok
       ? null
       : buildGuestBffError(
-          getGuestBffUpstreamError(quoteResult.data, "We could not refresh live pricing."),
+          getGuestBffUpstreamError(quoteResult.data, 'We could not refresh live pricing.'),
           {
             requestId: quoteResult.requestId,
             status: quoteResult.response.status || 422,
@@ -178,7 +185,12 @@ export async function buildCheckoutSummaryView({
     meta: {
       quoteRequestKey: JSON.stringify(nextQuoteInput || null),
       requestId: eventResult.requestId,
-      upstreamCalls: buildGuestBffUpstreamTrace(eventResult, authResult, paymentResult, quoteResult),
+      upstreamCalls: buildGuestBffUpstreamTrace(
+        eventResult,
+        authResult,
+        paymentResult,
+        quoteResult,
+      ),
     },
   });
 }
@@ -186,13 +198,13 @@ export async function buildCheckoutSummaryView({
 export async function runCheckoutQuote(body = {}, requestHeaders = {}) {
   const { linkId = null, ...restBody } = body;
   const nextHeaders = new Headers(requestHeaders || {});
-  if (!nextHeaders.has("x-idempotency-key")) {
+  if (!nextHeaders.has('x-idempotency-key')) {
     nextHeaders.set(
-      "x-idempotency-key",
+      'x-idempotency-key',
       buildCheckoutRequestIdempotencyKey({
         code: restBody?.promoCode,
-        eventId: restBody?.eventId || "unknown-event",
-        prefix: "quote",
+        eventId: restBody?.eventId || 'unknown-event',
+        prefix: 'quote',
         promoterCode: restBody?.promoterCode || null,
         reservationId: restBody?.reservationId || null,
         selectedTickets: restBody?.items || [],
@@ -200,10 +212,10 @@ export async function runCheckoutQuote(body = {}, requestHeaders = {}) {
     );
   }
 
-  const quoteResult = await guestBffUpstreamJson("/checkout/calculate", {
+  const quoteResult = await guestBffUpstreamJson('/checkout/calculate', {
     body: { ...restBody, ...(linkId ? { linkId } : {}) },
     headers: nextHeaders,
-    method: "POST",
+    method: 'POST',
   });
 
   return buildGuestBffResult({
@@ -218,7 +230,7 @@ export async function runCheckoutQuote(body = {}, requestHeaders = {}) {
     error: quoteResult.response.ok
       ? null
       : buildGuestBffError(
-          getGuestBffUpstreamError(quoteResult.data, "We could not refresh live pricing."),
+          getGuestBffUpstreamError(quoteResult.data, 'We could not refresh live pricing.'),
           {
             requestId: quoteResult.requestId,
             status: quoteResult.response.status || 422,
@@ -235,7 +247,7 @@ async function runCheckoutMutation(path, body, requestHeaders = {}, fallbackMess
   const result = await guestBffUpstreamJson(path, {
     body,
     headers: requestHeaders,
-    method: "POST",
+    method: 'POST',
   });
 
   return buildGuestBffResult({
@@ -243,13 +255,10 @@ async function runCheckoutMutation(path, body, requestHeaders = {}, fallbackMess
     data: result.response.ok ? result.data : null,
     error: result.response.ok
       ? null
-      : buildGuestBffError(
-          getGuestBffUpstreamError(result.data, fallbackMessage),
-          {
-            requestId: result.requestId,
-            status: result.response.status || 422,
-          },
-        ),
+      : buildGuestBffError(getGuestBffUpstreamError(result.data, fallbackMessage), {
+          requestId: result.requestId,
+          status: result.response.status || 422,
+        }),
     meta: {
       requestId: result.requestId,
       upstreamCalls: buildGuestBffUpstreamTrace(result),
@@ -258,18 +267,28 @@ async function runCheckoutMutation(path, body, requestHeaders = {}, fallbackMess
 }
 
 export function runCheckoutReserve(body = {}, requestHeaders = {}) {
-  return runCheckoutMutation("/checkout/reserve", body, requestHeaders, "Failed to reserve tickets.");
+  return runCheckoutMutation(
+    '/checkout/reserve',
+    body,
+    requestHeaders,
+    'Failed to reserve tickets.',
+  );
 }
 
 export function runCheckoutInitiate(body = {}, requestHeaders = {}) {
-  return runCheckoutMutation("/checkout/initiate", body, requestHeaders, "Failed to initiate checkout.");
+  return runCheckoutMutation(
+    '/checkout/initiate',
+    body,
+    requestHeaders,
+    'Failed to initiate checkout.',
+  );
 }
 
 export async function runCheckoutVerify(body = {}, requestHeaders = {}) {
-  const result = await guestBffUpstreamJson("/payments/verify", {
+  const result = await guestBffUpstreamJson('/payments/verify', {
     body,
     headers: requestHeaders,
-    method: "PATCH",
+    method: 'PATCH',
   });
 
   return buildGuestBffResult({
@@ -277,13 +296,10 @@ export async function runCheckoutVerify(body = {}, requestHeaders = {}) {
     data: result.response.ok ? result.data : null,
     error: result.response.ok
       ? null
-      : buildGuestBffError(
-          getGuestBffUpstreamError(result.data, "Verification failed."),
-          {
-            requestId: result.requestId,
-            status: result.response.status || 422,
-          },
-        ),
+      : buildGuestBffError(getGuestBffUpstreamError(result.data, 'Verification failed.'), {
+          requestId: result.requestId,
+          status: result.response.status || 422,
+        }),
     meta: {
       requestId: result.requestId,
       upstreamCalls: buildGuestBffUpstreamTrace(result),
@@ -299,8 +315,8 @@ export async function recoverCheckoutOrder(orderId) {
     return buildGuestBffResult({
       status: 404,
       data: null,
-      error: buildGuestBffError("Order not found.", {
-        code: "NOT_FOUND",
+      error: buildGuestBffError('Order not found.', {
+        code: 'NOT_FOUND',
         requestId: result.requestId,
         status: 404,
       }),
@@ -313,16 +329,15 @@ export async function recoverCheckoutOrder(orderId) {
 
   return buildGuestBffResult({
     status: result.response.ok ? 200 : result.response.status || 422,
-    data: result.response.ok ? { order: result.data?.order || null, event: result.data?.event || null } : null,
+    data: result.response.ok
+      ? { order: result.data?.order || null, event: result.data?.event || null }
+      : null,
     error: result.response.ok
       ? null
-      : buildGuestBffError(
-          getGuestBffUpstreamError(result.data, "Failed to load order status."),
-          {
-            requestId: result.requestId,
-            status: result.response.status || 422,
-          },
-        ),
+      : buildGuestBffError(getGuestBffUpstreamError(result.data, 'Failed to load order status.'), {
+          requestId: result.requestId,
+          status: result.response.status || 422,
+        }),
     meta: {
       requestId: result.requestId,
       upstreamCalls: buildGuestBffUpstreamTrace(result),

@@ -1,6 +1,6 @@
-"use server";
+'use server';
 
-import { getUserEvents as getUserEventsStore, getUserProfile } from "../../lib/server/profileStore";
+import { getUserEvents as getUserEventsStore, getUserProfile } from '../../lib/server/profileStore';
 
 export async function getUserEvents(profileUserId, viewerUserId) {
   return await getUserEventsStore(profileUserId, viewerUserId);

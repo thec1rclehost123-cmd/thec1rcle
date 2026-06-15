@@ -1,24 +1,24 @@
-import process from "node:process";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import process from 'node:process';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { config as loadEnv } from "dotenv";
-import { getAdminDb, isFirebaseConfigured } from "@c1rcle/core/admin";
+import { config as loadEnv } from 'dotenv';
+import { getAdminDb, isFirebaseConfigured } from '@c1rcle/core/admin';
 
-const EVENT_COLLECTION = "events";
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const EVENT_COLLECTION = 'events';
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 [
-  resolve(REPO_ROOT, ".env"),
-  resolve(REPO_ROOT, "apps/partner-dashboard/.env.local"),
-  resolve(REPO_ROOT, "apps/partner-dashboard/.env.development"),
-  resolve(REPO_ROOT, "apps/partner-dashboard/.env.production"),
-  resolve(REPO_ROOT, "apps/partner-dashboard/.env.staging"),
-  resolve(REPO_ROOT, "apps/guest-portal/.env.local"),
-  resolve(REPO_ROOT, "apps/guest-portal/.env.development"),
-  resolve(REPO_ROOT, "apps/guest-portal/.env.production"),
-  resolve(REPO_ROOT, "apps/guest-portal/.env.staging"),
+  resolve(REPO_ROOT, '.env'),
+  resolve(REPO_ROOT, 'apps/partner-dashboard/.env.local'),
+  resolve(REPO_ROOT, 'apps/partner-dashboard/.env.development'),
+  resolve(REPO_ROOT, 'apps/partner-dashboard/.env.production'),
+  resolve(REPO_ROOT, 'apps/partner-dashboard/.env.staging'),
+  resolve(REPO_ROOT, 'apps/guest-portal/.env.local'),
+  resolve(REPO_ROOT, 'apps/guest-portal/.env.development'),
+  resolve(REPO_ROOT, 'apps/guest-portal/.env.production'),
+  resolve(REPO_ROOT, 'apps/guest-portal/.env.staging'),
 ].forEach((envPath) => {
   if (existsSync(envPath)) {
     loadEnv({ path: envPath, override: false });
@@ -26,32 +26,24 @@ const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 });
 
 const slugifyPartnerValue = (value) => {
-  return String(value || "")
+  return String(value || '')
     .trim()
     .toLowerCase()
-    .replace(/^@/, "")
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^@/, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 };
 
 const buildPartnerSnapshot = (doc, type, fallbackName) => {
   if (!doc?.exists) return null;
   const data = doc.data() || {};
   const name =
-    data.name ||
-    data.displayName ||
-    data.venueName ||
-    data.hostName ||
-    fallbackName ||
-    doc.id;
+    data.name || data.displayName || data.venueName || data.hostName || fallbackName || doc.id;
 
   const handle = data.handle || null;
-  const slug =
-    data.slug ||
-    slugifyPartnerValue(handle || name || doc.id) ||
-    doc.id;
+  const slug = data.slug || slugifyPartnerValue(handle || name || doc.id) || doc.id;
 
   const photoURL = data.photoURL || data.avatar || data.image || data.logo || null;
   const coverURL = data.coverURL || data.cover || data.image || null;
@@ -75,7 +67,7 @@ const buildPartnerSnapshot = (doc, type, fallbackName) => {
 };
 
 const normalizeCreatorRole = (value) => {
-  if (value === "club") return "venue";
+  if (value === 'club') return 'venue';
   return value;
 };
 
@@ -83,25 +75,25 @@ const parseArgs = (argv) => {
   const options = {
     write: false,
     limit: null,
-    eventId: "",
+    eventId: '',
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
 
-    if (arg === "--write") {
+    if (arg === '--write') {
       options.write = true;
       continue;
     }
 
-    if (arg === "--limit") {
+    if (arg === '--limit') {
       options.limit = Number(argv[index + 1]) || null;
       index += 1;
       continue;
     }
 
-    if (arg === "--event") {
-      options.eventId = String(argv[index + 1] || "").trim();
+    if (arg === '--event') {
+      options.eventId = String(argv[index + 1] || '').trim();
       index += 1;
       continue;
     }
@@ -114,8 +106,8 @@ const resolveTargetRefs = (event) => {
   const normalizedRole = normalizeCreatorRole(event.creatorRole);
 
   return {
-    hostId: event.hostId || (normalizedRole === "host" ? event.creatorId : null),
-    venueId: event.venueId || (normalizedRole === "venue" ? event.creatorId : null),
+    hostId: event.hostId || (normalizedRole === 'host' ? event.creatorId : null),
+    venueId: event.venueId || (normalizedRole === 'venue' ? event.creatorId : null),
     hostFallbackName: event.host || event.hostName || null,
     venueFallbackName: event.venueName || event.venue || null,
   };
@@ -125,7 +117,7 @@ const main = async () => {
   const options = parseArgs(process.argv.slice(2));
 
   if (!isFirebaseConfigured()) {
-    throw new Error("Firebase admin credentials are not configured. Aborting backfill.");
+    throw new Error('Firebase admin credentials are not configured. Aborting backfill.');
   }
 
   const db = getAdminDb();
@@ -134,7 +126,7 @@ const main = async () => {
   if (options.eventId) {
     const doc = await db.collection(EVENT_COLLECTION).doc(options.eventId).get();
     if (!doc.exists) {
-      console.log("No matching events found.");
+      console.log('No matching events found.');
       return;
     }
     docs = [doc];
@@ -146,7 +138,7 @@ const main = async () => {
 
     const snapshot = await query.get();
     if (snapshot.empty) {
-      console.log("No matching events found.");
+      console.log('No matching events found.');
       return;
     }
 
@@ -163,12 +155,25 @@ const main = async () => {
     const { hostId, venueId, hostFallbackName, venueFallbackName } = resolveTargetRefs(event);
 
     const [hostDoc, venueDoc] = await Promise.all([
-      hostId ? db.collection("hosts").doc(hostId).get().catch(() => null) : Promise.resolve(null),
-      venueId ? db.collection("venues").doc(venueId).get().catch(() => null) : Promise.resolve(null),
+      hostId
+        ? db
+            .collection('hosts')
+            .doc(hostId)
+            .get()
+            .catch(() => null)
+        : Promise.resolve(null),
+      venueId
+        ? db
+            .collection('venues')
+            .doc(venueId)
+            .get()
+            .catch(() => null)
+        : Promise.resolve(null),
     ]);
 
-    const nextHostData = event.hostData || buildPartnerSnapshot(hostDoc, "host", hostFallbackName);
-    const nextVenueData = event.venueData || buildPartnerSnapshot(venueDoc, "venue", venueFallbackName);
+    const nextHostData = event.hostData || buildPartnerSnapshot(hostDoc, 'host', hostFallbackName);
+    const nextVenueData =
+      event.venueData || buildPartnerSnapshot(venueDoc, 'venue', venueFallbackName);
 
     const needsHostBackfill = !event.hostData && nextHostData;
     const needsVenueBackfill = !event.venueData && nextVenueData;
@@ -190,15 +195,15 @@ const main = async () => {
     }
 
     console.log(
-      `${options.write ? "UPDATED" : "DRY-RUN"} ${doc.id} ` +
-      `${needsHostBackfill ? "[hostData]" : ""}${needsVenueBackfill ? "[venueData]" : ""}`
+      `${options.write ? 'UPDATED' : 'DRY-RUN'} ${doc.id} ` +
+        `${needsHostBackfill ? '[hostData]' : ''}${needsVenueBackfill ? '[venueData]' : ''}`,
     );
   }
 
   console.log(
     JSON.stringify(
       {
-        mode: options.write ? "write" : "dry-run",
+        mode: options.write ? 'write' : 'dry-run',
         scanned,
         changed,
         skipped,
@@ -210,6 +215,6 @@ const main = async () => {
 };
 
 main().catch((error) => {
-  console.error("[backfill-event-partner-snapshots] failed:", error);
+  console.error('[backfill-event-partner-snapshots] failed:', error);
   process.exitCode = 1;
 });

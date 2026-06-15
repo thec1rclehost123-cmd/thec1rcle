@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
-import { joinWaitlist, verifyWaitlistAccess } from "../../../lib/server/waitlistStore";
-import { verifyAuth } from "../../../lib/server/auth";
+import { NextResponse } from 'next/server';
+import { joinWaitlist, verifyWaitlistAccess } from '../../../lib/server/waitlistStore';
+import { verifyAuth } from '../../../lib/server/auth';
 
-import { joinWaitlistSchema, validateBody } from "../../../lib/server/validators";
-import { withRateLimit } from "../../../lib/server/rateLimit";
+import { joinWaitlistSchema, validateBody } from '../../../lib/server/validators';
+import { withRateLimit } from '../../../lib/server/rateLimit';
 
 async function handler(request) {
   try {
@@ -29,7 +29,7 @@ async function handler(request) {
 
     return NextResponse.json({
       success: true,
-      message: "Added to waitlist",
+      message: 'Added to waitlist',
       entry,
     });
   } catch (error) {
@@ -41,11 +41,11 @@ export const POST = withRateLimit(handler, 10);
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-  const eventId = searchParams.get("eventId");
-  const email = searchParams.get("email");
+  const eventId = searchParams.get('eventId');
+  const email = searchParams.get('email');
 
   if (!eventId || !email) {
-    return NextResponse.json({ error: "Missing params" }, { status: 400 });
+    return NextResponse.json({ error: 'Missing params' }, { status: 400 });
   }
 
   const access = await verifyWaitlistAccess(eventId, email);

@@ -1,9 +1,9 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
 
-const CLUBS_COLLECTION = "venues";
-const HOSTS_COLLECTION = "hosts";
-const PROFILE_POSTS_COLLECTION = "profile_posts";
-const PROFILE_HIGHLIGHTS_COLLECTION = "profile_highlights";
+const CLUBS_COLLECTION = 'venues';
+const HOSTS_COLLECTION = 'hosts';
+const PROFILE_POSTS_COLLECTION = 'profile_posts';
+const PROFILE_HIGHLIGHTS_COLLECTION = 'profile_highlights';
 
 /**
  * Helper to serialize Firestore docs to plain objects for RSC
@@ -15,7 +15,7 @@ const serializeDoc = (doc) => {
 
   // Convert Timestamps to ISO strings
   Object.keys(serialized).forEach((key) => {
-    if (serialized[key] && typeof serialized[key].toDate === "function") {
+    if (serialized[key] && typeof serialized[key].toDate === 'function') {
       serialized[key] = serialized[key].toDate().toISOString();
     }
   });
@@ -34,8 +34,8 @@ export async function getProfilePosts(profileId, type, limit = 20) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(PROFILE_POSTS_COLLECTION)
-    .where("profileId", "==", profileId)
-    .where("profileType", "==", type)
+    .where('profileId', '==', profileId)
+    .where('profileType', '==', type)
     .limit(limit)
     .get();
 
@@ -57,8 +57,8 @@ export async function getProfileHighlights(profileId, type) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(PROFILE_HIGHLIGHTS_COLLECTION)
-    .where("profileId", "==", profileId)
-    .where("profileType", "==", type)
+    .where('profileId', '==', profileId)
+    .where('profileType', '==', type)
     .get();
 
   const now = new Date().toISOString();
@@ -92,7 +92,7 @@ export async function getProfileStats(profileId, type) {
 
   // Followers count is usually on the main profile doc
   const db = getAdminDb();
-  const collection = type === "venue" ? CLUBS_COLLECTION : HOSTS_COLLECTION;
+  const collection = type === 'venue' ? CLUBS_COLLECTION : HOSTS_COLLECTION;
   const profileDoc = await db.collection(collection).doc(profileId).get();
   const profileData = profileDoc.data();
 

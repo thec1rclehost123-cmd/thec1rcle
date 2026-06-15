@@ -1,29 +1,19 @@
 function normalizeAudienceUser(user) {
-  if (!user || typeof user !== "object") return null;
+  if (!user || typeof user !== 'object') return null;
 
   const id = user.id || user.uid || user.userId || user.guestId || null;
   const name =
-    user.name ||
-    user.displayName ||
-    user.username ||
-    user.handle ||
-    user.fullName ||
-    null;
+    user.name || user.displayName || user.username || user.handle || user.fullName || null;
 
   if (!id && !name) return null;
 
   return {
     id: id || name,
-    name: name || "Guest",
-    displayName: user.displayName || name || "Guest",
+    name: name || 'Guest',
+    displayName: user.displayName || name || 'Guest',
     username: user.username || user.handle || null,
     avatar:
-      user.avatar ||
-      user.photoURL ||
-      user.photoUrl ||
-      user.image ||
-      user.profileImage ||
-      null,
+      user.avatar || user.photoURL || user.photoUrl || user.image || user.profileImage || null,
   };
 }
 

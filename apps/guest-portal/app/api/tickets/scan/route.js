@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
-import { verifyAuth } from "@/lib/server/auth";
-import { validateAndScanTicket } from "@/lib/server/ticketShareStore";
-import { processEntryScan } from "@c1rcle/core/entitlement-engine";
-import { verifyQRPayload } from "@/lib/server/qrStore";
+import { NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/server/auth';
+import { validateAndScanTicket } from '@/lib/server/ticketShareStore';
+import { processEntryScan } from '@c1rcle/core/entitlement-engine';
+import { verifyQRPayload } from '@/lib/server/qrStore';
 
 export async function POST(request) {
   try {
     const user = await verifyAuth();
     if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     // Check if user is host or admin (simplified for this task)
@@ -16,7 +16,7 @@ export async function POST(request) {
     const { ticketPayload, eventId, scannerId } = await request.json();
 
     if (!ticketPayload || !eventId) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     let parsedPayload = null;
@@ -31,9 +31,9 @@ export async function POST(request) {
       const verification = verifyQRPayload(parsedPayload);
       if (!verification.valid) {
         return NextResponse.json({
-          status: "denied",
-          reason: "invalid_signature",
-          message: verification.error || "Invalid QR Signature",
+          status: 'denied',
+          reason: 'invalid_signature',
+          message: verification.error || 'Invalid QR Signature',
         });
       }
 
@@ -42,7 +42,7 @@ export async function POST(request) {
       // Re-format for the unified scanner logic
       const result = await validateAndScanTicket(
         orderId,
-        "SIGNED-JSON",
+        'SIGNED-JSON',
         eventId,
         scannerId || user.uid,
         {
@@ -52,26 +52,26 @@ export async function POST(request) {
 
       if (result.valid) {
         return NextResponse.json({
-          status: "approved",
+          status: 'approved',
           ticket: result.ticket,
-          message: "Entry Granted",
+          message: 'Entry Granted',
         });
       } else {
         return NextResponse.json({
-          status: "denied",
+          status: 'denied',
           reason: result.reason,
-          message: result.message || "Access Denied",
+          message: result.message || 'Access Denied',
         });
       }
     }
 
     // LEGACY FALLBACK
-    const [ticketId, signature] = ticketPayload.split(":");
+    const [ticketId, signature] = ticketPayload.split(':');
     if (!ticketId || !signature) {
       return NextResponse.json({
-        status: "denied",
-        reason: "invalid_format",
-        message: "Invalid ticket format",
+        status: 'denied',
+        reason: 'invalid_format',
+        message: 'Invalid ticket format',
       });
     }
 
@@ -79,28 +79,28 @@ export async function POST(request) {
 
     if (result.valid) {
       return NextResponse.json({
-        status: "approved",
+        status: 'approved',
         ticket: result.ticket,
       });
     } else {
       const reasonMap = {
-        invalid_signature: { status: "denied", message: "Invalid ticket (forged)" },
-        already_used: { status: "denied", message: "Already used" },
-        event_mismatch: { status: "denied", message: "Ticket is for a different event" },
-        order_not_found: { status: "denied", message: "Ticket not found" },
-        order_not_confirmed: { status: "denied", message: "Payment not confirmed" },
-        cancelled: { status: "denied", message: "Ticket cancelled" },
+        invalid_signature: { status: 'denied', message: 'Invalid ticket (forged)' },
+        already_used: { status: 'denied', message: 'Already used' },
+        event_mismatch: { status: 'denied', message: 'Ticket is for a different event' },
+        order_not_found: { status: 'denied', message: 'Ticket not found' },
+        order_not_confirmed: { status: 'denied', message: 'Payment not confirmed' },
+        cancelled: { status: 'denied', message: 'Ticket cancelled' },
       };
 
-      const response = reasonMap[result.reason] || { status: "denied", message: "Access denied" };
+      const response = reasonMap[result.reason] || { status: 'denied', message: 'Access denied' };
       return NextResponse.json(response);
     }
   } catch (error) {
-    console.error("Scan error:", error);
+    console.error('Scan error:', error);
     return NextResponse.json(
       {
-        status: "error",
-        message: "Internal server error",
+        status: 'error',
+        message: 'Internal server error',
       },
       { status: 500 },
     );

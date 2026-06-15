@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { trackPromoterLinkClick } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 
-const CreateLinkBody = z.object({
+const CreateLinkBody = z
+  .object({
     promoterId: z.string(),
     promoterName: z.string().optional(),
     eventId: z.string(),
@@ -11,15 +12,18 @@ const CreateLinkBody = z.object({
     commissionRate: z.number().optional(),
     commissionType: z.string().optional(),
     ticketTierIds: z.array(z.string()).optional(),
-    expiresAt: z.string().nullable().optional()
-}).strict();
+    expiresAt: z.string().nullable().optional(),
+  })
+  .strict();
 
-const LinksQuery = z.object({
+const LinksQuery = z
+  .object({
     promoterId: z.string().optional(),
     eventId: z.string().optional(),
     isActive: z.string().optional(),
-    limit: z.string().optional()
-}).strict();
+    limit: z.string().optional(),
+  })
+  .strict();
 
 const CodeParam = z.object({ code: z.string() }).strict();
 const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
@@ -27,225 +31,349 @@ const EventIdParam = z.object({ eventId: z.string() }).strict();
 const LinkIdParam = z.object({ id: z.string() }).strict();
 
 export default async function promoterLinksRoutes(fastify: FastifyInstance) {
-    const LINKS_COL = 'promoter_links';
-    const COMMISSIONS_COL = 'promoter_commissions';
+  const LINKS_COL = 'promoter_links';
+  const COMMISSIONS_COL = 'promoter_commissions';
 
-    /**
-     * GET /api/v1/promoter-links/:id
-     * Public endpoint — used by the guest-portal refer page (no auth token available).
-     * Returns only the minimal fields needed to resolve the referral redirect.
-     * Financial fields (commissionRate, revenue, commission, conversions, clicks) are intentionally excluded.
-     */
-    fastify.get('/:id', {
-        preHandler: [fastify.validate({ params: z.object({ id: z.string().min(1) }) })]
-    }, async (request: any, reply: any) => {
-        const { id } = request.params;
-        const doc = await fastify.db.collection(LINKS_COL).doc(id).get().catch(() => null);
-        if (!doc || !doc.exists) {
-            return reply.status(404).send({ success: false, error: 'Link not found' });
+  /**
+   * GET /api/v1/promoter-links/:id
+   * Public endpoint — used by the guest-portal refer page (no auth token available).
+   * Returns only the minimal fields needed to resolve the referral redirect.
+   * Financial fields (commissionRate, revenue, commission, conversions, clicks) are intentionally excluded.
+   */
+  fastify.get(
+    '/:id',
+    {
+      preHandler: [fastify.validate({ params: z.object({ id: z.string().min(1) }) })],
+    },
+    async (request: any, reply: any) => {
+      const { id } = request.params;
+      const doc = await fastify.db
+        .collection(LINKS_COL)
+        .doc(id)
+        .get()
+        .catch(() => null);
+      if (!doc || !doc.exists) {
+        return reply.status(404).send({ success: false, error: 'Link not found' });
+      }
+      const data = doc.data() as any;
+      // Public projection only — never expose financial or identity fields unauthenticated.
+      const link = {
+        id: doc.id,
+        code: data.code,
+        eventId: data.eventId,
+        eventSlug: data.eventSlug || null,
+        isActive: data.isActive,
+        expiresAt: data.expiresAt || null,
+      };
+      return reply.send({ success: true, link });
+    },
+  );
+
+  /**
+   * POST /api/v1/promoter-links/create
+   */
+  fastify.post(
+    '/create',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ body: CreateLinkBody })],
+    },
+    async (request: any, reply) => {
+      const body = request.body as any;
+      const {
+        promoterId,
+        promoterName,
+        eventId,
+        eventTitle,
+        commissionRate,
+        commissionType = 'percentage',
+        ticketTierIds = [],
+        expiresAt = null,
+      } = body;
+
+      // Caller must be the promoter themselves or a manager of the event's host/venue.
+      const callerIsPromoter = request.user.uid === promoterId;
+      if (!callerIsPromoter) {
+        const eventDoc = await fastify.db
+          .collection('events')
+          .doc(eventId)
+          .get()
+          .catch(() => null);
+        const partnerId = eventDoc?.exists
+          ? (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId
+          : null;
+        if (!partnerId) {
+          return reply
+            .status(403)
+            .send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
         }
-        const data = doc.data() as any;
-        // Public projection only — never expose financial or identity fields unauthenticated.
-        const link = {
-            id: doc.id,
-            code: data.code,
-            eventId: data.eventId,
-            eventSlug: data.eventSlug || null,
-            isActive: data.isActive,
-            expiresAt: data.expiresAt || null,
-        };
-        return reply.send({ success: true, link });
-    });
-
-    /**
-     * POST /api/v1/promoter-links/create
-     */
-    fastify.post('/create', {
-        preHandler: [fastify.requireAuth, fastify.validate({ body: CreateLinkBody })]
-    }, async (request: any, reply) => {
-        const body = request.body as any;
-        const { promoterId, promoterName, eventId, eventTitle, commissionRate, commissionType = 'percentage', ticketTierIds = [], expiresAt = null } = body;
-
-        // Caller must be the promoter themselves or a manager of the event's host/venue.
-        const callerIsPromoter = request.user.uid === promoterId;
-        if (!callerIsPromoter) {
-            const eventDoc = await fastify.db.collection('events').doc(eventId).get().catch(() => null);
-            const partnerId = eventDoc?.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
-            if (!partnerId) {
-                return reply.status(403).send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
-            }
-            try { await fastify.verifyPartnerAccess(request, partnerId); }
-            catch { return reply.status(403).send({ error: 'Forbidden: cannot create a link on behalf of another promoter' }); }
+        try {
+          await fastify.verifyPartnerAccess(request, partnerId);
+        } catch {
+          return reply
+            .status(403)
+            .send({ error: 'Forbidden: cannot create a link on behalf of another promoter' });
         }
+      }
 
-        const existing = await fastify.db.collection(LINKS_COL)
-            .where('promoterId', '==', promoterId)
-            .where('eventId', '==', eventId)
-            .where('isActive', '==', true)
-            .limit(1).get();
-        if (!existing.empty) {
-            return reply.status(409).send({ error: 'Active link already exists for this event' });
+      const existing = await fastify.db
+        .collection(LINKS_COL)
+        .where('promoterId', '==', promoterId)
+        .where('eventId', '==', eventId)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+      if (!existing.empty) {
+        return reply.status(409).send({ error: 'Active link already exists for this event' });
+      }
+
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      const code = Array.from(
+        { length: 6 },
+        () => chars[Math.floor(Math.random() * chars.length)],
+      ).join('');
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      const link = {
+        id,
+        code,
+        promoterId,
+        promoterName,
+        eventId,
+        eventTitle,
+        ticketTierIds,
+        commissionRate,
+        commissionType,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        commission: 0,
+        isActive: true,
+        expiresAt,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await fastify.db.collection(LINKS_COL).doc(id).set(link);
+      return link;
+    },
+  );
+
+  /**
+   * GET /api/v1/promoter-links
+   * Caller must be the promoter (filtering by their own promoterId) or manage the event.
+   */
+  fastify.get(
+    '/',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })],
+    },
+    async (request: any, reply) => {
+      const { promoterId, eventId, isActive, limit = 50 } = request.query;
+
+      // Require at least one scoping filter; enforce ownership of that scope.
+      if (!promoterId && !eventId) {
+        return reply.status(400).send({ error: 'promoterId or eventId filter is required' });
+      }
+
+      if (promoterId && promoterId !== request.user.uid) {
+        // Allow host/venue managers to list links for their events, not arbitrary promoters.
+        return reply
+          .status(403)
+          .send({ error: 'Forbidden: can only list your own promoter links' });
+      }
+
+      if (eventId && !promoterId) {
+        // Caller must manage the event's owning partner.
+        const eventDoc = await fastify.db
+          .collection('events')
+          .doc(eventId)
+          .get()
+          .catch(() => null);
+        const partnerId = eventDoc?.exists
+          ? (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId
+          : null;
+        if (!partnerId) return reply.status(404).send({ error: 'Event not found' });
+        try {
+          await fastify.verifyPartnerAccess(request, partnerId);
+        } catch {
+          return reply.status(403).send({ error: 'Forbidden' });
         }
+      }
 
-        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        const code = Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-        const now = new Date().toISOString();
-        const id = randomUUID();
-        const link = { id, code, promoterId, promoterName, eventId, eventTitle, ticketTierIds, commissionRate, commissionType, clicks: 0, conversions: 0, revenue: 0, commission: 0, isActive: true, expiresAt, createdAt: now, updatedAt: now };
-        await fastify.db.collection(LINKS_COL).doc(id).set(link);
-        return link;
-    });
+      let q: any = fastify.db.collection(LINKS_COL);
+      if (promoterId) q = q.where('promoterId', '==', promoterId);
+      if (eventId) q = q.where('eventId', '==', eventId);
+      if (isActive !== undefined) q = q.where('isActive', '==', isActive === 'true');
+      const snap = await q.orderBy('createdAt', 'desc').limit(Number(limit)).get();
+      return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    },
+  );
 
-    /**
-     * GET /api/v1/promoter-links
-     * Caller must be the promoter (filtering by their own promoterId) or manage the event.
-     */
-    fastify.get('/', {
-        preHandler: [fastify.requireAuth, fastify.validate({ querystring: LinksQuery })]
-    }, async (request: any, reply) => {
-        const { promoterId, eventId, isActive, limit = 50 } = request.query;
+  /**
+   * GET /api/v1/promoter-links/by-code/:code
+   */
+  fastify.get(
+    '/by-code/:code',
+    {
+      preHandler: [fastify.validate({ params: CodeParam })],
+    },
+    async (request: any, reply) => {
+      const { code } = request.params;
+      const snap = await fastify.db
+        .collection(LINKS_COL)
+        .where('code', '==', code)
+        .where('isActive', '==', true)
+        .limit(1)
+        .get();
+      if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
+      return { id: snap.docs[0].id, ...snap.docs[0].data() };
+    },
+  );
 
-        // Require at least one scoping filter; enforce ownership of that scope.
-        if (!promoterId && !eventId) {
-            return reply.status(400).send({ error: 'promoterId or eventId filter is required' });
+  /**
+   * GET /api/v1/promoter-links/stats/:promoterId
+   * Caller must be the promoter or have an admin role.
+   */
+  fastify.get(
+    '/stats/:promoterId',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })],
+    },
+    async (request: any, reply) => {
+      const { promoterId } = request.params;
+      if (request.user.uid !== promoterId && request.user.role !== 'admin') {
+        return reply.status(403).send({ error: 'Forbidden' });
+      }
+      const [linksSnap, pendingSnap, paidSnap] = await Promise.all([
+        fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get(),
+        fastify.db
+          .collection(COMMISSIONS_COL)
+          .where('promoterId', '==', promoterId)
+          .where('status', '==', 'pending')
+          .get(),
+        fastify.db
+          .collection(COMMISSIONS_COL)
+          .where('promoterId', '==', promoterId)
+          .where('status', '==', 'paid')
+          .get(),
+      ]);
+      const links = linksSnap.docs.map((d: any) => d.data());
+      const totalClicks = links.reduce((s: number, l: any) => s + (l.clicks || 0), 0);
+      const totalConversions = links.reduce((s: number, l: any) => s + (l.conversions || 0), 0);
+      return {
+        totalLinks: links.length,
+        totalClicks,
+        totalConversions,
+        totalRevenue: links.reduce((s: number, l: any) => s + (l.revenue || 0), 0),
+        totalCommission: links.reduce((s: number, l: any) => s + (l.commission || 0), 0),
+        pendingCommission: pendingSnap.docs.reduce(
+          (s: number, d: any) => s + (d.data().commissionAmount || 0),
+          0,
+        ),
+        paidCommission: paidSnap.docs.reduce(
+          (s: number, d: any) => s + (d.data().commissionAmount || 0),
+          0,
+        ),
+        conversionRate: totalClicks > 0 ? ((totalConversions / totalClicks) * 100).toFixed(2) : 0,
+      };
+    },
+  );
+
+  /**
+   * GET /api/v1/promoter-links/event-summary/:eventId
+   * Caller must manage the event's host/venue.
+   */
+  fastify.get(
+    '/event-summary/:eventId',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })],
+    },
+    async (request: any, reply) => {
+      const { eventId } = request.params;
+      const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+      if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
+      const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
+      const [snap, accessDenied] = await Promise.all([
+        fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get(),
+        partnerId
+          ? fastify
+              .verifyPartnerAccess(request, partnerId)
+              .then(() => false)
+              .catch(() => true)
+          : Promise.resolve(false),
+      ]);
+      if (accessDenied) return reply.status(403).send({ error: 'Forbidden' });
+      const links = snap.docs.map((d: any) => d.data());
+      return {
+        totalPromoters: new Set(links.map((l: any) => l.promoterId)).size,
+        totalClicks: links.reduce((s: number, l: any) => s + (l.clicks || 0), 0),
+        totalConversions: links.reduce((s: number, l: any) => s + (l.conversions || 0), 0),
+        totalRevenue: links.reduce((s: number, l: any) => s + (l.revenue || 0), 0),
+        totalCommission: links.reduce((s: number, l: any) => s + (l.commission || 0), 0),
+        topPromoters: links
+          .sort((a: any, b: any) => (b.conversions || 0) - (a.conversions || 0))
+          .slice(0, 5),
+      };
+    },
+  );
+
+  /**
+   * POST /api/v1/promoter-links/track-click
+   * Records a click on a promoter link by code. No auth required — called from guest-portal.
+   */
+  const TrackClickBody = z.object({ code: z.string() }).strict();
+  fastify.post(
+    '/track-click',
+    {
+      preHandler: [fastify.validate({ body: TrackClickBody })],
+    },
+    async (request: any, reply) => {
+      const { code } = request.body;
+
+      const result = await trackPromoterLinkClick(code, { source: 'promoter-links' });
+
+      if (result.status !== 'ok') {
+        return reply.status(404).send({ error: 'Link not found' });
+      }
+
+      return { success: true };
+    },
+  );
+
+  /**
+   * PATCH /api/v1/promoter-links/:id/deactivate
+   * Caller must be the promoter who owns the link, or manage the linked event.
+   */
+  fastify.patch(
+    '/:id/deactivate',
+    {
+      preHandler: [fastify.requireAuth, fastify.validate({ params: LinkIdParam })],
+    },
+    async (request: any, reply) => {
+      const { id } = request.params;
+      const linkDoc = await fastify.db.collection(LINKS_COL).doc(id).get();
+      if (!linkDoc.exists) return reply.status(404).send({ error: 'Link not found' });
+      const link = linkDoc.data() as any;
+
+      const isOwner = link.promoterId === request.user.uid;
+      if (!isOwner && request.user.role !== 'admin') {
+        const eventDoc = await fastify.db.collection('events').doc(link.eventId).get();
+        const partnerId = eventDoc.exists
+          ? (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId
+          : null;
+        if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
+        try {
+          await fastify.verifyPartnerAccess(request, partnerId);
+        } catch {
+          return reply.status(403).send({ error: 'Forbidden' });
         }
+      }
 
-        if (promoterId && promoterId !== request.user.uid) {
-            // Allow host/venue managers to list links for their events, not arbitrary promoters.
-            return reply.status(403).send({ error: 'Forbidden: can only list your own promoter links' });
-        }
-
-        if (eventId && !promoterId) {
-            // Caller must manage the event's owning partner.
-            const eventDoc = await fastify.db.collection('events').doc(eventId).get().catch(() => null);
-            const partnerId = eventDoc?.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
-            if (!partnerId) return reply.status(404).send({ error: 'Event not found' });
-            try { await fastify.verifyPartnerAccess(request, partnerId); }
-            catch { return reply.status(403).send({ error: 'Forbidden' }); }
-        }
-
-        let q: any = fastify.db.collection(LINKS_COL);
-        if (promoterId) q = q.where('promoterId', '==', promoterId);
-        if (eventId) q = q.where('eventId', '==', eventId);
-        if (isActive !== undefined) q = q.where('isActive', '==', isActive === 'true');
-        const snap = await q.orderBy('createdAt', 'desc').limit(Number(limit)).get();
-        return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    });
-
-    /**
-     * GET /api/v1/promoter-links/by-code/:code
-     */
-    fastify.get('/by-code/:code', {
-        preHandler: [fastify.validate({ params: CodeParam })]
-    }, async (request: any, reply) => {
-        const { code } = request.params;
-        const snap = await fastify.db.collection(LINKS_COL).where('code', '==', code).where('isActive', '==', true).limit(1).get();
-        if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
-        return { id: snap.docs[0].id, ...snap.docs[0].data() };
-    });
-
-    /**
-     * GET /api/v1/promoter-links/stats/:promoterId
-     * Caller must be the promoter or have an admin role.
-     */
-    fastify.get('/stats/:promoterId', {
-        preHandler: [fastify.requireAuth, fastify.validate({ params: PromoterIdParam })]
-    }, async (request: any, reply) => {
-        const { promoterId } = request.params;
-        if (request.user.uid !== promoterId && request.user.role !== 'admin') {
-            return reply.status(403).send({ error: 'Forbidden' });
-        }
-        const [linksSnap, pendingSnap, paidSnap] = await Promise.all([
-            fastify.db.collection(LINKS_COL).where('promoterId', '==', promoterId).get(),
-            fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'pending').get(),
-            fastify.db.collection(COMMISSIONS_COL).where('promoterId', '==', promoterId).where('status', '==', 'paid').get(),
-        ]);
-        const links = linksSnap.docs.map((d: any) => d.data());
-        const totalClicks = links.reduce((s: number, l: any) => s + (l.clicks || 0), 0);
-        const totalConversions = links.reduce((s: number, l: any) => s + (l.conversions || 0), 0);
-        return {
-            totalLinks: links.length,
-            totalClicks,
-            totalConversions,
-            totalRevenue: links.reduce((s: number, l: any) => s + (l.revenue || 0), 0),
-            totalCommission: links.reduce((s: number, l: any) => s + (l.commission || 0), 0),
-            pendingCommission: pendingSnap.docs.reduce((s: number, d: any) => s + (d.data().commissionAmount || 0), 0),
-            paidCommission: paidSnap.docs.reduce((s: number, d: any) => s + (d.data().commissionAmount || 0), 0),
-            conversionRate: totalClicks > 0 ? ((totalConversions / totalClicks) * 100).toFixed(2) : 0
-        };
-    });
-
-    /**
-     * GET /api/v1/promoter-links/event-summary/:eventId
-     * Caller must manage the event's host/venue.
-     */
-    fastify.get('/event-summary/:eventId', {
-        preHandler: [fastify.requireAuth, fastify.validate({ params: EventIdParam })]
-    }, async (request: any, reply) => {
-        const { eventId } = request.params;
-        const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-        if (!eventDoc.exists) return reply.status(404).send({ error: 'Event not found' });
-        const partnerId = (eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId;
-        const [snap, accessDenied] = await Promise.all([
-            fastify.db.collection(LINKS_COL).where('eventId', '==', eventId).get(),
-            partnerId
-                ? fastify.verifyPartnerAccess(request, partnerId).then(() => false).catch(() => true)
-                : Promise.resolve(false),
-        ]);
-        if (accessDenied) return reply.status(403).send({ error: 'Forbidden' });
-        const links = snap.docs.map((d: any) => d.data());
-        return {
-            totalPromoters: new Set(links.map((l: any) => l.promoterId)).size,
-            totalClicks: links.reduce((s: number, l: any) => s + (l.clicks || 0), 0),
-            totalConversions: links.reduce((s: number, l: any) => s + (l.conversions || 0), 0),
-            totalRevenue: links.reduce((s: number, l: any) => s + (l.revenue || 0), 0),
-            totalCommission: links.reduce((s: number, l: any) => s + (l.commission || 0), 0),
-            topPromoters: links.sort((a: any, b: any) => (b.conversions || 0) - (a.conversions || 0)).slice(0, 5)
-        };
-    });
-
-    /**
-     * POST /api/v1/promoter-links/track-click
-     * Records a click on a promoter link by code. No auth required — called from guest-portal.
-     */
-    const TrackClickBody = z.object({ code: z.string() }).strict();
-    fastify.post('/track-click', {
-        preHandler: [fastify.validate({ body: TrackClickBody })]
-    }, async (request: any, reply) => {
-        const { code } = request.body;
-
-        const result = await trackPromoterLinkClick(code, { source: 'promoter-links' });
-
-        if (result.status !== 'ok') {
-            return reply.status(404).send({ error: 'Link not found' });
-        }
-
-        return { success: true };
-    });
-
-    /**
-     * PATCH /api/v1/promoter-links/:id/deactivate
-     * Caller must be the promoter who owns the link, or manage the linked event.
-     */
-    fastify.patch('/:id/deactivate', {
-        preHandler: [fastify.requireAuth, fastify.validate({ params: LinkIdParam })]
-    }, async (request: any, reply) => {
-        const { id } = request.params;
-        const linkDoc = await fastify.db.collection(LINKS_COL).doc(id).get();
-        if (!linkDoc.exists) return reply.status(404).send({ error: 'Link not found' });
-        const link = linkDoc.data() as any;
-
-        const isOwner = link.promoterId === request.user.uid;
-        if (!isOwner && request.user.role !== 'admin') {
-            const eventDoc = await fastify.db.collection('events').doc(link.eventId).get();
-            const partnerId = eventDoc.exists ? ((eventDoc.data() as any).hostId || (eventDoc.data() as any).venueId) : null;
-            if (!partnerId) return reply.status(403).send({ error: 'Forbidden' });
-            try { await fastify.verifyPartnerAccess(request, partnerId); }
-            catch { return reply.status(403).send({ error: 'Forbidden' }); }
-        }
-
-        const now = new Date().toISOString();
-        await fastify.db.collection(LINKS_COL).doc(id).update({ isActive: false, deactivatedAt: now, updatedAt: now });
-        return { success: true };
-    });
+      const now = new Date().toISOString();
+      await fastify.db
+        .collection(LINKS_COL)
+        .doc(id)
+        .update({ isActive: false, deactivatedAt: now, updatedAt: now });
+      return { success: true };
+    },
+  );
 }

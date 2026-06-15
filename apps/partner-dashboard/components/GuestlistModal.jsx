@@ -1,20 +1,20 @@
-"use client";
+'use client';
 
-import { useEffect } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 
-const palette = ["#FDE047", "#F43F5E", "#A855F7", "#38BDF8", "#34D399", "#F97316"];
+const palette = ['#FDE047', '#F43F5E', '#A855F7', '#38BDF8', '#34D399', '#F97316'];
 
-const normalizeHandle = (name = "", index) => {
-  const safe = name.toLowerCase().replace(/[^a-z0-9]/g, "");
+const normalizeHandle = (name = '', index) => {
+  const safe = name.toLowerCase().replace(/[^a-z0-9]/g, '');
   return `@${safe || `guest${index + 1}`}`;
 };
 
-const initials = (value = "") =>
+const initials = (value = '') =>
   value
-    .split(" ")
+    .split(' ')
     .map((part) => part[0])
-    .join("")
+    .join('')
     .slice(0, 2)
     .toUpperCase();
 
@@ -22,27 +22,27 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
   useEffect(() => {
     if (!open) return undefined;
     const original = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = original;
     };
   }, [open]);
 
   const hydratedGuests = (guests || []).map((guest, index) => {
-    if (typeof guest === "string") {
+    if (typeof guest === 'string') {
       return {
         id: `${guest}-${index}`,
         name: guest,
         handle: normalizeHandle(guest, index),
-        color: palette[index % palette.length]
+        color: palette[index % palette.length],
       };
     }
     return {
       ...guest,
       id: guest.id || `${guest.name}-${index}`,
       handle: guest.handle || normalizeHandle(guest.name, index),
-      stats: guest.stats || "",
-      color: guest.color || palette[index % palette.length]
+      stats: guest.stats || '',
+      color: guest.color || palette[index % palette.length],
     };
   });
 
@@ -63,7 +63,7 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
             initial={{ y: 40, opacity: 0, scale: 0.96 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 40, opacity: 0, scale: 0.96 }}
-            transition={{ duration: 0.35, ease: "easeOut" }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
             className="glass-panel card-hover relative w-full max-w-xl rounded-[40px] border border-white/15 bg-black/80 p-6 text-white shadow-glow"
             onClick={(event) => event.stopPropagation()}
           >
@@ -100,7 +100,9 @@ export default function GuestlistModal({ guests = [], open, onClose }) {
                     </span>
                     <div>
                       <p className="text-base font-semibold">{guest.name}</p>
-                      <p className="text-xs uppercase tracking-[0.35em] text-white/50">{guest.handle}</p>
+                      <p className="text-xs uppercase tracking-[0.35em] text-white/50">
+                        {guest.handle}
+                      </p>
                       {guest.stats ? <p className="text-xs text-white/60">{guest.stats}</p> : null}
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-import InterviewCard from "./InterviewCard";
+import InterviewCard from './InterviewCard';
 
 export default function InterviewSection({ interviews }) {
   return (

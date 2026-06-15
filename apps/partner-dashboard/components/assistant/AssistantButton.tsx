@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * AssistantButton — Floating trigger for the Dashboard Intelligence panel.
@@ -11,23 +11,23 @@
  *   - Sits above mobile bottom nav (z-index aware)
  */
 
-import { useState } from "react";
-import { motion } from "framer-motion";
-import { Sparkles } from "lucide-react";
-import { AssistantPanel } from "./AssistantPanel";
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Sparkles } from 'lucide-react';
+import { AssistantPanel } from './AssistantPanel';
 
 export function AssistantButton() {
-    const [panelOpen, setPanelOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
 
-    return (
-        <>
-            {/* Floating button */}
-            <motion.button
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.8, duration: 0.2 }}
-                onClick={() => setPanelOpen(true)}
-                className={`
+  return (
+    <>
+      {/* Floating button */}
+      <motion.button
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.8, duration: 0.2 }}
+        onClick={() => setPanelOpen(true)}
+        className={`
                     fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom,0px))] right-5 z-[150]
                     w-10 h-10 rounded-full
                     bg-surface-tertiary border border-border-subtle
@@ -36,17 +36,14 @@ export function AssistantButton() {
                     hover:bg-surface-secondary transition-all duration-200
                     ${panelOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'}
                 `}
-                aria-label="Open dashboard intelligence"
-                title="Dashboard Intelligence"
-            >
-                <Sparkles className="w-4 h-4 text-text-secondary" />
-            </motion.button>
+        aria-label="Open dashboard intelligence"
+        title="Dashboard Intelligence"
+      >
+        <Sparkles className="w-4 h-4 text-text-secondary" />
+      </motion.button>
 
-            {/* Panel */}
-            <AssistantPanel
-                open={panelOpen}
-                onClose={() => setPanelOpen(false)}
-            />
-        </>
-    );
+      {/* Panel */}
+      <AssistantPanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+    </>
+  );
 }

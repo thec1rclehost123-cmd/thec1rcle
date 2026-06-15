@@ -1,5 +1,5 @@
-import { getAdminDb } from "../firebase/admin";
-import { FieldValue } from "@c1rcle/core/firestore-admin";
+import { getAdminDb } from '../firebase/admin';
+import { FieldValue } from '@c1rcle/core/firestore-admin';
 
 /**
  * THE C1RCLE - Admin Governance Store (Hardened)
@@ -25,7 +25,7 @@ function checkRateLimit(adminId, isTier2 = false) {
     limit.lastReset = now;
   }
   if (limit.count >= MAX_ACTIONS_PER_MINUTE) {
-    throw new Error("Rate limit exceeded. Too many administrative actions.");
+    throw new Error('Rate limit exceeded. Too many administrative actions.');
   }
   limit.count++;
   ACTION_LIMITS.set(adminId, limit);
@@ -39,7 +39,7 @@ function checkRateLimit(adminId, isTier2 = false) {
     }
     if (t2limit.count >= MAX_TIER2_PER_MINUTE) {
       throw new Error(
-        "Restricted Action Rate Limit Exceeded. Tier 2 actions are limited to 5/min.",
+        'Restricted Action Rate Limit Exceeded. Tier 2 actions are limited to 5/min.',
       );
     }
     t2limit.count++;
@@ -49,48 +49,48 @@ function checkRateLimit(adminId, isTier2 = false) {
 
 // Task 2: Explicit Action Allowlist
 export const ALLOWLIST_ACTIONS = [
-  "VENUE_ACTIVATE",
-  "VENUE_SUSPEND",
-  "VENUE_REINSTATE",
-  "HOST_APP_APPROVE",
-  "HOST_APP_REJECT",
-  "EVENT_PAUSE",
-  "EVENT_RESUME",
-  "USER_BAN",
-  "USER_UNBAN",
-  "ORDER_REFUND_REQUEST",
+  'VENUE_ACTIVATE',
+  'VENUE_SUSPEND',
+  'VENUE_REINSTATE',
+  'HOST_APP_APPROVE',
+  'HOST_APP_REJECT',
+  'EVENT_PAUSE',
+  'EVENT_RESUME',
+  'USER_BAN',
+  'USER_UNBAN',
+  'ORDER_REFUND_REQUEST',
 
   // --- 🧭 PHASE 2: TIER 1 ACTIONS ---
-  "DISCOVERY_WEIGHT_ADJUST",
-  "VERIFICATION_ISSUE",
-  "VERIFICATION_REVOKE",
-  "WARNING_ISSUE",
+  'DISCOVERY_WEIGHT_ADJUST',
+  'VERIFICATION_ISSUE',
+  'VERIFICATION_REVOKE',
+  'WARNING_ISSUE',
 
   // --- 🏦 PHASE 4: TIER 3 ACTIONS ---
-  "IDENTITY_SUSPEND",
-  "IDENTITY_REINSTATE",
-  "FINANCIAL_REFUND",
-  "COMMISSION_ADJUST",
-  "PAYOUT_FREEZE",
-  "PAYOUT_RELEASE",
+  'IDENTITY_SUSPEND',
+  'IDENTITY_REINSTATE',
+  'FINANCIAL_REFUND',
+  'COMMISSION_ADJUST',
+  'PAYOUT_FREEZE',
+  'PAYOUT_RELEASE',
 ];
 
-export const TIER2_ACTIONS = ["EVENT_PAUSE", "EVENT_RESUME", "VENUE_SUSPEND", "VENUE_REINSTATE"];
+export const TIER2_ACTIONS = ['EVENT_PAUSE', 'EVENT_RESUME', 'VENUE_SUSPEND', 'VENUE_REINSTATE'];
 export const TIER3_ACTIONS = [
-  "IDENTITY_SUSPEND",
-  "IDENTITY_REINSTATE",
-  "FINANCIAL_REFUND",
-  "COMMISSION_ADJUST",
-  "PAYOUT_FREEZE",
-  "PAYOUT_RELEASE",
+  'IDENTITY_SUSPEND',
+  'IDENTITY_REINSTATE',
+  'FINANCIAL_REFUND',
+  'COMMISSION_ADJUST',
+  'PAYOUT_FREEZE',
+  'PAYOUT_RELEASE',
 ];
 
 // Financial-sensitive actions (require Finance Admin + Super Admin)
 const FINANCIAL_AUTHORITY_REQUIRED = [
-  "FINANCIAL_REFUND",
-  "COMMISSION_ADJUST",
-  "PAYOUT_FREEZE",
-  "PAYOUT_RELEASE",
+  'FINANCIAL_REFUND',
+  'COMMISSION_ADJUST',
+  'PAYOUT_FREEZE',
+  'PAYOUT_RELEASE',
 ];
 
 export const adminStore = {
@@ -98,10 +98,10 @@ export const adminStore = {
     // Technical Design: Emergency Freeze infrastructure
     // Checks platform settings for mutation lockdown
     const db = getAdminDb();
-    const settings = await db.collection("platform_settings").doc("governance").get();
+    const settings = await db.collection('platform_settings').doc('governance').get();
     if (settings.exists && settings.data().actionFreeze === true) {
       throw new Error(
-        "Containment Active: Administrative mutations are temporarily frozen via Super Admin kill-switch.",
+        'Containment Active: Administrative mutations are temporarily frozen via Super Admin kill-switch.',
       );
     }
   },
@@ -137,14 +137,14 @@ export const adminStore = {
     // Safety: Self-targeting prohibition
     if (adminId === targetId) {
       throw new Error(
-        "Safety Violation: Self-targeting administrative actions are strictly forbidden.",
+        'Safety Violation: Self-targeting administrative actions are strictly forbidden.',
       );
     }
 
     checkRateLimit(adminId, isTier2 || isTier3);
 
     const db = getAdminDb();
-    return await db.collection("admin_logs").add({
+    return await db.collection('admin_logs').add({
       adminId,
       action,
       targetId,
@@ -164,7 +164,7 @@ export const adminStore = {
     const { action, targetId, targetType, reason, evidence, params } = actionData;
 
     // Basic validation before proposing
-    if (!ALLOWLIST_ACTIONS.includes(action)) throw new Error("Proposed action not in allowlist.");
+    if (!ALLOWLIST_ACTIONS.includes(action)) throw new Error('Proposed action not in allowlist.');
 
     const isTier3 = TIER3_ACTIONS.includes(action);
     const coolingPeriodMinutes = isTier3 ? 120 : 0;
@@ -173,7 +173,7 @@ export const adminStore = {
       ? new Date(now.getTime() + coolingPeriodMinutes * 60000)
       : null;
 
-    return await db.collection("admin_proposed_actions").add({
+    return await db.collection('admin_proposed_actions').add({
       proposerId: adminId,
       proposerRole: adminRole,
       action,
@@ -182,7 +182,7 @@ export const adminStore = {
       reason,
       evidence,
       params,
-      status: "pending",
+      status: 'pending',
       coolingPeriodEnd: coolingPeriodEnd ? FieldValue.serverTimestamp() : null, // Not quite, using Date for logic below
       createdAt: FieldValue.serverTimestamp(),
       executionWindowStart: coolingPeriodEnd ? coolingPeriodEnd.toISOString() : null,
@@ -192,17 +192,17 @@ export const adminStore = {
   async resolveProposal(proposalId, reviewerId, reviewerRole, status, rejectionReason = null) {
     await this.checkContainment();
     const db = getAdminDb();
-    const propRef = db.collection("admin_proposed_actions").doc(proposalId);
+    const propRef = db.collection('admin_proposed_actions').doc(proposalId);
     const propSnap = await propRef.get();
 
-    if (!propSnap.exists) throw new Error("Governance Error: Proposal reference not found.");
+    if (!propSnap.exists) throw new Error('Governance Error: Proposal reference not found.');
     const proposal = propSnap.data();
 
-    if (proposal.status !== "pending")
-      throw new Error("Governance Error: Proposal already processed.");
+    if (proposal.status !== 'pending')
+      throw new Error('Governance Error: Proposal already processed.');
 
     if (proposal.proposerId === reviewerId) {
-      throw new Error("Conflict of Interest: Dual-approval protocol forbids self-approval.");
+      throw new Error('Conflict of Interest: Dual-approval protocol forbids self-approval.');
     }
 
     const isTier3 = TIER3_ACTIONS.includes(proposal.action);
@@ -212,14 +212,14 @@ export const adminStore = {
       // 1. Role Silo Enforcement
       if (proposal.proposerRole === reviewerRole) {
         throw new Error(
-          "Role Silo Breach: Tier 3 actions require approval from a different administrative role.",
+          'Role Silo Breach: Tier 3 actions require approval from a different administrative role.',
         );
       }
 
       // 2. Cooling Period Enforcement
       if (proposal.executionWindowStart) {
         const waitTime = new Date(proposal.executionWindowStart) - new Date();
-        if (waitTime > 0 && status === "approved") {
+        if (waitTime > 0 && status === 'approved') {
           throw new Error(
             `Cooling Period Active: This high-risk action remains frozen for another ${Math.ceil(waitTime / 60000)} minutes.`,
           );
@@ -229,48 +229,48 @@ export const adminStore = {
       // 3. Financial Role Requirements
       if (FINANCIAL_AUTHORITY_REQUIRED.includes(proposal.action)) {
         const roles = [proposal.proposerRole, reviewerRole];
-        if (!roles.includes("super") || !roles.includes("finance")) {
+        if (!roles.includes('super') || !roles.includes('finance')) {
           throw new Error(
-            "Financial Authority Missing: This action requires dual sign-off from both a Super Admin and a Finance Admin.",
+            'Financial Authority Missing: This action requires dual sign-off from both a Super Admin and a Finance Admin.',
           );
         }
       }
     }
 
-    if (status === "approved") {
+    if (status === 'approved') {
       // EXECUTION HUB: Dispatch based on proposed action
       switch (proposal.action) {
-        case "EVENT_PAUSE":
+        case 'EVENT_PAUSE':
           await this.setEventStatus(
             proposal.targetId,
-            "pause",
+            'pause',
             reviewerId,
             `[DUAL_APPROVED] ${proposal.reason}`,
             proposal.evidence,
           );
           break;
-        case "EVENT_RESUME":
+        case 'EVENT_RESUME':
           await this.setEventStatus(
             proposal.targetId,
-            "resume",
+            'resume',
             reviewerId,
             `[DUAL_APPROVED] ${proposal.reason}`,
             proposal.evidence,
           );
           break;
-        case "VENUE_SUSPEND":
+        case 'VENUE_SUSPEND':
           await this.updateVenueStatus(
             proposal.targetId,
-            "suspended",
+            'suspended',
             reviewerId,
             `[DUAL_APPROVED] ${proposal.reason}`,
             proposal.evidence,
           );
           break;
-        case "VENUE_REINSTATE":
+        case 'VENUE_REINSTATE':
           await this.updateVenueStatus(
             proposal.targetId,
-            "reinstated",
+            'reinstated',
             reviewerId,
             `[DUAL_APPROVED] ${proposal.reason}`,
             proposal.evidence,
@@ -278,7 +278,7 @@ export const adminStore = {
           break;
 
         // --- TIER 3 DISPATCH ---
-        case "IDENTITY_SUSPEND":
+        case 'IDENTITY_SUSPEND':
           await this.identityIntervention(
             proposal.targetId,
             true,
@@ -287,7 +287,7 @@ export const adminStore = {
             proposal.evidence,
           );
           break;
-        case "IDENTITY_REINSTATE":
+        case 'IDENTITY_REINSTATE':
           await this.identityIntervention(
             proposal.targetId,
             false,
@@ -296,7 +296,7 @@ export const adminStore = {
             proposal.evidence,
           );
           break;
-        case "FINANCIAL_REFUND":
+        case 'FINANCIAL_REFUND':
           await this.financialRefund(
             proposal.targetId,
             reviewerId,
@@ -305,7 +305,7 @@ export const adminStore = {
             proposal.params,
           );
           break;
-        case "COMMISSION_ADJUST":
+        case 'COMMISSION_ADJUST':
           await this.commissionAdjust(
             proposal.targetId,
             proposal.targetType,
@@ -315,7 +315,7 @@ export const adminStore = {
             proposal.evidence,
           );
           break;
-        case "PAYOUT_FREEZE":
+        case 'PAYOUT_FREEZE':
           await this.payoutIntervention(
             proposal.targetId,
             proposal.targetType,
@@ -325,7 +325,7 @@ export const adminStore = {
             proposal.evidence,
           );
           break;
-        case "PAYOUT_RELEASE":
+        case 'PAYOUT_RELEASE':
           await this.payoutIntervention(
             proposal.targetId,
             proposal.targetType,
@@ -337,7 +337,7 @@ export const adminStore = {
           break;
 
         default:
-          throw new Error("Governance Error: Proposed action dispatcher not implemented.");
+          throw new Error('Governance Error: Proposed action dispatcher not implemented.');
       }
     }
 
@@ -354,12 +354,12 @@ export const adminStore = {
       adminId: reviewerId,
       action: `PROPOSAL_${status.toUpperCase()}`,
       targetId: proposalId,
-      targetType: "proposal",
+      targetType: 'proposal',
       reason:
-        status === "approved"
-          ? "Dual approval threshold met."
-          : rejectionReason || "Declined by secondary reviewer.",
-      before: { status: "pending" },
+        status === 'approved'
+          ? 'Dual approval threshold met.'
+          : rejectionReason || 'Declined by secondary reviewer.',
+      before: { status: 'pending' },
       after: { status },
     });
   },
@@ -367,48 +367,48 @@ export const adminStore = {
   // --- 🏢 1. Venue Management ---
   async updateVenueStatus(venueId, status, adminId, reason, evidence = null) {
     const db = getAdminDb();
-    const venueRef = db.collection("venues").doc(venueId);
+    const venueRef = db.collection('venues').doc(venueId);
     const snapshot = await venueRef.get();
 
-    if (!snapshot.exists) throw new Error("Venue not found");
+    if (!snapshot.exists) throw new Error('Venue not found');
     const before = snapshot.data();
 
     // State Transition Safety
     if (before.status === status) return;
 
     // Tier 2: Suspension logic
-    if (status === "suspended") {
+    if (status === 'suspended') {
       const batch = db.batch();
       batch.update(venueRef, {
-        status: "suspended",
+        status: 'suspended',
         updatedAt: FieldValue.serverTimestamp(),
       });
 
       // Propagate to associated events: Under Review
       const events = await db
-        .collection("events")
-        .where("venueId", "==", venueId)
-        .where("status", "==", "live")
+        .collection('events')
+        .where('venueId', '==', venueId)
+        .where('status', '==', 'live')
         .get();
       events.forEach((doc) => {
         batch.update(doc.ref, {
-          status: "under_review",
+          status: 'under_review',
           adminOverride: true,
           updatedAt: FieldValue.serverTimestamp(),
         });
       });
 
       await batch.commit();
-    } else if (status === "active" || status === "reinstated") {
+    } else if (status === 'active' || status === 'reinstated') {
       // Guard: Cannot reinstate if there are unresolved flags
       if ((before.unresolvedFlagsCount || 0) > 0) {
         throw new Error(
-          "Governance Guard: Venue has unresolved compliance flags. Clear flags before reinstatement.",
+          'Governance Guard: Venue has unresolved compliance flags. Clear flags before reinstatement.',
         );
       }
 
       await venueRef.update({
-        status: "active",
+        status: 'active',
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -416,38 +416,38 @@ export const adminStore = {
     await this.logAction({
       adminId,
       action:
-        status === "active" || status === "reinstated"
-          ? "VENUE_REINSTATE"
+        status === 'active' || status === 'reinstated'
+          ? 'VENUE_REINSTATE'
           : `VENUE_${status.toUpperCase()}`,
       targetId: venueId,
-      targetType: "venue",
+      targetType: 'venue',
       reason,
       evidence,
       before: { status: before.status },
-      after: { status: status === "reinstated" ? "active" : status },
+      after: { status: status === 'reinstated' ? 'active' : status },
     });
   },
 
   // --- 📝 2. Host Management ---
   async updateHostApplication(applicationId, status, adminId, reason) {
     const db = getAdminDb();
-    const appRef = db.collection("host_applications").doc(applicationId);
+    const appRef = db.collection('host_applications').doc(applicationId);
     const snapshot = await appRef.get();
 
-    if (!snapshot.exists) throw new Error("Application not found");
+    if (!snapshot.exists) throw new Error('Application not found');
     const appData = snapshot.data();
 
-    if (["approved", "rejected"].includes(appData.status)) {
-      throw new Error("Cannot modify host application in a terminal state.");
+    if (['approved', 'rejected'].includes(appData.status)) {
+      throw new Error('Cannot modify host application in a terminal state.');
     }
 
     const batch = db.batch();
     batch.update(appRef, { status, updatedAt: FieldValue.serverTimestamp() });
 
-    if (status === "approved") {
-      batch.update(db.collection("users").doc(appData.uid), {
-        role: "host",
-        hostStatus: "approved",
+    if (status === 'approved') {
+      batch.update(db.collection('users').doc(appData.uid), {
+        role: 'host',
+        hostStatus: 'approved',
         updatedAt: FieldValue.serverTimestamp(),
       });
     }
@@ -458,7 +458,7 @@ export const adminStore = {
       adminId,
       action: `HOST_APP_${status.toUpperCase()}`,
       targetId: applicationId,
-      targetType: "host_application",
+      targetType: 'host_application',
       reason,
       before: { status: appData.status },
       after: { status },
@@ -468,49 +468,49 @@ export const adminStore = {
   // --- 🎉 3. Event Governance ---
   async setEventStatus(eventId, status, adminId, reason, evidence = null) {
     const db = getAdminDb();
-    const eventRef = db.collection("events").doc(eventId);
+    const eventRef = db.collection('events').doc(eventId);
     const snapshot = await eventRef.get();
 
-    if (!snapshot.exists) throw new Error("Event not found");
+    if (!snapshot.exists) throw new Error('Event not found');
     const before = snapshot.data();
 
     // Tier 2: Guard against completed events
-    if (before.status === "completed" || before.status === "past") {
-      throw new Error("Safety Violation: Cannot pause/resume a completed or past event.");
+    if (before.status === 'completed' || before.status === 'past') {
+      throw new Error('Safety Violation: Cannot pause/resume a completed or past event.');
     }
 
-    const targetStatus = status === "pause" ? "paused" : "live";
+    const targetStatus = status === 'pause' ? 'paused' : 'live';
     if (before.status === targetStatus) return;
 
     await eventRef.update({
       status: targetStatus,
-      adminOverride: targetStatus === "paused",
+      adminOverride: targetStatus === 'paused',
       updatedAt: FieldValue.serverTimestamp(),
     });
 
     await this.logAction({
       adminId,
-      action: targetStatus === "paused" ? "EVENT_PAUSE" : "EVENT_RESUME",
+      action: targetStatus === 'paused' ? 'EVENT_PAUSE' : 'EVENT_RESUME',
       targetId: eventId,
-      targetType: "event",
+      targetType: 'event',
       reason,
       evidence,
       before: { status: before.status, adminOverride: before.adminOverride },
-      after: { status: targetStatus, adminOverride: targetStatus === "paused" },
+      after: { status: targetStatus, adminOverride: targetStatus === 'paused' },
     });
   },
 
   // --- 🛡️ 4. User Governance ---
   async setUserBanStatus(userId, isBanned, adminId, reason) {
     const db = getAdminDb();
-    const userRef = db.collection("users").doc(userId);
+    const userRef = db.collection('users').doc(userId);
     const snapshot = await userRef.get();
 
-    if (!snapshot.exists) throw new Error("User not found");
+    if (!snapshot.exists) throw new Error('User not found');
     const before = snapshot.data();
 
-    if (before.role === "admin") {
-      throw new Error("Privilege Violation: Use Super Admin console to revoke admin status.");
+    if (before.role === 'admin') {
+      throw new Error('Privilege Violation: Use Super Admin console to revoke admin status.');
     }
 
     await userRef.update({
@@ -522,9 +522,9 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: isBanned ? "USER_BAN" : "USER_UNBAN",
+      action: isBanned ? 'USER_BAN' : 'USER_UNBAN',
       targetId: userId,
-      targetType: "user",
+      targetType: 'user',
       reason,
       before: { isBanned: before.isBanned || false },
       after: { isBanned },
@@ -535,7 +535,7 @@ export const adminStore = {
 
   async setDiscoveryWeight(type, targetId, weight, adminId, reason) {
     const db = getAdminDb();
-    const collection = type === "event" ? "events" : type === "venue" ? "venues" : "users";
+    const collection = type === 'event' ? 'events' : type === 'venue' ? 'venues' : 'users';
     const docRef = db.collection(collection).doc(targetId);
     const snapshot = await docRef.get();
 
@@ -544,7 +544,7 @@ export const adminStore = {
 
     const numericWeight = parseFloat(weight);
     if (isNaN(numericWeight) || numericWeight < -10 || numericWeight > 50) {
-      throw new Error("Weight out of bounds (-10 to 50).");
+      throw new Error('Weight out of bounds (-10 to 50).');
     }
 
     await docRef.update({
@@ -554,7 +554,7 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: "DISCOVERY_WEIGHT_ADJUST",
+      action: 'DISCOVERY_WEIGHT_ADJUST',
       targetId,
       targetType: type,
       reason,
@@ -565,7 +565,7 @@ export const adminStore = {
 
   async setVerificationStatus(type, targetId, isVerified, adminId, reason) {
     const db = getAdminDb();
-    const collection = type === "venue" ? "venues" : "users";
+    const collection = type === 'venue' ? 'venues' : 'users';
     const docRef = db.collection(collection).doc(targetId);
     const snapshot = await docRef.get();
 
@@ -580,7 +580,7 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: isVerified ? "VERIFICATION_ISSUE" : "VERIFICATION_REVOKE",
+      action: isVerified ? 'VERIFICATION_ISSUE' : 'VERIFICATION_REVOKE',
       targetId,
       targetType: type,
       reason,
@@ -591,7 +591,7 @@ export const adminStore = {
 
   async issueWarning(type, targetId, message, adminId, reason) {
     const db = getAdminDb();
-    const collection = type === "event" ? "events" : type === "venue" ? "venues" : "users";
+    const collection = type === 'event' ? 'events' : type === 'venue' ? 'venues' : 'users';
     const docRef = db.collection(collection).doc(targetId);
     const snapshot = await docRef.get();
 
@@ -609,7 +609,7 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: "WARNING_ISSUE",
+      action: 'WARNING_ISSUE',
       targetId,
       targetType: type,
       reason,
@@ -622,15 +622,15 @@ export const adminStore = {
 
   async identityIntervention(userId, isBanned, adminId, reason, evidence) {
     const db = getAdminDb();
-    const userRef = db.collection("users").doc(userId);
+    const userRef = db.collection('users').doc(userId);
     const snapshot = await userRef.get();
 
-    if (!snapshot.exists) throw new Error("Identity Error: User account not found.");
+    if (!snapshot.exists) throw new Error('Identity Error: User account not found.');
     const before = snapshot.data();
 
-    if (before.role === "admin" && isBanned) {
+    if (before.role === 'admin' && isBanned) {
       throw new Error(
-        "Tier 3 Violation: Admin accounts cannot be suspended via standard identity pipeline.",
+        'Tier 3 Violation: Admin accounts cannot be suspended via standard identity pipeline.',
       );
     }
 
@@ -645,9 +645,9 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: isBanned ? "IDENTITY_SUSPEND" : "IDENTITY_REINSTATE",
+      action: isBanned ? 'IDENTITY_SUSPEND' : 'IDENTITY_REINSTATE',
       targetId: userId,
-      targetType: "user",
+      targetType: 'user',
       reason,
       evidence,
       before: { isBanned: before.isBanned || false, tier3: before.tier3Control || false },
@@ -657,21 +657,21 @@ export const adminStore = {
 
   async financialRefund(orderId, adminId, reason, evidence, params) {
     const db = getAdminDb();
-    const orderRef = db.collection("orders").doc(orderId);
+    const orderRef = db.collection('orders').doc(orderId);
     const snapshot = await orderRef.get();
 
-    if (!snapshot.exists) throw new Error("Financial Error: Order record not found.");
+    if (!snapshot.exists) throw new Error('Financial Error: Order record not found.');
     const order = snapshot.data();
 
     // Idempotency & State Guard
-    if (order.status === "refunded")
-      throw new Error("Protocol Violation: Order is already in a terminal REFUNDED state.");
-    if (order.paymentStatus !== "captured")
-      throw new Error("Gateway Error: Only settled/captured transactions can be reversed.");
+    if (order.status === 'refunded')
+      throw new Error('Protocol Violation: Order is already in a terminal REFUNDED state.');
+    if (order.paymentStatus !== 'captured')
+      throw new Error('Gateway Error: Only settled/captured transactions can be reversed.');
 
     // Execution (Simulated gateway bridge for this task)
     await orderRef.update({
-      status: "refunded",
+      status: 'refunded',
       refundedAt: FieldValue.serverTimestamp(),
       adminRefundId: adminId,
       refundReason: reason,
@@ -681,19 +681,19 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: "FINANCIAL_REFUND",
+      action: 'FINANCIAL_REFUND',
       targetId: orderId,
-      targetType: "order",
+      targetType: 'order',
       reason,
       evidence,
       before: { status: order.status, paymentStatus: order.paymentStatus },
-      after: { status: "refunded", paymentStatus: "refunded" },
+      after: { status: 'refunded', paymentStatus: 'refunded' },
     });
   },
 
   async commissionAdjust(targetId, targetType, rate, adminId, reason, evidence) {
     const db = getAdminDb();
-    const collection = targetType === "venue" ? "venues" : "users";
+    const collection = targetType === 'venue' ? 'venues' : 'users';
     const docRef = db.collection(collection).doc(targetId);
     const snapshot = await docRef.get();
 
@@ -702,7 +702,7 @@ export const adminStore = {
 
     const numericRate = parseFloat(rate);
     if (isNaN(numericRate) || numericRate < 0 || numericRate > 100) {
-      throw new Error("Contract Violation: Commission rate must be between 0 and 100.");
+      throw new Error('Contract Violation: Commission rate must be between 0 and 100.');
     }
 
     await docRef.update({
@@ -714,7 +714,7 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: "COMMISSION_ADJUST",
+      action: 'COMMISSION_ADJUST',
       targetId,
       targetType,
       reason,
@@ -726,14 +726,14 @@ export const adminStore = {
 
   async payoutIntervention(targetId, targetType, isFrozen, adminId, reason, evidence) {
     const db = getAdminDb();
-    const collection = targetType === "venue" ? "venues" : "users";
+    const collection = targetType === 'venue' ? 'venues' : 'users';
     const docRef = db.collection(collection).doc(targetId);
     const snapshot = await docRef.get();
 
     if (!snapshot.exists) throw new Error(`${targetType} record not found.`);
     const before = snapshot.data();
 
-    const payoutStatus = isFrozen ? "frozen" : "active";
+    const payoutStatus = isFrozen ? 'frozen' : 'active';
 
     await docRef.update({
       payoutStatus,
@@ -744,12 +744,12 @@ export const adminStore = {
 
     await this.logAction({
       adminId,
-      action: isFrozen ? "PAYOUT_FREEZE" : "PAYOUT_RELEASE",
+      action: isFrozen ? 'PAYOUT_FREEZE' : 'PAYOUT_RELEASE',
       targetId,
       targetType,
       reason,
       evidence,
-      before: { payoutStatus: before.payoutStatus || "active" },
+      before: { payoutStatus: before.payoutStatus || 'active' },
       after: { payoutStatus },
     });
   },

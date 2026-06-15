@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { CreditCard, Loader2, CheckCircle, AlertCircle, Shield } from "lucide-react";
+import { useState, useEffect } from 'react';
+import { CreditCard, Loader2, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 
 /**
  * Razorpay Checkout Component
@@ -10,7 +10,7 @@ import { CreditCard, Loader2, CheckCircle, AlertCircle, Shield } from "lucide-re
 export default function RazorpayCheckout({
   orderId,
   amount,
-  currency = "INR",
+  currency = 'INR',
   userEmail,
   userName,
   userPhone,
@@ -24,16 +24,16 @@ export default function RazorpayCheckout({
 
   // Load Razorpay script
   useEffect(() => {
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.async = true;
     document.body.appendChild(script);
 
     // Fetch Razorpay config
-    fetch("/api/payments")
+    fetch('/api/payments')
       .then((res) => res.json())
       .then((data) => setConfig(data.config))
-      .catch((err) => console.error("Failed to load payment config:", err));
+      .catch((err) => console.error('Failed to load payment config:', err));
 
     return () => {
       document.body.removeChild(script);
@@ -46,15 +46,15 @@ export default function RazorpayCheckout({
 
     try {
       // Create Razorpay order
-      const orderRes = await fetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const orderRes = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId }),
       });
 
       if (!orderRes.ok) {
         const errData = await orderRes.json();
-        throw new Error(errData.error || "Failed to create payment");
+        throw new Error(errData.error || 'Failed to create payment');
       }
 
       const orderData = await orderRes.json();
@@ -77,9 +77,9 @@ export default function RazorpayCheckout({
         handler: async function (response) {
           // Verify payment
           try {
-            const verifyRes = await fetch("/api/payments", {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
+            const verifyRes = await fetch('/api/payments', {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 orderId,
                 razorpay_order_id: response.razorpay_order_id,
@@ -93,7 +93,7 @@ export default function RazorpayCheckout({
             if (verifyRes.ok && verifyData.success) {
               onSuccess?.(verifyData);
             } else {
-              throw new Error(verifyData.error || "Payment verification failed");
+              throw new Error(verifyData.error || 'Payment verification failed');
             }
           } catch (verifyErr) {
             setError(verifyErr.message);
@@ -119,9 +119,9 @@ export default function RazorpayCheckout({
   };
 
   const formatAmount = (amt) => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: currency | "INR",
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: currency | 'INR',
     }).format(amt);
   };
 
@@ -180,19 +180,19 @@ export default function RazorpayCheckout({
             src="/icons/visa.svg"
             alt="Visa"
             className="h-6 opacity-60"
-            onError={(e) => (e.target.style.display = "none")}
+            onError={(e) => (e.target.style.display = 'none')}
           />
           <img
             src="/icons/mastercard.svg"
             alt="Mastercard"
             className="h-6 opacity-60"
-            onError={(e) => (e.target.style.display = "none")}
+            onError={(e) => (e.target.style.display = 'none')}
           />
           <img
             src="/icons/upi.svg"
             alt="UPI"
             className="h-6 opacity-60"
-            onError={(e) => (e.target.style.display = "none")}
+            onError={(e) => (e.target.style.display = 'none')}
           />
           <span className="text-xs text-slate-400">UPI • Cards • Net Banking</span>
         </div>

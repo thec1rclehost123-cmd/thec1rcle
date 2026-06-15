@@ -1,4 +1,4 @@
-import { getAdminDb } from "../firebase/admin";
+import { getAdminDb } from '../firebase/admin';
 
 /**
  * THE C1RCLE - Platform Seeding
@@ -9,7 +9,7 @@ export async function seedPlatformSettings() {
   const db = getAdminDb();
 
   // 1. Global Settings
-  const settingsRef = db.collection("platform_settings").doc("global");
+  const settingsRef = db.collection('platform_settings').doc('global');
   await settingsRef.set(
     {
       commissionRate: 0.15, // 15%
@@ -22,7 +22,7 @@ export async function seedPlatformSettings() {
   );
 
   // 2. Feature Flags
-  const flagsRef = db.collection("platform_settings").doc("feature_flags");
+  const flagsRef = db.collection('platform_settings').doc('feature_flags');
   await flagsRef.set(
     {
       enableTicketTransfers: true,
@@ -35,7 +35,7 @@ export async function seedPlatformSettings() {
   );
 
   // 3. Initial Stats
-  const statsRef = db.collection("platform_stats").doc("current");
+  const statsRef = db.collection('platform_stats').doc('current');
   const statsDoc = await statsRef.get();
   if (!statsDoc.exists) {
     await statsRef.set({
@@ -46,5 +46,5 @@ export async function seedPlatformSettings() {
     });
   }
 
-  console.log("Platform settings and stats seeded successfully.");
+  console.log('Platform settings and stats seeded successfully.');
 }

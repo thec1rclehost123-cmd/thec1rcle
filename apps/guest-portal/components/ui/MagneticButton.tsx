@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useRef, useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { useRef, useEffect, useState } from 'react';
+import { motion } from 'framer-motion';
 
 interface MagneticButtonProps {
   children: React.ReactNode;
@@ -12,7 +12,7 @@ interface MagneticButtonProps {
 
 export default function MagneticButton({
   children,
-  className = "",
+  className = '',
   href,
   onClick,
 }: MagneticButtonProps) {
@@ -39,12 +39,12 @@ export default function MagneticButton({
       setPosition({ x: 0, y: 0 });
     };
 
-    button.addEventListener("mousemove", handleMouseMove);
-    button.addEventListener("mouseleave", handleMouseLeave);
+    button.addEventListener('mousemove', handleMouseMove);
+    button.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
-      button.removeEventListener("mousemove", handleMouseMove);
-      button.removeEventListener("mouseleave", handleMouseLeave);
+      button.removeEventListener('mousemove', handleMouseMove);
+      button.removeEventListener('mouseleave', handleMouseLeave);
     };
   }, []);
 
@@ -57,7 +57,7 @@ export default function MagneticButton({
       onClick={onClick}
       className={className}
       animate={{ x: position.x, y: position.y }}
-      transition={{ type: "spring", stiffness: 150, damping: 15, mass: 0.1 }}
+      transition={{ type: 'spring', stiffness: 150, damping: 15, mass: 0.1 }}
     >
       {children}
     </Component>

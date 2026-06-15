@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { useState, useEffect } from "react";
-import { useTheme } from "next-themes";
-import { motion } from "framer-motion";
+import { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
+import { motion } from 'framer-motion';
 
 export default function ThemeToggle() {
   const [mounted, setMounted] = useState(false);
@@ -16,18 +16,18 @@ export default function ThemeToggle() {
     return null;
   }
 
-  const isDark = resolvedTheme === "dark";
+  const isDark = resolvedTheme === 'dark';
 
   return (
     <button
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
       className="relative flex h-9 w-16 items-center rounded-full bg-black/5 dark:bg-white/10 p-1 transition-colors hover:bg-black/10 dark:hover:bg-white/20 border border-black/10 dark:border-white/10"
       aria-label="Toggle Dark Mode"
     >
       <motion.div
         className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-lg"
         layout
-        transition={{ type: "spring", stiffness: 700, damping: 30 }}
+        transition={{ type: 'spring', stiffness: 700, damping: 30 }}
         style={{
           x: isDark ? 28 : 0,
         }}

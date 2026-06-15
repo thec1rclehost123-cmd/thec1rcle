@@ -1,1 +1,1 @@
-export { default } from "../login/PageClient";
+export { default } from '../login/PageClient';

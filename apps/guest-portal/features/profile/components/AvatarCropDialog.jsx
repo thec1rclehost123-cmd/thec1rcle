@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import Cropper from "react-easy-crop";
+import { motion } from 'framer-motion';
+import Cropper from 'react-easy-crop';
 
 export function AvatarCropDialog({
   crop,
@@ -22,7 +22,9 @@ export function AvatarCropDialog({
     >
       <div className="relative w-full max-w-3xl bg-white dark:bg-black rounded-3xl border border-black/[0.08] dark:border-white/20 overflow-hidden">
         <div className="p-6 border-b border-black/[0.06] dark:border-white/10">
-          <h3 className="text-xl font-bold text-black dark:text-white uppercase tracking-widest">Crop Profile Picture</h3>
+          <h3 className="text-xl font-bold text-black dark:text-white uppercase tracking-widest">
+            Crop Profile Picture
+          </h3>
         </div>
         <div className="relative h-[300px] sm:h-[400px] md:h-[500px] bg-[#FAFAF9] dark:bg-black">
           <Cropper
@@ -39,7 +41,9 @@ export function AvatarCropDialog({
         </div>
         <div className="p-6 space-y-4 bg-gradient-to-b from-white dark:from-black to-white/95 dark:to-black/95">
           <div className="space-y-2">
-            <label className="text-xs text-black/60 dark:text-white/60 uppercase tracking-widest">Zoom</label>
+            <label className="text-xs text-black/60 dark:text-white/60 uppercase tracking-widest">
+              Zoom
+            </label>
             <input
               type="range"
               min={1}

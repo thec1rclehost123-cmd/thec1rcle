@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { Calendar, CheckCircle2, Users } from "lucide-react";
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { Calendar, CheckCircle2, Users } from 'lucide-react';
 
 export function ReservationConfirmedStep({
   guests,
@@ -21,7 +21,7 @@ export function ReservationConfirmedStep({
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
-        transition={{ type: "spring", damping: 15, delay: 0.2 }}
+        transition={{ type: 'spring', damping: 15, delay: 0.2 }}
         className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/20"
       >
         <CheckCircle2 className="h-12 w-12 text-emerald-500" />
@@ -37,7 +37,11 @@ export function ReservationConfirmedStep({
       <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-white/5 px-5 py-3">
         <Calendar className="h-4 w-4 text-white/40" />
         <span className="text-xs font-bold text-white/60">
-          {selectedDate?.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric" })}
+          {selectedDate?.toLocaleDateString('en-IN', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+          })}
         </span>
         <span className="text-white/15">•</span>
         <Users className="h-4 w-4 text-white/40" />

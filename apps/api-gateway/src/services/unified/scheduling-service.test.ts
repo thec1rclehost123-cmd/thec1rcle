@@ -29,12 +29,14 @@ describe('SchedulingService', () => {
 
     const service = new SchedulingService(db as any);
 
-    await expect(service.createSlot(venueCtx as any, 'venue_1', {
-      date: '2026-05-01',
-      startTime: '20:00',
-      endTime: '23:00',
-      status: 'blocked',
-    })).rejects.toMatchObject({
+    await expect(
+      service.createSlot(venueCtx as any, 'venue_1', {
+        date: '2026-05-01',
+        startTime: '20:00',
+        endTime: '23:00',
+        status: 'blocked',
+      }),
+    ).rejects.toMatchObject({
       statusCode: 409,
       code: 'SLOT_CONFLICT',
     });
@@ -57,7 +59,12 @@ describe('SchedulingService', () => {
     });
 
     const service = new SchedulingService(db as any);
-    const updated = await service.rejectRequest(venueCtx as any, 'venue_1', 'request_1', 'No availability');
+    const updated = await service.rejectRequest(
+      venueCtx as any,
+      'venue_1',
+      'request_1',
+      'No availability',
+    );
 
     expect(updated?.status).toBe('rejected');
     expect(db.getDoc('availability_slots/request_1')?.status).toBe('rejected');
@@ -93,7 +100,9 @@ describe('SchedulingService', () => {
 
     const service = new SchedulingService(db as any);
 
-    await expect(service.approveRequest(venueCtx as any, 'venue_1', 'request_2')).rejects.toMatchObject({
+    await expect(
+      service.approveRequest(venueCtx as any, 'venue_1', 'request_2'),
+    ).rejects.toMatchObject({
       statusCode: 409,
       code: 'SLOT_CONFLICT',
     });

@@ -2,8 +2,8 @@
  * THE C1RCLE - User Registration API
  * Creates Firebase Auth user (Admin SDK required) + delegates profile creation to Gateway
  */
-import { NextResponse } from "next/server";
-import { getAdminAuth } from "@/lib/firebase/admin";
+import { NextResponse } from 'next/server';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_GATEWAY_URL;
 
@@ -12,7 +12,7 @@ export async function POST(req) {
     const { email, password, name, gender, phone } = await req.json();
 
     if (!email || !password || !name) {
-      return NextResponse.json({ error: "Identity data incomplete." }, { status: 400 });
+      return NextResponse.json({ error: 'Identity data incomplete.' }, { status: 400 });
     }
 
     // 1. Create Firebase Auth User (requires Admin SDK — allowlisted)
@@ -29,34 +29,34 @@ export async function POST(req) {
     if (GATEWAY_URL) {
       const now = new Date().toISOString();
       await fetch(`${GATEWAY_URL}/api/v1/users/profile`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           uid: userRecord.uid,
           email,
           displayName: name,
           gender: gender || null,
           phone: phone || null,
-          photoURL: "",
+          photoURL: '',
           attendedEvents: [],
-          city: "",
-          instagram: "",
+          city: '',
+          instagram: '',
           createdAt: now,
           updatedAt: now,
           isVerified: true,
         }),
-      }).catch((err) => console.warn("[Register] Profile Gateway write failed:", err.message));
+      }).catch((err) => console.warn('[Register] Profile Gateway write failed:', err.message));
     }
 
     return NextResponse.json({ success: true, uid: userRecord.uid });
   } catch (err) {
-    console.error("Final Registration Error:", err);
+    console.error('Final Registration Error:', err);
     return NextResponse.json(
       {
         error:
-          err.code === "auth/email-already-exists"
-            ? "This identity is already part of the circle."
-            : "Unable to finalize access.",
+          err.code === 'auth/email-already-exists'
+            ? 'This identity is already part of the circle.'
+            : 'Unable to finalize access.',
       },
       { status: 400 },
     );

@@ -1,12 +1,12 @@
 export class ApiError extends Error {
   constructor(status, message, details = null) {
     super(message);
-    this.name = "ApiError";
+    this.name = 'ApiError';
     this.status = status;
     this.details = details;
   }
 }
 
-export function getApiErrorMessage(data, fallback = "Request failed") {
+export function getApiErrorMessage(data, fallback = 'Request failed') {
   return data?.error?.message || data?.message || data?.error || fallback;
 }

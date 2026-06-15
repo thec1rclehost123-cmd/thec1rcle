@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { MiniAvatar, SectionLabel } from "../EventDetailPrimitives";
+import { MiniAvatar, SectionLabel } from '../EventDetailPrimitives';
 
 export function EventCrowdModal({ crowdPeople, dominantColor, interestedCount, onClose }) {
   return (
@@ -21,9 +21,13 @@ export function EventCrowdModal({ crowdPeople, dominantColor, interestedCount, o
           <div className="flex items-start justify-between gap-4">
             <div>
               <SectionLabel>Going</SectionLabel>
-              <div className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-white sm:text-[34px]">Guest list</div>
+              <div className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-white sm:text-[34px]">
+                Guest list
+              </div>
               {interestedCount > 0 ? (
-                <div className="mt-2 text-[13px] text-white/50">{interestedCount.toLocaleString("en-IN")} people going</div>
+                <div className="mt-2 text-[13px] text-white/50">
+                  {interestedCount.toLocaleString('en-IN')} people going
+                </div>
               ) : null}
             </div>
             <button

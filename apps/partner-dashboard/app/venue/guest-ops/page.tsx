@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import { redirect } from 'next/navigation';
 
 export default function GuestOpsRoot() {
-    redirect("/venue/door");
+  redirect('/venue/door');
 }

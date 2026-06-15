@@ -1,4 +1,4 @@
-import Link from "next/link";
+import Link from 'next/link';
 
 export default function CategoryBar({ categories }) {
   return (
@@ -10,7 +10,7 @@ export default function CategoryBar({ categories }) {
 
         <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-4 scrollbar-hide justify-start md:justify-center">
           {categories.map((category, index) => {
-            const param = category.toLowerCase().replace(/\s+/g, "-");
+            const param = category.toLowerCase().replace(/\s+/g, '-');
             return (
               <Link
                 key={category}

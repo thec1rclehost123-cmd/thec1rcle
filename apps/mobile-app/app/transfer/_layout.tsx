@@ -1,11 +1,11 @@
-import { Stack } from "expo-router";
+import { Stack } from 'expo-router';
 
 export default function TransferLayout() {
   return (
     <Stack
       screenOptions={{
         headerShown: false,
-        contentStyle: { backgroundColor: "#161616" },
+        contentStyle: { backgroundColor: '#161616' },
       }}
     >
       <Stack.Screen name="index" />

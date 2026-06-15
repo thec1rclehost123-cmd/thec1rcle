@@ -1,7 +1,7 @@
-import * as Haptics from "expo-haptics";
-import { LinearGradient } from "expo-linear-gradient";
-import { router } from "expo-router";
-import { useState, useEffect } from "react";
+import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,8 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
   triggerSOS,
@@ -22,8 +22,8 @@ import {
   saveEmergencyContacts,
   requestSafeRide,
   EmergencyContact,
-} from "@/lib/safety";
-import { useAuthStore } from "@/store/authStore";
+} from '@/lib/safety';
+import { useAuthStore } from '@/store/authStore';
 
 // Emergency contact form
 function EmergencyContactForm({
@@ -38,12 +38,12 @@ function EmergencyContactForm({
 
   const addContact = () => {
     if (editedContacts.length >= 3) {
-      Alert.alert("Limit Reached", "You can add up to 3 emergency contacts");
+      Alert.alert('Limit Reached', 'You can add up to 3 emergency contacts');
       return;
     }
     setEditedContacts([
       ...editedContacts,
-      { id: `contact_${Date.now()}`, name: "", phone: "", relationship: "" },
+      { id: `contact_${Date.now()}`, name: '', phone: '', relationship: '' },
     ]);
   };
 
@@ -81,7 +81,7 @@ function EmergencyContactForm({
             placeholder="Name"
             placeholderTextColor="#666"
             value={contact.name}
-            onChangeText={(v) => updateContact(index, "name", v)}
+            onChangeText={(v) => updateContact(index, 'name', v)}
             className="bg-surface border border-white/10 rounded-bubble px-4 py-3 text-gold mb-2"
           />
 
@@ -90,7 +90,7 @@ function EmergencyContactForm({
             placeholderTextColor="#666"
             keyboardType="phone-pad"
             value={contact.phone}
-            onChangeText={(v) => updateContact(index, "phone", v)}
+            onChangeText={(v) => updateContact(index, 'phone', v)}
             className="bg-surface border border-white/10 rounded-bubble px-4 py-3 text-gold mb-2"
           />
 
@@ -98,7 +98,7 @@ function EmergencyContactForm({
             placeholder="Relationship (e.g., Mom, Friend)"
             placeholderTextColor="#666"
             value={contact.relationship}
-            onChangeText={(v) => updateContact(index, "relationship", v)}
+            onChangeText={(v) => updateContact(index, 'relationship', v)}
             className="bg-surface border border-white/10 rounded-bubble px-4 py-3 text-gold"
           />
         </View>
@@ -114,7 +114,7 @@ function EmergencyContactForm({
       <Pressable
         onPress={handleSave}
         disabled={saving}
-        className={`py-4 rounded-pill items-center ${saving ? "bg-iris/50" : "bg-iris"}`}
+        className={`py-4 rounded-pill items-center ${saving ? 'bg-iris/50' : 'bg-iris'}`}
       >
         {saving ? (
           <ActivityIndicator color="#fff" />
@@ -150,9 +150,9 @@ export default function SafetyScreen() {
     const result = await saveEmergencyContacts(user.uid, newContacts);
     if (result.success) {
       setContacts(newContacts);
-      Alert.alert("Saved", "Emergency contacts updated");
+      Alert.alert('Saved', 'Emergency contacts updated');
     } else {
-      Alert.alert("Error", result.error || "Failed to save contacts");
+      Alert.alert('Error', result.error || 'Failed to save contacts');
     }
   };
 
@@ -160,18 +160,18 @@ export default function SafetyScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
     Alert.alert(
-      "🆘 Trigger SOS Alert?",
-      "This will send your location and an emergency message to your contacts.",
+      '🆘 Trigger SOS Alert?',
+      'This will send your location and an emergency message to your contacts.',
       [
-        { text: "Cancel", style: "cancel" },
+        { text: 'Cancel', style: 'cancel' },
         {
-          text: "Send SOS",
-          style: "destructive",
+          text: 'Send SOS',
+          style: 'destructive',
           onPress: async () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            const result = await triggerSOS(user?.uid || "");
+            const result = await triggerSOS(user?.uid || '');
             if (!result.success) {
-              Alert.alert("Error", result.error || "Failed to send SOS");
+              Alert.alert('Error', result.error || 'Failed to send SOS');
             }
           },
         },
@@ -194,7 +194,7 @@ export default function SafetyScreen() {
         setLocationSharing(true);
         setLocationSessionId(result.sessionId || null);
       } else {
-        Alert.alert("Error", result.error || "Failed to start location sharing");
+        Alert.alert('Error', result.error || 'Failed to start location sharing');
       }
     }
   };
@@ -231,14 +231,14 @@ export default function SafetyScreen() {
               <View>
                 <Text className="text-gold font-semibold">Location Sharing</Text>
                 <Text className="text-gold-stone text-sm">
-                  {locationSharing ? "Sharing for 4 hours" : "Share with friends"}
+                  {locationSharing ? 'Sharing for 4 hours' : 'Share with friends'}
                 </Text>
               </View>
             </View>
             <Switch
               value={locationSharing}
               onValueChange={toggleLocationSharing}
-              trackColor={{ false: "#333", true: "#F44A22" }}
+              trackColor={{ false: '#333', true: '#F44A22' }}
               thumbColor="#fff"
             />
           </View>
@@ -249,19 +249,19 @@ export default function SafetyScreen() {
           <Text className="text-gold font-semibold mb-3">🚗 Get Home Safely</Text>
           <View className="flex-row gap-3">
             <Pressable
-              onPress={() => requestSafeRide("uber")}
+              onPress={() => requestSafeRide('uber')}
               className="flex-1 bg-black border border-white/20 py-4 rounded-bubble items-center"
             >
               <Text className="text-white font-semibold">Uber</Text>
             </Pressable>
             <Pressable
-              onPress={() => requestSafeRide("ola")}
+              onPress={() => requestSafeRide('ola')}
               className="flex-1 bg-[#45a049] py-4 rounded-bubble items-center"
             >
               <Text className="text-white font-semibold">Ola</Text>
             </Pressable>
             <Pressable
-              onPress={() => requestSafeRide("rapido")}
+              onPress={() => requestSafeRide('rapido')}
               className="flex-1 bg-[#F4C430] py-4 rounded-bubble items-center"
             >
               <Text className="text-black font-semibold">Rapido</Text>

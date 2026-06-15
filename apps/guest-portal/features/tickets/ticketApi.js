@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import { guestApi } from "../../lib/api/client";
+import { guestApi } from '../../lib/api/client';
 
 async function apiFetch(request) {
   const { response, data } = await request();
@@ -15,7 +15,9 @@ export async function getUserTickets() {
 }
 
 export async function createShareBundle(orderId, eventId, quantity, tierId = null) {
-  const result = await apiFetch(() => guestApi.tickets.share({ orderId, eventId, quantity, tierId }));
+  const result = await apiFetch(() =>
+    guestApi.tickets.share({ orderId, eventId, quantity, tierId }),
+  );
   return result.bundle;
 }
 
@@ -29,7 +31,9 @@ export async function claimTicket(token) {
 }
 
 export async function assignPartner(ticketId, partnerUserId, metadata) {
-  const result = await apiFetch(() => guestApi.tickets.assignPartner({ ticketId, partnerUserId, metadata }));
+  const result = await apiFetch(() =>
+    guestApi.tickets.assignPartner({ ticketId, partnerUserId, metadata }),
+  );
   return result.assignment;
 }
 
@@ -52,12 +56,14 @@ export async function findUserByEmail(email) {
 
 export async function assignPartnerByEmail(ticketId, email, metadata) {
   const partner = await findUserByEmail(email);
-  if (!partner) throw new Error("User not found with this email");
+  if (!partner) throw new Error('User not found with this email');
   return assignPartner(ticketId, partner.uid, metadata);
 }
 
 export async function initiateTransfer(ticketId, recipientEmail) {
-  const result = await apiFetch(() => guestApi.tickets.initiateTransfer({ ticketId, recipientEmail }));
+  const result = await apiFetch(() =>
+    guestApi.tickets.initiateTransfer({ ticketId, recipientEmail }),
+  );
   return result.transfer;
 }
 
@@ -70,26 +76,33 @@ export async function cancelTransfer(transferId) {
 }
 
 function normalizeOtpRecipient(recipient) {
-  const nextRecipient = String(recipient || "").trim();
+  const nextRecipient = String(recipient || '').trim();
   if (!nextRecipient) {
-    throw new Error("An account email is required to send a security code.");
+    throw new Error('An account email is required to send a security code.');
   }
   return nextRecipient;
 }
 
 export async function sendTransferOTP(recipient) {
   const nextRecipient = normalizeOtpRecipient(recipient);
-  return apiFetch(() => guestApi.auth.sendOtp({ type: "email", recipient: nextRecipient }));
+  return apiFetch(() => guestApi.auth.sendOtp({ type: 'email', recipient: nextRecipient }));
 }
 
 export async function verifyAndInitiateTransfer(ticketId, recipientEmail, code, otpRecipient) {
   const nextRecipient = normalizeOtpRecipient(otpRecipient);
-  await apiFetch(() => guestApi.auth.verifyOtp({ type: "email", recipient: nextRecipient, code }));
+  await apiFetch(() => guestApi.auth.verifyOtp({ type: 'email', recipient: nextRecipient, code }));
   return initiateTransfer(ticketId, recipientEmail);
 }
 
-export async function verifyAndCreateShareBundle(orderId, eventId, quantity, tierId, code, otpRecipient) {
+export async function verifyAndCreateShareBundle(
+  orderId,
+  eventId,
+  quantity,
+  tierId,
+  code,
+  otpRecipient,
+) {
   const nextRecipient = normalizeOtpRecipient(otpRecipient);
-  await apiFetch(() => guestApi.auth.verifyOtp({ type: "email", recipient: nextRecipient, code }));
+  await apiFetch(() => guestApi.auth.verifyOtp({ type: 'email', recipient: nextRecipient, code }));
   return createShareBundle(orderId, eventId, quantity, tierId);
 }

@@ -1,9 +1,9 @@
-import { randomUUID } from "node:crypto";
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { getEvent } from "./eventStore";
-import { sendTicketEmail } from "../email"; // Import email sender for delayed sending
+import { randomUUID } from 'node:crypto';
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { getEvent } from './eventStore';
+import { sendTicketEmail } from '../email'; // Import email sender for delayed sending
 
-const ORDERS_COLLECTION = "orders";
+const ORDERS_COLLECTION = 'orders';
 
 // In-memory fallback for development without Firebase
 let fallbackOrders = [];
@@ -40,12 +40,12 @@ export async function createOrder(payload) {
     userId,
     userEmail,
     userName,
-    paymentMethod = "card",
+    paymentMethod = 'card',
   } = payload;
 
   // Validate tickets array
   if (!Array.isArray(tickets) || tickets.length === 0) {
-    const error = new Error("Tickets must be a non-empty array");
+    const error = new Error('Tickets must be a non-empty array');
     error.statusCode = 400;
     throw error;
   }
@@ -66,7 +66,7 @@ export async function createOrder(payload) {
     const { ticketId, quantity } = selectedTicket;
 
     if (!ticketId || !quantity || quantity <= 0) {
-      const error = new Error("Each ticket must have a valid ticketId and quantity > 0");
+      const error = new Error('Each ticket must have a valid ticketId and quantity > 0');
       error.statusCode = 400;
       throw error;
     }
@@ -114,13 +114,13 @@ export async function createOrder(payload) {
     eventTime: event.time,
     eventLocation: event.location,
     userId: userId || null,
-    userEmail: userEmail || "",
-    userName: userName || "",
+    userEmail: userEmail || '',
+    userName: userName || '',
     tickets: orderTickets,
     totalAmount,
-    currency: "INR",
+    currency: 'INR',
     paymentMethod,
-    status: totalAmount === 0 ? "confirmed" : "pending_payment", // Auto-confirm free tickets
+    status: totalAmount === 0 ? 'confirmed' : 'pending_payment', // Auto-confirm free tickets
     createdAt: now,
     updatedAt: now,
   };
@@ -128,9 +128,9 @@ export async function createOrder(payload) {
   // If Firebase is not configured, use fallback
   if (!isFirebaseConfigured()) {
     // Update fallback event tickets
-    const eventIndex = require("../../data/events").events.findIndex((e) => e.id === eventId);
+    const eventIndex = require('../../data/events').events.findIndex((e) => e.id === eventId);
     if (eventIndex >= 0) {
-      const events = require("../../data/events").events;
+      const events = require('../../data/events').events;
       ticketUpdates.forEach((update) => {
         const ticket = events[eventIndex].tickets?.find((t) => t.id === update.ticketId);
         if (ticket) {
@@ -148,7 +148,7 @@ export async function createOrder(payload) {
 
   try {
     await db.runTransaction(async (transaction) => {
-      const eventRef = db.collection("events").doc(eventId);
+      const eventRef = db.collection('events').doc(eventId);
       const eventDoc = await transaction.get(eventRef);
 
       if (!eventDoc.exists) {
@@ -192,7 +192,7 @@ export async function createOrder(payload) {
     console.log(`Order created successfully: ${orderId}`);
     return order;
   } catch (error) {
-    console.error("Transaction failed:", error);
+    console.error('Transaction failed:', error);
     throw error;
   }
 }
@@ -244,16 +244,16 @@ export async function getUserOrders(userId, limit = 50) {
   try {
     snapshot = await db
       .collection(ORDERS_COLLECTION)
-      .where("userId", "==", userId)
-      .orderBy("createdAt", "desc")
+      .where('userId', '==', userId)
+      .orderBy('createdAt', 'desc')
       .limit(limit)
       .get();
   } catch (e) {
-    if (e.message.includes("FAILED_PRECONDITION") && e.message.includes("index")) {
-      console.warn("Firestore Index Missing for getUserOrders. Falling back to in-memory sorting.");
+    if (e.message.includes('FAILED_PRECONDITION') && e.message.includes('index')) {
+      console.warn('Firestore Index Missing for getUserOrders. Falling back to in-memory sorting.');
       const fallbackSnapshot = await db
         .collection(ORDERS_COLLECTION)
-        .where("userId", "==", userId)
+        .where('userId', '==', userId)
         .get();
       const orders = fallbackSnapshot.docs.map(mapOrderDocument);
       orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
@@ -281,8 +281,8 @@ export async function getEventOrders(eventId, limit = 100) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(ORDERS_COLLECTION)
-    .where("eventId", "==", eventId)
-    .orderBy("createdAt", "desc")
+    .where('eventId', '==', eventId)
+    .orderBy('createdAt', 'desc')
     .limit(limit)
     .get();
 
@@ -303,7 +303,7 @@ export async function getEventSalesStats(eventId) {
   };
 
   orders.forEach((order) => {
-    if (order.status === "confirmed") {
+    if (order.status === 'confirmed') {
       stats.totalRevenue += Number(order.totalAmount) || 0;
 
       order.tickets.forEach((ticket) => {
@@ -331,10 +331,10 @@ export async function cancelOrder(orderId) {
   const order = await getOrderById(orderId);
 
   if (!order) {
-    throw new Error("Order not found");
+    throw new Error('Order not found');
   }
 
-  if (order.status === "cancelled") {
+  if (order.status === 'cancelled') {
     return order; // Already cancelled
   }
 
@@ -343,11 +343,11 @@ export async function cancelOrder(orderId) {
   if (!isFirebaseConfigured()) {
     const orderIndex = fallbackOrders.findIndex((o) => o.id === orderId);
     if (orderIndex >= 0) {
-      fallbackOrders[orderIndex].status = "cancelled";
+      fallbackOrders[orderIndex].status = 'cancelled';
       fallbackOrders[orderIndex].updatedAt = now;
 
       // Restore ticket inventory
-      const events = require("../../data/events").events;
+      const events = require('../../data/events').events;
       const eventIndex = events.findIndex((e) => e.id === order.eventId);
       if (eventIndex >= 0) {
         order.tickets.forEach((orderTicket) => {
@@ -360,13 +360,13 @@ export async function cancelOrder(orderId) {
 
       return fallbackOrders[orderIndex];
     }
-    throw new Error("Order not found");
+    throw new Error('Order not found');
   }
 
   const db = getAdminDb();
 
   await db.runTransaction(async (transaction) => {
-    const eventRef = db.collection("events").doc(order.eventId);
+    const eventRef = db.collection('events').doc(order.eventId);
     const eventDoc = await transaction.get(eventRef);
 
     if (eventDoc.exists) {
@@ -393,12 +393,12 @@ export async function cancelOrder(orderId) {
     // Update order status
     const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
     transaction.update(orderRef, {
-      status: "cancelled",
+      status: 'cancelled',
       updatedAt: now,
     });
   });
 
-  return { ...order, status: "cancelled", updatedAt: now };
+  return { ...order, status: 'cancelled', updatedAt: now };
 }
 
 /**
@@ -406,7 +406,7 @@ export async function cancelOrder(orderId) {
  */
 export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
   const order = await getOrderById(orderId);
-  if (!order) throw new Error("Order not found");
+  if (!order) throw new Error('Order not found');
 
   const now = new Date().toISOString();
   const updates = {
@@ -424,7 +424,7 @@ export async function updateOrderStatus(orderId, status, paymentDetails = {}) {
       fallbackOrders[index] = { ...fallbackOrders[index], ...updates };
 
       // If confirming, trigger email logic (simulated here, usually handled by caller)
-      if (status === "confirmed" && order.status !== "confirmed") {
+      if (status === 'confirmed' && order.status !== 'confirmed') {
         console.log(`[OrderStore] Order ${orderId} confirmed via update.`);
       }
 

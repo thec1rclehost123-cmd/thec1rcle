@@ -1,18 +1,18 @@
-import { serve } from "inngest/next";
-import { inngest } from "@c1rcle/core/inngest";
+import { serve } from 'inngest/next';
+import { inngest } from '@c1rcle/core/inngest';
 import {
   handleTicketFulfillment,
   sendEventReminders,
   processEventSettlement,
-} from "@c1rcle/core/workflows/ticketing";
+} from '@c1rcle/core/workflows/ticketing';
 import {
   syncEventToSearch,
   syncVenueToSearch,
   autoSyncOnPublish,
-} from "@c1rcle/core/workflows/search-sync";
-import { syncHostStats } from "@c1rcle/core/workflows/host-analytics";
-import { recalculateHeatScores } from "@c1rcle/core/workflows/heat-sorting";
-import { maintenanceWarmup } from "@c1rcle/core/workflows/maintenance";
+} from '@c1rcle/core/workflows/search-sync';
+import { syncHostStats } from '@c1rcle/core/workflows/host-analytics';
+import { recalculateHeatScores } from '@c1rcle/core/workflows/heat-sorting';
+import { maintenanceWarmup } from '@c1rcle/core/workflows/maintenance';
 
 /**
  * PRODUCTION INNGEST SERVE ENDPOINT

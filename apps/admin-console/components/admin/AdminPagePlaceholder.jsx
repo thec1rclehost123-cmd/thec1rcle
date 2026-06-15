@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { usePathname } from "next/navigation";
-import { Hammer, Sparkles } from "lucide-react";
+import { usePathname } from 'next/navigation';
+import { Hammer, Sparkles } from 'lucide-react';
 
 export default function AdminPagePlaceholder() {
   const pathname = usePathname();
-  const pageName = pathname.split("/").pop();
+  const pageName = pathname.split('/').pop();
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-12 text-center pb-20">
@@ -32,7 +32,7 @@ export default function AdminPagePlaceholder() {
           {pageName} Console
         </h2>
         <p className="text-base text-slate-500 font-medium leading-relaxed">
-          The governance specialized interface for{" "}
+          The governance specialized interface for{' '}
           <span className="text-slate-900 font-black">{pageName}</span> is currently in the
           late-stage synthesis phase. Access will propagate once parameters are verified.
         </p>

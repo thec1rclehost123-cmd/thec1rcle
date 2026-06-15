@@ -1,23 +1,27 @@
 import {
   buildCheckoutSummaryView,
   readSelectedTicketsFromSearchParams,
-} from "../../../../../lib/bff/checkout.js";
+} from '../../../../../lib/bff/checkout.js';
 import {
   checkoutSummaryBodySchema,
   checkoutSummaryDataSchema,
   checkoutSummaryQuerySchema,
   parseGuestBffInput,
-} from "../../../../../lib/bff/contracts.js";
-import { buildGuestBffError, buildGuestBffResult, guestBffJsonResponse } from "../../../../../lib/bff/server.js";
+} from '../../../../../lib/bff/contracts.js';
+import {
+  buildGuestBffError,
+  buildGuestBffResult,
+  guestBffJsonResponse,
+} from '../../../../../lib/bff/server.js';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 function parseCheckoutGetRequest(request) {
   const searchParams = request.nextUrl.searchParams;
   const parsed = parseGuestBffInput(
     checkoutSummaryQuerySchema,
     Object.fromEntries(searchParams.entries()),
-    "query params",
+    'query params',
   );
   if (!parsed.ok) return parsed;
 
@@ -36,13 +40,16 @@ function parseCheckoutGetRequest(request) {
 export async function GET(request) {
   const parsed = parseCheckoutGetRequest(request);
   if (!parsed.ok) {
-    return guestBffJsonResponse(buildGuestBffResult({
-      status: 400,
-      error: buildGuestBffError(parsed.error.message, parsed.error),
-    }), {
-      dataSchema: checkoutSummaryDataSchema,
-      status: 400,
-    });
+    return guestBffJsonResponse(
+      buildGuestBffResult({
+        status: 400,
+        error: buildGuestBffError(parsed.error.message, parsed.error),
+      }),
+      {
+        dataSchema: checkoutSummaryDataSchema,
+        status: 400,
+      },
+    );
   }
   const result = await buildCheckoutSummaryView(parsed.data);
   return guestBffJsonResponse(result, {
@@ -53,15 +60,18 @@ export async function GET(request) {
 
 export async function POST(request) {
   const body = await request.json().catch(() => ({}));
-  const parsed = parseGuestBffInput(checkoutSummaryBodySchema, body, "request body");
+  const parsed = parseGuestBffInput(checkoutSummaryBodySchema, body, 'request body');
   if (!parsed.ok) {
-    return guestBffJsonResponse(buildGuestBffResult({
-      status: 400,
-      error: buildGuestBffError(parsed.error.message, parsed.error),
-    }), {
-      dataSchema: checkoutSummaryDataSchema,
-      status: 400,
-    });
+    return guestBffJsonResponse(
+      buildGuestBffResult({
+        status: 400,
+        error: buildGuestBffError(parsed.error.message, parsed.error),
+      }),
+      {
+        dataSchema: checkoutSummaryDataSchema,
+        status: 400,
+      },
+    );
   }
   const result = await buildCheckoutSummaryView({
     appliedPromoCode: parsed.data?.appliedPromoCode || parsed.data?.quoteInput?.promoCode || null,

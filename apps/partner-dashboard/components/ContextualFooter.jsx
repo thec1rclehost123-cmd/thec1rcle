@@ -1,15 +1,16 @@
-"use client";
+'use client';
 
-import { usePathname } from "next/navigation";
-import Footer from "./Footer";
+import { usePathname } from 'next/navigation';
+import Footer from './Footer';
 
 export default function ContextualFooter() {
-    const pathname = usePathname();
+  const pathname = usePathname();
 
-    // Hide footer on host studio internal routes
-    const isHostDashboard = pathname?.startsWith("/host") && !pathname.includes("%40") && !pathname.includes("@");
+  // Hide footer on host studio internal routes
+  const isHostDashboard =
+    pathname?.startsWith('/host') && !pathname.includes('%40') && !pathname.includes('@');
 
-    if (isHostDashboard) return null;
+  if (isHostDashboard) return null;
 
-    return <Footer />;
+  return <Footer />;
 }

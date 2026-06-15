@@ -12,14 +12,17 @@ describe('HostService.getEvent', () => {
     });
 
     const service = new HostService(db as any);
-    const event = await service.getEvent({
-      partnerId: 'host_other',
-      uid: 'user_1',
-      type: 'host',
-      roles: ['host_owner'],
-      venueIds: [],
-      displayName: 'Other Host',
-    }, 'event_1');
+    const event = await service.getEvent(
+      {
+        partnerId: 'host_other',
+        uid: 'user_1',
+        type: 'host',
+        roles: ['host_owner'],
+        venueIds: [],
+        displayName: 'Other Host',
+      },
+      'event_1',
+    );
 
     expect(event).toBeNull();
   });

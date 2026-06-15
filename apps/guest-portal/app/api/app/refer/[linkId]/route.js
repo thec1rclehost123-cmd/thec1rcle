@@ -1,18 +1,21 @@
-import { guestBffUpstreamJson } from "../../../../../lib/bff/server.js";
+import { guestBffUpstreamJson } from '../../../../../lib/bff/server.js';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET(_request, { params }) {
   const { linkId } = await params;
   if (!linkId) {
-    return Response.json({ ok: false, error: { message: "Missing linkId" } }, { status: 400 });
+    return Response.json({ ok: false, error: { message: 'Missing linkId' } }, { status: 400 });
   }
 
   // Resolve link by ID from the gateway
   const result = await guestBffUpstreamJson(`/promoter-links/${encodeURIComponent(linkId)}`);
 
   if (!result.response.ok || !result.data?.link) {
-    return Response.json({ ok: false, error: { message: "Link not found or inactive" } }, { status: 404 });
+    return Response.json(
+      { ok: false, error: { message: 'Link not found or inactive' } },
+      { status: 404 },
+    );
   }
 
   const link = result.data.link;

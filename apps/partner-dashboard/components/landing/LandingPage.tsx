@@ -1,13 +1,13 @@
-"use client";
+'use client';
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import MagneticButton from "@/components/ui/MagneticButton";
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
+import { motion } from 'framer-motion';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import MagneticButton from '@/components/ui/MagneticButton';
 
-const NightclubScene = dynamic(() => import("./NightclubScene"), {
+const NightclubScene = dynamic(() => import('./NightclubScene'), {
   ssr: false,
   loading: () => <div className="absolute inset-0 bg-[#0A0A0B]" />,
 });
@@ -27,7 +27,7 @@ export default function LandingPage() {
     if (loading) return;
     if (user && isApproved && profile) {
       const pt = profile.activeMembership?.partnerType;
-      router.replace(pt ? `/${pt}` : "/venue");
+      router.replace(pt ? `/${pt}` : '/venue');
     }
   }, [loading, user, isApproved, profile, router]);
 
@@ -59,7 +59,7 @@ export default function LandingPage() {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "linear-gradient(to top, #0A0A0B 0%, rgba(10,10,11,0.75) 40%, transparent 100%)",
+            'linear-gradient(to top, #0A0A0B 0%, rgba(10,10,11,0.75) 40%, transparent 100%)',
         }}
       />
 
@@ -72,7 +72,7 @@ export default function LandingPage() {
       >
         <p
           className="text-[22px] font-black uppercase tracking-[0.55em] text-white"
-          style={{ textShadow: "0 0 24px rgba(255,255,255,0.3)" }}
+          style={{ textShadow: '0 0 24px rgba(255,255,255,0.3)' }}
         >
           THE C1RCLE
         </p>
@@ -84,48 +84,48 @@ export default function LandingPage() {
           {/* Main headline — each word bursts in with a shiny glow */}
           <h1 className="text-[clamp(36px,8vw,72px)] font-black uppercase tracking-tight leading-[1.0] text-white mb-5">
             {[
-              { word: "Command", color: "#FFFFFF", delay: 0 },
-              { word: "Your",    color: "#FFFFFF", delay: 0.13 },
+              { word: 'Command', color: '#FFFFFF', delay: 0 },
+              { word: 'Your', color: '#FFFFFF', delay: 0.13 },
             ].map(({ word, color, delay }) => (
               <motion.span
                 key={word}
-                initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+                initial={{ opacity: 0, y: 18, filter: 'blur(6px)' }}
                 animate={{
                   opacity: [0, 1, 1],
                   y: [18, -2, 0],
-                  filter: ["blur(6px)", "blur(0px)", "blur(0px)"],
+                  filter: ['blur(6px)', 'blur(0px)', 'blur(0px)'],
                   textShadow: [
-                    "0 0 0px rgba(255,255,255,0)",
-                    "0 0 40px rgba(255,255,255,0.95), 0 0 80px rgba(255,200,120,0.7), 0 0 120px rgba(244,74,34,0.5)",
-                    "0 0 20px rgba(255,255,255,0.15), 0 0 40px rgba(244,74,34,0.2)",
+                    '0 0 0px rgba(255,255,255,0)',
+                    '0 0 40px rgba(255,255,255,0.95), 0 0 80px rgba(255,200,120,0.7), 0 0 120px rgba(244,74,34,0.5)',
+                    '0 0 20px rgba(255,255,255,0.15), 0 0 40px rgba(244,74,34,0.2)',
                   ],
                 }}
-                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: "easeOut" }}
-                style={{ color, display: "inline-block", marginRight: "0.28em" }}
+                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: 'easeOut' }}
+                style={{ color, display: 'inline-block', marginRight: '0.28em' }}
               >
                 {word}
               </motion.span>
             ))}
             <br />
             {[
-              { word: "Nightlife", color: "#F44A22", delay: 0.26 },
-              { word: "Empire",    color: "#F44A22", delay: 0.39 },
+              { word: 'Nightlife', color: '#F44A22', delay: 0.26 },
+              { word: 'Empire', color: '#F44A22', delay: 0.39 },
             ].map(({ word, color, delay }) => (
               <motion.span
                 key={word}
-                initial={{ opacity: 0, y: 18, filter: "blur(6px)" }}
+                initial={{ opacity: 0, y: 18, filter: 'blur(6px)' }}
                 animate={{
                   opacity: [0, 1, 1],
                   y: [18, -2, 0],
-                  filter: ["blur(6px)", "blur(0px)", "blur(0px)"],
+                  filter: ['blur(6px)', 'blur(0px)', 'blur(0px)'],
                   textShadow: [
-                    "0 0 0px rgba(244,74,34,0)",
-                    "0 0 40px rgba(255,120,60,0.95), 0 0 80px rgba(244,74,34,0.8), 0 0 130px rgba(244,74,34,0.5)",
-                    "0 0 20px rgba(244,74,34,0.3), 0 0 40px rgba(244,74,34,0.15)",
+                    '0 0 0px rgba(244,74,34,0)',
+                    '0 0 40px rgba(255,120,60,0.95), 0 0 80px rgba(244,74,34,0.8), 0 0 130px rgba(244,74,34,0.5)',
+                    '0 0 20px rgba(244,74,34,0.3), 0 0 40px rgba(244,74,34,0.15)',
                   ],
                 }}
-                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: "easeOut" }}
-                style={{ color, display: "inline-block", marginRight: "0.28em" }}
+                transition={{ duration: 0.75, delay, times: [0, 0.35, 1], ease: 'easeOut' }}
+                style={{ color, display: 'inline-block', marginRight: '0.28em' }}
               >
                 {word}
               </motion.span>
@@ -158,10 +158,10 @@ export default function LandingPage() {
                   group-hover:bg-white/20 group-hover:scale-[1.03]
                   group-active:scale-[0.97]"
                 style={{
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: "rgba(255,255,255,0.08)",
-                  backdropFilter: "blur(12px)",
-                  WebkitBackdropFilter: "blur(12px)",
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.08)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
                 }}
               >
                 Already a User
@@ -175,12 +175,17 @@ export default function LandingPage() {
                   group-hover:brightness-110 group-hover:scale-[1.03]
                   group-active:scale-[0.97]"
                 style={{
-                  background: "#F44A22",
-                  boxShadow: "0 0 40px rgba(244,74,34,0.35), 0 4px 16px rgba(0,0,0,0.4)",
+                  background: '#F44A22',
+                  boxShadow: '0 0 40px rgba(244,74,34,0.35), 0 4px 16px rgba(0,0,0,0.4)',
                 }}
               >
                 Apply for Partner Access
-                <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+                <span
+                  aria-hidden
+                  className="transition-transform duration-200 group-hover:translate-x-1"
+                >
+                  →
+                </span>
               </span>
             </MagneticButton>
           </motion.div>

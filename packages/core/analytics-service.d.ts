@@ -20,4 +20,9 @@ export function notifySale(venueId: any, saleData: any): Promise<void>;
 /**
  * Track user interaction (swipe, click, view)
  */
-export function trackInteraction(userId: any, targetId: any, type: any, metadata?: {}): Promise<void>;
+export function trackInteraction(
+  userId: any,
+  targetId: any,
+  type: any,
+  metadata?: {},
+): Promise<void>;

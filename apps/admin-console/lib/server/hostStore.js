@@ -1,101 +1,101 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { FieldValue } from "@c1rcle/core/firestore-admin";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { FieldValue } from '@c1rcle/core/firestore-admin';
 
 // Extended fallback data for the premium experience
 const fallbackHosts = [
   {
-    id: "after-dark",
-    slug: "after-dark",
-    handle: "@after_dark_india",
-    name: "After Dark India",
-    avatar: "/events/genz-night.svg",
-    cover: "/events/neon-nights.jpg",
-    role: "Promoter",
-    vibes: ["Techno", "House", "Afro"],
+    id: 'after-dark',
+    slug: 'after-dark',
+    handle: '@after_dark_india',
+    name: 'After Dark India',
+    avatar: '/events/genz-night.svg',
+    cover: '/events/neon-nights.jpg',
+    role: 'Promoter',
+    vibes: ['Techno', 'House', 'Afro'],
     followers: 18400,
     upcomingEventsCount: 4,
-    nextEventDate: "2024-01-05",
-    bio: "Nightlife curators building the late-night economy across Pune and Mumbai.",
-    location: "Pune, IN",
+    nextEventDate: '2024-01-05',
+    bio: 'Nightlife curators building the late-night economy across Pune and Mumbai.',
+    location: 'Pune, IN',
     verified: true,
     trending: true,
     popular: true,
   },
   {
-    id: "campus-collective",
-    slug: "campus-collective",
-    handle: "@campuscollective",
-    name: "Campus Collective",
-    avatar: "/events/campus.svg",
-    cover: "/events/poolside-vibes.jpg",
-    role: "Collective",
-    vibes: ["Bollywood", "Commercial", "Open format"],
+    id: 'campus-collective',
+    slug: 'campus-collective',
+    handle: '@campuscollective',
+    name: 'Campus Collective',
+    avatar: '/events/campus.svg',
+    cover: '/events/poolside-vibes.jpg',
+    role: 'Collective',
+    vibes: ['Bollywood', 'Commercial', 'Open format'],
     followers: 9200,
     upcomingEventsCount: 2,
-    nextEventDate: "2024-01-12",
-    bio: "Day parties, cookouts, and art walks for India’s campus crowd.",
-    location: "Pune, IN",
+    nextEventDate: '2024-01-12',
+    bio: 'Day parties, cookouts, and art walks for India’s campus crowd.',
+    location: 'Pune, IN',
     verified: true,
     trending: false,
     popular: true,
   },
   {
-    id: "quiet-hours",
-    slug: "quiet-hours",
-    handle: "@quiethours",
-    name: "Quiet Hours",
-    avatar: "/events/lofi-house.svg",
-    cover: "/events/rooftop-jazz.jpg",
-    role: "Promoter",
-    vibes: ["House", "Deep House", "Melodic"],
+    id: 'quiet-hours',
+    slug: 'quiet-hours',
+    handle: '@quiethours',
+    name: 'Quiet Hours',
+    avatar: '/events/lofi-house.svg',
+    cover: '/events/rooftop-jazz.jpg',
+    role: 'Promoter',
+    vibes: ['House', 'Deep House', 'Melodic'],
     followers: 6100,
     upcomingEventsCount: 1,
-    nextEventDate: "2024-01-08",
-    bio: "Mindful rooftops, lofi flows, and slow-living residencies.",
-    location: "Baner, Pune",
+    nextEventDate: '2024-01-08',
+    bio: 'Mindful rooftops, lofi flows, and slow-living residencies.',
+    location: 'Baner, Pune',
     verified: false,
     trending: true,
     popular: false,
   },
   {
-    id: "underground-studio",
-    slug: "underground-studio",
-    handle: "@underground.studio",
-    name: "Underground Studio",
-    avatar: "/events/art-bazaar.svg",
-    cover: "/events/techno-bunker.jpg",
-    role: "Collective",
-    vibes: ["Techno", "Underground", "Trance"],
+    id: 'underground-studio',
+    slug: 'underground-studio',
+    handle: '@underground.studio',
+    name: 'Underground Studio',
+    avatar: '/events/art-bazaar.svg',
+    cover: '/events/techno-bunker.jpg',
+    role: 'Collective',
+    vibes: ['Techno', 'Underground', 'Trance'],
     followers: 12100,
     upcomingEventsCount: 3,
-    nextEventDate: "2024-01-06",
-    bio: "Immersive AV clubs blending art, poetry, and analog synth jams.",
-    location: "Viman Nagar, Pune",
+    nextEventDate: '2024-01-06',
+    bio: 'Immersive AV clubs blending art, poetry, and analog synth jams.',
+    location: 'Viman Nagar, Pune',
     verified: true,
     trending: false,
     popular: true,
   },
   {
-    id: "dj-soul",
-    slug: "dj-soul",
-    handle: "@djsoul",
-    name: "DJ Soul",
-    avatar: "https://api.dicebear.com/9.x/notionists/svg?seed=soul",
-    cover: "/events/rooftop-jazz.jpg",
-    role: "DJ",
-    vibes: ["Afro", "Hip-hop", "House"],
+    id: 'dj-soul',
+    slug: 'dj-soul',
+    handle: '@djsoul',
+    name: 'DJ Soul',
+    avatar: 'https://api.dicebear.com/9.x/notionists/svg?seed=soul',
+    cover: '/events/rooftop-jazz.jpg',
+    role: 'DJ',
+    vibes: ['Afro', 'Hip-hop', 'House'],
     followers: 4300,
     upcomingEventsCount: 5,
-    nextEventDate: "2024-01-03",
-    bio: "Spinning the soul of the city. Afro-beat specialist.",
-    location: "Pune, IN",
+    nextEventDate: '2024-01-03',
+    bio: 'Spinning the soul of the city. Afro-beat specialist.',
+    location: 'Pune, IN',
     verified: false,
     trending: true,
     popular: false,
   },
 ];
 
-const HOSTS_COLLECTION = "hosts";
+const HOSTS_COLLECTION = 'hosts';
 
 /**
  * List hosts with filtering and sorting
@@ -126,17 +126,17 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     }
 
     // Status Filter
-    if (status === "Verified") hosts = hosts.filter((h) => h.verified);
-    if (status === "Trending") hosts = hosts.filter((h) => h.trending);
-    if (status === "Popular") hosts = hosts.filter((h) => h.popular);
+    if (status === 'Verified') hosts = hosts.filter((h) => h.verified);
+    if (status === 'Trending') hosts = hosts.filter((h) => h.trending);
+    if (status === 'Popular') hosts = hosts.filter((h) => h.popular);
 
     // Time Filter (Simplified for fallback)
-    if (time === "Has events this week") hosts = hosts.filter((h) => h.upcomingEventsCount > 0);
+    if (time === 'Has events this week') hosts = hosts.filter((h) => h.upcomingEventsCount > 0);
 
     // Sorting
-    if (sort === "Most followed") {
+    if (sort === 'Most followed') {
       hosts.sort((a, b) => b.followers - a.followers);
-    } else if (sort === "Soonest event") {
+    } else if (sort === 'Soonest event') {
       hosts.sort((a, b) => new Date(a.nextEventDate) - new Date(b.nextEventDate));
     } else {
       // Default "Popular" or trending
@@ -152,8 +152,8 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
   let query = db.collection(HOSTS_COLLECTION);
 
   // Apply basic Firestore filters if possible, else filter in-memory for complex ones
-  if (role) query = query.where("role", "==", role);
-  if (status === "Verified") query = query.where("verified", "==", true);
+  if (role) query = query.where('role', '==', role);
+  if (status === 'Verified') query = query.where('verified', '==', true);
 
   const snapshot = await query.get();
   let hosts = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -173,16 +173,16 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
     hosts = hosts.filter((h) => h.vibes?.includes(vibe));
   }
 
-  if (status === "Trending") hosts = hosts.filter((h) => h.trending);
-  if (status === "Popular") hosts = hosts.filter((h) => h.popular);
+  if (status === 'Trending') hosts = hosts.filter((h) => h.trending);
+  if (status === 'Popular') hosts = hosts.filter((h) => h.popular);
 
   // Sorting
-  if (sort === "Most followed") {
+  if (sort === 'Most followed') {
     hosts.sort((a, b) => (b.followers || 0) - (a.followers || 0));
-  } else if (sort === "Soonest event") {
+  } else if (sort === 'Soonest event') {
     hosts.sort(
       (a, b) =>
-        new Date(a.nextEventDate || "9999-12-31") - new Date(b.nextEventDate || "9999-12-31"),
+        new Date(a.nextEventDate || '9999-12-31') - new Date(b.nextEventDate || '9999-12-31'),
     );
   }
 
@@ -195,7 +195,7 @@ export async function listHosts({ search, role, vibe, status, time, sort } = {})
  */
 export async function getHostByHandle(handle) {
   if (!handle) return null;
-  const normalizedHandle = handle.startsWith("@") ? handle : `@${handle}`;
+  const normalizedHandle = handle.startsWith('@') ? handle : `@${handle}`;
 
   if (!isFirebaseConfigured()) {
     return fallbackHosts.find((h) => h.handle === normalizedHandle) || null;
@@ -204,7 +204,7 @@ export async function getHostByHandle(handle) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(HOSTS_COLLECTION)
-    .where("handle", "==", normalizedHandle)
+    .where('handle', '==', normalizedHandle)
     .limit(1)
     .get();
 
@@ -224,13 +224,13 @@ export async function getHostBySlug(slug) {
   if (!isFirebaseConfigured()) {
     return (
       fallbackHosts.find(
-        (h) => h.slug === slug || h.handle.replace("@", "").replace("_", "-") === slug,
+        (h) => h.slug === slug || h.handle.replace('@', '').replace('_', '-') === slug,
       ) || null
     );
   }
 
   const db = getAdminDb();
-  const snapshot = await db.collection(HOSTS_COLLECTION).where("slug", "==", slug).limit(1).get();
+  const snapshot = await db.collection(HOSTS_COLLECTION).where('slug', '==', slug).limit(1).get();
 
   if (!snapshot.empty) {
     return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() };

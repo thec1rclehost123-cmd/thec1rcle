@@ -1,52 +1,52 @@
-"use client";
+'use client';
 
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export function VenueGuard({ children }: { children: React.ReactNode }) {
-    const { user, profile, loading } = useDashboardAuth();
-    const router = useRouter();
+  const { user, profile, loading } = useDashboardAuth();
+  const router = useRouter();
 
-    useEffect(() => {
-        if (!loading) {
-            if (!user) {
-                router.replace("/login");
-                return;
-            }
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.replace('/login');
+        return;
+      }
 
-            // Check if user has club membership
-            const membership = profile?.activeMembership;
-            if (!membership || membership.partnerType !== "venue") {
-                router.replace("/unauthorized");
-                return;
-            }
+      // Check if user has club membership
+      const membership = profile?.activeMembership;
+      if (!membership || membership.partnerType !== 'venue') {
+        router.replace('/unauthorized');
+        return;
+      }
 
-            // Ensure they have a valid partner ID
-            if (!membership.partnerId) {
-                router.replace("/setup");
-                return;
-            }
-        }
-    }, [user, profile, loading, router]);
-
-    if (loading) {
-        return (
-            <div className="flex min-h-screen items-center justify-center bg-surface-secondary">
-                <div className="flex flex-col items-center gap-4">
-                    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-indigo-500" />
-                    <p className="text-sm font-semibold text-text-tertiary uppercase tracking-widest">
-                        Verifying Access...
-                    </p>
-                </div>
-            </div>
-        );
+      // Ensure they have a valid partner ID
+      if (!membership.partnerId) {
+        router.replace('/setup');
+        return;
+      }
     }
+  }, [user, profile, loading, router]);
 
-    const membership = profile?.activeMembership;
-    if (!user || !profile || !membership || membership.partnerType !== "venue") {
-        return null;
-    }
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-surface-secondary">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-t-2 border-indigo-500" />
+          <p className="text-sm font-semibold text-text-tertiary uppercase tracking-widest">
+            Verifying Access...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
-    return <>{children}</>;
+  const membership = profile?.activeMembership;
+  if (!user || !profile || !membership || membership.partnerType !== 'venue') {
+    return null;
+  }
+
+  return <>{children}</>;
 }

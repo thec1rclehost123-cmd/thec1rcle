@@ -1,10 +1,10 @@
-import { guestServerJson } from "../../lib/api/server";
+import { guestServerJson } from '../../lib/api/server';
 
 export async function loadVanityLink(handle, eventSlug, options = {}) {
   if (!handle || !eventSlug) return null;
   const { response, data } = await guestServerJson(
     `/public/promoters/${encodeURIComponent(handle)}/links/${encodeURIComponent(eventSlug)}`,
-    { forwardCookies: false, next: { revalidate: 30 }, ...options }
+    { forwardCookies: false, next: { revalidate: 30 }, ...options },
   );
 
   if (!response.ok) return null;
@@ -23,8 +23,8 @@ export function buildVanityRedirectTarget(link, searchParams = {}) {
       query.set(key, String(value));
     }
   }
-  if (link?.code) query.set("ref", String(link.code));
+  if (link?.code) query.set('ref', String(link.code));
 
   const queryString = query.toString();
-  return `/event/${encodeURIComponent(eventIdentifier)}${queryString ? `?${queryString}` : ""}`;
+  return `/event/${encodeURIComponent(eventIdentifier)}${queryString ? `?${queryString}` : ''}`;
 }

@@ -29,27 +29,27 @@
  *   if (spike.detected) { ... }
  */
 
-import { getRedisClient } from "./redis.js";
-import { blockIp, flagUser } from "./security-state.js";
-import { addReputation } from "./reputation.js";
+import { getRedisClient } from './redis.js';
+import { blockIp, flagUser } from './security-state.js';
+import { addReputation } from './reputation.js';
 
 // ── Thresholds ────────────────────────────────────────────────────────────────
 
 const THRESHOLDS = {
-    IP_DISTINCT_ACCOUNTS: { limit: 5,  windowSec: 3600     }, // 1 hour
-    UID_DISTINCT_IPS:     { limit: 3,  windowSec: 1800     }, // 30 minutes
-    ACTIVITY_SPIKE:       { limit: 30, windowMs:  5 * 60_000 }, // 5 minutes
+  IP_DISTINCT_ACCOUNTS: { limit: 5, windowSec: 3600 }, // 1 hour
+  UID_DISTINCT_IPS: { limit: 3, windowSec: 1800 }, // 30 minutes
+  ACTIVITY_SPIKE: { limit: 30, windowMs: 5 * 60_000 }, // 5 minutes
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 async function safeExec(fn, fallback) {
-    try {
-        const redis = getRedisClient();
-        return await fn(redis);
-    } catch (_) {
-        return fallback;
-    }
+  try {
+    const redis = getRedisClient();
+    return await fn(redis);
+  } catch (_) {
+    return fallback;
+  }
 }
 
 // ── Core: record IP→UID and UID→IP relationships ──────────────────────────────
@@ -65,62 +65,62 @@ async function safeExec(fn, fallback) {
  * @returns {Promise<Array<{ type: string, detail: string }>>}
  */
 export async function recordAndCheckPatterns(ip, uid) {
-    if (!ip && !uid) return [];
+  if (!ip && !uid) return [];
 
-    return safeExec(async (redis) => {
-        const detected = [];
-        const pipeline = redis.pipeline();
+  return safeExec(async (redis) => {
+    const detected = [];
+    const pipeline = redis.pipeline();
 
-        // Record IP→UID mapping (what accounts has this IP touched?)
-        if (ip && uid) {
-            pipeline.pfadd(`pattern:ip_targets:${ip}`, uid);
-            pipeline.expire(`pattern:ip_targets:${ip}`, THRESHOLDS.IP_DISTINCT_ACCOUNTS.windowSec);
-        }
+    // Record IP→UID mapping (what accounts has this IP touched?)
+    if (ip && uid) {
+      pipeline.pfadd(`pattern:ip_targets:${ip}`, uid);
+      pipeline.expire(`pattern:ip_targets:${ip}`, THRESHOLDS.IP_DISTINCT_ACCOUNTS.windowSec);
+    }
 
-        // Record UID→IP mapping (how many IPs have touched this account?)
-        if (uid && ip) {
-            pipeline.pfadd(`pattern:uid_ips:${uid}`, ip);
-            pipeline.expire(`pattern:uid_ips:${uid}`, THRESHOLDS.UID_DISTINCT_IPS.windowSec);
-        }
+    // Record UID→IP mapping (how many IPs have touched this account?)
+    if (uid && ip) {
+      pipeline.pfadd(`pattern:uid_ips:${uid}`, ip);
+      pipeline.expire(`pattern:uid_ips:${uid}`, THRESHOLDS.UID_DISTINCT_IPS.windowSec);
+    }
 
-        await pipeline.exec();
+    await pipeline.exec();
 
-        // Now read the cardinalities to check thresholds
-        const countPipeline = redis.pipeline();
-        if (ip && uid) countPipeline.pfcount(`pattern:ip_targets:${ip}`);
-        else            countPipeline.echo("0");
+    // Now read the cardinalities to check thresholds
+    const countPipeline = redis.pipeline();
+    if (ip && uid) countPipeline.pfcount(`pattern:ip_targets:${ip}`);
+    else countPipeline.echo('0');
 
-        if (uid && ip) countPipeline.pfcount(`pattern:uid_ips:${uid}`);
-        else           countPipeline.echo("0");
+    if (uid && ip) countPipeline.pfcount(`pattern:uid_ips:${uid}`);
+    else countPipeline.echo('0');
 
-        const counts = await countPipeline.exec();
-        const ipTargetCount = parseInt(counts[0][1], 10) || 0;
-        const uidIpCount    = parseInt(counts[1][1], 10) || 0;
+    const counts = await countPipeline.exec();
+    const ipTargetCount = parseInt(counts[0][1], 10) || 0;
+    const uidIpCount = parseInt(counts[1][1], 10) || 0;
 
-        // Pattern 1: Same IP targeting many accounts → credential spray
-        if (ip && ipTargetCount > THRESHOLDS.IP_DISTINCT_ACCOUNTS.limit) {
-            detected.push({
-                type: "MULTI_ACCOUNT_SPRAY",
-                detail: `IP ${ip} targeted ${ipTargetCount} distinct accounts in 1hr`,
-            });
-            // Auto-block the spray IP with extended TTL
-            await blockIp(ip, `multi_account_spray:${ipTargetCount}_accounts`, 60 * 60); // 1hr
-            await addReputation("ip", ip, "AUTH_FAIL"); // push score higher
-        }
+    // Pattern 1: Same IP targeting many accounts → credential spray
+    if (ip && ipTargetCount > THRESHOLDS.IP_DISTINCT_ACCOUNTS.limit) {
+      detected.push({
+        type: 'MULTI_ACCOUNT_SPRAY',
+        detail: `IP ${ip} targeted ${ipTargetCount} distinct accounts in 1hr`,
+      });
+      // Auto-block the spray IP with extended TTL
+      await blockIp(ip, `multi_account_spray:${ipTargetCount}_accounts`, 60 * 60); // 1hr
+      await addReputation('ip', ip, 'AUTH_FAIL'); // push score higher
+    }
 
-        // Pattern 2: Same account accessed from many IPs → account under siege / proxy rotation
-        if (uid && uidIpCount > THRESHOLDS.UID_DISTINCT_IPS.limit) {
-            detected.push({
-                type: "ACCOUNT_SIEGE",
-                detail: `Account ${uid} accessed from ${uidIpCount} distinct IPs in 30min`,
-            });
-            // Flag the account for review (don't hard-block — could be VPN users)
-            await flagUser(uid, `account_siege:${uidIpCount}_distinct_ips`);
-            await addReputation("user", uid, "AUTH_FAIL");
-        }
+    // Pattern 2: Same account accessed from many IPs → account under siege / proxy rotation
+    if (uid && uidIpCount > THRESHOLDS.UID_DISTINCT_IPS.limit) {
+      detected.push({
+        type: 'ACCOUNT_SIEGE',
+        detail: `Account ${uid} accessed from ${uidIpCount} distinct IPs in 30min`,
+      });
+      // Flag the account for review (don't hard-block — could be VPN users)
+      await flagUser(uid, `account_siege:${uidIpCount}_distinct_ips`);
+      await addReputation('user', uid, 'AUTH_FAIL');
+    }
 
-        return detected;
-    }, []);
+    return detected;
+  }, []);
 }
 
 // ── Activity spike detection ──────────────────────────────────────────────────
@@ -133,29 +133,32 @@ export async function recordAndCheckPatterns(ip, uid) {
  * @param {string} [eventLabel] - label for the event type (for debugging)
  * @returns {Promise<{ detected: boolean, count: number }>}
  */
-export async function checkActivitySpike(uid, eventLabel = "event") {
-    if (!uid) return { detected: false, count: 0 };
+export async function checkActivitySpike(uid, eventLabel = 'event') {
+  if (!uid) return { detected: false, count: 0 };
 
-    return safeExec(async (redis) => {
-        const key    = `pattern:activity:${uid}`;
-        const now    = Date.now();
-        const cutoff = now - THRESHOLDS.ACTIVITY_SPIKE.windowMs;
+  return safeExec(
+    async (redis) => {
+      const key = `pattern:activity:${uid}`;
+      const now = Date.now();
+      const cutoff = now - THRESHOLDS.ACTIVITY_SPIKE.windowMs;
 
-        // Add current timestamp, trim old entries, count window — all atomic
-        await redis
-            .pipeline()
-            .zadd(key, now, now.toString())
-            .zremrangebyscore(key, "-inf", cutoff)
-            .expire(key, 600) // 10 min max TTL
-            .exec();
+      // Add current timestamp, trim old entries, count window — all atomic
+      await redis
+        .pipeline()
+        .zadd(key, now, now.toString())
+        .zremrangebyscore(key, '-inf', cutoff)
+        .expire(key, 600) // 10 min max TTL
+        .exec();
 
-        const count = await redis.zcount(key, cutoff, "+inf");
+      const count = await redis.zcount(key, cutoff, '+inf');
 
-        return {
-            detected: count > THRESHOLDS.ACTIVITY_SPIKE.limit,
-            count,
-        };
-    }, { detected: false, count: 0 });
+      return {
+        detected: count > THRESHOLDS.ACTIVITY_SPIKE.limit,
+        count,
+      };
+    },
+    { detected: false, count: 0 },
+  );
 }
 
 /**
@@ -166,8 +169,8 @@ export async function checkActivitySpike(uid, eventLabel = "event") {
  * @returns {Promise<number>}
  */
 export async function getIpTargetCount(ip) {
-    return safeExec(async (redis) => {
-        const val = await redis.pfcount(`pattern:ip_targets:${ip}`);
-        return parseInt(val, 10) || 0;
-    }, 0);
+  return safeExec(async (redis) => {
+    const val = await redis.pfcount(`pattern:ip_targets:${ip}`);
+    return parseInt(val, 10) || 0;
+  }, 0);
 }

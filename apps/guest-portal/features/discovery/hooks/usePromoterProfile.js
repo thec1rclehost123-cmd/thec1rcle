@@ -1,49 +1,63 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import { fetchPromoterByUsername } from "../publicDiscovery";
+import { useEffect, useMemo, useState } from 'react';
+import { fetchPromoterByUsername } from '../publicDiscovery';
 
 const RESERVED_HANDLES = new Set([
-  "about", "api", "app", "auth", "checkout", "confirmation",
-  "e", "event", "explore", "forgot-password", "host", "hosts",
-  "interviews", "login", "privacy", "profile", "terms",
-  "tickets", "venue", "search", "sitemap", "robots",
+  'about',
+  'api',
+  'app',
+  'auth',
+  'checkout',
+  'confirmation',
+  'e',
+  'event',
+  'explore',
+  'forgot-password',
+  'host',
+  'hosts',
+  'interviews',
+  'login',
+  'privacy',
+  'profile',
+  'terms',
+  'tickets',
+  'venue',
+  'search',
+  'sitemap',
+  'robots',
 ]);
 
 function getEventPriceLabel(event) {
   const min = Number(
-    event?.priceRange?.min ??
-      event?.priceMin ??
-      event?.startingPrice ??
-      event?.price ??
-      0
+    event?.priceRange?.min ?? event?.priceMin ?? event?.startingPrice ?? event?.price ?? 0,
   );
-  return min > 0 ? `₹${min.toLocaleString("en-IN")}` : null;
+  return min > 0 ? `₹${min.toLocaleString('en-IN')}` : null;
 }
 
 export function usePromoterProfile(handle) {
   const [result, setResult] = useState(null);
-  const [status, setStatus] = useState("loading");
+  const [status, setStatus] = useState('loading');
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadPromoter() {
       if (!handle || RESERVED_HANDLES.has(handle)) {
-        setStatus("missing");
+        setStatus('missing');
         return;
       }
 
-      setStatus("loading");
+      setStatus('loading');
       try {
         const nextResult = await fetchPromoterByUsername(handle);
         if (cancelled) return;
         setResult(nextResult);
-        setStatus(nextResult?.promoter ? "ready" : "missing");
+        setStatus(nextResult?.promoter ? 'ready' : 'missing');
       } catch (error) {
         if (!cancelled) {
-          console.error("[PromoterHandlePage] Failed to load promoter", error);
-          setStatus("error");
+          console.error('[PromoterHandlePage] Failed to load promoter', error);
+          setStatus('error');
         }
       }
     }
@@ -61,9 +75,9 @@ export function usePromoterProfile(handle) {
     if (!promoter) {
       return {
         bio: null,
-        city: "India",
+        city: 'India',
         events: [],
-        initials: "GP",
+        initials: 'GP',
         name: handle,
         promoter: null,
         status,
@@ -73,13 +87,13 @@ export function usePromoterProfile(handle) {
     }
 
     const name = promoter.displayName || promoter.name || handle;
-    const city = promoter.city || "India";
+    const city = promoter.city || 'India';
     const bio = promoter.bio || promoter.summary || null;
     const initials = name
-      .split(" ")
+      .split(' ')
       .map((word) => word[0])
       .slice(0, 2)
-      .join("")
+      .join('')
       .toUpperCase();
 
     const now = new Date();

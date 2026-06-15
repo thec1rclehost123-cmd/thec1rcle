@@ -17,26 +17,26 @@
  *   - No duplicate charges are possible.
  */
 
-import { getAdminDb } from "../firebase/admin";
-import { createRazorpayOrder } from "./razorpayClient";
-import type { ReservationDoc } from "../types/booking";
+import { getAdminDb } from '../firebase/admin';
+import { createRazorpayOrder } from './razorpayClient';
+import type { ReservationDoc } from '../types/booking';
 
 // ---------------------------------------------------------------------------
 // Error codes
 // ---------------------------------------------------------------------------
 
 export class PaymentError extends Error {
-    constructor(
-        public readonly code:
-            | "RESERVATION_NOT_FOUND"
-            | "RESERVATION_NOT_PENDING"
-            | "RESERVATION_EXPIRED"
-            | "WRONG_USER",
-        message: string
-    ) {
-        super(message);
-        this.name = "PaymentError";
-    }
+  constructor(
+    public readonly code:
+      | 'RESERVATION_NOT_FOUND'
+      | 'RESERVATION_NOT_PENDING'
+      | 'RESERVATION_EXPIRED'
+      | 'WRONG_USER',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'PaymentError';
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -44,12 +44,12 @@ export class PaymentError extends Error {
 // ---------------------------------------------------------------------------
 
 export interface PaymentInitResult {
-    razorpayOrderId: string;    // "order_xxxxx" — sent to Razorpay.js on frontend
-    razorpayKeyId:   string;    // RAZORPAY_KEY_ID — sent to frontend to init Razorpay.js
-    reservationId:   string;
-    amount:          number;    // paise — Razorpay.js needs this
-    currency:        string;    // "INR"
-    expiresAt:       string;    // ISO — frontend shows countdown
+  razorpayOrderId: string; // "order_xxxxx" — sent to Razorpay.js on frontend
+  razorpayKeyId: string; // RAZORPAY_KEY_ID — sent to frontend to init Razorpay.js
+  reservationId: string;
+  amount: number; // paise — Razorpay.js needs this
+  currency: string; // "INR"
+  expiresAt: string; // ISO — frontend shows countdown
 }
 
 // ---------------------------------------------------------------------------
@@ -84,85 +84,82 @@ export interface PaymentInitResult {
  *   No duplicate order, no extra charge.
  */
 export async function initiatePayment(
-    reservationId: string,
-    userId: string
+  reservationId: string,
+  userId: string,
 ): Promise<PaymentInitResult> {
-    const db = getAdminDb();
-    const reservationRef = db.collection("reservations").doc(reservationId);
+  const db = getAdminDb();
+  const reservationRef = db.collection('reservations').doc(reservationId);
 
-    // ── Phase 1: Read + validate reservation ─────────────────────────────────
-    const reservationSnap = await reservationRef.get();
+  // ── Phase 1: Read + validate reservation ─────────────────────────────────
+  const reservationSnap = await reservationRef.get();
 
-    if (!reservationSnap.exists) {
-        throw new PaymentError(
-            "RESERVATION_NOT_FOUND",
-            `Reservation ${reservationId} not found`
-        );
-    }
+  if (!reservationSnap.exists) {
+    throw new PaymentError('RESERVATION_NOT_FOUND', `Reservation ${reservationId} not found`);
+  }
 
-    const reservation = reservationSnap.data() as ReservationDoc;
+  const reservation = reservationSnap.data() as ReservationDoc;
 
-    // Only the user who created the reservation can pay for it
-    if (reservation.userId !== userId) {
-        throw new PaymentError("WRONG_USER", "You do not own this reservation");
-    }
+  // Only the user who created the reservation can pay for it
+  if (reservation.userId !== userId) {
+    throw new PaymentError('WRONG_USER', 'You do not own this reservation');
+  }
 
-    // If already in payment_pending (e.g. duplicate request), surface the existing orderId
-    if (reservation.status === "payment_pending" && reservation.razorpayOrderId) {
-        return {
-            razorpayOrderId: reservation.razorpayOrderId,
-            razorpayKeyId:   process.env.RAZORPAY_KEY_ID!,
-            reservationId,
-            amount:          reservation.totalAmount,
-            currency:        "INR",
-            expiresAt:       reservation.expiresAt,
-        };
-    }
-
-    // Only "pending" reservations can initiate payment
-    if (reservation.status !== "pending") {
-        throw new PaymentError(
-            "RESERVATION_NOT_PENDING",
-            `Reservation is ${reservation.status} — cannot initiate payment`
-        );
-    }
-
-    // Check expiry: expiresAt is stored as ISO string
-    if (new Date(reservation.expiresAt) <= new Date()) {
-        throw new PaymentError(
-            "RESERVATION_EXPIRED",
-            "This reservation has expired. Please start a new booking."
-        );
-    }
-
-    // ── Phase 2: Create Razorpay order ────────────────────────────────────────
-    // receipt = reservationId ensures idempotency on retry:
-    // same receipt → same Razorpay order, no duplicate charge.
-    const order = await createRazorpayOrder({
-        amount:  reservation.totalAmount,   // already in paise
-        receipt: reservationId,             // idempotency key
-        notes: {
-            eventId:  reservation.eventId,
-            userId:   reservation.userId,
-        },
-    });
-
-    // ── Phase 3: Transition reservation to payment_pending ────────────────────
-    // If this write fails and the caller retries: Phase 2 returns same orderId,
-    // this write succeeds on retry. Fully safe.
-    const now = new Date().toISOString();
-    await reservationRef.update({
-        razorpayOrderId: order.id,
-        status:          "payment_pending",
-        updatedAt:       now,
-    });
-
+  // If already in payment_pending (e.g. duplicate request), surface the existing orderId
+  if (reservation.status === 'payment_pending' && reservation.razorpayOrderId) {
     return {
-        razorpayOrderId: order.id,
-        razorpayKeyId:   process.env.RAZORPAY_KEY_ID!,
-        reservationId,
-        amount:          reservation.totalAmount,
-        currency:        "INR",
-        expiresAt:       reservation.expiresAt,
+      razorpayOrderId: reservation.razorpayOrderId,
+      razorpayKeyId: process.env.RAZORPAY_KEY_ID!,
+      reservationId,
+      amount: reservation.totalAmount,
+      currency: 'INR',
+      expiresAt: reservation.expiresAt,
     };
+  }
+
+  // Only "pending" reservations can initiate payment
+  if (reservation.status !== 'pending') {
+    throw new PaymentError(
+      'RESERVATION_NOT_PENDING',
+      `Reservation is ${reservation.status} — cannot initiate payment`,
+    );
+  }
+
+  // Check expiry: expiresAt is stored as ISO string
+  if (new Date(reservation.expiresAt) <= new Date()) {
+    throw new PaymentError(
+      'RESERVATION_EXPIRED',
+      'This reservation has expired. Please start a new booking.',
+    );
+  }
+
+  // ── Phase 2: Create Razorpay order ────────────────────────────────────────
+  // receipt = reservationId ensures idempotency on retry:
+  // same receipt → same Razorpay order, no duplicate charge.
+  const order = await createRazorpayOrder({
+    amount: reservation.totalAmount, // already in paise
+    receipt: reservationId, // idempotency key
+    notes: {
+      eventId: reservation.eventId,
+      userId: reservation.userId,
+    },
+  });
+
+  // ── Phase 3: Transition reservation to payment_pending ────────────────────
+  // If this write fails and the caller retries: Phase 2 returns same orderId,
+  // this write succeeds on retry. Fully safe.
+  const now = new Date().toISOString();
+  await reservationRef.update({
+    razorpayOrderId: order.id,
+    status: 'payment_pending',
+    updatedAt: now,
+  });
+
+  return {
+    razorpayOrderId: order.id,
+    razorpayKeyId: process.env.RAZORPAY_KEY_ID!,
+    reservationId,
+    amount: reservation.totalAmount,
+    currency: 'INR',
+    expiresAt: reservation.expiresAt,
+  };
 }

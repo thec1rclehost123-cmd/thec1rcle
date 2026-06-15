@@ -1,22 +1,22 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-import { generateICSBuffer, generateICSContent } from "../../../lib/email/generateICS.js";
+import { generateICSBuffer, generateICSContent } from '../../../lib/email/generateICS.js';
 
 const sampleInvite = {
-  eventName: "Summer Social, Rooftop Edition",
-  startDate: "2026-06-01",
-  endDate: "2026-06-02",
-  startTime: "19:30",
-  endTime: "00:30",
-  location: "Club, Downtown; Terrace",
-  description: "Line 1\nLine 2",
-  eventUrl: "https://guest.thec1rcle.com/event/summer-social",
-  organizer: "THE C1RCLE",
-  orderId: "order-123",
+  eventName: 'Summer Social, Rooftop Edition',
+  startDate: '2026-06-01',
+  endDate: '2026-06-02',
+  startTime: '19:30',
+  endTime: '00:30',
+  location: 'Club, Downtown; Terrace',
+  description: 'Line 1\nLine 2',
+  eventUrl: 'https://guest.thec1rcle.com/event/summer-social',
+  organizer: 'THE C1RCLE',
+  orderId: 'order-123',
 };
 
-test("generateICSContent creates a valid ICS payload with escaped fields and event metadata", () => {
+test('generateICSContent creates a valid ICS payload with escaped fields and event metadata', () => {
   const content = generateICSContent(sampleInvite);
 
   assert.match(content, /^BEGIN:VCALENDAR/m);
@@ -33,9 +33,9 @@ test("generateICSContent creates a valid ICS payload with escaped fields and eve
   assert.match(content, /^END:VCALENDAR$/m);
 });
 
-test("generateICSBuffer returns a utf-8 buffer for the generated content", () => {
+test('generateICSBuffer returns a utf-8 buffer for the generated content', () => {
   const buffer = generateICSBuffer(sampleInvite);
 
   assert.ok(Buffer.isBuffer(buffer));
-  assert.equal(buffer.toString("utf8"), generateICSContent(sampleInvite));
+  assert.equal(buffer.toString('utf8'), generateICSContent(sampleInvite));
 });

@@ -1,22 +1,31 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import Image from "next/image";
-import { AMBIENT_DOTS } from "./eventDetailUtils";
+import { useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { AMBIENT_DOTS } from './eventDetailUtils';
 
 export function MiniAvatar({ person, size }) {
   const image = person?.photoURL || person?.avatar;
-  const initials = String(person?.initials || person?.name || person?.displayName || "C")
+  const initials = String(person?.initials || person?.name || person?.displayName || 'C')
     .slice(0, 2)
     .toUpperCase();
-  const sizeClass = size === "xl" ? "h-full w-full" : size === "lg" ? "h-20 w-20 text-[20px]" : size === "sm" ? "h-8 w-8 text-[9px]" : "h-10 w-10 text-[10px]";
+  const sizeClass =
+    size === 'xl'
+      ? 'h-full w-full'
+      : size === 'lg'
+        ? 'h-20 w-20 text-[20px]'
+        : size === 'sm'
+          ? 'h-8 w-8 text-[9px]'
+          : 'h-10 w-10 text-[10px]';
 
   return (
-    <div className={`relative ${sizeClass} shrink-0 overflow-hidden rounded-full border border-white/20 bg-white/10 shadow-lg`}>
+    <div
+      className={`relative ${sizeClass} shrink-0 overflow-hidden rounded-full border border-white/20 bg-white/10 shadow-lg`}
+    >
       {image ? (
         <Image
           src={image}
-          alt={person?.name || person?.displayName || ""}
+          alt={person?.name || person?.displayName || ''}
           width={48}
           height={48}
           className="h-full w-full object-cover"
@@ -31,9 +40,11 @@ export function MiniAvatar({ person, size }) {
   );
 }
 
-export function SectionLabel({ children, className = "" }) {
+export function SectionLabel({ children, className = '' }) {
   return (
-    <div className={`text-[10px] font-black uppercase tracking-[0.28em] text-white/40 ${className}`}>
+    <div
+      className={`text-[10px] font-black uppercase tracking-[0.28em] text-white/40 ${className}`}
+    >
       {children}
     </div>
   );
@@ -46,11 +57,11 @@ const DAY = 24 * HOUR;
 const LIVE_WINDOW_MS = 6 * HOUR;
 
 function getCountdownState(targetDate) {
-  if (!targetDate) return { status: "hidden", diff: 0 };
+  if (!targetDate) return { status: 'hidden', diff: 0 };
   const diff = targetDate.getTime() - Date.now();
-  if (diff > 0) return { status: "upcoming", diff };
-  if (Math.abs(diff) <= LIVE_WINDOW_MS) return { status: "live", diff };
-  return { status: "ended", diff };
+  if (diff > 0) return { status: 'upcoming', diff };
+  if (Math.abs(diff) <= LIVE_WINDOW_MS) return { status: 'live', diff };
+  return { status: 'ended', diff };
 }
 
 function toCountdownParts(diff) {
@@ -64,7 +75,7 @@ function toCountdownParts(diff) {
 }
 
 function padCountdown(value) {
-  return String(value).padStart(2, "0");
+  return String(value).padStart(2, '0');
 }
 
 export function EventCountdown({ event, dominantColor }) {
@@ -88,7 +99,7 @@ export function EventCountdown({ event, dominantColor }) {
     return () => window.clearInterval(interval);
   }, [targetDate]);
 
-  if (!mounted || !targetDate || state.status === "hidden") return null;
+  if (!mounted || !targetDate || state.status === 'hidden') return null;
 
   const parts = toCountdownParts(state.diff);
   const countdownValue = `${padCountdown(parts.days)}:${padCountdown(parts.hours)}:${padCountdown(parts.minutes)}:${padCountdown(parts.seconds)}`;
@@ -98,20 +109,24 @@ export function EventCountdown({ event, dominantColor }) {
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/42">
-            {state.status === "upcoming" ? "Party starts in" : state.status === "live" ? "Party is live" : "Party closed"}
+            {state.status === 'upcoming'
+              ? 'Party starts in'
+              : state.status === 'live'
+                ? 'Party is live'
+                : 'Party closed'}
           </div>
           <div
             className="mt-1 font-black leading-none tracking-[-0.08em] text-white"
             style={{
-              fontSize: "clamp(1.55rem, 4vw, 2.5rem)",
+              fontSize: 'clamp(1.55rem, 4vw, 2.5rem)',
               textShadow: `0 0 22px rgba(${dominantColor}, 0.16), 0 0 42px rgba(${dominantColor}, 0.08)`,
             }}
           >
-            {state.status === "upcoming" ? countdownValue : "00:00:00:00"}
+            {state.status === 'upcoming' ? countdownValue : '00:00:00:00'}
           </div>
         </div>
         <span
-          className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${state.status === "live" ? "bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]" : "bg-white/70 shadow-[0_0_16px_rgba(255,255,255,0.28)]"}`}
+          className={`inline-flex h-2.5 w-2.5 shrink-0 rounded-full ${state.status === 'live' ? 'bg-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.8)]' : 'bg-white/70 shadow-[0_0_16px_rgba(255,255,255,0.28)]'}`}
         />
       </div>
     </GlassCard>
@@ -128,16 +143,20 @@ export function AmbientDots({ dominantColor }) {
             className="event-detail-dot absolute rounded-full"
             style={{
               left: dot.left,
-              bottom: "-6%",
+              bottom: '-6%',
               width: `${dot.size}px`,
               height: `${dot.size}px`,
               animationDuration: `${dot.duration}s`,
               animationDelay: `${dot.delay}s`,
-              "--dot-drift": `${dot.drift}px`,
-              background: index % 3 === 0 ? "rgba(255,255,255,0.82)" : `rgba(${dominantColor}, ${index % 2 === 0 ? 0.88 : 0.62})`,
-              boxShadow: index % 3 === 0
-                ? "0 0 18px rgba(255,255,255,0.32)"
-                : `0 0 20px rgba(${dominantColor}, 0.34)`,
+              '--dot-drift': `${dot.drift}px`,
+              background:
+                index % 3 === 0
+                  ? 'rgba(255,255,255,0.82)'
+                  : `rgba(${dominantColor}, ${index % 2 === 0 ? 0.88 : 0.62})`,
+              boxShadow:
+                index % 3 === 0
+                  ? '0 0 18px rgba(255,255,255,0.32)'
+                  : `0 0 20px rgba(${dominantColor}, 0.34)`,
             }}
           />
         ))}
@@ -172,36 +191,36 @@ export function AmbientDots({ dominantColor }) {
   );
 }
 
-export function GlassCard({ children, className = "", glowColor, onClick, as = "div", style }) {
+export function GlassCard({ children, className = '', glowColor, onClick, as = 'div', style }) {
   const Tag = as;
   const extraProps = {};
 
-  if (as === "button") {
-    extraProps.type = "button";
+  if (as === 'button') {
+    extraProps.type = 'button';
   }
 
   return (
     <Tag
       {...extraProps}
       onClick={onClick}
-      className={`group relative overflow-hidden rounded-[24px] border border-solid bg-black/60 backdrop-blur-xl transition-all duration-300 ${onClick ? "cursor-pointer hover:-translate-y-0.5" : ""} ${className}`}
+      className={`group relative overflow-hidden rounded-[24px] border border-solid bg-black/60 backdrop-blur-xl transition-all duration-300 ${onClick ? 'cursor-pointer hover:-translate-y-0.5' : ''} ${className}`}
       style={{
-        borderColor: glowColor ? `rgba(${glowColor}, 0.3)` : "rgba(255,255,255,0.08)",
+        borderColor: glowColor ? `rgba(${glowColor}, 0.3)` : 'rgba(255,255,255,0.08)',
         boxShadow: glowColor
           ? `0 24px 60px rgba(0,0,0,0.4), inset 0 0 40px rgba(${glowColor}, 0.1), inset 0 0 2px 1px rgba(${glowColor}, 0.2)`
-          : "0 24px 60px rgba(0,0,0,0.4)",
+          : '0 24px 60px rgba(0,0,0,0.4)',
         ...style,
       }}
     >
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-[1.5px] opacity-70"
         style={{
-          background: glowColor ? `linear-gradient(90deg, transparent, rgba(${glowColor}, 0.8), transparent)` : "linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)",
+          background: glowColor
+            ? `linear-gradient(90deg, transparent, rgba(${glowColor}, 0.8), transparent)`
+            : 'linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent)',
         }}
       />
-      <div className="relative z-10 h-full">
-        {children}
-      </div>
+      <div className="relative z-10 h-full">{children}</div>
     </Tag>
   );
 }

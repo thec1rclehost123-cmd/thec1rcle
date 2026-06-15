@@ -1,11 +1,11 @@
-"use client";
+'use client';
 
-import { getApiErrorMessage, guestApi } from "../../../lib/api/client";
+import { getApiErrorMessage, guestApi } from '../../../lib/api/client';
 
 export async function createVenueReservation(body) {
   const { response, data } = await guestApi.venues.reserve(body);
   if (!response.ok) {
-    throw new Error(getApiErrorMessage(data, "Reservation failed"));
+    throw new Error(getApiErrorMessage(data, 'Reservation failed'));
   }
   return data;
 }

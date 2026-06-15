@@ -1,17 +1,24 @@
-"use client";
+'use client';
 
-import dynamic from "next/dynamic";
-import { Loader2 } from "lucide-react";
+import dynamic from 'next/dynamic';
+import { Loader2 } from 'lucide-react';
 
 const CreateEventWizardV2 = dynamic(
-    () => import("@/components/wizard/CreateEventWizardV2").then(mod => mod.CreateEventWizardV2),
-    { ssr: false, loading: () => <div className="py-40 flex justify-center"><Loader2 className="w-10 h-10 animate-spin text-text-placeholder" /></div> }
+  () => import('@/components/wizard/CreateEventWizardV2').then((mod) => mod.CreateEventWizardV2),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="py-40 flex justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-text-placeholder" />
+      </div>
+    ),
+  },
 );
 
 export default function VenueCreateEventPage() {
-    return (
-        <div className="pb-20">
-            <CreateEventWizardV2 role="venue" />
-        </div>
-    );
+  return (
+    <div className="pb-20">
+      <CreateEventWizardV2 role="venue" />
+    </div>
+  );
 }

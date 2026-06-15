@@ -1,16 +1,16 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState, useRef } from "react";
-import { AnimatePresence, motion, useScroll, useTransform } from "framer-motion";
-import { useDashboardAuth } from "./providers/DashboardAuthProvider";
-import ThemeToggle from "./ThemeToggle";
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useState, useRef } from 'react';
+import { AnimatePresence, motion, useScroll, useTransform } from 'framer-motion';
+import { useDashboardAuth } from './providers/DashboardAuthProvider';
+import ThemeToggle from './ThemeToggle';
 
 const navLinks = [
-  { label: "Explore", href: "/explore", prefetchQuery: "explore" },
-  { label: "Create", href: "/create" },
-  { label: "App", href: "/app" }
+  { label: 'Explore', href: '/explore', prefetchQuery: 'explore' },
+  { label: 'Create', href: '/create' },
+  { label: 'App', href: '/app' },
 ];
 
 export default function Navbar() {
@@ -19,13 +19,21 @@ export default function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { user, profile, signOut: logout, loading } = useDashboardAuth();
 
-  const navWidth = useTransform(scrollY, [0, 100], ["100%", "90%"]);
+  const navWidth = useTransform(scrollY, [0, 100], ['100%', '90%']);
   const navY = useTransform(scrollY, [0, 100], [0, 20]);
-  const navBackdrop = useTransform(scrollY, [0, 100], ["blur(0px)", "blur(20px)"]);
-  const navBackground = useTransform(scrollY, [0, 100], ["rgba(5, 5, 5, 0)", "var(--nav-bg-opaque)"]);
-  const navBorder = useTransform(scrollY, [0, 100], ["rgba(255, 255, 255, 0)", "var(--nav-border)"]);
+  const navBackdrop = useTransform(scrollY, [0, 100], ['blur(0px)', 'blur(20px)']);
+  const navBackground = useTransform(
+    scrollY,
+    [0, 100],
+    ['rgba(5, 5, 5, 0)', 'var(--nav-bg-opaque)'],
+  );
+  const navBorder = useTransform(
+    scrollY,
+    [0, 100],
+    ['rgba(255, 255, 255, 0)', 'var(--nav-border)'],
+  );
 
-  if (pathname?.startsWith("/host")) return null;
+  if (pathname?.startsWith('/host')) return null;
 
   const toggleMenu = () => setIsMenuOpen((prev) => !prev);
   const closeMenu = () => setIsMenuOpen(false);
@@ -48,7 +56,9 @@ export default function Navbar() {
           <Link href="/" className="group flex items-center gap-3">
             <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-gold/20 via-gold-dark/10 to-transparent border border-gold/20 transition-all duration-500 group-hover:rotate-180 group-hover:border-gold/40 group-hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]">
               <span className="absolute inset-0 bg-gradient-to-tr from-gold via-transparent to-transparent opacity-30" />
-              <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">C1</span>
+              <span className="relative text-sm font-bold bg-gradient-to-br from-gold to-gold-dark bg-clip-text text-transparent">
+                C1
+              </span>
             </div>
             <span className="text-sm font-bold tracking-widest uppercase text-text-primary/90 dark:text-text-primary/90 group-hover:text-gold-light transition-colors">
               The C1rcle
@@ -82,14 +92,17 @@ export default function Navbar() {
                   prefetch={true}
                   onMouseEnter={handleMouseEnter}
                   onMouseLeave={handleMouseLeave}
-                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${isActive ? "text-text-primary dark:text-text-primary" : "text-text-primary/60 dark:text-text-primary/60 hover:text-gold-light"
-                    }`}
+                  className={`relative px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-widest transition-all duration-300 ${
+                    isActive
+                      ? 'text-text-primary dark:text-text-primary'
+                      : 'text-text-primary/60 dark:text-text-primary/60 hover:text-gold-light'
+                  }`}
                 >
                   {isActive && (
                     <motion.div
                       layoutId="nav-pill"
                       className="absolute inset-0 bg-gradient-to-r from-gold via-gold-metallic to-gold-light rounded-full shadow-[0_0_20px_rgba(255,215,0,0.4)]"
-                      transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
                     />
                   )}
                   <span className="relative z-10">{link.label}</span>
@@ -107,11 +120,11 @@ export default function Navbar() {
                 >
                   {(() => {
                     const name = profile?.displayName;
-                    const emailHandle = user?.email?.split("@")[0];
+                    const emailHandle = user?.email?.split('@')[0];
                     if (name && emailHandle && name.toLowerCase() === emailHandle.toLowerCase()) {
-                      return "Profile";
+                      return 'Profile';
                     }
-                    return name || "Profile";
+                    return name || 'Profile';
                   })()}
                 </Link>
                 <button
@@ -120,8 +133,19 @@ export default function Navbar() {
                   disabled={loading}
                   className="hidden lg:inline-flex items-center justify-center h-10 w-10 rounded-full bg-black/5 dark:bg-surface-elevated/5 border border-black/10 dark:border-border-subtle text-text-primary dark:text-text-primary hover:bg-red-500/20 hover:border-red-500/50 hover:text-red-200 transition-all"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                    className="w-4 h-4"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                    />
                   </svg>
                 </button>
               </>
@@ -157,7 +181,7 @@ export default function Navbar() {
             </button>
           </div>
         </motion.nav>
-      </motion.header >
+      </motion.header>
 
       <AnimatePresence>
         {isMenuOpen && (

@@ -1,15 +1,15 @@
-const DEFAULT_GUEST_API_BASE_URL = "http://localhost:4000/api/v1";
+const DEFAULT_GUEST_API_BASE_URL = 'http://localhost:4000/api/v1';
 const GUEST_API_BASE_ALIASES = [
-  "GUEST_API_GATEWAY_URL",
-  "NEXT_PUBLIC_API_BASE_URL",
-  "NEXT_PUBLIC_GATEWAY_URL",
-  "PUBLIC_API_URL",
+  'GUEST_API_GATEWAY_URL',
+  'NEXT_PUBLIC_API_BASE_URL',
+  'NEXT_PUBLIC_GATEWAY_URL',
+  'PUBLIC_API_URL',
 ];
 
 function normalizeGuestApiBaseUrl(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const withoutTrailingSlash = raw.replace(/\/+$/, "");
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const withoutTrailingSlash = raw.replace(/\/+$/, '');
 
   if (/\/api\/v1$/.test(withoutTrailingSlash)) {
     return withoutTrailingSlash;
@@ -28,7 +28,7 @@ export function resolveGuestApiBaseUrl(env = process.env) {
 }
 
 export function resolveGuestApiOrigin(env = process.env) {
-  return resolveGuestApiBaseUrl(env).replace(/\/api\/v1$/, "");
+  return resolveGuestApiBaseUrl(env).replace(/\/api\/v1$/, '');
 }
 
 export function getGuestApiBaseConfig(env = process.env) {
@@ -36,7 +36,7 @@ export function getGuestApiBaseConfig(env = process.env) {
   return {
     apiBaseUrl: resolveGuestApiBaseUrl(env),
     origin: resolveGuestApiOrigin(env),
-    sourceKey: matchedKey || "default",
+    sourceKey: matchedKey || 'default',
   };
 }
 

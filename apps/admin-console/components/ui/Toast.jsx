@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Check, AlertCircle, Info } from "lucide-react";
-import { useEffect } from "react";
+import { motion, AnimatePresence } from 'framer-motion';
+import { X, Check, AlertCircle, Info } from 'lucide-react';
+import { useEffect } from 'react';
 
 const icons = {
   success: <Check className="w-5 h-5 text-emerald-400" />,
@@ -16,7 +16,7 @@ const variants = {
   exit: { opacity: 0, y: 20, scale: 0.9, transition: { duration: 0.2 } },
 };
 
-export default function Toast({ id, type = "info", message, duration = 4000, onRemove }) {
+export default function Toast({ id, type = 'info', message, duration = 4000, onRemove }) {
   useEffect(() => {
     const timer = setTimeout(() => {
       onRemove(id);
@@ -36,11 +36,11 @@ export default function Toast({ id, type = "info", message, duration = 4000, onR
     >
       {/* Progress Bar */}
       <motion.div
-        initial={{ width: "100%" }}
-        animate={{ width: "0%" }}
-        transition={{ duration: duration / 1000, ease: "linear" }}
+        initial={{ width: '100%' }}
+        animate={{ width: '0%' }}
+        transition={{ duration: duration / 1000, ease: 'linear' }}
         className={`absolute bottom-0 left-0 h-1 ${
-          type === "success" ? "bg-emerald-500" : type === "error" ? "bg-red-500" : "bg-blue-500"
+          type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500'
         }`}
       />
 

@@ -3,198 +3,283 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 
 const RequestBody = z.object({
-    promoterId: z.string(),
-    promoterName: z.string().optional(),
-    promoterEmail: z.string().email().optional(),
-    targetId: z.string(),
-    targetType: z.string(),
-    targetName: z.string().optional(),
-    message: z.string().optional()
+  promoterId: z.string(),
+  promoterName: z.string().optional(),
+  promoterEmail: z.string().email().optional(),
+  targetId: z.string(),
+  targetType: z.string(),
+  targetName: z.string().optional(),
+  message: z.string().optional(),
 });
 
 const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
 const ConnectionIdParam = z.object({ id: z.string() }).strict();
 const StatusQuery = z.object({ status: z.string().optional() }).strict();
-const IncomingQuery = z.object({ targetId: z.string(), role: z.string().optional(), status: z.string().optional() }).strict();
-const DiscoverQuery = z.object({ type: z.string().optional(), city: z.string().optional(), search: z.string().optional(), limit: z.string().optional() }).strict();
+const IncomingQuery = z
+  .object({ targetId: z.string(), role: z.string().optional(), status: z.string().optional() })
+  .strict();
+const DiscoverQuery = z
+  .object({
+    type: z.string().optional(),
+    city: z.string().optional(),
+    search: z.string().optional(),
+    limit: z.string().optional(),
+  })
+  .strict();
 
 const ActionBody = z.object({
-    action: z.enum(['approve', 'reject', 'block', 'revoke']),
-    reason: z.string().optional()
+  action: z.enum(['approve', 'reject', 'block', 'revoke']),
+  reason: z.string().optional(),
 });
 
 const InvitesBody = z.object({
-    id: z.string(),
-    hostId: z.string(),
-    email: z.string().email(),
-    name: z.string().optional(),
-    type: z.string().optional(),
-    status: z.string().optional(),
-    expiresAt: z.string().optional()
+  id: z.string(),
+  hostId: z.string(),
+  email: z.string().email(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  status: z.string().optional(),
+  expiresAt: z.string().optional(),
 });
 
-const LinkClickBody = z.object({
+const LinkClickBody = z
+  .object({
     linkId: z.string(),
-    promoterId: z.string().optional()
-}).strict();
+    promoterId: z.string().optional(),
+  })
+  .strict();
 
 export default async function promoterConnectionsRoutes(fastify: FastifyInstance) {
-    const COL = 'promoter_connections';
+  const COL = 'promoter_connections';
 
-    /**
-     * POST /api/v1/promoter-connections/request
-     */
-    fastify.post('/request', {
-        preHandler: [fastify.validate({ body: RequestBody })]
-    }, async (request: any, reply) => {
-        const { promoterId, promoterName, promoterEmail, targetId, targetType, targetName, message = '' } = request.body;
+  /**
+   * POST /api/v1/promoter-connections/request
+   */
+  fastify.post(
+    '/request',
+    {
+      preHandler: [fastify.validate({ body: RequestBody })],
+    },
+    async (request: any, reply) => {
+      const {
+        promoterId,
+        promoterName,
+        promoterEmail,
+        targetId,
+        targetType,
+        targetName,
+        message = '',
+      } = request.body;
 
-        const existing = await fastify.db.collection(COL)
-            .where('promoterId', '==', promoterId)
-            .where('targetId', '==', targetId)
-            .where('status', '==', 'pending')
-            .limit(1).get();
-        if (!existing.empty) return reply.status(409).send({ error: 'Request already pending' });
+      const existing = await fastify.db
+        .collection(COL)
+        .where('promoterId', '==', promoterId)
+        .where('targetId', '==', targetId)
+        .where('status', '==', 'pending')
+        .limit(1)
+        .get();
+      if (!existing.empty) return reply.status(409).send({ error: 'Request already pending' });
 
-        const now = new Date().toISOString();
-        const id = randomUUID();
-        const conn = { id, promoterId, promoterName, promoterEmail, targetId, targetType, targetName, message, status: 'pending', createdAt: now, updatedAt: now };
-        await fastify.db.collection(COL).doc(id).set(conn);
-        return conn;
-    });
+      const now = new Date().toISOString();
+      const id = randomUUID();
+      const conn = {
+        id,
+        promoterId,
+        promoterName,
+        promoterEmail,
+        targetId,
+        targetType,
+        targetName,
+        message,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+      };
+      await fastify.db.collection(COL).doc(id).set(conn);
+      return conn;
+    },
+  );
 
-    /**
-     * GET /api/v1/promoter-connections/promoter/:promoterId
-     */
-    fastify.get('/promoter/:promoterId', {
-        preHandler: [fastify.validate({ params: PromoterIdParam, querystring: StatusQuery })]
-    }, async (request: any, reply) => {
-        const { promoterId } = request.params;
-        const { status } = request.query;
-        let q: any = fastify.db.collection(COL).where('promoterId', '==', promoterId);
-        if (status) q = q.where('status', '==', status);
-        const snap = await q.limit(100).get();
-        return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    });
+  /**
+   * GET /api/v1/promoter-connections/promoter/:promoterId
+   */
+  fastify.get(
+    '/promoter/:promoterId',
+    {
+      preHandler: [fastify.validate({ params: PromoterIdParam, querystring: StatusQuery })],
+    },
+    async (request: any, reply) => {
+      const { promoterId } = request.params;
+      const { status } = request.query;
+      let q: any = fastify.db.collection(COL).where('promoterId', '==', promoterId);
+      if (status) q = q.where('status', '==', status);
+      const snap = await q.limit(100).get();
+      return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    },
+  );
 
-    /**
-     * GET /api/v1/promoter-connections/incoming
-     */
-    fastify.get('/incoming', {
-        preHandler: [fastify.validate({ querystring: IncomingQuery })]
-    }, async (request: any, reply) => {
-        const { targetId, role, status } = request.query;
-        let q: any = fastify.db.collection(COL).where('targetId', '==', targetId);
-        if (role) q = q.where('targetType', '==', role);
-        if (status) q = q.where('status', '==', status);
-        const snap = await q.limit(100).get();
-        return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    });
+  /**
+   * GET /api/v1/promoter-connections/incoming
+   */
+  fastify.get(
+    '/incoming',
+    {
+      preHandler: [fastify.validate({ querystring: IncomingQuery })],
+    },
+    async (request: any, reply) => {
+      const { targetId, role, status } = request.query;
+      let q: any = fastify.db.collection(COL).where('targetId', '==', targetId);
+      if (role) q = q.where('targetType', '==', role);
+      if (status) q = q.where('status', '==', status);
+      const snap = await q.limit(100).get();
+      return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    },
+  );
 
-    /**
-     * GET /api/v1/promoter-connections/discover
-     * Search for approved partners (hosts, venues, promoters) for discovery
-     */
-    fastify.get('/discover', {
-        preHandler: [fastify.validate({ querystring: DiscoverQuery })]
-    }, async (request: any, reply) => {
-        const { type = 'host', city, search, limit = 20 } = request.query;
-        const collectionMap: Record<string, string> = { host: 'hosts', venue: 'venues', promoter: 'promoters' };
-        const col = collectionMap[type] || type;
+  /**
+   * GET /api/v1/promoter-connections/discover
+   * Search for approved partners (hosts, venues, promoters) for discovery
+   */
+  fastify.get(
+    '/discover',
+    {
+      preHandler: [fastify.validate({ querystring: DiscoverQuery })],
+    },
+    async (request: any, reply) => {
+      const { type = 'host', city, search, limit = 20 } = request.query;
+      const collectionMap: Record<string, string> = {
+        host: 'hosts',
+        venue: 'venues',
+        promoter: 'promoters',
+      };
+      const col = collectionMap[type] || type;
 
-        let snapshot = await fastify.db.collection(col).where('status', '==', 'active').limit(Number(limit) * 5).get();
-        if (snapshot.empty) {
-            snapshot = await fastify.db.collection(col).limit(Number(limit) * 5).get();
-        }
+      let snapshot = await fastify.db
+        .collection(col)
+        .where('status', '==', 'active')
+        .limit(Number(limit) * 5)
+        .get();
+      if (snapshot.empty) {
+        snapshot = await fastify.db
+          .collection(col)
+          .limit(Number(limit) * 5)
+          .get();
+      }
 
-        let results = snapshot.docs.map((d: any) => {
-            const r = d.data();
-            return {
-                id: d.id, type,
-                name: r.displayName || r.name || 'Unknown',
-                avatar: r.profileImage || r.avatar || null,
-                coverImage: r.coverImage || r.bannerImage || null,
-                city: r.city || r.location?.split?.(',')[0]?.trim?.() || 'Pune',
-                bio: r.bio || r.summary || r.description || '',
-                tags: r.tags || r.genres || [],
-                eventsCount: r.eventsCount || 0,
-                followersCount: parseInt(r.followers) || r.followersCount || 0,
-                isVerified: !!(r.isVerified || r.isApproved || r.status === 'active')
-            };
-        });
-
-        if (city && city.toLowerCase() !== 'all') {
-            results = results.filter((r: any) => r.city.toLowerCase().includes(city.toLowerCase()));
-        }
-        if (search) {
-            const s = search.toLowerCase();
-            results = results.filter((r: any) => r.name.toLowerCase().includes(s) || r.bio.toLowerCase().includes(s));
-        }
-
-        return results.slice(0, Number(limit));
-    });
-
-    /**
-     * PATCH /api/v1/promoter-connections/:id
-     */
-    fastify.patch('/:id', {
-        preHandler: [fastify.validate({ params: ConnectionIdParam, body: ActionBody })]
-    }, async (request: any, reply) => {
-        const { id } = request.params;
-        const { action, reason } = request.body;
-        const statusMap: Record<string, string> = { approve: 'active', reject: 'rejected', block: 'blocked' };
-        const newStatus = statusMap[action];
-        if (!newStatus) return reply.status(400).send({ error: 'Invalid action' });
-        await fastify.db.collection(COL).doc(id).update({ status: newStatus, ...(reason ? { reason } : {}), updatedAt: new Date().toISOString() });
-        return { success: true };
-    });
-
-    /**
-     * POST /api/v1/promoter-connections/invites
-     * Create a promoter invite link (called by partner-dashboard host/invite route)
-     */
-    fastify.post('/invites', {
-        preHandler: [fastify.validate({ body: InvitesBody })]
-    }, async (request: any, reply) => {
-        const { id, hostId, email, name, type, status, expiresAt } = request.body as any;
-
-        if (!id || !hostId || !email) {
-            return reply.status(400).send({ error: 'id, hostId, and email are required' });
-        }
-
-        const now = new Date().toISOString();
-        const invite = {
-            id,
-            hostId,
-            email,
-            name: name || '',
-            type: type || 'promoter',
-            status: status || 'pending',
-            createdAt: now,
-            updatedAt: now,
-            expiresAt: expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+      let results = snapshot.docs.map((d: any) => {
+        const r = d.data();
+        return {
+          id: d.id,
+          type,
+          name: r.displayName || r.name || 'Unknown',
+          avatar: r.profileImage || r.avatar || null,
+          coverImage: r.coverImage || r.bannerImage || null,
+          city: r.city || r.location?.split?.(',')[0]?.trim?.() || 'Pune',
+          bio: r.bio || r.summary || r.description || '',
+          tags: r.tags || r.genres || [],
+          eventsCount: r.eventsCount || 0,
+          followersCount: parseInt(r.followers) || r.followersCount || 0,
+          isVerified: !!(r.isVerified || r.isApproved || r.status === 'active'),
         };
+      });
 
-        await fastify.db.collection('onboarding_invites').doc(id).set(invite);
-        return { success: true, invite };
-    });
+      if (city && city.toLowerCase() !== 'all') {
+        results = results.filter((r: any) => r.city.toLowerCase().includes(city.toLowerCase()));
+      }
+      if (search) {
+        const s = search.toLowerCase();
+        results = results.filter(
+          (r: any) => r.name.toLowerCase().includes(s) || r.bio.toLowerCase().includes(s),
+        );
+      }
 
-    /**
-     * POST /api/v1/promoter-connections/links/click
-     * Increment click count for a promoter link
-     */
-    fastify.post('/links/click', {
-        preHandler: [fastify.validate({ body: LinkClickBody })]
-    }, async (request: any, reply) => {
-        const { linkId, promoterId } = request.body as any;
-        if (!linkId) return reply.status(400).send({ error: 'linkId is required' });
-        const linkRef = fastify.db.collection('promoter_links').doc(linkId);
-        const { FieldValue } = await import('firebase-admin/firestore');
-        await linkRef.update({
-            clicks: FieldValue.increment(1),
-            lastClickAt: new Date().toISOString()
+      return results.slice(0, Number(limit));
+    },
+  );
+
+  /**
+   * PATCH /api/v1/promoter-connections/:id
+   */
+  fastify.patch(
+    '/:id',
+    {
+      preHandler: [fastify.validate({ params: ConnectionIdParam, body: ActionBody })],
+    },
+    async (request: any, reply) => {
+      const { id } = request.params;
+      const { action, reason } = request.body;
+      const statusMap: Record<string, string> = {
+        approve: 'active',
+        reject: 'rejected',
+        block: 'blocked',
+      };
+      const newStatus = statusMap[action];
+      if (!newStatus) return reply.status(400).send({ error: 'Invalid action' });
+      await fastify.db
+        .collection(COL)
+        .doc(id)
+        .update({
+          status: newStatus,
+          ...(reason ? { reason } : {}),
+          updatedAt: new Date().toISOString(),
         });
-        return { success: true };
-    });
-}
+      return { success: true };
+    },
+  );
 
+  /**
+   * POST /api/v1/promoter-connections/invites
+   * Create a promoter invite link (called by partner-dashboard host/invite route)
+   */
+  fastify.post(
+    '/invites',
+    {
+      preHandler: [fastify.validate({ body: InvitesBody })],
+    },
+    async (request: any, reply) => {
+      const { id, hostId, email, name, type, status, expiresAt } = request.body as any;
+
+      if (!id || !hostId || !email) {
+        return reply.status(400).send({ error: 'id, hostId, and email are required' });
+      }
+
+      const now = new Date().toISOString();
+      const invite = {
+        id,
+        hostId,
+        email,
+        name: name || '',
+        type: type || 'promoter',
+        status: status || 'pending',
+        createdAt: now,
+        updatedAt: now,
+        expiresAt: expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      };
+
+      await fastify.db.collection('onboarding_invites').doc(id).set(invite);
+      return { success: true, invite };
+    },
+  );
+
+  /**
+   * POST /api/v1/promoter-connections/links/click
+   * Increment click count for a promoter link
+   */
+  fastify.post(
+    '/links/click',
+    {
+      preHandler: [fastify.validate({ body: LinkClickBody })],
+    },
+    async (request: any, reply) => {
+      const { linkId, promoterId } = request.body as any;
+      if (!linkId) return reply.status(400).send({ error: 'linkId is required' });
+      const linkRef = fastify.db.collection('promoter_links').doc(linkId);
+      const { FieldValue } = await import('firebase-admin/firestore');
+      await linkRef.update({
+        clicks: FieldValue.increment(1),
+        lastClickAt: new Date().toISOString(),
+      });
+      return { success: true };
+    },
+  );
+}

@@ -1,15 +1,15 @@
-import { NextResponse } from "next/server";
-import { createEvent, listEvents } from "../../../lib/server/eventStore";
+import { NextResponse } from 'next/server';
+import { createEvent, listEvents } from '../../../lib/server/eventStore';
 
-import { verifyAuth } from "../../../lib/server/auth";
+import { verifyAuth } from '../../../lib/server/auth';
 
 const getQueryParams = (request) => {
   const { searchParams } = new URL(request.url);
-  const city = searchParams.get("city") || undefined;
-  const limit = searchParams.get("limit");
-  const sort = searchParams.get("sort") || "heat";
-  const search = searchParams.get("search") || undefined;
-  const host = searchParams.get("host") || undefined;
+  const city = searchParams.get('city') || undefined;
+  const limit = searchParams.get('limit');
+  const sort = searchParams.get('sort') || 'heat';
+  const search = searchParams.get('search') || undefined;
+  const host = searchParams.get('host') || undefined;
   const parsedLimit = limit ? Number(limit) : undefined;
   return {
     city,
@@ -20,7 +20,7 @@ const getQueryParams = (request) => {
   };
 };
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
@@ -28,7 +28,7 @@ export async function GET(request) {
     const events = await listEvents({ city, limit, sort, search, host });
     return NextResponse.json(events);
   } catch (error) {
-    console.error("GET /api/events error", error);
-    return NextResponse.json({ error: "Failed to load events." }, { status: 500 });
+    console.error('GET /api/events error', error);
+    return NextResponse.json({ error: 'Failed to load events.' }, { status: 500 });
   }
 }

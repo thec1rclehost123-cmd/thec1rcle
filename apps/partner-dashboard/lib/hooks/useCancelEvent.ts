@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * useCancelEvent
@@ -7,11 +7,11 @@
  * Calls the /api/events/[id]/cancel endpoint and tracks status.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback } from 'react';
 
 interface CancelEventInput {
   reason: string;
-  refundPolicy: "full" | "partial" | "none";
+  refundPolicy: 'full' | 'partial' | 'none';
   partialRefundPercent?: number;
   notes: string;
 }
@@ -47,8 +47,8 @@ export function useCancelEvent(
 
       try {
         const response = await fetch(`/api/events/${eventId}/cancel`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             actor,
             reason: input.reason,
@@ -61,7 +61,7 @@ export function useCancelEvent(
         const data = await response.json();
 
         if (!response.ok) {
-          const errMsg = data.error || "Failed to cancel event";
+          const errMsg = data.error || 'Failed to cancel event';
           setError(errMsg);
           options.onError?.(errMsg);
           throw new Error(errMsg);
@@ -71,7 +71,7 @@ export function useCancelEvent(
         options.onSuccess?.(data);
         return data;
       } catch (err: any) {
-        const errMsg = err.message || "An unexpected error occurred";
+        const errMsg = err.message || 'An unexpected error occurred';
         setError(errMsg);
         throw err;
       } finally {

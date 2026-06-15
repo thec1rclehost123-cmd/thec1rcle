@@ -19,7 +19,10 @@ if (!projectId || !clientEmail || !privateKey) {
 
 // Clean private key
 privateKey = privateKey.replace(/\\n/g, '\n');
-if ((privateKey.startsWith('"') && privateKey.endsWith('"')) || (privateKey.startsWith("'") && privateKey.endsWith("'"))) {
+if (
+  (privateKey.startsWith('"') && privateKey.endsWith('"')) ||
+  (privateKey.startsWith("'") && privateKey.endsWith("'"))
+) {
   privateKey = privateKey.slice(1, -1);
 }
 

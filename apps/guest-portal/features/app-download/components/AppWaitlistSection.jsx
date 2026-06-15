@@ -1,13 +1,16 @@
-"use client";
+'use client';
 
-import { motion } from "framer-motion";
-import { useAppWaitlist } from "../hooks/useAppWaitlist";
+import { motion } from 'framer-motion';
+import { useAppWaitlist } from '../hooks/useAppWaitlist';
 
 export default function AppWaitlistSection() {
   const { email, joined, loading, handleJoin, setEmail } = useAppWaitlist();
 
   return (
-    <section id="waitlist" className="relative flex h-screen items-center justify-center overflow-hidden bg-[#F44A22]">
+    <section
+      id="waitlist"
+      className="relative flex h-screen items-center justify-center overflow-hidden bg-[#F44A22]"
+    >
       <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-40 mix-blend-overlay" />
 
       <div className="relative z-10 w-full max-w-4xl px-6 text-center">
@@ -23,7 +26,9 @@ export default function AppWaitlistSection() {
             animate={{ opacity: 1, scale: 1 }}
             className="inline-block rounded-3xl bg-black p-8 shadow-2xl"
           >
-            <span className="text-2xl font-black uppercase tracking-wider text-white">Welcome to the list.</span>
+            <span className="text-2xl font-black uppercase tracking-wider text-white">
+              Welcome to the list.
+            </span>
           </motion.div>
         ) : (
           <form
@@ -43,7 +48,7 @@ export default function AppWaitlistSection() {
               disabled={loading}
               className="w-full whitespace-nowrap rounded-full bg-white px-8 py-4 text-lg font-black uppercase tracking-wider text-black transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto sm:px-12 sm:py-6"
             >
-              {loading ? "Joining..." : "Join Now"}
+              {loading ? 'Joining...' : 'Join Now'}
             </button>
           </form>
         )}

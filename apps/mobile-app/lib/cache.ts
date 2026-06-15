@@ -8,16 +8,16 @@
  * Uses AsyncStorage instead of SecureStore to avoid 2KB size limits.
  */
 
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import NetInfo from "@react-native-community/netinfo";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 
-const CACHE_PREFIX = "c1rcle_cache_";
+const CACHE_PREFIX = 'c1rcle_cache_';
 
 const CACHE_KEYS = {
-  events: CACHE_PREFIX + "events",
-  featuredEvents: CACHE_PREFIX + "featured",
-  userOrders: CACHE_PREFIX + "orders",
-  lastSync: CACHE_PREFIX + "last_sync",
+  events: CACHE_PREFIX + 'events',
+  featuredEvents: CACHE_PREFIX + 'featured',
+  userOrders: CACHE_PREFIX + 'orders',
+  lastSync: CACHE_PREFIX + 'last_sync',
 };
 
 // Maximum cache age in milliseconds (5 minutes for most data)
@@ -43,7 +43,7 @@ export async function cacheData<T>(key: string, data: T, ttl: number = EVENTS_TT
     };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
   } catch (error) {
-    console.warn("[Cache] Error caching data:", error);
+    console.warn('[Cache] Error caching data:', error);
   }
 }
 
@@ -64,7 +64,7 @@ export async function getCachedData<T>(
 
     return { data: parsed.data, isStale };
   } catch (error) {
-    console.warn("[Cache] Error getting cached data:", error);
+    console.warn('[Cache] Error getting cached data:', error);
     return { data: null, isStale: true };
   }
 }
@@ -87,7 +87,7 @@ export async function clearAllCaches(): Promise<void> {
       await AsyncStorage.multiRemove(cacheKeys);
     }
   } catch (error) {
-    console.warn("[Cache] Error clearing all caches:", error);
+    console.warn('[Cache] Error clearing all caches:', error);
   }
 }
 
@@ -197,7 +197,7 @@ export async function cacheFetch<T>(
     // Offline — try stale cache as last resort
     const { data: stale } = await getCachedData<T>(cacheKey, Infinity);
     if (stale !== null) return stale;
-    throw new Error("No internet connection and no cached data");
+    throw new Error('No internet connection and no cached data');
   }
 
   // 3. Fetch from network
@@ -220,6 +220,6 @@ async function revalidateInBackground<T>(
     await cacheData(key, freshData, ttl);
   } catch (error) {
     // Silent — we already have stale data showing
-    console.warn("[Cache] Background revalidation failed:", key);
+    console.warn('[Cache] Background revalidation failed:', key);
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,16 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
-import { useEvent } from "@/store/eventContext";
-import { validateEventCode } from "@/lib/api/eventCode";
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { useEvent } from '@/store/eventContext';
+import { validateEventCode } from '@/lib/api/eventCode';
 
 export default function EventCodeScreen() {
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { setEventData } = useEvent();
@@ -35,7 +35,7 @@ export default function EventCodeScreen() {
 
   const handleSubmit = async () => {
     if (!code.trim()) {
-      setError("Please enter an event code");
+      setError('Please enter an event code');
       shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -50,14 +50,14 @@ export default function EventCodeScreen() {
       if (result.valid) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         setEventData(result);
-        router.replace("/(event)/scan");
+        router.replace('/(event)/scan');
       } else {
-        setError(result.error || "Invalid or expired code");
+        setError(result.error || 'Invalid or expired code');
         shake();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch (err: any) {
-      setError(err.message || "Failed to validate code");
+      setError(err.message || 'Failed to validate code');
       shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -68,7 +68,7 @@ export default function EventCodeScreen() {
   return (
     <SafeAreaView className="flex-1 bg-background-primary">
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
         <View className="flex-1 justify-center px-6">
@@ -99,7 +99,7 @@ export default function EventCodeScreen() {
               className={`
                 bg-background-secondary border-2 rounded-xl px-4 py-4
                 text-xl text-text-primary font-bold text-center tracking-widest
-                ${error ? "border-error" : "border-border"}
+                ${error ? 'border-error' : 'border-border'}
               `}
               editable={!isLoading}
             />
@@ -117,7 +117,7 @@ export default function EventCodeScreen() {
             disabled={isLoading || !code.trim()}
             className={`
               rounded-xl py-4 flex-row items-center justify-center
-              ${isLoading || !code.trim() ? "bg-accent/50" : "bg-accent"}
+              ${isLoading || !code.trim() ? 'bg-accent/50' : 'bg-accent'}
             `}
             activeOpacity={0.8}
           >
@@ -134,7 +134,7 @@ export default function EventCodeScreen() {
           {/* Help Text */}
           <View className="mt-8 items-center">
             <Text className="text-text-muted text-sm text-center">
-              Get your event code from the event organizer{"\n"}
+              Get your event code from the event organizer{'\n'}
               or venue manager
             </Text>
           </View>

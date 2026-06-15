@@ -5,14 +5,14 @@
  * All DB access moved to API Gateway's /registers routes.
  */
 
-import { getApiClient } from "./apiClient";
+import { getApiClient } from './apiClient';
 
 export async function getDateRegister(venueId, date, token) {
   const client = getApiClient(token);
   try {
     return await client.getDateRegister(venueId, date);
   } catch (error) {
-    console.error("[RegisterStore] getDateRegister failed:", error.message);
+    console.error('[RegisterStore] getDateRegister failed:', error.message);
     return null;
   }
 }
@@ -56,7 +56,7 @@ export async function logIncident(venueId, date, incident, reportedBy, token) {
     {
       id: crypto.randomUUID(),
       ...incident,
-      reportedBy: { uid: reportedBy.uid, name: reportedBy.name || "" },
+      reportedBy: { uid: reportedBy.uid, name: reportedBy.name || '' },
       resolved: false,
       timestamp: new Date().toISOString(),
     },
@@ -73,7 +73,7 @@ export async function addReminder(venueId, date, reminder, createdBy, token) {
       id: crypto.randomUUID(),
       ...reminder,
       completed: false,
-      createdBy: { uid: createdBy.uid, name: createdBy.name || "" },
+      createdBy: { uid: createdBy.uid, name: createdBy.name || '' },
       createdAt: new Date().toISOString(),
     },
   ];
@@ -85,9 +85,9 @@ export async function updateDayClose(venueId, date, closeData, closedBy, token) 
   return client.updateRegister(venueId, date, {
     actualFootfall: closeData.actualFootfall || 0,
     revenue: closeData.revenue || {},
-    status: "completed",
+    status: 'completed',
     closedAt: new Date().toISOString(),
-    closedBy: { uid: closedBy.uid, name: closedBy.name || "" },
+    closedBy: { uid: closedBy.uid, name: closedBy.name || '' },
   });
 }
 
@@ -96,7 +96,7 @@ export async function getRegistersForRange(venueId, startDate, endDate, token) {
   try {
     return await client.getRegistersForRange(venueId, startDate, endDate);
   } catch (error) {
-    console.error("[RegisterStore] getRegistersForRange failed:", error.message);
+    console.error('[RegisterStore] getRegistersForRange failed:', error.message);
     return [];
   }
 }
@@ -116,7 +116,7 @@ export async function resolveIncident(venueId, date, incidentId, resolution, use
         ...inc,
         resolved: true,
         resolution,
-        resolvedBy: { uid: user.uid, name: user.name || "" },
+        resolvedBy: { uid: user.uid, name: user.name || '' },
         resolvedAt: new Date().toISOString(),
       };
     }
@@ -133,7 +133,7 @@ export async function completeReminder(venueId, date, reminderId, user, token) {
       return {
         ...rem,
         completed: true,
-        completedBy: { uid: user.uid, name: user.name || "" },
+        completedBy: { uid: user.uid, name: user.name || '' },
         completedAt: new Date().toISOString(),
       };
     }
@@ -150,7 +150,7 @@ export async function addInspection(venueId, date, inspection, user, token) {
     {
       id: crypto.randomUUID(),
       ...inspection,
-      inspector: { uid: user.uid, name: user.name || "" },
+      inspector: { uid: user.uid, name: user.name || '' },
       createdAt: new Date().toISOString(),
     },
   ];

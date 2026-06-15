@@ -3,16 +3,16 @@
  * Converts reservation to order and initiates payment
  */
 
-import { NextResponse } from "next/server";
-import { initiateCheckout } from "@/lib/server/checkoutService";
-import { createRazorpayOrder } from "@/lib/server/payments/razorpay";
-import { createOrder } from "@/lib/server/orderStore";
-import { getEvent } from "@/lib/server/eventStore";
-import { verifyAuth } from "@/lib/server/auth";
+import { NextResponse } from 'next/server';
+import { initiateCheckout } from '@/lib/server/checkoutService';
+import { createRazorpayOrder } from '@/lib/server/payments/razorpay';
+import { createOrder } from '@/lib/server/orderStore';
+import { getEvent } from '@/lib/server/eventStore';
+import { verifyAuth } from '@/lib/server/auth';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-import { withRateLimit } from "@/lib/server/rateLimit";
+import { withRateLimit } from '@/lib/server/rateLimit';
 
 async function handler(request) {
   try {
@@ -22,25 +22,25 @@ async function handler(request) {
     const decodedToken = await verifyAuth(request);
     if (!decodedToken) {
       return NextResponse.json(
-        { error: "Authentication required to complete checkout" },
+        { error: 'Authentication required to complete checkout' },
         { status: 401 },
       );
     }
 
     // Validate required fields
     if (!payload.reservationId) {
-      return NextResponse.json({ error: "Reservation ID is required" }, { status: 400 });
+      return NextResponse.json({ error: 'Reservation ID is required' }, { status: 400 });
     }
 
     // User details
     const userDetails = {
-      name: payload.userName || decodedToken.name || "Guest",
+      name: payload.userName || decodedToken.name || 'Guest',
       email: decodedToken.email || payload.userEmail,
-      phone: payload.userPhone || "",
+      phone: payload.userPhone || '',
     };
 
     if (!userDetails.email) {
-      return NextResponse.json({ error: "Email is required" }, { status: 400 });
+      return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
     // Initiate checkout
@@ -69,7 +69,7 @@ async function handler(request) {
     // Create Razorpay order
     const razorpayOrder = await createRazorpayOrder({
       amount: Math.round(result.pricing.grandTotal * 100), // Convert to paise
-      currency: "INR",
+      currency: 'INR',
       receipt: order.id,
       notes: {
         orderId: order.id,
@@ -93,9 +93,9 @@ async function handler(request) {
       },
     });
   } catch (error) {
-    console.error("POST /api/checkout/initiate error:", error);
+    console.error('POST /api/checkout/initiate error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to initiate checkout" },
+      { error: error.message || 'Failed to initiate checkout' },
       { status: 500 },
     );
   }

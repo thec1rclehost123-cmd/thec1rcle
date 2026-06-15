@@ -1,28 +1,28 @@
-import { NextResponse } from "next/server";
-import { sendEmailOtp, sendSmsOtp } from "@/lib/server/verification";
-import { rateLimit } from "@/lib/server/rateLimit";
-import { getAdminAuth } from "@/lib/firebase/admin";
+import { NextResponse } from 'next/server';
+import { sendEmailOtp, sendSmsOtp } from '@/lib/server/verification';
+import { rateLimit } from '@/lib/server/rateLimit';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 export async function POST(req) {
   if (!rateLimit(req, 5, 60000)) {
-    return NextResponse.json({ error: "Too many requests. Please wait." }, { status: 429 });
+    return NextResponse.json({ error: 'Too many requests. Please wait.' }, { status: 429 });
   }
 
   try {
     // Enforce security config check at runtime
-    const { validateConfig } = require("@/lib/server/security");
+    const { validateConfig } = require('@/lib/server/security');
     validateConfig();
 
     const { type, recipient } = await req.json();
 
     if (!recipient) {
-      return NextResponse.json({ error: "Identity required." }, { status: 400 });
+      return NextResponse.json({ error: 'Identity required.' }, { status: 400 });
     }
 
     // Generic message for security
-    const successMessage = { message: "If valid, a secret has been dispatched." };
+    const successMessage = { message: 'If valid, a secret has been dispatched.' };
 
-    if (type === "email") {
+    if (type === 'email') {
       // Check if email already exists
       try {
         const auth = getAdminAuth();
@@ -34,17 +34,17 @@ export async function POST(req) {
         // Not found is fine
       }
       await sendEmailOtp(recipient);
-    } else if (type === "phone") {
+    } else if (type === 'phone') {
       await sendSmsOtp(recipient);
     } else {
-      return NextResponse.json({ error: "Invalid type." }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid type.' }, { status: 400 });
     }
 
     return NextResponse.json(successMessage);
   } catch (err) {
-    console.error("OTP Send Failure", err);
+    console.error('OTP Send Failure', err);
     return NextResponse.json(
-      { error: "Service recalibration required. Please try again later." },
+      { error: 'Service recalibration required. Please try again later.' },
       { status: 500 },
     );
   }

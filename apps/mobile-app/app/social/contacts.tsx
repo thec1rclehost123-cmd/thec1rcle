@@ -1,13 +1,12 @@
-import * as Haptics from "expo-haptics";
-import { router } from "expo-router";
-import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from "react-native";
-import Animated, { FadeInDown } from "react-native-reanimated";
-import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { View, Text, ScrollView, Pressable, ActivityIndicator, Alert } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getSavedContacts } from "@/lib/social";
-import { useAuthStore } from "@/store/authStore";
-
+import { getSavedContacts } from '@/lib/social';
+import { useAuthStore } from '@/store/authStore';
 
 // Contact card
 function ContactCard({
@@ -26,11 +25,11 @@ function ContactCard({
   index: number;
 }) {
   const savedDate = contact.savedAt?.toDate?.()
-    ? new Date(contact.savedAt.toDate()).toLocaleDateString("en-IN", {
-        month: "short",
-        day: "numeric",
+    ? new Date(contact.savedAt.toDate()).toLocaleDateString('en-IN', {
+        month: 'short',
+        day: 'numeric',
       })
-    : "";
+    : '';
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 50).springify()}>
@@ -88,12 +87,12 @@ export default function SavedContactsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     Alert.alert(contact.contactName, `Met at ${contact.eventTitle}`, [
-      { text: "Cancel", style: "cancel" },
+      { text: 'Cancel', style: 'cancel' },
       {
-        text: "View Profile",
+        text: 'View Profile',
         onPress: () =>
           router.push({
-            pathname: "/social/profile/[id]",
+            pathname: '/social/profile/[id]',
             params: { id: contact.contactUserId },
           }),
       },

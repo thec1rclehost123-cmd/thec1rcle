@@ -46,7 +46,11 @@ function membershipToType(partnerType: string): PartnerType | null {
   return null;
 }
 
-function buildFromMembership(uid: string, membership: RawMembership, user: RawUser): PartnerContext | null {
+function buildFromMembership(
+  uid: string,
+  membership: RawMembership,
+  user: RawUser,
+): PartnerContext | null {
   const partnerId = String(membership.partnerId || '');
   const partnerType = String(membership.partnerType || membership.type || '');
   const type = membershipToType(partnerType);
@@ -65,7 +69,7 @@ function buildFromMembership(uid: string, membership: RawMembership, user: RawUs
 
 export async function resolvePartnerContext(
   db: Firestore,
-  request: FastifyRequest & { user?: RawUser; authContext?: Record<string, any> | null }
+  request: FastifyRequest & { user?: RawUser; authContext?: Record<string, any> | null },
 ): Promise<PartnerContext | null> {
   const user = request.user;
   if (!user?.uid) return null;
@@ -120,9 +124,23 @@ export async function resolvePartnerContext(
 
   // 4. Direct ownership fallback — check hosts, venues, promoters collections
   const [hostSnap, venueSnap, promoterSnap] = await Promise.all([
-    db.collection('hosts').where('ownerId', '==', uid).limit(1).get().catch(() => null),
-    db.collection('venues').where('ownerId', '==', uid).limit(1).get().catch(() => null),
-    db.collection('promoters').doc(uid).get().catch(() => null),
+    db
+      .collection('hosts')
+      .where('ownerId', '==', uid)
+      .limit(1)
+      .get()
+      .catch(() => null),
+    db
+      .collection('venues')
+      .where('ownerId', '==', uid)
+      .limit(1)
+      .get()
+      .catch(() => null),
+    db
+      .collection('promoters')
+      .doc(uid)
+      .get()
+      .catch(() => null),
   ]);
 
   if (hostSnap && !hostSnap.empty) {

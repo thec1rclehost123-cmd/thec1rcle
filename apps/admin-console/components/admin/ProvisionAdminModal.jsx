@@ -1,12 +1,12 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { X, Shield, Mail, User, ChevronRight, RefreshCcw } from "lucide-react";
+import { useState } from 'react';
+import { X, Shield, Mail, User, ChevronRight, RefreshCcw } from 'lucide-react';
 
 export default function ProvisionAdminModal({ isOpen, onClose, onProvision }) {
-  const [email, setEmail] = useState("");
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("support");
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [role, setRole] = useState('support');
   const [loading, setLoading] = useState(false);
 
   if (!isOpen) return null;
@@ -91,15 +91,15 @@ export default function ProvisionAdminModal({ isOpen, onClose, onProvision }) {
               Assigned Role
             </label>
             <div className="grid grid-cols-2 gap-3">
-              {["support", "ops", "finance", "content"].map((r) => (
+              {['support', 'ops', 'finance', 'content'].map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => setRole(r)}
                   className={`px-6 py-4 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
                     role === r
-                      ? "bg-slate-900 border-slate-900 text-white shadow-lg"
-                      : "bg-white border-slate-100 text-slate-400 hover:border-slate-300"
+                      ? 'bg-slate-900 border-slate-900 text-white shadow-lg'
+                      : 'bg-white border-slate-100 text-slate-400 hover:border-slate-300'
                   }`}
                 >
                   {r}

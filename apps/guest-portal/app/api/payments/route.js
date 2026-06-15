@@ -1,14 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextResponse } from 'next/server';
 import {
   createRazorpayOrder,
   verifyPaymentSignature,
   getRazorpayClientConfig,
-} from "../../../lib/server/payments/razorpay";
-import { getOrderById, confirmOrder } from "../../../lib/server/orderStore";
-import { verifyAuth } from "../../../lib/server/auth";
-import { generateOrderQRCodes } from "../../../lib/server/qrStore";
+} from '../../../lib/server/payments/razorpay';
+import { getOrderById, confirmOrder } from '../../../lib/server/orderStore';
+import { verifyAuth } from '../../../lib/server/auth';
+import { generateOrderQRCodes } from '../../../lib/server/qrStore';
 
-const PAYMENTS_COLLECTION = "payments";
+const PAYMENTS_COLLECTION = 'payments';
 
 /**
  * GET /api/payments
@@ -19,9 +19,9 @@ export async function GET(request) {
     const config = getRazorpayClientConfig();
     return NextResponse.json({ config });
   } catch (error) {
-    console.error("[Payments API] GET Error:", error);
+    console.error('[Payments API] GET Error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to get payment config" },
+      { error: error.message || 'Failed to get payment config' },
       { status: 500 },
     );
   }
@@ -35,29 +35,29 @@ export async function POST(request) {
   try {
     const decodedToken = await verifyAuth(request);
     if (!decodedToken) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
     const body = await request.json();
     const { orderId } = body;
 
     if (!orderId) {
-      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
+      return NextResponse.json({ error: 'orderId is required' }, { status: 400 });
     }
 
     // Get the order
     const order = await getOrderById(orderId);
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
     // Verify order belongs to user
     if (order.userId !== decodedToken.uid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
     // Check order status
-    if (order.status !== "pending_payment") {
+    if (order.status !== 'pending_payment') {
       return NextResponse.json(
         { error: `Order is ${order.status}, not pending payment` },
         { status: 400 },
@@ -67,7 +67,7 @@ export async function POST(request) {
     // Create Razorpay order
     const razorpayOrder = await createRazorpayOrder({
       amount: Math.round(order.totalAmount * 100), // Convert to paise
-      currency: order.currency || "INR",
+      currency: order.currency || 'INR',
       receipt: orderId,
       notes: {
         orderId,
@@ -79,13 +79,13 @@ export async function POST(request) {
     return NextResponse.json({
       razorpayOrderId: razorpayOrder.id,
       amount: order.totalAmount,
-      currency: order.currency || "INR",
+      currency: order.currency || 'INR',
       config: getRazorpayClientConfig(),
     });
   } catch (error) {
-    console.error("[Payments API] POST Error:", error);
+    console.error('[Payments API] POST Error:', error);
     return NextResponse.json(
-      { error: error.message || "Failed to create payment" },
+      { error: error.message || 'Failed to create payment' },
       { status: 500 },
     );
   }
@@ -101,7 +101,7 @@ export async function PATCH(request) {
     const { orderId, razorpay_order_id, razorpay_payment_id, razorpay_signature } = body;
 
     if (!orderId || !razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
-      return NextResponse.json({ error: "Missing payment verification data" }, { status: 400 });
+      return NextResponse.json({ error: 'Missing payment verification data' }, { status: 400 });
     }
 
     // Verify signature
@@ -112,31 +112,31 @@ export async function PATCH(request) {
     });
 
     if (!isValid) {
-      console.error("[Payments API] Invalid signature for order:", orderId);
-      return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
+      console.error('[Payments API] Invalid signature for order:', orderId);
+      return NextResponse.json({ error: 'Payment verification failed' }, { status: 400 });
     }
 
     // Get the order
     const order = await getOrderById(orderId);
     if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
 
     // Confirm the order (orderStore handles the rest)
     const confirmedOrder = await confirmOrder(orderId, {
       paymentId: razorpay_payment_id,
-      paymentMethod: "razorpay",
+      paymentMethod: 'razorpay',
     });
 
     return NextResponse.json({
       success: true,
       order: confirmedOrder,
-      message: "Payment verified and order confirmed!",
+      message: 'Payment verified and order confirmed!',
     });
   } catch (error) {
-    console.error("[Payments API] PATCH Error:", error);
+    console.error('[Payments API] PATCH Error:', error);
     return NextResponse.json(
-      { error: error.message || "Payment verification failed" },
+      { error: error.message || 'Payment verification failed' },
       { status: 500 },
     );
   }

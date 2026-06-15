@@ -4,7 +4,7 @@
  * Location: apps/partner-dashboard/lib/server/ticketingService.js
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID } from 'node:crypto';
 
 // Platform fee defaults
 const PLATFORM_FEES = {
@@ -89,7 +89,7 @@ export function calculateOrderPricing(items, event, options = {}) {
     result.items.push({
       tierId: tier.id,
       tierName: tier.name,
-      entryType: tier.entryType || "general",
+      entryType: tier.entryType || 'general',
       quantity,
       unitPrice: effectivePrice.price,
       priceLabel: effectivePrice.label,
@@ -107,7 +107,7 @@ export function calculateOrderPricing(items, event, options = {}) {
 
     if (promoResult.valid) {
       result.discounts.push({
-        type: "promo",
+        type: 'promo',
         code: promoCode,
         amount: promoResult.discountAmount,
         label: promoResult.label,
@@ -115,7 +115,7 @@ export function calculateOrderPricing(items, event, options = {}) {
       result.discountTotal += promoResult.discountAmount;
 
       // Distribute discount across items
-      distributeDiscount(result.items, promoResult.discountAmount, "promo", promoCode);
+      distributeDiscount(result.items, promoResult.discountAmount, 'promo', promoCode);
     } else {
       result.warnings.push(promoResult.error);
     }
@@ -131,7 +131,7 @@ export function calculateOrderPricing(items, event, options = {}) {
 
     if (promoterResult.discountAmount > 0) {
       result.discounts.push({
-        type: "promoter",
+        type: 'promoter',
         code: promoterCode,
         amount: promoterResult.discountAmount,
         label: `Promoter Discount (-₹${Math.round(promoterResult.discountAmount)})`,
@@ -139,7 +139,7 @@ export function calculateOrderPricing(items, event, options = {}) {
       result.discountTotal += promoterResult.discountAmount;
 
       // Distribute discount
-      distributeDiscount(result.items, promoterResult.discountAmount, "promoter", "Promoter Code");
+      distributeDiscount(result.items, promoterResult.discountAmount, 'promoter', 'Promoter Code');
     }
   }
 
@@ -210,21 +210,21 @@ export function applyPromoCodeDiscount(code, items, event) {
   );
 
   if (!promoCode) {
-    return { valid: false, error: "Invalid promo code" };
+    return { valid: false, error: 'Invalid promo code' };
   }
 
   // Check validity period
   const now = new Date();
   if (promoCode.startsAt && now < new Date(promoCode.startsAt)) {
-    return { valid: false, error: "Promo code not yet active" };
+    return { valid: false, error: 'Promo code not yet active' };
   }
   if (promoCode.endsAt && now > new Date(promoCode.endsAt)) {
-    return { valid: false, error: "Promo code has expired" };
+    return { valid: false, error: 'Promo code has expired' };
   }
 
   // Check redemption limits
   if (promoCode.maxRedemptions && promoCode.redemptionCount >= promoCode.maxRedemptions) {
-    return { valid: false, error: "Promo code has reached maximum uses" };
+    return { valid: false, error: 'Promo code has reached maximum uses' };
   }
 
   // Filter applicable items
@@ -236,14 +236,14 @@ export function applyPromoCodeDiscount(code, items, event) {
   });
 
   if (applicableItems.length === 0) {
-    return { valid: false, error: "Promo code does not apply to selected tickets" };
+    return { valid: false, error: 'Promo code does not apply to selected tickets' };
   }
 
   // Calculate discount
   const applicableSubtotal = applicableItems.reduce((sum, i) => sum + i.subtotal, 0);
   let discountAmount;
 
-  if (promoCode.discountType === "percent") {
+  if (promoCode.discountType === 'percent') {
     discountAmount = (applicableSubtotal * promoCode.discountValue) / 100;
   } else {
     discountAmount = Math.min(promoCode.discountValue, applicableSubtotal);
@@ -282,17 +282,17 @@ export function calculatePromoterBuyerDiscount(items, event) {
 
     // Get discount rate - either tier override or default
     let discountRate = settings.defaultBuyerDiscountRate || 0;
-    let discountType = settings.defaultBuyerDiscountType || "percent";
+    let discountType = settings.defaultBuyerDiscountType || 'percent';
 
     // Check for tier-level override (only if not using default)
     if (!settings.useDefaultBuyerDiscount && tier.promoterDiscount !== undefined) {
       discountRate = tier.promoterDiscount;
-      discountType = tier.promoterDiscountType || "percent";
+      discountType = tier.promoterDiscountType || 'percent';
     }
 
     // Calculate discount for this item
     let itemDiscount;
-    if (discountType === "percent") {
+    if (discountType === 'percent') {
       itemDiscount = (item.subtotal * discountRate) / 100;
     } else {
       itemDiscount = discountRate * item.quantity;
@@ -335,17 +335,17 @@ export function calculatePromoterCommission(items, event) {
 
     // Get commission rate - either tier override or default
     let commissionRate = settings.defaultCommissionRate || 0;
-    let commissionType = settings.defaultCommissionType || "percent";
+    let commissionType = settings.defaultCommissionType || 'percent';
 
     // Check for tier-level override (only if not using default)
     if (!settings.useDefaultCommission && tier.promoterCommission !== undefined) {
       commissionRate = tier.promoterCommission;
-      commissionType = tier.promoterCommissionType || "percent";
+      commissionType = tier.promoterCommissionType || 'percent';
     }
 
     // Calculate commission for this item
     let itemCommission;
-    if (commissionType === "percent") {
+    if (commissionType === 'percent') {
       itemCommission = (item.subtotal * commissionRate) / 100;
     } else {
       itemCommission = commissionRate * item.quantity;
@@ -379,7 +379,7 @@ export function validatePricingMargins(pricing, commissionAmount) {
   const netRevenue = pricing.subtotal - pricing.discountTotal - commissionAmount;
 
   if (netRevenue < 0) {
-    errors.push("Discounts and commissions exceed ticket value");
+    errors.push('Discounts and commissions exceed ticket value');
   }
 
   if (netRevenue > 0 && netRevenue < MINIMUM_PAYOUT_FLOOR) {
@@ -413,10 +413,10 @@ export function createPromoCode(eventId, codeData, createdBy) {
   return {
     id: randomUUID(),
     eventId,
-    code: codeData.code.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+    code: codeData.code.toUpperCase().replace(/[^A-Z0-9]/g, ''),
     name: codeData.name || codeData.code,
-    type: codeData.type || "private",
-    discountType: codeData.discountType || "percent",
+    type: codeData.type || 'private',
+    discountType: codeData.discountType || 'percent',
     discountValue: Number(codeData.discountValue) || 0,
     tierIds: codeData.tierIds || [], // Empty = all tiers
     maxRedemptions: codeData.maxRedemptions || null,
@@ -453,7 +453,7 @@ export function checkUserRedemptionLimit(promoCode, userId, userRedemptions = 0)
   if (userRedemptions >= promoCode.maxPerUser) {
     return {
       allowed: false,
-      error: "You have already used this promo code",
+      error: 'You have already used this promo code',
     };
   }
 
@@ -470,7 +470,7 @@ export function getPriceScheduleSummary(tier) {
   if (schedules.length === 0) {
     return {
       currentPrice: basePrice,
-      currentLabel: "Regular",
+      currentLabel: 'Regular',
       upcoming: [],
       hasScheduledPricing: false,
     };
@@ -492,7 +492,7 @@ export function getPriceScheduleSummary(tier) {
 
   return {
     currentPrice: current.price,
-    currentLabel: current.label || "Regular",
+    currentLabel: current.label || 'Regular',
     upcoming,
     hasScheduledPricing: true,
     basePrice,

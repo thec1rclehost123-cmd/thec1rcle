@@ -1,4 +1,4 @@
-import { normalizeBootstrapPayload } from "../../features/auth/utils/authSessionModel.js";
+import { normalizeBootstrapPayload } from '../../features/auth/utils/authSessionModel.js';
 import {
   GUEST_BFF_CACHE,
   buildGuestBffError,
@@ -6,17 +6,17 @@ import {
   buildGuestBffUpstreamTrace,
   guestBffUpstreamJson,
   getGuestBffUpstreamError,
-} from "./server.js";
+} from './server.js';
 
 function toPartnerSlug(value) {
-  return String(value || "")
+  return String(value || '')
     .trim()
     .toLowerCase()
-    .replace(/^@/, "")
-    .replace(/[^\w\s-]/g, "")
-    .replace(/[\s_]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/^@/, '')
+    .replace(/[^\w\s-]/g, '')
+    .replace(/[\s_]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 function normalizeEventTickets(event) {
@@ -31,18 +31,18 @@ function resolveHostProfile(event) {
   let hostProfile = null;
 
   if (event?.hostData && Object.keys(event.hostData).length > 0) {
-    hostProfile = { ...event.hostData, type: event.hostData.type || "host" };
+    hostProfile = { ...event.hostData, type: event.hostData.type || 'host' };
   }
 
   if (!hostProfile && event?.venueData && Object.keys(event.venueData).length > 0) {
     hostProfile = {
       ...event.venueData,
-      type: "venue",
+      type: 'venue',
       avatar: event.venueData.photoURL || event.venueData.image,
     };
   }
 
-  if (hostProfile && !hostProfile.type) hostProfile.type = "host";
+  if (hostProfile && !hostProfile.type) hostProfile.type = 'host';
   if (hostProfile && !hostProfile.slug) {
     hostProfile.slug = hostProfile.handle ? toPartnerSlug(hostProfile.handle) : hostProfile.id;
   }
@@ -72,7 +72,7 @@ function buildViewerSummary(auth, eventId, viewerState = null) {
     hasRsvped: Boolean(
       viewerState?.hasRsvped !== undefined
         ? viewerState.hasRsvped
-        : (eventId && attendedEvents.includes(eventId)),
+        : eventId && attendedEvents.includes(eventId),
     ),
     queue: viewerState?.queue || null,
     unreadCount: auth?.unreadNotificationCount || 0,
@@ -86,7 +86,7 @@ export async function buildEventDetailView(eventId) {
       forwardCookies: false,
       next: { revalidate: 30 },
     }),
-    guestBffUpstreamJson("/auth/me"),
+    guestBffUpstreamJson('/auth/me'),
   ]);
 
   const auth = authResult.response.ok
@@ -105,7 +105,7 @@ export async function buildEventDetailView(eventId) {
         interestedData: { count: 0, users: [] },
       },
       error: buildGuestBffError(
-        getGuestBffUpstreamError(detailResult.data, "Unable to load event."),
+        getGuestBffUpstreamError(detailResult.data, 'Unable to load event.'),
         {
           requestId: detailResult.requestId,
           status: detailResult.response.status || 404,
@@ -121,9 +121,10 @@ export async function buildEventDetailView(eventId) {
   const detail = detailResult.data?.event ? detailResult.data : { event: detailResult.data };
   const event = normalizeEventTickets(detail?.event || detailResult.data);
 
-  const viewerStateResult = event?.id && auth?.user?.uid
-    ? await guestBffUpstreamJson(`/events/${encodeURIComponent(event.id)}/viewer-state`)
-    : null;
+  const viewerStateResult =
+    event?.id && auth?.user?.uid
+      ? await guestBffUpstreamJson(`/events/${encodeURIComponent(event.id)}/viewer-state`)
+      : null;
   const queue = viewerStateResult?.response?.ok ? viewerStateResult.data?.queue || null : null;
   const viewerState = viewerStateResult?.response?.ok ? viewerStateResult.data : null;
 

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { AlertTriangle, X, Info, RefreshCcw, Link2, ShieldAlert, Timer } from "lucide-react";
+import { useState } from 'react';
+import { AlertTriangle, X, Info, RefreshCcw, Link2, ShieldAlert, Timer } from 'lucide-react';
 
 export default function AdminConfirmModal({
   isOpen,
@@ -9,20 +9,20 @@ export default function AdminConfirmModal({
   onConfirm,
   title,
   message,
-  actionLabel = "Confirm Action",
-  type = "danger",
+  actionLabel = 'Confirm Action',
+  type = 'danger',
   requiresId = false,
-  idPlaceholder = "Enter ID...",
+  idPlaceholder = 'Enter ID...',
   inputLabel = null,
-  inputType = "text",
-  inputPlaceholder = "",
+  inputType = 'text',
+  inputPlaceholder = '',
   isTier2 = false,
   isTier3 = false,
 }) {
-  const [reason, setReason] = useState("");
-  const [targetId, setTargetId] = useState("");
-  const [inputValue, setInputValue] = useState("");
-  const [evidence, setEvidence] = useState("");
+  const [reason, setReason] = useState('');
+  const [targetId, setTargetId] = useState('');
+  const [inputValue, setInputValue] = useState('');
+  const [evidence, setEvidence] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen) return null;
@@ -30,7 +30,7 @@ export default function AdminConfirmModal({
   const minReason = isTier2 || isTier3 ? 20 : 5;
   const isReasonValid = reason.trim().length >= minReason;
   const isEvidenceValid =
-    !(isTier2 || isTier3) || (evidence.trim().length > 5 && evidence.startsWith("http"));
+    !(isTier2 || isTier3) || (evidence.trim().length > 5 && evidence.startsWith('http'));
 
   const handleConfirm = async () => {
     if (!isReasonValid) return;
@@ -40,10 +40,10 @@ export default function AdminConfirmModal({
     setIsSubmitting(true);
     try {
       await onConfirm(reason, targetId, inputValue, evidence);
-      setReason("");
-      setTargetId("");
-      setInputValue("");
-      setEvidence("");
+      setReason('');
+      setTargetId('');
+      setInputValue('');
+      setEvidence('');
       onClose();
     } catch (err) {
       console.error(err);
@@ -55,16 +55,16 @@ export default function AdminConfirmModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm transition-all duration-500">
       <div
-        className={`w-full max-w-lg rounded-xl bg-obsidian-surface border ${isTier3 ? "border-iris/40 shadow-2xl shadow-iris/10" : "border-[#ffffff08] shadow-2xl shadow-black"} overflow-hidden animate-in zoom-in-95 fade-in duration-300`}
+        className={`w-full max-w-lg rounded-xl bg-obsidian-surface border ${isTier3 ? 'border-iris/40 shadow-2xl shadow-iris/10' : 'border-[#ffffff08] shadow-2xl shadow-black'} overflow-hidden animate-in zoom-in-95 fade-in duration-300`}
       >
         <div className="p-8 pb-4 flex justify-between items-start">
           <div className="flex gap-4 items-center">
             <div
-              className={`h-12 w-12 rounded-lg flex items-center justify-center ${isTier3 ? "bg-iris/10 text-iris" : type === "danger" ? "bg-iris/10 text-iris" : type === "warning" ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"}`}
+              className={`h-12 w-12 rounded-lg flex items-center justify-center ${isTier3 ? 'bg-iris/10 text-iris' : type === 'danger' ? 'bg-iris/10 text-iris' : type === 'warning' ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500'}`}
             >
               {isTier3 ? (
                 <ShieldAlert className="h-6 w-6" strokeWidth={1.5} />
-              ) : type === "info" ? (
+              ) : type === 'info' ? (
                 <Info className="h-6 w-6" strokeWidth={1.5} />
               ) : (
                 <AlertTriangle className="h-6 w-6" strokeWidth={1.5} />
@@ -99,7 +99,7 @@ export default function AdminConfirmModal({
 
         <div className="px-8 space-y-2">
           <h3
-            className={`text-2xl font-semibold tracking-tight ${isTier3 ? "text-white" : "text-white"}`}
+            className={`text-2xl font-semibold tracking-tight ${isTier3 ? 'text-white' : 'text-white'}`}
           >
             {isTier3 ? `CRITICAL OPS: ${title}` : title}
           </h3>
@@ -164,7 +164,7 @@ export default function AdminConfirmModal({
                 value={evidence}
                 onChange={(e) => setEvidence(e.target.value)}
                 placeholder="https://audit.c1rcle.net/..."
-                className={`w-full bg-black/20 border rounded-lg p-3.5 text-sm focus:outline-none transition-all font-mono text-white ${!isEvidenceValid && evidence ? "border-iris/40" : "border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900"}`}
+                className={`w-full bg-black/20 border rounded-lg p-3.5 text-sm focus:outline-none transition-all font-mono text-white ${!isEvidenceValid && evidence ? 'border-iris/40' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
               />
             </div>
           )}
@@ -175,7 +175,7 @@ export default function AdminConfirmModal({
                 Operational Logic
               </label>
               <span
-                className={`text-[8px] font-bold uppercase tracking-widest ${isReasonValid ? "text-emerald-500" : "text-zinc-600"}`}
+                className={`text-[8px] font-bold uppercase tracking-widest ${isReasonValid ? 'text-emerald-500' : 'text-zinc-600'}`}
               >
                 {reason.length} / {minReason} MIN_CHAR
               </span>
@@ -186,10 +186,10 @@ export default function AdminConfirmModal({
               onChange={(e) => setReason(e.target.value)}
               placeholder={
                 isTier2 || isTier3
-                  ? "Provide formal justification for this override..."
-                  : "State rationale for this procedure..."
+                  ? 'Provide formal justification for this override...'
+                  : 'State rationale for this procedure...'
               }
-              className={`w-full bg-black/20 border rounded-lg p-4 text-sm focus:outline-none transition-all min-h-[100px] font-medium resize-none placeholder:text-zinc-700 text-white ${!isReasonValid && reason ? "border-amber-500/40" : "border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900"}`}
+              className={`w-full bg-black/20 border rounded-lg p-4 text-sm focus:outline-none transition-all min-h-[100px] font-medium resize-none placeholder:text-zinc-700 text-white ${!isReasonValid && reason ? 'border-amber-500/40' : 'border-[#ffffff08] focus:ring-1 focus:ring-white/10 focus:bg-zinc-900'}`}
             />
           </div>
 
@@ -208,9 +208,9 @@ export default function AdminConfirmModal({
                 isSubmitting
               }
               onClick={handleConfirm}
-              className={`flex-[1.5] py-3 rounded-lg ${isTier3 ? "bg-white text-black" : type === "danger" ? "bg-iris text-white shadow-lg shadow-iris/20" : type === "warning" ? "bg-amber-500 text-white shadow-lg shadow-amber-500/20" : "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20"} text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-20 disabled:grayscale disabled:cursor-not-allowed`}
+              className={`flex-[1.5] py-3 rounded-lg ${isTier3 ? 'bg-white text-black' : type === 'danger' ? 'bg-iris text-white shadow-lg shadow-iris/20' : type === 'warning' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20'} text-[10px] font-black uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-20 disabled:grayscale disabled:cursor-not-allowed`}
             >
-              {isSubmitting ? "Syncing..." : actionLabel}
+              {isSubmitting ? 'Syncing...' : actionLabel}
             </button>
           </div>
         </div>
@@ -220,12 +220,12 @@ export default function AdminConfirmModal({
         >
           <div className="flex items-center gap-2">
             <div
-              className={`h-1.5 w-1.5 rounded-full ${isTier3 ? "bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]" : "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]"} animate-pulse`}
+              className={`h-1.5 w-1.5 rounded-full ${isTier3 ? 'bg-iris shadow-[0_0_8px_rgba(244,74,34,0.4)]' : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]'} animate-pulse`}
             ></div>
             <span
-              className={`text-[9px] font-bold uppercase tracking-widest ${isTier3 ? "text-iris" : "text-zinc-500"}`}
+              className={`text-[9px] font-bold uppercase tracking-widest ${isTier3 ? 'text-iris' : 'text-zinc-500'}`}
             >
-              {isTier3 ? "Identity Verified" : "Authorized Tunnel"}
+              {isTier3 ? 'Identity Verified' : 'Authorized Tunnel'}
             </span>
           </div>
           <span className="text-[8px] text-zinc-700 uppercase tracking-widest font-black leading-none">

@@ -29,10 +29,7 @@ const IGNORE_PATTERNS = [
 
 function matchesGlob(file, pattern) {
   const rel = file.replace(/\\/g, '/');
-  const regex = pattern
-    .replace(/\*\*/g, '(.+)')
-    .replace(/\*/g, '[^/]*')
-    .replace(/\//g, '\\/');
+  const regex = pattern.replace(/\*\*/g, '(.+)').replace(/\*/g, '[^/]*').replace(/\//g, '\\/');
   return new RegExp(`^${regex}$`).test(rel);
 }
 
@@ -43,11 +40,12 @@ async function findViolations() {
     nodir: true,
   });
 
-  const pattern = /from\s+["']firebase-admin(?:\/[^"']*)?["']|require\s*\(\s*["']firebase-admin(?:\/[^"']*)?["']\s*\)/;
+  const pattern =
+    /from\s+["']firebase-admin(?:\/[^"']*)?["']|require\s*\(\s*["']firebase-admin(?:\/[^"']*)?["']\s*\)/;
   const violations = [];
 
   for (const file of files) {
-    const isAllowed = ALLOWED_PATTERNS.some(p => matchesGlob(file, p));
+    const isAllowed = ALLOWED_PATTERNS.some((p) => matchesGlob(file, p));
     if (isAllowed) continue;
 
     try {
@@ -81,11 +79,13 @@ async function main() {
     console.log(`     → ${v.importLine}`);
   }
   console.log('\nfirebase-admin is ONLY allowed in: packages/core, apps/api-gateway, functions');
-  console.log('Frontend apps (guest-portal, partner-dashboard, admin-console, mobile-app, scanner-app) must NOT use firebase-admin.\n');
+  console.log(
+    'Frontend apps (guest-portal, partner-dashboard, admin-console, mobile-app, scanner-app) must NOT use firebase-admin.\n',
+  );
   process.exit(1);
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Guardrails check failed:', err);
   process.exit(1);
 });

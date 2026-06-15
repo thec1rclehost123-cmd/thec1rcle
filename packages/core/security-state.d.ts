@@ -12,10 +12,14 @@ export function isRedisHealthy(): boolean;
  * @param {number} windowMs    - window length in milliseconds
  * @returns {{ allowed: boolean, count: number, remaining: number }}
  */
-export function memoryRateLimit(key: string, limit: number, windowMs?: number): {
-    allowed: boolean;
-    count: number;
-    remaining: number;
+export function memoryRateLimit(
+  key: string,
+  limit: number,
+  windowMs?: number,
+): {
+  allowed: boolean;
+  count: number;
+  remaining: number;
 };
 /**
  * Checks a critical endpoint using the hybrid strategy:
@@ -32,9 +36,13 @@ export function memoryRateLimit(key: string, limit: number, windowMs?: number): 
  * @param {number} [windowMs]
  * @returns {{ allowed: boolean, degraded: boolean }}
  */
-export function checkCriticalEndpoint(identifier: string, criticalLimit: number, windowMs?: number | undefined): {
-    allowed: boolean;
-    degraded: boolean;
+export function checkCriticalEndpoint(
+  identifier: string,
+  criticalLimit: number,
+  windowMs?: number | undefined,
+): {
+  allowed: boolean;
+  degraded: boolean;
 };
 /**
  * Increment the global auth failure counter and activate high-risk mode if threshold is crossed.
@@ -64,8 +72,8 @@ export function unblockIp(ip: any): Promise<void>;
  * @returns {Promise<{ blocked: boolean, reason?: string }>}
  */
 export function isIpBlocked(ip: string): Promise<{
-    blocked: boolean;
-    reason?: string;
+  blocked: boolean;
+  reason?: string;
 }>;
 /**
  * Block a user account for the given TTL.
@@ -84,8 +92,8 @@ export function unblockUser(uid: any): Promise<void>;
  * @returns {Promise<{ blocked: boolean, reason?: string }>}
  */
 export function isUserBlocked(uid: string): Promise<{
-    blocked: boolean;
-    reason?: string;
+  blocked: boolean;
+  reason?: string;
 }>;
 /**
  * Flag a user for manual review. Does NOT block them — just marks for ops review.
@@ -103,8 +111,8 @@ export function unflagUser(uid: any): Promise<void>;
  * @returns {Promise<{ flagged: boolean, reason?: string }>}
  */
 export function isUserFlagged(uid: string): Promise<{
-    flagged: boolean;
-    reason?: string;
+  flagged: boolean;
+  reason?: string;
 }>;
 /**
  * Mark an admin as suspicious / temporarily suspended.
@@ -115,7 +123,11 @@ export function isUserFlagged(uid: string): Promise<{
  * @param {string} reason
  * @param {number} [ttlSec]
  */
-export function suspendAdmin(adminId: string, reason: string, ttlSec?: number | undefined): Promise<void>;
+export function suspendAdmin(
+  adminId: string,
+  reason: string,
+  ttlSec?: number | undefined,
+): Promise<void>;
 /**
  * Clear an admin suspension (after review).
  */
@@ -126,8 +138,8 @@ export function clearAdminSuspension(adminId: any): Promise<void>;
  * @returns {Promise<{ suspended: boolean, reason?: string }>}
  */
 export function isAdminSuspended(adminId: string): Promise<{
-    suspended: boolean;
-    reason?: string;
+  suspended: boolean;
+  reason?: string;
 }>;
 /**
  * Return a security overview for the admin dashboard.
@@ -144,21 +156,21 @@ export function isAdminSuspended(adminId: string): Promise<{
  * }>}
  */
 export function getSecurityOverview(): Promise<{
-    blockedIps: string[];
-    blockedUsers: string[];
-    flaggedUsers: string[];
-    suspendedAdmins: string[];
-    recentAttacks: object[];
-    counts: {
-        blockedIps: number;
-        blockedUsers: number;
-        flaggedUsers: number;
-        suspendedAdmins: number;
-    };
+  blockedIps: string[];
+  blockedUsers: string[];
+  flaggedUsers: string[];
+  suspendedAdmins: string[];
+  recentAttacks: object[];
+  counts: {
+    blockedIps: number;
+    blockedUsers: number;
+    flaggedUsers: number;
+    suspendedAdmins: number;
+  };
 }>;
 export namespace TTL {
-    let IP_BLOCK: number;
-    let USER_BLOCK: number;
-    let ADMIN_SUSPENSION: number;
-    let USER_FLAG: number;
+  let IP_BLOCK: number;
+  let USER_BLOCK: number;
+  let ADMIN_SUSPENSION: number;
+  let USER_FLAG: number;
 }

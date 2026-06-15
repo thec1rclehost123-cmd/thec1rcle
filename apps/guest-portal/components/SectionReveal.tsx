@@ -1,10 +1,17 @@
-"use client";
+'use client';
 
-import clsx from "clsx";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import clsx from 'clsx';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 interface SectionRevealProps {
-  variant?: "fadeIn" | "fadeInUp" | "scaleIn" | "slideInUp" | "slideInLeft" | "slideInRight" | "slideInDown";
+  variant?:
+    | 'fadeIn'
+    | 'fadeInUp'
+    | 'scaleIn'
+    | 'slideInUp'
+    | 'slideInLeft'
+    | 'slideInRight'
+    | 'slideInDown';
   delay?: number;
   once?: boolean;
   className?: string;
@@ -14,7 +21,7 @@ interface SectionRevealProps {
 export default function SectionReveal({
   children,
   className,
-  variant = "fadeInUp",
+  variant = 'fadeInUp',
   delay = 0,
   once = true,
 }: SectionRevealProps) {
@@ -33,8 +40,8 @@ export default function SectionReveal({
       },
       {
         threshold: 0.1,
-        rootMargin: "0px 0px -50px 0px",
-      }
+        rootMargin: '0px 0px -50px 0px',
+      },
     );
 
     if (ref.current) observer.observe(ref.current);
@@ -49,21 +56,23 @@ export default function SectionReveal({
       ref={ref}
       style={delayStyle}
       className={clsx(
-        "relative will-change-[transform,opacity] transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]",
+        'relative will-change-[transform,opacity] transition-all duration-700 ease-[cubic-bezier(0.25,0.1,0.25,1)]',
         {
-          "opacity-0": !isVisible,
-          "opacity-100": isVisible,
-          "translate-y-8": !isVisible && variant === "fadeInUp",
-          "translate-y-0": isVisible && (variant === "fadeInUp" || variant === "slideInUp" || variant === "slideInDown"),
-          "scale-95": !isVisible && variant === "scaleIn",
-          "scale-100": isVisible && variant === "scaleIn",
-          "-translate-y-12": !isVisible && variant === "slideInUp",
-          "translate-y-12": !isVisible && variant === "slideInDown",
-          "-translate-x-12": !isVisible && variant === "slideInLeft",
-          "translate-x-12": !isVisible && variant === "slideInRight",
-          "translate-x-0": isVisible && (variant === "slideInLeft" || variant === "slideInRight"),
+          'opacity-0': !isVisible,
+          'opacity-100': isVisible,
+          'translate-y-8': !isVisible && variant === 'fadeInUp',
+          'translate-y-0':
+            isVisible &&
+            (variant === 'fadeInUp' || variant === 'slideInUp' || variant === 'slideInDown'),
+          'scale-95': !isVisible && variant === 'scaleIn',
+          'scale-100': isVisible && variant === 'scaleIn',
+          '-translate-y-12': !isVisible && variant === 'slideInUp',
+          'translate-y-12': !isVisible && variant === 'slideInDown',
+          '-translate-x-12': !isVisible && variant === 'slideInLeft',
+          'translate-x-12': !isVisible && variant === 'slideInRight',
+          'translate-x-0': isVisible && (variant === 'slideInLeft' || variant === 'slideInRight'),
         },
-        className
+        className,
       )}
     >
       {children}

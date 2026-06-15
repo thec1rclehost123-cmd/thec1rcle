@@ -5,14 +5,14 @@
  * All table logic moved to @c1rcle/core/table-engine via API Gateway.
  */
 
-import { getApiClient } from "./apiClient";
+import { getApiClient } from './apiClient';
 
 export async function getVenueMasterTables(venueId, token) {
   const client = getApiClient(token);
   try {
     return await client.getVenueTables(venueId);
   } catch (error) {
-    console.error("[TableStore] getVenueMasterTables failed:", error.message);
+    console.error('[TableStore] getVenueMasterTables failed:', error.message);
     return [];
   }
 }
@@ -32,7 +32,7 @@ export async function getEventTableBookings(eventId, token) {
   try {
     return await client.getEventTableBookings(eventId);
   } catch (error) {
-    console.error("[TableStore] getEventTableBookings failed:", error.message);
+    console.error('[TableStore] getEventTableBookings failed:', error.message);
     return [];
   }
 }
@@ -51,7 +51,7 @@ export async function getEventTableStatus(eventId, token) {
   try {
     return await client.getEventAssignments(eventId);
   } catch (error) {
-    console.error("[TableStore] getEventTableStatus failed:", error.message);
+    console.error('[TableStore] getEventTableStatus failed:', error.message);
     return [];
   }
 }

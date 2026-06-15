@@ -1,17 +1,13 @@
-"use client";
+'use client';
 
-import { useQuery } from "@tanstack/react-query";
-import { useDashboardAuth } from "@/components/providers/DashboardAuthProvider";
-import { useLiveEvent } from "./useLiveEvent";
-import { useVenueAlerts } from "./useVenueAlerts";
-import type {
-    VenueOverviewSummary,
-    UpcomingEvent,
-    DateRange,
-} from "@/lib/types/venueOverview";
+import { useQuery } from '@tanstack/react-query';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+import { useLiveEvent } from './useLiveEvent';
+import { useVenueAlerts } from './useVenueAlerts';
+import type { VenueOverviewSummary, UpcomingEvent, DateRange } from '@/lib/types/venueOverview';
 
 interface UpcomingEventsResponse {
-    events: UpcomingEvent[];
+  events: UpcomingEvent[];
 }
 
 /**
@@ -25,53 +21,49 @@ interface UpcomingEventsResponse {
  *   liveEvent — Firestore onSnapshot + polling fallback for live ops
  *   alerts    — Venue alerts polled every 60 s
  */
-export function useVenueOverview(
-    venueId: string | undefined,
-    range: DateRange,
-) {
-    const { user } = useDashboardAuth();
+export function useVenueOverview(venueId: string | undefined, range: DateRange) {
+  const { user } = useDashboardAuth();
 
-    // ── Summary KPIs + finance ────────────────────────────────────────────────
-    const summary = useQuery<VenueOverviewSummary>({
-        queryKey: ["venue-overview-summary", venueId ?? "", range],
-        queryFn: async () => {
-            const token = await user!.getIdToken();
-            const res = await fetch(
-                `/api/partners/venues/overview/summary?venueId=${venueId}&range=${range}`,
-                { headers: { Authorization: `Bearer ${token}` } },
-            );
-            if (!res.ok) throw new Error(`Summary fetch failed: ${res.status}`);
-            return res.json();
-        },
-        enabled: !!user && !!venueId,
-        staleTime: 2 * 60 * 1000,
-        gcTime: 10 * 60 * 1000,
-        refetchOnWindowFocus: true,
-    });
+  // ── Summary KPIs + finance ────────────────────────────────────────────────
+  const summary = useQuery<VenueOverviewSummary>({
+    queryKey: ['venue-overview-summary', venueId ?? '', range],
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      const res = await fetch(
+        `/api/partners/venues/overview/summary?venueId=${venueId}&range=${range}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      if (!res.ok) throw new Error(`Summary fetch failed: ${res.status}`);
+      return res.json();
+    },
+    enabled: !!user && !!venueId,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: true,
+  });
 
-    // ── Upcoming events ───────────────────────────────────────────────────────
-    const upcoming = useQuery<UpcomingEventsResponse>({
-        queryKey: ["venue-upcoming-events", venueId ?? ""],
-        queryFn: async () => {
-            const token = await user!.getIdToken();
-            const res = await fetch(
-                `/api/partners/venues/events?venueId=${venueId}&limit=6`,
-                { headers: { Authorization: `Bearer ${token}` } },
-            );
-            if (!res.ok) throw new Error(`Events fetch failed: ${res.status}`);
-            return res.json();
-        },
-        enabled: !!user && !!venueId,
-        staleTime: 5 * 60 * 1000,
-        gcTime: 10 * 60 * 1000,
-        refetchOnWindowFocus: false,
-    });
+  // ── Upcoming events ───────────────────────────────────────────────────────
+  const upcoming = useQuery<UpcomingEventsResponse>({
+    queryKey: ['venue-upcoming-events', venueId ?? ''],
+    queryFn: async () => {
+      const token = await user!.getIdToken();
+      const res = await fetch(`/api/partners/venues/events?venueId=${venueId}&limit=6`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error(`Events fetch failed: ${res.status}`);
+      return res.json();
+    },
+    enabled: !!user && !!venueId,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
 
-    // ── Live event (Firestore snapshot + polling fallback) ───────────────────
-    const liveEvent = useLiveEvent(venueId);
+  // ── Live event (Firestore snapshot + polling fallback) ───────────────────
+  const liveEvent = useLiveEvent(venueId);
 
-    // ── Alerts (60 s polling) ─────────────────────────────────────────────────
-    const alerts = useVenueAlerts(venueId);
+  // ── Alerts (60 s polling) ─────────────────────────────────────────────────
+  const alerts = useVenueAlerts(venueId);
 
-    return { summary, upcoming, liveEvent, alerts };
+  return { summary, upcoming, liveEvent, alerts };
 }

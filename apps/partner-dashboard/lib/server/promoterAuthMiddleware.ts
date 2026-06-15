@@ -9,31 +9,31 @@
  *   const { uid, promoterId, role } = ctx;
  */
 
-import { NextRequest } from "next/server";
-import { requirePartnerAccess } from "@/lib/server/partnerAuthMiddleware";
-import type { PromoterRole } from "@/lib/rbac/types";
+import { NextRequest } from 'next/server';
+import { requirePartnerAccess } from '@/lib/server/partnerAuthMiddleware';
+import type { PromoterRole } from '@/lib/rbac/types';
 
 export interface PromoterAuthContext {
-    uid: string;
-    promoterId: string;
-    role: PromoterRole;
-    displayName: string;
+  uid: string;
+  promoterId: string;
+  role: PromoterRole;
+  displayName: string;
 }
 
 export interface PromoterAuthError {
-    error: { code: string; message: string; requestId: string };
-    status: number;
+  error: { code: string; message: string; requestId: string };
+  status: number;
 }
 
 export async function requirePromoterAccess(
-    req: NextRequest
+  req: NextRequest,
 ): Promise<PromoterAuthContext | PromoterAuthError> {
-    const ctx = await requirePartnerAccess(req, { type: "promoter" });
-    if ("error" in ctx) return ctx;
-    return {
-        uid: ctx.uid,
-        promoterId: ctx.partnerId,
-        role: (ctx.role as PromoterRole) || "PROMOTER",
-        displayName: ctx.displayName,
-    };
+  const ctx = await requirePartnerAccess(req, { type: 'promoter' });
+  if ('error' in ctx) return ctx;
+  return {
+    uid: ctx.uid,
+    promoterId: ctx.partnerId,
+    role: (ctx.role as PromoterRole) || 'PROMOTER',
+    displayName: ctx.displayName,
+  };
 }

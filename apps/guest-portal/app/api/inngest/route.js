@@ -1,15 +1,15 @@
-import { serve } from "inngest/next";
-import { inngest } from "@c1rcle/core/inngest";
+import { serve } from 'inngest/next';
+import { inngest } from '@c1rcle/core/inngest';
 import {
   handleTicketFulfillment,
   sendEventReminders,
   processEventSettlement,
-} from "@c1rcle/core/workflows/ticketing";
+} from '@c1rcle/core/workflows/ticketing';
 import {
   syncEventToSearch,
   syncVenueToSearch,
   autoSyncOnPublish,
-} from "@c1rcle/core/workflows/search-sync";
+} from '@c1rcle/core/workflows/search-sync';
 
 /**
  * GUEST PORTAL - Inngest Serve Endpoint

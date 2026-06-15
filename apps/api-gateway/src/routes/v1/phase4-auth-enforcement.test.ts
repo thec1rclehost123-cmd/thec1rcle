@@ -28,13 +28,28 @@ vi.mock('@c1rcle/core/follow-graph-engine', () => ({
 }));
 
 vi.mock('@c1rcle/core/guest-wallet-profile-notification-service', () => ({
-  getGuestWallet: vi.fn(async () => ({ upcomingTickets: [], pastTickets: [], actionNeeded: [], cancelledTickets: [] })),
-  getGuestWalletTicket: vi.fn(async () => null),
-  getGuestProfileSummary: vi.fn(async (_db: any, _auth: any, profileUserId: string, viewerUserId: string | null) => ({
-    profile: { uid: profileUserId, displayName: 'Guest Member', email: viewerUserId === profileUserId ? 'guest@example.com' : undefined },
-    events: { upcoming: [], attended: [] },
+  getGuestWallet: vi.fn(async () => ({
+    upcomingTickets: [],
+    pastTickets: [],
+    actionNeeded: [],
+    cancelledTickets: [],
   })),
-  findGuestUserByEmail: vi.fn(async (_db: any, email: string) => ({ uid: 'user_lookup', email, displayName: 'Lookup Guest' })),
+  getGuestWalletTicket: vi.fn(async () => null),
+  getGuestProfileSummary: vi.fn(
+    async (_db: any, _auth: any, profileUserId: string, viewerUserId: string | null) => ({
+      profile: {
+        uid: profileUserId,
+        displayName: 'Guest Member',
+        email: viewerUserId === profileUserId ? 'guest@example.com' : undefined,
+      },
+      events: { upcoming: [], attended: [] },
+    }),
+  ),
+  findGuestUserByEmail: vi.fn(async (_db: any, email: string) => ({
+    uid: 'user_lookup',
+    email,
+    displayName: 'Lookup Guest',
+  })),
   getGuestNotifications: vi.fn(async () => [{ id: 'notif_1' }]),
   getGuestUnreadCount: vi.fn(async () => 1),
   markGuestNotificationRead: vi.fn(async () => ({ id: 'notif_1', isRead: true })),
@@ -44,8 +59,16 @@ vi.mock('@c1rcle/core/guest-wallet-profile-notification-service', () => ({
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventQueueStatus: vi.fn(async () => ({ id: 'queue_1', status: 'waiting' })),
   getEventSurgeStatus: vi.fn(async () => ({ status: 'surge' })),
-  joinEventQueue: vi.fn(async (_db: any, payload: any) => ({ id: 'queue_1', status: 'waiting', ...payload })),
-  joinEventWaitlist: vi.fn(async (_db: any, payload: any) => ({ id: 'wl_1', status: 'waiting', ...payload })),
+  joinEventQueue: vi.fn(async (_db: any, payload: any) => ({
+    id: 'queue_1',
+    status: 'waiting',
+    ...payload,
+  })),
+  joinEventWaitlist: vi.fn(async (_db: any, payload: any) => ({
+    id: 'wl_1',
+    status: 'waiting',
+    ...payload,
+  })),
   toggleEventRsvp: vi.fn(async () => ({ success: true })),
   trackGuestEventInteraction: vi.fn(async () => ({ ok: true })),
   trackGuestEventView: vi.fn(async () => ({ ok: true })),
@@ -73,7 +96,9 @@ function buildDbMock() {
                     title: 'After Dark',
                     venueId: 'venue_1',
                     startDate: '2099-01-01T20:00:00.000Z',
-                    tickets: [{ id: 'tier_1', name: 'GA', price: 999, quantity: 100, remaining: 80 }],
+                    tickets: [
+                      { id: 'tier_1', name: 'GA', price: 999, quantity: 100, remaining: 80 },
+                    ],
                   }),
                 };
               },
@@ -162,7 +187,10 @@ function buildDbMock() {
           },
           where: vi.fn(() => ({
             limit: vi.fn(() => ({
-              get: vi.fn(async () => ({ empty: false, docs: [{ id: 'user_lookup', data: () => ({ email: 'guest@example.com' }) }] })),
+              get: vi.fn(async () => ({
+                empty: false,
+                docs: [{ id: 'user_lookup', data: () => ({ email: 'guest@example.com' }) }],
+              })),
             })),
           })),
         };
@@ -193,9 +221,16 @@ function buildDbMock() {
           get: vi.fn(async () => ({
             exists: name === 'orders',
             id,
-            data: () => name === 'orders'
-              ? { userId: 'user_1', eventId: 'event_1', status: 'payment_pending', totalAmount: 1499, isRSVP: false }
-              : null,
+            data: () =>
+              name === 'orders'
+                ? {
+                    userId: 'user_1',
+                    eventId: 'event_1',
+                    status: 'payment_pending',
+                    totalAmount: 1499,
+                    isRSVP: false,
+                  }
+                : null,
           })),
           update: vi.fn(async () => undefined),
         })),
@@ -217,15 +252,34 @@ async function buildServer() {
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', {
     validatePricing: vi.fn(async () => ({ success: true, pricing: { items: [] } })),
-    initiateCheckout: vi.fn(async () => ({ success: true, requiresPayment: false, order: { id: 'ord_1' }, pricing: { grandTotal: 0 } })),
-    preparePayment: vi.fn(async () => ({ razorpayOrderId: 'order_rzp_1', amount: 1499, currency: 'INR' })),
-    verifyPayment: vi.fn(async () => ({ success: true, order: { id: 'ord_1', status: 'confirmed' } })),
+    initiateCheckout: vi.fn(async () => ({
+      success: true,
+      requiresPayment: false,
+      order: { id: 'ord_1' },
+      pricing: { grandTotal: 0 },
+    })),
+    preparePayment: vi.fn(async () => ({
+      razorpayOrderId: 'order_rzp_1',
+      amount: 1499,
+      currency: 'INR',
+    })),
+    verifyPayment: vi.fn(async () => ({
+      success: true,
+      order: { id: 'ord_1', status: 'confirmed' },
+    })),
     getCancellationDecision: vi.fn(async () => ({ canCancel: true })),
     cancelOrder: vi.fn(async () => ({ success: true })),
     cancelCheckout: vi.fn(async () => ({ success: true })),
   } as any);
   server.decorate('orderRepo', {
-    getOrderById: vi.fn(async (id: string) => ({ id, userId: 'user_1', eventId: 'event_1', status: 'payment_pending', totalAmount: 1499, isRSVP: false })),
+    getOrderById: vi.fn(async (id: string) => ({
+      id,
+      userId: 'user_1',
+      eventId: 'event_1',
+      status: 'payment_pending',
+      totalAmount: 1499,
+      isRSVP: false,
+    })),
     getReservationById: vi.fn(async () => null),
     updateOrder: vi.fn(async () => undefined),
   } as any);
@@ -251,7 +305,7 @@ async function buildServer() {
   server.decorate('writeAuditLog', vi.fn(async () => undefined) as any);
   server.decorate('auth', {} as any);
   server.decorate('requireAuth', async (_request: any, reply: any) => {
-      if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
+    if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
   });
   server.decorateRequest('user', null);
   server.addHook('onRequest', async (request: any, reply) => {
@@ -292,10 +346,23 @@ describe('Phase 4 auth enforcement matrix', () => {
     const server = await buildServer();
 
     const cases = [
-      ['POST', '/api/v1/checkout/reserve', { eventId: 'event_1', items: [{ tierId: 'tier_1', quantity: 1 }] }],
+      [
+        'POST',
+        '/api/v1/checkout/reserve',
+        { eventId: 'event_1', items: [{ tierId: 'tier_1', quantity: 1 }] },
+      ],
       ['POST', '/api/v1/checkout/initiate', { reservationId: 'res_1' }],
       ['POST', '/api/v1/payments/order', { orderId: 'ord_1' }],
-      ['PATCH', '/api/v1/payments/verify', { orderId: 'ord_1', razorpay_order_id: 'order_1', razorpay_payment_id: 'pay_1', razorpay_signature: 'sig_1' }],
+      [
+        'PATCH',
+        '/api/v1/payments/verify',
+        {
+          orderId: 'ord_1',
+          razorpay_order_id: 'order_1',
+          razorpay_payment_id: 'pay_1',
+          razorpay_signature: 'sig_1',
+        },
+      ],
       ['GET', '/api/v1/orders/ord_1', undefined],
       ['POST', '/api/v1/orders/ord_1/cancel', { reason: 'change_of_plans' }],
       ['GET', '/api/v1/tickets', undefined],
@@ -305,12 +372,18 @@ describe('Phase 4 auth enforcement matrix', () => {
       ['POST', '/api/v1/follow', { targetId: 'host_1', targetType: 'host' }],
       ['POST', '/api/v1/events/event_1/rsvp', { shouldInclude: true }],
       ['POST', '/api/v1/events/event_1/queue', {}],
-      ['POST', '/api/v1/venue-settings/venue/reservations', { venueId: 'venue_1', date: '2099-01-01', guests: 2, bookingType: 'restaurant' }],
+      [
+        'POST',
+        '/api/v1/venue-settings/venue/reservations',
+        { venueId: 'venue_1', date: '2099-01-01', guests: 2, bookingType: 'restaurant' },
+      ],
     ] as const;
 
     for (const [method, url, payload] of cases) {
       const response = await server.inject({ method, url, payload });
-      expect([401, 403], `${method} ${url} returned ${response.statusCode}`).toContain(response.statusCode);
+      expect([401, 403], `${method} ${url} returned ${response.statusCode}`).toContain(
+        response.statusCode,
+      );
     }
 
     await server.close();
@@ -322,13 +395,26 @@ describe('Phase 4 auth enforcement matrix', () => {
 
     const cases = [
       ['POST', '/api/v1/checkout/initiate', { reservationId: 'res_1' }],
-      ['PATCH', '/api/v1/payments/verify', { orderId: 'ord_1', razorpay_order_id: 'order_1', razorpay_payment_id: 'pay_1', razorpay_signature: 'sig_1' }],
+      [
+        'PATCH',
+        '/api/v1/payments/verify',
+        {
+          orderId: 'ord_1',
+          razorpay_order_id: 'order_1',
+          razorpay_payment_id: 'pay_1',
+          razorpay_signature: 'sig_1',
+        },
+      ],
       ['POST', '/api/v1/orders/ord_1/cancel', { reason: 'change_of_plans' }],
       ['PATCH', '/api/v1/guest-notifications', { markAll: true }],
       ['POST', '/api/v1/follow', { targetId: 'host_1', targetType: 'host' }],
       ['POST', '/api/v1/events/event_1/rsvp', { shouldInclude: true }],
       ['POST', '/api/v1/events/event_1/queue', {}],
-      ['POST', '/api/v1/venue-settings/venue/reservations', { venueId: 'venue_1', date: '2099-01-01', guests: 2, bookingType: 'restaurant' }],
+      [
+        'POST',
+        '/api/v1/venue-settings/venue/reservations',
+        { venueId: 'venue_1', date: '2099-01-01', guests: 2, bookingType: 'restaurant' },
+      ],
     ] as const;
 
     for (const [method, url, payload] of cases) {

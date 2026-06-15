@@ -1,9 +1,9 @@
-"use client";
+'use client';
 
-import Image from "next/image";
-import { motion } from "framer-motion";
-import { ChevronRight, PartyPopper, UtensilsCrossed } from "lucide-react";
-import { VENUE_RESERVATION_STEPS } from "../hooks/useVenueReservationFlow";
+import Image from 'next/image';
+import { motion } from 'framer-motion';
+import { ChevronRight, PartyPopper, UtensilsCrossed } from 'lucide-react';
+import { VENUE_RESERVATION_STEPS } from '../hooks/useVenueReservationFlow';
 
 export function ReservationBookingTypeStep({
   eventsOnDate,
@@ -22,7 +22,7 @@ export function ReservationBookingTypeStep({
       {eventsOnDate.length > 0 ? (
         <button
           onClick={() => {
-            setBookingType("event");
+            setBookingType('event');
             if (eventsOnDate.length === 1) {
               handleEventSelect(eventsOnDate[0]);
             } else {
@@ -33,7 +33,7 @@ export function ReservationBookingTypeStep({
         >
           <div className="relative h-44 w-full">
             <Image
-              src={eventsOnDate[0]?.image || eventsOnDate[0]?.poster || "/events/neon-nights.jpg"}
+              src={eventsOnDate[0]?.image || eventsOnDate[0]?.poster || '/events/neon-nights.jpg'}
               fill
               className="object-cover transition-transform duration-700 group-hover:scale-110"
               alt="Event Night"
@@ -44,7 +44,7 @@ export function ReservationBookingTypeStep({
               <div className="flex items-center gap-2 rounded-full bg-[#F44A22] px-3 py-1.5">
                 <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                 <span className="text-[9px] font-black uppercase tracking-widest text-white">
-                  {eventsOnDate.length} Event{eventsOnDate.length > 1 ? "s" : ""} Tonight
+                  {eventsOnDate.length} Event{eventsOnDate.length > 1 ? 's' : ''} Tonight
                 </span>
               </div>
             </div>
@@ -55,8 +55,12 @@ export function ReservationBookingTypeStep({
                   <PartyPopper className="h-6 w-6 text-[#F44A22]" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-base font-black uppercase tracking-tight text-white">Event Night</h3>
-                  <p className="text-[10px] font-bold text-white/50">Tables, Cover & Entry Passes</p>
+                  <h3 className="text-base font-black uppercase tracking-tight text-white">
+                    Event Night
+                  </h3>
+                  <p className="text-[10px] font-bold text-white/50">
+                    Tables, Cover & Entry Passes
+                  </p>
                 </div>
                 <ChevronRight className="h-5 w-5 text-white/40 transition-all group-hover:translate-x-1 group-hover:text-[#F44A22]" />
               </div>
@@ -67,7 +71,7 @@ export function ReservationBookingTypeStep({
 
       <button
         onClick={() => {
-          setBookingType("restaurant");
+          setBookingType('restaurant');
           setStep(VENUE_RESERVATION_STEPS.RESTAURANT_DETAILS);
         }}
         className="group w-full rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/5 to-transparent p-6 text-left transition-all hover:border-emerald-500/40"
@@ -77,8 +81,12 @@ export function ReservationBookingTypeStep({
             <UtensilsCrossed className="h-7 w-7 text-emerald-400" />
           </div>
           <div className="flex-1">
-            <h3 className="text-base font-black uppercase tracking-tight text-white">Restaurant Table</h3>
-            <p className="mt-0.5 text-[10px] font-bold text-white/40">Dining, Drinks & Regular Hours</p>
+            <h3 className="text-base font-black uppercase tracking-tight text-white">
+              Restaurant Table
+            </h3>
+            <p className="mt-0.5 text-[10px] font-bold text-white/40">
+              Dining, Drinks & Regular Hours
+            </p>
           </div>
           <ChevronRight className="h-5 w-5 text-white/30 transition-all group-hover:translate-x-1 group-hover:text-emerald-400" />
         </div>

@@ -1,11 +1,11 @@
-import { cache } from "react";
-import { DEFAULT_CITY, getCategoryFilters, listEvents } from "./server/eventStore";
-import { formatEventTime, getEventHref } from "./eventCardUtils";
+import { cache } from 'react';
+import { DEFAULT_CITY, getCategoryFilters, listEvents } from './server/eventStore';
+import { formatEventTime, getEventHref } from './eventCardUtils';
 
-export const heroVideoSrc = "/background-video.mp4";
+export const heroVideoSrc = '/background-video.mp4';
 
-const SELECTS_COLLECTION = "homepage_selects";
-const INTERVIEWS_COLLECTION = "homepage_interviews";
+const SELECTS_COLLECTION = 'homepage_selects';
+const INTERVIEWS_COLLECTION = 'homepage_interviews';
 
 const loadCollection = async () => [];
 
@@ -18,7 +18,7 @@ const mapHeroCards = (events) =>
     time: formatEventTime(event),
     image: event.image,
     guests: event.guests || [],
-    href: getEventHref(event)
+    href: getEventHref(event),
   }));
 
 const mapEventGrid = (events) => events.slice(0, 8);
@@ -40,7 +40,7 @@ const buildStats = (events, city) => {
     const updatedAt = event.updatedAt ? new Date(event.updatedAt) : now;
     if (updatedAt < sevenDaysAgo) return count;
     const stats = event.stats || {};
-    if (typeof stats.rsvps === "number") return count + stats.rsvps;
+    if (typeof stats.rsvps === 'number') return count + stats.rsvps;
     if (Array.isArray(event.guests)) return count + event.guests.length;
     return count;
   }, 0);
@@ -48,7 +48,7 @@ const buildStats = (events, city) => {
   return {
     eventsThisMonth: monthEvents.length,
     weeklyRegistrations,
-    city
+    city,
   };
 };
 
@@ -56,7 +56,7 @@ const getCity = (city) => city || DEFAULT_CITY;
 
 export const getHomepageContent = cache(async (city) => {
   const selectedCity = getCity(city);
-  const { events = [] } = await listEvents({ city: selectedCity, limit: 12, sort: "heat" });
+  const { events = [] } = await listEvents({ city: selectedCity, limit: 12, sort: 'heat' });
   const heroCards = mapHeroCards(events);
   const eventGrid = mapEventGrid(events);
   const categories = getCategoryFilters(events);
@@ -70,6 +70,6 @@ export const getHomepageContent = cache(async (city) => {
     categoryFilters: categories,
     selects,
     interviews,
-    stats
+    stats,
   };
 });

@@ -1,8 +1,8 @@
-import { buildProfileOverviewView } from "../../../../../lib/bff/profile.js";
-import { profileOverviewDataSchema } from "../../../../../lib/bff/contracts.js";
-import { guestBffJsonResponse } from "../../../../../lib/bff/server.js";
+import { buildProfileOverviewView } from '../../../../../lib/bff/profile.js';
+import { profileOverviewDataSchema } from '../../../../../lib/bff/contracts.js';
+import { guestBffJsonResponse } from '../../../../../lib/bff/server.js';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   const result = await buildProfileOverviewView();

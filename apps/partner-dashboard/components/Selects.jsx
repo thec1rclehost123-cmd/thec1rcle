@@ -1,8 +1,8 @@
-"use client";
+'use client';
 
-import Link from "next/link";
-import Image from "next/image";
-import { motion } from "framer-motion";
+import Link from 'next/link';
+import Image from 'next/image';
+import { motion } from 'framer-motion';
 
 export default function Selects({ items }) {
   return (
@@ -13,7 +13,7 @@ export default function Selects({ items }) {
             Curated Collections
           </p>
           <h2 className="font-heading text-3xl font-black uppercase tracking-tight text-black dark:text-white sm:text-6xl leading-[0.9]">
-            The C1rcle{" "}
+            The C1rcle{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-iris via-black dark:via-white to-gold">
               Selects
             </span>

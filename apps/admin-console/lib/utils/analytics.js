@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 /**
  * Analytics Utility for THE C1RCLE
@@ -6,7 +6,7 @@
  */
 
 export const trackEvent = (eventName, properties = {}) => {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
 
   console.log(`[Analytics] ${eventName}:`, properties);
 

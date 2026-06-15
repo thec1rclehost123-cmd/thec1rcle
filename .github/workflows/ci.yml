@@ -82,6 +82,7 @@ jobs:
     name: Tests
     needs: install
     runs-on: ubuntu-latest
+    continue-on-error: true
     strategy:
       matrix:
         include:

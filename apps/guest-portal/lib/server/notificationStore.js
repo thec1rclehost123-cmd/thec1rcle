@@ -3,12 +3,12 @@
  * Manages user notifications for THE C1RCLE platform
  */
 
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { randomUUID } from "node:crypto";
-import { FieldValue } from "@c1rcle/core/firestore-admin";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { randomUUID } from 'node:crypto';
+import { FieldValue } from '@c1rcle/core/firestore-admin';
 
-const NOTIFICATIONS_COLLECTION = "notifications";
-const FOLLOWS_COLLECTION = "follows";
+const NOTIFICATIONS_COLLECTION = 'notifications';
+const FOLLOWS_COLLECTION = 'follows';
 
 // Fallback storage for development
 let fallbackNotifications = [];
@@ -87,7 +87,7 @@ export async function createBulkNotifications(userIds, { type, title, body, data
 /**
  * Get followers of a club or host
  */
-export async function getFollowers(targetId, targetType = "venue") {
+export async function getFollowers(targetId, targetType = 'venue') {
   if (!isFirebaseConfigured()) {
     return fallbackFollows
       .filter((f) => f.targetId === targetId && f.targetType === targetType)
@@ -97,8 +97,8 @@ export async function getFollowers(targetId, targetType = "venue") {
   const db = getAdminDb();
   const snapshot = await db
     .collection(FOLLOWS_COLLECTION)
-    .where("targetId", "==", targetId)
-    .where("targetType", "==", targetType)
+    .where('targetId', '==', targetId)
+    .where('targetType', '==', targetType)
     .get();
 
   return snapshot.docs.map((doc) => doc.data().followerId);
@@ -112,16 +112,16 @@ export async function notifyNewEvent(event) {
 
   // Get host followers
   if (event.hostId) {
-    const hostFollowers = await getFollowers(event.hostId, "host");
+    const hostFollowers = await getFollowers(event.hostId, 'host');
     if (hostFollowers.length > 0) {
       const hostNotifs = await createBulkNotifications(hostFollowers, {
-        type: "new_event",
+        type: 'new_event',
         title: `${event.host} just posted an event!`,
         body: event.title,
         data: {
           eventId: event.id,
           hostId: event.hostId,
-          action: "view_event",
+          action: 'view_event',
         },
         imageUrl: event.image,
       });
@@ -131,21 +131,21 @@ export async function notifyNewEvent(event) {
 
   // Get club followers (if event is at a venue)
   if (event.venueId) {
-    const clubFollowers = await getFollowers(event.venueId, "venue");
+    const clubFollowers = await getFollowers(event.venueId, 'venue');
 
     // Deduplicate - don't notify users who already got notified via host
-    const hostFollowerSet = new Set(event.hostId ? await getFollowers(event.hostId, "host") : []);
+    const hostFollowerSet = new Set(event.hostId ? await getFollowers(event.hostId, 'host') : []);
     const uniqueVenueFollowers = clubFollowers.filter((f) => !hostFollowerSet.has(f));
 
     if (uniqueVenueFollowers.length > 0) {
       const clubNotifs = await createBulkNotifications(uniqueVenueFollowers, {
-        type: "new_event",
-        title: `New event at ${event.venueName || "your followed venue"}`,
+        type: 'new_event',
+        title: `New event at ${event.venueName || 'your followed venue'}`,
         body: `${event.host} is hosting: ${event.title}`,
         data: {
           eventId: event.id,
           venueId: event.venueId,
-          action: "view_event",
+          action: 'view_event',
         },
         imageUrl: event.image,
       });
@@ -171,9 +171,9 @@ export async function notifyEventUpdate(eventId, updateType, message, affectedUs
 
     const db = getAdminDb();
     const ordersSnapshot = await db
-      .collection("orders")
-      .where("eventId", "==", eventId)
-      .where("status", "in", ["confirmed", "pending_payment"])
+      .collection('orders')
+      .where('eventId', '==', eventId)
+      .where('status', 'in', ['confirmed', 'pending_payment'])
       .get();
 
     affectedUserIds = [
@@ -184,21 +184,21 @@ export async function notifyEventUpdate(eventId, updateType, message, affectedUs
   if (affectedUserIds.length === 0) return [];
 
   const titleMap = {
-    time_change: "Event time has been updated",
-    venue_change: "Event venue has been updated",
-    cancelled: "Event has been cancelled",
-    postponed: "Event has been postponed",
-    reminder: "Event reminder",
+    time_change: 'Event time has been updated',
+    venue_change: 'Event venue has been updated',
+    cancelled: 'Event has been cancelled',
+    postponed: 'Event has been postponed',
+    reminder: 'Event reminder',
   };
 
   return await createBulkNotifications(affectedUserIds, {
     type: `event_${updateType}`,
-    title: titleMap[updateType] || "Event Update",
+    title: titleMap[updateType] || 'Event Update',
     body: message,
     data: {
       eventId,
       updateType,
-      action: "view_event",
+      action: 'view_event',
     },
   });
 }
@@ -211,13 +211,13 @@ export async function notifyTicketPurchase(order) {
 
   return await createNotification({
     userId: order.userId,
-    type: "ticket_ready",
-    title: "Your tickets are ready! 🎉",
+    type: 'ticket_ready',
+    title: 'Your tickets are ready! 🎉',
     body: `${order.eventTitle} - Tap to view your QR code`,
     data: {
       orderId: order.id,
       eventId: order.eventId,
-      action: "view_tickets",
+      action: 'view_tickets',
     },
     imageUrl: order.eventImage,
   });
@@ -236,13 +236,13 @@ export async function getUserNotifications(userId, { limit = 50, unreadOnly = fa
   }
 
   const db = getAdminDb();
-  let query = db.collection(NOTIFICATIONS_COLLECTION).where("userId", "==", userId);
+  let query = db.collection(NOTIFICATIONS_COLLECTION).where('userId', '==', userId);
 
   if (unreadOnly) {
-    query = query.where("isRead", "==", false);
+    query = query.where('isRead', '==', false);
   }
 
-  const snapshot = await query.orderBy("createdAt", "desc").limit(limit).get();
+  const snapshot = await query.orderBy('createdAt', 'desc').limit(limit).get();
 
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 }
@@ -282,8 +282,8 @@ export async function markAllNotificationsRead(userId) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
-    .where("userId", "==", userId)
-    .where("isRead", "==", false)
+    .where('userId', '==', userId)
+    .where('isRead', '==', false)
     .get();
 
   const batch = db.batch();
@@ -308,8 +308,8 @@ export async function getUnreadCount(userId) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(NOTIFICATIONS_COLLECTION)
-    .where("userId", "==", userId)
-    .where("isRead", "==", false)
+    .where('userId', '==', userId)
+    .where('isRead', '==', false)
     .count()
     .get();
 
@@ -343,7 +343,7 @@ export async function followEntity(followerId, targetId, targetType) {
   await db.collection(FOLLOWS_COLLECTION).doc(id).set(follow, { merge: true });
 
   // Update follower count on the target
-  const targetCollection = targetType === "venue" ? "venues" : "hosts";
+  const targetCollection = targetType === 'venue' ? 'venues' : 'hosts';
   try {
     await db
       .collection(targetCollection)
@@ -376,7 +376,7 @@ export async function unfollowEntity(followerId, targetId, targetType) {
   await db.collection(FOLLOWS_COLLECTION).doc(id).delete();
 
   // Update follower count on the target
-  const targetCollection = targetType === "venue" ? "venues" : "hosts";
+  const targetCollection = targetType === 'venue' ? 'venues' : 'hosts';
   try {
     await db
       .collection(targetCollection)

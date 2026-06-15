@@ -1,7 +1,7 @@
-import PageClient from "./PageClient";
+import PageClient from './PageClient';
 
-export const metadata = { title: "Notifications — Promoter" };
+export const metadata = { title: 'Notifications — Promoter' };
 
 export default function Page() {
-    return <PageClient />;
+  return <PageClient />;
 }

@@ -1,12 +1,12 @@
-import { Suspense } from "react";
-import PresencePageClient from "./PageClient";
+import { Suspense } from 'react';
+import PresencePageClient from './PageClient';
 
-export const metadata = { title: "Presence — Venue" };
+export const metadata = { title: 'Presence — Venue' };
 
 export default function PresencePage() {
-    return (
-        <Suspense>
-            <PresencePageClient />
-        </Suspense>
-    );
+  return (
+    <Suspense>
+      <PresencePageClient />
+    </Suspense>
+  );
 }

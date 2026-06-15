@@ -1,18 +1,18 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import * as surgeCore from "@c1rcle/core";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import * as surgeCore from '@c1rcle/core';
 
 const LOYALTY_LOOKBACK_DAYS = 120;
 
 export async function joinQueue(eventId, userId, deviceId) {
   if (!isFirebaseConfigured()) {
-    return { id: "mock-queue-id", position: 1, status: "admitted", token: "mock-token" };
+    return { id: 'mock-queue-id', position: 1, status: 'admitted', token: 'mock-token' };
   }
 
   const db = getAdminDb();
   let tier = surgeCore.QUEUE_TIERS.ANONYMOUS;
   let score = 0;
 
-  if (userId && userId !== "anonymous") {
+  if (userId && userId !== 'anonymous') {
     tier = surgeCore.QUEUE_TIERS.AUTHENTICATED;
 
     try {
@@ -22,9 +22,9 @@ export async function joinQueue(eventId, userId, deviceId) {
       // 1. Fetch relevant orders for loyalty scoring
       // We look for orders that were finalized (confirmed/attended)
       const ordersSnapshot = await db
-        .collection("orders")
-        .where("userId", "==", userId)
-        .where("createdAt", ">=", lookbackDate.toISOString())
+        .collection('orders')
+        .where('userId', '==', userId)
+        .where('createdAt', '>=', lookbackDate.toISOString())
         .get();
 
       let attendedCount = 0;
@@ -33,10 +33,10 @@ export async function joinQueue(eventId, userId, deviceId) {
 
       ordersSnapshot.docs.forEach((doc) => {
         const order = doc.data();
-        if (order.status === "confirmed") {
+        if (order.status === 'confirmed') {
           // Check if they actually checked in (Entry is the ultimate truth)
           // We assume tickets have a status or the order has a 'checkedIn' flag
-          if (order.checkedIn || order.tickets?.some((t) => t.status === "checked_in")) {
+          if (order.checkedIn || order.tickets?.some((t) => t.status === 'checked_in')) {
             attendedCount++;
           } else {
             // Past event but no check-in?
@@ -45,7 +45,7 @@ export async function joinQueue(eventId, userId, deviceId) {
               noShowCount++;
             }
           }
-        } else if (order.status === "refunded") {
+        } else if (order.status === 'refunded') {
           refundCount++;
         }
       });
@@ -61,7 +61,7 @@ export async function joinQueue(eventId, userId, deviceId) {
       }
 
       // 4. Verification Bonus
-      const userDoc = await db.collection("users").doc(userId).get();
+      const userDoc = await db.collection('users').doc(userId).get();
       if (userDoc.exists && userDoc.data().emailVerified) {
         score += 50;
       }
@@ -77,7 +77,7 @@ export async function joinQueue(eventId, userId, deviceId) {
         }
       }
     } catch (err) {
-      console.error("[QueueStore] Failed to calculate loyalty score:", err);
+      console.error('[QueueStore] Failed to calculate loyalty score:', err);
       // Fallback to base authenticated tier with score 0
     }
   }
@@ -87,12 +87,12 @@ export async function joinQueue(eventId, userId, deviceId) {
 
 export async function getQueueStatus(queueId) {
   if (!isFirebaseConfigured()) {
-    return { status: "admitted", position: 0, token: "mock-token" };
+    return { status: 'admitted', position: 0, token: 'mock-token' };
   }
   return surgeCore.getQueueStatus(getAdminDb(), queueId);
 }
 
-export async function admitUsers(eventId, count = 10, source = "system") {
+export async function admitUsers(eventId, count = 10, source = 'system') {
   if (!isFirebaseConfigured()) return 0;
   return surgeCore.admitUsers(getAdminDb(), eventId, count, source);
 }

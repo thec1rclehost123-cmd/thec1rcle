@@ -1,6 +1,6 @@
-import { normalizeReservationItems } from "./checkoutViewModel";
+import { normalizeReservationItems } from './checkoutViewModel';
 
-const ADMISSION_TOKEN_STORAGE_PREFIX = "admission_token_";
+const ADMISSION_TOKEN_STORAGE_PREFIX = 'admission_token_';
 
 export function getReservationItemsSignature(items) {
   return JSON.stringify(normalizeReservationItems(items));
@@ -8,22 +8,20 @@ export function getReservationItemsSignature(items) {
 
 function buildItemsToken(items) {
   const normalized = normalizeReservationItems(items);
-  if (normalized.length === 0) return "empty";
-  return normalized
-    .map((item) => `${item.tierId}:${item.quantity}`)
-    .join("|");
+  if (normalized.length === 0) return 'empty';
+  return normalized.map((item) => `${item.tierId}:${item.quantity}`).join('|');
 }
 
-export function getPromoterCodeFromSearch(search = "") {
+export function getPromoterCodeFromSearch(search = '') {
   const params = new URLSearchParams(search);
-  return params.get("ref");
+  return params.get('ref');
 }
 
 export function mergeAttendeeDetails(current, user, profile) {
   return {
-    name: current.name || user?.displayName || profile?.name || "",
-    email: current.email || user?.email || profile?.email || "",
-    phone: current.phone || profile?.phone || "",
+    name: current.name || user?.displayName || profile?.name || '',
+    email: current.email || user?.email || profile?.email || '',
+    phone: current.phone || profile?.phone || '',
   };
 }
 
@@ -38,7 +36,10 @@ export function isReservationActive(reservation, eventId) {
 
 export function shouldUseSavedReservationQuote({ cartReservation, eventId, selectedTickets }) {
   if (!isReservationActive(cartReservation, eventId)) return false;
-  return getReservationItemsSignature(cartReservation?.items || []) === getReservationItemsSignature(selectedTickets);
+  return (
+    getReservationItemsSignature(cartReservation?.items || []) ===
+    getReservationItemsSignature(selectedTickets)
+  );
 }
 
 export function buildCheckoutQuotePayload({
@@ -82,7 +83,7 @@ export function getAdmissionTokenStorageKey(eventId) {
 }
 
 export function readAdmissionToken(eventId) {
-  if (typeof window === "undefined") return null;
+  if (typeof window === 'undefined') return null;
   const storageKey = getAdmissionTokenStorageKey(eventId);
   if (!storageKey) return null;
 
@@ -94,7 +95,7 @@ export function readAdmissionToken(eventId) {
 }
 
 export function clearAdmissionToken(eventId) {
-  if (typeof window === "undefined") return;
+  if (typeof window === 'undefined') return;
   const storageKey = getAdmissionTokenStorageKey(eventId);
   if (!storageKey) return;
 
@@ -103,12 +104,17 @@ export function clearAdmissionToken(eventId) {
   } catch {}
 }
 
-export function buildReserveCheckoutPayload({ admissionToken = null, eventId, selectedTickets, userUid }) {
+export function buildReserveCheckoutPayload({
+  admissionToken = null,
+  eventId,
+  selectedTickets,
+  userUid,
+}) {
   return {
     admissionToken: admissionToken || undefined,
     eventId,
     items: normalizeReservationItems(selectedTickets),
-    deviceId: `browser-${userUid || "anon"}`,
+    deviceId: `browser-${userUid || 'anon'}`,
   };
 }
 
@@ -128,7 +134,7 @@ export function buildInitiateCheckoutPayload({
   };
 }
 
-export function buildGuestLoginRedirect(pathname, search = "") {
+export function buildGuestLoginRedirect(pathname, search = '') {
   return `/login?next=${encodeURIComponent(`${pathname}${search}`)}`;
 }
 
@@ -143,11 +149,12 @@ export function deriveCheckoutConstraints({
   const order = checkoutQuote?.constraints?.order;
   const cta = checkoutQuote?.cta;
   const quoteReady = Boolean(checkoutQuote);
-  const minTickets = order?.minTickets ?? (event.isRSVP ? 1 : (event.minTicketsPerOrder || 1));
-  const maxTickets = order?.maxTickets ?? (event.isRSVP ? 1 : (event.maxTicketsPerOrder || 10));
+  const minTickets = order?.minTickets ?? (event.isRSVP ? 1 : event.minTicketsPerOrder || 1);
+  const maxTickets = order?.maxTickets ?? (event.isRSVP ? 1 : event.maxTicketsPerOrder || 10);
 
   return {
-    canProceedStep1: quoteReady && !isQuoteSyncing && !hasExpiredReservation && (order?.canProceed ?? false),
+    canProceedStep1:
+      quoteReady && !isQuoteSyncing && !hasExpiredReservation && (order?.canProceed ?? false),
     canSubmitCheckout:
       quoteReady &&
       !isQuoteSyncing &&
@@ -155,7 +162,7 @@ export function deriveCheckoutConstraints({
       !isProcessing &&
       totalSelectedQuantity > 0 &&
       (order?.canProceed ?? false) &&
-      (cta?.state === "pay" || cta?.state === "issue"),
+      (cta?.state === 'pay' || cta?.state === 'issue'),
     isAboveMax: totalSelectedQuantity > maxTickets,
     isBelowMin: totalSelectedQuantity > 0 && totalSelectedQuantity < minTickets,
     maxTickets,
@@ -174,7 +181,10 @@ export function applyTicketQuantityDelta({
 }) {
   const existing = selectedTickets.find((ticket) => ticket.id === ticketId);
   const quoteTier = quoteTierConstraints.get(ticketId);
-  const totalSelectedQuantity = selectedTickets.reduce((sum, ticket) => sum + Number(ticket.quantity || 0), 0);
+  const totalSelectedQuantity = selectedTickets.reduce(
+    (sum, ticket) => sum + Number(ticket.quantity || 0),
+    0,
+  );
 
   if (delta > 0) {
     if (totalSelectedQuantity >= maxTickets) return selectedTickets;
@@ -208,23 +218,23 @@ export function buildCheckoutRequestIdempotencyKey({
   selectedTickets,
 }) {
   return [
-    "checkout",
+    'checkout',
     prefix,
-    eventId || "unknown-event",
-    reservationId || "no-reservation",
-    code || "no-code",
-    promoterCode || "no-promoter",
+    eventId || 'unknown-event',
+    reservationId || 'no-reservation',
+    code || 'no-code',
+    promoterCode || 'no-promoter',
     buildItemsToken(selectedTickets),
-  ].join(":");
+  ].join(':');
 }
 
 export function buildCheckoutPhaseIdempotencyKey(actionId, phase) {
-  if (!actionId) return "";
+  if (!actionId) return '';
   return `${actionId}:${phase}`;
 }
 
 export function createCheckoutActionId() {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
   return `checkout-${Date.now()}-${Math.random().toString(16).slice(2)}`;

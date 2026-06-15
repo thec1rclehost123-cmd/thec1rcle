@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server";
-import { createOrder, getOrderById, getUserOrders } from "../../../lib/server/orderStore";
-import { getEvent } from "../../../lib/server/eventStore";
-import { sendTicketEmail } from "../../../lib/email";
-import { verifyAuth } from "../../../lib/server/auth";
+import { NextResponse } from 'next/server';
+import { createOrder, getOrderById, getUserOrders } from '../../../lib/server/orderStore';
+import { getEvent } from '../../../lib/server/eventStore';
+import { sendTicketEmail } from '../../../lib/email';
+import { verifyAuth } from '../../../lib/server/auth';
 
-import { createOrderSchema, validateBody } from "../../../lib/server/validators";
-import { withRateLimit } from "../../../lib/server/rateLimit";
+import { createOrderSchema, validateBody } from '../../../lib/server/validators';
+import { withRateLimit } from '../../../lib/server/rateLimit';
 
 async function handler(request) {
   try {
@@ -19,7 +19,7 @@ async function handler(request) {
     const decodedToken = await verifyAuth(request);
     if (!decodedToken) {
       return NextResponse.json(
-        { error: "Authentication required to book tickets." },
+        { error: 'Authentication required to book tickets.' },
         { status: 401 },
       );
     }
@@ -29,7 +29,7 @@ async function handler(request) {
     payload.userEmail = decodedToken.email || payload.userEmail;
 
     if (payload.tickets.length === 0) {
-      return NextResponse.json({ error: "No tickets selected" }, { status: 400 });
+      return NextResponse.json({ error: 'No tickets selected' }, { status: 400 });
     }
 
     // Create the order
@@ -40,19 +40,19 @@ async function handler(request) {
       const event = await getEvent(payload.eventId);
       if (event && payload.userEmail) {
         const origin = new URL(request.url).origin;
-        const posterUrl = event.image.startsWith("http") ? event.image : `${origin}${event.image}`;
+        const posterUrl = event.image.startsWith('http') ? event.image : `${origin}${event.image}`;
 
         await sendTicketEmail({
           to: payload.userEmail,
-          userName: payload.userName || "Guest",
+          userName: payload.userName || 'Guest',
           eventName: event.title,
-          eventDate: new Date(event.startDate).toLocaleDateString("en-IN", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "numeric",
-            timeZone: "Asia/Kolkata",
+          eventDate: new Date(event.startDate).toLocaleDateString('en-IN', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric',
+            hour: 'numeric',
+            minute: 'numeric',
+            timeZone: 'Asia/Kolkata',
           }),
           eventLocation: event.location,
           eventPosterUrl: posterUrl,
@@ -61,12 +61,12 @@ async function handler(request) {
           totalAmount: order.totalAmount,
           // Enhanced params for professional email
           eventId: payload.eventId,
-          eventVenue: event.venue || "",
+          eventVenue: event.venue || '',
           startDate: event.startDate,
           endDate: event.endDate,
           startTime: event.startTime,
           endTime: event.endTime,
-          eventDescription: event.summary || event.description || "",
+          eventDescription: event.summary || event.description || '',
           isRSVP: event.isRSVP || payload.isRSVP || false,
           userId: payload.userId,
           order,
@@ -74,16 +74,16 @@ async function handler(request) {
         });
       }
     } catch (emailError) {
-      console.error("Failed to send confirmation email:", emailError);
+      console.error('Failed to send confirmation email:', emailError);
       // Don't fail the order creation if email fails
     }
 
     return NextResponse.json(order, { status: 201 });
   } catch (error) {
-    console.error("POST /api/orders error", error);
+    console.error('POST /api/orders error', error);
 
     // Handle specific error types
-    if (error.message?.includes("not available") || error.message?.includes("sold out")) {
+    if (error.message?.includes('not available') || error.message?.includes('sold out')) {
       return NextResponse.json({ error: error.message }, { status: 409 }); // Conflict
     }
 
@@ -91,7 +91,7 @@ async function handler(request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ error: error.message || "Failed to create order" }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed to create order' }, { status: 500 });
   }
 }
 
@@ -101,13 +101,13 @@ export const POST = withRateLimit(handler, 5);
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const orderId = searchParams.get("orderId");
-    const userId = searchParams.get("userId");
+    const orderId = searchParams.get('orderId');
+    const userId = searchParams.get('userId');
 
     if (orderId) {
       const order = await getOrderById(orderId);
       if (!order) {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        return NextResponse.json({ error: 'Order not found' }, { status: 404 });
       }
       return NextResponse.json(order);
     }
@@ -117,11 +117,11 @@ export async function GET(request) {
       return NextResponse.json(orders);
     }
 
-    return NextResponse.json({ error: "Missing orderId or userId parameter" }, { status: 400 });
+    return NextResponse.json({ error: 'Missing orderId or userId parameter' }, { status: 400 });
   } catch (error) {
-    console.error("GET /api/orders error", error);
+    console.error('GET /api/orders error', error);
     return NextResponse.json(
-      { error: error.message || "Failed to fetch order(s)" },
+      { error: error.message || 'Failed to fetch order(s)' },
       { status: 500 },
     );
   }

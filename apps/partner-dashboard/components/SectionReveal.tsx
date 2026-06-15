@@ -1,8 +1,8 @@
-import { motion } from "framer-motion";
-import { cn } from "@/lib/utils";
-import { type ReactNode } from "react";
-import { motionPresets, transitions, type MotionPresetKey } from "../lib/motion";
-import { useScrollFade } from "../lib/hooks/useScrollFade";
+import { motion } from 'framer-motion';
+import { cn } from '@/lib/utils';
+import { type ReactNode } from 'react';
+import { motionPresets, transitions, type MotionPresetKey } from '../lib/motion';
+import { useScrollFade } from '../lib/hooks/useScrollFade';
 
 interface SectionRevealProps {
   variant?: MotionPresetKey;
@@ -15,7 +15,7 @@ interface SectionRevealProps {
 export default function SectionReveal({
   children,
   className,
-  variant = "fadeInUp",
+  variant = 'fadeInUp',
   delay = 0,
   once = true,
 }: SectionRevealProps) {
@@ -25,7 +25,7 @@ export default function SectionReveal({
   return (
     <motion.div
       ref={ref}
-      className={cn("will-change-transform", className)}
+      className={cn('will-change-transform', className)}
       variants={preset}
       initial="hidden"
       animate={controls}

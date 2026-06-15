@@ -1,24 +1,24 @@
-import { getAdminDb, isFirebaseConfigured } from "../firebase/admin";
-import { createHmac, randomBytes } from "node:crypto";
-import { getOrderById } from "./orderStore";
-import { getEvent } from "./eventStore";
+import { getAdminDb, isFirebaseConfigured } from '../firebase/admin';
+import { createHmac, randomBytes } from 'node:crypto';
+import { getOrderById } from './orderStore';
+import { getEvent } from './eventStore';
 
-const SHARE_BUNDLES_COLLECTION = "share_bundles";
-const TICKET_ASSIGNMENTS_COLLECTION = "ticket_assignments";
+const SHARE_BUNDLES_COLLECTION = 'share_bundles';
+const TICKET_ASSIGNMENTS_COLLECTION = 'ticket_assignments';
 
 /**
  * Generate a non-guessable token for the share link
  */
 function generateToken() {
-  return randomBytes(16).toString("hex");
+  return randomBytes(16).toString('hex');
 }
 
 /**
  * Sign a ticket payload for QR verification
  */
 function signTicketPayload(ticketId) {
-  const secret = process.env.TICKET_SECRET || "c1rcle-secret-2025";
-  const signature = createHmac("sha256", secret).update(ticketId).digest("hex").slice(0, 16);
+  const secret = process.env.TICKET_SECRET || 'c1rcle-secret-2025';
+  const signature = createHmac('sha256', secret).update(ticketId).digest('hex').slice(0, 16);
   return `${ticketId}:${signature}`;
 }
 
@@ -27,7 +27,7 @@ function signTicketPayload(ticketId) {
  */
 export async function createShareBundle(orderId, userId, eventId, quantity) {
   if (!isFirebaseConfigured()) {
-    throw new Error("Firebase not configured");
+    throw new Error('Firebase not configured');
   }
 
   console.log(`[TicketShareStore] Creating share bundle. orderId=${orderId}, userId=${userId}`);
@@ -35,27 +35,27 @@ export async function createShareBundle(orderId, userId, eventId, quantity) {
 
   if (!order) {
     console.error(`[TicketShareStore] Order not found for orderId=${orderId}`);
-    throw new Error("Order not found");
+    throw new Error('Order not found');
   }
   console.log(`[TicketShareStore] Order found. eventId=${order.eventId}, status=${order.status}`);
   if (order.userId !== userId) {
     console.error(
       `[TicketShareStore] Unauthorized share attempt. orderUserId=${order.userId}, attemptUserId=${userId}`,
     );
-    throw new Error("Unauthorized");
+    throw new Error('Unauthorized');
   }
-  if (order.eventId !== eventId) throw new Error("Event mismatch");
+  if (order.eventId !== eventId) throw new Error('Event mismatch');
 
   // Calculate how many tickets are already shared for this order
   const db = getAdminDb();
   const existingBundles = await db
     .collection(SHARE_BUNDLES_COLLECTION)
-    .where("orderId", "==", orderId)
+    .where('orderId', '==', orderId)
     .get();
 
   let alreadyShared = 0;
   existingBundles.forEach((doc) => {
-    if (doc.data().status !== "cancelled") {
+    if (doc.data().status !== 'cancelled') {
       alreadyShared += doc.data().totalSlots;
     }
   });
@@ -83,7 +83,7 @@ export async function createShareBundle(orderId, userId, eventId, quantity) {
     totalSlots: quantity,
     remainingSlots: quantity,
     token,
-    status: "active",
+    status: 'active',
     createdAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -101,7 +101,7 @@ export async function getShareBundleByToken(token) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(SHARE_BUNDLES_COLLECTION)
-    .where("token", "==", token)
+    .where('token', '==', token)
     .limit(1)
     .get();
 
@@ -113,38 +113,38 @@ export async function getShareBundleByToken(token) {
  * Claim a ticket slot from a bundle
  */
 export async function claimTicketSlot(token, redeemerId) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
 
   const db = getAdminDb();
 
   return await db.runTransaction(async (transaction) => {
     // 1. Get the bundle
     const bundleSnapshot = await transaction.get(
-      db.collection(SHARE_BUNDLES_COLLECTION).where("token", "==", token).limit(1),
+      db.collection(SHARE_BUNDLES_COLLECTION).where('token', '==', token).limit(1),
     );
 
     if (bundleSnapshot.empty) {
-      throw new Error("Invalid share link");
+      throw new Error('Invalid share link');
     }
 
     const bundleDoc = bundleSnapshot.docs[0];
     const bundle = bundleDoc.data();
     const bundleId = bundleDoc.id;
 
-    if (bundle.status !== "active" || bundle.remainingSlots <= 0) {
-      throw new Error("All tickets have been claimed");
+    if (bundle.status !== 'active' || bundle.remainingSlots <= 0) {
+      throw new Error('All tickets have been claimed');
     }
 
     if (new Date(bundle.expiresAt) < new Date()) {
-      throw new Error("Share link has expired");
+      throw new Error('Share link has expired');
     }
 
     // 2. Check if user already claimed from THIS bundle
     const existingClaimSnapshot = await transaction.get(
       db
         .collection(TICKET_ASSIGNMENTS_COLLECTION)
-        .where("bundleId", "==", bundleId)
-        .where("redeemerId", "==", redeemerId)
+        .where('bundleId', '==', bundleId)
+        .where('redeemerId', '==', redeemerId)
         .limit(1),
     );
 
@@ -170,14 +170,14 @@ export async function claimTicketSlot(token, redeemerId) {
       originalPurchaserId: bundle.userId,
       assignmentId,
       qrPayload,
-      status: "active",
+      status: 'active',
       claimedAt: new Date().toISOString(),
     };
 
     // Update bundle
     transaction.update(bundleDoc.ref, {
       remainingSlots: bundle.remainingSlots - 1,
-      status: bundle.remainingSlots - 1 === 0 ? "exhausted" : "active",
+      status: bundle.remainingSlots - 1 === 0 ? 'exhausted' : 'active',
     });
 
     // Create assignment
@@ -197,7 +197,7 @@ export async function getUserClaimedTickets(userId) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(TICKET_ASSIGNMENTS_COLLECTION)
-    .where("redeemerId", "==", userId)
+    .where('redeemerId', '==', userId)
     .get();
 
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -212,7 +212,7 @@ export async function getOrderShareBundles(orderId) {
   const db = getAdminDb();
   const snapshot = await db
     .collection(SHARE_BUNDLES_COLLECTION)
-    .where("orderId", "==", orderId)
+    .where('orderId', '==', orderId)
     .get();
 
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
@@ -223,11 +223,11 @@ export async function getOrderShareBundles(orderId) {
  * Works for both direct order tickets and claimed tickets
  */
 export async function validateAndScanTicket(ticketId, signature, eventId, scannerId) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
 
   const expectedPayload = signTicketPayload(ticketId);
   if (`${ticketId}:${signature}` !== expectedPayload) {
-    return { valid: false, reason: "invalid_signature" };
+    return { valid: false, reason: 'invalid_signature' };
   }
 
   const db = getAdminDb();
@@ -240,14 +240,14 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
 
     if (assignmentDoc.exists) {
       const data = assignmentDoc.data();
-      if (data.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
-      if (data.status === "used")
-        return { valid: false, reason: "already_used", scannedAt: data.scannedAt };
-      if (data.status === "cancelled") return { valid: false, reason: "cancelled" };
+      if (data.eventId !== eventId) return { valid: false, reason: 'event_mismatch' };
+      if (data.status === 'used')
+        return { valid: false, reason: 'already_used', scannedAt: data.scannedAt };
+      if (data.status === 'cancelled') return { valid: false, reason: 'cancelled' };
 
       // Mark as used
       transaction.update(assignmentRef, {
-        status: "used",
+        status: 'used',
         scannedAt: now,
         scannedBy: scannerId,
       });
@@ -257,29 +257,29 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
 
     // If not a claimed ticket, it's a direct order ticket
     // Ticket ID format: {orderId}-{ticketTypeId}-{index}
-    const parts = ticketId.split("-");
-    if (parts.length < 3) return { valid: false, reason: "invalid_format" };
+    const parts = ticketId.split('-');
+    if (parts.length < 3) return { valid: false, reason: 'invalid_format' };
 
-    const orderId = parts.slice(0, parts.length - 2).join("-");
+    const orderId = parts.slice(0, parts.length - 2).join('-');
 
     // We need to track scans for direct tickets too to prevent reuse
     // Using a "scans" collection to mark individual ticket indices as used
-    const scanRef = db.collection("ticket_scans").doc(ticketId);
+    const scanRef = db.collection('ticket_scans').doc(ticketId);
     const scanDoc = await transaction.get(scanRef);
 
     if (scanDoc.exists) {
-      return { valid: false, reason: "already_used", scannedAt: scanDoc.data().scannedAt };
+      return { valid: false, reason: 'already_used', scannedAt: scanDoc.data().scannedAt };
     }
 
     // Verify order exists and is confirmed
-    const orderRef = db.collection("orders").doc(orderId);
+    const orderRef = db.collection('orders').doc(orderId);
     const orderDoc = await transaction.get(orderRef);
 
-    if (!orderDoc.exists) return { valid: false, reason: "order_not_found" };
+    if (!orderDoc.exists) return { valid: false, reason: 'order_not_found' };
     const order = orderDoc.data();
 
-    if (order.status !== "confirmed") return { valid: false, reason: "order_not_confirmed" };
-    if (order.eventId !== eventId) return { valid: false, reason: "event_mismatch" };
+    if (order.status !== 'confirmed') return { valid: false, reason: 'order_not_confirmed' };
+    if (order.eventId !== eventId) return { valid: false, reason: 'event_mismatch' };
 
     // Mark as scanned
     transaction.set(scanRef, {
@@ -301,26 +301,26 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
 export async function getCoupleAssignment(ticketId) {
   if (!isFirebaseConfigured()) return null;
   const db = getAdminDb();
-  const doc = await db.collection("couple_assignments").doc(ticketId).get();
+  const doc = await db.collection('couple_assignments').doc(ticketId).get();
   return doc.exists ? { id: doc.id, ...doc.data() } : null;
 }
 
 export async function assignPartner(ticketId, ownerId, partnerId, metadata = {}) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
   // Security check: only owner can assign
-  const assignmentRef = db.collection("couple_assignments").doc(ticketId);
+  const assignmentRef = db.collection('couple_assignments').doc(ticketId);
   const doc = await assignmentRef.get();
 
   if (doc.exists && doc.data().ownerId !== ownerId) {
-    throw new Error("Unauthorized");
+    throw new Error('Unauthorized');
   }
 
   const update = {
     ownerId,
     partnerId,
-    status: "fully_assigned",
+    status: 'fully_assigned',
     ...metadata,
     updatedAt: new Date().toISOString(),
   };
@@ -330,10 +330,10 @@ export async function assignPartner(ticketId, ownerId, partnerId, metadata = {})
 }
 
 export async function createPartnerClaimLink(ticketId, ownerId, eventId) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
-  const token = randomBytes(16).toString("hex");
+  const token = randomBytes(16).toString('hex');
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
   const claim = {
@@ -341,36 +341,36 @@ export async function createPartnerClaimLink(ticketId, ownerId, eventId) {
     ownerId,
     eventId,
     token,
-    status: "active",
+    status: 'active',
     createdAt: new Date().toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
 
-  await db.collection("couple_claims").add(claim);
+  await db.collection('couple_claims').add(claim);
   return { token };
 }
 
 export async function claimPartnerSlot(token, userId) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
   return await db.runTransaction(async (transaction) => {
     const claimSnapshot = await transaction.get(
       db
-        .collection("couple_claims")
-        .where("token", "==", token)
-        .where("status", "==", "active")
+        .collection('couple_claims')
+        .where('token', '==', token)
+        .where('status', '==', 'active')
         .limit(1),
     );
 
-    if (claimSnapshot.empty) throw new Error("Invalid or expired claim link");
+    if (claimSnapshot.empty) throw new Error('Invalid or expired claim link');
     const claimDoc = claimSnapshot.docs[0];
     const claim = claimDoc.data();
 
-    if (new Date(claim.expiresAt) < new Date()) throw new Error("Claim link expired");
-    if (claim.ownerId === userId) throw new Error("You cannot claim your own couple ticket slot");
+    if (new Date(claim.expiresAt) < new Date()) throw new Error('Claim link expired');
+    if (claim.ownerId === userId) throw new Error('You cannot claim your own couple ticket slot');
 
-    const assignmentRef = db.collection("couple_assignments").doc(claim.ticketId);
+    const assignmentRef = db.collection('couple_assignments').doc(claim.ticketId);
     const existingDoc = await transaction.get(assignmentRef);
 
     transaction.set(
@@ -378,38 +378,38 @@ export async function claimPartnerSlot(token, userId) {
       {
         ownerId: claim.ownerId,
         partnerId: userId,
-        status: "fully_assigned",
+        status: 'fully_assigned',
         eventId: claim.eventId,
         updatedAt: new Date().toISOString(),
       },
       { merge: true },
     );
 
-    transaction.update(claimDoc.ref, { status: "claimed", claimedBy: userId });
+    transaction.update(claimDoc.ref, { status: 'claimed', claimedBy: userId });
 
     return { ticketId: claim.ticketId, eventId: claim.eventId };
   });
 }
 
 export async function transferCoupleTicket(ticketId, currentOwnerId, newOwnerId) {
-  if (!isFirebaseConfigured()) throw new Error("Firebase not configured");
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
   const db = getAdminDb();
 
   return await db.runTransaction(async (transaction) => {
-    const assignmentRef = db.collection("couple_assignments").doc(ticketId);
+    const assignmentRef = db.collection('couple_assignments').doc(ticketId);
     const doc = await transaction.get(assignmentRef);
 
     // If no assignment doc exists, the purchaser is the owner
     const currentOwner = doc.exists ? doc.data().ownerId : currentOwnerId;
 
-    if (currentOwner !== currentOwnerId) throw new Error("Unauthorized");
+    if (currentOwner !== currentOwnerId) throw new Error('Unauthorized');
 
     transaction.set(
       assignmentRef,
       {
         ownerId: newOwnerId,
         partnerId: null, // Reset partner on transfer
-        status: "unassigned",
+        status: 'unassigned',
         transferLog: [
           ...(doc.data()?.transferLog || []),
           {
