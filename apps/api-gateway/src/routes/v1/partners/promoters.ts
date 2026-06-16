@@ -2781,7 +2781,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             displayName: ctx.displayName || 'Promoter',
           };
           const balances = await financeService.getBalances(promoterCtx);
-          if (amountPaise > balances.availableBalance) {
+          if (amountPaise > balances.available) {
             throw Object.assign(new Error('Insufficient balance'), {
               statusCode: 400,
               code: 'INSUFFICIENT_FUNDS',

@@ -483,7 +483,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         return reply.status(404).send({ error: 'Event not found' });
       }
 
-      const event = { id: eventDoc.id, ...(eventDoc.data() || {}) };
+      const event: Record<string, any> = { id: eventDoc.id, ...(eventDoc.data() || {}) };
 
       // 1. Validate event lifecycle
       if (!['scheduled', 'live'].includes(event.lifecycle)) {
