@@ -84,6 +84,11 @@ jobs:
     needs: install
     runs-on: ubuntu-latest
     continue-on-error: true
+    env:
+      DEV_TOY_MODE: 'true'
+      QUEUE_SECRET_KEY: ci-test-key
+      TICKET_SECRET: ci-test-key
+      QR_SECRET_KEY: ci-test-key
     strategy:
       matrix:
         include:
