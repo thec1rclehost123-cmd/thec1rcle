@@ -1,1595 +1,1312 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from 'react-native';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    useWindowDimensions,
+    View,
+} from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { router, useLocalSearchParams } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { Users, User, Sparkles, Crown, Ticket } from "lucide-react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
-  Easing,
-  FadeInDown,
-  FadeOut,
-  useAnimatedStyle,
-  useSharedValue,
-  withTiming,
-} from 'react-native-reanimated';
-import Svg, {
-  Circle,
-  Defs,
-  Ellipse,
-  G,
-  LinearGradient as SvgLinearGradient,
-  Path,
-  Rect,
-  Stop,
-} from 'react-native-svg';
-import { useEventsStore, type Event, type TicketTier } from '@/store/eventsStore';
-import { useCartStore } from '@/store/cartStore';
-import { colors, gradients, typography } from '@/lib/design/theme';
-import { getEventImage } from '@/lib/utils/event';
-import { formatEventDate, formatEventTime } from '@/lib/utils/date';
+    Easing,
+    FadeInDown,
+    FadeOut,
+    useAnimatedStyle,
+    useSharedValue,
+    withTiming,
+} from "react-native-reanimated";
+import Svg, { Circle, Defs, Ellipse, G, LinearGradient as SvgLinearGradient, Path, Rect, Stop } from "react-native-svg";
+import { useEventsStore, type Event, type TicketTier } from "@/store/eventsStore";
+import { useCartStore } from "@/store/cartStore";
+import { colors, gradients, typography } from "@/lib/design/theme";
+import { getEventImage } from "@/lib/utils/event";
+import { formatEventDate, formatEventTime } from "@/lib/utils/date";
 
 const ticketFont = {
-  regular: typography.fontFamily.body,
-  medium: typography.fontFamily.medium,
-  bold: typography.fontFamily.heading,
-  black: typography.fontFamily.brandAccent,
+    regular: typography.fontFamily.body,
+    medium: typography.fontFamily.medium,
+    bold: typography.fontFamily.heading,
+    black: typography.fontFamily.brandAccent,
 };
 
 function formatMoney(value: number) {
-  if (value <= 0) return 'Free';
-  return `₹${Math.round(value).toLocaleString('en-IN')}`;
+    if (value <= 0) return "Free";
+    return `₹${Math.round(value).toLocaleString("en-IN")}`;
 }
 
 function getTierMeta(tier: TicketTier, index: number) {
-  const fallbackDescriptions = [
-    'Entry access, event group chat unlock, and QR ticket delivery after payment.',
-    'Priority entry window with a dedicated check-in lane and event access.',
-    'Premium access with host-managed perks where available.',
-  ];
+    const fallbackDescriptions = [
+        "Entry access, event group chat unlock, and QR ticket delivery after payment.",
+        "Priority entry window with a dedicated check-in lane and event access.",
+        "Premium access with host-managed perks where available.",
+    ];
 
-  const benefits = [
-    tier.entryType ? `${tier.entryType} access` : 'Mobile QR ticket',
-    'Instant ticket wallet sync',
-    'Transfer eligible after purchase',
-  ];
+    const benefits = [
+        tier.entryType ? `${tier.entryType} access` : "Mobile QR ticket",
+        "Instant ticket wallet sync",
+        "Transfer eligible after purchase",
+    ];
 
-  return {
-    description: tier.description || fallbackDescriptions[index] || fallbackDescriptions[0],
-    benefits,
-  };
+    return {
+        description: tier.description || fallbackDescriptions[index] || fallbackDescriptions[0],
+        benefits,
+    };
 }
 
 function getTicketPersona(tier: TicketTier) {
-  const source = `${tier.name} ${tier.description || ''} ${tier.entryType || ''}`.toLowerCase();
-  if (source.includes('couple')) {
+    const source = `${tier.name} ${tier.description || ""} ${tier.entryType || ""}`.toLowerCase();
+    if (source.includes("couple")) {
+        return {
+            kind: "couple",
+            label: "Couple",
+            caption: "Two tickets are pairing up.",
+            palette: ["#FF6B8A", "#FFB86B", "#8C5CFF"],
+        };
+    }
+    if (source.includes("stag") || source.includes("male") || source.includes("gent")) {
+        return {
+            kind: "stag",
+            label: "Stag",
+            caption: "A sharp solo entry just joined.",
+            palette: ["#4BA3FF", "#73E2A7", "#F44A22"],
+        };
+    }
+    if (source.includes("female") || source.includes("ladies") || source.includes("women")) {
+        return {
+            kind: "ladies",
+            label: "Ladies",
+            caption: "The glam crew is getting ready.",
+            palette: ["#FF7AD9", "#FFD166", "#9B8CFF"],
+        };
+    }
+    if (source.includes("vip") || source.includes("premium") || source.includes("table")) {
+        return {
+            kind: "vip",
+            label: "VIP",
+            caption: "A premium guest is stepping in.",
+            palette: ["#F7C948", "#F44A22", "#FFFFFF"],
+        };
+    }
     return {
-      kind: 'couple',
-      label: 'Couple',
-      caption: 'Two tickets are pairing up.',
-      palette: ['#FF6B8A', '#FFB86B', '#8C5CFF'],
+        kind: "general",
+        label: "General",
+        caption: "Your night is taking shape.",
+        palette: ["#F44A22", "#FFB86B", "#64D2FF"],
     };
-  }
-  if (source.includes('stag') || source.includes('male') || source.includes('gent')) {
-    return {
-      kind: 'stag',
-      label: 'Stag',
-      caption: 'A sharp solo entry just joined.',
-      palette: ['#4BA3FF', '#73E2A7', '#F44A22'],
-    };
-  }
-  if (source.includes('female') || source.includes('ladies') || source.includes('women')) {
-    return {
-      kind: 'ladies',
-      label: 'Ladies',
-      caption: 'The glam crew is getting ready.',
-      palette: ['#FF7AD9', '#FFD166', '#9B8CFF'],
-    };
-  }
-  if (source.includes('vip') || source.includes('premium') || source.includes('table')) {
-    return {
-      kind: 'vip',
-      label: 'VIP',
-      caption: 'A premium guest is stepping in.',
-      palette: ['#F7C948', '#F44A22', '#FFFFFF'],
-    };
-  }
-  return {
-    kind: 'general',
-    label: 'General',
-    caption: 'Your night is taking shape.',
-    palette: ['#F44A22', '#FFB86B', '#64D2FF'],
-  };
+}
+
+function getPersonaImage(kind: string) {
+    switch (kind) {
+        case "couple": return require("../../assets/images/personas/couple.png");
+        case "stag": return require("../../assets/images/personas/stag.png");
+        case "ladies": return require("../../assets/images/personas/ladies.png");
+        case "vip": return require("../../assets/images/personas/vip.png");
+        default: return require("../../assets/images/personas/general.png");
+    }
 }
 
 function MiniCharacter({
-  persona,
-  index,
+    persona,
+    index,
 }: {
-  persona: ReturnType<typeof getTicketPersona>;
-  index: number;
+    persona: ReturnType<typeof getTicketPersona>;
+    index: number;
 }) {
-  const isVip = persona.kind === 'vip';
-  const figureVariant = index % 5;
-  const looks = [
-    {
-      skin: '#C98D6D',
-      hair: '#0D0D0E',
-      accent: '#D6D9E0',
-      sneaker: '#F1EFE8',
-      poseX: 0,
-      headTurn: -1,
-    },
-    {
-      skin: '#8E5C47',
-      hair: '#16100E',
-      accent: '#C9A85E',
-      sneaker: '#151515',
-      poseX: -2,
-      headTurn: 1,
-    },
-    {
-      skin: '#E3B28F',
-      hair: '#111318',
-      accent: '#8EDAF1',
-      sneaker: '#E8E1D3',
-      poseX: 2,
-      headTurn: -1,
-    },
-    {
-      skin: '#A56A50',
-      hair: '#261713',
-      accent: '#F44A22',
-      sneaker: '#191919',
-      poseX: -1,
-      headTurn: 1,
-    },
-    {
-      skin: '#D9A07C',
-      hair: '#0A0A0B',
-      accent: '#AFA8FF',
-      sneaker: '#F7C948',
-      poseX: 1,
-      headTurn: -1,
-    },
-  ];
-  const look = looks[figureVariant];
-  const accent = isVip ? '#F7C948' : persona.palette[0] || look.accent;
-  const skinGradientId = `skin-premium-${index}`;
-  const suitGradientId = `suit-premium-${index}`;
-  const rimGradientId = `rim-premium-${index}`;
-  const chromeGradientId = `chrome-premium-${index}`;
-
-  return (
-    <Animated.View
-      entering={FadeInDown.delay(index * 45).duration(260)}
-      style={styles.characterWrap}
-    >
-      <Svg width={64} height={138} viewBox="0 0 78 150">
-        <Defs>
-          <SvgLinearGradient
-            id={skinGradientId}
-            x1="22"
-            y1="12"
-            x2="52"
-            y2="50"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#FFE5CE" stopOpacity="0.42" />
-            <Stop offset="0.5" stopColor={look.skin} stopOpacity="1" />
-            <Stop offset="1" stopColor="#4B2D25" stopOpacity="0.3" />
-          </SvgLinearGradient>
-          <SvgLinearGradient
-            id={suitGradientId}
-            x1="20"
-            y1="42"
-            x2="58"
-            y2="112"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#414247" stopOpacity="1" />
-            <Stop offset="0.46" stopColor="#121317" stopOpacity="1" />
-            <Stop offset="1" stopColor="#050506" stopOpacity="1" />
-          </SvgLinearGradient>
-          <SvgLinearGradient
-            id={rimGradientId}
-            x1="16"
-            y1="10"
-            x2="62"
-            y2="134"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.55" />
-            <Stop offset="0.48" stopColor={accent} stopOpacity="0.48" />
-            <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.08" />
-          </SvgLinearGradient>
-          <SvgLinearGradient
-            id={chromeGradientId}
-            x1="20"
-            y1="20"
-            x2="58"
-            y2="126"
-            gradientUnits="userSpaceOnUse"
-          >
-            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.9" />
-            <Stop offset="0.42" stopColor="#D5D7DC" stopOpacity="0.82" />
-            <Stop offset="1" stopColor="#7B7F88" stopOpacity="0.82" />
-          </SvgLinearGradient>
-        </Defs>
-
-        <Ellipse cx="39" cy="142" rx="22" ry="5" fill="rgba(0,0,0,0.38)" />
-        <G transform={`translate(${look.poseX} 0)`}>
-          <Path
-            d="M28 41 C20 54 18 74 21 92 M51 43 C60 58 60 77 54 94"
-            stroke={`url(#${rimGradientId})`}
-            strokeWidth="3"
-            strokeLinecap="round"
-            opacity={0.7}
-          />
-          <Path
-            d="M30 73 C27 93 25 113 24 134"
-            stroke="#0D0E12"
-            strokeWidth="9"
-            strokeLinecap="round"
-          />
-          <Path
-            d="M46 73 C52 92 55 112 58 134"
-            stroke="#08090C"
-            strokeWidth="9"
-            strokeLinecap="round"
-          />
-          <Path
-            d="M25 88 C30 98 37 106 44 115"
-            stroke="#17191F"
-            strokeWidth="7"
-            strokeLinecap="round"
-          />
-          <Path d="M16 135 C21 131 31 131 35 135 C34 139 19 140 16 138 Z" fill={look.sneaker} />
-          <Path d="M51 135 C56 131 67 131 71 135 C70 139 55 140 51 138 Z" fill={look.sneaker} />
-          <Path
-            d="M18 133 L36 133"
-            stroke={`url(#${chromeGradientId})`}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            opacity={0.58}
-          />
-          <Path
-            d="M53 133 L70 133"
-            stroke={`url(#${chromeGradientId})`}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-            opacity={0.58}
-          />
-
-          <Path
-            d="M28 50 C21 60 19 72 23 83"
-            stroke={`url(#${skinGradientId})`}
-            strokeWidth="7"
-            strokeLinecap="round"
-          />
-          <Path
-            d="M50 50 C57 61 58 73 53 86"
-            stroke={`url(#${skinGradientId})`}
-            strokeWidth="7"
-            strokeLinecap="round"
-          />
-          <Path
-            d="M51 84 L62 91"
-            stroke={`url(#${chromeGradientId})`}
-            strokeWidth="4.4"
-            strokeLinecap="round"
-          />
-          <Rect
-            x="60"
-            y="86"
-            width="9"
-            height="15"
-            rx="2.5"
-            fill="#0D0E12"
-            stroke={`url(#${chromeGradientId})`}
-            strokeWidth="1"
-          />
-          <Path d="M24 80 L31 79" stroke={accent} strokeWidth="3" strokeLinecap="round" />
-
-          <Path
-            d="M27 45 C33 40 45 40 51 45 C55 55 55 67 50 78 C43 82 33 82 26 78 C22 67 22 55 27 45 Z"
-            fill={`url(#${suitGradientId})`}
-          />
-          <Path
-            d="M30 47 L38 77 L47 47"
-            stroke="rgba(255,255,255,0.16)"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-          <Path d="M37 48 L35 66 L39 75 L43 64 L41 48 Z" fill="#050506" opacity={0.74} />
-          <Path
-            d="M29 55 C36 59 43 59 51 55"
-            stroke={accent}
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            opacity={0.88}
-          />
-          <Circle cx="49" cy="58" r="2.2" fill={`url(#${chromeGradientId})`} opacity={0.85} />
-
-          <G transform={`translate(${look.headTurn} 0)`}>
-            <Path
-              d="M29 26 C29 17 35 12 43 13 C50 14 54 20 53 29 C52 38 47 43 40 44 C33 43 29 36 29 26 Z"
-              fill={`url(#${skinGradientId})`}
+    const imageSource = getPersonaImage(persona.kind);
+    return (
+        <Animated.View 
+            entering={FadeInDown.delay(index * 45).springify()} 
+            style={[styles.avatarWrap, { marginLeft: index > 0 ? -16 : 0, zIndex: 10 - index }]}
+        >
+            <Image
+                source={imageSource}
+                style={styles.avatarImage}
+                contentFit="cover"
+                transition={200}
             />
-            <Path
-              d="M29 25 C29 15 38 8 50 15 C50 23 43 23 36 18 C35 24 32 27 29 25 Z"
-              fill={look.hair}
-            />
-            <Path
-              d="M35 33 C38 35 43 35 46 33"
-              stroke="rgba(18,18,18,0.32)"
-              strokeWidth="1.4"
-              strokeLinecap="round"
-            />
-            <Path
-              d="M35 28 L39 27 M44 27 L48 28"
-              stroke="rgba(20,20,20,0.62)"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-            <Path
-              d="M31 20 C35 12 46 11 53 19"
-              stroke={`url(#${rimGradientId})`}
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              opacity={0.5}
-            />
-          </G>
-
-          <Path
-            d="M52 45 L59 70"
-            stroke="rgba(255,255,255,0.18)"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-          <Path
-            d="M27 45 L22 68"
-            stroke="rgba(255,255,255,0.14)"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-          />
-        </G>
-        {isVip ? (
-          <G>
-            <Circle
-              cx="39"
-              cy="75"
-              r="33"
-              stroke="#F7C948"
-              strokeWidth="1.4"
-              opacity={0.28}
-              fill="none"
-            />
-            <Path d="M49 20 L53 15 L56 20 L61 16 L61 25 L49 25 Z" fill="#F7C948" opacity={0.96} />
-          </G>
-        ) : null}
-      </Svg>
-    </Animated.View>
-  );
+            {persona.kind === "vip" && (
+                <View style={styles.vipBadge}>
+                    <Crown size={12} color="#000" strokeWidth={3} />
+                </View>
+            )}
+        </Animated.View>
+    );
 }
 
 function TicketCharacterStage({
-  selectedItems,
+    selectedItems,
 }: {
-  selectedItems: Array<{ tier: TicketTier; quantity: number }>;
+    selectedItems: Array<{ tier: TicketTier; quantity: number }>;
 }) {
-  const total = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
-  const hasTickets = total > 0;
-  if (!hasTickets) return null;
+    const total = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const hasTickets = total > 0;
+    if (!hasTickets) return null;
 
-  const characters = selectedItems
-    .flatMap((item) => {
-      const persona = getTicketPersona(item.tier);
-      return Array.from({ length: Math.min(item.quantity, 6) }, (_, index) => ({
-        id: `${item.tier.id}-${index}`,
-        persona,
-      }));
-    })
-    .slice(0, 5);
+    const characters = selectedItems.flatMap((item) => {
+        const persona = getTicketPersona(item.tier);
+        return Array.from({ length: Math.min(item.quantity, 6) }, (_, index) => ({
+            id: `${item.tier.id}-${index}`,
+            persona,
+        }));
+    }).slice(0, 5);
 
-  return (
-    <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.characterStage}>
-      <View style={styles.characterRunway}>
-        {characters.map((character, index) => (
-          <MiniCharacter key={character.id} persona={character.persona} index={index} />
-        ))}
-      </View>
-      <View style={styles.characterLegend}>
-        {selectedItems.map((item) => {
-          const persona = getTicketPersona(item.tier);
-          return (
-            <View key={item.tier.id} style={styles.characterLegendPill}>
-              <View style={[styles.legendDot, { backgroundColor: persona.palette[0] }]} />
-              <Text style={styles.characterLegendText}>
-                {item.quantity} {persona.label}
-              </Text>
+    return (
+        <Animated.View entering={FadeInDown.delay(80).springify()} style={styles.characterStage}>
+            <View style={styles.characterRunway}>
+                {characters.map((character, index) => (
+                    <MiniCharacter key={character.id} persona={character.persona} index={index} />
+                ))}
             </View>
-          );
-        })}
-      </View>
-    </Animated.View>
-  );
+        </Animated.View>
+    );
 }
 
 function QuantityButton({
-  disabled,
-  icon,
-  onPress,
+    disabled,
+    icon,
+    onPress,
 }: {
-  disabled?: boolean;
-  icon: 'add' | 'remove';
-  onPress: () => void;
+    disabled?: boolean;
+    icon: "add" | "remove";
+    onPress: () => void;
 }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[styles.quantityButton, disabled && styles.quantityButtonDisabled]}
-    >
-      <Ionicons name={icon} size={16} color={disabled ? 'rgba(255,255,255,0.28)' : '#fff'} />
-    </Pressable>
-  );
+    return (
+        <Pressable
+            onPress={onPress}
+            disabled={disabled}
+            style={[styles.quantityButton, disabled && styles.quantityButtonDisabled]}
+        >
+            <Ionicons name={icon} size={16} color={disabled ? "rgba(255,255,255,0.28)" : "#fff"} />
+        </Pressable>
+    );
 }
 
 function QuantityDial({ value }: { value: number }) {
-  const previous = useRef(value);
-  const translateY = useSharedValue(0);
-  const opacity = useSharedValue(1);
+    const previous = useRef(value);
+    const translateY = useSharedValue(0);
+    const opacity = useSharedValue(1);
 
-  useEffect(() => {
-    if (previous.current === value) return;
-    const direction = value > previous.current ? 1 : -1;
-    translateY.value = direction * 18;
-    opacity.value = 0.25;
-    translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.cubic) });
-    opacity.value = withTiming(1, { duration: 170, easing: Easing.out(Easing.cubic) });
-    previous.current = value;
-  }, [opacity, translateY, value]);
+    useEffect(() => {
+        if (previous.current === value) return;
+        const direction = value > previous.current ? 1 : -1;
+        translateY.value = direction * 18;
+        opacity.value = 0.25;
+        translateY.value = withTiming(0, { duration: 170, easing: Easing.out(Easing.cubic) });
+        opacity.value = withTiming(1, { duration: 170, easing: Easing.out(Easing.cubic) });
+        previous.current = value;
+    }, [opacity, translateY, value]);
 
-  const dialStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ translateY: translateY.value }],
-  }));
+    const dialStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ translateY: translateY.value }],
+    }));
 
-  return (
-    <View style={styles.quantityDialWindow}>
-      <Animated.Text key={value} style={[styles.quantityValue, dialStyle]}>
-        {value}
-      </Animated.Text>
-    </View>
-  );
+    return (
+        <View style={styles.quantityDialWindow}>
+            <Animated.Text key={value} style={[styles.quantityValue, dialStyle]}>
+                {value}
+            </Animated.Text>
+        </View>
+    );
 }
 
 function TicketTierRow({
-  tier,
-  index,
-  quantity,
-  onChange,
-  expanded,
-  onToggleDetails,
+    tier,
+    index,
+    quantity,
+    onChange,
+    expanded,
+    onToggleDetails,
 }: {
-  tier: TicketTier;
-  index: number;
-  quantity: number;
-  onChange: (nextQuantity: number) => void;
-  expanded: boolean;
-  onToggleDetails: () => void;
+    tier: TicketTier;
+    index: number;
+    quantity: number;
+    onChange: (nextQuantity: number) => void;
+    expanded: boolean;
+    onToggleDetails: () => void;
 }) {
-  const isSoldOut = tier.remaining <= 0;
-  const isLowStock = tier.remaining > 0 && tier.remaining <= 8;
-  const limit = Math.max(0, Math.min(tier.remaining || 0, 10));
-  const meta = getTierMeta(tier, index);
-  const availabilityLabel = isSoldOut
-    ? 'Sold out'
-    : isLowStock
-      ? `${tier.remaining} left`
-      : 'Available';
-  const persona = getTicketPersona(tier);
-  const accentColor = persona.palette[0];
-  const rowSelected = quantity > 0;
+    const isSoldOut = tier.remaining <= 0;
+    const isLowStock = tier.remaining > 0 && tier.remaining <= 8;
+    const limit = Math.max(0, Math.min(tier.remaining || 0, 10));
+    const meta = getTierMeta(tier, index);
+    const availabilityLabel = isSoldOut ? "Sold out" : isLowStock ? `${tier.remaining} left` : "Available";
+    const persona = getTicketPersona(tier);
+    const accentColor = persona.palette[0];
+    const rowSelected = quantity > 0;
 
-  return (
-    <View
-      style={[
-        styles.tierRow,
-        rowSelected && styles.tierRowSelected,
-        isSoldOut && styles.tierRowSoldOut,
-      ]}
-    >
-      <View
-        style={[
-          styles.tierAccent,
-          { backgroundColor: rowSelected ? accentColor : 'rgba(255,255,255,0.12)' },
-        ]}
-      />
-      <View style={styles.tierMainRow}>
-        <View style={styles.tierTitleWrap}>
-          <Pressable onPress={onToggleDetails} style={styles.tierNameRow}>
-            <Text style={styles.tierName} numberOfLines={2}>
-              {tier.name}
-            </Text>
-            <Ionicons
-              name={expanded ? 'chevron-up' : 'chevron-down'}
-              size={13}
-              color={colors.goldStone}
-            />
-          </Pressable>
-          <View style={styles.tierMetaLine}>
-            <Text style={styles.tierPrice}>{formatMoney(tier.price)}</Text>
-            {isLowStock || isSoldOut ? (
-              <>
-                <View style={styles.tierMetaDot} />
-                <Text
-                  style={[
-                    styles.tierStock,
-                    isLowStock && styles.tierStockUrgent,
-                    isSoldOut && styles.tierStockSoldOut,
-                  ]}
-                >
-                  {availabilityLabel}
-                </Text>
-              </>
-            ) : null}
-          </View>
-        </View>
-        <View style={styles.tierControls}>
-          <View style={styles.quantityControl}>
-            <QuantityButton
-              icon="remove"
-              disabled={quantity <= 0 || isSoldOut}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onChange(Math.max(0, quantity - 1));
-              }}
-            />
-            <QuantityDial value={quantity} />
-            <QuantityButton
-              icon="add"
-              disabled={isSoldOut || quantity >= limit}
-              onPress={() => {
-                Haptics.selectionAsync();
-                onChange(Math.min(limit, quantity + 1));
-              }}
-            />
-          </View>
-        </View>
-      </View>
-
-      {expanded ? (
-        <Animated.View
-          entering={FadeInDown.duration(160)}
-          exiting={FadeOut.duration(120)}
-          style={styles.tierExpanded}
+    return (
+        <View
+            style={[
+                styles.tierRow,
+                rowSelected && styles.tierRowSelected,
+                isSoldOut && styles.tierRowSoldOut,
+            ]}
         >
-          <Text style={styles.tierDescription}>{meta.description}</Text>
-          <View style={styles.benefitWrap}>
-            {meta.benefits.map((benefit) => (
-              <View key={benefit} style={styles.benefitRow}>
-                <View style={styles.benefitDot} />
-                <Text style={styles.benefitText}>{benefit}</Text>
-              </View>
-            ))}
-          </View>
-          <Text style={styles.inventoryLabel}>Max {limit || 0} per order</Text>
-        </Animated.View>
-      ) : null}
-    </View>
-  );
+            <View style={[styles.tierAccent, { backgroundColor: rowSelected ? accentColor : "rgba(255,255,255,0.12)" }]} />
+            <View style={styles.tierMainRow}>
+                <View style={styles.tierTitleWrap}>
+                    <Pressable onPress={onToggleDetails} style={styles.tierNameRow}>
+                        <Text style={styles.tierName} numberOfLines={2}>{tier.name}</Text>
+                        <Ionicons name={expanded ? "chevron-up" : "chevron-down"} size={13} color={colors.goldStone} />
+                    </Pressable>
+                    <View style={styles.tierMetaLine}>
+                        <Text style={styles.tierPrice}>{formatMoney(tier.price)}</Text>
+                        {isLowStock || isSoldOut ? (
+                            <>
+                                <View style={styles.tierMetaDot} />
+                                <Text style={[styles.tierStock, isLowStock && styles.tierStockUrgent, isSoldOut && styles.tierStockSoldOut]}>
+                                    {availabilityLabel}
+                                </Text>
+                            </>
+                        ) : null}
+                    </View>
+                </View>
+                <View style={styles.tierControls}>
+                    <View style={styles.quantityControl}>
+                        <QuantityButton
+                            icon="remove"
+                            disabled={quantity <= 0 || isSoldOut}
+                            onPress={() => {
+                                Haptics.selectionAsync();
+                                onChange(Math.max(0, quantity - 1));
+                            }}
+                        />
+                        <QuantityDial value={quantity} />
+                        <QuantityButton
+                            icon="add"
+                            disabled={isSoldOut || quantity >= limit}
+                            onPress={() => {
+                                Haptics.selectionAsync();
+                                onChange(Math.min(limit, quantity + 1));
+                            }}
+                        />
+                    </View>
+                </View>
+            </View>
+
+            {expanded ? (
+                <Animated.View entering={FadeInDown.duration(160)} exiting={FadeOut.duration(120)} style={styles.tierExpanded}>
+                    <Text style={styles.tierDescription}>{meta.description}</Text>
+                    <View style={styles.benefitWrap}>
+                        {meta.benefits.map((benefit) => (
+                            <View key={benefit} style={styles.benefitRow}>
+                                <View style={styles.benefitDot} />
+                                <Text style={styles.benefitText}>{benefit}</Text>
+                            </View>
+                        ))}
+                    </View>
+                    <Text style={styles.inventoryLabel}>Max {limit || 0} per order</Text>
+                </Animated.View>
+            ) : null}
+        </View>
+    );
 }
 
 export default function TicketSelectionScreen() {
-  const { eventId, ref } = useLocalSearchParams<{ eventId?: string; ref?: string }>();
-  const insets = useSafeAreaInsets();
-  const { height: screenHeight } = useWindowDimensions();
-  const { getEventById, events, featuredEvents } = useEventsStore();
-  const { clearCart, addItem } = useCartStore();
-  const [event, setEvent] = useState<Event | null>(() => {
-    if (!eventId) return null;
-    return (
-      events.find((candidate) => candidate.id === eventId) ||
-      featuredEvents.find((candidate) => candidate.id === eventId) ||
-      null
-    );
-  });
-  const [loading, setLoading] = useState(!event);
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
-  const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    async function loadEvent() {
-      if (!eventId || event) return;
-      setLoading(true);
-      const loadedEvent = await getEventById(eventId);
-      if (!cancelled) {
-        setEvent(loadedEvent);
-        setLoading(false);
-      }
-    }
-    void loadEvent();
-    return () => {
-      cancelled = true;
-    };
-  }, [eventId, event, getEventById]);
-
-  const tiers = event?.tickets?.length
-    ? event.tickets
-    : [
-        {
-          id: 'general-entry',
-          name: 'General Entry',
-          price: event?.minPrice ?? 999,
-          quantity: 250,
-          remaining: 96,
-          description: 'Standard entry with mobile QR ticket and event updates.',
-        },
-        {
-          id: 'priority-entry',
-          name: 'Priority Entry',
-          price: Math.max((event?.minPrice ?? 999) + 700, 1499),
-          quantity: 80,
-          remaining: 24,
-          description: 'Faster entry window and preferred check-in support.',
-        },
-      ];
-
-  const selectedItems = useMemo(() => {
-    return tiers
-      .map((tier) => ({ tier, quantity: quantities[tier.id] || 0 }))
-      .filter((item) => item.quantity > 0);
-  }, [tiers, quantities]);
-
-  const ticketCount = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
-  const subtotal = selectedItems.reduce((sum, item) => sum + item.tier.price * item.quantity, 0);
-  const eventImage = event ? getEventImage(event) : undefined;
-  const venueLabel = event?.venue || event?.location || 'Venue TBA';
-  const clubLabel = event?.hostName || venueLabel;
-  const heroTopPadding = Math.max(0, Math.round(screenHeight * 0.12 - insets.top - 48));
-  const bottomHelper =
-    ticketCount > 0
-      ? selectedItems.map((item) => `${item.quantity}x ${item.tier.name}`).join(' · ')
-      : 'Select tickets';
-
-  const handleProceed = () => {
-    if (!event || selectedItems.length === 0) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    clearCart();
-    selectedItems.forEach(({ tier, quantity }) => {
-      addItem({
-        eventId: event.id,
-        eventTitle: event.title,
-        eventDate: event.startDate,
-        eventVenue: venueLabel,
-        eventCoverImage: eventImage ?? undefined,
-        tier,
-        quantity,
-        promoterCode: typeof ref === 'string' ? ref : undefined,
-      });
+    const { eventId, ref } = useLocalSearchParams<{ eventId?: string; ref?: string }>();
+    const insets = useSafeAreaInsets();
+    const { height: screenHeight } = useWindowDimensions();
+    const { getEventById, events, featuredEvents } = useEventsStore();
+    const { clearCart, addItem } = useCartStore();
+    const [event, setEvent] = useState<Event | null>(() => {
+        if (!eventId) return null;
+        return events.find((candidate) => candidate.id === eventId) ||
+            featuredEvents.find((candidate) => candidate.id === eventId) ||
+            null;
     });
-    router.push('/checkout');
-  };
+    const [loading, setLoading] = useState(!event);
+    const [quantities, setQuantities] = useState<Record<string, number>>({});
+    const [expandedTiers, setExpandedTiers] = useState<Record<string, boolean>>({});
 
-  if (loading) {
+    useEffect(() => {
+        let cancelled = false;
+        async function loadEvent() {
+            if (!eventId || event) return;
+            setLoading(true);
+            const loadedEvent = await getEventById(eventId);
+            if (!cancelled) {
+                setEvent(loadedEvent);
+                setLoading(false);
+            }
+        }
+        void loadEvent();
+        return () => {
+            cancelled = true;
+        };
+    }, [eventId, event, getEventById]);
+
+    const tiers = event?.tickets?.length ? event.tickets : [
+        {
+            id: "general-entry",
+            name: "General Entry",
+            price: event?.minPrice ?? 999,
+            quantity: 250,
+            remaining: 96,
+            description: "Standard entry with mobile QR ticket and event updates.",
+        },
+        {
+            id: "priority-entry",
+            name: "Priority Entry",
+            price: Math.max((event?.minPrice ?? 999) + 700, 1499),
+            quantity: 80,
+            remaining: 24,
+            description: "Faster entry window and preferred check-in support.",
+        },
+    ];
+
+    const selectedItems = useMemo(() => {
+        return tiers
+            .map((tier) => ({ tier, quantity: quantities[tier.id] || 0 }))
+            .filter((item) => item.quantity > 0);
+    }, [tiers, quantities]);
+
+    const ticketCount = selectedItems.reduce((sum, item) => sum + item.quantity, 0);
+    const subtotal = selectedItems.reduce((sum, item) => sum + item.tier.price * item.quantity, 0);
+    const eventImage = event ? getEventImage(event) : undefined;
+    const venueLabel = event?.venue || event?.location || "Venue TBA";
+    const clubLabel = event?.hostName || venueLabel;
+    const heroTopPadding = Math.max(0, Math.round(screenHeight * 0.12 - insets.top - 48));
+    const bottomHelper = ticketCount > 0
+        ? selectedItems.map((item) => `${item.quantity}x ${item.tier.name}`).join(" · ")
+        : "Select tickets";
+
+    const posterAccent = event ? (
+        (event as any).posterAccentColor ||
+        (event as any).dominantColor ||
+        (event as any).eventAccentColor ||
+        ((event as any).accentColor && String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
+            ? (event as any).accentColor
+            : undefined) ||
+        "#D915A8"
+    ) : "#D915A8";
+
+    console.log("Checkout screen rendered with horizontal layout! If you don't see this, Metro cache is stuck.");
+
+    const handleProceed = () => {
+        if (!event || selectedItems.length === 0) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        clearCart();
+        selectedItems.forEach(({ tier, quantity }) => {
+            addItem({
+                eventId: event.id,
+                eventTitle: event.title,
+                eventDate: event.startDate,
+                eventVenue: venueLabel,
+                eventCoverImage: eventImage ?? undefined,
+                tier,
+                quantity,
+                promoterCode: typeof ref === "string" ? ref : undefined,
+            });
+        });
+        router.push("/checkout");
+    };
+
+    if (loading) {
+        return (
+            <SafeAreaView style={styles.centerScreen}>
+                <ActivityIndicator color={colors.iris} />
+                <Text style={styles.loadingText}>Loading tickets...</Text>
+            </SafeAreaView>
+        );
+    }
+
+    if (!event) {
+        return (
+            <SafeAreaView style={styles.centerScreen}>
+                <Ionicons name="ticket-outline" size={42} color={colors.iris} />
+                <Text style={styles.emptyTitle}>Tickets unavailable</Text>
+                <Text style={styles.emptyCopy}>This event could not be found.</Text>
+                <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
+                    <Text style={styles.secondaryButtonText}>Go back</Text>
+                </Pressable>
+            </SafeAreaView>
+        );
+    }
+
     return (
-      <SafeAreaView style={styles.centerScreen}>
-        <ActivityIndicator color={colors.iris} />
-        <Text style={styles.loadingText}>Loading tickets...</Text>
-      </SafeAreaView>
-    );
-  }
+        <SafeAreaView style={styles.screen} edges={["top"]}>
+            <ScrollView
+                showsVerticalScrollIndicator={false}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 92 }]}
+            >
+                <View style={styles.header}>
+                    <Pressable onPress={() => router.back()} style={styles.backButton}>
+                        <Ionicons name="chevron-back" size={20} color="#fff" />
+                    </Pressable>
+                </View>
 
-  if (!event) {
-    return (
-      <SafeAreaView style={styles.centerScreen}>
-        <Ionicons name="ticket-outline" size={42} color={colors.iris} />
-        <Text style={styles.emptyTitle}>Tickets unavailable</Text>
-        <Text style={styles.emptyCopy}>This event could not be found.</Text>
-        <Pressable onPress={() => router.back()} style={styles.secondaryButton}>
-          <Text style={styles.secondaryButtonText}>Go back</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
+                <View style={[styles.eventHero, { paddingTop: heroTopPadding }]}>
+                    <View style={[styles.heroPoster, { shadowColor: posterAccent, shadowOpacity: 0.5, shadowRadius: 24, elevation: 16 }]}>
+                        {eventImage ? (
+                            <Image source={{ uri: eventImage }} style={styles.heroPosterImage} contentFit="cover" cachePolicy="memory-disk" />
+                        ) : (
+                            <LinearGradient colors={gradients.primary as [string, string]} style={styles.heroPosterImage} />
+                        )}
+                    </View>
+                    <View style={styles.heroDetails}>
+                        <Text style={styles.heroTitle} numberOfLines={2}>{event.title}</Text>
+                        <Text style={styles.heroOrgName} numberOfLines={1}>{clubLabel}</Text>
+                        <View style={styles.heroMetaRow}>
+                            <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
+                            <Text style={styles.heroMetaText}>
+                                {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
+                            </Text>
+                        </View>
+                        <View style={styles.heroMetaRow}>
+                            <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.52)" />
+                            <Text style={styles.heroMetaText} numberOfLines={1}>{venueLabel}</Text>
+                        </View>
+                    </View>
+                </View>
 
-  return (
-    <SafeAreaView style={styles.screen} edges={['top']}>
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <LinearGradient
-          colors={['rgba(244,74,34,0.38)', 'rgba(244,74,34,0.18)', 'rgba(0,0,0,0)']}
-          style={styles.backgroundGlowTop}
-        />
-        <LinearGradient
-          colors={[
-            'rgba(247,201,72,0)',
-            'rgba(247,201,72,0.18)',
-            'rgba(244,74,34,0.08)',
-            'rgba(0,0,0,0)',
-          ]}
-          style={styles.backgroundGlowMid}
-        />
-      </View>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 92 }]}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="chevron-back" size={20} color="#fff" />
-          </Pressable>
-        </View>
+                <View style={styles.ticketSelector}>
+                    <View style={styles.sectionHeader}>
+                        <View>
+                            <Text style={styles.sectionEyebrow}>Secure your entry</Text>
+                            <Text style={styles.sectionTitle}>Choose tickets</Text>
+                        </View>
+                        <View style={[styles.sectionMetaPill, ticketCount > 0 && styles.sectionMetaPillActive]}>
+                            <Text style={[styles.sectionMeta, ticketCount > 0 && styles.sectionMetaActive]}>{ticketCount} selected</Text>
+                        </View>
+                    </View>
 
-        <View style={[styles.eventHero, { paddingTop: heroTopPadding }]}>
-          <View style={styles.heroPoster}>
-            {eventImage ? (
-              <Image
-                source={{ uri: eventImage }}
-                style={styles.heroPosterImage}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-              />
-            ) : (
-              <LinearGradient
-                colors={gradients.primary as [string, string]}
-                style={styles.heroPosterImage}
-              />
-            )}
-          </View>
-          <Text style={styles.heroTitle} numberOfLines={2}>
-            {event.title}
-          </Text>
-          <View style={styles.heroMetaRow}>
-            <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
-            <Text style={styles.heroMetaText}>
-              {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
-            </Text>
-          </View>
-          <Text style={styles.heroOrgName} numberOfLines={1}>
-            {clubLabel}
-          </Text>
-          <View style={styles.heroMetaRow}>
-            <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.52)" />
-            <Text style={styles.heroMetaText} numberOfLines={1}>
-              {venueLabel}
-            </Text>
-          </View>
-        </View>
+                    <TicketCharacterStage selectedItems={selectedItems} />
 
-        <View style={styles.ticketSelector}>
-          <View style={styles.sectionHeader}>
-            <View>
-              <Text style={styles.sectionEyebrow}>Secure your entry</Text>
-              <Text style={styles.sectionTitle}>Choose tickets</Text>
+                    {tiers.map((tier, index) => (
+                        <TicketTierRow
+                            key={tier.id}
+                            tier={tier}
+                            index={index}
+                            quantity={quantities[tier.id] || 0}
+                            expanded={!!expandedTiers[tier.id]}
+                            onToggleDetails={() => {
+                                setExpandedTiers((current) => ({
+                                    ...current,
+                                    [tier.id]: !current[tier.id],
+                                }));
+                            }}
+                            onChange={(nextQuantity) => {
+                                setQuantities((current) => ({
+                                    ...current,
+                                    [tier.id]: nextQuantity,
+                                }));
+                            }}
+                        />
+                    ))}
+                </View>
+            </ScrollView>
+
+            <View style={[styles.bottomBar, { bottom: Math.max(insets.bottom, 12) }]}>
+                <View style={styles.bottomCopy}>
+                    <Text style={styles.bottomLabel}>Total</Text>
+                    <Text style={styles.bottomTotal}>{formatMoney(subtotal)}</Text>
+                    <Text style={styles.bottomCount} numberOfLines={1}>{bottomHelper}</Text>
+                </View>
+                <Pressable
+                    onPress={handleProceed}
+                    disabled={selectedItems.length === 0}
+                    style={[styles.proceedButton, selectedItems.length === 0 && styles.proceedButtonDisabled]}
+                >
+                    <Text style={styles.proceedButtonText}>Proceed</Text>
+                    <Ionicons name="arrow-forward" size={18} color="#fff" />
+                </Pressable>
             </View>
-            <View style={[styles.sectionMetaPill, ticketCount > 0 && styles.sectionMetaPillActive]}>
-              <Text style={[styles.sectionMeta, ticketCount > 0 && styles.sectionMetaActive]}>
-                {ticketCount} selected
-              </Text>
-            </View>
-          </View>
-
-          <TicketCharacterStage selectedItems={selectedItems} />
-
-          {tiers.map((tier, index) => (
-            <TicketTierRow
-              key={tier.id}
-              tier={tier}
-              index={index}
-              quantity={quantities[tier.id] || 0}
-              expanded={!!expandedTiers[tier.id]}
-              onToggleDetails={() => {
-                setExpandedTiers((current) => ({
-                  ...current,
-                  [tier.id]: !current[tier.id],
-                }));
-              }}
-              onChange={(nextQuantity) => {
-                setQuantities((current) => ({
-                  ...current,
-                  [tier.id]: nextQuantity,
-                }));
-              }}
-            />
-          ))}
-        </View>
-      </ScrollView>
-
-      <View style={[styles.bottomBar, { bottom: Math.max(insets.bottom, 12) }]}>
-        <View style={styles.bottomCopy}>
-          <Text style={styles.bottomLabel}>Total</Text>
-          <Text style={styles.bottomTotal}>{formatMoney(subtotal)}</Text>
-          <Text style={styles.bottomCount} numberOfLines={1}>
-            {bottomHelper}
-          </Text>
-        </View>
-        <Pressable
-          onPress={handleProceed}
-          disabled={selectedItems.length === 0}
-          style={[styles.proceedButton, selectedItems.length === 0 && styles.proceedButtonDisabled]}
-        >
-          <Text style={styles.proceedButtonText}>Proceed</Text>
-          <Ionicons name="arrow-forward" size={18} color="#fff" />
-        </Pressable>
-      </View>
-    </SafeAreaView>
-  );
+        </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.base.DEFAULT,
-  },
-  backgroundGlowTop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 470,
-    opacity: 1,
-  },
-  backgroundGlowMid: {
-    position: 'absolute',
-    top: 210,
-    left: 0,
-    right: 0,
-    height: 520,
-    opacity: 0.95,
-  },
-  centerScreen: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.base.DEFAULT,
-    paddingHorizontal: 24,
-  },
-  loadingText: {
-    color: colors.goldStone,
-    marginTop: 12,
-    fontFamily: ticketFont.medium,
-  },
-  emptyTitle: {
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontSize: 22,
-    marginTop: 18,
-  },
-  emptyCopy: {
-    color: colors.goldStone,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 22,
-  },
-  secondaryButton: {
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  secondaryButtonText: {
-    color: colors.gold,
-    fontFamily: ticketFont.bold,
-  },
-  scrollContent: {
-    paddingHorizontal: 18,
-  },
-  header: {
-    height: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconButtonPlaceholder: {
-    width: 40,
-    height: 40,
-  },
-  backButton: {
-    height: 38,
-    width: 38,
-    borderRadius: 19,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.14)',
-  },
-  backButtonText: {
-    color: '#fff',
-    fontFamily: ticketFont.bold,
-    fontSize: 13,
-  },
-  headerTitle: {
-    color: colors.gold,
-    fontSize: 18,
-    fontFamily: ticketFont.black,
-    fontWeight: '900',
-  },
-  eventHero: {
-    alignItems: 'center',
-    marginBottom: 28,
-  },
-  heroPoster: {
-    width: 156,
-    height: 208,
-    borderRadius: 26,
-    overflow: 'hidden',
-    backgroundColor: colors.base[100],
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.18)',
-    shadowColor: '#000',
-    shadowOpacity: 0.38,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-  },
-  heroPosterImage: {
-    width: '100%',
-    height: '100%',
-  },
-  heroTitle: {
-    color: '#fff',
-    fontSize: 29,
-    lineHeight: 32,
-    fontFamily: ticketFont.black,
-    fontWeight: '900',
-    marginTop: 16,
-    textAlign: 'center',
-    maxWidth: '92%',
-  },
-  heroOrgName: {
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontSize: 14,
-    fontWeight: '900',
-    marginTop: 7,
-    textAlign: 'center',
-    maxWidth: '86%',
-  },
-  heroMetaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    marginTop: 7,
-    maxWidth: '88%',
-  },
-  heroMetaText: {
-    color: 'rgba(255,255,255,0.58)',
-    fontFamily: ticketFont.medium,
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  ticketSelector: {
-    marginTop: 2,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 2,
-    marginBottom: 10,
-  },
-  sectionEyebrow: {
-    color: colors.irisGlow,
-    fontFamily: ticketFont.bold,
-    fontSize: 10,
-    letterSpacing: 0,
-    textTransform: 'uppercase',
-    marginBottom: 3,
-  },
-  sectionTitle: {
-    color: colors.gold,
-    fontSize: 25,
-    lineHeight: 28,
-    fontFamily: ticketFont.black,
-    fontWeight: '900',
-  },
-  sectionMetaPill: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.11)',
-  },
-  sectionMetaPillActive: {
-    backgroundColor: 'rgba(244,74,34,0.16)',
-    borderColor: 'rgba(244,74,34,0.36)',
-  },
-  sectionMeta: {
-    color: colors.goldStone,
-    fontFamily: ticketFont.bold,
-    fontSize: 11,
-  },
-  sectionMetaActive: {
-    color: colors.gold,
-  },
-  characterStage: {
-    marginTop: -2,
-    marginBottom: 18,
-  },
-  characterStageCopy: {
-    marginBottom: 6,
-  },
-  characterStageTopline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
-  },
-  characterStageEyebrow: {
-    color: colors.irisGlow,
-    fontFamily: ticketFont.bold,
-    fontSize: 11,
-    textTransform: 'uppercase',
-  },
-  previewStatusPill: {
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  previewStatusPillActive: {
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(255,255,255,0.13)',
-  },
-  previewStatusText: {
-    color: colors.goldStone,
-    fontFamily: ticketFont.bold,
-    fontSize: 10,
-  },
-  previewStatusTextActive: {
-    color: colors.gold,
-  },
-  characterStageTitle: {
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontSize: 19,
-    lineHeight: 23,
-    fontWeight: '900',
-    marginTop: 7,
-  },
-  characterRunway: {
-    minHeight: 142,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingHorizontal: 2,
-    paddingBottom: 2,
-    gap: 1,
-  },
-  characterWrap: {
-    width: 64,
-    height: 138,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-  },
-  figureShadow: {
-    position: 'absolute',
-    bottom: 0,
-    width: 36,
-    height: 7,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.28)',
-  },
-  figurePerson: {
-    width: 42,
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    position: 'relative',
-  },
-  figureLegRow: {
-    position: 'absolute',
-    bottom: 7,
-    flexDirection: 'row',
-    gap: 4,
-    alignItems: 'flex-end',
-  },
-  figureLeg: {
-    width: 9,
-    borderRadius: 5,
-  },
-  figureShoeRow: {
-    position: 'absolute',
-    bottom: 3,
-    flexDirection: 'row',
-    gap: 5,
-  },
-  figureShoe: {
-    width: 14,
-    height: 6,
-    borderRadius: 5,
-  },
-  figureTorso: {
-    position: 'absolute',
-    bottom: 32,
-    width: 30,
-    borderTopLeftRadius: 14,
-    borderTopRightRadius: 14,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  figureJacket: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '45%',
-    opacity: 0.82,
-  },
-  figureStrap: {
-    position: 'absolute',
-    top: -2,
-    left: 14,
-    width: 4,
-    height: 46,
-    borderRadius: 3,
-    backgroundColor: 'rgba(48,31,23,0.58)',
-    transform: [{ rotate: '-22deg' }],
-  },
-  figureBag: {
-    position: 'absolute',
-    right: -6,
-    bottom: 7,
-    width: 13,
-    height: 15,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.36)',
-  },
-  figureArm: {
-    position: 'absolute',
-    bottom: 35,
-    width: 8,
-    height: 28,
-    borderRadius: 5,
-  },
-  figureLeftArm: {
-    left: 2,
-    transform: [{ rotate: '10deg' }],
-  },
-  figureRightArm: {
-    right: 2,
-    transform: [{ rotate: '-12deg' }],
-  },
-  figureHead: {
-    position: 'absolute',
-    bottom: 66,
-    width: 27,
-    height: 28,
-    borderRadius: 14,
-    overflow: 'hidden',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.28)',
-  },
-  figureHair: {
-    width: 30,
-    height: 11,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
-  },
-  figureFaceRow: {
-    position: 'absolute',
-    top: 15,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  figureSunglasses: {
-    position: 'absolute',
-    top: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  figureLens: {
-    width: 8,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#111',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.38)',
-  },
-  characterBody: {
-    width: 30,
-    height: 42,
-    borderTopLeftRadius: 15,
-    borderTopRightRadius: 15,
-    borderBottomLeftRadius: 11,
-    borderBottomRightRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.32)',
-  },
-  characterHead: {
-    position: 'absolute',
-    top: -18,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    overflow: 'hidden',
-    alignItems: 'center',
-  },
-  characterHair: {
-    width: 26,
-    height: 9,
-    borderBottomLeftRadius: 10,
-    borderBottomRightRadius: 10,
-  },
-  characterFaceRow: {
-    position: 'absolute',
-    top: -8,
-    flexDirection: 'row',
-    gap: 6,
-  },
-  characterEye: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#161616',
-  },
-  characterJacket: {
-    width: 18,
-    height: 16,
-    borderRadius: 7,
-    marginTop: 18,
-    opacity: 0.86,
-  },
-  partnerHead: {
-    position: 'absolute',
-    top: -14,
-    right: -12,
-    width: 21,
-    height: 21,
-    borderRadius: 10.5,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.42)',
-  },
-  partnerHair: {
-    height: 9,
-    borderBottomLeftRadius: 9,
-    borderBottomRightRadius: 9,
-  },
-  stagTie: {
-    position: 'absolute',
-    top: 19,
-    width: 5,
-    height: 13,
-    borderRadius: 3,
-    backgroundColor: '#101010',
-  },
-  ladiesSpark: {
-    position: 'absolute',
-    right: 3,
-    top: 8,
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
-  },
-  vipCrown: {
-    position: 'absolute',
-    top: -29,
-    color: '#F7C948',
-    fontFamily: ticketFont.black,
-    fontSize: 8,
-    fontWeight: '900',
-  },
-  emptyCharacterHint: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  emptyPreviewRow: {
-    alignSelf: 'center',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  emptyPreviewText: {
-    color: 'rgba(255,255,255,0.56)',
-    fontFamily: ticketFont.bold,
-    fontSize: 12,
-  },
-  characterLegend: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 2,
-  },
-  characterLegendPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  legendDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
-  },
-  characterLegendText: {
-    color: 'rgba(255,255,255,0.76)',
-    fontFamily: ticketFont.bold,
-    fontSize: 11,
-  },
-  tierRow: {
-    position: 'relative',
-    borderRadius: 20,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.08)',
-    backgroundColor: 'rgba(255,255,255,0.075)',
-    paddingVertical: 8,
-    paddingLeft: 13,
-    paddingRight: 11,
-    marginBottom: 7,
-  },
-  tierRowSelected: {
-    borderColor: 'rgba(255,255,255,0.13)',
-    backgroundColor: 'rgba(255,255,255,0.14)',
-  },
-  tierRowSoldOut: {
-    opacity: 0.56,
-  },
-  tierAccent: {
-    position: 'absolute',
-    left: 0,
-    top: 18,
-    bottom: 18,
-    width: 0,
-    borderRadius: 2,
-  },
-  tierMainRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-  },
-  tierTitleWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  tierTopLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 5,
-  },
-  tierNameRow: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    maxWidth: '100%',
-  },
-  tierIndex: {
-    color: 'rgba(255,255,255,0.36)',
-    fontFamily: ticketFont.bold,
-    fontSize: 10,
-  },
-  addedBadge: {
-    borderRadius: 999,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(244,74,34,0.22)',
-  },
-  addedBadgeText: {
-    color: colors.gold,
-    fontFamily: ticketFont.bold,
-    fontSize: 9,
-    textTransform: 'uppercase',
-  },
-  tierMetaLine: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 1,
-  },
-  tierName: {
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontWeight: '900',
-    fontSize: 17,
-    lineHeight: 20,
-  },
-  tierDescription: {
-    color: colors.goldStone,
-    fontFamily: ticketFont.regular,
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 10,
-  },
-  tierPrice: {
-    color: 'rgba(255,255,255,0.58)',
-    fontFamily: ticketFont.medium,
-    fontWeight: '900',
-    fontSize: 14,
-  },
-  tierMetaDot: {
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: 'rgba(255,255,255,0.3)',
-    marginHorizontal: 8,
-  },
-  tierStock: {
-    color: colors.success,
-    fontFamily: ticketFont.bold,
-    fontSize: 12,
-  },
-  tierStockUrgent: {
-    color: colors.warning,
-  },
-  tierStockSoldOut: {
-    color: colors.goldStone,
-  },
-  tierControls: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tierDisclosure: {
-    width: 28,
-    height: 36,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierExpanded: {
-    paddingTop: 12,
-  },
-  benefitWrap: {
-    gap: 7,
-    marginBottom: 10,
-  },
-  benefitRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  benefitDot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.irisGlow,
-  },
-  benefitText: {
-    color: 'rgba(255,255,255,0.76)',
-    fontFamily: ticketFont.medium,
-    fontSize: 11,
-  },
-  inventoryLabel: {
-    color: colors.goldStone,
-    fontFamily: ticketFont.bold,
-    fontSize: 12,
-  },
-  quantityControl: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  quantityButton: {
-    width: 29,
-    height: 29,
-    borderRadius: 14.5,
-    backgroundColor: 'rgba(0,0,0,0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.24)',
-  },
-  quantityButtonDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  quantityDialWindow: {
-    width: 22,
-    height: 26,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  quantityValue: {
-    minWidth: 24,
-    textAlign: 'center',
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontSize: 17,
-    fontWeight: '900',
-  },
-  bottomBar: {
-    position: 'absolute',
-    left: 22,
-    right: 22,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 17,
-    backgroundColor: 'rgba(10,10,10,0.96)',
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: 'rgba(255,255,255,0.14)',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(255,255,255,0.12)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: -6 },
-  },
-  bottomCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  bottomLabel: {
-    color: colors.goldStone,
-    fontFamily: ticketFont.medium,
-    fontSize: 10,
-  },
-  bottomTotal: {
-    color: colors.gold,
-    fontFamily: ticketFont.black,
-    fontSize: 18,
-    fontWeight: '900',
-  },
-  bottomCount: {
-    color: 'rgba(255,255,255,0.48)',
-    fontFamily: ticketFont.medium,
-    fontSize: 10,
-  },
-  proceedButton: {
-    minWidth: 108,
-    height: 38,
-    borderRadius: 13,
-    backgroundColor: colors.iris,
-    flexDirection: 'row',
-    gap: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  proceedButtonDisabled: {
-    opacity: 0.34,
-  },
-  proceedButtonText: {
-    color: '#fff',
-    fontFamily: ticketFont.black,
-    fontSize: 14,
-    fontWeight: '900',
-  },
+    screen: {
+        flex: 1,
+        backgroundColor: colors.base.DEFAULT,
+    },
+    backgroundGlowTop: {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 470,
+        opacity: 1,
+    },
+    backgroundGlowMid: {
+        position: "absolute",
+        top: 210,
+        left: 0,
+        right: 0,
+        height: 520,
+        opacity: 0.95,
+    },
+    centerScreen: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: colors.base.DEFAULT,
+        paddingHorizontal: 24,
+    },
+    loadingText: {
+        color: colors.goldStone,
+        marginTop: 12,
+        fontFamily: ticketFont.medium,
+    },
+    emptyTitle: {
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontSize: 22,
+        marginTop: 18,
+    },
+    emptyCopy: {
+        color: colors.goldStone,
+        textAlign: "center",
+        marginTop: 8,
+        marginBottom: 22,
+    },
+    secondaryButton: {
+        borderRadius: 999,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.18)",
+        paddingHorizontal: 20,
+        paddingVertical: 12,
+    },
+    secondaryButtonText: {
+        color: colors.gold,
+        fontFamily: ticketFont.bold,
+    },
+    scrollContent: {
+        paddingHorizontal: 18,
+    },
+    header: {
+        height: 48,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
+    },
+    iconButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    iconButtonPlaceholder: {
+        width: 40,
+        height: 40,
+    },
+    backButton: {
+        height: 38,
+        width: 38,
+        borderRadius: 19,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.14)",
+    },
+    backButtonText: {
+        color: "#fff",
+        fontFamily: ticketFont.bold,
+        fontSize: 13,
+    },
+    headerTitle: {
+        color: colors.gold,
+        fontSize: 18,
+        fontFamily: ticketFont.black,
+        fontWeight: "900",
+    },
+    eventHero: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        marginBottom: 28,
+        paddingHorizontal: 20,
+        gap: 16,
+    },
+    heroPoster: {
+        width: 133,
+        height: 177,
+        borderRadius: 16,
+        backgroundColor: colors.base[100],
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.18)",
+        shadowColor: "#000",
+        shadowOpacity: 0.38,
+        shadowRadius: 24,
+        shadowOffset: { width: 0, height: 14 },
+    },
+    heroPosterImage: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 16,
+        overflow: "hidden",
+    },
+    heroDetails: {
+        flex: 1,
+        justifyContent: "flex-start",
+        alignItems: "flex-start",
+        paddingTop: 4,
+    },
+    heroTitle: {
+        color: "#fff",
+        fontSize: 24,
+        lineHeight: 28,
+        fontFamily: ticketFont.black,
+        fontWeight: "900",
+        textAlign: "left",
+    },
+    heroOrgName: {
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontSize: 13,
+        fontWeight: "900",
+        marginTop: 6,
+        textAlign: "left",
+    },
+    heroMetaRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
+        gap: 5,
+        marginTop: 6,
+    },
+    heroMetaText: {
+        color: "rgba(255,255,255,0.58)",
+        fontFamily: ticketFont.medium,
+        fontSize: 12,
+        textAlign: "left",
+    },
+    ticketSelector: {
+        marginTop: 2,
+    },
+    sectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        marginTop: 2,
+        marginBottom: 10,
+    },
+    sectionEyebrow: {
+        color: colors.irisGlow,
+        fontFamily: ticketFont.bold,
+        fontSize: 10,
+        letterSpacing: 0,
+        textTransform: "uppercase",
+        marginBottom: 3,
+    },
+    sectionTitle: {
+        color: colors.gold,
+        fontSize: 25,
+        lineHeight: 28,
+        fontFamily: ticketFont.black,
+        fontWeight: "900",
+    },
+    sectionMetaPill: {
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.15)",
+    },
+    sectionMetaPillActive: {
+        backgroundColor: "rgba(244,74,34,0.16)",
+        borderColor: "rgba(244,74,34,0.36)",
+    },
+    sectionMeta: {
+        color: "rgba(255,255,255,0.8)",
+        fontFamily: ticketFont.bold,
+        fontSize: 11,
+    },
+    sectionMetaActive: {
+        color: colors.gold,
+    },
+    characterStage: {
+        marginTop: 12,
+        marginBottom: 24,
+    },
+    characterStageCopy: {
+        marginBottom: 6,
+    },
+    characterStageTopline: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+    },
+    characterStageEyebrow: {
+        color: colors.irisGlow,
+        fontFamily: ticketFont.bold,
+        fontSize: 11,
+        textTransform: "uppercase",
+    },
+    previewStatusPill: {
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        backgroundColor: "rgba(255,255,255,0.06)",
+    },
+    previewStatusPillActive: {
+        borderRadius: 999,
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        backgroundColor: "rgba(255,255,255,0.13)",
+    },
+    previewStatusText: {
+        color: colors.goldStone,
+        fontFamily: ticketFont.bold,
+        fontSize: 10,
+    },
+    previewStatusTextActive: {
+        color: colors.gold,
+    },
+    characterStageTitle: {
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontSize: 19,
+        lineHeight: 23,
+        fontWeight: "900",
+        marginTop: 7,
+    },
+    characterRunway: {
+        height: 80,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    avatarWrap: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 5,
+        backgroundColor: "transparent",
+    },
+    avatarImage: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 40,
+    },
+    vipBadge: {
+        position: "absolute",
+        bottom: -2,
+        right: -2,
+        backgroundColor: "#F7C948",
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#161616",
+    },
+    figurePerson: {
+        width: 42,
+        alignItems: "center",
+        justifyContent: "flex-end",
+        position: "relative",
+    },
+    figureLegRow: {
+        position: "absolute",
+        bottom: 7,
+        flexDirection: "row",
+        gap: 4,
+        alignItems: "flex-end",
+    },
+    figureLeg: {
+        width: 9,
+        borderRadius: 5,
+    },
+    figureShoeRow: {
+        position: "absolute",
+        bottom: 3,
+        flexDirection: "row",
+        gap: 5,
+    },
+    figureShoe: {
+        width: 14,
+        height: 6,
+        borderRadius: 5,
+    },
+    figureTorso: {
+        position: "absolute",
+        bottom: 32,
+        width: 30,
+        borderTopLeftRadius: 14,
+        borderTopRightRadius: 14,
+        borderBottomLeftRadius: 9,
+        borderBottomRightRadius: 9,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.28)",
+    },
+    figureJacket: {
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: "45%",
+        opacity: 0.82,
+    },
+    figureStrap: {
+        position: "absolute",
+        top: -2,
+        left: 14,
+        width: 4,
+        height: 46,
+        borderRadius: 3,
+        backgroundColor: "rgba(48,31,23,0.58)",
+        transform: [{ rotate: "-22deg" }],
+    },
+    figureBag: {
+        position: "absolute",
+        right: -6,
+        bottom: 7,
+        width: 13,
+        height: 15,
+        borderRadius: 5,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.36)",
+    },
+    figureArm: {
+        position: "absolute",
+        bottom: 35,
+        width: 8,
+        height: 28,
+        borderRadius: 5,
+    },
+    figureLeftArm: {
+        left: 2,
+        transform: [{ rotate: "10deg" }],
+    },
+    figureRightArm: {
+        right: 2,
+        transform: [{ rotate: "-12deg" }],
+    },
+    figureHead: {
+        position: "absolute",
+        bottom: 66,
+        width: 27,
+        height: 28,
+        borderRadius: 14,
+        overflow: "hidden",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.28)",
+    },
+    figureHair: {
+        width: 30,
+        height: 11,
+        borderBottomLeftRadius: 11,
+        borderBottomRightRadius: 11,
+    },
+    figureFaceRow: {
+        position: "absolute",
+        top: 15,
+        flexDirection: "row",
+        gap: 6,
+    },
+    figureSunglasses: {
+        position: "absolute",
+        top: 14,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 3,
+    },
+    figureLens: {
+        width: 8,
+        height: 7,
+        borderRadius: 4,
+        backgroundColor: "#111",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.38)",
+    },
+    characterBody: {
+        width: 30,
+        height: 42,
+        borderTopLeftRadius: 15,
+        borderTopRightRadius: 15,
+        borderBottomLeftRadius: 11,
+        borderBottomRightRadius: 11,
+        alignItems: "center",
+        justifyContent: "flex-start",
+        position: "relative",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.32)",
+    },
+    characterHead: {
+        position: "absolute",
+        top: -18,
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        overflow: "hidden",
+        alignItems: "center",
+    },
+    characterHair: {
+        width: 26,
+        height: 9,
+        borderBottomLeftRadius: 10,
+        borderBottomRightRadius: 10,
+    },
+    characterFaceRow: {
+        position: "absolute",
+        top: -8,
+        flexDirection: "row",
+        gap: 6,
+    },
+    characterEye: {
+        width: 3,
+        height: 3,
+        borderRadius: 1.5,
+        backgroundColor: "#161616",
+    },
+    characterJacket: {
+        width: 18,
+        height: 16,
+        borderRadius: 7,
+        marginTop: 18,
+        opacity: 0.86,
+    },
+    partnerHead: {
+        position: "absolute",
+        top: -14,
+        right: -12,
+        width: 21,
+        height: 21,
+        borderRadius: 10.5,
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.42)",
+    },
+    partnerHair: {
+        height: 9,
+        borderBottomLeftRadius: 9,
+        borderBottomRightRadius: 9,
+    },
+    stagTie: {
+        position: "absolute",
+        top: 19,
+        width: 5,
+        height: 13,
+        borderRadius: 3,
+        backgroundColor: "#101010",
+    },
+    ladiesSpark: {
+        position: "absolute",
+        right: 3,
+        top: 8,
+        width: 7,
+        height: 7,
+        borderRadius: 3.5,
+        backgroundColor: "#FFFFFF",
+        shadowColor: "#FFFFFF",
+        shadowOpacity: 0.9,
+        shadowRadius: 6,
+    },
+    vipCrown: {
+        position: "absolute",
+        top: -29,
+        color: "#F7C948",
+        fontFamily: ticketFont.black,
+        fontSize: 8,
+        fontWeight: "900",
+    },
+    emptyCharacterHint: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(255,255,255,0.08)",
+    },
+    emptyPreviewRow: {
+        alignSelf: "center",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+    },
+    emptyPreviewText: {
+        color: "rgba(255,255,255,0.56)",
+        fontFamily: ticketFont.bold,
+        fontSize: 12,
+    },
+    characterLegend: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+        marginTop: 2,
+    },
+    characterLegendPill: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+        borderRadius: 999,
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        backgroundColor: "rgba(255,255,255,0.08)",
+    },
+    legendDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 3.5,
+    },
+    characterLegendText: {
+        color: "rgba(255,255,255,0.76)",
+        fontFamily: ticketFont.bold,
+        fontSize: 11,
+    },
+    tierRow: {
+        position: "relative",
+        borderRadius: 20,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.08)",
+        backgroundColor: "rgba(255,255,255,0.075)",
+        paddingVertical: 8,
+        paddingLeft: 13,
+        paddingRight: 11,
+        marginBottom: 7,
+    },
+    tierRowSelected: {
+        borderColor: "rgba(255,255,255,0.13)",
+        backgroundColor: "rgba(255,255,255,0.14)",
+    },
+    tierRowSoldOut: {
+        opacity: 0.56,
+    },
+    tierAccent: {
+        position: "absolute",
+        left: 0,
+        top: 18,
+        bottom: 18,
+        width: 0,
+        borderRadius: 2,
+    },
+    tierMainRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+    },
+    tierTitleWrap: {
+        flex: 1,
+        minWidth: 0,
+    },
+    tierTopLine: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 5,
+    },
+    tierNameRow: {
+        alignSelf: "flex-start",
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+        maxWidth: "100%",
+        marginBottom: 6,
+    },
+    tierIndex: {
+        color: "rgba(255,255,255,0.36)",
+        fontFamily: ticketFont.bold,
+        fontSize: 10,
+    },
+    addedBadge: {
+        borderRadius: 999,
+        paddingHorizontal: 7,
+        paddingVertical: 3,
+        backgroundColor: "rgba(244,74,34,0.22)",
+    },
+    addedBadgeText: {
+        color: colors.gold,
+        fontFamily: ticketFont.bold,
+        fontSize: 9,
+        textTransform: "uppercase",
+    },
+    tierMetaLine: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginTop: 1,
+    },
+    tierName: {
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontWeight: "900",
+        fontSize: 17,
+        lineHeight: 20,
+    },
+    tierDescription: {
+        color: colors.goldStone,
+        fontFamily: ticketFont.regular,
+        fontSize: 13,
+        lineHeight: 18,
+        marginBottom: 10,
+    },
+    tierPrice: {
+        color: "rgba(255,255,255,0.58)",
+        fontFamily: ticketFont.medium,
+        fontWeight: "900",
+        fontSize: 14,
+    },
+    tierMetaDot: {
+        width: 3,
+        height: 3,
+        borderRadius: 1.5,
+        backgroundColor: "rgba(255,255,255,0.3)",
+        marginHorizontal: 8,
+    },
+    tierStock: {
+        color: colors.success,
+        fontFamily: ticketFont.bold,
+        fontSize: 12,
+    },
+    tierStockUrgent: {
+        color: colors.warning,
+    },
+    tierStockSoldOut: {
+        color: colors.goldStone,
+    },
+    tierControls: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    tierDisclosure: {
+        width: 28,
+        height: 36,
+        borderRadius: 14,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    tierExpanded: {
+        paddingTop: 12,
+    },
+    benefitWrap: {
+        gap: 7,
+        marginBottom: 10,
+    },
+    benefitRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    benefitDot: {
+        width: 4,
+        height: 4,
+        borderRadius: 2,
+        backgroundColor: colors.irisGlow,
+    },
+    benefitText: {
+        color: "rgba(255,255,255,0.76)",
+        fontFamily: ticketFont.medium,
+        fontSize: 11,
+    },
+    inventoryLabel: {
+        color: colors.goldStone,
+        fontFamily: ticketFont.bold,
+        fontSize: 12,
+    },
+    quantityControl: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
+    },
+    quantityButton: {
+        width: 29,
+        height: 29,
+        borderRadius: 14.5,
+        backgroundColor: "rgba(0,0,0,0.12)",
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.24)",
+    },
+    quantityButtonDisabled: {
+        backgroundColor: "rgba(255,255,255,0.04)",
+    },
+    quantityDialWindow: {
+        width: 22,
+        height: 26,
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+    },
+    quantityValue: {
+        minWidth: 24,
+        textAlign: "center",
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontSize: 17,
+        fontWeight: "900",
+    },
+    bottomBar: {
+        position: "absolute",
+        left: 22,
+        right: 22,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
+        borderRadius: 17,
+        backgroundColor: "rgba(10,10,10,0.96)",
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: "rgba(255,255,255,0.14)",
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: "rgba(255,255,255,0.12)",
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        shadowColor: "#000",
+        shadowOpacity: 0.3,
+        shadowRadius: 14,
+        shadowOffset: { width: 0, height: -6 },
+    },
+    bottomCopy: {
+        flex: 1,
+        minWidth: 0,
+    },
+    bottomLabel: {
+        color: colors.goldStone,
+        fontFamily: ticketFont.medium,
+        fontSize: 10,
+    },
+    bottomTotal: {
+        color: colors.gold,
+        fontFamily: ticketFont.black,
+        fontSize: 18,
+        fontWeight: "900",
+    },
+    bottomCount: {
+        color: "rgba(255,255,255,0.48)",
+        fontFamily: ticketFont.medium,
+        fontSize: 10,
+    },
+    proceedButton: {
+        minWidth: 108,
+        height: 38,
+        borderRadius: 13,
+        backgroundColor: colors.iris,
+        flexDirection: "row",
+        gap: 8,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    proceedButtonDisabled: {
+        opacity: 0.34,
+    },
+    proceedButtonText: {
+        color: "#fff",
+        fontFamily: ticketFont.black,
+        fontSize: 14,
+        fontWeight: "900",
+    },
 });

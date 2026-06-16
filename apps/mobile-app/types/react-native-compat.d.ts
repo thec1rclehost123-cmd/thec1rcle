@@ -15,23 +15,23 @@ export {};
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-declare module 'react-native' {
-  interface ViewProps {
-    children?: any;
-  }
-  interface TextProps {
-    children?: any;
-  }
+declare module "react-native" {
+    interface ViewProps {
+        children?: any;
+    }
+    interface TextProps {
+        children?: any;
+    }
 }
 
-declare module 'expo-linear-gradient' {
-  interface LinearGradientProps {
-    children?: any;
-  }
+declare module "expo-linear-gradient" {
+    interface LinearGradientProps {
+        children?: any;
+    }
 }
 
-declare module 'expo-blur' {
-  interface BlurViewProps {
-    children?: any;
-  }
+declare module "expo-blur" {
+    interface BlurViewProps {
+        children?: any;
+    }
 }

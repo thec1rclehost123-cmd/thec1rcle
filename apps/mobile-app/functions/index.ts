@@ -4,10 +4,10 @@
  */
 
 export {
-  onOrderConfirmed,
-  onTicketTransferred,
-  sendEventReminders,
-  onEventUpdated,
-  onChatMessage,
-  onDMRequest,
-} from './notifications';
+    onOrderConfirmed,
+    onTicketTransferred,
+    sendEventReminders,
+    onEventUpdated,
+    onChatMessage,
+    onDMRequest,
+} from "./notifications";

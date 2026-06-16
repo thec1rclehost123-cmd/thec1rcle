@@ -1,1 +1,2 @@
-export { default } from '../transfer/[token]';
+export { default } from "../transfer/[token]";
+

@@ -1,621 +1,801 @@
-/**
- * venues.tsx
- * Two-tab screen: Venues | Hosts
- * 2-column poster grid (BookMyShow-style), search bar, no filter chips.
- */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  TextInput,
-  FlatList,
-  RefreshControl,
   Dimensions,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
-import { Search, X, MapPin, Building2, Users, Heart } from 'lucide-react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import {
+  Building2,
+  CalendarDays,
+  Heart,
+  MapPin,
+  Music2,
+  Search,
+  Sparkles,
+  Ticket,
+  Users,
+  Utensils,
+  X,
+  ChevronRight,
+  ChevronDown
+} from 'lucide-react-native';
+import Animated, { FadeIn, FadeInDown, FadeInRight, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-import { colors } from '@/lib/design/theme';
-import { useVenuesStore, Venue } from '@/store/venuesStore';
-import { useEventsStore } from '@/store/eventsStore';
-import { useFollowStore } from '@/store/followStore';
-import { useAuth } from '@/hooks/useAuth';
+import { colors, spacing, typography, radii } from '@/lib/design/theme';
 import {
   getVenueDisplayName,
   getVenueLocationLabel,
   formatCompactCount,
 } from '@/lib/venueDiscovery';
+import { useAuth } from '@/hooks/useAuth';
+import { useEventsStore, type Event } from '@/store/eventsStore';
+import { useFollowStore } from '@/store/followStore';
+import { useVenuesStore, type Venue } from '@/store/venuesStore';
 
-const { width: SCREEN_W } = Dimensions.get('window');
-const H_PAD = 16;
-const COL_GAP = 10;
-const CARD_W = (SCREEN_W - H_PAD * 2 - COL_GAP) / 2;
-const CARD_H = CARD_W * 1.45;
+const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+const PUNE_CITY = 'Pune';
+const PUNE_SIGNAL_WORDS = [
+  'pune', 'koregaon park', 'kalyani nagar', 'viman nagar', 'kharadi',
+  'baner', 'aundh', 'wakad', 'balewadi', 'mundhwa', 'hadapsar',
+  'shivaji nagar', 'fc road', 'camp', 'yerwada', 'magarpatta', 'hinjewadi',
+];
 
 type Tab = 'venues' | 'hosts';
+type VenueFilter = 'all' | 'bookable' | 'events' | 'tonight';
 
 interface DerivedHost {
   id: string;
   name: string;
   photoURL?: string;
+  events: Event[];
   eventsCount: number;
+  upcomingCount: number;
+  pastCount: number;
+  nextEvent?: Event;
+  categories: string[];
 }
 
-// ── Poster card ───────────────────────────────────────────────────────────────
-function PosterCard({
-  imageUrl,
-  title,
-  subtitle,
-  badge,
-  index,
-  onPress,
-  onFollow,
-  isFollowed,
-}: {
-  imageUrl?: string | null;
-  title: string;
-  subtitle?: string;
-  badge?: string;
-  index: number;
-  onPress: () => void;
-  onFollow?: () => void;
-  isFollowed?: boolean;
-}) {
+const VENUE_FILTERS = [
+  { id: 'all', label: 'All', icon: Sparkles },
+  { id: 'bookable', label: 'Bookable', icon: Utensils },
+  { id: 'events', label: 'Events', icon: Ticket },
+  { id: 'tonight', label: 'Tonight', icon: CalendarDays },
+] as const;
+
+// --- Helpers ---
+function getVenueImage(venue?: Venue | null): string | undefined {
+  return venue?.coverImage || venue?.coverURL || venue?.bannerImage || venue?.photoURL || venue?.image;
+}
+function uniqueCompact(values: (string | undefined | null)[], limit = 3): string[] {
+  const seen = new Set<string>();
+  const output: string[] = [];
+  values.forEach((value) => {
+    const clean = value?.trim();
+    if (!clean) return;
+    const key = clean.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    output.push(clean);
+  });
+  return output.slice(0, limit);
+}
+function normalizeKey(value?: string | null): string {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+function hasPuneSignal(values: (string | undefined | null)[]): boolean {
+  const haystack = values.filter(Boolean).join(' ').toLowerCase();
+  if (!haystack) return false;
+  return PUNE_SIGNAL_WORDS.some((word) => haystack.includes(word));
+}
+function isPuneVenue(venue: Venue): boolean {
+  return hasPuneSignal([
+    venue.city, venue.area, venue.neighborhood, venue.address,
+    venue.addressLine1, venue.displayName, venue.name,
+  ]);
+}
+function isPuneEvent(event: Event): boolean {
+  return hasPuneSignal([event.city, event.location, event.venue, event.title, event.description]);
+}
+function getEventVenueCandidates(event: Event): string[] {
+  const loose = event as Event & { venueId?: string; venueName?: string };
+  return uniqueCompact(
+    [loose.venueId, loose.venueName, event.venue, event.location, event.city],
+    5,
+  ).map(normalizeKey);
+}
+function getVenueCandidates(venue: Venue): string[] {
+  return uniqueCompact(
+    [venue.id, venue.slug, venue.displayName, venue.name, venue.address, venue.area],
+    6,
+  ).map(normalizeKey);
+}
+function isUpcomingEvent(event: Event): boolean {
+  if (!event.startDate) return false;
+  const date = new Date(event.endDate || event.startDate);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getTime() >= Date.now();
+}
+function isTodayEvent(event: Event): boolean {
+  if (!event.startDate) return false;
+  const date = new Date(event.startDate);
+  if (Number.isNaN(date.getTime())) return false;
+  const today = new Date();
+  return date.toDateString() === today.toDateString();
+}
+function getEventsForVenue(venue: Venue, events: Event[]): Event[] {
+  const venueKeys = getVenueCandidates(venue).filter(Boolean);
+  if (!venueKeys.length) return [];
+  return events.filter((event) => {
+    const eventKeys = getEventVenueCandidates(event).filter(Boolean);
+    return eventKeys.some((eventKey) =>
+      venueKeys.some(
+        (venueKey) => eventKey === venueKey || eventKey.includes(venueKey) || venueKey.includes(eventKey),
+      ),
+    );
+  });
+}
+function isVenueBookable(venue: Venue): boolean {
+  return Boolean(venue.hasReservation || venue.tablesAvailable || venue.whatsapp || venue.phone);
+}
+
+// --- Zomato-Inspired Components ---
+
+function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }: any) {
   return (
-    <Animated.View
-      entering={FadeInDown.delay(Math.min(index * 40, 240))
-        .springify()
-        .damping(18)}
-      style={styles.posterCard}
-    >
-      <Pressable
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          onPress();
-        }}
-        style={{ flex: 1 }}
-      >
-        {/* Image */}
-        <View style={styles.posterImgWrap}>
-          {imageUrl ? (
-            <Image
-              source={{ uri: imageUrl }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={300}
-            />
-          ) : (
-            <LinearGradient colors={['#1E1E22', '#111113']} style={StyleSheet.absoluteFill} />
-          )}
-          {/* Gradient scrim */}
-          <LinearGradient
-            colors={['transparent', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.94)']}
-            locations={[0.45, 0.78, 1]}
-            style={StyleSheet.absoluteFill}
-          />
-          {/* Badge top-right */}
-          {badge && (
-            <View style={styles.posterBadge}>
-              <Text style={styles.posterBadgeText}>{badge}</Text>
-            </View>
-          )}
-          {/* Follow button top-left */}
-          {onFollow && (
+    <BlurView intensity={85} tint="dark" style={[styles.headerBlur, { paddingTop: Math.max(insetsTop, 16) }]}>
+      <View style={styles.headerTopRow}>
+        <View style={styles.locationPill}>
+          <MapPin size={16} color="#F44A22" />
+          <Text style={styles.locationText}>Pune</Text>
+          <ChevronDown size={14} color="rgba(255,255,255,0.6)" />
+        </View>
+        <Pressable style={styles.profileBtn}>
+          <Image source={{ uri: 'https://thec1rcle.com/default-avatar.png' }} style={styles.profileImg} />
+        </Pressable>
+      </View>
+
+      <View style={styles.searchContainer}>
+        <Search size={18} color="rgba(255,255,255,0.5)" />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search venues, cuisines, vibes..."
+          placeholderTextColor="rgba(255,255,255,0.4)"
+          value={search}
+          onChangeText={setSearch}
+        />
+        {search.length > 0 && (
+          <Pressable onPress={() => setSearch('')}>
+            <X size={18} color="rgba(255,255,255,0.5)" />
+          </Pressable>
+        )}
+      </View>
+
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+        {VENUE_FILTERS.map((f) => {
+          const isActive = activeFilter === f.id;
+          const Icon = f.icon;
+          return (
             <Pressable
-              style={[styles.posterFollowBtn, isFollowed && styles.posterFollowBtnActive]}
+              key={f.id}
+              style={[styles.filterPill, isActive && styles.filterPillActive]}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                onFollow();
+                setFilter(f.id);
               }}
-              hitSlop={8}
             >
-              <Heart
-                size={13}
-                color={isFollowed ? '#F44A22' : '#fff'}
-                fill={isFollowed ? '#F44A22' : 'none'}
-                strokeWidth={2}
-              />
+              {isActive && <Icon size={14} color="#fff" style={{ marginRight: 6 }} />}
+              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{f.label}</Text>
             </Pressable>
-          )}
-        </View>
+          );
+        })}
+      </ScrollView>
+    </BlurView>
+  );
+}
 
-        {/* Info below image */}
-        <View style={styles.posterInfo}>
-          <Text style={styles.posterTitle} numberOfLines={2}>
-            {title}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.posterSubtitle} numberOfLines={1}>
-              {subtitle}
-            </Text>
-          ) : null}
+function EditorialHeroCard({ venue }: { venue: Venue }) {
+  if (!venue) return null;
+  const image = getVenueImage(venue);
+  
+  return (
+    <Animated.View entering={FadeInDown.delay(100)}>
+      <Pressable 
+        style={styles.heroCard}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push({ pathname: '/venue/[id]', params: { id: venue.id } });
+        }}
+      >
+        {image ? (
+          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+        ) : (
+          <LinearGradient colors={['#2A1A12', '#111']} style={StyleSheet.absoluteFill} />
+        )}
+        <LinearGradient 
+          colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']} 
+          style={StyleSheet.absoluteFill} 
+        />
+        
+        <View style={styles.heroContent}>
+          <View style={styles.heroBadge}>
+            <Sparkles size={12} color="#F44A22" />
+            <Text style={styles.heroBadgeText}>SPOTLIGHT</Text>
+          </View>
+          
+          <Text style={styles.heroTitle}>{getVenueDisplayName(venue)}</Text>
+          
+          <View style={styles.heroMetaRow}>
+            <Text style={styles.heroMetaText}>{getVenueLocationLabel(venue)}</Text>
+            {venue.venueType && (
+              <>
+                <Text style={styles.heroMetaDot}>•</Text>
+                <Text style={styles.heroMetaText}>{venue.venueType}</Text>
+              </>
+            )}
+          </View>
+
+          <View style={styles.heroActionRow}>
+            {isVenueBookable(venue) && (
+              <View style={styles.heroBookBtn}>
+                <Text style={styles.heroBookText}>Reserve Table</Text>
+              </View>
+            )}
+            {venue.upcomingEventsCount ? (
+              <View style={styles.heroEventPill}>
+                <Ticket size={12} color="#fff" />
+                <Text style={styles.heroEventText}>{venue.upcomingEventsCount} Events</Text>
+              </View>
+            ) : null}
+          </View>
         </View>
       </Pressable>
     </Animated.View>
   );
 }
 
-function PosterSkeleton() {
-  return <View style={[styles.posterCard, styles.posterSkeleton]} />;
+function CuratedRail({ title, venues }: { title: string, venues: Venue[] }) {
+  if (!venues.length) return null;
+  return (
+    <Animated.View entering={FadeInDown.delay(200)} style={styles.railSection}>
+      <Text style={styles.railTitle}>{title}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railScroll}>
+        {venues.map((v, i) => {
+          const image = getVenueImage(v);
+          return (
+            <Pressable 
+              key={v.id} 
+              style={styles.railCard}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push({ pathname: '/venue/[id]', params: { id: v.id } });
+              }}
+            >
+              <Image source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }} style={styles.railImage} contentFit="cover" />
+              <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.railGradient} />
+              <View style={styles.railContent}>
+                <Text style={styles.railVenueName} numberOfLines={1}>{getVenueDisplayName(v)}</Text>
+                <Text style={styles.railVenueLoc} numberOfLines={1}>{getVenueLocationLabel(v)}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </Animated.View>
+  );
 }
 
-// ── Main screen ───────────────────────────────────────────────────────────────
+function ZomatoVenueCard({ venue }: { venue: Venue }) {
+  const image = getVenueImage(venue);
+  
+  return (
+    <Animated.View entering={FadeInDown}>
+      <Pressable 
+        style={styles.zCard}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push({ pathname: '/venue/[id]', params: { id: venue.id } });
+        }}
+      >
+        <View style={styles.zImageContainer}>
+          <Image source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }} style={styles.zImage} contentFit="cover" />
+          <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={StyleSheet.absoluteFill} />
+          
+          {venue.isVerified && (
+            <BlurView intensity={40} tint="dark" style={styles.zBadgeVerified}>
+              <Text style={styles.zBadgeText}>✓ Verified</Text>
+            </BlurView>
+          )}
+          
+          <View style={styles.zBadgesBottom}>
+            {venue.upcomingEventsCount ? (
+              <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
+                <Ticket size={10} color="#fff" style={{marginRight: 4}}/>
+                <Text style={styles.zBadgeText}>{venue.upcomingEventsCount} Events</Text>
+              </BlurView>
+            ) : null}
+            <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
+              <Heart size={10} color="#F44A22" style={{marginRight: 4}}/>
+              <Text style={styles.zBadgeText}>{formatCompactCount(venue.followers)}</Text>
+            </BlurView>
+          </View>
+        </View>
+
+        <View style={styles.zInfo}>
+          <View style={styles.zInfoRow}>
+            <Text style={styles.zTitle} numberOfLines={1}>{getVenueDisplayName(venue)}</Text>
+            {isVenueBookable(venue) && (
+              <View style={styles.zBookMark}>
+                <Utensils size={12} color="#F44A22" />
+              </View>
+            )}
+          </View>
+          
+          <View style={styles.zSubRow}>
+            <Text style={styles.zSubText} numberOfLines={1}>
+              {venue.venueType ? `${venue.venueType} • ` : ''}{getVenueLocationLabel(venue)}
+            </Text>
+            <Text style={styles.zDistance}>2.4 km</Text>
+          </View>
+        </View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// --- Main Export ---
 export default function VenuesTab() {
   const insets = useSafeAreaInsets();
-  const { venues, loading: venuesLoading, fetchVenues } = useVenuesStore();
-  const { events } = useEventsStore();
-  const { user } = useAuth();
-  const {
-    isFollowingVenue,
-    isFollowingHost,
-    toggleVenueFollow,
-    toggleHostFollow,
-    fetchFollows,
-    loaded,
-  } = useFollowStore();
-
-  const [activeTab, setActiveTab] = useState<Tab>('venues');
   const [search, setSearch] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
+  const [activeFilter, setActiveFilter] = useState<VenueFilter>('all');
+  
+  const { venues, loading, fetchVenues } = useVenuesStore();
+  const { events, fetchEvents } = useEventsStore();
+  const { user } = useAuth();
+  const { fetchFollows } = useFollowStore();
 
   useEffect(() => {
-    void fetchVenues();
-  }, []);
-  useEffect(() => {
-    if (user?.uid && !loaded) void fetchFollows(user.uid);
-  }, [user?.uid, loaded, fetchFollows]);
+    fetchVenues();
+    fetchEvents();
+    if (user?.uid) fetchFollows(user.uid);
+  }, [fetchVenues, fetchEvents, user?.uid, fetchFollows]);
 
-  // Derive hosts from events — unique by hostName, sort by event count
-  const hosts = useMemo<DerivedHost[]>(() => {
-    const map = new Map<string, DerivedHost>();
-    events.forEach((e) => {
-      if (!e.hostName) return;
-      const key = e.hostId ?? e.hostName;
-      const existing = map.get(key);
-      if (existing) {
-        existing.eventsCount += 1;
-      } else {
-        map.set(key, {
-          id: key,
-          name: e.hostName,
-          photoURL: undefined,
-          eventsCount: 1,
-        });
-      }
+  // Filtering Logic
+  const puneVenues = useMemo(() => {
+    const list = venues.filter(isPuneVenue).map((v) => {
+      const vEvents = getEventsForVenue(v, events);
+      const upcoming = vEvents.filter(isUpcomingEvent);
+      return { ...v, upcomingEventsCount: upcoming.length };
     });
-    return [...map.values()].sort((a, b) => b.eventsCount - a.eventsCount);
-  }, [events]);
+    
+    // Zomato style: Shuffle slightly to make feed feel fresh, but keep highest followers up top
+    return list.sort((a, b) => (b.followers || 0) - (a.followers || 0));
+  }, [venues, events]);
 
   const filteredVenues = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return venues;
-    return venues.filter((v) => {
-      const hay = [v.displayName, v.name, v.neighborhood, v.area, v.city, ...(v.tags ?? [])]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-      return hay.includes(q);
-    });
-  }, [venues, search]);
-
-  const filteredHosts = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return hosts;
-    return hosts.filter((h) => h.name.toLowerCase().includes(q));
-  }, [hosts, search]);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchVenues();
-    setRefreshing(false);
-  };
-
-  // Build pairs for 2-column layout
-  const venuePairs = useMemo(() => {
-    const rows: Venue[][] = [];
-    for (let i = 0; i < filteredVenues.length; i += 2) {
-      rows.push(filteredVenues.slice(i, i + 2));
+    let result = puneVenues;
+    
+    if (activeFilter === 'bookable') {
+      result = result.filter(isVenueBookable);
+    } else if (activeFilter === 'events') {
+      result = result.filter(v => (v.upcomingEventsCount || 0) > 0);
+    } else if (activeFilter === 'tonight') {
+      result = result.filter(v => getEventsForVenue(v, events).some(isTodayEvent));
     }
-    return rows;
-  }, [filteredVenues]);
 
-  const hostPairs = useMemo(() => {
-    const rows: DerivedHost[][] = [];
-    for (let i = 0; i < filteredHosts.length; i += 2) {
-      rows.push(filteredHosts.slice(i, i + 2));
+    if (search.trim()) {
+      const lower = search.toLowerCase();
+      result = result.filter(v => 
+        (v.name?.toLowerCase().includes(lower) || 
+         v.displayName?.toLowerCase().includes(lower) ||
+         v.venueType?.toLowerCase().includes(lower) ||
+         v.neighborhood?.toLowerCase().includes(lower) ||
+         v.tags?.some(t => t.toLowerCase().includes(lower)))
+      );
     }
-    return rows;
-  }, [filteredHosts]);
+    
+    return result;
+  }, [puneVenues, activeFilter, search, events]);
 
-  const isLoading = venuesLoading && venues.length === 0;
-  const count = activeTab === 'venues' ? filteredVenues.length : filteredHosts.length;
+  const spotlightVenue = puneVenues.find(v => v.coverImage || v.image) || puneVenues[0];
+  const bookableVenues = puneVenues.filter(isVenueBookable).slice(0, 6);
+  
+  // Remove spotlight and curated from main feed to avoid duplication
+  const feedVenues = filteredVenues.filter(v => v.id !== spotlightVenue?.id);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* ── Header ── */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.headerLabel}>DISCOVER</Text>
-          <Text style={styles.headerTitle}>{activeTab === 'venues' ? 'Venues' : 'Hosts'}</Text>
-          <Text style={styles.headerMeta}>
-            {count} {activeTab === 'venues' ? 'places' : 'organisers'}
-          </Text>
-        </View>
-        <Pressable
-          onPress={() => router.push({ pathname: '/map', params: { mode: 'venues' } })}
-          style={styles.mapBtn}
-        >
-          <MapPin size={18} color="#fff" strokeWidth={2} />
-        </Pressable>
-      </View>
+    <View style={styles.container}>
+      <ZomatoHeader 
+        search={search} 
+        setSearch={setSearch} 
+        activeFilter={activeFilter} 
+        setFilter={setActiveFilter} 
+        insetsTop={insets.top} 
+      />
 
-      {/* ── Segment control ── */}
-      <View style={styles.segmentWrap}>
-        <View style={styles.segmentTrack}>
-          {(['venues', 'hosts'] as Tab[]).map((tab) => {
-            const isActive = activeTab === tab;
-            const Icon = tab === 'venues' ? Building2 : Users;
-            return (
-              <Pressable
-                key={tab}
-                style={[styles.segmentPill, isActive && styles.segmentPillActive]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  setActiveTab(tab);
-                  setSearch('');
-                }}
-              >
-                <Icon
-                  size={14}
-                  color={isActive ? '#fff' : 'rgba(255,255,255,0.36)'}
-                  strokeWidth={isActive ? 2.2 : 1.8}
-                />
-                <Text style={[styles.segmentText, isActive && styles.segmentTextActive]}>
-                  {tab === 'venues' ? 'Venues' : 'Hosts'}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* ── Search ── */}
-      <View style={styles.searchWrap}>
-        <Search size={17} color="rgba(255,255,255,0.35)" strokeWidth={2} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder={activeTab === 'venues' ? 'Search venues, area…' : 'Search hosts…'}
-          placeholderTextColor="rgba(255,255,255,0.3)"
-          value={search}
-          onChangeText={setSearch}
-          returnKeyType="search"
-        />
-        {search.length > 0 && (
-          <Pressable onPress={() => setSearch('')} hitSlop={8}>
-            <X size={16} color="rgba(255,255,255,0.35)" strokeWidth={2} />
-          </Pressable>
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl 
+            refreshing={loading} 
+            onRefresh={() => { fetchVenues(); fetchEvents(); }} 
+            tintColor="#F44A22" 
+          />
+        }
+      >
+        {search === '' && activeFilter === 'all' && (
+          <>
+            {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
+            {bookableVenues.length > 0 && <CuratedRail title="Reserve a Table" venues={bookableVenues} />}
+          </>
         )}
-      </View>
 
-      {/* ── Grid ── */}
-      {isLoading ? (
-        <View style={styles.skeletonGrid}>
-          {[0, 1, 2, 3].map((i) => (
-            <PosterSkeleton key={i} />
+        <View style={styles.feedGrid}>
+          {feedVenues.map((v) => (
+            <ZomatoVenueCard key={v.id} venue={v} />
           ))}
         </View>
-      ) : (
-        <FlatList
-          bounces={false}
-          overScrollMode="never"
-          data={activeTab === 'venues' ? venuePairs : hostPairs}
-          keyExtractor={(_, i) => String(i)}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.gridContent}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
-          }
-          renderItem={({ item: row, index: rowIdx }) => (
-            <View style={styles.gridRow}>
-              {activeTab === 'venues'
-                ? (row as Venue[]).map((venue, col) => {
-                    const img =
-                      venue.coverImage ||
-                      venue.coverURL ||
-                      venue.bannerImage ||
-                      venue.photoURL ||
-                      venue.image;
-                    const name = getVenueDisplayName(venue);
-                    const area = getVenueLocationLabel(venue);
-                    const badge = venue.upcomingEventsCount
-                      ? `${venue.upcomingEventsCount} events`
-                      : (venue.venueType ?? undefined);
-                    return (
-                      <PosterCard
-                        key={venue.id}
-                        imageUrl={img}
-                        title={name}
-                        subtitle={area ?? undefined}
-                        badge={badge}
-                        index={rowIdx * 2 + col}
-                        onPress={() => router.push(`/venue/${venue.slug || venue.id}` as never)}
-                        isFollowed={isFollowingVenue(venue.id)}
-                        onFollow={() => {
-                          if (!user?.uid) return;
-                          void toggleVenueFollow(venue.id, name, user.uid);
-                        }}
-                      />
-                    );
-                  })
-                : (row as DerivedHost[]).map((host, col) => (
-                    <PosterCard
-                      key={host.id}
-                      imageUrl={host.photoURL}
-                      title={host.name}
-                      subtitle={`${host.eventsCount} event${host.eventsCount !== 1 ? 's' : ''}`}
-                      badge="HOST"
-                      index={rowIdx * 2 + col}
-                      onPress={() => {}}
-                      isFollowed={isFollowingHost(host.id)}
-                      onFollow={() => {
-                        if (!user?.uid) return;
-                        void toggleHostFollow(host.id, host.name, user.uid);
-                      }}
-                    />
-                  ))}
-              {/* Fill empty last cell if odd count */}
-              {row.length === 1 && <View style={styles.posterCard} />}
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>{activeTab === 'venues' ? '🏛️' : '🎧'}</Text>
-              <Text style={styles.emptyTitle}>
-                {search
-                  ? 'No results found'
-                  : activeTab === 'venues'
-                    ? 'No venues yet'
-                    : 'No hosts yet'}
-              </Text>
-              <Text style={styles.emptyBody}>
-                {search ? `No ${activeTab} match "${search}"` : 'Check back soon'}
-              </Text>
-            </View>
-          }
-        />
-      )}
+
+        {filteredVenues.length === 0 && !loading && (
+          <View style={styles.emptyWrap}>
+            <Text style={styles.emptyIcon}>🍽️</Text>
+            <Text style={styles.emptyTitle}>No venues found</Text>
+            <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 }
 
+// --- Styles ---
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0A0A0B',
+    backgroundColor: '#050505',
   },
-
-  // Header
-  header: {
+  scrollContent: {
+    paddingBottom: 100,
+  },
+  headerBlur: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+  },
+  headerTopRow: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 14,
-  },
-  headerLabel: {
-    color: colors.iris,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: 0,
-    marginTop: 2,
-    textTransform: 'uppercase',
-  },
-  headerMeta: {
-    color: 'rgba(255,255,255,0.35)',
-    fontSize: 12,
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  mapBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  // Segment control
-  segmentWrap: {
-    paddingHorizontal: 16,
-    marginBottom: 14,
-  },
-  segmentTrack: {
-    flexDirection: 'row',
-    backgroundColor: '#161618',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-    padding: 4,
-    gap: 4,
-  },
-  segmentPill: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 11,
-  },
-  segmentPillActive: {
-    backgroundColor: '#F44A22',
-    shadowColor: '#F44A22',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 5,
-  },
-  segmentText: {
-    color: 'rgba(255,255,255,0.38)',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 0.1,
-  },
-  segmentTextActive: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-  },
-
-  // Search
-  searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginHorizontal: 16,
     marginBottom: 16,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    borderRadius: 14,
+  },
+  locationPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  locationText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+  },
+  profileBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  profileImg: {
+    width: '100%',
+    height: '100%',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 16,
+    height: 48,
+    paddingHorizontal: 16,
+    marginBottom: 16,
   },
   searchInput: {
     flex: 1,
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
+    marginLeft: 10,
     fontWeight: '500',
-    padding: 0,
   },
-
-  // Grid
-  gridContent: {
-    paddingHorizontal: H_PAD,
-    paddingBottom: 120,
-    gap: COL_GAP,
+  filterRail: {
+    paddingHorizontal: 20,
+    gap: 10,
   },
-  gridRow: {
+  filterPill: {
     flexDirection: 'row',
-    gap: COL_GAP,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  filterPillActive: {
+    backgroundColor: 'rgba(244,74,34,0.15)',
+    borderColor: '#F44A22',
+  },
+  filterText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  filterTextActive: {
+    color: '#fff',
   },
 
-  // Poster card
-  posterCard: {
-    width: CARD_W,
-    height: CARD_H,
+  // Hero Card
+  heroCard: {
+    marginHorizontal: 20,
+    height: 320,
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 32,
+    marginTop: 10,
+  },
+  heroContent: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+  },
+  heroBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 6,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  heroBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  heroTitle: {
+    color: '#fff',
+    fontSize: 34,
+    fontWeight: '900',
+    letterSpacing: -1,
+    marginBottom: 8,
+  },
+  heroMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  heroMetaText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  heroMetaDot: {
+    color: 'rgba(255,255,255,0.4)',
+  },
+  heroActionRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  heroBookBtn: {
+    backgroundColor: '#F44A22',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  heroBookText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  heroEventPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  heroEventText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+
+  // Curated Rail
+  railSection: {
+    marginBottom: 32,
+  },
+  railTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '800',
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  railScroll: {
+    paddingHorizontal: 20,
+    gap: 14,
+  },
+  railCard: {
+    width: 140,
+    height: 180,
     borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  posterSkeleton: {
-    opacity: 0.4,
+  railImage: {
+    width: '100%',
+    height: '100%',
   },
-  posterImgWrap: {
-    flex: 1,
-    position: 'relative',
-  },
-  posterFollowBtn: {
-    position: 'absolute',
-    top: 10,
-    left: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  posterFollowBtnActive: {
-    backgroundColor: 'rgba(244,74,34,0.18)',
-    borderColor: 'rgba(244,74,34,0.45)',
-  },
-  posterBadge: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(244,74,34,0.85)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  posterBadgeText: {
-    color: '#fff',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-  },
-  posterInfo: {
+  railGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    padding: 12,
+    height: '50%',
   },
-  posterTitle: {
+  railContent: {
+    position: 'absolute',
+    bottom: 12,
+    left: 12,
+    right: 12,
+  },
+  railVenueName: {
     color: '#fff',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '800',
-    letterSpacing: 0,
-    lineHeight: 17,
+    marginBottom: 4,
   },
-  posterSubtitle: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 11,
+  railVenueLoc: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 12,
     fontWeight: '500',
-    marginTop: 3,
   },
 
-  // Skeleton grid
-  skeletonGrid: {
+  // Main Feed Zomato Card
+  feedGrid: {
+    paddingHorizontal: 20,
+    gap: 24,
+  },
+  zCard: {
+    width: '100%',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  zImageContainer: {
+    width: '100%',
+    height: 220,
+    position: 'relative',
+  },
+  zImage: {
+    width: '100%',
+    height: '100%',
+  },
+  zBadgeVerified: {
+    position: 'absolute',
+    top: 14,
+    left: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  zBadgesBottom: {
+    position: 'absolute',
+    bottom: 14,
+    right: 14,
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: COL_GAP,
-    paddingHorizontal: H_PAD,
+    gap: 8,
+  },
+  zBadgePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  zBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  zInfo: {
+    padding: 16,
+  },
+  zInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  zTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
+    flex: 1,
+    marginRight: 10,
+  },
+  zBookMark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(244,74,34,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zSubRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  zSubText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 13,
+    fontWeight: '500',
+    flex: 1,
+  },
+  zDistance: {
+    color: 'rgba(255,255,255,0.4)',
+    fontSize: 12,
+    fontWeight: '600',
   },
 
-  // Empty state
-  emptyState: {
+  // Empty State
+  emptyWrap: {
     alignItems: 'center',
-    paddingTop: 60,
-    paddingHorizontal: 32,
+    marginTop: 60,
   },
   emptyIcon: {
-    fontSize: 52,
+    fontSize: 48,
     marginBottom: 16,
   },
   emptyTitle: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 17,
-    fontWeight: '700',
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
     marginBottom: 8,
-    textAlign: 'center',
   },
-  emptyBody: {
-    color: 'rgba(255,255,255,0.3)',
-    fontSize: 13,
-    textAlign: 'center',
-    lineHeight: 19,
-  },
+  emptySub: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 15,
+  }
 });
