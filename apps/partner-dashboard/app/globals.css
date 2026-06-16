@@ -10,6 +10,7 @@ html {
 
 :root {
   color-scheme: light;
+
   --dashboard-mobile-header: 56px;
   --dashboard-desktop-header: 64px;
 }
@@ -34,11 +35,12 @@ body {
    CSS CUSTOM PROPERTIES — Light & Dark Mode
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* stylelint-disable-next-line no-duplicate-selectors */
 :root {
   /* ─── Brand Colors ─── */
   --c1rcle-orange: #f44a22;
-  --c1rcle-orange-glow: rgba(244, 74, 34, 0.25);
-  --c1rcle-orange-dim: #cc3311;
+  --c1rcle-orange-glow: rgb(244 74 34 / 25%);
+  --c1rcle-orange-dim: #c31;
   --c1rcle-orange-light: #ff6b4a;
 
   /* ─── Accent Alias (Backward Compatibility) ─── */
@@ -48,49 +50,49 @@ body {
   --accent-primary-light: var(--c1rcle-orange-light);
 
   /* ─── Light Mode Surfaces ─── */
-  --surface-base: #ffffff;
+  --surface-base: #fff;
   --surface-secondary: #f8f9fa;
   --surface-tertiary: #f1f3f5;
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(0, 0, 0, 0.5);
+  --surface-elevated: #fff;
+  --surface-overlay: rgb(0 0 0 / 50%);
 
   /* ─── Light Mode Sidebar ─── */
   --sidebar-bg: #fafbfc;
-  --sidebar-border: rgba(0, 0, 0, 0.06);
+  --sidebar-border: rgb(0 0 0 / 6%);
 
   /* ─── Light Mode Typography ─── */
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-tertiary: #94a3b8;
   --text-placeholder: #cbd5e1;
-  --text-inverse: #ffffff;
+  --text-inverse: #fff;
 
   /* ─── Light Mode Borders ─── */
-  --border-subtle: rgba(0, 0, 0, 0.04);
-  --border-default: rgba(0, 0, 0, 0.08);
-  --border-strong: rgba(0, 0, 0, 0.12);
+  --border-subtle: rgb(0 0 0 / 4%);
+  --border-default: rgb(0 0 0 / 8%);
+  --border-strong: rgb(0 0 0 / 12%);
   --border-focus: var(--c1rcle-orange);
 
   /* ─── State Colors (Semantic) ─── */
   --state-success: #10b981;
-  --state-success-bg: rgba(16, 185, 129, 0.1);
+  --state-success-bg: rgb(16 185 129 / 10%);
   --state-warning: #f59e0b;
-  --state-warning-bg: rgba(245, 158, 11, 0.1);
+  --state-warning-bg: rgb(245 158 11 / 10%);
   --state-error: #ef4444;
-  --state-error-bg: rgba(239, 68, 68, 0.1);
+  --state-error-bg: rgb(239 68 68 / 10%);
   --state-info: #6366f1;
-  --state-info-bg: rgba(99, 102, 241, 0.1);
+  --state-info-bg: rgb(99 102 241 / 10%);
 
   /* ─── Trend Colors (Financial) ─── */
   --trend-up: #10b981;
-  --trend-up-bg: rgba(16, 185, 129, 0.12);
+  --trend-up-bg: rgb(16 185 129 / 12%);
   --trend-down: #ef4444;
-  --trend-down-bg: rgba(239, 68, 68, 0.12);
+  --trend-down-bg: rgb(239 68 68 / 12%);
   --trend-neutral: #6b7280;
 
   /* ─── Typography Stack ─── */
   --font-system:
-    -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Segoe UI',
+    -apple-system, blinkmacsystemfont, 'SF Pro Display', 'SF Pro Text', 'Inter', 'Segoe UI',
     sans-serif;
   --font-mono: 'SF Mono', 'Fira Code', 'Monaco', monospace;
 
@@ -119,11 +121,11 @@ body {
   --radius-full: 9999px;
 
   /* ─── Shadows (Light) ─── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.04);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.12), 0 8px 16px rgba(0, 0, 0, 0.06);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 4%);
+  --shadow-sm: 0 2px 4px rgb(0 0 0 / 4%), 0 1px 2px rgb(0 0 0 / 2%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 6%), 0 2px 4px rgb(0 0 0 / 4%);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 8%), 0 4px 8px rgb(0 0 0 / 4%);
+  --shadow-xl: 0 16px 48px rgb(0 0 0 / 12%), 0 8px 16px rgb(0 0 0 / 6%);
   --shadow-glow: 0 0 20px var(--c1rcle-orange-glow);
   --shadow-glow-lg: 0 0 40px var(--c1rcle-orange-glow);
 
@@ -145,11 +147,11 @@ body {
   --surface-secondary: #111113;
   --surface-tertiary: #18181b;
   --surface-elevated: #1c1c1f;
-  --surface-overlay: rgba(0, 0, 0, 0.8);
+  --surface-overlay: rgb(0 0 0 / 80%);
 
   /* ─── Dark Mode Sidebar ─── */
   --sidebar-bg: #0d0d0e;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgb(255 255 255 / 6%);
 
   /* ─── Dark Mode Typography ─── */
   --text-primary: #fafafa;
@@ -159,34 +161,34 @@ body {
   --text-inverse: #0a0a0b;
 
   /* ─── Dark Mode Borders ─── */
-  --border-subtle: rgba(255, 255, 255, 0.04);
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgb(255 255 255 / 4%);
+  --border-default: rgb(255 255 255 / 8%);
+  --border-strong: rgb(255 255 255 / 12%);
 
   /* ─── Dark Mode State Colors ─── */
   --state-success: #34d399;
-  --state-success-bg: rgba(52, 211, 153, 0.15);
+  --state-success-bg: rgb(52 211 153 / 15%);
   --state-warning: #fbbf24;
-  --state-warning-bg: rgba(251, 191, 36, 0.15);
+  --state-warning-bg: rgb(251 191 36 / 15%);
   --state-error: #f87171;
-  --state-error-bg: rgba(248, 113, 113, 0.15);
+  --state-error-bg: rgb(248 113 113 / 15%);
   --state-info: #818cf8;
-  --state-info-bg: rgba(129, 140, 248, 0.15);
+  --state-info-bg: rgb(129 140 248 / 15%);
 
   /* ─── Dark Mode Trend Colors ─── */
   --trend-up: #34d399;
-  --trend-up-bg: rgba(52, 211, 153, 0.15);
+  --trend-up-bg: rgb(52 211 153 / 15%);
   --trend-down: #f87171;
-  --trend-down-bg: rgba(248, 113, 113, 0.15);
+  --trend-down-bg: rgb(248 113 113 / 15%);
 
   /* ─── Dark Mode Shadows ─── */
-  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5), 0 4px 8px rgba(0, 0, 0, 0.3);
-  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.6), 0 8px 16px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 30px rgba(244, 74, 34, 0.3);
-  --shadow-glow-lg: 0 0 60px rgba(244, 74, 34, 0.4);
+  --shadow-xs: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-sm: 0 2px 4px rgb(0 0 0 / 30%), 0 1px 2px rgb(0 0 0 / 20%);
+  --shadow-md: 0 4px 12px rgb(0 0 0 / 40%), 0 2px 4px rgb(0 0 0 / 30%);
+  --shadow-lg: 0 8px 24px rgb(0 0 0 / 50%), 0 4px 8px rgb(0 0 0 / 30%);
+  --shadow-xl: 0 16px 48px rgb(0 0 0 / 60%), 0 8px 16px rgb(0 0 0 / 40%);
+  --shadow-glow: 0 0 30px rgb(244 74 34 / 30%);
+  --shadow-glow-lg: 0 0 60px rgb(244 74 34 / 40%);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -201,14 +203,16 @@ body {
   padding: 0;
 }
 
+/* stylelint-disable-next-line no-duplicate-selectors */
 html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
+  text-rendering: optimizelegibility;
   font-size: 16px;
   scroll-behavior: smooth;
 }
 
+/* stylelint-disable-next-line no-duplicate-selectors */
 body {
   font-family: var(--font-system);
   background: var(--surface-base);
@@ -505,16 +509,15 @@ body {
 
 /* Glass Card (Dark Mode Premium) */
 .card-glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgb(255 255 255 / 3%);
   backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-xl);
 }
 
 .dark .card-glass {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgb(255 255 255 / 4%);
+  border: 1px solid rgb(255 255 255 / 8%);
 }
 
 /* Glow Card (Accent) */
@@ -564,13 +567,13 @@ body {
 }
 
 .kpi-tile-accent {
-  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgba(244, 74, 34, 0.03) 100%);
-  border-color: rgba(244, 74, 34, 0.15);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgb(244 74 34 / 3%) 100%);
+  border-color: rgb(244 74 34 / 15%);
 }
 
 .dark .kpi-tile-accent {
-  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgba(244, 74, 34, 0.08) 100%);
-  border-color: rgba(244, 74, 34, 0.2);
+  background: linear-gradient(135deg, var(--surface-elevated) 0%, rgb(244 74 34 / 8%) 100%);
+  border-color: rgb(244 74 34 / 20%);
 }
 
 .kpi-icon {
@@ -951,7 +954,7 @@ select option {
   padding: 4px 12px;
   border-radius: var(--radius-full);
   background: var(--state-success-bg);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  border: 1px solid rgb(16 185 129 / 20%);
 }
 
 .live-indicator::before {
@@ -1038,7 +1041,7 @@ select option {
 }
 
 .dark .nav-item-active {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(255 255 255 / 8%);
   color: var(--text-primary);
 }
 
@@ -1275,12 +1278,12 @@ select option {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 30%), transparent);
   animation: shimmer 1.5s infinite;
 }
 
 .dark .skeleton::after {
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 8%), transparent);
 }
 
 .skeleton-text {
@@ -1569,11 +1572,11 @@ select option {
 .progress-bar-animated .progress-bar-fill {
   background-image: linear-gradient(
     -45deg,
-    rgba(255, 255, 255, 0.15) 25%,
+    rgb(255 255 255 / 15%) 25%,
     transparent 25%,
     transparent 50%,
-    rgba(255, 255, 255, 0.15) 50%,
-    rgba(255, 255, 255, 0.15) 75%,
+    rgb(255 255 255 / 15%) 50%,
+    rgb(255 255 255 / 15%) 75%,
     transparent 75%,
     transparent
   );
@@ -1595,7 +1598,7 @@ select option {
    RESPONSIVE UTILITIES
    ═══════════════════════════════════════════════════════════════════════════ */
 
-@media (max-width: 640px) {
+@media (width <= 640px) {
   .text-display-xl {
     font-size: 36px;
   }
@@ -1716,7 +1719,7 @@ select option {
 
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-color: rgb(255 255 255 / 10%) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
@@ -1729,12 +1732,12 @@ select option {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(255 255 255 / 10%);
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(255 255 255 / 20%);
 }
 
 /* Hide scrollbar but keep functionality */
@@ -1758,18 +1761,19 @@ select option {
   min-width: 0;
   isolation: isolate;
   overflow-x: clip;
+
   /* ── Surfaces — off-white canvas, pure-white cards pop cleanly ── */
   --v-canvas: #f9fafb;
-  --v-card: #ffffff;
+  --v-card: #fff;
   --v-card-hover: #f9fafb;
   --v-hero: #eaecf0;
-  --v-elevated: #ffffff;
+  --v-elevated: #fff;
   --v-panel-bg: var(--v-card);
   --v-panel-hover: var(--v-card-hover);
   --v-panel-hero: var(--v-hero);
-  --v-border: rgba(0, 0, 0, 0.08);
-  --v-border-strong: rgba(0, 0, 0, 0.14);
-  --v-divider: rgba(0, 0, 0, 0.05);
+  --v-border: rgb(0 0 0 / 8%);
+  --v-border-strong: rgb(0 0 0 / 14%);
+  --v-divider: rgb(0 0 0 / 5%);
   --v-panel-border: var(--v-border);
   --v-panel-border-strong: var(--v-border-strong);
 
@@ -1781,33 +1785,33 @@ select option {
 
   /* ── Brand — unchanged across modes ── */
   --v-orange: #f44a22;
-  --v-orange-glow: rgba(244, 74, 34, 0.15);
-  --v-orange-dim: rgba(244, 74, 34, 0.08);
+  --v-orange-glow: rgb(244 74 34 / 15%);
+  --v-orange-dim: rgb(244 74 34 / 8%);
 
   /* ── Semantic — deeper for light-bg readability ── */
   --v-success: #059669;
-  --v-success-bg: rgba(5, 150, 105, 0.08);
+  --v-success-bg: rgb(5 150 105 / 8%);
   --v-warning: #d97706;
-  --v-warning-bg: rgba(217, 119, 6, 0.08);
+  --v-warning-bg: rgb(217 119 6 / 8%);
   --v-error: #dc2626;
-  --v-error-bg: rgba(220, 38, 38, 0.08);
+  --v-error-bg: rgb(220 38 38 / 8%);
   --v-info: #4f46e5;
-  --v-info-bg: rgba(79, 70, 229, 0.08);
+  --v-info-bg: rgb(79 70 229 / 8%);
 
   /* ── Trend ── */
   --v-up: #059669;
-  --v-up-bg: rgba(5, 150, 105, 0.1);
+  --v-up-bg: rgb(5 150 105 / 10%);
   --v-down: #dc2626;
-  --v-down-bg: rgba(220, 38, 38, 0.1);
+  --v-down-bg: rgb(220 38 38 / 10%);
 
   /* ── Status ── */
   --v-live: #059669;
   --v-pending: #d97706;
-  --v-draft: rgba(0, 0, 0, 0.3);
-  --v-done: rgba(0, 0, 0, 0.45);
+  --v-draft: rgb(0 0 0 / 30%);
+  --v-done: rgb(0 0 0 / 45%);
 
   /* ── Neutral overlay (replaces hardcoded rgba(255,255,255,...)) ── */
-  --v-neutral-bg: rgba(0, 0, 0, 0.05);
+  --v-neutral-bg: rgb(0 0 0 / 5%);
 
   /* ── Radius scale ── */
   --v-r-sm: 12px;
@@ -1817,9 +1821,9 @@ select option {
   --v-r-full: 9999px;
 
   /* ── Shadow — soft, airy ── */
-  --v-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.07), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --v-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.1);
-  --v-shadow-hero: 0 24px 64px rgba(0, 0, 0, 0.08);
+  --v-shadow-card: 0 1px 3px rgb(0 0 0 / 7%), 0 1px 2px rgb(0 0 0 / 4%);
+  --v-shadow-hover: 0 8px 24px rgb(0 0 0 / 10%);
+  --v-shadow-hero: 0 24px 64px rgb(0 0 0 / 8%);
   --v-panel-shadow-card: var(--v-shadow-card);
   --v-panel-shadow-hero: var(--v-shadow-hero);
 
@@ -1854,8 +1858,8 @@ select option {
   --v-chart-5: #db2777;
 
   /* ── Sidebar ── */
-  --sidebar-bg: #ffffff;
-  --sidebar-border: rgba(0, 0, 0, 0.09);
+  --sidebar-bg: #fff;
+  --sidebar-border: rgb(0 0 0 / 9%);
 }
 
 .venue-shell main,
@@ -1890,51 +1894,51 @@ select option {
   --v-panel-bg: transparent;
   --v-panel-hover: transparent;
   --v-panel-hero: transparent;
-  --v-border: rgba(255, 255, 255, 0.06);
-  --v-border-strong: rgba(255, 255, 255, 0.12);
-  --v-divider: rgba(255, 255, 255, 0.04);
-  --v-panel-border: rgba(255, 255, 255, 0.06);
-  --v-panel-border-strong: rgba(255, 255, 255, 0.08);
+  --v-border: rgb(255 255 255 / 6%);
+  --v-border-strong: rgb(255 255 255 / 12%);
+  --v-divider: rgb(255 255 255 / 4%);
+  --v-panel-border: rgb(255 255 255 / 6%);
+  --v-panel-border-strong: rgb(255 255 255 / 8%);
 
   /* ── Typography ── */
-  --v-text-primary: rgba(255, 255, 255, 0.95);
-  --v-text-secondary: rgba(255, 255, 255, 0.75);
-  --v-text-tertiary: rgba(255, 255, 255, 0.5);
-  --v-text-muted: rgba(255, 255, 255, 0.25);
+  --v-text-primary: rgb(255 255 255 / 95%);
+  --v-text-secondary: rgb(255 255 255 / 75%);
+  --v-text-tertiary: rgb(255 255 255 / 50%);
+  --v-text-muted: rgb(255 255 255 / 25%);
 
   /* ── Brand ── */
-  --v-orange-glow: rgba(244, 74, 34, 0.2);
-  --v-orange-dim: rgba(244, 74, 34, 0.1);
+  --v-orange-glow: rgb(244 74 34 / 20%);
+  --v-orange-dim: rgb(244 74 34 / 10%);
 
   /* ── Semantic ── */
   --v-success: #34d399;
-  --v-success-bg: rgba(52, 211, 153, 0.1);
+  --v-success-bg: rgb(52 211 153 / 10%);
   --v-warning: #fbbf24;
-  --v-warning-bg: rgba(251, 191, 36, 0.1);
+  --v-warning-bg: rgb(251 191 36 / 10%);
   --v-error: #f87171;
-  --v-error-bg: rgba(248, 113, 113, 0.1);
+  --v-error-bg: rgb(248 113 113 / 10%);
   --v-info: #818cf8;
-  --v-info-bg: rgba(129, 140, 248, 0.1);
+  --v-info-bg: rgb(129 140 248 / 10%);
 
   /* ── Trend ── */
   --v-up: #34d399;
-  --v-up-bg: rgba(52, 211, 153, 0.12);
+  --v-up-bg: rgb(52 211 153 / 12%);
   --v-down: #f87171;
-  --v-down-bg: rgba(248, 113, 113, 0.12);
+  --v-down-bg: rgb(248 113 113 / 12%);
 
   /* ── Status ── */
   --v-live: #34d399;
   --v-pending: #fbbf24;
-  --v-draft: rgba(255, 255, 255, 0.35);
-  --v-done: rgba(255, 255, 255, 0.5);
+  --v-draft: rgb(255 255 255 / 35%);
+  --v-done: rgb(255 255 255 / 50%);
 
   /* ── Neutral overlay ── */
-  --v-neutral-bg: rgba(255, 255, 255, 0.06);
+  --v-neutral-bg: rgb(255 255 255 / 6%);
 
   /* ── Shadow ── */
-  --v-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --v-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --v-shadow-hero: 0 24px 64px rgba(0, 0, 0, 0.6);
+  --v-shadow-card: 0 1px 3px rgb(0 0 0 / 40%), 0 1px 2px rgb(0 0 0 / 30%);
+  --v-shadow-hover: 0 8px 24px rgb(0 0 0 / 50%);
+  --v-shadow-hero: 0 24px 64px rgb(0 0 0 / 60%);
   --v-panel-shadow-card: none;
   --v-panel-shadow-hero: none;
 
@@ -1951,7 +1955,7 @@ select option {
 
   /* ── Sidebar ── */
   --sidebar-bg: #111113;
-  --sidebar-border: rgba(255, 255, 255, 0.06);
+  --sidebar-border: rgb(255 255 255 / 6%);
 }
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -1967,16 +1971,16 @@ html:not(.dark) .venue-shell {
   /* ── Venue-scoped surfaces ── */
   --v-canvas: #f3f5f8; /* page background — cool off-white        */
   --v-card: #f7f9fb; /* tab-bar / search-box container           */
-  --v-elevated: #ffffff; /* active tab, main cards — pure white      */
+  --v-elevated: #fff; /* active tab, main cards — pure white      */
   --v-card-hover: #edf0f4;
-  --v-hero: #ffffff;
+  --v-hero: #fff;
   --v-panel-bg: var(--v-card);
   --v-panel-hover: var(--v-card-hover);
   --v-panel-hero: var(--v-hero);
   --v-border: #d1d5db; /* gray-300 — clearly visible everywhere    */
   --v-border-strong: #9ca3af; /* gray-400 — hover + accent states         */
   --v-divider: #e9eaec;
-  --v-neutral-bg: rgba(0, 0, 0, 0.04);
+  --v-neutral-bg: rgb(0 0 0 / 4%);
   --v-panel-border: var(--v-border);
   --v-panel-border-strong: var(--v-border-strong);
 
@@ -1991,9 +1995,9 @@ html:not(.dark) .venue-shell {
   --v-skeleton-shine: #f9fafb;
 
   /* ── Venue-scoped shadows ── */
-  --v-shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --v-shadow-hover: 0 8px 24px rgba(0, 0, 0, 0.09);
-  --v-shadow-hero: 0 12px 40px rgba(0, 0, 0, 0.07);
+  --v-shadow-card: 0 1px 3px rgb(0 0 0 / 6%), 0 1px 2px rgb(0 0 0 / 4%);
+  --v-shadow-hover: 0 8px 24px rgb(0 0 0 / 9%);
+  --v-shadow-hero: 0 12px 40px rgb(0 0 0 / 7%);
   --v-panel-shadow-card: var(--v-shadow-card);
   --v-panel-shadow-hero: var(--v-shadow-hero);
 
@@ -2001,8 +2005,8 @@ html:not(.dark) .venue-shell {
   --surface-base: #f3f5f8;
   --surface-secondary: #ebedf0;
   --surface-tertiary: #dde0e4;
-  --surface-elevated: #ffffff;
-  --surface-overlay: rgba(0, 0, 0, 0.4);
+  --surface-elevated: #fff;
+  --surface-overlay: rgb(0 0 0 / 40%);
 
   /* ── Global border tokens ── */
   --border-subtle: #d1d5db; /* strongest possible without looking heavy */
@@ -2014,10 +2018,10 @@ html:not(.dark) .venue-shell {
   --text-secondary: #374151;
   --text-tertiary: #6b7280;
   --text-placeholder: #9ca3af;
-  --text-inverse: #ffffff;
+  --text-inverse: #fff;
 
   /* ── Sidebar ── */
-  --sidebar-bg: #ffffff;
+  --sidebar-bg: #fff;
   --sidebar-border: #e5e7eb;
 }
 
@@ -2027,17 +2031,18 @@ html:not(.dark) .venue-shell {
    and paint each card its own accent color.
    ───────────────────────────────────────────────────────────────── */
 html:not(.dark) .venue-shell .kpi-tile {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #d1d5db;
   box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.04),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    0 10px 25px -5px rgb(0 0 0 / 4%),
+    0 8px 10px -6px rgb(0 0 0 / 4%);
 }
 
 /* Weekend Revenue — orange accent */
 html:not(.dark) .venue-shell .kpi-tile[class*='border-orange-500'] {
   border-color: #fdba74;
 }
+
 html:not(.dark) .venue-shell .kpi-tile[class*='border-orange-500']:hover {
   border-color: #f44a22;
 }
@@ -2046,6 +2051,7 @@ html:not(.dark) .venue-shell .kpi-tile[class*='border-orange-500']:hover {
 html:not(.dark) .venue-shell .kpi-tile[class*='border-indigo-500'] {
   border-color: #a5b4fc;
 }
+
 html:not(.dark) .venue-shell .kpi-tile[class*='border-indigo-500']:hover {
   border-color: #6366f1;
 }
@@ -2054,6 +2060,7 @@ html:not(.dark) .venue-shell .kpi-tile[class*='border-indigo-500']:hover {
 html:not(.dark) .venue-shell .kpi-tile[class*='border-amber-500'] {
   border-color: #fcd34d;
 }
+
 html:not(.dark) .venue-shell .kpi-tile[class*='border-amber-500']:hover {
   border-color: #f59e0b;
 }
@@ -2062,6 +2069,7 @@ html:not(.dark) .venue-shell .kpi-tile[class*='border-amber-500']:hover {
 html:not(.dark) .venue-shell .kpi-tile[class*='border-emerald-500'] {
   border-color: #6ee7b7;
 }
+
 html:not(.dark) .venue-shell .kpi-tile[class*='border-emerald-500']:hover {
   border-color: #10b981;
 }
@@ -2070,6 +2078,7 @@ html:not(.dark) .venue-shell .kpi-tile[class*='border-emerald-500']:hover {
 html:not(.dark) .venue-shell .kpi-tile[class*='border-red-500'] {
   border-color: #fca5a5;
 }
+
 html:not(.dark) .venue-shell .kpi-tile[class*='border-red-500']:hover {
   border-color: #ef4444;
 }
@@ -2077,8 +2086,8 @@ html:not(.dark) .venue-shell .kpi-tile[class*='border-red-500']:hover {
 /* Generic hover lift — applies to all kpi-tile states */
 html:not(.dark) .venue-shell .kpi-tile:hover {
   box-shadow:
-    0 20px 40px -8px rgba(0, 0, 0, 0.08),
-    0 12px 16px -8px rgba(0, 0, 0, 0.05);
+    0 20px 40px -8px rgb(0 0 0 / 8%),
+    0 12px 16px -8px rgb(0 0 0 / 5%);
   transform: translateY(-2px);
 }
 
@@ -2089,50 +2098,50 @@ html:not(.dark) .venue-shell .kpi-icon {
 
 /* ── .card blocks (Tonight, Alerts, Upcoming Schedule) ── */
 html:not(.dark) .venue-shell .card {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #d1d5db;
   box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.04),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    0 10px 25px -5px rgb(0 0 0 / 4%),
+    0 8px 10px -6px rgb(0 0 0 / 4%);
 }
 
 html:not(.dark) .venue-shell .card:hover {
-  border-color: rgba(244, 74, 34, 0.45);
+  border-color: rgb(244 74 34 / 45%);
   box-shadow:
-    0 16px 32px -6px rgba(0, 0, 0, 0.07),
-    0 10px 14px -8px rgba(0, 0, 0, 0.04);
+    0 16px 32px -6px rgb(0 0 0 / 7%),
+    0 10px 14px -8px rgb(0 0 0 / 4%);
 }
 
 /* ── .v-hero-card (KPIStrip, Analytics bento) ── */
 html:not(.dark) .venue-shell .v-hero-card {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #d1d5db;
   box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.04),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    0 10px 25px -5px rgb(0 0 0 / 4%),
+    0 8px 10px -6px rgb(0 0 0 / 4%);
 }
 
 html:not(.dark) .venue-shell .v-hero-card:hover {
-  border-color: rgba(244, 74, 34, 0.45);
+  border-color: rgb(244 74 34 / 45%);
   box-shadow:
-    0 16px 32px -6px rgba(0, 0, 0, 0.07),
-    0 10px 14px -8px rgba(0, 0, 0, 0.04);
+    0 16px 32px -6px rgb(0 0 0 / 7%),
+    0 10px 14px -8px rgb(0 0 0 / 4%);
 }
 
 /* ── .v-bento ── */
 html:not(.dark) .venue-shell .v-bento {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #d1d5db;
   box-shadow:
-    0 10px 25px -5px rgba(0, 0, 0, 0.04),
-    0 8px 10px -6px rgba(0, 0, 0, 0.04);
+    0 10px 25px -5px rgb(0 0 0 / 4%),
+    0 8px 10px -6px rgb(0 0 0 / 4%);
 }
 
 html:not(.dark) .venue-shell .v-bento:hover {
-  border-color: rgba(244, 74, 34, 0.45);
+  border-color: rgb(244 74 34 / 45%);
   box-shadow:
-    0 16px 32px -6px rgba(0, 0, 0, 0.07),
-    0 10px 14px -8px rgba(0, 0, 0, 0.04);
+    0 16px 32px -6px rgb(0 0 0 / 7%),
+    0 10px 14px -8px rgb(0 0 0 / 4%);
 }
 
 /* ── Section headings ── */
@@ -2149,31 +2158,33 @@ html:not(.dark) .venue-shell .text-title {
 /* ── .card and .card-elevated — light border + depth ── */
 html:not(.dark) .venue-shell .card,
 html:not(.dark) .venue-shell .card-elevated {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #d1d5db;
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+    0 1px 3px rgb(0 0 0 / 6%),
+    0 1px 2px rgb(0 0 0 / 4%);
 }
+
 html:not(.dark) .venue-shell .card-interactive:hover,
 html:not(.dark) .venue-shell .card:hover {
   border-color: #9ca3af;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 8%);
 }
 
 /* ── Inputs & textareas ── */
-html:not(.dark) .venue-shell input:not([type='checkbox']):not([type='radio']),
+html:not(.dark) .venue-shell input:not([type='checkbox'], [type='radio']),
 html:not(.dark) .venue-shell textarea,
 html:not(.dark) .venue-shell select {
-  background: #ffffff;
+  background: #fff;
   border-color: #d1d5db;
   color: #111827;
 }
+
 html:not(.dark) .venue-shell input:focus,
 html:not(.dark) .venue-shell textarea:focus,
 html:not(.dark) .venue-shell select:focus {
   border-color: #f44a22;
-  box-shadow: 0 0 0 3px rgba(244, 74, 34, 0.12);
+  box-shadow: 0 0 0 3px rgb(244 74 34 / 12%);
 }
 
 /* ── Skeleton loading states ── */
@@ -2184,30 +2195,34 @@ html:not(.dark) .venue-shell .v-skeleton {
 /* ── VenueFilterTabs — active pill ── */
 html:not(.dark) .venue-shell [data-active-tab='true'],
 html:not(.dark) .venue-shell button[style*='var(--v-elevated)'] {
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 10%);
 }
 
 /* ── Rounded stat cards (e.g. Events KPI strip: LIVE NOW / REQUESTS) ── */
 html:not(.dark) .venue-shell .rounded-2xl.border {
-  background: #ffffff;
+  background: #fff;
   box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.06),
-    0 1px 2px rgba(0, 0, 0, 0.04);
+    0 1px 3px rgb(0 0 0 / 6%),
+    0 1px 2px rgb(0 0 0 / 4%);
 }
 
 /* ── Accent borders on stat cards by icon color ── */
+
 /* Green icon (LIVE NOW) */
 html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-success']) {
   border-color: #a7f3d0;
 }
+
 /* Amber icon (REQUESTS) */
 html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-warning']) {
   border-color: #fde68a;
 }
+
 /* Indigo icon (PUBLISHED) */
 html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-info']) {
   border-color: #c7d2fe;
 }
+
 /* Orange icon (REVENUE) */
 html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-orange']) {
   border-color: #fdba74;
@@ -2217,14 +2232,17 @@ html:not(.dark) .venue-shell .rounded-2xl.border:has([style*='--v-orange']) {
 html:not(.dark) .venue-shell [class*='rounded'][class*='overflow-hidden']:not(.venue-shell) {
   border-color: #d1d5db;
 }
+
 html:not(.dark) .venue-shell table thead tr th {
   background: #ebedf0;
   color: #374151;
   border-bottom-color: #d1d5db;
 }
+
 html:not(.dark) .venue-shell table tbody tr:hover td {
   background: #f3f5f8;
 }
+
 html:not(.dark) .venue-shell table tbody tr td {
   border-bottom-color: #e9eaec;
   color: #111827;
@@ -2259,27 +2277,32 @@ html:not(.dark) .venue-shell > div {
 .venue-shell .custom-scrollbar::-webkit-scrollbar-track {
   background: var(--v-canvas);
 }
+
 .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb {
   background: var(--v-border-strong);
   border-radius: 3px;
 }
 
 .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
-.dark .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(0 0 0 / 20%);
 }
 
-@media (max-width: 767px) {
+.dark .venue-shell .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgb(255 255 255 / 20%);
+}
+
+@media (width <= 767px) {
   .venue-shell .v-text-title {
     font-size: clamp(24px, 7vw, 30px);
   }
 
   .venue-shell
-    [class*='grid-cols-[']:not([class*='sm:grid-cols-[']):not([class*='md:grid-cols-[']):not(
-      [class*='lg:grid-cols-[']
-    ):not([class*='xl:grid-cols-[']) {
+    [class*='grid-cols-[']:not(
+      [class*='sm:grid-cols-['],
+      [class*='md:grid-cols-['],
+      [class*='lg:grid-cols-['],
+      [class*='xl:grid-cols-[']
+    ) {
     width: max-content;
     min-width: 100%;
     overflow-x: auto;
@@ -2288,9 +2311,12 @@ html:not(.dark) .venue-shell > div {
   }
 
   .venue-shell
-    [class*='grid-cols-[']:not([class*='sm:grid-cols-[']):not([class*='md:grid-cols-[']):not(
-      [class*='lg:grid-cols-[']
-    ):not([class*='xl:grid-cols-['])::-webkit-scrollbar {
+    [class*='grid-cols-[']:not(
+      [class*='sm:grid-cols-['],
+      [class*='md:grid-cols-['],
+      [class*='lg:grid-cols-['],
+      [class*='xl:grid-cols-[']
+    )::-webkit-scrollbar {
     display: none;
   }
 }
@@ -2339,6 +2365,7 @@ html:not(.dark) .venue-shell > div {
   0% {
     background-position: -400px 0;
   }
+
   100% {
     background-position: 400px 0;
   }
@@ -2357,6 +2384,7 @@ html:not(.dark) .venue-shell > div {
 }
 
 /* ── Analytics sub-nav — dark mode only ── */
+
 /* Inline styles can't be hovered via Tailwind, so we use !important here to
    override them on pointer entry. Light mode is completely unaffected because
    the entire block is scoped to .dark .venue-shell. */
@@ -2364,9 +2392,11 @@ html:not(.dark) .venue-shell > div {
 .dark .venue-shell .studio-nav-tabs a span {
   transition: color 150ms ease;
 }
+
 .dark .venue-shell .studio-nav-tabs a:hover span {
   color: #e2e8f0 !important; /* slate-200 — crisp hover brightening */
 }
+
 .dark .venue-shell .studio-nav-tabs a:hover svg {
   color: #94a3b8 !important; /* slate-400 — icon lifts to match inactive text base */
   filter: none !important;
@@ -2385,11 +2415,12 @@ html:not(.dark) .venue-shell > div {
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+    box-shadow: 0 0 0 0 rgb(52 211 153 / 40%);
   }
+
   50% {
     opacity: 0.8;
-    box-shadow: 0 0 0 6px rgba(52, 211, 153, 0);
+    box-shadow: 0 0 0 6px rgb(52 211 153 / 0%);
   }
 }
 
@@ -2460,18 +2491,22 @@ html:not(.dark) .venue-shell > div {
   color: var(--v-success);
   background: var(--v-success-bg);
 }
+
 .v-status-pending {
   color: var(--v-warning);
   background: var(--v-warning-bg);
 }
+
 .v-status-error {
   color: var(--v-error);
   background: var(--v-error-bg);
 }
+
 .v-status-info {
   color: var(--v-info);
   background: var(--v-info-bg);
 }
+
 .v-status-neutral {
   color: var(--v-text-tertiary);
   background: var(--v-neutral-bg);
@@ -2493,10 +2528,12 @@ html:not(.dark) .venue-shell > div {
   color: var(--v-up);
   background: var(--v-up-bg);
 }
+
 .v-trend-down {
   color: var(--v-down);
   background: var(--v-down-bg);
 }
+
 .v-trend-neutral {
   color: var(--v-text-tertiary);
   background: var(--v-neutral-bg);
