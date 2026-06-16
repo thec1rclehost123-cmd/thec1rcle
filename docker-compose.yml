@@ -56,3 +56,13 @@ services:
     environment:
       - NODE_ENV=development
       - PORT=3001
+
+  mobile-app:
+    build:
+      context: .
+      dockerfile: apps/mobile-app/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - EXPO_USE_FAST_RESOLVER=1
+      - REACT_NATIVE_PACKAGER_HOSTNAME=localhost
