@@ -124,7 +124,7 @@ export default function SignupScreen() {
             */}
       <VideoView
         player={player}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         contentFit="cover"
         nativeControls={false}
       />
@@ -133,7 +133,7 @@ export default function SignupScreen() {
       <LinearGradient
         colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
         locations={[0, 0.4, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView style={s.safeArea}>
@@ -380,7 +380,7 @@ export default function SignupScreen() {
           onRequestClose={() => setShowCityPicker(false)}
         >
           <Pressable style={s.modalOverlay} onPress={() => setShowCityPicker(false)}>
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
           </Pressable>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />

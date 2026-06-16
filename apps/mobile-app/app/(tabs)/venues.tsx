@@ -87,18 +87,18 @@ function PosterCard({
           {imageUrl ? (
             <Image
               source={{ uri: imageUrl }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
               transition={300}
             />
           ) : (
-            <LinearGradient colors={['#1E1E22', '#111113']} style={StyleSheet.absoluteFillObject} />
+            <LinearGradient colors={['#1E1E22', '#111113']} style={StyleSheet.absoluteFill} />
           )}
           {/* Gradient scrim */}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.72)', 'rgba(0,0,0,0.94)']}
             locations={[0.45, 0.78, 1]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           {/* Badge top-right */}
           {badge && (

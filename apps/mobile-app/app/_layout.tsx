@@ -32,7 +32,7 @@ export default function RootLayout() {
           <SafeAreaProvider>
             <RootGestureHandlerView style={{ flex: 1 }} onLayout={onLayoutRootView}>
               <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
-                <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
+                <StatusBar style="light" />
                 <Stack
                   screenOptions={{
                     headerShown: false,

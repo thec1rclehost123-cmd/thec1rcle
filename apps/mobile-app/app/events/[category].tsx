@@ -79,7 +79,7 @@ function CategoryEventCard({ event, index }: { event: Event; index: number }) {
           )}
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.85)']}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           {event.isFeatured && (
             <View style={styles.featuredBadge}>

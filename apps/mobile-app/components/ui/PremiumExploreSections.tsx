@@ -119,7 +119,7 @@ function HypeCashPill() {
         colors={['rgba(244,74,34,0.22)', 'rgba(244,74,34,0.06)', 'rgba(255,255,255,0.035)']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View style={styles.hypeCashIcon}>
         <Text style={styles.hypeCashIconText}>₹</Text>
@@ -538,7 +538,7 @@ export function PremiumEventCard({
           colors={['rgba(244, 74, 34, 0.45)', 'transparent']}
           start={{ x: 1, y: 1 }}
           end={{ x: 0, y: 0 }}
-          style={[StyleSheet.absoluteFillObject, { borderRadius: cardStyle.borderRadius }]}
+          style={[StyleSheet.absoluteFill, { borderRadius: cardStyle.borderRadius }]}
         />
 
         {/* 2. Top-Left Light Specular Highlight (Light Reflection Border) */}
@@ -546,7 +546,7 @@ export function PremiumEventCard({
           colors={['rgba(255, 255, 255, 0.35)', 'transparent']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={[StyleSheet.absoluteFillObject, { borderRadius: cardStyle.borderRadius }]}
+          style={[StyleSheet.absoluteFill, { borderRadius: cardStyle.borderRadius }]}
         />
 
         {/* Inner Content Card (inset by padding to show border) */}
@@ -575,7 +575,7 @@ export function PremiumEventCard({
             <Animated.Image
               sharedTransitionTag={posterTransitionTag}
               source={{ uri: img }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
 
@@ -584,14 +584,14 @@ export function PremiumEventCard({
               colors={['rgba(244,74,34,0.15)', 'rgba(254,248,232,0.05)', 'transparent']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
 
             {!hideGradient && (
               <LinearGradient
                 colors={['transparent', 'rgba(22,22,22,0.6)', 'rgba(22,22,22,0.98)']}
                 locations={[0.3, 0.7, 1]}
-                style={StyleSheet.absoluteFillObject}
+                style={StyleSheet.absoluteFill}
               />
             )}
 

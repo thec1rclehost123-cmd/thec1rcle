@@ -203,12 +203,12 @@ export default function ClaimOrTransferScreen() {
           <View style={styles.ticketCard}>
             <Image
               source={{ uri: event.posterUrl || event.image }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               contentFit="cover"
             />
             <LinearGradient
               colors={['rgba(0,0,0,0.6)', 'rgba(0,0,0,0.2)', 'rgba(0,0,0,0.8)']}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
 
             <View style={styles.ticketHeader}>

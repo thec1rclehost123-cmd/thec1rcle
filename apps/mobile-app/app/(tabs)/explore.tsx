@@ -285,8 +285,6 @@ function AnimatedPeekCard({ event, index, scrollX, itemWidth }: any) {
 }
 
 function FeaturedCarousel({ events }: { events: Event[] }) {
-  if (!events.length) return null;
-
   const scrollX = useSharedValue(0);
   const targetX = useSharedValue(0);
   const isInteracting = useSharedValue(false);
@@ -295,14 +293,12 @@ function FeaturedCarousel({ events }: { events: Event[] }) {
   const SPACER = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
   const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
 
-  // Keep the visual carousel bounded; an oversized repeated rail is expensive on iOS.
   const rail = useMemo(() => {
     return events.slice(0, 8);
   }, [events]);
   const isScreenFocused = useSharedValue(false);
   const isAppActive = useSharedValue(AppState.currentState === 'active');
 
-  // Custom smooth scroll logic on the UI thread
   useAnimatedReaction(
     () => targetX.value,
     (val, prevVal) => {
@@ -372,6 +368,8 @@ function FeaturedCarousel({ events }: { events: Event[] }) {
       isInteracting.value = false;
     },
   });
+
+  if (!events.length) return null;
 
   return (
     <View style={{ marginBottom: 36, position: 'relative' }}>
@@ -566,7 +564,7 @@ function MapSection({ events }: { events: Event[] }) {
         }}
       >
         <MapView
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           provider={PROVIDER_DEFAULT}
           initialRegion={initialRegion}
           scrollEnabled={false}
@@ -630,7 +628,7 @@ function ChooseYourSceneGrid() {
       onPress={() => handlePress(cat)}
       style={{ flex: 1, backgroundColor: cat.bg, borderRadius: 12, overflow: 'hidden' }}
     >
-      <Image source={cat.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+      <Image source={cat.image} style={StyleSheet.absoluteFill} contentFit="cover" />
       <LinearGradient
         colors={['rgba(0,0,0,0.7)', 'transparent']}
         style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 48 }}
@@ -1165,7 +1163,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   mapOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.25)',
   },
   mapBadge: {

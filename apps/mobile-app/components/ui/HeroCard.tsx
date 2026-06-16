@@ -159,13 +159,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   image: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   gradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   borderOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: radii['2xl'],
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',

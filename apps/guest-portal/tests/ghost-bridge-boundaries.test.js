@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 
 const root = process.cwd();
 
@@ -39,7 +39,9 @@ test('Guest Portal app/api only contains approved BFF route handlers', () => {
   };
 
   visit(apiRoot);
-  const relativeRouteFiles = routeFiles.map((filePath) => filePath.replace(`${root}/`, ''));
+  const relativeRouteFiles = routeFiles.map((filePath) =>
+    relative(root, filePath).replace(/\\/g, '/'),
+  );
   const disallowedRoutes = relativeRouteFiles.filter(
     (relativePath) => !relativePath.startsWith('app/api/app/'),
   );

@@ -75,33 +75,46 @@ function filterByTab(events: Event[], tab: FeedTab): Event[] {
 }
 
 // ── Background Glow ────────────────────────────────────────────────────────────
+function EventBackgroundItem({
+  event,
+  index,
+  scrollY,
+}: {
+  event: Event;
+  index: number;
+  scrollY: SharedValue<number>;
+}) {
+  const img = getEventImage(event);
+
+  const opacityStyle = useAnimatedStyle(() => {
+    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
+    const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
+    return { opacity };
+  });
+
+  if (!img) return null;
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, opacityStyle]}>
+      <Image
+        source={{ uri: img }}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        blurRadius={90}
+      />
+    </Animated.View>
+  );
+}
+
 function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: SharedValue<number> }) {
   return (
-    <View style={StyleSheet.absoluteFillObject}>
-      {events.slice(0, 10).map((event, index) => {
-        const img = getEventImage(event);
-        if (!img) return null;
-
-        const opacityStyle = useAnimatedStyle(() => {
-          const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-          const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
-          return { opacity };
-        });
-
-        return (
-          <Animated.View key={event.id} style={[StyleSheet.absoluteFillObject, opacityStyle]}>
-            <Image
-              source={{ uri: img }}
-              style={StyleSheet.absoluteFillObject}
-              contentFit="cover"
-              blurRadius={90}
-            />
-          </Animated.View>
-        );
-      })}
+    <View style={StyleSheet.absoluteFill}>
+      {events.slice(0, 10).map((event, index) => (
+        <EventBackgroundItem key={event.id} event={event} index={index} scrollY={scrollY} />
+      ))}
       {/* Dark overlay to keep text legible */}
-      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.55)' }]} />
-      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)' }]} />
+      <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
     </View>
   );
 }
@@ -110,7 +123,7 @@ function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: Shar
 function FeedTabBar({ active, onChange }: { active: FeedTab; onChange: (tab: FeedTab) => void }) {
   return (
     <View style={styles.tabBarOuter}>
-      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
       <View style={styles.tabBarInner}>
         {FEED_TABS.map((tab) => {
           const isActive = active === tab.id;
@@ -203,13 +216,13 @@ function FeedCard({
             <Animated.Image
               sharedTransitionTag={posterTransitionTag}
               source={{ uri: img }}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
               resizeMode="cover"
             />
           ) : (
             <LinearGradient
               colors={['#2D1A14', '#1A0A0A', '#0A0A0A']}
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             />
           )}
 
@@ -217,14 +230,14 @@ function FeedCard({
           <LinearGradient
             colors={['rgba(0,0,0,0.55)', 'transparent', 'transparent', 'rgba(0,0,0,0.75)']}
             locations={[0, 0.2, 0.6, 1]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
 
           {/* Glassmorphism Badges — top-left */}
           <View style={styles.badgeColumn}>
             {/* Time / Duration badge */}
             <View style={styles.glassBadge}>
-              <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
+              <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
               <Text style={styles.glassBadgeText}>
                 {timeStr !== 'TBD'
                   ? timeStr
@@ -237,7 +250,7 @@ function FeedCard({
             {/* Category badge */}
             {event.category && (
               <View style={styles.glassBadge}>
-                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFillObject} />
+                <BlurView intensity={40} tint="dark" style={StyleSheet.absoluteFill} />
                 <Text style={styles.glassBadgeText}>
                   {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
                 </Text>
@@ -377,7 +390,7 @@ export default function ImmersiveFeedScreen() {
         entering={FadeIn.delay(200).duration(400)}
         style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}
       >
-        <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <BlurView intensity={50} tint="dark" style={StyleSheet.absoluteFill} />
         <Pressable
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -1,13 +1,15 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import ThemeProvider from './ThemeProvider';
 import AuthProvider from './AuthProvider';
 import ToastProvider from './ToastProvider';
 import { useAuth } from './AuthProvider';
-import GlobalAuthManager from '../GlobalAuthManager';
-import OfflineListener from '../OfflineListener';
-import CacheWarmer from '../CacheWarmer';
+
+const GlobalAuthManager = dynamic(() => import('../GlobalAuthManager'));
+const OfflineListener = dynamic(() => import('../OfflineListener'));
+const CacheWarmer = dynamic(() => import('../CacheWarmer'));
 import ProfileCompletionPrompt from '../ProfileCompletionPrompt';
 
 // Defers the ProfileCompletionPrompt dynamic chunk until auth is confirmed.

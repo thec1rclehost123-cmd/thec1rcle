@@ -65,15 +65,11 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
         });
       }}
     >
-      <Image
-        source={{ uri: chat.eventCover }}
-        style={StyleSheet.absoluteFillObject}
-        resizeMode="cover"
-      />
+      <Image source={{ uri: chat.eventCover }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       <LinearGradient
         colors={['rgba(0,0,0,0.12)', 'rgba(0,0,0,0.75)']}
         locations={[0.2, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* Top: badge + unread */}

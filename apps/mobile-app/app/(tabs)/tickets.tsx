@@ -44,9 +44,11 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { buildCalendarEventUrl } from '@/lib/calendar';
-import { Wallet, ChevronLeft, Menu, Ticket as TicketIcon } from 'lucide-react-native';
-
 import {
+  Wallet,
+  ChevronLeft,
+  Menu,
+  Ticket as TicketIcon,
   Info,
   ArrowRightCircle,
   CalendarDays,
@@ -219,7 +221,7 @@ function QRModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View
@@ -1682,7 +1684,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.base[50],
   },
   ticketBorder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 1.2,
     borderColor: 'rgba(255, 255, 255, 0.18)',
     borderRadius: 24,
@@ -1855,7 +1857,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   heroQrOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
   },

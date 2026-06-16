@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   defaultGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   categoryBadge: {
     position: 'absolute',
@@ -328,7 +328,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   featuredGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   featuredBadge: {
     position: 'absolute',

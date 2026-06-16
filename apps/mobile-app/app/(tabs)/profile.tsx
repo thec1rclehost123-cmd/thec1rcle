@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   profileHeroImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.42,
   },
   avatarContainer: {

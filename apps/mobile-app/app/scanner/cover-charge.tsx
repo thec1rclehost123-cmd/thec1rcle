@@ -274,7 +274,7 @@ export default function CoverChargeScreen() {
       {/* Camera — visible only in IDLE / SCANNING */}
       {showCamera && (
         <CameraView
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           facing="back"
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={chargeState === 'IDLE' ? handleQRScanned : undefined}

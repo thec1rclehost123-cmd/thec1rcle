@@ -511,7 +511,7 @@ export default function MapScreen() {
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
         initialRegion={initialRegion}
-        showsUserLocation={true}
+        showsUserLocation
         showsMyLocationButton={false}
         showsCompass={false}
         mapType="standard"
@@ -893,7 +893,7 @@ const mapStyles = StyleSheet.create({
     marginTop: -2,
   },
   loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 50,

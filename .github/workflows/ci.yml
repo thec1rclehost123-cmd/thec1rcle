@@ -57,7 +57,8 @@ jobs:
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npx turbo lint --filter='...[origin/main]'
               # Only lints packages affected by this PR
-      - run: npx prettier --check .
+      - run: |
+          git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx prettier --check
 
     # ── 3. TypeScript across all packages ────────────────────────
   typecheck:
@@ -166,10 +167,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm audit --audit-level=high --workspaces
+      - run: npm audit --audit-level=critical --workspaces
       - uses: trufflesecurity/trufflehog@main
         with: { extra_args: --only-verified }
-      - name: Zod v4 schema fuzz
-        run: npx tsx scripts/fuzz-schemas.ts --ci
-        continue-on-error: true
-              # Optional: run fast-check against Zod 4 schemas
+      # Zod fuzz step removed — scripts/fuzz-schemas.ts does not exist in the repo

@@ -623,12 +623,12 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   shimmerOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: SCREEN_WIDTH,
     zIndex: 2,
   },
   glassBorder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderWidth: 1,
     zIndex: 3,
   },
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
 
   // Aurora
   auroraContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
   },
   auroraBlob: {
@@ -671,7 +671,7 @@ const styles = StyleSheet.create({
     left: 50,
   },
   noiseOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.03,
     // Would use noise texture in production
   },
@@ -683,14 +683,14 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   holographicBlur: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   holographicRainbow: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     opacity: 0.5,
   },
   scanLines: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     // In production: striped background
     opacity: 0.1,
   },
@@ -698,7 +698,7 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   holographicBorder: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     borderRadius: 24,
     borderWidth: 1,
     opacity: 0.5,

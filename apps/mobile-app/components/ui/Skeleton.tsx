@@ -188,7 +188,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   shimmerGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     width: SCREEN_WIDTH,
   },
 });
@@ -248,7 +248,7 @@ const skeletonStyles = StyleSheet.create({
     overflow: 'hidden',
   },
   heroImage: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   heroOverlay: {
     position: 'absolute',

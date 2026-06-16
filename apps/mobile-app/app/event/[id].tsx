@@ -17,10 +17,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
-import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, router, Stack } from 'expo-router';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import * as Location from 'expo-location';
-import { Stack } from 'expo-router';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -274,7 +273,7 @@ function TicketOriginEventView({
               <LinearGradient
                 colors={[hexToRgba(accent, 0.82), 'rgba(0,0,0,0.22)']}
                 style={styles.goingPoster}
-              ></LinearGradient>
+              />
             )}
             <LinearGradient
               colors={['rgba(0,0,0,0)', hexToRgba(accent, 0.28), hexToRgba(accent, 0.96)]}
@@ -1891,7 +1890,7 @@ const styles = StyleSheet.create({
     fontSize: 64,
   },
   heroGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   categoryBadge: {
     position: 'absolute',
@@ -2435,7 +2434,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   shareSheetBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.6)',
   },
   shareSheetContent: {
@@ -2984,7 +2983,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   ticketSheetBackdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.62)',
   },
   ticketSheet: {

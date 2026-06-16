@@ -169,7 +169,7 @@ export default function LoginScreen() {
       {player && (
         <VideoView
           player={player}
-          style={[StyleSheet.absoluteFillObject, { top: -140 }]}
+          style={[StyleSheet.absoluteFill, { top: -140 }]}
           contentFit="cover"
           nativeControls={false}
         />
@@ -179,7 +179,7 @@ export default function LoginScreen() {
       <LinearGradient
         colors={['rgba(0,0,0,0.15)', 'rgba(0,0,0,0.5)', 'rgba(0,0,0,0.9)', '#000000']}
         locations={[0, 0.35, 0.7, 1]}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       <SafeAreaView style={s.safeArea}>

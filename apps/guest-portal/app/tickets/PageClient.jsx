@@ -31,6 +31,7 @@ import {
   TransferModal,
   useDominantColor,
 } from '../../features/tickets/ticketPageComponents';
+import { TicketCarouselShowcase } from '../../features/tickets/components/TicketCarouselShowcase';
 import { useCancelOrderBridge } from '../../features/tickets/hooks/useCancelOrderBridge';
 import { usePendingReservationRecovery } from '../../features/tickets/hooks/usePendingReservationRecovery';
 import { guestApi } from '../../lib/api/client';
@@ -405,7 +406,7 @@ function TicketsContent() {
         />
       ) : null}
 
-      <style jsx global>{`
+      <style>{`
         /* Hide scrollbar for Chrome, Safari and Opera */
         .no-scrollbar::-webkit-scrollbar {
           display: none;

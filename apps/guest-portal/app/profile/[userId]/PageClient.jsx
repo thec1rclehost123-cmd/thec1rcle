@@ -171,7 +171,9 @@ const MemberCard = ({
             className="mt-1 font-mono text-sm text-black/60 dark:text-white/60"
             suppressHydrationWarning
           >
-            {cultureStats?.sinceLabel || new Date(profile?.createdAt || Date.now()).getFullYear()}
+            {cultureStats?.sinceLabel ||
+              new Date(profile?.createdAt || undefined).getFullYear() ||
+              new Date().getFullYear()}
           </p>
         </div>
         <div className="text-center md:text-right">

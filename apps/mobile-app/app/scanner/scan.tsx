@@ -263,7 +263,7 @@ export default function ScanScreen() {
     <View style={styles.container}>
       {/* Camera */}
       <CameraView
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         facing="back"
         enableTorch={flashEnabled}
         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
@@ -392,9 +392,7 @@ export default function ScanScreen() {
 
       {/* Scan Result Overlay */}
       {scanResult && (
-        <Animated.View
-          style={[StyleSheet.absoluteFillObject, resultAnimatedStyle, { zIndex: 100 }]}
-        >
+        <Animated.View style={[StyleSheet.absoluteFill, resultAnimatedStyle, { zIndex: 100 }]}>
           <Pressable
             onPress={dismissResult}
             style={[styles.resultOverlay, { backgroundColor: getResultColor(scanResult.type) }]}

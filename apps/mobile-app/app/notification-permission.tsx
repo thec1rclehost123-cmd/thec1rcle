@@ -83,14 +83,14 @@ export default function NotificationPermissionScreen() {
       {/* Top Background Gradient */}
       <LinearGradient
         colors={['rgba(244, 74, 34, 0.12)', 'rgba(0,0,0,0)']}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
 
       {/* Illustration Area */}
       <View style={[styles.illustrationArea, { paddingTop: insets.top + 40 }]}>
         {/* Phone Mockup */}
         <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.phoneMockup}>
-          <LinearGradient colors={['#1C1C1E', '#0A0A0A']} style={StyleSheet.absoluteFillObject} />
+          <LinearGradient colors={['#1C1C1E', '#0A0A0A']} style={StyleSheet.absoluteFill} />
 
           {/* Dynamic Island */}
           <View style={styles.dynamicIsland} />

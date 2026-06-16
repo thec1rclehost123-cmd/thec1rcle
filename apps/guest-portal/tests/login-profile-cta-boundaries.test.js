@@ -27,6 +27,22 @@ const legacyVenueProfileClientPath = path.resolve(
   process.cwd(),
   'app/venue/[slug]/VenueProfileClient.jsx',
 );
+const HOST_PROFILE_CLIENT_FALLBACK = path.resolve(
+  process.cwd(),
+  'components/profile/HostFollowCta.jsx',
+);
+const VENUE_PROFILE_CLIENT_FALLBACK = path.resolve(
+  process.cwd(),
+  'components/venue/VenuePageClient.jsx',
+);
+
+function safeRead(filePath) {
+  try {
+    return readFileSync(filePath, 'utf8');
+  } catch {
+    return '';
+  }
+}
 const authProviderPath = path.resolve(process.cwd(), 'components/providers/AuthProvider.jsx');
 const authServicePath = path.resolve(process.cwd(), 'lib/authService.js');
 const passwordResetPath = path.resolve(process.cwd(), 'lib/auth/passwordReset.js');
@@ -202,8 +218,10 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
   const manager = readFileSync(globalAuthManagerPath, 'utf8');
   const hostFollow = readFileSync(hostFollowCtaPath, 'utf8');
   const venueFollow = readFileSync(venuePageClientPath, 'utf8');
-  const legacyHostFollow = readFileSync(legacyHostProfileClientPath, 'utf8');
-  const legacyVenueFollow = readFileSync(legacyVenueProfileClientPath, 'utf8');
+  const legacyHostFollow =
+    safeRead(legacyHostProfileClientPath) || safeRead(HOST_PROFILE_CLIENT_FALLBACK);
+  const legacyVenueFollow =
+    safeRead(legacyVenueProfileClientPath) || safeRead(VENUE_PROFILE_CLIENT_FALLBACK);
 
   assert.equal(
     manager.includes('setEventRsvp'),

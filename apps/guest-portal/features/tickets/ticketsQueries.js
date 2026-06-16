@@ -23,7 +23,11 @@ export function ticketDetailQueryKey(uid, ticketId) {
 export async function fetchTicketsWallet() {
   if (isGuestBffEnabled('tickets')) {
     const overview = await fetchGuestBffTicketsOverview();
-    const wallet = overview?.wallet || EMPTY_TICKETS;
+    const overviewWallet = overview?.wallet || EMPTY_TICKETS;
+    const wallet = {
+      ...overviewWallet,
+      coverWalletsByOrder: overviewWallet.coverWalletsByOrder || {},
+    };
 
     try {
       const { response, data } = await guestApi.tickets.wallet();
