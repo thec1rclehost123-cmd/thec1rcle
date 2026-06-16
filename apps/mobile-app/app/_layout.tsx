@@ -1,3 +1,6 @@
+// MUST come before global.css — adds `dark` class to <html> so NativeWind's
+// MutationObserver (triggered by CSS injection) sees it and doesn't throw.
+import './_dark-init';
 import '../global.css';
 import { useCallback } from 'react';
 import { Stack } from 'expo-router';

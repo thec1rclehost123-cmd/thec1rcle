@@ -157,7 +157,7 @@ export default fp(async (fastify) => {
     details: Record<string, any> = {},
   ) {
     const durationMs = Number((Date.now() - startedAt).toFixed(2));
-    if (durationMs < 150) return;
+    if (durationMs < 150 || !request?.log) return;
     request.log.info({ durationMs, ...details }, label);
   }
 

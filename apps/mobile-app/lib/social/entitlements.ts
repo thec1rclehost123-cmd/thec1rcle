@@ -1,7 +1,6 @@
 // Event Entitlement Service - Access Control for Social Features via API Gateway
-import { EventEntitlement } from './types';
-
 import { apiFetch } from '@/lib/api';
+import { EventEntitlement } from './types';
 
 /**
  * Check if user has valid entitlement for event.

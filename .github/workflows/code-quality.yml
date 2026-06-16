@@ -70,6 +70,8 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npm run build --if-present
+        env:
+          SKIP_ENV_VALIDATION: '1'
       - run: npx lhci autorun
         continue-on-error: true
         env:

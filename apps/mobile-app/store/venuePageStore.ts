@@ -1,7 +1,6 @@
-import { getFirestore, doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import { create } from 'zustand';
-
 import { getFirebaseApp } from '@/lib/firebase/client';
+import { getFirestore, doc, getDoc, getDocs, collection, query, where } from 'firebase/firestore';
 import {
   type Coordinates,
   findKnownVenueCoordinates,

@@ -1,8 +1,8 @@
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import { View, Pressable, StyleSheet, ViewStyle, PressableProps } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -11,7 +11,6 @@ import Animated, {
   FadeInDown,
   SlideInRight,
 } from 'react-native-reanimated';
-
 import { colors, radii } from '@/lib/design/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

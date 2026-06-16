@@ -9,5 +9,8 @@
       "Bash(ps *)",
       "Bash(which *)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }

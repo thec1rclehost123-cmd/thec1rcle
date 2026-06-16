@@ -2,6 +2,7 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
 import { EventProvider } from '@/store/eventContext';
 import '../global.css';
 
@@ -10,7 +11,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <EventProvider>
         <View className="flex-1 bg-background-primary">
-          <StatusBar style="light" backgroundColor="#0A0A0B" />
+          <StatusBar style="light" />
           <Stack
             screenOptions={{
               headerShown: false,

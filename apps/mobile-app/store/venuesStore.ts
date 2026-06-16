@@ -1,10 +1,9 @@
-import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { create } from 'zustand';
-
 // @c1rcle/types provides the canonical Venue shape. The local Venue interface below
 // extends it with mobile-specific fields (coordinates, popularityScore, etc.).
 // When harmonizing: import type { Venue as BaseVenue } from '@c1rcle/types';
 import { getFirebaseApp } from '@/lib/firebase/client';
+import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { type Coordinates } from '@/lib/venueDiscovery';
 
 export interface Venue {

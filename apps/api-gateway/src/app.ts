@@ -348,7 +348,7 @@ async function main() {
   await server.register(partnersFinanceRoutes, { prefix: '/api/v1' });
 
   // Enhanced Database-aware Health Check
-  server.get('/health', async (request, reply) => {
+  const healthHandler = async (request: any, reply: any) => {
     const health: any = {
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -379,7 +379,11 @@ async function main() {
     // 200 for ok/degraded; 503 only when Firestore (primary DB) is unreachable
     const statusCode = health.status === 'error' ? 503 : 200;
     return reply.status(statusCode).send(health);
-  });
+  };
+
+  server.get('/health', healthHandler);
+  // Alias reachable via partner-dashboard catch-all proxy (/api/health → /api/v1/health)
+  server.get('/api/v1/health', healthHandler);
 
   // Graceful Shutdown Handlers
   const gracefulShutdown = async (signal: string) => {

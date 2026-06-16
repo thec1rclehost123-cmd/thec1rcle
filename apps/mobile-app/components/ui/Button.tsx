@@ -1,14 +1,13 @@
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import { Pressable, Text, ActivityIndicator, View, PressableProps, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-
 import { colors, gradients, radii } from '@/lib/design/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

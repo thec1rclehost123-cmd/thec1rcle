@@ -6,7 +6,6 @@ import Animated, {
   withTiming,
   interpolateColor,
 } from 'react-native-reanimated';
-
 import { colors, radii } from '@/lib/design/theme';
 
 const AnimatedView = Animated.createAnimatedComponent(View);

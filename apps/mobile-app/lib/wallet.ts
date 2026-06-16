@@ -8,10 +8,10 @@
  * - isWalletAvailable: checks if wallet app is installed
  */
 
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Haptics from 'expo-haptics';
-import * as Sharing from 'expo-sharing';
 import { Alert, Linking, Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://thec1rcle.com';
 

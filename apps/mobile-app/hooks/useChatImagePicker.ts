@@ -5,11 +5,10 @@
  * Firebase Storage, and returning the download URL for chat messages.
  */
 
-import * as Haptics from 'expo-haptics';
-import * as ImagePicker from 'expo-image-picker';
 import { useState, useCallback } from 'react';
 import { Alert, ActionSheetIOS, Platform } from 'react-native';
-
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
 import { apiFetch } from '@/lib/api';
 
 interface ChatImagePickerResult {

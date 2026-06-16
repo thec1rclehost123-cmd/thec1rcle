@@ -58,6 +58,7 @@ export default function CheckoutContainer({ event, initialSummary = null, initia
     minTickets,
     needToKnowItems,
     otherEventReservation,
+    pricingResult,
     paymentMethod,
     processingState,
     quoteReady,

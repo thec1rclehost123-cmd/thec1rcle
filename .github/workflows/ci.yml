@@ -139,6 +139,8 @@ jobs:
           key: nm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
       - run: npx turbo build --filter='...[origin/main]'
               # Skips packages unchanged vs main; uses remote cache
+        env:
+          SKIP_ENV_VALIDATION: '1'
 
     # ── 6. Security ───────────────────────────────────────────────
   security:

@@ -35,6 +35,7 @@
     "node_modules",
     "node_modules_old",
     "_ui_stash",
+    "_migration_remnants",
     "dist",
     ".turbo",
     "functions",

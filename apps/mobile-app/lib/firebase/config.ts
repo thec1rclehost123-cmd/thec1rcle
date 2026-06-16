@@ -24,12 +24,12 @@ function requiredEnv(key: string): string {
 
 // Development-only fallbacks (stripped in production builds)
 const DEV_FALLBACKS: Record<string, string> = {
-  EXPO_PUBLIC_FIREBASE_API_KEY: 'AIzaSyBoJB4ohM6yoo1IHzC8gEvv9bUPWq25Y08',
-  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: 'thec1rcle-india.firebaseapp.com',
-  EXPO_PUBLIC_FIREBASE_PROJECT_ID: 'thec1rcle-india',
-  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: 'thec1rcle-india.firebasestorage.app',
-  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '510566153272',
-  EXPO_PUBLIC_FIREBASE_APP_ID: '1:510566153272:web:282e5127ac53814f213acd',
+  EXPO_PUBLIC_FIREBASE_API_KEY: 'AIzaSyBvVJH0kcXgNmmnKUPAENvWhAg1XzHXqDU',
+  EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: 'c1rcle-staging.firebaseapp.com',
+  EXPO_PUBLIC_FIREBASE_PROJECT_ID: 'c1rcle-staging',
+  EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: 'c1rcle-staging.firebasestorage.app',
+  EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '281421756463',
+  EXPO_PUBLIC_FIREBASE_APP_ID: '1:281421756463:web:d4101d3707e0a7cd5ceeda',
 };
 
 export const firebaseConfig = {

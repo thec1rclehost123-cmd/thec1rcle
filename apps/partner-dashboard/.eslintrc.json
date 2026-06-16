@@ -1,14 +1,29 @@
 {
     "root": true,
+    "env": { "browser": true, "es2022": true },
+    "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+    "settings": { "react": { "version": "detect" } },
     "extends": [
-        "next/core-web-vitals"
+        "plugin:react/recommended",
+        "plugin:react-hooks/recommended",
+        "plugin:@next/next/core-web-vitals-legacy"
     ],
     "rules": {
+        "react/react-in-jsx-scope": "off",
+        "react/prop-types": "off",
         "react/no-unescaped-entities": "off",
         "@next/next/no-img-element": "off",
         "react-hooks/exhaustive-deps": "off",
         "react-hooks/rules-of-hooks": "off",
+        "react-hooks/set-state-in-effect": "off",
         "import/no-anonymous-default-export": "off",
         "jsx-a11y/alt-text": "off"
-    }
+    },
+    "overrides": [
+        {
+            "files": ["*.ts", "*.tsx"],
+            "parser": "@typescript-eslint/parser",
+            "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" }
+        }
+    ]
 }

@@ -1,8 +1,10 @@
-# CLAUDE.md - C1RCLE Monorepo
+# CLAUDE.md
 
-> Auto-loaded working instructions for the nested product repo at `thec1rcle/thec1rcle`.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+> Auto-loaded working instructions for the C1RCLE monorepo.
 > If this file and the live code disagree, trust the live code and current guardrail docs.
-> Refreshed against the repo on 2026-04-30.
+> Refreshed against the repo on 2026-06-16.
 
 ## Canonical Repo Root
 
@@ -46,6 +48,73 @@
 - Mobile app: Expo `55`, React Native `0.83`
 - Scanner app: Expo `52`, React Native `0.76`
 - Data and infra: Firebase Auth, Firestore, Storage, Redis, Inngest, Sentry
+
+### Dev Ports
+
+| App | Command | Port |
+|---|---|---|
+| guest-portal | `npm run dev:guest` | 3000 |
+| partner-dashboard | `npm run dev:partner` | 3001 |
+| admin-console | `npm run dev:admin` | 3002 |
+| api-gateway | `npm run dev -w apps/api-gateway` | 3005 (default) |
+| mobile-app | `npm run dev:mobile` | 8082 |
+
+The api-gateway dev script uses `tsx watch --env-file=.env.development src/app.ts`. Web apps copy `.env.development` → `.env.local` on start.
+
+### Common Commands
+
+```bash
+# Run all apps in parallel (Turborepo)
+npm run dev
+
+# Build all workspaces
+npm run build
+
+# Lint + type-check + test all workspaces
+npm run lint
+npm run type-check
+npm test
+
+# Single workspace lint / type-check
+npm run lint --workspace=apps/guest-portal
+npm run type-check --workspace=apps/partner-dashboard
+npm run type-check --workspace=apps/api-gateway
+
+# Run tests for a specific workspace
+npm test --workspace=apps/api-gateway         # vitest
+npm test --workspace=packages/core            # vitest
+npm run test --workspace=apps/guest-portal    # node --test
+npm test --workspace=apps/mobile-app -- --runInBand  # jest (scanner tests only)
+
+# Run a single test file (api-gateway / core — vitest)
+npx vitest run --workspace=apps/api-gateway src/path/to/file.test.ts
+
+# Guardrails and architecture checks
+npm run guardrails:check      # backend boundary violations
+npm run test:guardrails       # boundary checker unit tests
+npm run architecture:guest    # guest-portal BFF surface tests
+
+# Format check
+npm run format:check
+npm run stylelint:check
+```
+
+### Git Conventions
+
+Commits are enforced by commitlint (`@commitlint/config-conventional`). Format:
+
+```
+type(scope): subject
+```
+
+Valid scopes: `guest-portal`, `partner-dashboard`, `admin-console`, `api-gateway`, `mobile-app`, `scanner-app`, `core`, `ui`, `types`, `functions`, `infra`, `ci`, `deps`, `docs`, `root`
+
+Rules: lowercase subject, no trailing period, header ≤ 72 chars, scope is required.
+
+### Git Hooks
+
+- **pre-commit**: runs `lint-staged` — prettier + eslint auto-fix on staged files, stylelint on CSS
+- **pre-push**: runs the full `prepush` suite: lint → stylelint → type-check → test → build → guardrails:check
 
 ### Useful Root Scripts
 
@@ -228,6 +297,11 @@ Current Firebase repository layer under `packages/core/src/infrastructure/reposi
 - report
 - workspace
 
+Core has two export layers — do not confuse them:
+
+- **Engine exports** (legacy, e.g. `@c1rcle/core/scan-engine`, `@c1rcle/core/ticket-engine`) — older module-style exports at the root of `packages/core`
+- **Typed domain exports** (newer, e.g. `@c1rcle/core/checkout-service`, `@c1rcle/core/profile-repo`) — resolve into `dist/domain/services/*` and `dist/infrastructure/repositories/*`
+
 Core rules:
 
 - Move reusable business rules here
@@ -236,10 +310,13 @@ Core rules:
 
 ### Mobile App and Scanner App
 
-- `apps/mobile-app` is still the main Expo app and still contains active scanner and door-ops related code
-- `apps/scanner-app` exists as a separate workspace, but do not assume it has replaced every scanner flow in `mobile-app`
+- `apps/mobile-app` is still the main Expo app and still contains active scanner and door-ops related code — **Expo 55 / React Native 0.83 / React 19**
+- `apps/scanner-app` exists as a separate workspace, but do not assume it has replaced every scanner flow in `mobile-app` — **Expo 56 / React Native 0.76**
+- The two apps run different Expo versions; do not apply patterns from one to the other without checking version compatibility
+- Before writing any Expo-specific code, read the versioned Expo docs for the target app (`v55` for mobile-app, `v56` for scanner-app)
 - Scanner and door work must stay reliability-first and gateway-backed
 - Avoid broad scanner rewrites without device/runtime validation
+- mobile-app dev requires `NODE_OPTIONS=--max-old-space-size=8192` (already set in npm scripts)
 
 ### Admin Console
 

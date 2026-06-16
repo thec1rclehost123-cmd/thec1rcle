@@ -4,12 +4,11 @@
  * Styled to match the app's dark premium aesthetic.
  */
 
-import { LinearGradient } from 'expo-linear-gradient';
-import { AlertTriangle, RotateCcw, Home } from 'lucide-react-native';
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { LinearGradient } from 'expo-linear-gradient';
+import { AlertTriangle, RotateCcw, Home } from 'lucide-react-native';
 import { colors } from '@/lib/design/theme';
 
 interface CrashScreenProps {

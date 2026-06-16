@@ -1,7 +1,6 @@
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   FadeIn,
   useSharedValue,
@@ -10,7 +9,7 @@ import Animated, {
   withTiming,
   withSequence,
 } from 'react-native-reanimated';
-
+import { useEffect } from 'react';
 import { colors, radii, gradients } from '@/lib/design/theme';
 
 // Badge component

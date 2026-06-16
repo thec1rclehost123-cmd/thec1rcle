@@ -43,6 +43,7 @@ describe('guest-auth contracts', () => {
       venueId: null,
       partnerId: null,
       onboardingStatus: null,
+      isApproved: false,
     });
   });
 

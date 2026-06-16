@@ -1,9 +1,8 @@
-import { Stack } from 'expo-router';
 import { useEffect } from 'react';
-
+import { Stack } from 'expo-router';
 import { colors } from '@/lib/design/theme';
-import { sendScannerHeartbeat } from '@/lib/scanner';
 import { useScannerStore } from '@/store/scannerStore';
+import { sendScannerHeartbeat } from '@/lib/scanner';
 
 /**
  * Scanner group layout — no auth required.

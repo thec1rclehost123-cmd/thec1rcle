@@ -8,10 +8,8 @@
  */
 
 import { Alert } from 'react-native';
-
-import { reserveTickets, initiateCheckout, verifyPayment } from './api';
-
 import { useCartStore } from '@/store/cartStore';
+import { reserveTickets, initiateCheckout, verifyPayment } from './api';
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
 const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY;

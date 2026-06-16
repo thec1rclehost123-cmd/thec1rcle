@@ -56,21 +56,23 @@ const _clientEnv = clientEnvSchema.safeParse({
   NEXT_PUBLIC_DEFAULT_CITY: process.env.NEXT_PUBLIC_DEFAULT_CITY,
 });
 
-if (!_serverEnv.success || !_clientEnv.success) {
-  console.error('❌ Invalid environment variables in guest-portal');
-  if (!_serverEnv.success) console.error(_serverEnv.error.format());
-  if (!_clientEnv.success) console.error(_clientEnv.error.format());
-  process.exit(1);
+if (!process.env.SKIP_ENV_VALIDATION) {
+  if (!_serverEnv.success || !_clientEnv.success) {
+    console.error('❌ Invalid environment variables in guest-portal');
+    if (!_serverEnv.success) console.error(_serverEnv.error.format());
+    if (!_clientEnv.success) console.error(_clientEnv.error.format());
+    process.exit(1);
+  }
 }
 
 const guestApiConfig = getGuestApiBaseConfig(process.env);
-if (!guestApiConfig.apiBaseUrl) {
+if (!process.env.SKIP_ENV_VALIDATION && !guestApiConfig.apiBaseUrl) {
   console.error('❌ Missing guest API base URL. Set GUEST_API_GATEWAY_URL.');
   process.exit(1);
 }
 
 export const env = {
-  ..._serverEnv.data,
-  ..._clientEnv.data,
+  ...(_serverEnv.data ?? {}),
+  ...(_clientEnv.data ?? {}),
   GUEST_API_BASE_URL: guestApiConfig.apiBaseUrl,
 };

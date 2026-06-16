@@ -1,5 +1,3 @@
-import * as SecureStore from 'expo-secure-store';
-
 import {
   ScannerEventData,
   ScanRequest,
@@ -14,6 +12,7 @@ import {
   WalkInResponse,
   WalkInEntry,
 } from './types';
+import * as SecureStore from 'expo-secure-store';
 
 // C2: Use GATEWAY_URL — not the guest-portal base URL
 const GATEWAY_URL = process.env.EXPO_PUBLIC_GATEWAY_URL || 'http://localhost:4000';

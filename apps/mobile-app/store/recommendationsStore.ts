@@ -3,9 +3,8 @@
  * Scores events based on time-of-day + order history + browsed categories + heatScore
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
-
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Event } from './eventsStore';
 
 const BROWSED_KEY = 'c1rcle:browsed_categories';

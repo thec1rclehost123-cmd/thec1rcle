@@ -1,7 +1,6 @@
 // Moderation and Safety Service via API Gateway
-import { UserReport, UserBlock } from './types';
-
 import { apiFetch } from '@/lib/api';
+import { UserReport, UserBlock } from './types';
 
 /**
  * Report a user via API Gateway.

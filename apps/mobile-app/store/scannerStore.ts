@@ -1,6 +1,5 @@
-import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
-
+import * as SecureStore from 'expo-secure-store';
 import { cacheClear } from '@/lib/scanner/api';
 import { ScannerEventData } from '@/lib/scanner/types';
 

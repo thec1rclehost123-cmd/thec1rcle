@@ -4,9 +4,8 @@
  */
 
 import { useEffect } from 'react';
-
-import { useAuthStore } from '@/store/authStore';
 import { useSettingsStore, UserSettings } from '@/store/settingsStore';
+import { useAuthStore } from '@/store/authStore';
 
 export function useSettings() {
   const { user } = useAuthStore();

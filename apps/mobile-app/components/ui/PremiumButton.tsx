@@ -3,9 +3,6 @@
  * Liquid glass, neon glow, haptic feedback, and stunning animations
  */
 
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import React, { useEffect } from 'react';
 import {
   View,
@@ -16,6 +13,9 @@ import {
   ViewStyle,
   TextStyle,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -26,7 +26,6 @@ import Animated, {
   interpolate,
   Easing,
 } from 'react-native-reanimated';
-
 import { colors, radii, shadows } from '@/lib/design/theme';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);

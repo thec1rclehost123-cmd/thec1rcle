@@ -5,7 +5,6 @@
  */
 
 import Constants from 'expo-constants';
-
 import { getFirebaseAuth } from './firebase';
 
 // Fastify API Gateway base URL

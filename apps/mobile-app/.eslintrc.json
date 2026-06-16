@@ -1,7 +1,29 @@
 {
     "extends": "universe/native",
     "root": true,
+    "settings": {
+        "import/resolver": {
+            "node": {
+                "extensions": [
+                    ".js",
+                    ".jsx",
+                    ".ts",
+                    ".tsx"
+                ]
+            }
+        }
+    },
     "rules": {
-        "prettier/prettier": "off"
+        "import/no-unresolved": "off",
+        "import/named": "off",
+        "import/namespace": "off",
+        "import/default": "off",
+        "import/no-named-as-default": "off",
+        "import/no-named-as-default-member": "off",
+        "import/no-cycle": "off",
+        "import/no-self-import": "off",
+        "import/no-useless-path-segments": "off",
+        "import/extensions": "off",
+        "import/order": "off"
     }
 }

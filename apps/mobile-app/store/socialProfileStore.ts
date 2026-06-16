@@ -1,3 +1,5 @@
+import { create } from 'zustand';
+import { getFirebaseApp } from '@/lib/firebase/client';
 import {
   getFirestore,
   doc,
@@ -8,9 +10,6 @@ import {
   addDoc,
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { create } from 'zustand';
-
-import { getFirebaseApp } from '@/lib/firebase/client';
 
 function getDb() {
   return getFirestore(getFirebaseApp());

@@ -1,6 +1,11 @@
-import { Image } from 'react-native';
+import { Image, Platform } from 'react-native';
+import { Asset } from 'expo-asset';
 
-const assetUri = (source: number) => Image.resolveAssetSource(source).uri;
+// Image.resolveAssetSource does not exist in React Native Web — use expo-asset on web only.
+const assetUri = (source: number): string =>
+  Platform.OS === 'web'
+    ? (Asset.fromModule(source).uri ?? '')
+    : Image.resolveAssetSource(source).uri;
 
 export const DEMO_POSTERS = {
   afterhours: assetUri(require('../../assets/posters/afterhours.jpg')),

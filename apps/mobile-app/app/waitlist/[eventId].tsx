@@ -1,6 +1,12 @@
-import * as Haptics from 'expo-haptics';
+import { useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { apiFetch } from '@/lib/api';
+import { getFirebaseApp } from '@/lib/firebase/client';
 import {
   getFirestore,
   collection,
@@ -10,16 +16,9 @@ import {
   addDoc,
   serverTimestamp,
 } from 'firebase/firestore';
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { apiFetch } from '@/lib/api';
-import { colors, radii, gradients } from '@/lib/design/theme';
-import { getFirebaseApp } from '@/lib/firebase/client';
 import { useAuthStore } from '@/store/authStore';
 import { Event, useEventsStore } from '@/store/eventsStore';
+import { colors, radii, gradients } from '@/lib/design/theme';
 
 function getDb() {
   return getFirestore(getFirebaseApp());

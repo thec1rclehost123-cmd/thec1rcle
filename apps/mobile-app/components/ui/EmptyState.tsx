@@ -3,12 +3,11 @@
  * Premium, branded empty states for all app screens
  */
 
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
-
 import { colors, radii, gradients } from '@/lib/design/theme';
+import * as Haptics from 'expo-haptics';
 
 export type EmptyStateType =
   | 'no-tickets'
