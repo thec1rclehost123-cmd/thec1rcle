@@ -146,7 +146,7 @@ function GoingMarquee({ accent }: { accent: string }) {
         <View style={[styles.goingMarquee, { backgroundColor: accent }]}>
             <Animated.View style={[styles.goingMarqueeTrack, marqueeStyle]}>
                 {Array.from({ length: 12 }).map((_, index) => (
-                    <Text key={index} style={styles.goingMarqueeText}>YOU'RE GOING</Text>
+                    <Text key={index} style={styles.goingMarqueeText}>THEC1RCLE</Text>
                 ))}
             </Animated.View>
         </View>
@@ -165,16 +165,7 @@ function TicketOriginEventView({
     const eventId = String(params.id || event.id);
     const orderId = typeof params.orderId === "string" ? params.orderId : "";
     const paramAccent = typeof params.accentColor === "string" ? params.accentColor : undefined;
-    const accent = normalizeHexColor(
-        (event as any).posterAccentColor ||
-        (event as any).dominantColor ||
-        (event as any).eventAccentColor ||
-        ((event as any).accentColor && String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
-            ? (event as any).accentColor
-            : undefined) ||
-        paramAccent ||
-        "#D915A8"
-    );
+    const accent = colors.iris;
     const title = String(params.eventTitle || event.title || "THE C1RCLE EVENT");
     const poster = getEventImage(event) || (typeof params.eventCoverImage === "string" ? params.eventCoverImage : undefined);
     const address = String(
@@ -238,7 +229,6 @@ function TicketOriginEventView({
                 <GoingMarquee accent={accent} />
                 <View style={styles.goingContent}>
                     <Animated.View entering={FadeInDown.duration(420)} style={styles.goingHeader}>
-                        <Text style={styles.goingMark}>(P)</Text>
                         <Text style={styles.goingTitle} numberOfLines={3}>
                             {title.toUpperCase()}
                         </Text>
@@ -596,14 +586,7 @@ export default function EventDetailScreen() {
         if (!confirmedOrder || !event) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-        const accentColor =
-            (event as any).posterAccentColor ||
-            (event as any).dominantColor ||
-            (event as any).eventAccentColor ||
-            ((event as any).accentColor && String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
-                ? (event as any).accentColor
-                : undefined) ||
-            "#D915A8";
+        const accentColor = colors.iris;
 
         router.push({
             pathname: "/event/[id]",
@@ -673,9 +656,6 @@ export default function EventDetailScreen() {
 
     const compactHeaderStyle = useAnimatedStyle(() => ({
         opacity: interpolate(scrollY.value, [150, 240], [0, 1]),
-        transform: [
-            { translateY: interpolate(scrollY.value, [150, 240], [-10, 0]) },
-        ],
     }));
 
     const compactHeaderBackdropStyle = useAnimatedStyle(() => ({
@@ -921,16 +901,7 @@ export default function EventDetailScreen() {
         return <TicketOriginEventView event={event} params={params} insets={insets} />;
     }
 
-    const accent = normalizeHexColor(
-        (event as any).posterAccentColor ||
-        (event as any).dominantColor ||
-        (event as any).eventAccentColor ||
-        ((event as any).accentColor && String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
-            ? (event as any).accentColor
-            : undefined) ||
-        params.accentColor ||
-        "#D915A8"
-    );
+    const accent = colors.iris;
     const posterUri = getEventImage(event);
     const posterTransitionTag =
         typeof params.posterTransitionTag === "string"
@@ -1062,24 +1033,25 @@ export default function EventDetailScreen() {
             >
                 <Pressable
                     onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         if (router.canGoBack()) {
                             router.back();
                         } else {
                             router.replace("/");
                         }
                     }}
-                    style={styles.detailControlButton}
-	                >
-	                    <Ionicons name="chevron-back" size={26} color="#fff" />
-	                </Pressable>
-	                <Animated.View pointerEvents="none" style={[styles.compactTitle, compactHeaderStyle]}>
-	                    <Text style={styles.compactTitleText} numberOfLines={1}>{event.title}</Text>
-	                    <Text style={styles.compactVenueText} numberOfLines={1}>{addressLabel}</Text>
-	                </Animated.View>
-	                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-	                    <Pressable onPress={handleShare} style={styles.detailControlButton}>
-	                        <Ionicons name="share-outline" size={21} color="#fff" />
-	                    </Pressable>
+                    style={[styles.detailControlButton, { zIndex: 10 }]}
+                >
+                    <Ionicons name="chevron-back" size={26} color="#fff" />
+                </Pressable>
+                <Animated.View pointerEvents="none" style={[styles.compactTitle, compactHeaderStyle]}>
+                    <Text style={styles.compactTitleText} numberOfLines={1}>{event.title}</Text>
+                    <Text style={styles.compactVenueText} numberOfLines={1}>{addressLabel}</Text>
+                </Animated.View>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Pressable onPress={handleShare} style={styles.detailControlButton}>
+                        <Ionicons name="share-outline" size={21} color="#fff" />
+                    </Pressable>
                     <AnimatedPressable
                         onPress={() => handleLike("top")}
                         style={[styles.detailControlButton, heartButtonAnimatedStyle]}
@@ -1233,8 +1205,11 @@ export default function EventDetailScreen() {
                             <View style={styles.interestedAvatars}>
                                 {guestlistUsers.slice(0, 6).map((userInfo, index) => {
                                     const initial = (userInfo.displayName?.[0] ?? "?").toUpperCase();
-                                    const avatarSource = (userInfo as any).photoSource ||
-                                        (userInfo?.photoURL ? { uri: userInfo.photoURL } : null);
+                                    const avatarSource = (userInfo as any).photoSource
+                                        ? (userInfo as any).photoSource
+                                        : (typeof userInfo?.photoURL === "string" && userInfo.photoURL.length > 0 && (userInfo.photoURL.startsWith("http") || userInfo.photoURL.startsWith("https")))
+                                            ? { uri: userInfo.photoURL }
+                                            : null;
                                     return (
                                         <View
                                             key={userInfo.userId || `${initial}-${index}`}
@@ -1690,13 +1665,17 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         zIndex: 99,
-        backgroundColor: "rgba(0,0,0,0.78)",
+        backgroundColor: "#050505",
         borderBottomWidth: StyleSheet.hairlineWidth,
         borderBottomColor: "rgba(255,255,255,0.1)",
     },
     compactTitle: {
-        flex: 1,
-        marginHorizontal: 10,
+        position: "absolute",
+        bottom: 10,
+        height: 38,
+        left: 60,
+        right: 90,
+        justifyContent: "center",
         alignItems: "center",
         minWidth: 0,
     },

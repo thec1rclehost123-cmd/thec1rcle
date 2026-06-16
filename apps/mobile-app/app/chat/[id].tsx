@@ -317,7 +317,13 @@ export default function ChatRoomScreen() {
             <SafeAreaView style={styles.conversation} edges={["top"]}>
                 <BrightChatHeader
                     theme={theme}
-                    onBack={() => router.back()}
+                    onBack={() => {
+                        if (router.canGoBack()) {
+                            router.back();
+                        } else {
+                            router.replace("/(tabs)/inbox");
+                        }
+                    }}
                     onDetails={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         setAttendeesOpen(true);

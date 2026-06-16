@@ -13,6 +13,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Users, User, Sparkles, Crown, Ticket } from "lucide-react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
     Easing,
@@ -102,6 +103,16 @@ function getTicketPersona(tier: TicketTier) {
     };
 }
 
+function getPersonaImage(kind: string) {
+    switch (kind) {
+        case "couple": return require("../../assets/images/personas/couple.png");
+        case "stag": return require("../../assets/images/personas/stag.png");
+        case "ladies": return require("../../assets/images/personas/ladies.png");
+        case "vip": return require("../../assets/images/personas/vip.png");
+        default: return require("../../assets/images/personas/general.png");
+    }
+}
+
 function MiniCharacter({
     persona,
     index,
@@ -109,101 +120,23 @@ function MiniCharacter({
     persona: ReturnType<typeof getTicketPersona>;
     index: number;
 }) {
-    const isVip = persona.kind === "vip";
-    const figureVariant = index % 5;
-    const looks = [
-        { skin: "#C98D6D", hair: "#0D0D0E", accent: "#D6D9E0", sneaker: "#F1EFE8", poseX: 0, headTurn: -1 },
-        { skin: "#8E5C47", hair: "#16100E", accent: "#C9A85E", sneaker: "#151515", poseX: -2, headTurn: 1 },
-        { skin: "#E3B28F", hair: "#111318", accent: "#8EDAF1", sneaker: "#E8E1D3", poseX: 2, headTurn: -1 },
-        { skin: "#A56A50", hair: "#261713", accent: "#F44A22", sneaker: "#191919", poseX: -1, headTurn: 1 },
-        { skin: "#D9A07C", hair: "#0A0A0B", accent: "#AFA8FF", sneaker: "#F7C948", poseX: 1, headTurn: -1 },
-    ];
-    const look = looks[figureVariant];
-    const accent = isVip ? "#F7C948" : persona.palette[0] || look.accent;
-    const skinGradientId = `skin-premium-${index}`;
-    const suitGradientId = `suit-premium-${index}`;
-    const rimGradientId = `rim-premium-${index}`;
-    const chromeGradientId = `chrome-premium-${index}`;
-
+    const imageSource = getPersonaImage(persona.kind);
     return (
-        <Animated.View entering={FadeInDown.delay(index * 45).duration(260)} style={styles.characterWrap}>
-            <Svg width={64} height={138} viewBox="0 0 78 150">
-                <Defs>
-                    <SvgLinearGradient id={skinGradientId} x1="22" y1="12" x2="52" y2="50" gradientUnits="userSpaceOnUse">
-                        <Stop offset="0" stopColor="#FFE5CE" stopOpacity="0.42" />
-                        <Stop offset="0.5" stopColor={look.skin} stopOpacity="1" />
-                        <Stop offset="1" stopColor="#4B2D25" stopOpacity="0.3" />
-                    </SvgLinearGradient>
-                    <SvgLinearGradient id={suitGradientId} x1="20" y1="42" x2="58" y2="112" gradientUnits="userSpaceOnUse">
-                        <Stop offset="0" stopColor="#414247" stopOpacity="1" />
-                        <Stop offset="0.46" stopColor="#121317" stopOpacity="1" />
-                        <Stop offset="1" stopColor="#050506" stopOpacity="1" />
-                    </SvgLinearGradient>
-                    <SvgLinearGradient id={rimGradientId} x1="16" y1="10" x2="62" y2="134" gradientUnits="userSpaceOnUse">
-                        <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.55" />
-                        <Stop offset="0.48" stopColor={accent} stopOpacity="0.48" />
-                        <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0.08" />
-                    </SvgLinearGradient>
-                    <SvgLinearGradient id={chromeGradientId} x1="20" y1="20" x2="58" y2="126" gradientUnits="userSpaceOnUse">
-                        <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.9" />
-                        <Stop offset="0.42" stopColor="#D5D7DC" stopOpacity="0.82" />
-                        <Stop offset="1" stopColor="#7B7F88" stopOpacity="0.82" />
-                    </SvgLinearGradient>
-                </Defs>
-
-                <Ellipse cx="39" cy="142" rx="22" ry="5" fill="rgba(0,0,0,0.38)" />
-                <G transform={`translate(${look.poseX} 0)`}>
-                    <Path
-                        d="M28 41 C20 54 18 74 21 92 M51 43 C60 58 60 77 54 94"
-                        stroke={`url(#${rimGradientId})`}
-                        strokeWidth="3"
-                        strokeLinecap="round"
-                        opacity={0.7}
-                    />
-                    <Path d="M30 73 C27 93 25 113 24 134" stroke="#0D0E12" strokeWidth="9" strokeLinecap="round" />
-                    <Path d="M46 73 C52 92 55 112 58 134" stroke="#08090C" strokeWidth="9" strokeLinecap="round" />
-                    <Path d="M25 88 C30 98 37 106 44 115" stroke="#17191F" strokeWidth="7" strokeLinecap="round" />
-                    <Path d="M16 135 C21 131 31 131 35 135 C34 139 19 140 16 138 Z" fill={look.sneaker} />
-                    <Path d="M51 135 C56 131 67 131 71 135 C70 139 55 140 51 138 Z" fill={look.sneaker} />
-                    <Path d="M18 133 L36 133" stroke={`url(#${chromeGradientId})`} strokeWidth="1.4" strokeLinecap="round" opacity={0.58} />
-                    <Path d="M53 133 L70 133" stroke={`url(#${chromeGradientId})`} strokeWidth="1.4" strokeLinecap="round" opacity={0.58} />
-
-                    <Path d="M28 50 C21 60 19 72 23 83" stroke={`url(#${skinGradientId})`} strokeWidth="7" strokeLinecap="round" />
-                    <Path d="M50 50 C57 61 58 73 53 86" stroke={`url(#${skinGradientId})`} strokeWidth="7" strokeLinecap="round" />
-                    <Path d="M51 84 L62 91" stroke={`url(#${chromeGradientId})`} strokeWidth="4.4" strokeLinecap="round" />
-                    <Rect x="60" y="86" width="9" height="15" rx="2.5" fill="#0D0E12" stroke={`url(#${chromeGradientId})`} strokeWidth="1" />
-                    <Path d="M24 80 L31 79" stroke={accent} strokeWidth="3" strokeLinecap="round" />
-
-                    <Path
-                        d="M27 45 C33 40 45 40 51 45 C55 55 55 67 50 78 C43 82 33 82 26 78 C22 67 22 55 27 45 Z"
-                        fill={`url(#${suitGradientId})`}
-                    />
-                    <Path d="M30 47 L38 77 L47 47" stroke="rgba(255,255,255,0.16)" strokeWidth="1.5" strokeLinecap="round" />
-                    <Path d="M37 48 L35 66 L39 75 L43 64 L41 48 Z" fill="#050506" opacity={0.74} />
-                    <Path d="M29 55 C36 59 43 59 51 55" stroke={accent} strokeWidth="2.4" strokeLinecap="round" opacity={0.88} />
-                    <Circle cx="49" cy="58" r="2.2" fill={`url(#${chromeGradientId})`} opacity={0.85} />
-
-                    <G transform={`translate(${look.headTurn} 0)`}>
-                        <Path
-                            d="M29 26 C29 17 35 12 43 13 C50 14 54 20 53 29 C52 38 47 43 40 44 C33 43 29 36 29 26 Z"
-                            fill={`url(#${skinGradientId})`}
-                        />
-                        <Path d="M29 25 C29 15 38 8 50 15 C50 23 43 23 36 18 C35 24 32 27 29 25 Z" fill={look.hair} />
-                        <Path d="M35 33 C38 35 43 35 46 33" stroke="rgba(18,18,18,0.32)" strokeWidth="1.4" strokeLinecap="round" />
-                        <Path d="M35 28 L39 27 M44 27 L48 28" stroke="rgba(20,20,20,0.62)" strokeWidth="1.5" strokeLinecap="round" />
-                        <Path d="M31 20 C35 12 46 11 53 19" stroke={`url(#${rimGradientId})`} strokeWidth="1.8" strokeLinecap="round" opacity={0.5} />
-                    </G>
-
-                    <Path d="M52 45 L59 70" stroke="rgba(255,255,255,0.18)" strokeWidth="1.2" strokeLinecap="round" />
-                    <Path d="M27 45 L22 68" stroke="rgba(255,255,255,0.14)" strokeWidth="1.2" strokeLinecap="round" />
-                </G>
-                {isVip ? (
-                    <G>
-                        <Circle cx="39" cy="75" r="33" stroke="#F7C948" strokeWidth="1.4" opacity={0.28} fill="none" />
-                        <Path d="M49 20 L53 15 L56 20 L61 16 L61 25 L49 25 Z" fill="#F7C948" opacity={0.96} />
-                    </G>
-                ) : null}
-            </Svg>
+        <Animated.View 
+            entering={FadeInDown.delay(index * 45).springify()} 
+            style={[styles.avatarWrap, { marginLeft: index > 0 ? -16 : 0, zIndex: 10 - index }]}
+        >
+            <Image
+                source={imageSource}
+                style={styles.avatarImage}
+                contentFit="cover"
+                transition={200}
+            />
+            {persona.kind === "vip" && (
+                <View style={styles.vipBadge}>
+                    <Crown size={12} color="#000" strokeWidth={3} />
+                </View>
+            )}
         </Animated.View>
     );
 }
@@ -231,19 +164,6 @@ function TicketCharacterStage({
                 {characters.map((character, index) => (
                     <MiniCharacter key={character.id} persona={character.persona} index={index} />
                 ))}
-            </View>
-            <View style={styles.characterLegend}>
-                {selectedItems.map((item) => {
-                    const persona = getTicketPersona(item.tier);
-                    return (
-                        <View key={item.tier.id} style={styles.characterLegendPill}>
-                            <View style={[styles.legendDot, { backgroundColor: persona.palette[0] }]} />
-                            <Text style={styles.characterLegendText}>
-                                {item.quantity} {persona.label}
-                            </Text>
-                        </View>
-                    );
-                })}
             </View>
         </Animated.View>
     );
@@ -458,6 +378,18 @@ export default function TicketSelectionScreen() {
         ? selectedItems.map((item) => `${item.quantity}x ${item.tier.name}`).join(" · ")
         : "Select tickets";
 
+    const posterAccent = event ? (
+        (event as any).posterAccentColor ||
+        (event as any).dominantColor ||
+        (event as any).eventAccentColor ||
+        ((event as any).accentColor && String((event as any).accentColor).toUpperCase() !== colors.iris.toUpperCase()
+            ? (event as any).accentColor
+            : undefined) ||
+        "#D915A8"
+    ) : "#D915A8";
+
+    console.log("Checkout screen rendered with horizontal layout! If you don't see this, Metro cache is stuck.");
+
     const handleProceed = () => {
         if (!event || selectedItems.length === 0) return;
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -501,16 +433,6 @@ export default function TicketSelectionScreen() {
 
     return (
         <SafeAreaView style={styles.screen} edges={["top"]}>
-            <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-                <LinearGradient
-                    colors={["rgba(244,74,34,0.38)", "rgba(244,74,34,0.18)", "rgba(0,0,0,0)"]}
-                    style={styles.backgroundGlowTop}
-                />
-                <LinearGradient
-                    colors={["rgba(247,201,72,0)", "rgba(247,201,72,0.18)", "rgba(244,74,34,0.08)", "rgba(0,0,0,0)"]}
-                    style={styles.backgroundGlowMid}
-                />
-            </View>
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 92 }]}
@@ -522,24 +444,26 @@ export default function TicketSelectionScreen() {
                 </View>
 
                 <View style={[styles.eventHero, { paddingTop: heroTopPadding }]}>
-                    <View style={styles.heroPoster}>
+                    <View style={[styles.heroPoster, { shadowColor: posterAccent, shadowOpacity: 0.5, shadowRadius: 24, elevation: 16 }]}>
                         {eventImage ? (
                             <Image source={{ uri: eventImage }} style={styles.heroPosterImage} contentFit="cover" cachePolicy="memory-disk" />
                         ) : (
                             <LinearGradient colors={gradients.primary as [string, string]} style={styles.heroPosterImage} />
                         )}
                     </View>
-                    <Text style={styles.heroTitle} numberOfLines={2}>{event.title}</Text>
-                    <View style={styles.heroMetaRow}>
-                        <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
-                        <Text style={styles.heroMetaText}>
-                            {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
-                        </Text>
-                    </View>
-                    <Text style={styles.heroOrgName} numberOfLines={1}>{clubLabel}</Text>
-                    <View style={styles.heroMetaRow}>
-                        <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.52)" />
-                        <Text style={styles.heroMetaText} numberOfLines={1}>{venueLabel}</Text>
+                    <View style={styles.heroDetails}>
+                        <Text style={styles.heroTitle} numberOfLines={2}>{event.title}</Text>
+                        <Text style={styles.heroOrgName} numberOfLines={1}>{clubLabel}</Text>
+                        <View style={styles.heroMetaRow}>
+                            <Ionicons name="calendar-outline" size={13} color="rgba(255,255,255,0.52)" />
+                            <Text style={styles.heroMetaText}>
+                                {formatEventDate(event.startDate)} · {formatEventTime(event.startDate)}
+                            </Text>
+                        </View>
+                        <View style={styles.heroMetaRow}>
+                            <Ionicons name="location-outline" size={13} color="rgba(255,255,255,0.52)" />
+                            <Text style={styles.heroMetaText} numberOfLines={1}>{venueLabel}</Text>
+                        </View>
                     </View>
                 </View>
 
@@ -699,14 +623,16 @@ const styles = StyleSheet.create({
         fontWeight: "900",
     },
     eventHero: {
-        alignItems: "center",
+        flexDirection: "row",
+        alignItems: "flex-start",
         marginBottom: 28,
+        paddingHorizontal: 20,
+        gap: 16,
     },
     heroPoster: {
-        width: 156,
-        height: 208,
-        borderRadius: 26,
-        overflow: "hidden",
+        width: 133,
+        height: 177,
+        borderRadius: 16,
         backgroundColor: colors.base[100],
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: "rgba(255,255,255,0.18)",
@@ -718,39 +644,43 @@ const styles = StyleSheet.create({
     heroPosterImage: {
         width: "100%",
         height: "100%",
+        borderRadius: 16,
+        overflow: "hidden",
+    },
+    heroDetails: {
+        flex: 1,
+        justifyContent: "flex-start",
+        alignItems: "flex-start",
+        paddingTop: 4,
     },
     heroTitle: {
         color: "#fff",
-        fontSize: 29,
-        lineHeight: 32,
+        fontSize: 24,
+        lineHeight: 28,
         fontFamily: ticketFont.black,
         fontWeight: "900",
-        marginTop: 16,
-        textAlign: "center",
-        maxWidth: "92%",
+        textAlign: "left",
     },
     heroOrgName: {
         color: colors.gold,
         fontFamily: ticketFont.black,
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: "900",
-        marginTop: 7,
-        textAlign: "center",
-        maxWidth: "86%",
+        marginTop: 6,
+        textAlign: "left",
     },
     heroMetaRow: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "center",
+        justifyContent: "flex-start",
         gap: 5,
-        marginTop: 7,
-        maxWidth: "88%",
+        marginTop: 6,
     },
     heroMetaText: {
         color: "rgba(255,255,255,0.58)",
         fontFamily: ticketFont.medium,
         fontSize: 12,
-        textAlign: "center",
+        textAlign: "left",
     },
     ticketSelector: {
         marginTop: 2,
@@ -779,18 +709,18 @@ const styles = StyleSheet.create({
     },
     sectionMetaPill: {
         borderRadius: 999,
-        paddingHorizontal: 10,
+        paddingHorizontal: 12,
         paddingVertical: 6,
-        backgroundColor: "rgba(255,255,255,0.06)",
-        borderWidth: StyleSheet.hairlineWidth,
-        borderColor: "rgba(255,255,255,0.11)",
+        backgroundColor: "rgba(255,255,255,0.08)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.15)",
     },
     sectionMetaPillActive: {
         backgroundColor: "rgba(244,74,34,0.16)",
         borderColor: "rgba(244,74,34,0.36)",
     },
     sectionMeta: {
-        color: colors.goldStone,
+        color: "rgba(255,255,255,0.8)",
         fontFamily: ticketFont.bold,
         fontSize: 11,
     },
@@ -798,8 +728,8 @@ const styles = StyleSheet.create({
         color: colors.gold,
     },
     characterStage: {
-        marginTop: -2,
-        marginBottom: 18,
+        marginTop: 12,
+        marginBottom: 24,
     },
     characterStageCopy: {
         marginBottom: 6,
@@ -845,26 +775,41 @@ const styles = StyleSheet.create({
         marginTop: 7,
     },
     characterRunway: {
-        minHeight: 142,
+        height: 80,
         flexDirection: "row",
-        alignItems: "flex-end",
-        paddingHorizontal: 2,
-        paddingBottom: 2,
-        gap: 1,
-    },
-    characterWrap: {
-        width: 64,
-        height: 138,
         alignItems: "center",
-        justifyContent: "flex-end",
+        justifyContent: "center",
     },
-    figureShadow: {
+    avatarWrap: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        justifyContent: "center",
+        alignItems: "center",
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+        elevation: 5,
+        backgroundColor: "transparent",
+    },
+    avatarImage: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 40,
+    },
+    vipBadge: {
         position: "absolute",
-        bottom: 0,
-        width: 36,
-        height: 7,
-        borderRadius: 18,
-        backgroundColor: "rgba(0,0,0,0.28)",
+        bottom: -2,
+        right: -2,
+        backgroundColor: "#F7C948",
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 2,
+        borderColor: "#161616",
     },
     figurePerson: {
         width: 42,
@@ -1170,6 +1115,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: 5,
         maxWidth: "100%",
+        marginBottom: 6,
     },
     tierIndex: {
         color: "rgba(255,255,255,0.36)",

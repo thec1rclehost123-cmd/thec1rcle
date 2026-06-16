@@ -1,14 +1,12 @@
-import React, { useMemo, useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useMemo, useCallback } from "react";
 import {
     View,
     Text,
     StyleSheet,
     Dimensions,
     Pressable,
-    ViewToken,
-    Platform,
 } from "react-native";
-import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Stack, useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
@@ -21,66 +19,33 @@ import Animated, {
     Extrapolate,
     useAnimatedScrollHandler,
     SharedValue,
-    FadeIn,
 } from "react-native-reanimated";
-import { ArrowLeft } from "lucide-react-native";
+import { Search, ListFilter, Share, Heart, Check, ChevronLeft } from "lucide-react-native";
 import { useEventsStore, type Event, getHeatScore } from "@/store/eventsStore";
 import { useRecommendationsStore } from "@/store/recommendationsStore";
+import { useEventInterestStore } from "@/store/eventInterestStore";
 import { getEventImage } from "@/lib/utils/event";
 import { safeDate, formatEventTime } from "@/lib/utils/date";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const CARD_WIDTH = SCREEN_WIDTH * 0.9;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.58;
-const ITEM_HEIGHT = SCREEN_HEIGHT * 0.78; // Shorter than screen so next card peeks
-const DATE_AREA_HEIGHT = ITEM_HEIGHT * 0.22; // Space for date above card
 
-// ── Date filter tabs ───────────────────────────────────────────────────────────
-const FEED_TABS = [
-    { id: "coming-soon", label: "Coming Soon" },
-    { id: "now-playing", label: "Now Playing" },
-    { id: "tomorrow", label: "Tomorrow" },
-] as const;
-type FeedTab = (typeof FEED_TABS)[number]["id"];
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
+const ITEM_HEIGHT = SCREEN_HEIGHT;
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-function getDateDisplay(event: Event): { day: string; month: string } {
-    const d = safeDate(event.startDate);
-    if (!d) return { day: "TBD", month: "" };
-    const day = d.getDate().toString().padStart(2, "0");
-    const month = d.toLocaleString("en-US", { month: "short" }).toUpperCase();
-    return { day, month };
-}
+// Tabs
+const TABS = ["For You", "Following", "Saved"] as const;
+type TabType = typeof TABS[number];
 
-function getLowestPrice(event: Event): number {
-    return event.minPrice ?? 0;
-}
-
-function filterByTab(events: Event[], tab: FeedTab): Event[] {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const tomorrow = new Date(today.getTime() + 86_400_000);
-    const dayAfterTomorrow = new Date(today.getTime() + 2 * 86_400_000);
-
-    return events.filter((e) => {
-        const d = safeDate(e.startDate);
-        if (!d) return tab === "coming-soon";
-
-        switch (tab) {
-            case "now-playing":
-                // Events happening today
-                return d >= today && d < tomorrow;
-            case "tomorrow":
-                // Events happening tomorrow
-                return d >= tomorrow && d < dayAfterTomorrow;
-            case "coming-soon":
-                // Events in the future (after tomorrow)
-                return d >= dayAfterTomorrow;
-            default:
-                return true;
-        }
-    });
-}
+const attendeeAvatarImages = {
+    arya: require("../../assets/images/attendees/arya.png"),
+    riya: require("../../assets/images/attendees/riya.png"),
+    anaya: require("../../assets/images/attendees/anaya.png"),
+    isha: require("../../assets/images/attendees/isha.png"),
+    hira: require("../../assets/images/attendees/hira.png"),
+    yash: require("../../assets/images/attendees/yash.png"),
+    neil: require("../../assets/images/attendees/neil.png"),
+    sam: require("../../assets/images/attendees/sam.png"),
+};
 
 // ── Background Glow ────────────────────────────────────────────────────────────
 function DynamicBackground({
@@ -120,66 +85,12 @@ function DynamicBackground({
                             source={{ uri: img }}
                             style={StyleSheet.absoluteFillObject}
                             contentFit="cover"
-                            blurRadius={90}
+                            blurRadius={60}
                         />
                     </Animated.View>
                 );
             })}
-            {/* Dark overlay to keep text legible */}
-            <View
-                style={[
-                    StyleSheet.absoluteFillObject,
-                    { backgroundColor: "rgba(0,0,0,0.55)" },
-                ]}
-            />
-            <BlurView
-                intensity={60}
-                tint="dark"
-                style={StyleSheet.absoluteFillObject}
-            />
-        </View>
-    );
-}
-
-// ── Top Navigation Tabs ────────────────────────────────────────────────────────
-function FeedTabBar({
-    active,
-    onChange,
-}: {
-    active: FeedTab;
-    onChange: (tab: FeedTab) => void;
-}) {
-    return (
-        <View style={styles.tabBarOuter}>
-            <BlurView
-                intensity={50}
-                tint="dark"
-                style={StyleSheet.absoluteFillObject}
-            />
-            <View style={styles.tabBarInner}>
-                {FEED_TABS.map((tab) => {
-                    const isActive = active === tab.id;
-                    return (
-                        <Pressable
-                            key={tab.id}
-                            onPress={() => {
-                                Haptics.selectionAsync();
-                                onChange(tab.id);
-                            }}
-                            style={[styles.tabPill, isActive && styles.tabPillActive]}
-                        >
-                            <Text
-                                style={[
-                                    styles.tabPillText,
-                                    isActive && styles.tabPillTextActive,
-                                ]}
-                            >
-                                {tab.label}
-                            </Text>
-                        </Pressable>
-                    );
-                })}
-            </View>
+            <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "rgba(0,0,0,0.6)" }]} />
         </View>
     );
 }
@@ -189,17 +100,45 @@ function FeedCard({
     event,
     index,
     scrollY,
+    insetsTop,
 }: {
     event: Event;
     index: number;
     scrollY: SharedValue<number>;
+    insetsTop: number;
 }) {
     const router = useRouter();
     const img = getEventImage(event);
-    const { day, month } = getDateDisplay(event);
-    const price = getLowestPrice(event);
-    const isFree = price === 0;
+    
+    const startDate = safeDate(event.startDate);
+    const dateStr = startDate ? startDate.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : "TBA";
     const timeStr = formatEventTime(event.startDate);
+    const venueStr = event.venue ?? event.location ?? "TBA";
+
+    const organizerName = event.hostName ?? "THE C1RCLE";
+    const price = event.minPrice ?? 20;
+
+    const { interestedUsers } = useEventInterestStore();
+    const eventInterested = interestedUsers[event.id] ?? [];
+    
+    const interestedFallbackUsers = [
+        { userId: "fallback-arya", displayName: "Arya", photoURL: null, photoSource: attendeeAvatarImages.arya, likedAt: "" },
+        { userId: "fallback-riya", displayName: "Riya", photoURL: null, photoSource: attendeeAvatarImages.riya, likedAt: "" },
+        { userId: "fallback-anaya", displayName: "Anaya", photoURL: null, photoSource: attendeeAvatarImages.anaya, likedAt: "" },
+        { userId: "fallback-isha", displayName: "Isha", photoURL: null, photoSource: attendeeAvatarImages.isha, likedAt: "" },
+        { userId: "fallback-hira", displayName: "Hira", photoURL: null, photoSource: attendeeAvatarImages.hira, likedAt: "" },
+        { userId: "fallback-yash", displayName: "Yash", photoURL: null, photoSource: attendeeAvatarImages.yash, likedAt: "" },
+        { userId: "fallback-neil", displayName: "Neil", photoURL: null, photoSource: attendeeAvatarImages.neil, likedAt: "" },
+        { userId: "fallback-sam", displayName: "Sam", photoURL: null, photoSource: attendeeAvatarImages.sam, likedAt: "" },
+        { userId: "fallback-arya-2", displayName: "Arya", photoURL: null, photoSource: attendeeAvatarImages.arya, likedAt: "" },
+        { userId: "fallback-riya-2", displayName: "Riya", photoURL: null, photoSource: attendeeAvatarImages.riya, likedAt: "" },
+        { userId: "fallback-anaya-2", displayName: "Anaya", photoURL: null, photoSource: attendeeAvatarImages.anaya, likedAt: "" },
+        { userId: "fallback-isha-2", displayName: "Isha", photoURL: null, photoSource: attendeeAvatarImages.isha, likedAt: "" },
+    ];
+    const guestlistUsers = eventInterested.length > 0 ? eventInterested : interestedFallbackUsers;
+    const interestedLeadName = "Arya";
+    const interestedOthersCount = 60;
+
     const posterTransitionTag = `poster-${event.id}-feed-${index}`;
 
     // Card scale + opacity transition
@@ -212,7 +151,7 @@ function FeedCard({
         const scale = interpolate(
             scrollY.value,
             input,
-            [0.82, 1, 0.82],
+            [0.85, 1, 0.85],
             Extrapolate.CLAMP,
         );
         const opacity = interpolate(
@@ -224,132 +163,84 @@ function FeedCard({
         return { transform: [{ scale }], opacity };
     });
 
-    // Parallax date movement
-    const dateTranslateStyle = useAnimatedStyle(() => {
-        const translateY = interpolate(
-            scrollY.value,
-            [
-                (index - 1) * ITEM_HEIGHT,
-                index * ITEM_HEIGHT,
-                (index + 1) * ITEM_HEIGHT,
-            ],
-            [180, 0, -180],
-        );
-        const opacity = interpolate(
-            scrollY.value,
-            [
-                (index - 1) * ITEM_HEIGHT,
-                index * ITEM_HEIGHT,
-                (index + 1) * ITEM_HEIGHT,
-            ],
-            [0, 1, 0],
-            Extrapolate.CLAMP,
-        );
-        return { transform: [{ translateY }], opacity };
-    });
-
     return (
-        <View style={styles.cardContainer}>
-            {/* Massive Sticky Date Behind the Card */}
-            <Animated.View style={[styles.dateBackgroundContainer, dateTranslateStyle]}>
-                <Text
-                    style={styles.dateBackgroundDay}
-                    numberOfLines={1}
-                    adjustsFontSizeToFit
-                >
-                    {day}
-                </Text>
-                <Text style={styles.dateBackgroundMonth}>{month}</Text>
-            </Animated.View>
-
-            {/* The Card */}
+        <View style={[styles.itemContainer, { paddingTop: insetsTop + 70, paddingBottom: 120 }]}>
             <Animated.View style={[styles.cardWrapper, cardAnimStyle]}>
                 <Pressable
-                    style={styles.cardInner}
+                    style={{ flex: 1 }}
                     onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-	                        router.push({
-	                            pathname: "/event/[id]",
-	                            params: { id: event.id, posterTransitionTag },
-	                        });
+                        router.push({
+                            pathname: "/event/[id]",
+                            params: { id: event.id, posterTransitionTag },
+                        });
                     }}
                 >
-                    {/* Full-bleed poster */}
-                    {img ? (
-                        <Animated.Image
-                            sharedTransitionTag={posterTransitionTag}
-                            source={{ uri: img }}
-                            style={StyleSheet.absoluteFillObject}
-                            resizeMode="cover"
-                        />
-                    ) : (
-                        <LinearGradient
-                            colors={["#2D1A14", "#1A0A0A", "#0A0A0A"]}
-                            style={StyleSheet.absoluteFillObject}
-                        />
-                    )}
-
-                    {/* Gradient overlays */}
-                    <LinearGradient
-                        colors={[
-                            "rgba(0,0,0,0.55)",
-                            "transparent",
-                            "transparent",
-                            "rgba(0,0,0,0.75)",
-                        ]}
-                        locations={[0, 0.2, 0.6, 1]}
-                        style={StyleSheet.absoluteFillObject}
-                    />
-
-                    {/* Glassmorphism Badges — top-left */}
-                    <View style={styles.badgeColumn}>
-                        {/* Time / Duration badge */}
-                        <View style={styles.glassBadge}>
-                            <BlurView
-                                intensity={40}
-                                tint="dark"
+                    <View style={styles.posterContainer}>
+                        {img && (
+                            <AnimatedExpoImage
+                                sharedTransitionTag={posterTransitionTag}
+                                source={{ uri: img }}
                                 style={StyleSheet.absoluteFillObject}
+                                contentFit="cover"
+                                contentPosition="top"
                             />
-                            <Text style={styles.glassBadgeText}>
-                                {timeStr !== "TBD" ? timeStr : isFree ? "Free" : `₹${price.toLocaleString("en-IN")}`}
-                            </Text>
-                        </View>
-
-                        {/* Category badge */}
-                        {event.category && (
-                            <View style={styles.glassBadge}>
-                                <BlurView
-                                    intensity={40}
-                                    tint="dark"
-                                    style={StyleSheet.absoluteFillObject}
-                                />
-                                <Text style={styles.glassBadgeText}>
-                                    {event.category.charAt(0).toUpperCase() +
-                                        event.category.slice(1)}
-                                </Text>
-                            </View>
                         )}
                     </View>
 
-                    {/* Bottom Info — title and venue */}
-                    <View style={styles.bottomInfo}>
-                        <Text style={styles.eventTitle} numberOfLines={2}>
-                            {event.title}
-                        </Text>
-                        <Text style={styles.eventVenue} numberOfLines={1}>
-                            {event.venue ?? event.location ?? "TBA"}
-                        </Text>
-                        {/* Price tag at bottom */}
-                        {!isFree && (
-                            <View style={styles.priceRow}>
-                                <View style={styles.priceBadge}>
-                                    <Text style={styles.priceBadgeText}>
-                                        ₹{price.toLocaleString("en-IN")}+
-                                    </Text>
+                {/* Info Block Below Poster */}
+                <View style={styles.infoBlock}>
+                    <View style={styles.titleRow}>
+                        <View style={{ flex: 1, marginRight: 16 }}>
+                            <Text style={styles.eventTitle} numberOfLines={2}>
+                                {event.title}
+                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", marginTop: 6 }}>
+                                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: "600" }} numberOfLines={1}>
+                                    {venueStr}
+                                </Text>
+                                <View style={{ backgroundColor: "#F44A22", width: 14, height: 14, borderRadius: 7, alignItems: "center", justifyContent: "center", marginLeft: 6 }}>
+                                    <Check color="#FFFFFF" size={10} strokeWidth={3} />
                                 </View>
                             </View>
-                        )}
+                            <Text style={[styles.dateVenueText, { marginTop: 4 }]} numberOfLines={1}>
+                                {dateStr} at {timeStr}
+                            </Text>
+                        </View>
+                        <View style={styles.actionIcons}>
+                            <Share color="rgba(255,255,255,0.7)" size={22} />
+                            <Heart color="rgba(255,255,255,0.7)" size={22} />
+                        </View>
                     </View>
+
+                    <View style={styles.interestedBar}>
+                        <View style={styles.interestedAvatars}>
+                            {guestlistUsers.slice(0, 6).map((userInfo, idx) => {
+                                const initial = (userInfo.displayName?.[0] ?? "?").toUpperCase();
+                                const avatarSource = (userInfo as any).photoSource
+                                    ? (userInfo as any).photoSource
+                                    : (typeof userInfo?.photoURL === "string" && userInfo.photoURL.length > 0 && (userInfo.photoURL.startsWith("http") || userInfo.photoURL.startsWith("https")))
+                                        ? { uri: userInfo.photoURL }
+                                        : null;
+                                return (
+                                    <View
+                                        key={userInfo.userId || `${initial}-${idx}`}
+                                        style={[
+                                            styles.interestedAvatar,
+                                            { marginLeft: idx > 0 ? -16 : 0, zIndex: 20 - idx },
+                                        ]}
+                                    >
+                                        {avatarSource ? (
+                                            <Image source={avatarSource} style={StyleSheet.absoluteFill} contentFit="cover" />
+                                        ) : (
+                                            <Text style={styles.interestedAvatarText}>{initial}</Text>
+                                        )}
+                                    </View>
+                                );
+                            })}
+                        </View>
+                    </View>
+                </View>
                 </Pressable>
             </Animated.View>
         </View>
@@ -362,28 +253,37 @@ export default function ImmersiveFeedScreen() {
     const insets = useSafeAreaInsets();
     const router = useRouter();
 
-    const { events } = useEventsStore();
-    const { recommendations } = useRecommendationsStore();
+    const [topPrefix, topSuffix] = useMemo(() => {
+        if (!type || type === "foryou") return ["This Month", " Near Me"];
+        if (type === "trending") return ["Trending", " Now"];
+        if (type === "similar") return ["Similar", " Events"];
+        if (type === "free") return ["Free", " Events"];
+        if (type === "this-week") return ["This Week", ""];
+        return [type.charAt(0).toUpperCase() + type.slice(1), " Events"];
+    }, [type]);
 
-    const [activeTab, setActiveTab] = useState<FeedTab>("now-playing");
+    const events = useEventsStore((s) => s.events);
+    const scoredEvents = useRecommendationsStore((s) => s.scoredEvents);
 
-    // Build the base event list based on the type param
-    const baseEvents = useMemo(() => {
-        if (type === "foryou") return recommendations;
-        if (type === "similar") {
-            const recIds = new Set(recommendations.map((e) => e.id));
-            return [...events]
-                .filter((e) => !recIds.has(e.id))
-                .sort((a, b) => getHeatScore(b) - getHeatScore(a));
-        }
-        return events;
-    }, [type, events, recommendations]);
-
-    // Apply tab filter; fallback to all events if filter yields empty
     const feedEvents = useMemo(() => {
-        const filtered = filterByTab(baseEvents, activeTab);
-        return filtered.length > 0 ? filtered : baseEvents;
-    }, [baseEvents, activeTab]);
+        let list = [...events];
+        if (type === "foryou") {
+            const sortedIds = Object.keys(scoredEvents).sort(
+                (a, b) => scoredEvents[b].score - scoredEvents[a].score,
+            );
+            list.sort((a, b) => {
+                const aIdx = sortedIds.indexOf(a.id);
+                const bIdx = sortedIds.indexOf(b.id);
+                if (aIdx === -1 && bIdx === -1) return 0;
+                if (aIdx === -1) return 1;
+                if (bIdx === -1) return -1;
+                return aIdx - bIdx;
+            });
+        } else if (type === "trending" || type === "similar") {
+            list.sort((a, b) => getHeatScore(b) - getHeatScore(a));
+        }
+        return list;
+    }, [events, type, scoredEvents]);
 
     const scrollY = useSharedValue(0);
     const scrollHandler = useAnimatedScrollHandler({
@@ -395,9 +295,12 @@ export default function ImmersiveFeedScreen() {
     const [activeIndex, setActiveIndex] = useState(0);
 
     const onViewableItemsChanged = useCallback(
-        ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-            if (viewableItems.length > 0 && viewableItems[0].index !== null) {
-                setActiveIndex(viewableItems[0].index);
+        ({ viewableItems }: any) => {
+            if (viewableItems.length > 0) {
+                const idx = viewableItems[0].index;
+                if (idx !== null) {
+                    setActiveIndex(idx);
+                }
                 Haptics.selectionAsync();
             }
         },
@@ -407,12 +310,6 @@ export default function ImmersiveFeedScreen() {
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 50,
     }).current;
-
-    const feedTitle = useMemo(() => {
-        if (type === "foryou") return "For You";
-        if (type === "similar") return "Similar";
-        return "Events";
-    }, [type]);
 
     if (feedEvents.length === 0) {
         return (
@@ -434,24 +331,60 @@ export default function ImmersiveFeedScreen() {
         <View style={styles.container}>
             <Stack.Screen options={{ headerShown: false }} />
 
-            {/* Dynamic Glass Background */}
             <DynamicBackground events={feedEvents} scrollY={scrollY} />
 
-            {/* Top Header — Nav Tabs */}
-            <Animated.View
-                entering={FadeIn.duration(400)}
-                style={[styles.header, { paddingTop: insets.top + 8 }]}
-            >
-                {/* Filter tabs */}
-                <FeedTabBar active={activeTab} onChange={setActiveTab} />
-            </Animated.View>
+            {/* Top Header */}
+            <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+                {/* Search Capsule */}
+                <View style={styles.topCapsuleContainer}>
+                    <BlurView intensity={30} tint="dark" style={styles.topCapsule}>
+                        <Pressable
+                            hitSlop={15}
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                if (router.canGoBack()) {
+                                    router.back();
+                                } else {
+                                    router.push("/");
+                                }
+                            }}
+                        >
+                            <ChevronLeft color="#FFFFFF" size={20} />
+                        </Pressable>
 
-            {/* Vertical Card List — folder-style stacking */}
-            <Animated.FlatList bounces={false} overScrollMode="never"
+                        <Pressable 
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push("/search");
+                            }}
+                            style={{ flex: 1, alignItems: "center" }}
+                        >
+                            <Text style={styles.topCapsuleText}>
+                                {topPrefix} <Text style={{ color: "rgba(255,255,255,0.5)" }}>{topSuffix}</Text>
+                            </Text>
+                        </Pressable>
+
+                        <Pressable 
+                            hitSlop={15} 
+                            onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                router.push("/search");
+                            }}
+                        >
+                            <Search color="#FFFFFF" size={16} />
+                        </Pressable>
+                    </BlurView>
+                </View>
+            </View>
+
+            {/* Vertical Card List */}
+            <Animated.FlatList 
+                bounces={false} 
+                overScrollMode="never"
                 data={feedEvents}
                 keyExtractor={(item) => item.id}
                 renderItem={({ item, index }) => (
-                    <FeedCard event={item} index={index} scrollY={scrollY} />
+                    <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
                 )}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ITEM_HEIGHT}
@@ -461,47 +394,40 @@ export default function ImmersiveFeedScreen() {
                 scrollEventThrottle={16}
                 onViewableItemsChanged={onViewableItemsChanged}
                 viewabilityConfig={viewabilityConfig}
-                contentContainerStyle={{ paddingTop: SCREEN_HEIGHT * 0.12, paddingBottom: SCREEN_HEIGHT * 0.15 }}
             />
 
-            {/* Bottom Bar — Back + Title */}
-            <Animated.View
-                entering={FadeIn.delay(200).duration(400)}
-                style={[styles.bottomBar, { paddingBottom: insets.bottom + 12 }]}
-            >
-                <BlurView
-                    intensity={50}
-                    tint="dark"
-                    style={StyleSheet.absoluteFillObject}
-                />
+            {/* Sticky Bottom Bar */}
+            <View style={[styles.stickyBottomBar, { paddingBottom: insets.bottom }]}>
                 <Pressable
+                    style={styles.buyButton}
                     onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        router.back();
+                        const activeEvent = feedEvents[activeIndex];
+                        if (activeEvent) {
+                            router.push(`/checkout/${activeEvent.id}`);
+                        }
                     }}
-                    style={styles.bottomBackBtn}
-                    hitSlop={12}
                 >
-                    <ArrowLeft color="#FFFFFF" size={20} />
+                    <Text style={styles.buyButtonText}>
+                        Get Tickets <Text style={styles.buyButtonSubtext}>
+                            {(() => {
+                                const activeEvent = feedEvents[activeIndex];
+                                const displayPrice = activeEvent?.minPrice ?? 20;
+                                return displayPrice === 0 ? "Free" : `from ₹${displayPrice.toLocaleString("en-IN")}`;
+                            })()}
+                        </Text>
+                    </Text>
                 </Pressable>
-                <Text style={styles.bottomTitle}>{feedTitle}</Text>
-                {/* Page indicator */}
-                <Text style={styles.bottomCounter}>
-                    {activeIndex + 1}/{feedEvents.length}
-                </Text>
-            </Animated.View>
+            </View>
         </View>
     );
 }
 
-// ── Styles ─────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#000000",
+        backgroundColor: "#000",
     },
-
-    // ── Header ──────────────────────────────────────────────────────────────────
     header: {
         position: "absolute",
         top: 0,
@@ -509,214 +435,142 @@ const styles = StyleSheet.create({
         right: 0,
         zIndex: 100,
         alignItems: "center",
+    },
+    topCapsuleContainer: {
         paddingHorizontal: 16,
+        width: "100%",
+        marginBottom: 16,
     },
-
-    // ── Tab Bar ─────────────────────────────────────────────────────────────────
-    tabBarOuter: {
-        overflow: "hidden",
-        borderRadius: 22,
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
-    },
-    tabBarInner: {
+    topCapsule: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 4,
-        paddingHorizontal: 4,
-        paddingVertical: 4,
+        justifyContent: "space-between",
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderRadius: 24,
+        backgroundColor: "rgba(0,0,0,0.3)",
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.08)",
+        overflow: "hidden",
     },
-    tabPill: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 18,
-    },
-    tabPillActive: {
-        backgroundColor: "rgba(255,255,255,0.18)",
-    },
-    tabPillText: {
-        color: "rgba(255,255,255,0.45)",
-        fontSize: 11.5,
-        fontWeight: "600",
-        letterSpacing: 0.2,
-    },
-    tabPillTextActive: {
+    topCapsuleText: {
         color: "#FFFFFF",
-        fontWeight: "700",
+        fontSize: 15,
+        fontWeight: "600",
     },
 
-    // ── Card Container — folder-style stacking ──────────────────────────────────
-    cardContainer: {
+    // ── Item Layout ─────────────────────────────────────────────────────────────
+    itemContainer: {
         width: SCREEN_WIDTH,
         height: ITEM_HEIGHT,
         alignItems: "center",
-        position: "relative",
+        justifyContent: "flex-start",
     },
-
-    // ── Massive Date (behind card) ──────────────────────────────────────────────
-    dateBackgroundContainer: {
-        position: "absolute",
-        top: 0,
-        width: "100%",
-        height: DATE_AREA_HEIGHT,
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1,
-    },
-    dateBackgroundDay: {
-        color: "#FFFFFF",
-        fontSize: 96,
-        fontWeight: "900",
-        letterSpacing: 0,
-        lineHeight: 100,
-        textShadowColor: "rgba(0,0,0,0.5)",
-        textShadowOffset: { width: 0, height: 4 },
-        textShadowRadius: 12,
-    },
-    dateBackgroundMonth: {
-        color: "#FFFFFF",
-        fontSize: 44,
-        fontWeight: "900",
-        letterSpacing: 6,
-        marginTop: -6,
-        textShadowColor: "rgba(0,0,0,0.5)",
-        textShadowOffset: { width: 0, height: 4 },
-        textShadowRadius: 12,
-    },
-
-    // ── Card Wrapper ────────────────────────────────────────────────────────────
     cardWrapper: {
-        width: CARD_WIDTH,
-        height: CARD_HEIGHT,
-        marginTop: DATE_AREA_HEIGHT,
-        zIndex: 10,
-    },
-    cardInner: {
+        width: SCREEN_WIDTH - 32,
         flex: 1,
-        borderRadius: 28,
+    },
+    posterContainer: {
+        width: "100%",
+        flex: 1,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
         overflow: "hidden",
         backgroundColor: "rgba(255,255,255,0.05)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.15)",
-        // Deep shadow for floating effect
-        ...Platform.select({
-            ios: {
-                shadowColor: "#000",
-                shadowOffset: { width: 0, height: 24 },
-                shadowOpacity: 0.6,
-                shadowRadius: 40,
-            },
-            android: {
-                elevation: 20,
-            },
-        }),
     },
-
-    // ── Glassmorphism Badges ────────────────────────────────────────────────────
-    badgeColumn: {
-        position: "absolute",
-        top: 20,
-        left: 16,
-        gap: 8,
-        zIndex: 20,
+    
+    // ── Info Block ──────────────────────────────────────────────────────────────
+    infoBlock: {
+        marginTop: 16,
+        paddingHorizontal: 4,
     },
-    glassBadge: {
-        overflow: "hidden",
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        paddingVertical: 7,
-        backgroundColor: "rgba(0,0,0,0.35)",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.18)",
-    },
-    glassBadgeText: {
-        color: "#FFFFFF",
-        fontSize: 12,
-        fontWeight: "700",
-        letterSpacing: 0.3,
-    },
-
-    // ── Bottom Info (on card) ───────────────────────────────────────────────────
-    bottomInfo: {
-        position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        padding: 20,
+    titleRow: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        justifyContent: "space-between",
     },
     eventTitle: {
         color: "#FFFFFF",
-        fontSize: 28,
-        fontWeight: "900",
+        fontSize: 22,
+        fontWeight: "bold",
+        textTransform: "uppercase",
         letterSpacing: 0,
-        lineHeight: 34,
-        marginBottom: 6,
-        textShadowColor: "rgba(0,0,0,0.6)",
-        textShadowOffset: { width: 0, height: 2 },
-        textShadowRadius: 8,
+        lineHeight: 26,
     },
-    eventVenue: {
+    actionIcons: {
+        flexDirection: "column",
+        gap: 16,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    dateVenueText: {
         color: "rgba(255,255,255,0.7)",
-        fontSize: 14,
-        fontWeight: "600",
-        marginBottom: 10,
+        fontSize: 13,
+        fontWeight: "500",
     },
-    priceRow: {
+    interestedBar: {
+        marginTop: 16,
         flexDirection: "row",
         alignItems: "center",
-        marginTop: 4,
     },
-    priceBadge: {
-        backgroundColor: "rgba(244,74,34,0.25)",
-        borderRadius: 12,
-        paddingHorizontal: 12,
-        paddingVertical: 5,
-        borderWidth: 1,
-        borderColor: "rgba(244,74,34,0.40)",
+    interestedAvatars: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "flex-start",
     },
-    priceBadgeText: {
-        color: "#F44A22",
-        fontSize: 13,
-        fontWeight: "800",
+    interestedAvatar: {
+        width: 76,
+        height: 76,
+        borderRadius: 38,
+        borderWidth: 2,
+        borderColor: "#050505",
+        backgroundColor: "rgba(255,255,255,0.16)",
+        alignItems: "center",
+        justifyContent: "center",
+        overflow: "hidden",
+    },
+    interestedAvatarText: {
+        color: "#fff",
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    interestedCopyRow: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        marginLeft: 12,
+    },
+    interestedText: {
+        color: "rgba(255,255,255,0.84)",
+        fontSize: 14,
+        fontWeight: "600",
     },
 
     // ── Bottom Bar ──────────────────────────────────────────────────────────────
-    bottomBar: {
+    stickyBottomBar: {
         position: "absolute",
         bottom: 0,
         left: 0,
         right: 0,
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: 20,
-        paddingTop: 14,
-        overflow: "hidden",
-        borderTopWidth: 1,
-        borderTopColor: "rgba(255,255,255,0.08)",
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        backgroundColor: "transparent",
     },
-    bottomBackBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        backgroundColor: "rgba(255,255,255,0.10)",
+    buyButton: {
+        backgroundColor: "#F44A22",
+        width: "100%",
+        paddingVertical: 16,
+        borderRadius: 30,
         alignItems: "center",
         justifyContent: "center",
-        borderWidth: 1,
-        borderColor: "rgba(255,255,255,0.12)",
     },
-    bottomTitle: {
-        flex: 1,
+    buyButtonText: {
         color: "#FFFFFF",
-        fontSize: 16,
-        fontWeight: "700",
-        textAlign: "center",
-        letterSpacing: 0.5,
+        fontSize: 17,
+        fontWeight: "bold",
     },
-    bottomCounter: {
-        color: "rgba(255,255,255,0.4)",
-        fontSize: 13,
+    buyButtonSubtext: {
         fontWeight: "600",
-        minWidth: 36,
-        textAlign: "right",
+        color: "rgba(255,255,255,0.7)",
     },
 });

@@ -50,7 +50,7 @@ import Animated, {
     scrollTo,
 } from "react-native-reanimated";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import { colors } from "@/lib/design/theme";
+import { colors, spacing, typography } from "@/lib/design/theme";
 import { NotificationBell } from "@/components/ui/NotificationBell";
 import { trackScreen } from "@/lib/analytics";
 import { formatEventDate, safeDate } from "@/lib/utils/date";
@@ -566,7 +566,7 @@ const SCENE_CATEGORIES = [
 function ChooseYourSceneGrid() {
     const handlePress = (cat: any) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        router.push({ pathname: "/category/[id]", params: { id: cat.id, bg: cat.bg, label: cat.label.replace("\n", " ") } });
+        router.push({ pathname: "/events/feed", params: { type: cat.id } });
     }
 
     const renderCard = (cat: any, fontSize = 16) => (
@@ -787,14 +787,8 @@ export default function ExploreScreen() {
     };
 
     return (
-        <View style={[styles.container, { paddingTop: insets.top }]}>
-            <LinearGradient
-                pointerEvents="none"
-                colors={["rgba(244,74,34,0.18)", "rgba(244,74,34,0.05)", "rgba(0,0,0,0)"]}
-                start={{ x: 1, y: 0 }}
-                end={{ x: 0, y: 1 }}
-                style={styles.cornerHaze}
-            />
+        <View style={styles.container}>
+
 
             <ScrollView
                 style={styles.scrollLayer}
@@ -806,11 +800,23 @@ export default function ExploreScreen() {
                 scrollEventThrottle={16}
                 contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} progressViewOffset={insets.top} />
                 }
             >
+                {/* Header background gradient that scrolls with content */}
+                <View style={{ position: "absolute", top: 0, left: 0, right: 0, height: 400 + insets.top, zIndex: 0, pointerEvents: "none" }}>
+                    <LinearGradient
+                        colors={[
+                            "rgba(244, 74, 34, 0.33)",
+                            "rgba(5,5,6,0)",
+                        ]}
+                        locations={[0, 0.85]}
+                        style={StyleSheet.absoluteFill}
+                    />
+                </View>
+
                 {/* ── Header ── */}
-                <View style={styles.header}>
+                <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
                     <View style={styles.headerRow}>
                         {/* Left: greeting + location */}
                         <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
@@ -968,27 +974,18 @@ export default function ExploreScreen() {
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: PURE_BLACK },
     scrollLayer: { flex: 1, zIndex: 1 },
-    cornerHaze: {
-        position: "absolute",
-        top: -58,
-        right: -72,
-        width: 260,
-        height: 190,
-        borderBottomLeftRadius: 160,
-        zIndex: 0,
-        opacity: 0.85,
-    },
+
 
     // ── Header ──────────────────────────────────────────────────────────────────
-    header: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10, gap: 12 },
+    header: { paddingHorizontal: 16, paddingTop: spacing.sm, paddingBottom: spacing.sm, gap: 12 },
     headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     locationBlock: { flex: 1, gap: 2 },
-    greetingText: { color: "rgba(255,255,255,0.45)", fontSize: 13, fontWeight: "500" },
+    greetingText: { color: "rgba(255,255,255,0.45)", fontSize: typography.fontSize.sm, fontWeight: "500" },
     cityRow: { flexDirection: "row", alignItems: "center" },
     locationPin: { fontSize: 16, marginRight: 4 },
-    cityName: { color: "#FFFFFF", fontSize: 26, fontWeight: "800", letterSpacing: 0 },
+    cityName: { color: colors.goldLight, fontSize: typography.fontSize['3xl'], fontWeight: "800", letterSpacing: 0 },
     cityChevron: { color: "rgba(255,255,255,0.55)", fontSize: 18, fontWeight: "600", marginTop: 2 },
-    headerRight: { flexDirection: "row", alignItems: "center", gap: 10 },
+    headerRight: { flexDirection: "row", alignItems: "center", gap: spacing.md },
 
     // Profile avatar in header
     avatarRing: {
@@ -1011,16 +1008,16 @@ const styles = StyleSheet.create({
     searchBar: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 10,
+        gap: spacing.sm,
         backgroundColor: "rgba(255,255,255,0.08)",
-        borderRadius: 14,
+        borderRadius: 16,
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.10)",
-        paddingHorizontal: 14,
-        paddingVertical: 13,
+        paddingHorizontal: spacing.base,
+        paddingVertical: spacing.md,
     },
-	    searchBarIcon: { fontSize: 15 },
-	    searchBarPlaceholder: { color: "rgba(255,255,255,0.38)", fontSize: 15, flex: 1 },
+	    searchBarIcon: { fontSize: typography.fontSize.base },
+	    searchBarPlaceholder: { color: colors.goldMuted, fontSize: typography.fontSize.base, flex: 1 },
 	    // ── Quick Filters ────────────────────────────────────────────────────────────
     filterRowContent: {
         paddingTop: 16,
@@ -1029,8 +1026,8 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     filterPill: {
-        paddingHorizontal: 14,
-        paddingVertical: 6,
+        paddingHorizontal: spacing.base,
+        paddingVertical: spacing.sm,
         borderRadius: 16,
         backgroundColor: "rgba(255,255,255,0.1)",
         borderWidth: StyleSheet.hairlineWidth,
@@ -1042,7 +1039,7 @@ const styles = StyleSheet.create({
     },
     filterPillText: {
         color: "rgba(255,255,255,0.7)",
-        fontSize: 13,
+        fontSize: typography.fontSize.sm,
         fontWeight: "600",
         letterSpacing: 0,
     },
@@ -1054,31 +1051,31 @@ const styles = StyleSheet.create({
     // ── Offline / loading ────────────────────────────────────────────────────────
     offlineBanner: {
         marginHorizontal: 16, marginBottom: 8,
-        paddingHorizontal: 14, paddingVertical: 10,
+        paddingHorizontal: spacing.base, paddingVertical: spacing.md,
         borderRadius: 10,
         backgroundColor: "rgba(255,170,0,0.1)",
         borderWidth: 1, borderColor: "rgba(255,170,0,0.25)",
     },
-    offlineText: { color: "#FFAA00", fontSize: 13, fontWeight: "500" },
+    offlineText: { color: "#FFAA00", fontSize: typography.fontSize.sm, fontWeight: "500" },
     loadingWrap: { paddingTop: 60, alignItems: "center", gap: 12 },
-    loadingText: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
+    loadingText: { color: "rgba(255,255,255,0.4)", fontSize: typography.fontSize.base },
 
 
 
     // ── Load more ─────────────────────────────────────────────────────────────────
     loadMoreBtn: {
-        marginHorizontal: 16, marginTop: 16, paddingVertical: 14,
+        marginHorizontal: 16, marginTop: 16, paddingVertical: spacing.base,
         borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)",
         alignItems: "center",
     },
-    loadMoreText: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "600" },
+    loadMoreText: { color: "rgba(255,255,255,0.6)", fontSize: typography.fontSize.sm, fontWeight: "600" },
 
     // ── Generic Section Styles ──
     section: { marginBottom: 44 },
     sectionHeader: { paddingHorizontal: 16, marginBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    sectionTitle: { fontSize: 22, fontWeight: "800", color: "#FFF", letterSpacing: 0 },
+    sectionTitle: { fontSize: typography.fontSize['2xl'], fontWeight: "800", color: colors.goldLight, letterSpacing: 0 },
     sectionTitleAccent: { color: colors.iris, textShadowColor: "rgba(244,74,34,0.55)", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
-    viewAll: { color: colors.iris, fontSize: 14, fontWeight: "700" },
+    viewAll: { color: colors.iris, fontSize: typography.fontSize.base, fontWeight: "700" },
 
     // ── Map section ───────────────────────────────────────────────────────────────
     mapCard: {
@@ -1103,13 +1100,13 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: "rgba(255,255,255,0.12)",
     },
-    mapBadgeText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+    mapBadgeText: { color: colors.goldLight, fontSize: typography.fontSize.sm, fontWeight: "700" },
 
     // ── Empty state ───────────────────────────────────────────────────────────────
     emptyState: { alignItems: "center", paddingVertical: 60, gap: 8 },
     emptyEmoji: { fontSize: 40 },
-    emptyText: { color: "#FFFFFF", fontSize: 18, fontWeight: "700" },
-    emptySubtext: { color: "rgba(255,255,255,0.4)", fontSize: 14 },
+    emptyText: { color: colors.goldLight, fontSize: typography.fontSize.lg, fontWeight: "700" },
+    emptySubtext: { color: "rgba(255,255,255,0.4)", fontSize: typography.fontSize.base },
 
     // ── City modal ────────────────────────────────────────────────────────────────
     modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
@@ -1122,13 +1119,13 @@ const styles = StyleSheet.create({
         width: 40, height: 4, borderRadius: 2,
         backgroundColor: "rgba(255,255,255,0.2)", alignSelf: "center", marginBottom: 16,
     },
-    cityModalTitle: { color: "#FFFFFF", fontSize: 17, fontWeight: "700", marginBottom: 12 },
+    cityModalTitle: { color: colors.goldLight, fontSize: typography.fontSize.md, fontWeight: "700", marginBottom: spacing.md },
     cityOption: {
         flexDirection: "row", alignItems: "center", justifyContent: "space-between",
-        paddingVertical: 14, paddingHorizontal: 4,
+        paddingVertical: spacing.base, paddingHorizontal: 4,
         borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.05)",
     },
-    cityOptionText: { color: "rgba(255,255,255,0.5)", fontSize: 15, fontWeight: "500" },
+    cityOptionText: { color: "rgba(255,255,255,0.5)", fontSize: typography.fontSize.base, fontWeight: "500" },
     cityOptionTextActive: { color: "#FFFFFF", fontWeight: "700" },
-    cityOptionCheck: { color: "#F44A22", fontSize: 16, fontWeight: "700" },
+    cityOptionCheck: { color: "#F44A22", fontSize: typography.fontSize.md, fontWeight: "700" },
 });

@@ -244,6 +244,8 @@ export default function DirectMessageScreen() {
         <BrightCenterState title="Say hello" body="Your conversation will appear here." />
     ), []);
 
+    const [isScrolled, setIsScrolled] = useState(false);
+
     if (loading) {
         return (
             <BrightChatSurface theme={theme}>
@@ -257,7 +259,17 @@ export default function DirectMessageScreen() {
     return (
         <BrightChatSurface theme={theme}>
             <SafeAreaView style={styles.conversation} edges={["top"]}>
-                <BrightChatHeader theme={theme} onBack={() => router.back()} />
+                <BrightChatHeader 
+                    theme={theme} 
+                    compact={isScrolled}
+                    onBack={() => {
+                        if (router.canGoBack()) {
+                            router.back();
+                        } else {
+                            router.replace("/(tabs)/inbox");
+                        }
+                    }} 
+                />
 
                 {isPending && isRecipient ? (
                     <RequestBanner
@@ -271,7 +283,13 @@ export default function DirectMessageScreen() {
                         }}
                         onDecline={() => {
                             if (!user?.uid) return;
-                            declineDMRequest(conversationId, user.uid).then(() => router.back());
+                            declineDMRequest(conversationId, user.uid).then(() => {
+                                if (router.canGoBack()) {
+                                    router.back();
+                                } else {
+                                    router.replace("/(tabs)/inbox");
+                                }
+                            });
                         }}
                     />
                 ) : null}
@@ -285,6 +303,12 @@ export default function DirectMessageScreen() {
                     style={styles.messages}
                     contentContainerStyle={styles.messagesContent}
                     showsVerticalScrollIndicator={false}
+                    onScroll={(e) => {
+                        const y = e.nativeEvent.contentOffset.y;
+                        if (y > 40 && !isScrolled) setIsScrolled(true);
+                        else if (y <= 40 && isScrolled) setIsScrolled(false);
+                    }}
+                    scrollEventThrottle={16}
                     ListEmptyComponent={messageListEmpty}
                     ListFooterComponent={otherIsTyping ? <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} /> : null}
                     extraData={{ otherIsTyping, otherUserName, avatarUrl, userId: user?.uid, messageCount: messages.length }}

@@ -48,27 +48,7 @@ export function BrightChatSurface({ theme, children }: BrightChatSurfaceProps) {
     const accent = theme.accentColor || colors.iris;
 
     return (
-        <View style={brightChatStyles.screen}>
-            {theme.backgroundImage ? (
-                <Image
-                    source={{ uri: theme.backgroundImage }}
-                    style={StyleSheet.absoluteFill}
-                    contentFit="cover"
-                    blurRadius={theme.mode === "dm" ? 6 : 4}
-                    cachePolicy="memory-disk"
-                />
-            ) : null}
-            <LinearGradient
-                colors={
-                    theme.mode === "dm"
-                        ? ["rgba(18, 206, 255, 0.92)", "rgba(255, 244, 248, 0.84)", "rgba(255,255,255,0.96)"]
-                        : ["rgba(6, 175, 239, 0.9)", "rgba(85, 203, 255, 0.78)", "rgba(255,255,255,0.88)"]
-                }
-                locations={[0, 0.42, 1]}
-                style={StyleSheet.absoluteFill}
-            />
-            <View style={[brightChatStyles.sunWash, { backgroundColor: accent }]} />
-            <View style={brightChatStyles.cloudWash} />
+        <View style={[brightChatStyles.screen, { backgroundColor: "#000000" }]}>
             {children}
         </View>
     );
@@ -79,15 +59,42 @@ type BrightChatHeaderProps = {
     onBack: () => void;
     onDetails?: () => void;
     rightAccessory?: ReactNode;
+    compact?: boolean;
 };
 
-export function BrightChatHeader({ theme, onBack, onDetails, rightAccessory }: BrightChatHeaderProps) {
+export function BrightChatHeader({ theme, onBack, onDetails, rightAccessory, compact }: BrightChatHeaderProps) {
+    if (compact) {
+        return (
+            <View style={[brightChatStyles.header, { paddingBottom: 12 }]}>
+                <View style={[brightChatStyles.headerTopRow, { paddingHorizontal: 16, marginBottom: 0 }]}>
+                    <Pressable style={brightChatStyles.headerIconButton} onPress={onBack}>
+                        <ArrowLeft size={22} color="#FFFFFF" strokeWidth={2.6} />
+                    </Pressable>
+                    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', marginHorizontal: 12 }}>
+                        {theme.heroImage ? (
+                            <Image source={typeof theme.heroImage === 'string' ? { uri: theme.heroImage } : theme.heroImage} style={{ width: 36, height: 36, borderRadius: 18, marginRight: 12 }} contentFit="cover" cachePolicy="memory-disk" />
+                        ) : (
+                            <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.1)", alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                                <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '600' }}>{theme.title.slice(0, 1).toUpperCase()}</Text>
+                            </View>
+                        )}
+                        <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }} numberOfLines={1}>{theme.title}</Text>
+                            {theme.subtitle && <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, marginTop: 2 }} numberOfLines={1}>{theme.subtitle}</Text>}
+                        </View>
+                    </View>
+                    {rightAccessory}
+                </View>
+            </View>
+        );
+    }
+
     const content = (
         <>
             <View style={brightChatStyles.heroCluster}>
                 <View style={brightChatStyles.heroImageWrap}>
                     {theme.heroImage ? (
-                        <Image source={{ uri: theme.heroImage }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
+                        <Image source={typeof theme.heroImage === 'string' ? { uri: theme.heroImage } : theme.heroImage} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
                     ) : (
                         <Text style={brightChatStyles.heroInitial}>{theme.title.slice(0, 1).toUpperCase()}</Text>
                     )}
@@ -128,7 +135,7 @@ export function AvatarStack({ avatarUrls }: { avatarUrls: string[] }) {
             {avatarUrls.slice(0, 3).map((avatar, index) => (
                 <Image
                     key={`${avatar}-${index}`}
-                    source={{ uri: avatar }}
+                    source={typeof avatar === 'string' ? { uri: avatar } : avatar}
                     style={[brightChatStyles.avatarStackItem, { marginLeft: index === 0 ? 0 : -12 }]}
                     contentFit="cover"
                     cachePolicy="memory-disk"
@@ -188,7 +195,7 @@ export const BrightMessage = memo(function BrightMessage({
             <View style={!isOwnMessage ? brightChatStyles.messageRowOther : brightChatStyles.messageRowOwn}>
                 {!isOwnMessage ? <MessageAvatar senderAvatar={senderAvatar} senderName={senderName} /> : null}
                 {type === "image" ? (
-                    <Image source={{ uri: content }} style={brightChatStyles.messageImage} contentFit="cover" cachePolicy="memory-disk" />
+                    <Image source={typeof content === 'string' ? { uri: content } : content} style={brightChatStyles.messageImage} contentFit="cover" cachePolicy="memory-disk" />
                 ) : (
                     <View style={[brightChatStyles.messageBubble, isOwnMessage ? brightChatStyles.ownBubble : brightChatStyles.otherBubble]}>
                         <Text style={[brightChatStyles.messageText, isOwnMessage && brightChatStyles.ownMessageText]}>{content}</Text>
@@ -212,7 +219,7 @@ function MessageAvatar({ senderAvatar, senderName }: { senderAvatar?: string; se
     return (
         <View style={brightChatStyles.messageAvatarPeep}>
             {senderAvatar ? (
-                <Image source={{ uri: senderAvatar }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
+                <Image source={typeof senderAvatar === 'string' ? { uri: senderAvatar } : senderAvatar} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="memory-disk" />
             ) : (
                 <Text style={brightChatStyles.messageAvatarInitial}>{(senderName || "?").slice(0, 1).toUpperCase()}</Text>
             )}
@@ -282,7 +289,7 @@ type BrightTextInputProps = TextInputProps & {
 export function BrightTextInput(props: BrightTextInputProps) {
     return (
         <TextInput
-            placeholderTextColor="rgba(30,44,60,0.44)"
+            placeholderTextColor="rgba(255,255,255,0.4)"
             {...props}
             style={[brightChatStyles.input, props.style]}
         />
@@ -465,7 +472,7 @@ export const brightChatStyles = StyleSheet.create({
         alignSelf: "flex-start",
     },
     senderName: {
-        color: "rgba(8,28,48,0.72)",
+        color: "rgba(255,255,255,0.72)",
         fontFamily: fonts.heading,
         fontSize: typography.fontSize.xs,
         marginLeft: 34,
@@ -584,10 +591,10 @@ export const brightChatStyles = StyleSheet.create({
         paddingVertical: spacing.sm,
         marginBottom: spacing.md,
         borderRadius: radii.pill,
-        backgroundColor: "rgba(255,255,255,0.52)",
+        backgroundColor: "rgba(255,255,255,0.15)",
     },
     systemText: {
-        color: "rgba(8,28,48,0.72)",
+        color: "rgba(255,255,255,0.72)",
         fontFamily: fonts.heading,
         fontSize: typography.fontSize.xs,
     },
@@ -607,7 +614,7 @@ export const brightChatStyles = StyleSheet.create({
         paddingVertical: spacing.sm,
         borderRadius: 22,
         borderBottomLeftRadius: radii.sm,
-        backgroundColor: "rgba(255,255,255,0.86)",
+        backgroundColor: "rgba(255,255,255,0.15)",
     },
     typingDots: {
         flexDirection: "row",
@@ -620,7 +627,7 @@ export const brightChatStyles = StyleSheet.create({
         backgroundColor: colors.iris,
     },
     typingText: {
-        color: "rgba(8,28,48,0.72)",
+        color: "rgba(255,255,255,0.72)",
         fontFamily: fonts.heading,
         fontSize: typography.fontSize.xs,
     },
@@ -628,9 +635,9 @@ export const brightChatStyles = StyleSheet.create({
         paddingHorizontal: spacing.md,
         paddingTop: spacing.sm,
         paddingBottom: spacing.sm,
-        backgroundColor: "rgba(255,255,255,0.84)",
+        backgroundColor: "rgba(20,20,22,0.95)",
         borderTopWidth: 1,
-        borderTopColor: "rgba(255,255,255,0.74)",
+        borderTopColor: "rgba(255,255,255,0.1)",
     },
     composerRow: {
         minHeight: 54,
@@ -639,7 +646,7 @@ export const brightChatStyles = StyleSheet.create({
         gap: spacing.sm,
         padding: spacing.xs,
         borderRadius: 28,
-        backgroundColor: "#FFFFFF",
+        backgroundColor: "rgba(255,255,255,0.1)",
         shadowColor: "#07324A",
         shadowOffset: { width: 0, height: 10 },
         shadowOpacity: 0.12,
@@ -650,7 +657,7 @@ export const brightChatStyles = StyleSheet.create({
         flex: 1,
         minHeight: 44,
         maxHeight: 112,
-        color: "#121212",
+        color: "#FFFFFF",
         fontFamily: fonts.body,
         fontSize: typography.fontSize.md,
         paddingHorizontal: spacing.md,

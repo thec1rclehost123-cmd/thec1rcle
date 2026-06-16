@@ -282,14 +282,22 @@ function QRModal({ visible, order, onClose }: {
                                         style={[
                                             ms.miniQrContainer,
                                             {
-                                                backgroundColor: accentColor,
                                                 padding: miniQrPadding,
                                                 borderRadius: miniQrPadding + 12,
                                                 elevation: 0,
                                                 shadowOpacity: 0,
+                                                overflow: 'hidden',
                                             },
                                         ]}
                                     >
+                                        <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+                                        <LinearGradient
+                                            colors={[
+                                                "rgba(255,255,255,0.6)",
+                                                "rgba(255,255,255,0.15)"
+                                            ]}
+                                            style={StyleSheet.absoluteFill}
+                                        />
                                         <QRCode
                                             value={qrData}
                                             size={miniQrSize}
@@ -305,8 +313,16 @@ function QRModal({ visible, order, onClose }: {
                             </Animated.View>
 
                             {/* BACK: Full QR code */}
-                            <Animated.View style={[ms.cardFace, ms.cardBack, backStyle, { backgroundColor: accentColor }]}>
-                                <View style={[ms.fullQrWrap, { backgroundColor: accentColor, elevation: 0, shadowOpacity: 0 }]}>
+                            <Animated.View style={[ms.cardFace, ms.cardBack, backStyle]}>
+                                <View style={[ms.fullQrWrap, { elevation: 0, shadowOpacity: 0, overflow: 'hidden' }]}>
+                                    <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+                                    <LinearGradient
+                                        colors={[
+                                            "rgba(255,255,255,0.6)",
+                                            "rgba(255,255,255,0.15)"
+                                        ]}
+                                        style={StyleSheet.absoluteFill}
+                                    />
                                     <QRCode
                                         value={qrData}
                                         size={fullQrSize}

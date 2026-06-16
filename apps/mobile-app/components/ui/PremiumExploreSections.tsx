@@ -5,7 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInRight, useSharedValue, useAnimatedStyle, withTiming, withSpring } from "react-native-reanimated";
 import { router } from "expo-router";
-import { colors, radii } from "@/lib/design/theme";
+import { colors, radii, spacing, typography } from "@/lib/design/theme";
 import type { Event } from "@/store/eventsStore";
 import { formatEventDate } from "@/lib/utils/date";
 import { ChevronLeft, ChevronRight } from "lucide-react-native";
@@ -103,9 +103,9 @@ export function TopVenues() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 24 }}>
                 {MOCK_VENUES.map((v) => (
                     <Pressable key={v.id} style={{ alignItems: "center", width: 120 }} onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}>
-                        <Image source={{ uri: v.logo }} style={{ width: 110, height: 110, borderRadius: 55, borderWidth: 2, borderColor: "rgba(255,255,255,0.1)" }} contentFit="cover" />
-                        <Text style={{ color: "#FFF", fontWeight: "700", marginTop: 10, textAlign: "center", fontSize: 16 }} numberOfLines={1}>{v.name}</Text>
-                        <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, textAlign: "center", marginTop: 4 }} numberOfLines={1}>{v.area}</Text>
+                        <Image source={{ uri: v.logo }} style={{ width: 110, height: 110, borderRadius: 55, borderWidth: 2, borderColor: colors.surfaceActive }} contentFit="cover" />
+                        <Text style={{ color: "#FFF", fontWeight: "700", marginTop: spacing.md, textAlign: "center", fontSize: typography.fontSize.md }} numberOfLines={1}>{v.name}</Text>
+                        <Text style={{ color: "rgba(255,255,255,0.5)", fontSize: typography.fontSize.sm, textAlign: "center", marginTop: spacing.xs }} numberOfLines={1}>{v.area}</Text>
                     </Pressable>
                 ))}
             </ScrollView>
@@ -195,11 +195,11 @@ export function WhenIsThePlan({ filter, setFilter }: { filter: string, setFilter
                             key={f.id} 
                             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFilter(f.id); }}
                             style={[
-                                { paddingHorizontal: 20, paddingVertical: 12, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
+                                { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.05)", borderWidth: 1, borderColor: "rgba(255,255,255,0.1)" },
                                 isActive && { backgroundColor: "rgba(244,74,34,0.15)", borderColor: "#F44A22", shadowColor: "#F44A22", shadowOpacity: 0.3, shadowRadius: 8, shadowOffset: { width: 0, height: 4 } }
                             ]}
                         >
-                            <Text style={[{ color: "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: "600" }, isActive && { color: "#F44A22", fontWeight: "800" }]}>{f.label}</Text>
+                            <Text style={[{ color: "rgba(255,255,255,0.6)", fontSize: typography.fontSize.base, fontWeight: "600" }, isActive && { color: "#F44A22", fontWeight: "800" }]}>{f.label}</Text>
                         </Pressable>
                     );
                 })}
@@ -325,24 +325,7 @@ export function PremiumEventCard({ event, index, variant = "standard", hideGradi
                 { position: "relative" }
             ]}
         >
-            {/* Ambient Glow Backdrop (Color Leakage) */}
-            {variant !== "list" && (
-                <RNImage 
-                    source={{ uri: img }} 
-                    style={{ 
-                        position: "absolute", 
-                        left: 0, 
-                        top: 8, // Offset downwards to simulate drop-shadow
-                        width: cardStyle.width, 
-                        height: cardStyle.height, 
-                        zIndex: -1, 
-                        transform: [{ scale: glowScale }], 
-                        opacity: glowOpacity
-                        // Removed borderRadius because combining borderRadius with blurRadius on iOS Image breaks the native blur filter and renders it sharp.
-                    }} 
-                    blurRadius={blurVal} 
-                />
-            )}
+
 
             {/* Dual-Gradient Border Glass Wrapper (Light Reflection) */}
             <View style={[cardStyle, { position: "relative", backgroundColor: "transparent" }]}>
@@ -387,20 +370,20 @@ export function PremiumEventCard({ event, index, variant = "standard", hideGradi
                             <LinearGradient colors={["transparent", "rgba(22,22,22,0.6)", "rgba(22,22,22,0.98)"]} locations={[0.3, 0.7, 1]} style={StyleSheet.absoluteFillObject} />
                         )}
                         
-                        <View style={{ flex: 1, padding: variant === "compact" ? 12 : 16, justifyContent: "space-between" }}>
+                        <View style={{ flex: 1, padding: variant === "compact" ? spacing.md : spacing.base, justifyContent: "space-between" }}>
                             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-                                <View style={{ backgroundColor: "rgba(10, 10, 10, 0.75)", paddingHorizontal: 12, paddingVertical: 6, borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}>
-                                    <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "800", letterSpacing: 0.5 }}>{formatEventDate(event.startDate)}</Text>
+                                <View style={{ backgroundColor: "rgba(10, 10, 10, 0.75)", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}>
+                                    <Text style={{ color: "#FFF", fontSize: typography.fontSize.xs + 1, fontWeight: "800", letterSpacing: 0.5 }}>{formatEventDate(event.startDate)}</Text>
                                 </View>
                             </View>
                             <View>
-                                <Text style={{ color: "#FFF", fontSize: variant === "large" ? 24 : 18, fontWeight: "900", letterSpacing: 0, textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }} numberOfLines={1}>{event.title}</Text>
-                                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: 13, marginTop: 4, fontWeight: "600" }} numberOfLines={1}>{event.venue}</Text>
-                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 12 }}>
-                                    <Text style={{ color: "#F44A22", fontSize: 16, fontWeight: "900" }}>{price}</Text>
+                                <Text style={{ color: "#FFF", fontSize: variant === "large" ? typography.fontSize['2xl'] : typography.fontSize.lg, fontWeight: "900", letterSpacing: 0, textShadowColor: "rgba(0,0,0,0.8)", textShadowOffset: { width: 0, height: 2 }, textShadowRadius: 4 }} numberOfLines={1}>{event.title}</Text>
+                                <Text style={{ color: "rgba(255,255,255,0.8)", fontSize: typography.fontSize.sm, marginTop: spacing.xs, fontWeight: "600" }} numberOfLines={1}>{event.venue}</Text>
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: spacing.md }}>
+                                    <Text style={{ color: "#F44A22", fontSize: typography.fontSize.md, fontWeight: "900" }}>{price}</Text>
                                     {variant === "list" && (
-                                        <View style={{ backgroundColor: "rgba(255,255,255,0.1)", paddingHorizontal: 14, paddingVertical: 8, borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}>
-                                            <Text style={{ color: "#FFF", fontSize: 11, fontWeight: "800" }}>Get Tickets</Text>
+                                        <View style={{ backgroundColor: "rgba(255,255,255,0.1)", paddingHorizontal: spacing.base, paddingVertical: spacing.sm, borderRadius: 100, borderWidth: 1, borderColor: "rgba(255,255,255,0.15)" }}>
+                                            <Text style={{ color: "#FFF", fontSize: typography.fontSize.xs + 1, fontWeight: "800" }}>Get Tickets</Text>
                                         </View>
                                     )}
                                 </View>
@@ -415,16 +398,16 @@ export function PremiumEventCard({ event, index, variant = "standard", hideGradi
 
 
 const styles = StyleSheet.create({
-    section: { marginBottom: 44 },
+    section: { marginBottom: 48 },
     sectionHeader: { paddingHorizontal: 16, marginBottom: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-    sectionTitle: { fontSize: 22, fontWeight: "800", color: "#FFF", letterSpacing: 0 },
+    sectionTitle: { fontSize: typography.fontSize['2xl'], fontWeight: "800", color: colors.goldLight, letterSpacing: 0 },
     sectionTitleAccent: { color: colors.iris, textShadowColor: "rgba(244,74,34,0.55)", textShadowOffset: { width: 0, height: 0 }, textShadowRadius: 8 },
-    viewAll: { color: colors.iris, fontSize: 14, fontWeight: "700" },
+    viewAll: { color: colors.iris, fontSize: typography.fontSize.base, fontWeight: "700" },
     hypeCashPill: {
         alignSelf: "flex-start",
         marginHorizontal: 16,
         marginTop: -6,
-        marginBottom: 14,
+        marginBottom: spacing.base,
         minHeight: 34,
         maxWidth: "92%",
         borderRadius: 17,
@@ -432,8 +415,8 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
-        paddingLeft: 9,
-        paddingRight: 13,
+        paddingLeft: spacing.sm,
+        paddingRight: spacing.md,
         borderWidth: StyleSheet.hairlineWidth,
         borderColor: "rgba(244,74,34,0.32)",
     },
@@ -449,14 +432,14 @@ const styles = StyleSheet.create({
     },
     hypeCashIconText: {
         color: colors.iris,
-        fontSize: 14,
+        fontSize: typography.fontSize.base,
         fontWeight: "900",
         lineHeight: 17,
     },
     hypeCashText: {
         flexShrink: 1,
         color: "rgba(255,255,255,0.84)",
-        fontSize: 12,
+        fontSize: typography.fontSize.sm,
         fontWeight: "800",
         letterSpacing: 0.1,
     },
@@ -465,7 +448,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "center",
         alignItems: "center",
-        marginTop: 32,
+        marginTop: spacing.xxl,
         gap: 8,
     },
     pageButton: {
@@ -510,7 +493,7 @@ const styles = StyleSheet.create({
     },
     pageNumberText: {
         color: "rgba(255, 255, 255, 0.6)",
-        fontSize: 14,
+        fontSize: typography.fontSize.base,
         fontWeight: "700",
     },
     selectedPageNumberText: {
@@ -519,7 +502,7 @@ const styles = StyleSheet.create({
     },
     paginationEllipsis: {
         color: "rgba(255, 255, 255, 0.4)",
-        fontSize: 14,
+        fontSize: typography.fontSize.base,
         fontWeight: "700",
         marginHorizontal: 4,
     },

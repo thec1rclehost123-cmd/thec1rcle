@@ -507,6 +507,11 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         borderWidth: 1,
         borderColor: "rgba(255, 255, 255, 0.06)",
+        shadowColor: colors.iris,
+        shadowOpacity: 0.35,
+        shadowRadius: 18,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 10,
     },
     upcomingPoster: {
         width: 88,

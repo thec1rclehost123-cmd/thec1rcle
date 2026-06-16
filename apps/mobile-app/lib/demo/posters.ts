@@ -13,4 +13,9 @@ export const DEMO_POSTERS = {
     noSignal: assetUri(require("../../assets/posters/no-signal.jpg")),
     redRoom: assetUri(require("../../assets/posters/red-room.jpg")),
     velvetNights: assetUri(require("../../assets/posters/velvet-nights.jpg")),
+    newPoster1: assetUri(require("../../assets/posters/playboy_delhi.png")),
+    newPoster2: assetUri(require("../../assets/posters/new_poster_2.png")),
+    newPoster3: assetUri(require("../../assets/posters/new_poster_3.png")),
+    newPoster4: assetUri(require("../../assets/posters/new_poster_4.jpg")),
+    newPoster5: assetUri(require("../../assets/posters/new_poster_5.png")),
 } as const;

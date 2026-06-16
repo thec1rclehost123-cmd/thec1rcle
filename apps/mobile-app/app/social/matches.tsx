@@ -39,7 +39,7 @@ function MatchCard({ match }: { match: Match }) {
             <View style={styles.avatarWrap}>
                 {match.photoURL ? (
                     <Image
-                        source={{ uri: match.photoURL }}
+                        source={typeof match.photoURL === 'string' ? { uri: match.photoURL } : match.photoURL}
                         style={styles.avatar}
                         contentFit="cover"
                     />

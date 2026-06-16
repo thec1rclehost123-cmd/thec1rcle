@@ -674,7 +674,7 @@ export default function MapScreen() {
 
             {mapMode === "events" && selectedCluster ? (
                 <Animated.View
-                    entering={SlideInUp.springify().damping(18)}
+                    entering={SlideInUp.duration(250)}
                     style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
                 >
                     <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
@@ -745,7 +745,7 @@ export default function MapScreen() {
 
             {mapMode === "venues" && selectedVenue ? (
                 <Animated.View
-                    entering={SlideInUp.springify().damping(18)}
+                    entering={SlideInUp.duration(250)}
                     style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
                 >
                     <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />

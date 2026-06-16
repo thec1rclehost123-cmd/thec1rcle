@@ -3,7 +3,7 @@
  * Segment control: Event Chats | Private Chats
  * Matches the Venues/Hosts tab style.
  */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
     View,
     Text,
@@ -12,12 +12,15 @@ import {
     Pressable,
     StyleSheet,
     Image,
+    Modal,
+    Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
-import { Search, Plus, MessageCircle, Heart } from "lucide-react-native";
+import { Search, Plus, MessageCircle, Heart, X, Lock } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { colors } from "@/lib/design/theme";
 import {
@@ -107,10 +110,10 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
                     <Text style={cardStyles.memberCount}>{chat.participantCount} people active</Text>
                 </View>
                 <View style={cardStyles.avatarStack}>
-                    {chat.activeAvatars.slice(0, 3).map((uri, i) => (
+                    {chat.activeAvatars.slice(0, 3).map((img, i) => (
                         <Image
                             key={i}
-                            source={{ uri }}
+                            source={typeof img === 'string' ? { uri: img } : img}
                             style={[cardStyles.stackAvatar, { marginLeft: i === 0 ? 0 : -10, zIndex: 3 - i }]}
                         />
                     ))}
@@ -120,34 +123,7 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
     );
 }
 
-// ── New match bubble ──────────────────────────────────────────────────────────
 
-function NewMatchBubble({ match }: { match: DemoNewMatch }) {
-    return (
-        <Pressable
-            style={matchStyles.bubble}
-            onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                router.push({
-                    pathname: "/social/dm/[id]",
-                    params: { id: match.id, recipientName: match.name },
-                });
-            }}
-        >
-            <View style={matchStyles.avatarWrap}>
-                <Image source={{ uri: match.photoURL }} style={matchStyles.avatar} resizeMode="cover" />
-                {match.isNew && <View style={matchStyles.newDot} />}
-                {match.isVerified && (
-                    <View style={matchStyles.verifiedBadge}>
-                        <Text style={matchStyles.verifiedCheck}>✓</Text>
-                    </View>
-                )}
-            </View>
-            <Text style={matchStyles.name} numberOfLines={1}>{match.name}</Text>
-            <Text style={matchStyles.event} numberOfLines={1}>{match.sharedEventTitle}</Text>
-        </Pressable>
-    );
-}
 
 // ── Private chat row ──────────────────────────────────────────────────────────
 
@@ -164,7 +140,7 @@ function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
             }}
         >
             <View style={rowStyles.avatarWrap}>
-                <Image source={{ uri: chat.otherUserAvatar }} style={rowStyles.avatar} resizeMode="cover" />
+                <Image source={typeof chat.otherUserAvatar === 'string' ? { uri: chat.otherUserAvatar } : chat.otherUserAvatar} style={rowStyles.avatar} resizeMode="cover" />
                 {chat.isOnline && <View style={rowStyles.onlineDot} />}
             </View>
             <View style={rowStyles.content}>
@@ -220,8 +196,8 @@ function EmptyChatReplica() {
 
                         {/* Mock Row 1 */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
-                            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#8B5CF6", alignItems: "center", justifyContent: "center" }}>
-                                <Text style={{ fontSize: 20 }}>🍩</Text>
+                            <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#8B5CF6", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                                <Image source={require("../../assets/images/attendees/riya.png")} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                             </View>
                             <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
                                 <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)", width: 60 }} />
@@ -231,8 +207,10 @@ function EmptyChatReplica() {
 
                         {/* Mock Row 2 */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
-                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#F59E0B", position: "relative", alignItems: "center", justifyContent: "center" }}>
-                                <Text style={{ fontSize: 20 }}>👩🏽</Text>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#F59E0B", position: "relative", alignItems: "center", justifyContent: "center", overflow: "visible" }}>
+                                <View style={{ width: 44, height: 44, borderRadius: 22, overflow: "hidden" }}>
+                                    <Image source={require("../../assets/images/attendees/sam.png")} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
+                                </View>
                                 <View style={{ position: "absolute", bottom: 0, right: -2, width: 12, height: 12, borderRadius: 6, backgroundColor: "#10B981", borderWidth: 2, borderColor: "#0A0A0A" }} />
                             </View>
                             <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
@@ -243,8 +221,8 @@ function EmptyChatReplica() {
 
                         {/* Mock Row 3 */}
                         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20, gap: 12 }}>
-                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#EAB308", alignItems: "center", justifyContent: "center" }}>
-                                <Text style={{ fontSize: 20 }}>👨🏾</Text>
+                            <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: "#EAB308", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                                <Image source={require("../../assets/images/attendees/neil.png")} style={{ width: "100%", height: "100%" }} resizeMode="cover" />
                             </View>
                             <View style={{ flex: 1, justifyContent: "center", gap: 6 }}>
                                 <View style={{ height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,0.15)", width: 50 }} />
@@ -293,9 +271,15 @@ function EmptyChatReplica() {
 
 export default function InboxScreen() {
     const insets = useSafeAreaInsets();
-    const [activeTab, setActiveTab] = useState<Tab>("events");
+    const [activeTab, setActiveTab] = useState<Tab>("private");
+    const [isLikesModalVisible, setIsLikesModalVisible] = useState(false);
+    const scrollRef = useRef<ScrollView>(null);
+    const windowWidth = Dimensions.get("window").width;
+    const cardWidth = (windowWidth - 32 - 12) / 2;
+    const cardHeight = cardWidth * 1.33;
 
     const switchTab = (tab: Tab) => {
+        if (tab === activeTab) return;
         Haptics.selectionAsync();
         setActiveTab(tab);
     };
@@ -303,10 +287,9 @@ export default function InboxScreen() {
     const newMatchCount = DEMO_NEW_MATCHES.filter((m) => m.isNew).length;
     const totalUnread = (DEMO_PRIVATE_CHATS as any).totalUnread ?? 0;
 
-    // Toggle this to instantly view the DITTO replica Empty State from the design
-    const forceShowEmptyReplica = true;
+    const hasNoChats = DEMO_EVENT_CHATS.length === 0 && DEMO_PRIVATE_CHATS.length === 0 && DEMO_NEW_MATCHES.length === 0;
 
-    if (forceShowEmptyReplica) {
+    if (hasNoChats) {
         return <EmptyChatReplica />;
     }
 
@@ -316,35 +299,32 @@ export default function InboxScreen() {
             {/* ── Header ── */}
             <Animated.View entering={FadeIn.duration(300)} style={styles.header}>
                 <Text style={styles.headerTitle}>Chats</Text>
-                <Pressable style={styles.searchBtn}>
-                    <Search size={20} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
-                </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <Pressable
+                        style={styles.searchBtn}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setIsLikesModalVisible(true);
+                        }}
+                    >
+                        <Heart size={20} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
+                        {newMatchCount > 0 && <View style={styles.headerBadge} />}
+                    </Pressable>
+                    <Pressable style={styles.searchBtn}>
+                        <Search size={20} color="rgba(255,255,255,0.6)" strokeWidth={1.8} />
+                    </Pressable>
+                </View>
             </Animated.View>
 
             {/* ── Segment control ── */}
             <Animated.View
-                entering={FadeInDown.delay(50).springify().damping(20)}
+                entering={FadeInDown.delay(50).springify().damping(24)}
                 style={styles.segmentWrap}
             >
                 <View style={styles.segmentTrack}>
-                    {/* Event Chats tab */}
-                    <Pressable
-                        style={[styles.segmentPill, activeTab === "events" && styles.segmentPillActive]}
-                        onPress={() => switchTab("events")}
-                    >
-                        <MessageCircle
-                            size={14}
-                            color={activeTab === "events" ? "#fff" : "rgba(255,255,255,0.4)"}
-                            strokeWidth={activeTab === "events" ? 2.2 : 1.8}
-                        />
-                        <Text style={[styles.segmentText, activeTab === "events" && styles.segmentTextActive]}>
-                            Event Chats
-                        </Text>
-                    </Pressable>
-
                     {/* Private Chats tab */}
                     <Pressable
-                        style={[styles.segmentPill, activeTab === "private" && styles.segmentPillPrivate]}
+                        style={[styles.segmentPill, activeTab === "private" && styles.segmentPillActive]}
                         onPress={() => switchTab("private")}
                     >
                         <Heart
@@ -362,87 +342,73 @@ export default function InboxScreen() {
                             </View>
                         )}
                     </Pressable>
+
+                    {/* Event Chats tab */}
+                    <Pressable
+                        style={[styles.segmentPill, activeTab === "events" && styles.segmentPillActive]}
+                        onPress={() => switchTab("events")}
+                    >
+                        <MessageCircle
+                            size={14}
+                            color={activeTab === "events" ? "#fff" : "rgba(255,255,255,0.4)"}
+                            strokeWidth={activeTab === "events" ? 2.2 : 1.8}
+                        />
+                        <Text style={[styles.segmentText, activeTab === "events" && styles.segmentTextActive]}>
+                            Event Chats
+                        </Text>
+                    </Pressable>
                 </View>
             </Animated.View>
 
-            {/* ── Content ── */}
-            <ScrollView
-                style={styles.scroll}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                nestedScrollEnabled
-            >
-                {activeTab === "events" ? (
-                    /* ── Event Chats ── */
-                    <Animated.View entering={FadeInDown.delay(60).springify()}>
-                        {DEMO_MODE && DEMO_EVENT_CHATS.length > 0
-                            ? DEMO_EVENT_CHATS.map((chat, i) => (
-                                <EventChatCard key={chat.id} chat={chat} index={i} />
-                            ))
-                            : (
-                                <View style={styles.emptyCard}>
-                                    <Text style={styles.emptyTitle}>No event chats yet</Text>
-                                    <Text style={styles.emptyBody}>
-                                        Get a ticket to an event — its group chat unlocks automatically.
-                                    </Text>
-                                </View>
-                            )
-                        }
-                    </Animated.View>
+            <View style={{ flex: 1 }}>
+                {activeTab === "private" ? (
+                    <ScrollView 
+                        key="private-chats"
+                        style={{ flex: 1 }} 
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <Animated.View entering={FadeIn.duration(200)}>
+                            {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0
+                                ? DEMO_PRIVATE_CHATS.map((chat) => (
+                                    <PrivateChatRow key={chat.id} chat={chat} />
+                                ))
+                                : (
+                                    <View style={styles.emptyCard}>
+                                        <Text style={styles.emptyTitle}>No messages yet</Text>
+                                        <Text style={styles.emptyBody}>
+                                            Match with someone at an event to start a private conversation.
+                                        </Text>
+                                    </View>
+                                )
+                            }
+                        </Animated.View>
+                    </ScrollView>
                 ) : (
-                    /* ── Private Chats ── */
-                    <Animated.View entering={FadeInDown.delay(60).springify()}>
-
-                        {/* New Matches row */}
-                        {DEMO_MODE && DEMO_NEW_MATCHES.length > 0 && (
-                            <View style={styles.newMatchesBlock}>
-                                <View style={styles.newMatchesHeader}>
-                                    <Text style={styles.newMatchesLabel}>New Matches</Text>
-                                    {newMatchCount > 0 && (
-                                        <View style={styles.newMatchesBadge}>
-                                            <Text style={styles.newMatchesBadgeText}>{newMatchCount} new</Text>
-                                        </View>
-                                    )}
-                                </View>
-                                <FlatList
-                                    data={DEMO_NEW_MATCHES}
-                                    keyExtractor={(m) => m.id}
-                                    horizontal
-                                    showsHorizontalScrollIndicator={false}
-                                    contentContainerStyle={styles.matchScroll}
-                                    renderItem={({ item }) => <NewMatchBubble match={item} />}
-                                    // Allows horizontal scroll inside vertical ScrollView
-                                    nestedScrollEnabled
-                                />
-                            </View>
-                        )}
-
-                        {/* Divider */}
-                        {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0 && (
-                            <View style={styles.divider}>
-                                <View style={styles.dividerLine} />
-                                <Text style={styles.dividerLabel}>Messages</Text>
-                                <View style={styles.dividerLine} />
-                            </View>
-                        )}
-
-                        {/* Active conversations */}
-                        {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0
-                            ? DEMO_PRIVATE_CHATS.map((chat) => (
-                                <PrivateChatRow key={chat.id} chat={chat} />
-                            ))
-                            : (
-                                <View style={styles.emptyCard}>
-                                    <Text style={styles.emptyTitle}>No messages yet</Text>
-                                    <Text style={styles.emptyBody}>
-                                        Match with someone at an event to start a private conversation.
-                                    </Text>
-                                </View>
-                            )
-                        }
-                    </Animated.View>
+                    <ScrollView 
+                        key="event-chats"
+                        style={{ flex: 1 }} 
+                        contentContainerStyle={styles.scrollContent}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <Animated.View entering={FadeIn.duration(200)}>
+                            {DEMO_MODE && DEMO_EVENT_CHATS.length > 0
+                                ? DEMO_EVENT_CHATS.map((chat, i) => (
+                                    <EventChatCard key={chat.id} chat={chat} index={i} />
+                                ))
+                                : (
+                                    <View style={styles.emptyCard}>
+                                        <Text style={styles.emptyTitle}>No event chats yet</Text>
+                                        <Text style={styles.emptyBody}>
+                                            Get a ticket to an event — its group chat unlocks automatically.
+                                        </Text>
+                                    </View>
+                                )
+                            }
+                        </Animated.View>
+                    </ScrollView>
                 )}
-            </ScrollView>
+            </View>
 
             {/* ── FAB ── */}
             <Pressable
@@ -451,6 +417,61 @@ export default function InboxScreen() {
             >
                 <Plus size={24} color="#fff" strokeWidth={2.5} />
             </Pressable>
+
+            {/* ── Likes Overlay ── */}
+            <Modal
+                visible={isLikesModalVisible}
+                animationType="slide"
+                transparent={true}
+                onRequestClose={() => setIsLikesModalVisible(false)}
+            >
+                <View style={modalStyles.backdrop}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsLikesModalVisible(false)} />
+                    <View style={[modalStyles.sheet, { paddingBottom: insets.bottom || 24 }]}>
+                        <View style={modalStyles.header}>
+                            <Text style={modalStyles.title}>New Matches</Text>
+                            <Pressable style={modalStyles.closeBtn} onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setIsLikesModalVisible(false);
+                            }}>
+                                <X size={18} color="#fff" strokeWidth={2.5} />
+                            </Pressable>
+                        </View>
+                        
+                        <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }} showsVerticalScrollIndicator={false}>
+                            {DEMO_NEW_MATCHES.map((match) => (
+                                <Pressable 
+                                    key={match.id} 
+                                    style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: 'rgba(255,255,255,0.05)' }}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                        setIsLikesModalVisible(false);
+                                        router.push({
+                                            pathname: "/social/dm/[id]",
+                                            params: { id: match.id, recipientName: match.name },
+                                        });
+                                    }}
+                                >
+                                    <View style={{ width: 64, height: 64, borderRadius: 32, marginRight: 16, backgroundColor: '#2C2C2E', overflow: 'hidden' }}>
+                                        <Image 
+                                            source={typeof match.photoURL === 'string' ? { uri: match.photoURL } : match.photoURL} 
+                                            style={StyleSheet.absoluteFill} 
+                                            resizeMode="cover" 
+                                        />
+                                        {match.isNew && (
+                                            <View style={{ position: 'absolute', top: 0, right: 0, width: 14, height: 14, borderRadius: 7, backgroundColor: '#F44A22', borderWidth: 2, borderColor: '#2C2C2E' }} />
+                                        )}
+                                    </View>
+                                    <View style={{ flex: 1, justifyContent: 'center' }}>
+                                        <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '600', marginBottom: 4 }}>{match.name}</Text>
+                                        <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15 }} numberOfLines={1}>{match.sharedEventTitle}</Text>
+                                    </View>
+                                </Pressable>
+                            ))}
+                        </ScrollView>
+                    </View>
+                </View>
+            </Modal>
         </View>
     );
 }
@@ -541,46 +562,7 @@ const cardStyles = StyleSheet.create({
     },
 });
 
-// ── New match styles ──────────────────────────────────────────────────────────
 
-const matchStyles = StyleSheet.create({
-    bubble: { alignItems: "center", width: 72, marginRight: 16 },
-    avatarWrap: { position: "relative", marginBottom: 7 },
-    avatar: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        borderWidth: 2,
-        borderColor: "#F44A22",
-    },
-    newDot: {
-        position: "absolute",
-        top: 0,
-        right: 0,
-        width: 14,
-        height: 14,
-        borderRadius: 7,
-        backgroundColor: "#F44A22",
-        borderWidth: 2,
-        borderColor: "#111113",
-    },
-    verifiedBadge: {
-        position: "absolute",
-        bottom: 0,
-        right: -2,
-        width: 18,
-        height: 18,
-        borderRadius: 9,
-        backgroundColor: "#3B82F6",
-        alignItems: "center",
-        justifyContent: "center",
-        borderWidth: 2,
-        borderColor: "#111113",
-    },
-    verifiedCheck: { color: "#fff", fontSize: 9, fontWeight: "800" },
-    name: { color: "#fff", fontSize: 12, fontWeight: "700", textAlign: "center", letterSpacing: 0 },
-    event: { color: "rgba(255,255,255,0.3)", fontSize: 10, textAlign: "center", marginTop: 1 },
-});
 
 // ── Private chat row styles ───────────────────────────────────────────────────
 
@@ -627,6 +609,79 @@ const rowStyles = StyleSheet.create({
     badgeText: { color: "#fff", fontSize: 10, fontWeight: "800" },
 });
 
+// ── Modal styles ──────────────────────────────────────────────────────────────
+
+const modalStyles = StyleSheet.create({
+    backdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.6)",
+        justifyContent: "flex-end",
+    },
+    sheet: {
+        backgroundColor: "#1C1C1E",
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        maxHeight: "85%",
+    },
+    header: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        paddingHorizontal: 20,
+        paddingTop: 24,
+        paddingBottom: 16,
+    },
+    title: { color: "#fff", fontSize: 24, fontWeight: "800" },
+    closeBtn: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        backgroundColor: "rgba(255,255,255,0.1)",
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    scrollContent: { paddingHorizontal: 16, paddingBottom: 24 },
+    grid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "space-between",
+        rowGap: 12,
+        paddingBottom: 20,
+    },
+    matchCard: {
+        borderRadius: 16,
+        overflow: "hidden",
+        backgroundColor: "#2C2C2E",
+        position: "relative",
+    },
+    gradient: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: "50%",
+    },
+    matchInfo: {
+        position: "absolute",
+        bottom: 12,
+        left: 12,
+        right: 12,
+    },
+    matchName: { color: "#fff", fontSize: 18, fontWeight: "800", marginBottom: 2 },
+    matchEvent: { color: "rgba(255,255,255,0.6)", fontSize: 13, fontWeight: "500" },
+    newDot: {
+        position: "absolute",
+        top: 10,
+        right: 10,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: "#F44A22",
+        borderWidth: 2,
+        borderColor: "#1C1C1E",
+    },
+});
+
 // ── Main layout styles ────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -653,6 +708,15 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
+    headerBadge: {
+        position: "absolute",
+        top: 8,
+        right: 8,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: "#F44A22",
+    },
 
     // ── Segment ──
     segmentWrap: { paddingHorizontal: 16, marginBottom: 16 },
@@ -676,19 +740,6 @@ const styles = StyleSheet.create({
     },
     segmentPillActive: {
         backgroundColor: "#F44A22",
-        shadowColor: "#F44A22",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    segmentPillPrivate: {
-        backgroundColor: "#818CF8",
-        shadowColor: "#818CF8",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.4,
-        shadowRadius: 10,
-        elevation: 5,
     },
     segmentText: {
         color: "rgba(255,255,255,0.38)",

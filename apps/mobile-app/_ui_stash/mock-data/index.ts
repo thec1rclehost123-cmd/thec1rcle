@@ -75,6 +75,7 @@ export const DEMO_EVENTS = [
         city: "Mumbai",
         hostId: "demo-host-03",
         hostName: "Bass Station India",
+        accentColor: "#E11D48",
         coverImage: "https://picsum.photos/seed/bassstation/800/500",
         poster: "https://picsum.photos/seed/bassstation/800/500",
         image: "https://picsum.photos/seed/bassstation/800/500",
@@ -578,7 +579,7 @@ export const DEMO_ORDERS = [
         eventCoverImage: "https://picsum.photos/seed/bassstation/800/500",
         venueLocation: "NSCI Dome, Worli, Mumbai",
         hostName: "Bass Station India",
-        accentColor: "#0EA5E9",
+        accentColor: "#E11D48",
         status: "checked_in" as const,
         tickets: [
             {

@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+const fs = require('fs');
+
+const fileContent = `import { useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Pressable,
@@ -344,7 +346,7 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
           
           <View style={styles.zSubRow}>
             <Text style={styles.zSubText} numberOfLines={1}>
-              {venue.venueType ? `${venue.venueType} • ` : ''}{getVenueLocationLabel(venue)}
+              {venue.venueType ? \`\${venue.venueType} • \` : ''}{getVenueLocationLabel(venue)}
             </Text>
             <Text style={styles.zDistance}>2.4 km</Text>
           </View>
@@ -799,3 +801,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
   }
 });
+`;
+
+fs.writeFileSync('/Users/aayushdivase/Desktop/thec1rcle/thec1rcle/apps/mobile-app/app/(tabs)/venues.tsx', fileContent, 'utf8');
+console.log('Successfully wrote the new venues.tsx file.');
