@@ -22,10 +22,6 @@ const nextConfig = {
     // Enforce type checking during build for production safety (Fix: Build Safety is Disabled)
     ignoreBuildErrors: false,
   },
-  eslint: {
-    // Enforce linting during build for production safety
-    ignoreDuringBuilds: false,
-  },
   images: {
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
