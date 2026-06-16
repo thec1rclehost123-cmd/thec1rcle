@@ -1,26 +1,34 @@
 'use client';
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Search, Download, User, Users, CalendarDays, Filter } from 'lucide-react';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { Search, Download, User, Users, CalendarDays, Filter, Loader2 } from 'lucide-react';
 
 export function PromoterGuestsPageClient() {
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['promoter', 'guests'],
-    queryFn: async () => {
-      const res = await fetch(`/api/partners/promoters/guests`);
-      if (!res.ok) throw new Error('Failed to fetch globals guests');
-      return res.json();
-    },
-  });
+  const { data, isLoading, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    useInfiniteQuery({
+      queryKey: ['promoter', 'guests'],
+      queryFn: async ({ pageParam }) => {
+        const cursorQuery = pageParam ? `?cursor=${pageParam}` : '';
+        const res = await fetch(`/api/partners/promoters/guests${cursorQuery}`);
+        if (!res.ok) throw new Error('Failed to fetch global guests');
+        return res.json();
+      },
+      initialPageParam: null as string | null,
+      getNextPageParam: (lastPage) => lastPage.nextCursor || null,
+    });
+
+  const guests = data?.pages.flatMap((page) => page.guests) || [];
 
   const filteredGuests =
-    data?.guests?.filter(
+    guests.filter(
       (g: any) =>
-        g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        g.event.toLowerCase().includes(searchQuery.toLowerCase()),
+        g.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        g.event?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        g.guestName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        g.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()),
     ) || [];
 
   return (
@@ -73,8 +81,7 @@ export function PromoterGuestsPageClient() {
                   />
                 </div>
                 <div className="whitespace-nowrap text-sm font-bold font-mono text-text-primary">
-                  {data.totalUsed}{' '}
-                  <span className="text-text-tertiary">/ {data.totalAllowance} SPOTS</span>
+                  {guests.length} <span className="text-text-tertiary">/ LIMITLESS SPOTS</span>
                 </div>
               </div>
             </div>
@@ -132,11 +139,12 @@ export function PromoterGuestsPageClient() {
                           </div>
                           <div className="flex flex-col">
                             <span className="font-semibold text-text-primary tracking-tight">
-                              {guest.name}
+                              {guest.name || guest.guestName}
                             </span>
                             <span className="text-xs text-text-tertiary font-medium mt-0.5 flex items-center gap-1">
                               <Users className="h-3 w-3" />
-                              {guest.tickets} ticket{guest.tickets > 1 ? 's' : ''}
+                              {guest.tickets || guest.ticketCount} ticket
+                              {(guest.tickets || guest.ticketCount) > 1 ? 's' : ''}
                             </span>
                           </div>
                         </div>
@@ -144,14 +152,13 @@ export function PromoterGuestsPageClient() {
                       <td className="px-6 py-4">
                         <span className="text-sm font-semibold text-text-secondary items-center gap-2 flex">
                           <CalendarDays className="h-4 w-4 text-text-muted" />
-                          {guest.event}
+                          {guest.event || guest.eventTitle}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-text-secondary font-medium">
-                        {new Date(guest.dateAdded).toLocaleDateString('en-US', {
-                          month: 'short',
-                          day: 'numeric',
-                        })}
+                        {new Date(
+                          guest.dateAdded || guest.createdAt || Date.now(),
+                        ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                       </td>
                       <td className="px-6 py-4">
                         <span
@@ -185,6 +192,23 @@ export function PromoterGuestsPageClient() {
                 </tbody>
               </table>
             </div>
+            {hasNextPage && (
+              <div className="p-4 border-t border-border-subtle bg-surface-base flex justify-center">
+                <button
+                  onClick={() => fetchNextPage()}
+                  disabled={isFetchingNextPage}
+                  className="flex items-center gap-2 px-6 py-2 bg-surface-elevated hover:bg-surface-hover border border-border-subtle rounded-full text-sm font-semibold text-text-primary transition-all disabled:opacity-50"
+                >
+                  {isFetchingNextPage ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Loading...
+                    </>
+                  ) : (
+                    'Load More'
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

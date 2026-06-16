@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Clock,
@@ -20,10 +20,15 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { usePromoterPartnerships } from '@/lib/hooks/usePromoterQueries';
-import { VenuePageShell } from '@/components/venue-layout/VenuePageShell';
+import { VenuePageShell, VenueActionButton } from '@/components/venue-layout/VenuePageShell';
 import { DiscoverDirectory } from '@/components/partnerships/DiscoverDirectory';
 import { BasePartnerCard } from '@/components/partnerships/BasePartnerCard';
-import { StatTrendCard } from '@/components/promoter/PlaceholderCharts';
+import dynamic from 'next/dynamic';
+
+const StatTrendCard = dynamic(
+  () => import('@/components/promoter/PlaceholderCharts').then((m) => m.StatTrendCard),
+  { ssr: false },
+);
 import { motion, AnimatePresence } from 'framer-motion';
 
 type Tab = 'discover' | 'incoming' | 'pending' | 'active' | 'declined';
@@ -51,7 +56,7 @@ const mp = (delay: number) => ({
 export default function PromoterPartnershipsPage() {
   const { profile, user } = useDashboardAuth();
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Tab>('active');
+  const [activeTab, setActiveTab] = useState<Tab>('discover');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [discoverSearch, setDiscoverSearch] = useState('');
   const [discoverType, setDiscoverType] = useState('venue');
@@ -59,8 +64,19 @@ export default function PromoterPartnershipsPage() {
   const [discoverRefresh, setDiscoverRefresh] = useState(0);
   const queryClient = useQueryClient();
 
-  const promoterId = profile?.activeMembership?.partnerId;
+  // Internal debounce hook
+  const useDebounce = <T,>(value: T, delay: number): T => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+      const handler = setTimeout(() => setDebouncedValue(value), delay);
+      return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+  };
 
+  const debouncedDiscoverSearch = useDebounce(discoverSearch, 300);
+
+  const promoterId = profile?.activeMembership?.partnerId;
   const { data, isLoading: loading } = usePromoterPartnerships(promoterId);
   const partnerships: Partnership[] = data?.connections || [];
 
@@ -150,13 +166,14 @@ export default function PromoterPartnershipsPage() {
 
   const filterByUI = (list: Partnership[]) =>
     list.filter(
-      (p) => !discoverSearch || p.otherName.toLowerCase().includes(discoverSearch.toLowerCase()),
+      (p) =>
+        !debouncedDiscoverSearch ||
+        p.otherName.toLowerCase().includes(debouncedDiscoverSearch.toLowerCase()),
     );
 
   return (
     <VenuePageShell
       title="Partners"
-      subtitle="Build your venue and host network to unlock affiliate links and event access"
       actions={
         <div className="flex items-center gap-3">
           {[
@@ -212,37 +229,6 @@ export default function PromoterPartnershipsPage() {
         </div>
       }
     >
-      {/* Hero header */}
-      <motion.div {...mp(0)}>
-        <div
-          className="relative rounded-[32px] overflow-hidden px-6 py-7 flex items-center gap-5"
-          style={{
-            background: 'linear-gradient(135deg, #150d2e 0%, #0d0920 60%, #080810 100%)',
-            border: '1px solid rgba(124,58,237,0.2)',
-          }}
-        >
-          <div
-            className="absolute top-0 right-0 w-56 h-56 rounded-full blur-3xl pointer-events-none"
-            style={{ background: 'rgba(124,58,237,0.1)' }}
-          />
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 relative z-10"
-            style={{ background: 'rgba(124,58,237,0.2)', color: '#a78bfa' }}
-          >
-            <Handshake className="w-6 h-6" />
-          </div>
-          <div className="relative z-10">
-            <p className="text-[11px] font-black uppercase tracking-widest text-text-tertiary mb-1">
-              Partner Network
-            </p>
-            <p className="text-[13px] font-medium text-text-secondary max-w-lg">
-              Connect with venues and hosts to unlock your affiliate link access and event
-              inventory.
-            </p>
-          </div>
-        </div>
-      </motion.div>
-
       {/* Tab bar + search/filter */}
       <motion.div {...mp(0.1)} className="mt-6 mb-8">
         <div className="flex flex-wrap items-center gap-3">

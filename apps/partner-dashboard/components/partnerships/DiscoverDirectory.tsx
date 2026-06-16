@@ -84,22 +84,35 @@ export function DiscoverDirectory({
   const [error, setError] = useState<string | null>(null);
   const isControlled = ctrlSearch !== undefined;
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Internal debounce hook
+  const useDebounce = <T,>(value: T, delay: number): T => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+      const handler = setTimeout(() => setDebouncedValue(value), delay);
+      return () => clearTimeout(handler);
+    }, [value, delay]);
+    return debouncedValue;
+  };
+
+  const debouncedSearchQuery = useDebounce(searchQuery, 500);
+
   const [filterType, setFilterType] = useState<PartnerFilterType>(
     allowedTypes.includes('all') || allowedTypes.length > 1 ? 'all' : allowedTypes[0],
   );
   const [filterCity, setFilterCity] = useState('');
   const [requestingId, setRequestingId] = useState<string | null>(null);
 
-  const effectiveSearch = isControlled ? (ctrlSearch ?? '') : searchQuery;
+  const effectiveSearch = isControlled ? (ctrlSearch ?? '') : debouncedSearchQuery;
   const effectiveType = isControlled ? (ctrlType ?? filterType) : filterType;
   const effectiveCity = isControlled ? (ctrlCity ?? '') : filterCity;
 
   const fetchPartners = useCallback(async () => {
-    if (!partnerId) return;
+    if (!partnerId || !user) return;
     setLoading(true);
     setError(null);
     try {
-      const token = await user?.getIdToken();
+      const token = await user.getIdToken();
       const params = new URLSearchParams({
         partnerId,
         role,
@@ -129,10 +142,10 @@ export function DiscoverDirectory({
   }, [partnerId, fetchPartners, refreshTrigger]);
 
   const handleRequestPartnership = async (targetId: string) => {
-    if (!partnerId) return;
+    if (!partnerId || !user) return;
     setRequestingId(targetId);
     try {
-      const token = await user?.getIdToken();
+      const token = await user.getIdToken();
       const target = partners.find((p) => p.id === targetId);
       const res = await fetch('/api/discovery', {
         method: 'POST',
@@ -150,7 +163,11 @@ export function DiscoverDirectory({
           targetName: target?.name,
         }),
       });
-      if (!res.ok) throw new Error('Failed');
+      if (!res.ok) {
+        const text = await res.text();
+        console.error('Discovery POST failed:', res.status, text);
+        throw new Error('Failed: ' + text);
+      }
       await fetchPartners();
     } catch (err) {
       console.error(err);

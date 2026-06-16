@@ -1,493 +1,343 @@
 /**
  * Settings Screen
- * Central hub for all personal, app, and safety controls
+ * Ditto-style settings hub. Detail rows open dedicated settings pages.
  */
 
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { useEffect } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  Switch,
-  StyleSheet,
-  Alert,
-  Linking,
-} from 'react-native';
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-} from 'react-native-reanimated';
+import { View, Text, ScrollView, Pressable, StyleSheet, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import {
+  ArrowLeft,
+  Bell,
+  ChevronRight,
+  CircleUser,
+  ExternalLink,
+  Eye,
+  Lock,
+  Mail,
+  ShieldCheck,
+  Wallet,
+  X,
+} from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
-import { useSettings } from '@/hooks/useSettings';
+import { colors, typography } from '@/lib/design/theme';
 import { trackScreen } from '@/lib/analytics';
-import { colors, radii } from '@/lib/design/theme';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+type IconTone =
+  | 'account'
+  | 'payment'
+  | 'notifications'
+  | 'permissions'
+  | 'appearance'
+  | 'support'
+  | 'store'
+  | 'instagram'
+  | 'x'
+  | 'danger';
 
-// Settings MenuItem
-function MenuItem({
-  icon,
-  label,
-  sublabel,
-  onPress,
-  rightElement,
-  danger = false,
-  delay = 0,
-}: {
-  icon: string;
-  label: string;
-  sublabel?: string;
-  onPress?: () => void;
-  rightElement?: React.ReactNode;
-  danger?: boolean;
-  delay?: number;
-}) {
-  const scale = useSharedValue(1);
+const font = {
+  regular: typography.fontFamily.body,
+  medium: typography.fontFamily.medium,
+  bold: typography.fontFamily.heading,
+  black: typography.fontFamily.brandAccent,
+};
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+const textSize = {
+  header: 19,
+  section: 17,
+  row: 16,
+  subtitle: 12,
+  caption: 10,
+  version: 11,
+};
 
-  return (
-    <AnimatedPressable
-      entering={FadeInDown.delay(delay).springify()}
-      onPressIn={() => {
-        scale.value = withSpring(0.98, { damping: 15, stiffness: 400 });
-      }}
-      onPressOut={() => {
-        scale.value = withSpring(1, { damping: 15, stiffness: 400 });
-      }}
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        onPress?.();
-      }}
-      style={[animatedStyle, styles.menuItem]}
-    >
-      <View style={styles.menuItemIcon}>
-        <Text style={styles.menuItemIconText}>{icon}</Text>
-      </View>
-      <View style={styles.menuItemContent}>
-        <Text style={[styles.menuItemLabel, danger && styles.menuItemLabelDanger]}>{label}</Text>
-        {sublabel && <Text style={styles.menuItemSublabel}>{sublabel}</Text>}
-      </View>
-      {rightElement || <Text style={styles.menuItemArrow}>›</Text>}
-    </AnimatedPressable>
-  );
+const layoutSize = {
+  backButton: 48,
+  iconTile: 28,
+  avatar: 41,
+  rowMin: 45,
+  rowNoIconMin: 42,
+  groupRadius: 20,
+  groupGap: 10,
+};
+
+function SettingIcon({ tone, children }: { tone: IconTone; children: any }) {
+  return <View style={[styles.iconTile, iconToneStyles[tone]]}>{children}</View>;
 }
 
-// Toggle item
-function ToggleItem({
-  icon,
-  label,
-  sublabel,
-  value,
-  onValueChange,
-  delay = 0,
-}: {
-  icon: string;
-  label: string;
-  sublabel?: string;
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-  delay?: number;
-}) {
+function Group({ children, delay = 0 }: { children: any; delay?: number }) {
   return (
-    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.menuItem}>
-      <View style={styles.menuItemIcon}>
-        <Text style={styles.menuItemIconText}>{icon}</Text>
-      </View>
-      <View style={styles.menuItemContent}>
-        <Text style={styles.menuItemLabel}>{label}</Text>
-        {sublabel && <Text style={styles.menuItemSublabel}>{sublabel}</Text>}
-      </View>
-      <Switch
-        value={value}
-        onValueChange={(val) => {
-          Haptics.selectionAsync();
-          onValueChange(val);
-        }}
-        trackColor={{ false: colors.base[200], true: colors.iris }}
-        thumbColor="#fff"
-      />
+    <Animated.View entering={FadeInDown.delay(delay).springify()} style={styles.group}>
+      {children}
     </Animated.View>
   );
 }
 
-// Section header
-function SectionHeader({ title, delay = 0 }: { title: string; delay?: number }) {
+function Divider() {
+  return <View style={styles.divider} />;
+}
+
+function SectionLabel({ title, delay = 0 }: { title: string; delay?: number }) {
   return (
-    <Animated.Text entering={FadeIn.delay(delay)} style={styles.sectionHeader}>
+    <Animated.Text entering={FadeIn.delay(delay)} style={styles.sectionLabel}>
       {title}
     </Animated.Text>
   );
 }
 
+function SettingsRow({
+  icon,
+  title,
+  subtitle,
+  value,
+  onPress,
+  external = false,
+  danger = false,
+}: {
+  icon?: any;
+  title: string;
+  subtitle?: string;
+  value?: string;
+  onPress?: () => void;
+  external?: boolean;
+  danger?: boolean;
+}) {
+  const interactive = Boolean(onPress);
+  return (
+    <Pressable
+      disabled={!interactive}
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        onPress?.();
+      }}
+      style={[styles.row, !icon && styles.rowNoIcon]}
+    >
+      {icon}
+      <View style={styles.rowText}>
+        <Text style={[styles.rowTitle, danger && styles.dangerText]} numberOfLines={1}>
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text style={styles.rowSubtitle} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        ) : null}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {value ? (
+          <Text style={styles.rowSubtitle} numberOfLines={1}>
+            {value}
+          </Text>
+        ) : null}
+        {interactive ? (
+          external ? (
+            <ExternalLink size={15} color="rgba(255,255,255,0.45)" strokeWidth={2.2} />
+          ) : (
+            <ChevronRight size={17} color="rgba(255,255,255,0.45)" strokeWidth={2.2} />
+          )
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
+
 export default function SettingsScreen() {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const {
-    notifications,
-    privacy,
-    appearance,
-    syncing,
-    lastSyncedAt,
-    setNotificationSetting,
-    setPrivacySetting,
-    setAppearanceSetting,
-  } = useSettings();
+  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Aayush';
 
   useEffect(() => {
     trackScreen('Settings');
   }, []);
 
-  const handleLogout = () => {
-    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Sign Out',
-        style: 'destructive',
-        onPress: async () => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          await signOut();
-          router.replace('/(auth)/login');
-        },
-      },
-    ]);
-  };
-
-  const handleDMPrivacy = () => {
-    Alert.alert('Who can DM you?', 'Control who can send you direct messages', [
-      {
-        text: 'Anyone in same event',
-        onPress: () => {
-          setPrivacySetting('dmPrivacy', 'event');
-        },
-      },
-      {
-        text: 'Only saved contacts',
-        onPress: () => {
-          setPrivacySetting('dmPrivacy', 'contacts');
-        },
-      },
-      {
-        text: 'No one',
-        onPress: () => {
-          setPrivacySetting('dmPrivacy', 'none');
-        },
-      },
-      { text: 'Cancel', style: 'cancel' },
-    ]);
-  };
-
-  const getDMPrivacyLabel = () => {
-    switch (privacy.dmPrivacy) {
-      case 'event':
-        return 'Same event attendees';
-      case 'contacts':
-        return 'Saved contacts only';
-      case 'none':
-        return 'No one';
-      default:
-        return 'Anyone';
-    }
-  };
-
   const openLink = (url: string) => {
     Linking.openURL(url);
   };
 
+  const handleLogout = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await signOut();
+    router.replace('/(auth)/login');
+  };
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
       <Animated.View entering={FadeIn} style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backIcon}>←</Text>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/');
+            }
+          }}
+          style={styles.backButton}
+        >
+          <ArrowLeft size={25} color="#F8F8F8" strokeWidth={2.4} />
         </Pressable>
-        <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Settings</Text>
-          <Text style={styles.headerSubtitle}>
-            {syncing
-              ? 'Syncing preferences...'
-              : lastSyncedAt
-                ? `Synced ${lastSyncedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
-                : 'Preferences sync across your account'}
-          </Text>
-        </View>
-        <View style={{ width: 40 }} />
+        <Text style={styles.headerTitle}>Settings</Text>
+        <View style={styles.headerSpacer} />
       </Animated.View>
 
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         style={styles.scrollView}
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Account Section */}
-        <SectionHeader title="Account" delay={100} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="👤"
-            label="Edit Profile"
-            sublabel="Photo, name, bio, city"
-            onPress={() => router.push('/profile/edit')}
-            delay={150}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🔑"
-            label="Change Password"
-            onPress={() => Alert.alert('Coming Soon', 'Password change will be available soon')}
-            delay={200}
-          />
-        </View>
-
-        {/* App Navigation */}
-        <SectionHeader title="App Navigation" delay={225} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="✨"
-            label="Explore Events"
-            sublabel="Trending, soonest, and new drops"
-            onPress={() => router.push('/(tabs)/explore')}
-            delay={250}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🎟️"
-            label="My Tickets"
-            sublabel="Upcoming passes and past bookings"
-            onPress={() => router.push('/(tabs)/tickets')}
-            delay={275}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="📍"
-            label="Browse Map"
-            sublabel="Open events by location"
-            onPress={() => router.push('/map')}
-            delay={300}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🏟️"
-            label="Venue Guide"
-            sublabel="Jump into venue pages and neighborhoods"
-            onPress={() => router.push('/(tabs)/venues' as any)}
-            delay={325}
-          />
-        </View>
-
-        {/* Notifications Section */}
-        <SectionHeader title="Notifications" delay={350} />
-        <View style={styles.section}>
-          <ToggleItem
-            icon="🎟️"
-            label="Ticket Updates"
-            sublabel="Purchase confirmations, transfers"
-            value={notifications.tickets}
-            onValueChange={(val) => setNotificationSetting('tickets', val)}
-            delay={400}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="⏰"
-            label="Event Reminders"
-            sublabel="Starting soon, changes"
-            value={notifications.events}
-            onValueChange={(val) => setNotificationSetting('events', val)}
-            delay={450}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="💬"
-            label="Chat Activity"
-            sublabel="Messages in event chats"
-            value={notifications.chat}
-            onValueChange={(val) => setNotificationSetting('chat', val)}
-            delay={500}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="📨"
-            label="DM Requests"
-            sublabel="New message requests"
-            value={notifications.dm}
-            onValueChange={(val) => setNotificationSetting('dm', val)}
-            delay={550}
-          />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="📢"
-            label="Recommendations"
-            sublabel="Events you might like"
-            value={notifications.promo}
-            onValueChange={(val) => setNotificationSetting('promo', val)}
-            delay={600}
-          />
-        </View>
-
-        {/* Privacy & Safety Section */}
-        <SectionHeader title="Privacy & Safety" delay={650} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="🚫"
-            label="Blocked Users"
-            sublabel="Manage blocked accounts"
-            onPress={() => Alert.alert('Coming Soon', 'Blocked users will be available soon')}
-            delay={700}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="✉️"
-            label="Who Can DM Me"
-            sublabel={getDMPrivacyLabel()}
-            onPress={handleDMPrivacy}
-            delay={750}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="📍"
-            label="Location Sharing"
-            sublabel="Manage Party Buddy settings"
-            onPress={() => router.push('/safety')}
-            delay={800}
-          />
-        </View>
-
-        {/* Appearance Section */}
-        <SectionHeader title="Appearance" delay={850} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="🌙"
-            label="Theme"
-            sublabel={
-              appearance.theme === 'dark'
-                ? 'Dark'
-                : appearance.theme === 'light'
-                  ? 'Light'
-                  : 'System'
+        <Group delay={80}>
+          <SettingsRow
+            icon={
+              <LinearGradient
+                colors={['#E8E0FF', '#C7FFE1']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.avatar}
+              >
+                <Text style={styles.avatarFace}>••{'\n'}⌣</Text>
+              </LinearGradient>
             }
-            onPress={() =>
-              Alert.alert('Theme', 'Choose how THE C1RCLE should look.', [
-                { text: 'System', onPress: () => setAppearanceSetting('theme', 'system') },
-                { text: 'Dark', onPress: () => setAppearanceSetting('theme', 'dark') },
-                { text: 'Light', onPress: () => setAppearanceSetting('theme', 'light') },
-                { text: 'Cancel', style: 'cancel' },
-              ])
+            title={displayName}
+            subtitle="View Profile"
+            onPress={() => router.push('/(tabs)/profile')}
+          />
+          <Divider />
+          <SettingsRow title="Edit Profile" onPress={() => router.push('/profile/edit')} />
+        </Group>
+
+        <Group delay={140}>
+          <SettingsRow
+            icon={
+              <SettingIcon tone="account">
+                <CircleUser
+                  size={17}
+                  color="#fff"
+                  fill="rgba(255,255,255,0.45)"
+                  strokeWidth={2.2}
+                />
+              </SettingIcon>
             }
-            delay={900}
+            title="Account Settings"
+            onPress={() => router.push('/settings/account' as any)}
           />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="✨"
-            label="Reduce Motion"
-            sublabel="Minimize animations"
-            value={appearance.reduceMotion}
-            onValueChange={(val) => setAppearanceSetting('reduceMotion', val)}
-            delay={950}
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="payment">
+                <Wallet size={17} color="#fff" fill="rgba(255,255,255,0.25)" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Payment"
+            onPress={() => router.push('/settings/payment' as any)}
           />
-          <View style={styles.divider} />
-          <ToggleItem
-            icon="📳"
-            label="Haptic Feedback"
-            sublabel="Vibrations on actions"
-            value={appearance.haptics}
-            onValueChange={(val) => setAppearanceSetting('haptics', val)}
-            delay={1000}
-          />
-        </View>
+        </Group>
 
-        {/* Legal & About Section */}
-        <SectionHeader title="Legal & About" delay={1050} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="📜"
-            label="Terms of Service"
-            onPress={() => router.push('/legal/terms')}
-            delay={1100}
+        <SectionLabel title="Preferences" delay={200} />
+        <Group delay={240}>
+          <SettingsRow
+            icon={
+              <SettingIcon tone="notifications">
+                <Bell size={17} color="#fff" fill="#fff" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Notifications"
+            onPress={() => router.push('/settings/notifications' as any)}
           />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🔐"
-            label="Privacy Policy"
-            onPress={() => router.push('/legal/privacy')}
-            delay={1150}
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="permissions">
+                <ShieldCheck
+                  size={17}
+                  color="#fff"
+                  fill="rgba(255,255,255,0.35)"
+                  strokeWidth={2.2}
+                />
+              </SettingIcon>
+            }
+            title="Permissions"
+            onPress={() => router.push('/settings/permissions' as any)}
           />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="💰"
-            label="Refund Policy"
-            onPress={() => router.push('/legal/refunds')}
-            delay={1200}
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="appearance">
+                <Eye size={17} color="#fff" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Appearance"
+            onPress={() => router.push('/settings/appearance' as any)}
           />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="👥"
-            label="Community Guidelines"
-            onPress={() => router.push('/legal/guidelines')}
-            delay={1250}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🛡️"
-            label="Safety Policy"
-            onPress={() => router.push('/legal/safety')}
-            delay={1300}
-          />
-        </View>
+        </Group>
 
-        {/* Support Section */}
-        <SectionHeader title="Support" delay={1350} />
-        <View style={styles.section}>
-          <MenuItem
-            icon="❓"
-            label="Help & FAQ"
-            onPress={() => openLink('https://thec1rcle.com/help')}
-            delay={1400}
-          />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="💬"
-            label="Contact Support"
-            sublabel="support@thec1rcle.com"
+        <SectionLabel title="Resources" delay={300} />
+        <Group delay={340}>
+          <SettingsRow
+            icon={
+              <SettingIcon tone="support">
+                <Mail size={17} color="#fff" fill="rgba(255,255,255,0.25)" strokeWidth={2.2} />
+              </SettingIcon>
+            }
+            title="Contact Support"
             onPress={() => openLink('mailto:support@thec1rcle.com')}
-            delay={1450}
           />
-          <View style={styles.divider} />
-          <MenuItem
-            icon="🐛"
-            label="Report a Bug"
-            onPress={() =>
-              Alert.alert('Report Bug', "Send details to bugs@thec1rcle.com and we'll fix it!")
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="store">
+                <Text style={styles.starIcon}>★</Text>
+              </SettingIcon>
             }
-            delay={1500}
+            title="Rate in App Store"
+            onPress={() => openLink('https://thec1rcle.com')}
+            external
           />
-        </View>
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="instagram">
+                <Text style={styles.brandIcon}>◎</Text>
+              </SettingIcon>
+            }
+            title="THEC1RCLE on Instagram"
+            onPress={() => openLink('https://instagram.com/thec1rcle')}
+            external
+          />
+          <Divider />
+          <SettingsRow
+            icon={
+              <SettingIcon tone="x">
+                <X size={15} color="#fff" strokeWidth={2.4} />
+              </SettingIcon>
+            }
+            title="THEC1RCLE on X (Twitter)"
+            onPress={() => openLink('https://x.com/thec1rcle')}
+            external
+          />
+        </Group>
 
-        {/* Sign Out */}
-        <View style={[styles.section, { marginTop: 24 }]}>
-          <MenuItem icon="🚪" label="Sign Out" danger onPress={handleLogout} delay={1550} />
-        </View>
+        <SectionLabel title="Build Info" delay={360} />
+        <Group delay={380}>
+          <SettingsRow title="App Version" value="8.18.0" />
+          <Divider />
+          <SettingsRow title="Build Version" value="2117" />
+          <Divider />
+          <SettingsRow
+            title="Legal"
+            value="Privacy & Terms"
+            onPress={() => router.push('/legal/privacy' as any)}
+          />
+        </Group>
 
-        {/* App Version */}
-        <Animated.View entering={FadeIn.delay(1600)} style={styles.versionInfo}>
-          <LinearGradient
-            colors={['rgba(244, 74, 34, 0.15)', 'rgba(244, 74, 34, 0.05)']}
-            style={styles.versionLogo}
-          >
-            <Text style={styles.versionLogoText}>C1</Text>
-          </LinearGradient>
-          <Text style={styles.versionText}>THE C1RCLE</Text>
-          <Text style={styles.versionNumber}>v1.0.0 (build 1)</Text>
-        </Animated.View>
+        <SectionLabel title="Logout" delay={400} />
+        <Group delay={420}>
+          <SettingsRow title="Logout" onPress={handleLogout} danger />
+        </Group>
       </ScrollView>
     </View>
   );
@@ -502,130 +352,178 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
-  },
-  headerTitle: {
-    color: colors.gold,
-    fontSize: 17,
-    fontWeight: '600',
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  headerSubtitle: {
-    color: colors.goldMetallic,
-    fontSize: 11,
-    marginTop: 2,
-    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 18,
+    paddingBottom: 20,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.base[50],
+    width: layoutSize.backButton,
+    height: layoutSize.backButton,
+    borderRadius: layoutSize.backButton / 2,
+    backgroundColor: '#141414',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
   },
-  backIcon: {
-    color: colors.gold,
-    fontSize: 20,
+  headerTitle: {
+    color: '#F8F8F8',
+    fontSize: textSize.header,
+    lineHeight: 24,
+    fontFamily: font.bold,
+  },
+  headerSpacer: {
+    width: layoutSize.backButton,
   },
   scrollView: {
     flex: 1,
-    paddingHorizontal: 20,
   },
-  sectionHeader: {
-    color: colors.goldMetallic,
-    fontSize: 11,
-    fontWeight: '600',
-    letterSpacing: 1.5,
-    textTransform: 'uppercase',
-    marginTop: 24,
-    marginBottom: 12,
+  scrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 150,
   },
-  section: {
-    backgroundColor: colors.base[50],
-    borderRadius: radii.xl,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.06)',
+  sectionLabel: {
+    color: '#8D8D8F',
+    fontSize: textSize.section,
+    lineHeight: 22,
+    fontFamily: font.black,
+    marginTop: 8,
+    marginBottom: 6,
+    paddingHorizontal: 13,
+  },
+  group: {
+    backgroundColor: '#222324',
+    borderRadius: layoutSize.groupRadius,
     overflow: 'hidden',
+    marginBottom: layoutSize.groupGap,
   },
-  menuItem: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    minHeight: layoutSize.rowMin,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
   },
-  menuItemIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  rowNoIcon: {
+    minHeight: layoutSize.rowNoIconMin,
+  },
+  avatar: {
+    width: layoutSize.avatar,
+    height: layoutSize.avatar,
+    borderRadius: layoutSize.avatar / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 14,
+    marginRight: 11,
   },
-  menuItemIconText: {
-    fontSize: 18,
-  },
-  menuItemContent: {
-    flex: 1,
-  },
-  menuItemLabel: {
-    color: colors.gold,
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  menuItemLabelDanger: {
-    color: colors.error,
-  },
-  menuItemSublabel: {
-    color: colors.goldMetallic,
+  avatarFace: {
+    color: '#0B0B0D',
     fontSize: 13,
-    marginTop: 2,
+    lineHeight: 13,
+    fontFamily: font.black,
+    textAlign: 'center',
   },
-  menuItemArrow: {
-    color: colors.goldMetallic,
-    fontSize: 22,
-    fontWeight: '300',
+  iconTile: {
+    width: layoutSize.iconTile,
+    height: layoutSize.iconTile,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 11,
+  },
+  accountIcon: {
+    backgroundColor: '#A7A7A7',
+  },
+  paymentIcon: {
+    backgroundColor: '#7044FF',
+  },
+  notificationsIcon: {
+    backgroundColor: '#F35A4C',
+  },
+  permissionsIcon: {
+    backgroundColor: '#62C96C',
+  },
+  appearanceIcon: {
+    backgroundColor: '#E94294',
+  },
+  supportIcon: {
+    backgroundColor: '#4B91FF',
+  },
+  storeIcon: {
+    backgroundColor: '#F5CF39',
+  },
+  instagramIcon: {
+    backgroundColor: '#E94878',
+  },
+  xIcon: {
+    backgroundColor: '#141414',
+  },
+  dangerIcon: {
+    backgroundColor: 'rgba(244,74,34,0.15)',
+  },
+  brandIcon: {
+    color: '#fff',
+    fontSize: 20,
+    lineHeight: 20,
+    fontFamily: font.black,
+  },
+  starIcon: {
+    color: '#fff',
+    fontSize: 18,
+    lineHeight: 19,
+    fontFamily: font.black,
+  },
+  rowText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  rowTitle: {
+    color: '#F5F5F5',
+    fontSize: textSize.row,
+    lineHeight: 20,
+    fontFamily: font.medium,
+  },
+  rowSubtitle: {
+    color: '#A6A6A8',
+    fontSize: textSize.subtitle,
+    lineHeight: 16,
+    fontFamily: font.regular,
+    marginTop: 1,
+  },
+  dangerText: {
+    color: '#F44A22',
   },
   divider: {
-    height: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    marginLeft: 70,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    marginLeft: 52,
   },
   versionInfo: {
     alignItems: 'center',
-    paddingVertical: 32,
-  },
-  versionLogo: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 12,
-  },
-  versionLogoText: {
-    color: colors.iris,
-    fontSize: 18,
-    fontWeight: '800',
+    paddingTop: 16,
+    paddingBottom: 20,
   },
   versionText: {
-    color: colors.gold,
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 4,
+    color: 'rgba(255,255,255,0.48)',
+    fontSize: textSize.version,
+    fontFamily: font.bold,
   },
   versionNumber: {
-    color: colors.goldMetallic,
-    fontSize: 12,
-    opacity: 0.7,
+    color: 'rgba(255,255,255,0.30)',
+    fontSize: textSize.caption,
+    fontFamily: font.medium,
+    marginTop: 4,
   },
 });
+
+const iconToneStyles = {
+  account: styles.accountIcon,
+  payment: styles.paymentIcon,
+  notifications: styles.notificationsIcon,
+  permissions: styles.permissionsIcon,
+  appearance: styles.appearanceIcon,
+  support: styles.supportIcon,
+  store: styles.storeIcon,
+  instagram: styles.instagramIcon,
+  x: styles.xIcon,
+  danger: styles.dangerIcon,
+};

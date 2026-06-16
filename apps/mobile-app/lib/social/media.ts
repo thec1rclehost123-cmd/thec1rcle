@@ -1,8 +1,8 @@
 // Media Sharing Service via API Gateway
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as ImagePicker from 'expo-image-picker';
-
+import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
+import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 // Media types
 export interface EventMedia {
@@ -162,6 +162,7 @@ export function subscribeToEventMedia(
 
   async function poll() {
     if (!active) return;
+    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ media: EventMedia[] }>(
         `/api/v1/social/media/${eventId}?limit=${mediaLimit}`,

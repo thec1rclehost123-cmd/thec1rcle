@@ -214,16 +214,24 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/by-code/:code',
     {
-      preHandler: [fastify.validate({ params: CodeParam })],
+      preHandler: [
+        fastify.validate({
+          params: CodeParam,
+          querystring: z.object({ eventId: z.string().optional() }),
+        }),
+      ],
     },
     async (request: any, reply) => {
       const { code } = request.params;
-      const snap = await fastify.db
+      const { eventId } = request.query;
+      let query = fastify.db
         .collection(LINKS_COL)
         .where('code', '==', code)
-        .where('isActive', '==', true)
-        .limit(1)
-        .get();
+        .where('isActive', '==', true);
+      if (eventId) {
+        query = query.where('eventId', '==', eventId);
+      }
+      const snap = await query.limit(1).get();
       if (snap.empty) return reply.status(404).send({ error: 'Link not found' });
       return { id: snap.docs[0].id, ...snap.docs[0].data() };
     },
@@ -320,16 +328,16 @@ export default async function promoterLinksRoutes(fastify: FastifyInstance) {
    * POST /api/v1/promoter-links/track-click
    * Records a click on a promoter link by code. No auth required — called from guest-portal.
    */
-  const TrackClickBody = z.object({ code: z.string() }).strict();
+  const TrackClickBody = z.object({ code: z.string(), eventId: z.string().optional() }).strict();
   fastify.post(
     '/track-click',
     {
       preHandler: [fastify.validate({ body: TrackClickBody })],
     },
     async (request: any, reply) => {
-      const { code } = request.body;
+      const { code, eventId } = request.body;
 
-      const result = await trackPromoterLinkClick(code, { source: 'promoter-links' });
+      const result = await trackPromoterLinkClick(code, { source: 'promoter-links', eventId });
 
       if (result.status !== 'ok') {
         return reply.status(404).send({ error: 'Link not found' });

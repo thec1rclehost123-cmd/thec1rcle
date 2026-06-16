@@ -1,15 +1,11 @@
-import { randomUUID } from 'node:crypto';
 import { getAdminDb, isFirebaseConfigured } from '@c1rcle/core/admin';
 import { getEvent } from '@c1rcle/core/event-engine';
 import { createOrder, confirmOrder } from './guest-order-engine.js';
 import { invalidateTicketsCache } from '@c1rcle/core/guest-profile-engine';
 import { generateOrderQRCodes } from './guest-qr-engine.js';
-import { getPromoterLinkByCode, recordConversion } from '@c1rcle/core/promoter-engine';
+import { getPromoterLinkByCode } from '@c1rcle/core/promoter-engine';
 import { validatePromoCode } from '@c1rcle/core/promo-service';
-import {
-  calculatePricing as coreCalculatePricing,
-  getEffectivePrice,
-} from '@c1rcle/core/pricing-engine';
+import { calculatePricing as coreCalculatePricing } from '@c1rcle/core/pricing-engine';
 import {
   createReservation as coreCreateReservation,
   releaseReservation as coreReleaseReservation,
@@ -72,9 +68,9 @@ const buildExistingOrderResponse = (order, reservationId, pricing = null, promot
   };
 };
 
-async function resolveEligiblePromoterCode(promoterCode) {
+async function resolveEligiblePromoterCode(promoterCode, eventId) {
   if (!promoterCode) return null;
-  const promoterLink = await getPromoterLinkByCode(promoterCode);
+  const promoterLink = await getPromoterLinkByCode(promoterCode, eventId);
   return promoterLink ? promoterCode : null;
 }
 
@@ -198,7 +194,7 @@ export async function calculatePricing(eventId, items, options = {}) {
   const event = await getEvent(eventId);
   if (!event) return { success: false, error: 'Event not found' };
 
-  const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode);
+  const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode, eventId);
 
   // Use unified core engine
   return await coreCalculatePricing({
@@ -315,9 +311,6 @@ export async function getReservation(reservationId) {
  * Convert reservation to order and initiate payment
  */
 export async function initiateCheckout(reservationId, userId, userDetails, options = {}) {
-  const { promoCode = null, promoterCode = null } = options;
-  const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode);
-
   // ── RACE CONDITION GUARD ──────────────────────────────────────────────────
   // Acquire a Redis distributed lock for this reservation so only one checkout
   // request can run at a time. Without this, two concurrent browser tabs or
@@ -359,18 +352,16 @@ export async function initiateCheckout(reservationId, userId, userDetails, optio
   }
 }
 
-async function _initiateCheckoutInner(reservationId, userId, userDetails, options, redisClient) {
+async function _initiateCheckoutInner(reservationId, userId, userDetails, options, _redisClient) {
   const { promoCode = null, promoterCode = null } = options;
 
-  // Resolve promoter code and fetch reservation in parallel — independent operations
-  const [eligiblePromoterCode, reservation] = await Promise.all([
-    resolveEligiblePromoterCode(promoterCode),
-    getReservation(reservationId),
-  ]);
+  const reservation = await getReservation(reservationId);
 
   if (!reservation) {
     return { success: false, error: 'Reservation not found' };
   }
+
+  const eligiblePromoterCode = await resolveEligiblePromoterCode(promoterCode, reservation.eventId);
 
   const { getOrderByReservationId, checkExistingRSVP } = await import('./guest-order-engine.js');
   const existingOrder = await getOrderByReservationId(reservationId);
@@ -656,7 +647,7 @@ export async function cleanupExpiredReservations() {
   let cleaned = 0;
 
   if (!isFirebaseConfigured()) {
-    for (const [id, reservation] of fallbackReservations) {
+    for (const [, reservation] of fallbackReservations) {
       if (reservation.status === 'active' && new Date(reservation.expiresAt) < now) {
         reservation.status = 'expired';
         cleaned++;

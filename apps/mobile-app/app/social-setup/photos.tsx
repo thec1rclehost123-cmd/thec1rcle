@@ -3,11 +3,6 @@
  * Step 1 — Photo grid (6 slots, Hinge-style layout).
  * Main slot must be filled to proceed.
  */
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
-import { Plus, X, ChevronRight } from 'lucide-react-native';
 import { useState, useCallback } from 'react';
 import {
   View,
@@ -19,12 +14,16 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Plus, X, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
-import { colors } from '@/lib/design/theme';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
+import { colors } from '@/lib/design/theme';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const HORIZONTAL_PAD = 24;
@@ -212,6 +211,8 @@ export default function SocialSetupPhotos() {
       </View>
 
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -320,7 +321,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: 0,
     marginBottom: 4,
   },
   subtitle: {

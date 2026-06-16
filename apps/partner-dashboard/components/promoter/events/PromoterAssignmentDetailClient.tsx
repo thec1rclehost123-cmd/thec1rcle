@@ -8,16 +8,25 @@ import { PromoterLinksPanel } from './PromoterLinksPanel';
 import { PromoterSalesPanel } from './PromoterSalesPanel';
 import { PromoterGuestListPanel } from './PromoterGuestListPanel';
 
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
+
 export function PromoterAssignmentDetailClient({ assignmentId }: { assignmentId: string }) {
   const [activeTab, setActiveTab] = useState<'links' | 'sales' | 'guests'>('links');
+  const { user } = useDashboardAuth();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['promoter', 'event', assignmentId],
     queryFn: async () => {
-      const res = await fetch(`/api/partners/promoters/events/${assignmentId}`);
+      const token = await user?.getIdToken();
+      const res = await fetch(`/api/partners/promoters/events/${assignmentId}`, {
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
       if (!res.ok) throw new Error('Failed to fetch event detail');
       return res.json();
     },
+    enabled: !!user,
   });
 
   if (isLoading) {

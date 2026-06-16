@@ -1,7 +1,6 @@
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Tabs } from 'expo-router';
+import { View, StyleSheet, Pressable, DeviceEventEmitter, Dimensions, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   Compass,
   MapPin,
@@ -10,56 +9,20 @@ import {
   Heart,
   type LucideIcon,
 } from 'lucide-react-native';
-import React, { useEffect } from 'react';
-import { View, StyleSheet, Pressable, DeviceEventEmitter } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
+import { BlurView } from 'expo-blur';
 import Svg, { Polygon, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
-
 import { colors, gradients } from '@/lib/design/theme';
+import { LinearGradient } from 'expo-linear-gradient';
 
-// viewBox is 100×62. All cone coordinates live in this space.
-// The SVG stretches to fill the tab slot (width="100%") so it's always centred.
-//   cx=50 is the horizontal centre
-//   tip: same width as the bar (~26% of 100)
-//   base: ~74% of 100, spread across the full bottom edge
-function SpotlightCone() {
-  const tipL = 37; // narrow top-left  (26px wide band)
-  const tipR = 63; // narrow top-right
-  const bL = 13; // wide bottom-left  (74px wide band)
-  const bR = 87; // wide bottom-right
-  const tipY = 3; // just below the bar
-  const bY = 62; // bottom of the pill
-
-  return (
-    <Svg
-      width="100%"
-      height="100%"
-      viewBox="0 0 100 62"
-      preserveAspectRatio="none"
-      style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
-      pointerEvents="none"
-    >
-      <Defs>
-        <SvgGradient id="coneGrad" x1="0" y1="0" x2="0" y2="1">
-          <Stop offset="0" stopColor={colors.iris} stopOpacity="0.7" />
-          <Stop offset="0.55" stopColor={colors.iris} stopOpacity="0.2" />
-          <Stop offset="1" stopColor={colors.iris} stopOpacity="0.0" />
-        </SvgGradient>
-      </Defs>
-      {/* Trapezoid: narrow at top (bar width), wide at bottom */}
-      <Polygon
-        points={`${tipL},${tipY} ${tipR},${tipY} ${bR},${bY} ${bL},${bY}`}
-        fill="url(#coneGrad)"
-      />
-    </Svg>
-  );
-}
+// Spotlight Cone removed.
 
 // ── Tab routes shown in the bar ───────────────────────────────────────────────
 const VISIBLE_ROUTES = ['explore', 'inbox', 'social', 'tickets', 'venues'] as const;
@@ -73,26 +36,20 @@ const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
   venues: MapPin,
 };
 
-// ── Custom floating pill tab bar ───────────────────────────────────────────────
+const TAB_LABELS: Record<VisibleRoute, string> = {
+  explore: 'Explore',
+  inbox: 'Chat',
+  social: 'Dating',
+  tickets: 'Tickets',
+  venues: 'Venues',
+};
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const TAB_BAR_WIDTH = SCREEN_WIDTH - 40;
+const TAB_ITEM_WIDTH = (TAB_BAR_WIDTH - 8) / 5;
+
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
-  const translateY = useSharedValue(0);
-  const opacity = useSharedValue(1);
-
-  // Listen to scroll events emitted from screens
-  useEffect(() => {
-    const sub = DeviceEventEmitter.addListener('tabBarScroll', ({ hide }: { hide: boolean }) => {
-      translateY.value = withSpring(hide ? 120 : 0, { damping: 22, stiffness: 220, mass: 0.8 });
-      opacity.value = withTiming(hide ? 0 : 1, { duration: 180 });
-    });
-    return () => sub.remove();
-  }, []);
-
-  const animStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-    opacity: opacity.value,
-  }));
-
   const activeRouteName = state.routes[state.index]?.name;
 
   // Only show the 5 visible routes
@@ -100,11 +57,45 @@ function CustomTabBar({ state, navigation }: any) {
     (VISIBLE_ROUTES as readonly string[]).includes(r.name),
   );
 
-  const handlePress = (route: any) => {
-    // Always snap tab bar back into view on any tap
-    translateY.value = withSpring(0, { damping: 20, stiffness: 250, mass: 0.7 });
-    opacity.value = withTiming(1, { duration: 150 });
+  const activeIndex = visibleRoutes.findIndex((r: any) => r.name === activeRouteName);
+  const highlightOffset = useSharedValue(activeIndex > -1 ? activeIndex : 0);
 
+  useEffect(() => {
+    if (activeIndex > -1) {
+      highlightOffset.value = withTiming(activeIndex, { duration: 200 });
+    }
+  }, [activeIndex]);
+
+  const highlightStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: highlightOffset.value * TAB_ITEM_WIDTH }],
+    };
+  });
+
+  const isScrollingDown = useSharedValue(false);
+  const lastScrollY = useSharedValue(0);
+
+  useEffect(() => {
+    const sub = DeviceEventEmitter.addListener('tabBarScroll', (y: number) => {
+      if (y > lastScrollY.value + 5 && y > 50) {
+        isScrollingDown.value = true;
+      } else if (y < lastScrollY.value - 5 || y <= 50) {
+        isScrollingDown.value = false;
+      }
+      lastScrollY.value = y;
+    });
+    return () => sub.remove();
+  }, []);
+
+  const tabBarStyle = useAnimatedStyle(() => {
+    const scale = withTiming(isScrollingDown.value ? 0.88 : 1, { duration: 250 });
+    const translateY = withTiming(isScrollingDown.value ? 15 : 0, { duration: 250 });
+    return {
+      transform: [{ scale }, { translateY }],
+    };
+  });
+
+  const handlePress = (route: any) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     const isFocused = activeRouteName === route.name;
@@ -123,17 +114,16 @@ function CustomTabBar({ state, navigation }: any) {
     <Animated.View
       style={[
         styles.tabBarContainer,
-        { bottom: insets.bottom > 0 ? insets.bottom + 8 : 20 },
-        animStyle,
+        { bottom: insets.bottom > 0 ? insets.bottom : 16 },
+        tabBarStyle,
       ]}
     >
-      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-      <LinearGradient
-        colors={['rgba(44, 44, 46, 0.7)', 'rgba(28, 28, 30, 0.85)']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 0, y: 1 }}
-        style={styles.tabBarGradient}
-      >
+      <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+
+      <View style={styles.tabBarContent}>
+        <Animated.View style={[styles.highlightWrapper, highlightStyle]}>
+          <View style={styles.activeHighlight} />
+        </Animated.View>
         {visibleRoutes.map((route: any) => {
           const isFocused = activeRouteName === route.name;
           const Icon = TAB_ICONS[route.name as VisibleRoute];
@@ -142,28 +132,16 @@ function CustomTabBar({ state, navigation }: any) {
 
           return (
             <Pressable key={route.key} onPress={() => handlePress(route)} style={styles.tabItem}>
-              {isFocused && (
-                <>
-                  {/* Orange bar — the "light source" at the top edge */}
-                  <View style={styles.spotlightBar} />
-
-                  {/* True triangular cone via SVG trapezoid + gradient */}
-                  <SpotlightCone />
-                </>
-              )}
-
-              {/* Icon — glows orange when active, no circle background */}
               <View style={styles.iconWrap}>
-                <IconComp
-                  size={22}
-                  color={isFocused ? colors.iris : 'rgba(255,255,255,0.38)'}
-                  strokeWidth={isFocused ? 2.0 : 1.7}
-                />
+                <IconComp size={22} color="#fff" strokeWidth={isFocused ? 2.5 : 2.0} />
+                <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>
+                  {TAB_LABELS[route.name as VisibleRoute]}
+                </Text>
               </View>
             </Pressable>
           );
         })}
-      </LinearGradient>
+      </View>
     </Animated.View>
   );
 }
@@ -190,19 +168,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     right: 20,
-    height: 64,
-    borderRadius: 32,
+    height: 72,
+    borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: 'rgba(0,0,0,0.2)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.5,
-    shadowRadius: 24,
-    elevation: 15,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(10, 10, 10, 0.25)', // Dark base for glass
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  tabBarGradient: {
+  tabBarContent: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -230,12 +203,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 8,
   },
-  // Icon container — no active background, icon color change conveys state
-  iconWrap: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+  highlightWrapper: {
+    position: 'absolute',
+    left: 4, // aligns with paddingHorizontal
+    top: 0,
+    bottom: 0,
+    width: TAB_ITEM_WIDTH,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  activeHighlight: {
+    width: 60,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  // Icon container — active background capsule
+  iconWrap: {
+    width: 60,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabLabel: {
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 2,
+    color: 'rgba(255,255,255,0.6)',
+  },
+  tabLabelActive: {
+    color: '#fff',
   },
 });

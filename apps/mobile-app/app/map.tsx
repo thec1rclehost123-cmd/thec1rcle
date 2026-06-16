@@ -1,9 +1,3 @@
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import * as Location from 'expo-location';
-import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
@@ -14,10 +8,17 @@ import {
   Platform,
   Linking,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
-import Animated, { SlideInUp } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as Location from 'expo-location';
+import * as Haptics from 'expo-haptics';
+import { Image } from 'expo-image';
+import Animated, { SlideInUp } from 'react-native-reanimated';
+import { useEventsStore, type Event } from '@/store/eventsStore';
+import { useVenuesStore, type Venue } from '@/store/venuesStore';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import {
   calculateDistanceKm,
@@ -29,8 +30,6 @@ import {
   getVenueLocationLabel,
   normalizeVenueKey,
 } from '@/lib/venueDiscovery';
-import { useEventsStore, type Event } from '@/store/eventsStore';
-import { useVenuesStore, type Venue } from '@/store/venuesStore';
 
 const DEFAULT_REGION = {
   latitude: 19.076,
@@ -132,11 +131,17 @@ function MapEventCard({ cluster, onPress }: { cluster: EventCluster; onPress: ()
     day: 'numeric',
   });
   const imageUrl = event.coverImage;
+  const posterTransitionTag = `poster-${event.id}-map`;
 
   return (
     <Pressable onPress={onPress} style={mapStyles.eventCard}>
       {imageUrl ? (
-        <Image source={{ uri: imageUrl }} style={mapStyles.eventCardImage} contentFit="cover" />
+        <Animated.Image
+          sharedTransitionTag={posterTransitionTag}
+          source={{ uri: imageUrl }}
+          style={mapStyles.eventCardImage}
+          resizeMode="cover"
+        />
       ) : (
         <LinearGradient
           colors={gradients.primary as [string, string]}
@@ -506,7 +511,7 @@ export default function MapScreen() {
         style={StyleSheet.absoluteFill}
         provider={PROVIDER_DEFAULT}
         initialRegion={initialRegion}
-        showsUserLocation
+        showsUserLocation={true}
         showsMyLocationButton={false}
         showsCompass={false}
         mapType="standard"
@@ -602,7 +607,11 @@ export default function MapScreen() {
           <Pressable
             onPress={() => {
               void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.back();
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/');
+              }
             }}
             style={mapStyles.backButton}
           >
@@ -678,7 +687,10 @@ export default function MapScreen() {
               onPress={() =>
                 router.push({
                   pathname: '/event/[id]',
-                  params: { id: selectedCluster.events[0].id },
+                  params: {
+                    id: selectedCluster.events[0].id,
+                    posterTransitionTag: `poster-${selectedCluster.events[0].id}-map`,
+                  },
                 })
               }
             />
@@ -689,7 +701,10 @@ export default function MapScreen() {
                   void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                   router.push({
                     pathname: '/event/[id]',
-                    params: { id: selectedCluster.events[0].id },
+                    params: {
+                      id: selectedCluster.events[0].id,
+                      posterTransitionTag: `poster-${selectedCluster.events[0].id}-map`,
+                    },
                   });
                 }}
                 style={mapStyles.viewButton}

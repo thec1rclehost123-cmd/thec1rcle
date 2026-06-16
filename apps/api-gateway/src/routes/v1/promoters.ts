@@ -479,9 +479,31 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         .get();
 
       const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-      const event: Record<string, any> = eventDoc.exists
-        ? { id: eventDoc.id, ...(eventDoc.data() || {}) }
-        : { id: eventId };
+      if (!eventDoc.exists) {
+        return reply.status(404).send({ error: 'Event not found' });
+      }
+
+      const event = { id: eventDoc.id, ...(eventDoc.data() || {}) };
+
+      // 1. Validate event lifecycle
+      if (!['scheduled', 'live'].includes(event.lifecycle)) {
+        return reply.status(400).send({ error: 'Event is not currently active' });
+      }
+
+      // 2. Validate promoters are enabled globally for this event
+      const globallyEnabled =
+        event.promotersEnabled === true || event.promoterSettings?.enabled === true;
+      if (!globallyEnabled) {
+        return reply.status(403).send({ error: 'Promoters are not enabled for this event' });
+      }
+
+      // 3. Validate promoter is in whitelist (if one exists)
+      const allowedIds = Array.isArray(event.promoterSettings?.allowedPromoterIds)
+        ? event.promoterSettings.allowedPromoterIds.map((id: any) => String(id))
+        : [];
+      if (allowedIds.length > 0 && !allowedIds.includes(promoterId)) {
+        return reply.status(403).send({ error: 'You are not authorized to promote this event' });
+      }
 
       if (existingSnap.empty === false) {
         const existing = { id: existingSnap.docs[0].id, ...existingSnap.docs[0].data() };
@@ -491,11 +513,57 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         };
       }
 
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-      const code = Array.from(
-        { length: 6 },
-        () => chars[Math.floor(Math.random() * chars.length)],
-      ).join('');
+      const promoterRef = fastify.db.collection('promoters').doc(promoterId);
+      const promoterDoc = await promoterRef.get();
+      let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+      if (!trackingCode) {
+        if (body.customTrackingCode) {
+          const cleanCode = String(body.customTrackingCode)
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
+          if (cleanCode.length < 3)
+            return reply.status(400).send({ error: 'Custom code must be at least 3 characters' });
+          const existingGlobal = await fastify.db
+            .collection('promoters')
+            .where('trackingCode', '==', cleanCode)
+            .limit(1)
+            .get();
+          if (!existingGlobal.empty) {
+            return reply
+              .status(409)
+              .send({ error: 'This custom code is already taken. Please choose another.' });
+          }
+          trackingCode = cleanCode;
+        } else {
+          const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+          let base = (body.promoterName || 'promo').toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (base.length > 10) base = base.substring(0, 10);
+          if (base.length < 3) base = 'promo';
+
+          let isUnique = false;
+          let newCode = '';
+          while (!isUnique) {
+            const suffix = Array.from(
+              { length: 3 },
+              () => chars[Math.floor(Math.random() * chars.length)],
+            ).join('');
+            newCode = `${base}${suffix}`;
+            const existingGlobal = await fastify.db
+              .collection('promoters')
+              .where('trackingCode', '==', newCode)
+              .limit(1)
+              .get();
+            if (existingGlobal.empty) {
+              isUnique = true;
+            }
+          }
+          trackingCode = newCode;
+        }
+        await promoterRef.set({ trackingCode }, { merge: true });
+      }
+
+      const code = trackingCode;
       const now = new Date().toISOString();
       const id = randomUUID();
       const link = {
@@ -633,10 +701,18 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/promoter/links/click',
     {
-      preHandler: [fastify.validate({ body: GuestPromoterLinkClickBody })],
+      preHandler: [
+        fastify.validate({
+          body: z.object({
+            code: z.string(),
+            source: z.string().optional(),
+            eventId: z.string().optional(),
+          }),
+        }),
+      ],
     },
     async (request, reply) => {
-      const body = request.body as { code: string; source?: string };
+      const body = request.body as { code: string; source?: string; eventId?: string };
       const code = typeof body?.code === 'string' ? body.code.trim() : '';
 
       if (!code) {
@@ -646,6 +722,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       try {
         const result = await trackPromoterLinkClick(code, {
           source: body?.source || 'guest-portal',
+          eventId: body?.eventId,
         });
 
         if (result.status === 'unavailable') {
@@ -789,7 +866,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         deduped.set(doc.id, { id: doc.id, ...(doc.data() || {}) });
       }
 
-      let events = [...deduped.values()]
+      const events = [...deduped.values()]
         .filter((event) => isPromoterAllowedForEvent(event, promoterId))
         .filter((event) => {
           if (!status)
@@ -1029,7 +1106,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         throw reply.status(403).send({ error: 'Forbidden' });
       });
 
-      let q: any = fastify.db
+      const q: any = fastify.db
         .collection('promoter_connections')
         .where('promoterId', '==', promoterId)
         .limit(100);
@@ -1127,6 +1204,54 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           updatedAt: new Date().toISOString(),
           ...(body.reason ? { reason: String(body.reason) } : {}),
         });
+
+      // Link Revocation Logic
+      if (['revoked', 'blocked', 'rejected', 'removed'].includes(nextStatus)) {
+        try {
+          const connDoc = await fastify.db
+            .collection('promoter_connections')
+            .doc(connectionId)
+            .get();
+          if (connDoc.exists) {
+            const current = connDoc.data() as any;
+            let eventIds: string[] = [];
+            if (current.targetType === 'event') {
+              eventIds = [String(current.targetId)];
+            } else if (current.targetType === 'host' || current.targetType === 'venue') {
+              const eventsSnap = await fastify.db
+                .collection('events')
+                .where('hostId', '==', String(current.targetId))
+                .get();
+              eventIds = eventsSnap.docs.map((doc: any) => doc.id);
+            }
+
+            if (eventIds.length > 0) {
+              const linksSnap = await fastify.db
+                .collection('promoter_links')
+                .where('promoterId', '==', current.promoterId)
+                .get();
+              const batch = fastify.db.batch();
+              let count = 0;
+              for (const linkDoc of linksSnap.docs) {
+                const link = linkDoc.data() as any;
+                if (eventIds.includes(String(link.eventId))) {
+                  batch.update(linkDoc.ref, {
+                    isActive: false,
+                    status: 'deactivated',
+                    revokedAt: new Date().toISOString(),
+                  });
+                  count++;
+                }
+              }
+              if (count > 0) {
+                await batch.commit();
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Failed to revoke promoter links:', e);
+        }
+      }
 
       return { success: true, status: nextStatus };
     },
@@ -1294,48 +1419,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       });
 
       try {
-        // 1. Fetch order
-        const orderDoc = await fastify.db.collection('orders').doc(orderId).get();
-        if (!orderDoc.exists) {
-          return reply.send({ case: 'invalid', message: 'No confirmed order found with this ID' });
-        }
-
-        const order = orderDoc.data() as Record<string, any>;
-
-        // 2. Validate event match
-        if (order.eventId !== eventId) {
-          return reply.send({
-            case: 'wrong_event',
-            message: 'This ticket belongs to a different event',
-          });
-        }
-
-        // 3. Validate order is confirmed / checked-in
-        if (!['confirmed', 'checked_in'].includes(order.status)) {
-          return reply.send({ case: 'invalid', message: 'Order is not in a confirmed state' });
-        }
-
-        // 4. Attribution priority guard — never override a tracked attribution
-        if (order.source === 'link' || order.source === 'promo_code') {
-          return reply.send({
-            case: 'already_assigned',
-            existingCode: order.promoterCode,
-            source: order.source,
-            message: 'This ticket is already attributed to a promoter via a tracking link',
-          });
-        }
-
-        // 5. Already manually assigned (to any promoter)
-        if (order.promoterCode) {
-          return reply.send({
-            case: 'already_assigned',
-            existingCode: order.promoterCode,
-            source: order.source || 'manual',
-            message: 'This ticket is already assigned to a promoter',
-          });
-        }
-
-        // 6. Rate limit — max 50 manual assignments per promoter per event
+        // 1. Rate limit (can be done outside TX)
         const countSnap = await fastify.db
           .collection('promoter_manual_assignments')
           .where('promoterId', '==', promoterId)
@@ -1348,7 +1432,7 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           });
         }
 
-        // 7. Get promoter's active tracking link for this event
+        // 2. Get promoter's active tracking link for this event
         const linkSnap = await fastify.db
           .collection('promoter_links')
           .where('promoterId', '==', promoterId)
@@ -1368,14 +1452,55 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
         const now = new Date().toISOString();
         const assignmentId = `manual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
-        // 8. Atomic write: update order + write audit log
-        await fastify.db.runTransaction(async (tx: any) => {
-          tx.update(fastify.db.collection('orders').doc(orderId), {
+        // 3. Atomic transaction: read order, validate, and assign
+        const txResult = await fastify.db.runTransaction(async (tx: any) => {
+          const orderRef = fastify.db.collection('orders').doc(orderId);
+          const orderDoc = await tx.get(orderRef);
+
+          if (!orderDoc.exists) {
+            return { case: 'invalid', message: 'No confirmed order found with this ID' };
+          }
+
+          const order = orderDoc.data() as Record<string, any>;
+
+          // Validate event match
+          if (order.eventId !== eventId) {
+            return { case: 'wrong_event', message: 'This ticket belongs to a different event' };
+          }
+
+          // Validate order is confirmed / checked-in
+          if (!['confirmed', 'checked_in'].includes(order.status)) {
+            return { case: 'invalid', message: 'Order is not in a confirmed state' };
+          }
+
+          // Attribution priority guard — never override a tracked attribution
+          if (order.source === 'link' || order.source === 'promo_code') {
+            return {
+              case: 'already_assigned',
+              existingCode: order.promoterCode,
+              source: order.source,
+              message: 'This ticket is already attributed to a promoter via a tracking link',
+            };
+          }
+
+          // Already manually assigned (to any promoter)
+          if (order.promoterCode) {
+            return {
+              case: 'already_assigned',
+              existingCode: order.promoterCode,
+              source: order.source || 'manual',
+              message: 'This ticket is already assigned to a promoter',
+            };
+          }
+
+          // All checks passed -> execute writes
+          tx.update(orderRef, {
             promoterCode: link.code,
             promoterId,
             source: 'manual',
             updatedAt: now,
           });
+
           tx.set(fastify.db.collection('promoter_manual_assignments').doc(assignmentId), {
             id: assignmentId,
             promoterId,
@@ -1385,12 +1510,18 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
             addedBy: request.user.uid,
             addedAt: now,
           });
+
+          return { case: 'assigned', orderId, promoterId, promoterCode: link.code };
         });
+
+        if (txResult.case !== 'assigned') {
+          return reply.send(txResult);
+        }
 
         fastify.log.info(
           `[Promoter] Manual assignment: promoter=${promoterId} order=${orderId} event=${eventId}`,
         );
-        return reply.send({ case: 'assigned', orderId, promoterId, promoterCode: link.code });
+        return reply.send(txResult);
       } catch (error: any) {
         fastify.log.error(`[Promoter] Manual guest assign error: ${error.message}`);
         return reply.status(500).send({ error: 'Internal server error' });

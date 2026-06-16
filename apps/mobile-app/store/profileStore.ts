@@ -3,14 +3,13 @@
  * Extended user profile data beyond Firebase Auth
  */
 
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 import { create } from 'zustand';
-
 // @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { getFirebaseApp } from '@/lib/firebase/client';
+import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
 
 function getDb() {
   return getFirestore(getFirebaseApp());
@@ -32,6 +31,8 @@ export interface UserProfile {
   // Social
   eventsAttended?: number;
   connections?: number;
+  instagram?: string;
+  spotify?: string;
 
   // Personalisation
   vibeTags?: string[];
@@ -80,6 +81,8 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     vibeTags: data?.vibeTags,
     isVerified: data?.isVerified,
     isPremium: data?.isPremium,
+    instagram: data?.instagram ?? '',
+    spotify: data?.spotify ?? '',
   };
 }
 

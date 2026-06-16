@@ -3,14 +3,13 @@
  * Step 2 — City, interestedIn, age range, height, smoking, drinking,
  *           sexuality, lookingFor. All required to proceed.
  */
-import * as Haptics from 'expo-haptics';
-import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronRight } from 'lucide-react-native';
 import { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, Alert } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { router, useLocalSearchParams } from 'expo-router';
+import Animated, { FadeInDown } from 'react-native-reanimated';
+import { ChevronRight } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
 import type { SocialProfile } from '@/store/socialProfileStore';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
@@ -253,6 +252,8 @@ export default function SocialSetupPreferences() {
       </View>
 
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -437,7 +438,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 26,
     fontWeight: '800',
-    letterSpacing: -0.4,
+    letterSpacing: 0,
     marginBottom: 6,
   },
   subtitle: {

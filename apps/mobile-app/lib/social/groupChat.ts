@@ -1,7 +1,7 @@
 // Event Group Chat Service via API Gateway
-import { GroupMessage, EventPhase, getEventPhase } from './types';
-
+import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
+import { GroupMessage, EventPhase, getEventPhase } from './types';
 
 /**
  * Get or create event group chat status.
@@ -140,6 +140,7 @@ export function subscribeToGroupChat(
 
   async function poll() {
     if (!active) return;
+    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ messages: GroupMessage[] }>(
         `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,

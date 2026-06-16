@@ -1,23 +1,21 @@
 'use client';
-import { FlashList } from '@shopify/flash-list';
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, router } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInDown,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { trackScreen } from '@/lib/analytics';
 import { colors, radii, gradients, shadows } from '@/lib/design/theme';
-import { formatEventDate, formatEventTime, safeDate } from '@/lib/utils/date';
 import { useEventsStore, type Event } from '@/store/eventsStore';
+import { formatEventDate, formatEventTime, safeDate } from '@/lib/utils/date';
+import { trackScreen } from '@/lib/analytics';
 
 const CATEGORY_META: Record<string, { label: string; emoji: string; accent: string }> = {
   club: { label: 'Club Nights', emoji: '🎧', accent: '#8B5CF6' },
@@ -32,6 +30,7 @@ const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 function CategoryEventCard({ event, index }: { event: Event; index: number }) {
   const scale = useSharedValue(1);
+  const posterTransitionTag = `poster-${event.id}-category-${index}`;
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -63,17 +62,17 @@ function CategoryEventCard({ event, index }: { event: Event; index: number }) {
         }}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          router.push({ pathname: '/event/[id]', params: { id: event.id } });
+          router.push({ pathname: '/event/[id]', params: { id: event.id, posterTransitionTag } });
         }}
         style={styles.card}
       >
         <View style={styles.cardImageWrap}>
           {event.coverImage ? (
-            <Image
+            <Animated.Image
+              sharedTransitionTag={posterTransitionTag}
               source={{ uri: event.coverImage }}
               style={styles.cardImage}
-              contentFit="cover"
-              transition={300}
+              resizeMode="cover"
             />
           ) : (
             <View style={[styles.cardImage, styles.cardImagePlaceholder]} />
@@ -168,6 +167,8 @@ export default function CategoryScreen() {
         </View>
       ) : (
         <FlashList
+          bounces={false}
+          overScrollMode="never"
           data={events}
           keyExtractor={(e) => e.id}
           contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 32 }}
@@ -240,7 +241,7 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontSize: 18,
     fontWeight: '700',
-    letterSpacing: -0.3,
+    letterSpacing: 0,
   },
 
   loadingWrap: {
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontSize: 16,
     fontWeight: '700',
-    letterSpacing: -0.2,
+    letterSpacing: 0,
   },
   cardVenue: {
     color: colors.goldMetallic,

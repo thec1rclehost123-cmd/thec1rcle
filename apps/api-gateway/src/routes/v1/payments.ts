@@ -431,9 +431,13 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
       }
 
       if (eventType === 'payment.failed' && orderId) {
-        const order = await fastify.orderRepo.getOrderById(orderId);
+        const order = await (fastify as any).orderRepo.getOrderById(orderId);
         if (order) {
-          await fastify.checkoutService.recordPaymentFailure(orderId, razorpayOrderId, paymentId);
+          await (fastify as any).checkoutService.recordPaymentFailure(
+            orderId,
+            razorpayOrderId,
+            paymentId,
+          );
 
           if (
             (order.status === 'payment_pending' || order.status === 'pending_payment') &&
@@ -451,6 +455,79 @@ export default async function paymentRoutes(fastify: FastifyInstance) {
         });
 
         return { success: true, orderId, status: 'payment_pending' };
+      }
+
+      const payoutEntity = payload?.payload?.payout?.entity || payload?.payout || null;
+
+      if (eventType === 'payout.processed' && payoutEntity) {
+        const requestId = payoutEntity.reference_id || payoutEntity.notes?.payoutRequestId;
+        if (!requestId) {
+          fastify.log.warn('Webhook payout.processed received but missing requestId');
+          return { success: true, ignored: true, reason: 'missing_request_id' };
+        }
+
+        const ref = fastify.db.collection('payout_requests').doc(requestId);
+        const doc = await ref.get();
+        if (!doc.exists) {
+          return { success: true, ignored: true, reason: 'payout_request_not_found' };
+        }
+
+        const data = doc.data() as any;
+        if (data.status === 'completed') {
+          return { success: true, alreadyProcessed: true };
+        }
+
+        const batch = fastify.db.batch();
+        batch.update(ref, { status: 'completed', completedAt: new Date().toISOString() });
+
+        const ledgerRef = fastify.db.collection('partner_ledger').doc();
+        batch.set(ledgerRef, {
+          toPartnerId: data.promoterId,
+          type: 'payout',
+          amount: -data.amountPaise,
+          currency: 'INR',
+          status: 'settled',
+          referenceId: requestId,
+          createdAt: new Date().toISOString(),
+        });
+
+        const auditRef = fastify.db.collection('promoter_audit_logs').doc();
+        batch.set(auditRef, {
+          promoterId: data.promoterId,
+          action: 'PAYOUT_PROCESSED',
+          targetId: requestId,
+          amountPaise: data.amountPaise,
+          timestamp: new Date().toISOString(),
+          performedBy: 'system_webhook',
+        });
+
+        await batch.commit();
+        return { success: true, requestId, status: 'completed' };
+      }
+
+      if ((eventType === 'payout.failed' || eventType === 'payout.reversed') && payoutEntity) {
+        const requestId = payoutEntity.reference_id || payoutEntity.notes?.payoutRequestId;
+        if (!requestId) return { success: true, ignored: true };
+
+        const ref = fastify.db.collection('payout_requests').doc(requestId);
+        const doc = await ref.get();
+        if (doc.exists && (doc.data() as any).status !== 'failed') {
+          const batch = fastify.db.batch();
+          batch.update(ref, { status: 'failed', failedAt: new Date().toISOString() });
+
+          const auditRef = fastify.db.collection('promoter_audit_logs').doc();
+          batch.set(auditRef, {
+            promoterId: (doc.data() as any).promoterId,
+            action: 'PAYOUT_FAILED',
+            targetId: requestId,
+            amountPaise: (doc.data() as any).amountPaise,
+            timestamp: new Date().toISOString(),
+            performedBy: 'system_webhook',
+          });
+
+          await batch.commit();
+        }
+        return { success: true, requestId, status: 'failed' };
       }
 
       return { success: true, ignored: true, eventType };

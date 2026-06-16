@@ -18,11 +18,17 @@ for (const pkg of MOBILE_SYMLINKS) {
 
   if (!fs.existsSync(target)) continue; // mobile-app not installed yet
   if (fs.existsSync(linkPath)) {
-    // Skip if it's already the correct symlink or a real directory installed by npm
+    // Skip if it's already the correct symlink or a complete real directory installed by npm.
     const stat = fs.lstatSync(linkPath);
     if (stat.isSymbolicLink()) continue; // already symlinked, leave it
-    // Real directory — npm installed it; don't overwrite
-    continue;
+    if (fs.existsSync(path.join(linkPath, 'package.json'))) {
+      // Real directory: npm installed it; don't overwrite.
+      continue;
+    }
+
+    // Interrupted installs can leave package shells without package.json.
+    // Move that shell aside so root tools resolve the mobile package.
+    fs.renameSync(linkPath, `${linkPath}.incomplete-${Date.now()}`);
   }
 
   try {
@@ -120,4 +126,26 @@ for (const routerDir of candidates) {
 
 if (patched === 0) {
   console.log('[postinstall] No Expo Router installs needed patching');
+}
+
+/**
+ * Patch Metro resolution depth bug in monorepos by symlinking expo-constants
+ * inside @expo/metro-runtime's nested node_modules.
+ */
+const metroRuntimeDir = path.join(rootNodeModules, '@expo', 'metro-runtime');
+const metroRuntimeNodeModules = path.join(metroRuntimeDir, 'node_modules');
+if (fs.existsSync(metroRuntimeDir)) {
+  try {
+    fs.mkdirSync(metroRuntimeNodeModules, { recursive: true });
+    const symlinkTarget = path.join(metroRuntimeNodeModules, 'expo-constants');
+    if (!fs.existsSync(symlinkTarget)) {
+      // Target is ../../../expo-constants relative to metroRuntimeNodeModules
+      fs.symlinkSync('../../../expo-constants', symlinkTarget, 'junction');
+      console.log(
+        '[postinstall] Symlinked expo-constants inside @expo/metro-runtime/node_modules to resolve Metro resolution depth bug',
+      );
+    }
+  } catch (e) {
+    console.warn(`[postinstall] Could not symlink expo-constants in metro-runtime: ${e.message}`);
+  }
 }

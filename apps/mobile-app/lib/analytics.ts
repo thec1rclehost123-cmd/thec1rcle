@@ -21,18 +21,22 @@ type AnalyticsProvider = 'firebase' | 'mixpanel' | 'amplitude' | 'console';
 
 // Event queue for batching
 const eventQueue: AnalyticsEvent[] = [];
+const analyticsDebug = process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true';
 
 // Configuration
 const config = {
-  debugMode: __DEV__,
+  debugMode: analyticsDebug,
   batchSize: 10,
   flushInterval: 30000, // 30 seconds
-  enabledProviders: ['firebase', 'console'] as AnalyticsProvider[], // Configure active providers
+  enabledProviders: [
+    'firebase',
+    ...(analyticsDebug ? ['console' as AnalyticsProvider] : []),
+  ] as AnalyticsProvider[],
 };
 
 // Provider-specific initializations
-const mixpanelClient: any = null;
-const amplitudeClient: any = null;
+let mixpanelClient: any = null;
+let amplitudeClient: any = null;
 
 /**
  * Initialize analytics providers
@@ -359,7 +363,7 @@ export function trackPurchaseFailed(eventId: string, error: string): void {
 }
 
 // Initialize auto-flush interval
-if (typeof setInterval !== 'undefined') {
+if (typeof setInterval !== 'undefined' && !__DEV__) {
   setInterval(flush, config.flushInterval);
 }
 

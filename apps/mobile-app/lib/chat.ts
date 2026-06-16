@@ -1,4 +1,5 @@
 // Event-based chat service via API Gateway
+import { AppState } from 'react-native';
 import { apiFetch } from './api';
 
 export interface ChatMessage {
@@ -112,6 +113,7 @@ export function subscribeToEventMessages(
 
   async function poll() {
     if (!active) return;
+    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ messages: ChatMessage[] }>(
         `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,

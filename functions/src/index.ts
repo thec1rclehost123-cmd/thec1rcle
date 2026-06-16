@@ -413,14 +413,19 @@ export const onEventUpdated = functions.firestore
  */
 // export const onEventCreated = ...
 
-export const onOrderUpdated = functions.firestore
+export const onOrderWrite = functions.firestore
   .document('orders/{orderId}')
-  .onUpdate(async (change, context) => {
-    const before = change.before.data();
-    const after = change.after.data();
+  .onWrite(async (change, context) => {
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.exists ? change.after.data() : null;
 
-    // Only trigger stats update once when order is confirmed
-    if (before.status !== 'confirmed' && after.status === 'confirmed') {
+    if (!after) return null; // Order deleted
+
+    const wasConfirmed = before?.status === 'confirmed';
+    const isConfirmed = after.status === 'confirmed';
+
+    // Only trigger stats update once when order transitions to confirmed
+    if (!wasConfirmed && isConfirmed) {
       const statsRef = admin.firestore().collection('platform_stats').doc('current');
 
       let totalTickets = 0;
@@ -428,13 +433,35 @@ export const onOrderUpdated = functions.firestore
         totalTickets = after.tickets.reduce((sum: number, t: any) => sum + (t.quantity || 0), 0);
       }
 
-      // 5. Automated FCM Topic Subscription (Fan-out protection)
+      // Automated FCM Topic Subscription (Fan-out protection)
       try {
         const topic = `event_${after.eventId}`;
         await admin.messaging().subscribeToTopic(after.userId, topic);
         console.log(`[Messaging] Subscribed user ${after.userId} to topic ${topic}`);
       } catch (e) {
         console.warn(`[Messaging] Failed to subscribe user to topic:`, e);
+      }
+
+      // Promoter Aggregation
+      if (after.promoterId) {
+        const promoterStatsRef = admin
+          .firestore()
+          .collection('promoter_stats')
+          .doc(after.promoterId);
+        const commission = after.promoterAttribution?.commissionAmount || 0;
+        const revenue = after.totalAmount || 0;
+
+        promoterStatsRef
+          .set(
+            {
+              totalOrders: admin.firestore.FieldValue.increment(1),
+              totalRevenue: admin.firestore.FieldValue.increment(revenue),
+              totalCommission: admin.firestore.FieldValue.increment(commission),
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+          )
+          .catch((err) => console.error('Failed to update promoter stats', err));
       }
 
       return statsRef.set(

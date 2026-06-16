@@ -8,9 +8,9 @@ export function trackEventImpression(eventId, promoterRef) {
   return guestApi.events.track(eventId, body);
 }
 
-export async function recordPromoterLinkClick(code) {
+export async function recordPromoterLinkClick(code, eventId) {
   if (!code) return null;
-  const { response, data } = await guestApi.promoters.trackClick({ code });
+  const { response, data } = await guestApi.promoters.trackClick({ code, eventId });
   if (!response.ok) {
     throw new Error(getApiErrorMessage(data, 'Unable to track promoter link click'));
   }

@@ -4,10 +4,6 @@
  * Auto-advances with manual swipe support
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { Compass, Ticket, Shield } from 'lucide-react-native';
 import { useState, useRef, useCallback } from 'react';
 import {
   View,
@@ -22,6 +18,10 @@ import {
   type ListRenderItemInfo,
   type ViewToken,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   useAnimatedStyle,
   withSpring,
@@ -31,8 +31,7 @@ import Animated, {
   FadeIn,
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
-
+import { Compass, Ticket, Shield } from 'lucide-react-native';
 import { colors } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 
@@ -41,11 +40,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const ONBOARDING_KEY = 'c1rcle_onboarding_complete';
 
 export async function hasCompletedOnboarding(): Promise<boolean> {
-  try {
-    return (await AsyncStorage.getItem(ONBOARDING_KEY)) === 'true';
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 export async function markOnboardingComplete(): Promise<void> {
@@ -206,6 +201,7 @@ export default function OnboardingScreen() {
 
       {/* Slides */}
       <Animated.ScrollView
+        overScrollMode="never"
         ref={scrollViewRef}
         style={{ flex: 1 }}
         horizontal
@@ -314,7 +310,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 40,
     marginBottom: 16,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   subtitle: {
     fontSize: 16,

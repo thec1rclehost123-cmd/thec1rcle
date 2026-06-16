@@ -10,6 +10,8 @@ const DiscoveryQuerySchema = z.object({
   city: z.string().optional(),
   query: z.string().optional(),
   search: z.string().optional(),
+  limit: z.coerce.number().min(1).max(100).optional().default(50),
+  offset: z.coerce.number().min(0).optional().default(0),
 });
 
 const DiscoveryPatchSchema = z.object({
@@ -22,10 +24,10 @@ const DiscoveryPatchSchema = z.object({
 const DiscoveryPostSchema = z.object({
   requesterId: z.string(),
   requesterType: z.string(),
-  requesterName: z.string(),
+  requesterName: z.string().optional().default(''),
   targetId: z.string(),
-  targetType: z.string(),
-  targetName: z.string(),
+  targetType: z.string().optional().default(''),
+  targetName: z.string().optional().default(''),
 });
 
 export default async function discoveryRoutes(fastify: FastifyInstance) {
@@ -147,31 +149,60 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
         }
 
         if (action === 'search' || action === 'discover') {
-          let q: any = fastify.db.collection('users');
-          const { search } = request.query;
+          const { search, limit, offset } = request.query;
 
-          if (type === 'host') q = q.where('role', '==', 'host');
-          else if (type === 'promoter') q = q.where('role', '==', 'promoter');
-          else if (type === 'venue') q = q.where('role', '==', 'venue');
+          const fetchFromCollection = async (collectionName: string, roleType: string) => {
+            const cacheKey = `list:${collectionName}:${roleType}:${city || 'global'}`;
+            const cached = await fastify.cache.get('discovery', cacheKey);
+            if (cached) return cached;
 
-          if (city) q = q.where('city', '==', city);
+            let q: any = fastify.db.collection(collectionName);
+            if (city) q = q.where('city', '==', city);
+            if (collectionName === 'users') q = q.where('role', '==', roleType);
 
-          const snap = await q.limit(50).get();
-          const partners = snap.docs.map((doc: any) => {
-            const data = doc.data();
-            return {
-              id: doc.id,
-              name: data.displayName || data.name || 'Anonymous',
-              type: data.role || 'host',
-              city: data.city || 'Unknown',
-              bio: data.bio || '',
-              avatar: data.photoURL || data.avatar || null,
-              coverImage: data.coverImage || null,
-              isVerified: data.kycStatus === 'verified',
-              eventsCount: 0,
-              followersCount: 0,
-            };
-          });
+            const snap = await q
+              .limit(500)
+              .get()
+              .catch((err: any) => {
+                fastify.log.error(`fetchFromCollection error for ${collectionName}: ${err}`);
+                return { docs: [] };
+              });
+            const results = snap.docs.map((doc: any) => {
+              const data = doc.data();
+              return {
+                id: doc.id,
+                name: data.displayName || data.name || 'Anonymous',
+                type: roleType,
+                city: data.city || 'Unknown',
+                bio: data.bio || data.description || '',
+                avatar: data.photoURL || data.avatar || data.logo || null,
+                coverImage: data.coverImage || null,
+                isVerified: data.kycStatus === 'verified' || data.isVerified === true,
+                eventsCount: data.eventsCount || 0,
+                followersCount: data.followersCount || 0,
+              };
+            });
+
+            // Cache for 10 minutes (600 seconds)
+            await fastify.cache.set('discovery', cacheKey, results, 600);
+            return results;
+          };
+
+          let partners: any[] = [];
+          if (type === 'host') {
+            partners = await fetchFromCollection('hosts', 'host');
+          } else if (type === 'venue') {
+            partners = await fetchFromCollection('venues', 'venue');
+          } else if (type === 'promoter') {
+            partners = await fetchFromCollection('users', 'promoter');
+          } else {
+            const [hosts, venues, promoters] = await Promise.all([
+              fetchFromCollection('hosts', 'host'),
+              fetchFromCollection('venues', 'venue'),
+              fetchFromCollection('users', 'promoter'),
+            ]);
+            partners = [...hosts, ...venues, ...promoters];
+          }
 
           let results = partners;
           const searchVal = query || search;
@@ -182,7 +213,9 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             );
           }
 
-          return { partners: results };
+          const paginatedResults = results.slice(offset, offset + limit);
+
+          return { partners: paginatedResults, total: results.length, offset, limit };
         }
 
         return { connections: [], partners: [] };

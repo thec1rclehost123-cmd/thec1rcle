@@ -1,9 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -17,16 +11,21 @@ import {
   Text,
   View,
 } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import QRCode from 'react-native-qrcode-svg';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import {
   ActionSheet,
   ShareSheetContent,
   TransferSheetContent,
 } from '@/components/tickets/TicketActionSheets';
-import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
+import { colors, gradients, radii } from '@/lib/design/theme';
 import {
   API_BASE,
   cancelFormalTransfer,
@@ -37,12 +36,12 @@ import {
   initiateFormalTransfer,
   reclaimSharedTicket,
 } from '@/lib/api';
-import { buildCalendarEventUrl } from '@/lib/calendar';
+import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
 import { shareEventLink } from '@/lib/deeplinks';
-import { colors, gradients, radii } from '@/lib/design/theme';
-import { safeDate, formatEventTime } from '@/lib/utils/date';
 import { addToWallet, isWalletAvailable, type PassData } from '@/lib/wallet';
+import { safeDate, formatEventTime } from '@/lib/utils/date';
 import { type Order, type OrderTicket, useTicketsStore } from '@/store/ticketsStore';
+import { buildCalendarEventUrl } from '@/lib/calendar';
 
 type ActiveSheet = 'share' | 'transfer' | null;
 
@@ -147,6 +146,15 @@ export default function TicketDetailScreen() {
       ?.map((ticket) => `${ticket.tierName} x${ticket.quantity}`)
       .join(', '),
   });
+
+  const accentColor =
+    (order as any)?.posterAccentColor ||
+    (order as any)?.dominantColor ||
+    (order as any)?.eventAccentColor ||
+    (order?.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
+      ? order.accentColor
+      : undefined) ||
+    '#D915A8';
 
   const handleAddToWallet = async () => {
     if (!order) return;
@@ -347,6 +355,8 @@ export default function TicketDetailScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 60 }}
       >
@@ -406,12 +416,12 @@ export default function TicketDetailScreen() {
 
             {showQr ? (
               <View style={styles.qrBlock}>
-                <View style={styles.qrSurface}>
+                <View style={[styles.qrSurface, { backgroundColor: accentColor }]}>
                   <QRCode
                     value={activeQr.qrCode}
                     size={180}
                     color="#161616"
-                    backgroundColor="#ffffff"
+                    backgroundColor="transparent"
                   />
                 </View>
                 <Text style={styles.qrLabel}>
@@ -737,7 +747,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 30,
     fontWeight: '900',
-    letterSpacing: -0.8,
+    letterSpacing: 0,
   },
   heroMeta: {
     color: 'rgba(255,255,255,0.76)',

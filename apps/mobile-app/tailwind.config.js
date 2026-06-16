@@ -79,18 +79,20 @@ module.exports = {
       },
 
       fontFamily: {
-        // EXACT MATCH to website fonts
-        heading: ['Satoshi-Bold', 'System', 'sans-serif'],
-        body: ['Inter-Regular', 'System', 'sans-serif'],
-        display: ['Satoshi-Black', 'System', 'sans-serif'],
-        satoshi: ['Satoshi-Regular', 'System', 'sans-serif'],
-        'satoshi-medium': ['Satoshi-Medium', 'System', 'sans-serif'],
-        'satoshi-bold': ['Satoshi-Bold', 'System', 'sans-serif'],
-        'satoshi-black': ['Satoshi-Black', 'System', 'sans-serif'],
-        inter: ['Inter-Regular', 'System', 'sans-serif'],
-        'inter-medium': ['Inter-Medium', 'System', 'sans-serif'],
-        'inter-semibold': ['Inter-SemiBold', 'System', 'sans-serif'],
-        'inter-bold': ['Inter-Bold', 'System', 'sans-serif'],
+        heading: ['System', 'sans-serif'],
+        body: ['System', 'sans-serif'],
+        medium: ['System', 'sans-serif'],
+        display: ['System', 'sans-serif'],
+        brand: ['System', 'sans-serif'],
+        'brand-accent': ['System', 'sans-serif'],
+        satoshi: ['System', 'sans-serif'],
+        'satoshi-medium': ['System', 'sans-serif'],
+        'satoshi-bold': ['System', 'sans-serif'],
+        'satoshi-black': ['System', 'sans-serif'],
+        inter: ['System', 'sans-serif'],
+        'inter-medium': ['System', 'sans-serif'],
+        'inter-semibold': ['System', 'sans-serif'],
+        'inter-bold': ['System', 'sans-serif'],
       },
 
       fontWeight: {

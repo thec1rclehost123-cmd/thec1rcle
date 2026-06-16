@@ -304,50 +304,50 @@ export function StatTrendCard({
 }: StatTrendCardProps) {
   return (
     <div
-      className="rounded-[32px] bg-surface-elevated border border-border-default p-5 flex flex-col gap-3 relative overflow-hidden"
-      style={trendUp ? { borderColor: `${color}44` } : undefined}
+      className="rounded-[24px] bg-surface-elevated border p-5 flex items-center justify-between relative overflow-hidden"
+      style={{ borderColor: 'rgba(255,255,255,0.06)' }}
     >
       {trendUp && (
         <div
-          className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl pointer-events-none"
-          style={{ background: `${color}10` }}
+          className="absolute top-0 right-0 w-32 h-32 rounded-full blur-[40px] pointer-events-none"
+          style={{ background: `${color}15` }}
         />
       )}
-      <div className="flex items-center justify-between relative z-10">
-        <div className="flex items-center gap-2">
-          {icon && (
-            <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center"
-              style={{ background: `${color}18`, color }}
-            >
-              {icon}
-            </div>
-          )}
-          <span className="text-[10px] font-black uppercase tracking-widest text-text-tertiary">
+      <div className="flex items-center gap-4 relative z-10">
+        {icon && (
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
+            style={{ background: `${color}15`, color }}
+          >
+            {icon}
+          </div>
+        )}
+        <div className="flex flex-col gap-1">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-text-placeholder">
             {label}
           </span>
-        </div>
-        {trend && (
-          <span
-            className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1"
-            style={{
-              background: trendUp ? 'rgba(52,211,153,0.12)' : 'rgba(239,68,68,0.1)',
-              color: trendUp ? '#34d399' : '#f87171',
-            }}
+          <p
+            className="text-[24px] font-black tracking-tight leading-none tabular-nums"
+            style={{ color: 'var(--v-text-primary, #fff)' }}
           >
-            {trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-            {trend}
-          </span>
-        )}
+            {value}
+          </p>
+        </div>
       </div>
-      <p
-        className="text-[28px] font-black tracking-tighter leading-none tabular-nums relative z-10"
-        style={{ color: 'var(--v-text-primary, #fff)' }}
-      >
-        {value}
-      </p>
+      {trend && (
+        <span
+          className="text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 relative z-10"
+          style={{
+            background: trendUp ? 'rgba(52,211,153,0.12)' : 'rgba(239,68,68,0.1)',
+            color: trendUp ? '#34d399' : '#f87171',
+          }}
+        >
+          {trendUp ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+          {trend}
+        </span>
+      )}
       {sparkData && (
-        <div className="relative z-10">
+        <div className="hidden">
           <MiniSparkline data={sparkData} color={color} height={28} />
         </div>
       )}

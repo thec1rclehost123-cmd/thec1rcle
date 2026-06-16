@@ -3,12 +3,10 @@
  * Liquid glass, parallax, and jaw-dropping animations
  */
 
+import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -22,7 +20,7 @@ import Animated, {
   FadeIn,
   SlideInUp,
 } from 'react-native-reanimated';
-
+import { useEffect } from 'react';
 import { colors, radii, shadows } from '@/lib/design/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -143,7 +141,12 @@ export function PremiumHeroCard({
       <Animated.View style={[styles.outerGlow, glowStyle]} />
 
       {/* Background Image with parallax */}
-      <Image source={{ uri: imageUrl }} style={styles.image} contentFit="cover" transition={400} />
+      <Animated.Image
+        sharedTransitionTag={`poster-${id}`}
+        source={{ uri: imageUrl }}
+        style={styles.image}
+        resizeMode="cover"
+      />
 
       {/* Multi-layer gradient overlay */}
       <LinearGradient
@@ -427,7 +430,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     lineHeight: 36,
     marginBottom: 10,
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
@@ -521,7 +524,7 @@ const styles = StyleSheet.create({
     color: colors.iris,
     fontSize: 28,
     fontWeight: '900',
-    letterSpacing: -1,
+    letterSpacing: 0,
   },
   soldOutBadge: {
     backgroundColor: 'rgba(255,59,48,0.2)',

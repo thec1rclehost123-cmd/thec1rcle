@@ -1,4 +1,5 @@
 // Typing Indicators Service via API Gateway
+import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
 
 // Typing indicator data
@@ -12,10 +13,10 @@ export interface TypingIndicator {
 // Typing status for group chat
 export interface TypingStatus {
   isTyping: boolean;
-  users: {
+  users: Array<{
     userId: string;
     userName: string;
-  }[];
+  }>;
 }
 
 const TYPING_TIMEOUT = 5000;
@@ -86,6 +87,7 @@ export function subscribeToGroupTyping(
 
   async function poll() {
     if (!active) return;
+    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ typers: TypingIndicator[] }>(
         `/api/v1/social/typing/${eventId}`,
@@ -129,6 +131,7 @@ export function subscribeToDMTyping(
 
   async function poll() {
     if (!active) return;
+    if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ typers: TypingIndicator[] }>(
         `/api/v1/social/typing/${conversationId}`,
@@ -160,7 +163,7 @@ export function createTypingHandler(setTyping: (isTyping: boolean) => Promise<vo
   onChangeText: () => void;
   onBlur: () => void;
 } {
-  let typingTimeout: NodeJS.Timeout | null = null;
+  let typingTimeout: ReturnType<typeof setTimeout> | null = null;
   let isCurrentlyTyping = false;
 
   const onChangeText = () => {
@@ -186,7 +189,7 @@ export function createTypingHandler(setTyping: (isTyping: boolean) => Promise<vo
   return { onChangeText, onBlur };
 }
 
-export function formatTypingText(users: { userName: string }[]): string {
+export function formatTypingText(users: Array<{ userName: string }>): string {
   if (users.length === 0) return '';
   if (users.length === 1) return `${users[0].userName} is typing...`;
   if (users.length === 2) return `${users[0].userName} and ${users[1].userName} are typing...`;

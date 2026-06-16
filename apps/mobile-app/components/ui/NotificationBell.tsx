@@ -3,10 +3,9 @@
  * Shows unread notification count with animated badge
  */
 
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { router } from 'expo-router';
+import { BlurView } from 'expo-blur';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -16,8 +15,10 @@ import Animated, {
   withTiming,
   FadeIn,
 } from 'react-native-reanimated';
-
+import * as Haptics from 'expo-haptics';
 import { colors, radii } from '@/lib/design/theme';
+
+import { Bell } from 'lucide-react-native';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -76,7 +77,7 @@ export function NotificationBell({
 
   const renderContent = () => (
     <>
-      <Text style={styles.icon}>🔔</Text>
+      <Bell size={22} color="#FFFFFF" strokeWidth={2.5} />
       {showBadge && (
         <Animated.View
           entering={FadeIn.springify()}

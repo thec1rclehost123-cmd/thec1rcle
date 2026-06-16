@@ -15,3 +15,12 @@ coverage
 .expo
 **/.expo
 *.log
+# Next.js/Expo workspace configs (next/core-web-vitals, expo) create circular plugin
+# references in ESLint v8 when loaded cross-workspace from root. Each app lints via
+# its own workspace command (npm run lint --workspace=apps/X) or in CI.
+apps/guest-portal/**
+apps/partner-dashboard/**
+apps/admin-console/**
+apps/mobile-app/**
+apps/mobile-app-backup/**
+apps/scanner-app/**

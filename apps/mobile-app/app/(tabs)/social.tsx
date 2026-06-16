@@ -1,8 +1,3 @@
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { Heart, X, Sparkles } from 'lucide-react-native';
 import { useState, useCallback, useEffect } from 'react';
 import {
   View,
@@ -13,7 +8,9 @@ import {
   Dimensions,
   Modal,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
+import { Heart, X, Sparkles } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -22,13 +19,15 @@ import Animated, {
   interpolate,
   runOnJS,
 } from 'react-native-reanimated';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { SoftBlockSheet } from '@/components/SoftBlockSheet';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useDatingStore, type DatingProfile, type Match } from '@/store/datingStore';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
+import { SoftBlockSheet } from '@/components/SoftBlockSheet';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_W = SCREEN_W - 40;
@@ -434,7 +433,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 26,
     fontWeight: '700',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   headerSub: {
     color: 'rgba(255,255,255,0.4)',
@@ -601,7 +600,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 22,
     fontWeight: '700',
-    letterSpacing: -0.3,
+    letterSpacing: 0,
   },
   verifiedBadge: {
     width: 20,
@@ -713,7 +712,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 28,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     marginBottom: 6,
   },
   matchSubtitle: {

@@ -525,8 +525,10 @@ export class C1rcleApiClient {
     return this.request(`/promoter-links?${query}`);
   }
 
-  async getPromoterLinkByCode(code) {
-    return this.request(`/promoter-links/by-code/${code}`);
+  async getPromoterLinkByCode(code, eventId) {
+    let path = `/promoter-links/by-code/${code}`;
+    if (eventId) path += `?eventId=${eventId}`;
+    return this.request(path);
   }
 
   async getPromoterStats(promoterId) {

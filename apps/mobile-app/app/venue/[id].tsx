@@ -1,9 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router, useLocalSearchParams } from 'expo-router';
-import { Heart } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,16 +10,21 @@ import {
   Text,
   View,
 } from 'react-native';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import { Ionicons } from '@expo/vector-icons';
+import { Heart } from 'lucide-react-native';
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { colors, radii } from '@/lib/design/theme';
 import { EventCard } from '@/components/ui/EventCard';
 import { PremiumButton } from '@/components/ui/PremiumButton';
-import { useAuth } from '@/hooks/useAuth';
-import { colors, radii } from '@/lib/design/theme';
-import { formatCompactCount } from '@/lib/venueDiscovery';
-import { useFollowStore } from '@/store/followStore';
 import { getFacilityEmoji, type VenueHighlight, useVenuePageStore } from '@/store/venuePageStore';
+import { useFollowStore } from '@/store/followStore';
+import { useAuth } from '@/hooks/useAuth';
+import { formatCompactCount } from '@/lib/venueDiscovery';
 
 const AnyFlatList = FlatList as any;
 
@@ -135,7 +134,12 @@ export default function VenuePageScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        bounces={false}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.hero}>
           {bannerUrl ? (
             <Image source={{ uri: bannerUrl }} style={styles.heroImage} contentFit="cover" />
@@ -250,6 +254,8 @@ export default function VenuePageScreen() {
             <Animated.View entering={FadeInDown.delay(100)} style={styles.section}>
               <Text style={styles.sectionTitle}>Highlights</Text>
               <ScrollView
+                bounces={false}
+                overScrollMode="never"
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.highlightRow}
@@ -602,7 +608,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 34,
     fontWeight: '900',
-    letterSpacing: -1,
+    letterSpacing: 0,
   },
   tagline: {
     color: 'rgba(255,255,255,0.8)',

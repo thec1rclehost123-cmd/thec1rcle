@@ -1,11 +1,10 @@
-import { BlurView } from 'expo-blur';
-import * as Haptics from 'expo-haptics';
-import { LinearGradient } from 'expo-linear-gradient';
 import { ReactNode } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
-import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
+import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, SlideInDown } from 'react-native-reanimated';
 import { colors, radii } from '@/lib/design/theme';
 
 interface HeaderProps {
@@ -266,7 +265,7 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontSize: 34,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   largeTitleSubtitle: {
     color: colors.goldMetallic,

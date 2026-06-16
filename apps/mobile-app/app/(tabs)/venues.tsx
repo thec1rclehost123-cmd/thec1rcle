@@ -3,11 +3,6 @@
  * Two-tab screen: Venues | Hosts
  * 2-column poster grid (BookMyShow-style), search bar, no filter chips.
  */
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { Search, X, MapPin, Building2, Users, Heart } from 'lucide-react-native';
 import { useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -19,19 +14,24 @@ import {
   RefreshControl,
   Dimensions,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
+import { Search, X, MapPin, Building2, Users, Heart } from 'lucide-react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 
-import { useAuth } from '@/hooks/useAuth';
 import { colors } from '@/lib/design/theme';
+import { useVenuesStore, Venue } from '@/store/venuesStore';
+import { useEventsStore } from '@/store/eventsStore';
+import { useFollowStore } from '@/store/followStore';
+import { useAuth } from '@/hooks/useAuth';
 import {
   getVenueDisplayName,
   getVenueLocationLabel,
   formatCompactCount,
 } from '@/lib/venueDiscovery';
-import { useEventsStore } from '@/store/eventsStore';
-import { useFollowStore } from '@/store/followStore';
-import { useVenuesStore, Venue } from '@/store/venuesStore';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 const H_PAD = 16;
@@ -313,6 +313,8 @@ export default function VenuesTab() {
         </View>
       ) : (
         <FlatList
+          bounces={false}
+          overScrollMode="never"
           data={activeTab === 'venues' ? venuePairs : hostPairs}
           keyExtractor={(_, i) => String(i)}
           showsVerticalScrollIndicator={false}
@@ -419,7 +421,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 32,
     fontWeight: '900',
-    letterSpacing: -0.8,
+    letterSpacing: 0,
     marginTop: 2,
     textTransform: 'uppercase',
   },
@@ -575,7 +577,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: '800',
-    letterSpacing: -0.2,
+    letterSpacing: 0,
     lineHeight: 17,
   },
   posterSubtitle: {

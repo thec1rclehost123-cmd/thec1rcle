@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { issueWallet } from '@c1rcle/core/cover-charge-engine';
 import { getAdminDb, isFirebaseConfigured } from '@c1rcle/core/admin';
 import { getEvent } from '@c1rcle/core/event-engine';
@@ -9,7 +8,6 @@ import {
   recordOrderCaptured,
   holdOrderRevenue,
   initiateRefund,
-  finalizeRefund,
   MONEY_STATES,
 } from '@c1rcle/core/ledger-engine';
 import {
@@ -27,6 +25,7 @@ const RSVP_COLLECTION = 'rsvp_orders';
 // In-memory fallback for development without Firebase
 let fallbackOrders = [];
 let fallbackRSVPs = [];
+const fallbackWebhookLogs = new Map();
 
 export const __resetOrderStoreForTests = () => {
   fallbackOrders = [];
@@ -158,7 +157,7 @@ export async function createRSVPOrder(payload) {
   let promoterSource = null;
   if (promoterCode) {
     try {
-      const link = await getPromoterLinkByCode(promoterCode);
+      const link = await getPromoterLinkByCode(promoterCode, eventId);
       if (link) {
         promoterLinkId = link.id;
         promoterAttributionId = link.promoterId || null;
@@ -357,7 +356,7 @@ export async function createOrder(payload) {
   let promoterSource = null;
   if (promoterCode) {
     try {
-      const link = await getPromoterLinkByCode(promoterCode);
+      const link = await getPromoterLinkByCode(promoterCode, eventId);
       if (link) {
         promoterLinkId = link.id;
         promoterDiscount = link.promoterDiscount || 0;
@@ -679,7 +678,7 @@ export async function getUserTicketCountForEvent(eventId, { userId, email }) {
     );
   } else {
     const db = getAdminDb();
-    let query = db
+    const query = db
       .collection(ORDERS_COLLECTION)
       .where('eventId', '==', eventId)
       .where('status', '==', 'confirmed');

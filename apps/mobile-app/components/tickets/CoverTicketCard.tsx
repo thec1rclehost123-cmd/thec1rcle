@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-
+import { AppState, View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { apiFetch } from '@/lib/api';
 
 interface CoverTicketCardProps {
@@ -42,6 +41,7 @@ export function CoverTicketCard({ walletId }: CoverTicketCardProps) {
 
     async function fetchWallet() {
       if (!walletId) return;
+      if (AppState.currentState !== 'active') return;
       try {
         const response = await apiFetch<{ wallet: WalletSnap }>(
           `/api/v1/cover-charge/wallet/${walletId}`,

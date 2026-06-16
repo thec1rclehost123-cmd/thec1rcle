@@ -126,7 +126,7 @@ export function AppleSidebar({
                 THE C1RCLE
               </h1>
               <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-text-tertiary truncate mt-0.5 opacity-60">
-                {brandLabel} Dashboard
+                {brandLabel}
               </p>
             </motion.div>
           )}

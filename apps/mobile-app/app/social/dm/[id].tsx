@@ -1,122 +1,86 @@
-import * as Haptics from 'expo-haptics';
-import { useLocalSearchParams, router } from 'expo-router';
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
   Alert,
-  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from 'react-native';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { useChatImagePicker } from '@/hooks/useChatImagePicker';
-import { useChatRateLimit } from '@/hooks/useChatRateLimit';
-import { trackScreen } from '@/lib/analytics';
-import { apiFetch } from '@/lib/api';
-import { DEMO_MODE, DEMO_DM_MESSAGES, DEMO_PRIVATE_CHATS, DEMO_NEW_MATCHES } from '@/lib/demo';
+import * as Haptics from 'expo-haptics';
 import {
-  subscribeToDirectMessages,
-  sendDirectMessage,
-  sendDirectImageMessage,
+  BrightCenterState,
+  BrightChatHeader,
+  BrightChatSurface,
+  BrightComposerDock,
+  BrightMessage,
+  BrightSendButton,
+  BrightTextInput,
+  BrightTypingIndicator,
+  formatChatTime,
+  type ChatSurfaceTheme,
+} from '@/components/chat/BrightChatSurface';
+import { useChatRateLimit } from '@/hooks/useChatRateLimit';
+import { apiFetch } from '@/lib/api';
+import { DEMO_DM_MESSAGES, DEMO_MODE, DEMO_NEW_MATCHES, DEMO_PRIVATE_CHATS } from '@/lib/demo';
+import { colors, radii, spacing, typography } from '@/lib/design/theme';
+import {
   acceptDMRequest,
-  declineDMRequest,
-  blockUser,
-  saveContact,
-  DirectMessage,
-  PrivateConversation,
-  setDMTypingStatus,
-  subscribeToDMTyping,
   createTypingHandler,
+  declineDMRequest,
+  type DirectMessage,
+  type PrivateConversation,
+  sendDirectMessage,
+  setDMTypingStatus,
+  subscribeToDirectMessages,
+  subscribeToDMTyping,
 } from '@/lib/social';
 import { useAuthStore } from '@/store/authStore';
 
-// Typing indicator
-function DMTypingIndicator({ isTyping, userName }: { isTyping: boolean; userName: string }) {
-  if (!isTyping) return null;
+const fonts = typography.fontFamily;
+
+function RequestBanner({
+  loading,
+  onAccept,
+  onDecline,
+}: {
+  loading: boolean;
+  onAccept: () => void;
+  onDecline: () => void;
+}) {
   return (
-    <Animated.View entering={FadeIn} className="px-4 mb-3">
-      <View className="flex-row items-center bg-midnight-100 px-3 py-2 rounded-bubble border border-white/10 self-start">
-        <Text className="text-gold-stone text-xs">{userName} is typing...</Text>
+    <View style={styles.requestBanner}>
+      <Text style={styles.requestTitle}>New chat request</Text>
+      <Text style={styles.requestText}>Accept this request to continue chatting.</Text>
+      <View style={styles.requestActions}>
+        <Pressable style={styles.requestSecondary} onPress={onDecline} disabled={loading}>
+          <Text style={styles.requestSecondaryText}>Decline</Text>
+        </Pressable>
+        <Pressable style={styles.requestPrimary} onPress={onAccept} disabled={loading}>
+          {loading ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.requestPrimaryText}>Accept</Text>
+          )}
+        </Pressable>
       </View>
-    </Animated.View>
-  );
-}
-
-// Message bubble
-function DMBubble({ message, isOwnMessage }: { message: DirectMessage; isOwnMessage: boolean }) {
-  const time =
-    message.createdAt && typeof message.createdAt === 'string'
-      ? new Date(message.createdAt).toLocaleTimeString('en-IN', {
-          hour: 'numeric',
-          minute: '2-digit',
-        })
-      : '';
-
-  return (
-    <View className={`mb-3 px-4 ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-      {message.type === 'image' ? (
-        <View className="max-w-[80%]">
-          <Image
-            source={{ uri: message.content }}
-            style={{ width: 220, height: 165, borderRadius: 16 }}
-            resizeMode="cover"
-          />
-        </View>
-      ) : (
-        <View
-          className={`max-w-[80%] px-4 py-3 rounded-bubble ${isOwnMessage ? 'bg-iris rounded-br-lg' : 'bg-midnight-100 border border-white/10 rounded-bl-lg'}`}
-        >
-          <Text className={isOwnMessage ? 'text-white' : 'text-gold'}>{message.content}</Text>
-        </View>
-      )}
-      <Text className="text-gold-stone/50 text-xs mt-1 mx-1">{time}</Text>
     </View>
   );
 }
 
-// DM Request banner
-function DMRequestBanner({ onAccept, onDecline, onBlock, loading }: any) {
-  return (
-    <Animated.View entering={FadeIn} className="bg-iris/10 border-b border-iris/30 px-4 py-4">
-      <Text className="text-gold mb-3 text-center">This person wants to connect with you</Text>
-      <View className="flex-row justify-center gap-3">
-        <Pressable
-          onPress={onDecline}
-          disabled={loading}
-          className="bg-surface border border-white/20 px-6 py-3 rounded-pill"
-        >
-          <Text className="text-gold-stone">Decline</Text>
-        </Pressable>
-        <Pressable onPress={onAccept} disabled={loading} className="bg-iris px-6 py-3 rounded-pill">
-          {loading ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Text className="text-white font-semibold">Accept</Text>
-          )}
-        </Pressable>
-      </View>
-      <Pressable onPress={onBlock} className="mt-3">
-        <Text className="text-red-400 text-center text-sm">Block this user</Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
 export default function DirectMessageScreen() {
-  const {
-    id: conversationId,
-    recipientName,
-    eventId,
-  } = useLocalSearchParams<{ id: string; recipientName?: string; eventId?: string }>();
+  const { id: conversationId, recipientName } = useLocalSearchParams<{
+    id: string;
+    recipientName?: string;
+    eventId?: string;
+  }>();
   const { user } = useAuthStore();
-  const scrollViewRef = useRef<ScrollView>(null);
+  const messagesListRef = useRef<FlashListRef<DirectMessage>>(null);
 
   const [conversation, setConversation] = useState<PrivateConversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
@@ -128,12 +92,12 @@ export default function DirectMessageScreen() {
   const [otherIsTyping, setOtherIsTyping] = useState(false);
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
-  const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
-    user?.uid || '',
-    `dm/${conversationId}`,
-  );
+  const privateChat = DEMO_PRIVATE_CHATS.find((chat) => chat.id === conversationId);
+  const newMatch = DEMO_NEW_MATCHES.find((match) => match.id === conversationId);
+  const avatarUrl = privateChat?.otherUserAvatar ?? newMatch?.photoURL;
+  const sharedEvent = privateChat?.sharedEventTitle ?? newMatch?.sharedEventTitle;
 
-  const typingHandler = useCallback(() => {
+  const typingHandler = useMemo(() => {
     if (conversationId && user?.uid) {
       return createTypingHandler(async (isTyping) => {
         await setDMTypingStatus(conversationId, user.uid, user.displayName || 'Guest', isTyping);
@@ -142,94 +106,109 @@ export default function DirectMessageScreen() {
     return { onChangeText: () => {}, onBlur: () => {} };
   }, [conversationId, user?.uid, user?.displayName]);
 
-  useEffect(() => {
-    if (!conversationId) return;
+  useFocusEffect(
+    useCallback(() => {
+      if (!conversationId) return;
 
-    // ── Demo mode: load pre-seeded messages, skip API ──────────────────
-    if (DEMO_MODE) {
-      const demoMsgs = (DEMO_DM_MESSAGES[conversationId] ?? []).map((m) => ({
-        ...m,
-        conversationId: conversationId as string,
-        readAt: null,
-        isDeleted: false,
-      })) as DirectMessage[];
+      if (DEMO_MODE) {
+        const demoMessages = (DEMO_DM_MESSAGES[conversationId] ?? []).map((message) => ({
+          ...message,
+          conversationId,
+          readAt: null,
+          isDeleted: false,
+        })) as DirectMessage[];
+        const resolvedName =
+          privateChat?.otherUserName ?? newMatch?.name ?? recipientName ?? 'Guest';
 
-      // Resolve display name from demo data
-      const privateChat = DEMO_PRIVATE_CHATS.find((c) => c.id === conversationId);
-      const newMatch = DEMO_NEW_MATCHES.find((m) => m.id === conversationId);
-      const resolvedName =
-        privateChat?.otherUserName ?? newMatch?.name ?? (recipientName as string) ?? 'Guest';
+        setOtherUserName(resolvedName);
+        setMessages(demoMessages);
+        setConversation({ status: 'accepted' } as PrivateConversation);
+        setOtherIsTyping(conversationId === 'dm-demo-01');
+        setLoading(false);
+        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: false }), 100);
+        return;
+      }
 
-      setOtherUserName(resolvedName);
-      setMessages(demoMsgs);
-      // Fake an accepted conversation so the input shows
-      setConversation({ status: 'accepted' } as any);
-      setLoading(false);
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: false }), 100);
-      return;
-    }
+      if (!user?.uid) return;
+      let active = true;
 
-    // ── Live mode ───────────────────────────────────────────────────────
-    if (!user?.uid) return;
-
-    let active = true;
-
-    async function fetchConversation() {
-      try {
-        const response = await apiFetch<{ conversation: PrivateConversation }>(
-          `/api/v1/social/dm/${conversationId}`,
-          { requireAuth: true },
-        );
-        if (active) {
-          setConversation(response.conversation);
-          const otherUserId = response.conversation.participants.find((p) => p !== user!.uid);
-          if (otherUserId) {
-            const otherProfile = await apiFetch<any>(`/api/v1/profiles/${otherUserId}`, {
-              requireAuth: false,
-            });
-            setOtherUserName(otherProfile?.displayName || 'Guest');
+      async function fetchConversation() {
+        try {
+          const response = await apiFetch<{ conversation: PrivateConversation }>(
+            `/api/v1/social/dm/${conversationId}`,
+            { requireAuth: true },
+          );
+          if (active) {
+            setConversation(response.conversation);
+            const otherUserId = response.conversation.participants.find(
+              (participant) => participant !== user!.uid,
+            );
+            if (otherUserId) {
+              const profile = await apiFetch<any>(`/api/v1/profiles/${otherUserId}`, {
+                requireAuth: false,
+              });
+              setOtherUserName(profile?.displayName || 'Guest');
+            }
           }
+        } catch {
+          // Preserve the existing silent live-chat fallback.
+        } finally {
+          if (active) setLoading(false);
         }
-      } catch (e) {
-      } finally {
-        if (active) setLoading(false);
       }
-    }
 
-    fetchConversation();
+      fetchConversation();
+      const unsubscribeMessages = subscribeToDirectMessages(conversationId, (nextMessages) => {
+        if (active) {
+          setMessages(nextMessages);
+          setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 100);
+        }
+      });
+      const unsubscribeTyping = subscribeToDMTyping(conversationId, user.uid, (isTyping, name) => {
+        if (active) {
+          setOtherIsTyping(isTyping);
+          if (name) setOtherUserName(name);
+        }
+      });
 
-    const unsubMessages = subscribeToDirectMessages(conversationId, (newMessages) => {
-      if (active) {
-        setMessages(newMessages);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-      }
-    });
-
-    const unsubTyping = subscribeToDMTyping(conversationId, user.uid, (isTyping, userName) => {
-      if (active) {
-        setOtherIsTyping(isTyping);
-        if (userName) setOtherUserName(userName);
-      }
-    });
-
-    return () => {
-      active = false;
-      unsubMessages();
-      unsubTyping();
-    };
-  }, [conversationId, user?.uid]);
+      return () => {
+        active = false;
+        unsubscribeMessages();
+        unsubscribeTyping();
+      };
+    }, [conversationId, user?.uid, privateChat?.otherUserName, newMatch?.name, recipientName]),
+  );
 
   const handleSend = async () => {
-    if (!inputText.trim() || !conversationId) return;
-    if (!checkRateLimit()) return;
+    const senderId = user?.uid ?? (DEMO_MODE ? 'demo-user-001' : undefined);
+    if (!inputText.trim() || !conversationId || !senderId || !checkRateLimit()) return;
 
     const content = inputText.trim();
     setInputText('');
     setSending(true);
+    typingHandler.onBlur();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      await sendDirectMessage(conversationId, user!.uid, content);
+      if (DEMO_MODE) {
+        setMessages((current) => [
+          ...current,
+          {
+            id: `demo-message-${Date.now()}`,
+            conversationId,
+            senderId,
+            content,
+            type: 'text',
+            createdAt: new Date().toISOString(),
+            readAt: null,
+            isDeleted: false,
+          },
+        ]);
+        setOtherIsTyping(false);
+        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 50);
+      } else {
+        await sendDirectMessage(conversationId, senderId, content);
+      }
     } catch (error: any) {
       Alert.alert('Error', error.message);
       setInputText(content);
@@ -241,90 +220,202 @@ export default function DirectMessageScreen() {
   const isPending = conversation?.status === 'pending';
   const isRecipient = conversation?.initiatedBy !== user?.uid;
   const isAccepted = conversation?.status === 'accepted';
+  const theme: ChatSurfaceTheme = {
+    mode: 'dm',
+    title: otherUserName,
+    subtitle: otherIsTyping
+      ? 'typing...'
+      : sharedEvent
+        ? `Met through ${sharedEvent}`
+        : isAccepted
+          ? 'Connected through THE C1RCLE'
+          : 'Request pending',
+    backgroundImage: avatarUrl,
+    heroImage: avatarUrl,
+    avatarUrls: user?.photoURL ? [user.photoURL] : [],
+    accentColor: colors.iris,
+  };
+
+  const renderMessage = useCallback(
+    ({ item, index }: { item: DirectMessage; index: number }) => (
+      <BrightMessage
+        content={item.content}
+        time={formatChatTime(item.createdAt)}
+        senderAvatar={avatarUrl}
+        type={item.type === 'image' ? 'image' : 'text'}
+        isOwnMessage={
+          item.senderId === user?.uid || (DEMO_MODE && item.senderId === 'demo-user-001')
+        }
+        index={index}
+        animate={index >= messages.length - 1}
+      />
+    ),
+    [avatarUrl, messages.length, user?.uid],
+  );
+
+  const messageListEmpty = useMemo(
+    () => <BrightCenterState title="Say hello" body="Your conversation will appear here." />,
+    [],
+  );
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-midnight items-center justify-center">
-        <ActivityIndicator size="large" color="#F44A22" />
-      </SafeAreaView>
+      <BrightChatSurface theme={theme}>
+        <View style={styles.loading}>
+          <ActivityIndicator size="large" color="#FFFFFF" />
+        </View>
+      </BrightChatSurface>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-midnight" edges={['top']}>
-      <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/10">
-        <View className="flex-row items-center">
-          <Pressable onPress={() => router.back()} className="mr-4">
-            <Text className="text-gold text-lg">←</Text>
-          </Pressable>
-          <View className="w-10 h-10 rounded-full bg-surface items-center justify-center mr-3">
-            <Text className="text-xl">👤</Text>
-          </View>
-          <View>
-            <Text className="text-gold font-semibold">{otherUserName}</Text>
-            <Text className="text-gold-stone text-xs">
-              {otherIsTyping ? 'typing...' : isAccepted ? 'Connected' : 'Request pending'}
-            </Text>
-          </View>
-        </View>
-      </View>
+    <BrightChatSurface theme={theme}>
+      <SafeAreaView style={styles.conversation} edges={['top']}>
+        <BrightChatHeader theme={theme} onBack={() => router.back()} />
 
-      {isPending && isRecipient && (
-        <DMRequestBanner
-          onAccept={async () => {
-            setActionLoading(true);
-            await acceptDMRequest(conversationId, user!.uid);
-            setActionLoading(false);
+        {isPending && isRecipient ? (
+          <RequestBanner
+            loading={actionLoading}
+            onAccept={async () => {
+              if (!user?.uid) return;
+              setActionLoading(true);
+              await acceptDMRequest(conversationId, user.uid);
+              setConversation((current) =>
+                current ? { ...current, status: 'accepted' } : current,
+              );
+              setActionLoading(false);
+            }}
+            onDecline={() => {
+              if (!user?.uid) return;
+              declineDMRequest(conversationId, user.uid).then(() => router.back());
+            }}
+          />
+        ) : null}
+
+        <FlashList
+          ref={messagesListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(message) => message.id}
+          drawDistance={440}
+          style={styles.messages}
+          contentContainerStyle={styles.messagesContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={messageListEmpty}
+          ListFooterComponent={
+            otherIsTyping ? (
+              <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} />
+            ) : null
+          }
+          extraData={{
+            otherIsTyping,
+            otherUserName,
+            avatarUrl,
+            userId: user?.uid,
+            messageCount: messages.length,
           }}
-          onDecline={() => declineDMRequest(conversationId, user!.uid).then(() => router.back())}
-          loading={actionLoading}
         />
-      )}
+      </SafeAreaView>
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
-      >
-        <ScrollView
-          ref={scrollViewRef}
-          className="flex-1"
-          contentContainerStyle={{ paddingVertical: 16 }}
-        >
-          {messages.map((msg) => (
-            <DMBubble key={msg.id} message={msg} isOwnMessage={msg.senderId === user?.uid} />
-          ))}
-          <DMTypingIndicator isTyping={otherIsTyping} userName={otherUserName} />
-        </ScrollView>
-
-        {isAccepted && (
-          <View className="border-t border-white/10 px-4 py-3 bg-midnight">
-            <View className="flex-row items-end">
-              <TextInput
+      {isAccepted ? (
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <SafeAreaView edges={['bottom']}>
+            <BrightComposerDock>
+              <BrightTextInput
                 value={inputText}
-                onChangeText={(t) => {
-                  setInputText(t);
-                  typingHandler().onChangeText();
+                onChangeText={(text) => {
+                  setInputText(text);
+                  typingHandler.onChangeText();
                 }}
-                placeholder="Message..."
-                placeholderTextColor="#666"
+                onBlur={typingHandler.onBlur}
+                placeholder="Your message..."
                 multiline
-                className="flex-1 bg-surface border border-white/10 rounded-bubble px-4 py-3 text-gold mr-3 max-h-32"
+                maxLength={500}
               />
-              <Pressable
+              <BrightSendButton
                 onPress={handleSend}
-                disabled={!inputText.trim() || sending}
-                className={`w-12 h-12 rounded-full items-center justify-center ${inputText.trim() ? 'bg-iris' : 'bg-iris/50'}`}
-              >
-                {sending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text className="text-white text-lg">↑</Text>
-                )}
-              </Pressable>
-            </View>
-          </View>
-        )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+                disabled={!inputText.trim() || sending || !canSend}
+                loading={sending}
+                cooldownSeconds={!canSend ? cooldownSeconds : undefined}
+              />
+            </BrightComposerDock>
+          </SafeAreaView>
+        </KeyboardAvoidingView>
+      ) : null}
+    </BrightChatSurface>
   );
 }
+
+const styles = StyleSheet.create({
+  conversation: {
+    flex: 1,
+  },
+  loading: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messages: {
+    flex: 1,
+  },
+  messagesContent: {
+    flexGrow: 1,
+    paddingHorizontal: spacing.base,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  requestBanner: {
+    marginHorizontal: spacing.base,
+    marginBottom: spacing.sm,
+    padding: spacing.base,
+    borderRadius: 26,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#07324A',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  requestTitle: {
+    color: '#121212',
+    fontFamily: fonts.display,
+    fontSize: typography.fontSize.lg,
+    textAlign: 'center',
+  },
+  requestText: {
+    color: 'rgba(18,18,18,0.58)',
+    fontFamily: fonts.heading,
+    fontSize: typography.fontSize.sm,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+  requestActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  requestSecondary: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(18,18,18,0.08)',
+  },
+  requestPrimary: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+    borderRadius: radii.pill,
+    backgroundColor: colors.iris,
+  },
+  requestSecondaryText: {
+    color: '#121212',
+    fontFamily: fonts.heading,
+    fontSize: typography.fontSize.sm,
+  },
+  requestPrimaryText: {
+    color: '#FFFFFF',
+    fontFamily: fonts.heading,
+    fontSize: typography.fontSize.sm,
+  },
+});

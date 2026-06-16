@@ -1,5 +1,7 @@
+import { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -8,12 +10,9 @@ import {
   Clock,
   AlertCircle,
 } from 'lucide-react-native';
-import { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
-import { colors } from '@/lib/design/theme';
+import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { getFirebaseApp } from '@/lib/firebase/client';
+import { colors } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 
@@ -123,6 +122,8 @@ export default function VerificationScreen() {
       </View>
 
       <ScrollView
+        bounces={false}
+        overScrollMode="never"
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 32 }]}
         showsVerticalScrollIndicator={false}
       >
@@ -280,7 +281,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 24,
     fontWeight: '800',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
   },
   heroBody: {
     color: 'rgba(255,255,255,0.5)',

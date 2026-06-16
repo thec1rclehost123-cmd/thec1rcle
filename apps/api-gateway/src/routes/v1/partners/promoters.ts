@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { AggregateField } from 'firebase-admin/firestore';
 import { randomUUID } from 'node:crypto';
 import { getPromoterStats, listConnections, manageConnection } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
@@ -76,6 +77,64 @@ const ConnectionRespondSchema = z
   .object({
     action: z.string().optional(),
     reason: z.string().optional(),
+  })
+  .passthrough();
+
+const PaginationQuerySchema = z
+  .object({
+    cursor: z.string().optional(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+  })
+  .passthrough();
+
+const BankAccountSchema = z
+  .object({
+    bankName: z.string().min(1),
+    accountNumber: z.string().min(1),
+    ifsc: z.string().min(1),
+    accountHolderName: z.string().min(1),
+    accountType: z.string().optional(),
+  })
+  .passthrough();
+
+const PayoutRequestSchema = z
+  .object({
+    amountPaise: z.coerce.number().min(100), // Min 1 INR
+    bankAccountId: z.string().min(1),
+  })
+  .passthrough();
+
+const UploadSchema = z
+  .object({
+    field: z.enum(['profileImage', 'coverImage', 'logoUrl']),
+    url: z.string().url(),
+  })
+  .passthrough();
+
+const UpdateIdentitySchema = z
+  .object({
+    displayName: z.string().optional(),
+    bio: z.string().optional(),
+    instagramHandle: z.string().optional(),
+    twitterHandle: z.string().optional(),
+    website: z.string().optional(),
+    city: z.string().optional(),
+    genres: z.array(z.string()).optional(),
+  })
+  .passthrough();
+
+const UpdateNotificationsSchema = z
+  .object({
+    notificationsEnabled: z.boolean().optional(),
+    marketingEmails: z.boolean().optional(),
+  })
+  .passthrough();
+
+const SettingsVerificationSchema = z
+  .object({
+    documentType: z.string().optional(),
+    documentUrl: z.string().optional(),
+    legalName: z.string().optional(),
   })
   .passthrough();
 
@@ -305,7 +364,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const buildLegacyLink = (link: Record<string, any>, event: Record<string, any> = {}) => {
     const clicks = toNumber(link.clicks ?? link.clickCount);
     const conversions = toNumber(link.conversions ?? link.conversionCount);
-    const status = normalizeLegacyLinkStatus(link);
+    let status = normalizeLegacyLinkStatus(link);
+    const eventStatus = String(event.lifecycle || event.status || '').toLowerCase();
+
+    if (status === 'active' && ['completed', 'ended', 'closed', 'finished'].includes(eventStatus)) {
+      status = 'expired';
+    }
     return {
       id: String(link.id || ''),
       eventId: pickString(link.eventId),
@@ -428,84 +492,6 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     return getPromoterProfile(promoterId);
   };
 
-  const getLegacyOverview = async (promoterId: string) => {
-    const [stats, linksSnap] = await Promise.all([
-      getPromoterStats(promoterId).catch(() => ({
-        totalEarnings: 0,
-        totalClicks: 0,
-        totalConversions: 0,
-      })),
-      fastify.db
-        .collection('promoter_links')
-        .where('promoterId', '==', promoterId)
-        .where('isActive', '==', true)
-        .get()
-        .catch(() => ({ docs: [] as any[] })),
-    ]);
-    return {
-      stats: {
-        earnings: toNumber((stats as any).totalEarnings),
-        clicks: toNumber((stats as any).totalClicks),
-        conversions: toNumber((stats as any).totalConversions),
-        payoutsPending: 0,
-      },
-      activeLinks: (linksSnap as any).docs.length,
-      upcomingEvents: 0,
-      recentActivity: [],
-    };
-  };
-
-  const getLegacyAnalytics = async (promoterId: string) => {
-    const stats = await getPromoterStats(promoterId).catch(() => ({
-      totalEarnings: 0,
-      totalClicks: 0,
-      totalConversions: 0,
-    }));
-    return {
-      clicks: toNumber((stats as any).totalClicks),
-      conversions: toNumber((stats as any).totalConversions),
-      earnings: toNumber((stats as any).totalEarnings),
-      conversionRate:
-        toNumber((stats as any).totalClicks) > 0
-          ? parseFloat(
-              (
-                (toNumber((stats as any).totalConversions) / toNumber((stats as any).totalClicks)) *
-                100
-              ).toFixed(1),
-            )
-          : 0,
-    };
-  };
-
-  const getLegacyLinks = async (promoterId: string, query: Record<string, any>) => {
-    const pageSize = Math.min(parseInt(String(query.limit || '100'), 10) || 100, 200);
-    const snap = await fastify.db
-      .collection('promoter_links')
-      .where('promoterId', '==', promoterId)
-      .limit(pageSize)
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
-    let links = (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
-    if (query.eventId)
-      links = links.filter((link: any) => String(link.eventId || '') === String(query.eventId));
-    const activeParam = query.isActive ?? query.active;
-    if (activeParam !== undefined) {
-      const active = String(activeParam) === 'true';
-      links = links.filter((link: any) => (link.isActive !== false) === active);
-    }
-    links.sort((left: any, right: any) => {
-      const leftTime = new Date(toIso(left.createdAt) || 0).getTime();
-      const rightTime = new Date(toIso(right.createdAt) || 0).getTime();
-      return rightTime - leftTime;
-    });
-    const eventMap = await loadEventsByIds(links.map((link: any) => String(link.eventId || '')));
-    return {
-      links: links.map((link: any) =>
-        buildLegacyLink(link, eventMap.get(String(link.eventId || '')) || {}),
-      ),
-    };
-  };
-
   const createLegacyLink = async (promoterId: string, body: Record<string, any>) => {
     const eventId = String(body.eventId || '');
     if (!eventId) {
@@ -514,6 +500,55 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       err.code = 'BAD_REQUEST';
       throw err;
     }
+    const assignmentSnap = await fastify.db
+      .collection('promoter_assignments')
+      .where('promoterId', '==', promoterId)
+      .where('eventId', '==', eventId)
+      .limit(1)
+      .get();
+
+    let assignment;
+    const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+
+    if (!eventDoc.exists) {
+      const err: any = new Error('Event not found');
+      err.statusCode = 404;
+      err.code = 'NOT_FOUND';
+      throw err;
+    }
+
+    const event: Record<string, any> = { id: eventDoc.id, ...(eventDoc.data() || {}) };
+
+    const status = event.lifecycle || event.status || 'draft';
+    if (status !== 'published' && status !== 'live') {
+      const err: any = new Error('This event is not active or accepting promoters');
+      err.statusCode = 403;
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+
+    if (assignmentSnap.empty) {
+      if (!isPromoterAllowedForEvent(event, promoterId)) {
+        const err: any = new Error('Promoter is not assigned to this event');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      // Auto-create assignment
+      const assignmentRef = fastify.db.collection('promoter_assignments').doc();
+      assignment = {
+        id: assignmentRef.id,
+        promoterId,
+        eventId,
+        status: 'active',
+        commissionRate: event.promoterSettings?.commissionRate || event.commissionRate || 0,
+        createdAt: new Date().toISOString(),
+      };
+      await assignmentRef.set(assignment);
+    } else {
+      assignment = assignmentSnap.docs[0].data();
+    }
+
     const existingSnap = await fastify.db
       .collection('promoter_links')
       .where('promoterId', '==', promoterId)
@@ -521,19 +556,69 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       .where('isActive', '==', true)
       .limit(1)
       .get();
-    const eventDoc = await fastify.db.collection('events').doc(eventId).get();
-    const event: Record<string, any> = eventDoc.exists
-      ? { id: eventDoc.id, ...(eventDoc.data() || {}) }
-      : { id: eventId };
+
     if (!existingSnap.empty) {
       const existing = { id: existingSnap.docs[0].id, ...(existingSnap.docs[0].data() || {}) };
       return { link: buildLegacyLink(existing, event), duplicate: true };
     }
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const code = Array.from(
-      { length: 6 },
-      () => chars[Math.floor(Math.random() * chars.length)],
-    ).join('');
+
+    const promoterRef = fastify.db.collection('promoters').doc(promoterId);
+    const promoterDoc = await promoterRef.get();
+    let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+    if (!trackingCode) {
+      if (body.customTrackingCode) {
+        const cleanCode = String(body.customTrackingCode)
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '');
+        if (cleanCode.length < 3) {
+          const err: any = new Error('Custom code must be at least 3 characters');
+          err.statusCode = 400;
+          err.code = 'BAD_REQUEST';
+          throw err;
+        }
+        const existingGlobal = await fastify.db
+          .collection('promoters')
+          .where('trackingCode', '==', cleanCode)
+          .limit(1)
+          .get();
+        if (!existingGlobal.empty) {
+          const err: any = new Error('This custom code is already taken. Please choose another.');
+          err.statusCode = 409;
+          err.code = 'CONFLICT';
+          throw err;
+        }
+        trackingCode = cleanCode;
+      } else {
+        const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+        let base = (body.promoterName || 'promo').toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (base.length > 10) base = base.substring(0, 10);
+        if (base.length < 3) base = 'promo';
+
+        let isUnique = false;
+        let newCode = '';
+        while (!isUnique) {
+          const suffix = Array.from(
+            { length: 3 },
+            () => chars[Math.floor(Math.random() * chars.length)],
+          ).join('');
+          newCode = `${base}${suffix}`;
+          const existingGlobal = await fastify.db
+            .collection('promoters')
+            .where('trackingCode', '==', newCode)
+            .limit(1)
+            .get();
+          if (existingGlobal.empty) {
+            isUnique = true;
+          }
+        }
+        trackingCode = newCode;
+      }
+      await promoterRef.set({ trackingCode }, { merge: true });
+    }
+
+    let code = trackingCode;
+
     const now = new Date().toISOString();
     const id = randomUUID();
     const link = {
@@ -545,7 +630,10 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       campaignLabel: pickString(body.campaignLabel),
       ticketTierIds: Array.isArray(body.ticketTierIds) ? body.ticketTierIds : [],
       commissionRate: normalizePromoterCommissionRate(
-        body.commissionRate || event.promoterSettings?.commissionRate || event.commissionRate || 0,
+        assignment.commissionRate ||
+          event.promoterSettings?.commissionRate ||
+          event.commissionRate ||
+          0,
       ),
       commissionType: pickString(body.commissionType, 'percentage'),
       code,
@@ -554,6 +642,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       revenue: 0,
       commission: 0,
       isActive: true,
+      active: true,
       status: 'active',
       fullUrl: pickString(body.fullUrl) || null,
       vanityPrefix: pickString(body.vanityPrefix) || null,
@@ -592,9 +681,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const updates: Record<string, any> = { updatedAt: new Date().toISOString() };
     if (action === 'deactivate') {
       updates.isActive = false;
+      updates.active = false;
       updates.status = 'deactivated';
     } else if (action === 'reactivate') {
       updates.isActive = true;
+      updates.active = true;
       updates.status = 'active';
     } else if (action === 'update_alias') {
       updates.vanitySlug = editableSlug;
@@ -615,47 +706,27 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     return { success: true, link: buildLegacyLink(updated, event) };
   };
 
-  const getLegacyLinkAnalytics = async (promoterId: string, linkId: string) => {
-    const doc = await fastify.db.collection('promoter_links').doc(linkId).get();
-    if (!doc.exists) {
-      const err: any = new Error('Link not found');
-      err.statusCode = 404;
-      err.code = 'NOT_FOUND';
-      throw err;
-    }
-    const link = { id: doc.id, ...(doc.data() || {}) } as Record<string, any>;
-    if (String(link.promoterId || '') !== promoterId) {
-      const err: any = new Error('Forbidden');
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
-    }
-    const eventDoc = link.eventId
-      ? await fastify.db.collection('events').doc(String(link.eventId)).get()
-      : null;
-    const event = eventDoc?.exists ? { id: eventDoc.id, ...(eventDoc.data() || {}) } : {};
-    return {
-      link: buildLegacyLink(link, event),
-      funnel: {
-        clicks: toNumber(link.clicks ?? link.clickCount),
-        conversions: toNumber(link.conversions ?? link.conversionCount),
-        revenue: toNumber(link.revenue),
-      },
-    };
-  };
-
   const getLegacyEvents = async (promoterId: string, query: Record<string, any>) => {
-    const pageSize = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
-    const [directEnabled, settingsEnabled, linksSnap] = await Promise.all([
-      fastify.db
+    const pageSize = Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100);
+
+    let eventsQuery = fastify.db
+      .collection('events')
+      .where('promotersEnabled', '==', true)
+      .where('status', 'in', ['published', 'active']);
+
+    if (query.cursor) {
+      const cursorDoc = await fastify.db
         .collection('events')
-        .where('promotersEnabled', '==', true)
-        .limit(pageSize * 2)
+        .doc(String(query.cursor))
         .get()
-        .catch(() => ({ docs: [] as any[] })),
-      fastify.db
-        .collection('events')
-        .where('promoterSettings.enabled', '==', true)
+        .catch(() => null);
+      if (cursorDoc?.exists) {
+        eventsQuery = eventsQuery.startAfter(cursorDoc);
+      }
+    }
+
+    const [eventsSnap, linksSnap] = await Promise.all([
+      eventsQuery
         .limit(pageSize * 2)
         .get()
         .catch(() => ({ docs: [] as any[] })),
@@ -666,6 +737,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         .get()
         .catch(() => ({ docs: [] as any[] })),
     ]);
+
     const activeLinkByEventId = new Map<string, Record<string, any>>();
     for (const doc of (linksSnap as any).docs || []) {
       const link = { id: doc.id, ...(doc.data() || {}) } as Record<string, any>;
@@ -677,43 +749,30 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         activeLinkByEventId.set(String(link.eventId), link);
       }
     }
-    const deduped = new Map<string, Record<string, any>>();
-    for (const doc of [
-      ...((directEnabled as any).docs || []),
-      ...((settingsEnabled as any).docs || []),
-    ]) {
-      deduped.set(doc.id, { id: doc.id, ...(doc.data() || {}) });
+
+    const validEvents: Record<string, any>[] = [];
+    let nextCursor: string | null = null;
+
+    for (const doc of (eventsSnap as any).docs || []) {
+      const event = { id: doc.id, ...(doc.data() || {}) };
+
+      if (!isPromoterAllowedForEvent(event, promoterId)) continue;
+
+      if (query.city) {
+        const cityStr = pickString(event.city, event.cityName).toLowerCase();
+        if (!cityStr.includes(String(query.city).trim().toLowerCase())) continue;
+      }
+
+      validEvents.push(event);
+      nextCursor = doc.id;
+
+      if (validEvents.length >= pageSize) break;
     }
-    const events = [...deduped.values()]
-      .filter((event) => isPromoterAllowedForEvent(event, promoterId))
-      .filter((event) => {
-        if (!query.status)
-          return ['scheduled', 'approved', 'upcoming', 'live'].includes(
-            String(event.lifecycle || event.status || '').toLowerCase(),
-          );
-        return (
-          String(event.lifecycle || event.status || '').toLowerCase() ===
-          String(query.status).toLowerCase()
-        );
-      })
-      .filter((event) => {
-        if (!query.city) return true;
-        return pickString(event.city, event.cityName)
-          .toLowerCase()
-          .includes(String(query.city).trim().toLowerCase());
-      })
-      .sort((left, right) => {
-        const leftTime = new Date(
-          toIso(left.startDate || left.date || left.eventDate) || 0,
-        ).getTime();
-        const rightTime = new Date(
-          toIso(right.startDate || right.date || right.eventDate) || 0,
-        ).getTime();
-        return leftTime - rightTime;
-      })
-      .slice(0, pageSize)
-      .map((event) => buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id))));
-    return { events };
+
+    const events = validEvents.map((event) =>
+      buildLegacyPromoterEvent(event, activeLinkByEventId.get(String(event.id))),
+    );
+    return { events, nextCursor: validEvents.length === pageSize ? nextCursor : null };
   };
 
   const buildLegacyAssignments = async (promoterId: string, status?: string) => {
@@ -751,9 +810,15 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     let rows = assignments.map((assignment: any) => {
       const event = eventMap.get(String(assignment.eventId || '')) || {};
       const activeLink = activeLinkByEventId.get(String(assignment.eventId || ''));
-      const eventStatus = String(
+      let eventStatus = String(
         event.lifecycle || event.status || assignment.status || 'upcoming',
       ).toLowerCase();
+
+      const startDateIso = String(event.startDate || event.date || event.eventDate || '');
+      if (startDateIso && new Date(startDateIso) < new Date()) {
+        eventStatus = 'completed';
+      }
+
       const normalizedStatus = ['completed', 'ended', 'closed', 'finished'].includes(eventStatus)
         ? 'completed'
         : ['active', 'approved', 'live', 'scheduled', 'upcoming'].includes(eventStatus)
@@ -869,36 +934,6 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     return rows;
   };
 
-  const getLegacyConnections = async (promoterId: string, status?: string) => {
-    const snap = await fastify.db
-      .collection('promoter_connections')
-      .where('promoterId', '==', promoterId)
-      .limit(100)
-      .get();
-    let connections = snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
-    if (status)
-      connections = connections.filter(
-        (connection: any) =>
-          String(connection.status || '').toLowerCase() === String(status).toLowerCase(),
-      );
-    return {
-      connections: connections.map((connection: any) => ({
-        id: connection.id,
-        promoterId: connection.promoterId,
-        status: connection.status,
-        otherId: connection.targetId || null,
-        otherName: connection.targetName || 'Partner',
-        otherType: connection.targetType || 'venue',
-        targetId: connection.targetId || null,
-        targetName: connection.targetName || 'Partner',
-        targetType: connection.targetType || 'venue',
-        createdAt: connection.createdAt || null,
-        updatedAt: connection.updatedAt || null,
-        message: connection.message || '',
-      })),
-    };
-  };
-
   const createLegacyConnection = async (promoterId: string, body: Record<string, any>) => {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -946,8 +981,26 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const current = doc.data() as Record<string, any>;
-    if (String(current.promoterId || '') !== promoterId) {
+
+    const isSender = String(current.promoterId || current.fromPartnerId || '') === promoterId;
+    const isTarget = String(current.targetId || current.toPartnerId || '') === promoterId;
+
+    if (!isSender && !isTarget) {
       const err: any = new Error('Forbidden');
+      err.statusCode = 403;
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+
+    if (isSender && ['approve', 'reject'].includes(action)) {
+      const err: any = new Error('Sender cannot approve or reject their own request');
+      err.statusCode = 403;
+      err.code = 'FORBIDDEN';
+      throw err;
+    }
+
+    if (isTarget && ['revoke'].includes(action)) {
+      const err: any = new Error('Target cannot revoke a request they did not send');
       err.statusCode = 403;
       err.code = 'FORBIDDEN';
       throw err;
@@ -957,42 +1010,108 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       updatedAt: new Date().toISOString(),
       ...(body.reason ? { reason: String(body.reason) } : {}),
     });
+
+    // Link Revocation Logic
+    if (['revoked', 'blocked', 'rejected', 'removed'].includes(nextStatus)) {
+      try {
+        let eventIds: string[] = [];
+        if (current.targetType === 'event') {
+          eventIds = [String(current.targetId)];
+        } else if (current.targetType === 'host' || current.targetType === 'venue') {
+          const eventsSnap = await fastify.db
+            .collection('events')
+            .where('hostId', '==', String(current.targetId))
+            .get();
+          eventIds = eventsSnap.docs.map((doc: any) => doc.id);
+        }
+
+        if (eventIds.length > 0) {
+          // Deactivate all links for this promoter and these events
+          const linksSnap = await fastify.db
+            .collection('promoter_links')
+            .where('promoterId', '==', current.promoterId || current.fromPartnerId)
+            .get();
+          const batch = fastify.db.batch();
+          let count = 0;
+          for (const linkDoc of linksSnap.docs) {
+            const link = linkDoc.data() as any;
+            if (eventIds.includes(String(link.eventId))) {
+              batch.update(linkDoc.ref, {
+                isActive: false,
+                status: 'deactivated',
+                revokedAt: new Date().toISOString(),
+              });
+              count++;
+            }
+          }
+          if (count > 0) {
+            await batch.commit();
+          }
+        }
+      } catch (e) {
+        console.error('Failed to revoke promoter links:', e);
+      }
+    }
+
     return { success: true, status: nextStatus };
   };
 
-  const resolvePromoterGuests = async (promoterId: string, limit: number) => {
+  const resolvePromoterGuests = async (
+    promoterId: string,
+    limit: number,
+    cursor?: string,
+    status?: string,
+    eventId?: string,
+  ) => {
     const linksSnap = await fastify.db
       .collection('promoter_links')
       .where('promoterId', '==', promoterId)
       .get();
-    const codes: string[] = linksSnap.docs.map((doc: any) => doc.data().code).filter(Boolean);
-    if (codes.length === 0) return { guests: [], hasMore: false, nextCursor: null };
-    const chunks: string[][] = [];
-    for (let i = 0; i < codes.length; i += 10) chunks.push(codes.slice(i, i + 10));
-    const snapshots = await Promise.all(
-      chunks.map((chunk) =>
-        fastify.db.collection('orders').where('promoterCode', 'in', chunk).get(),
-      ),
-    );
-    const allDocs = snapshots.flatMap((snapshot: any) => snapshot.docs);
+    const allCodes: string[] = linksSnap.docs.map((doc: any) => doc.data().code).filter(Boolean);
+    if (allCodes.length === 0) return { guests: [], hasMore: false, nextCursor: null };
+
+    // Firestore `in` query limits to 30 items
+    const codes = allCodes.slice(0, 30);
+
+    let query = fastify.db.collection('orders').where('promoterCode', 'in', codes);
+
+    if (eventId) {
+      query = query.where('eventId', '==', eventId);
+    }
+
+    if (status === 'checked_in') {
+      // Must have checkedInAt or be explicitly marked checked_in
+      // For simplicity, if we filter by status we'll use the 'status' field.
+      // Assuming 'checked_in' is a valid status string
+      query = query.where('status', '==', 'checked_in');
+    } else if (status === 'pending') {
+      query = query.where('status', '==', 'confirmed');
+    }
+
+    query = query.orderBy('createdAt', 'desc').limit(limit + 1);
+
+    if (cursor) {
+      const cursorDoc = await fastify.db.collection('orders').doc(cursor).get();
+      if (cursorDoc.exists) {
+        query = query.startAfter(cursorDoc);
+      }
+    }
+
+    const snap = await query.get();
+    const allDocs = snap.docs;
     const hasMore = allDocs.length > limit;
     const orderDocs = allDocs.slice(0, limit);
+
     const eventIds = [
       ...new Set(orderDocs.map((d: any) => String(d.data().eventId || '')).filter(Boolean)),
     ];
-    const eventChunks: string[][] = [];
-    for (let i = 0; i < eventIds.length; i += 10) eventChunks.push(eventIds.slice(i, i + 10));
     const eventSnaps =
-      eventChunks.length > 0
-        ? await Promise.all(
-            eventChunks.map((chunk) =>
-              fastify.db.collection('events').where('__name__', 'in', chunk).get(),
-            ),
-          )
+      eventIds.length > 0
+        ? await Promise.all(eventIds.map((id) => fastify.db.collection('events').doc(id).get()))
         : [];
     const eventMap = new Map<string, string>();
-    for (const snap of eventSnaps) {
-      for (const doc of (snap as any).docs || [])
+    for (const doc of eventSnaps) {
+      if (doc.exists)
         eventMap.set(doc.id, (doc.data() as any).title || (doc.data() as any).name || '');
     }
     const guests = orderDocs.map((doc: any) => {
@@ -1050,6 +1169,51 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const totalPaid = payoutRows
       .filter((row) => ['completed', 'paid', 'cleared'].includes(row.status))
       .reduce((sum, row) => sum + toNumber(row.amount), 0);
+
+    const ledgerEntries = asArray(ledger.data);
+    const orderIds = [...new Set(ledgerEntries.map((e) => e.referenceId).filter(Boolean))];
+    const eventIds = [...new Set(ledgerEntries.map((e) => e.eventId).filter(Boolean))];
+
+    const orderMap = new Map<string, any>();
+    const eventMap = new Map<string, string>();
+    const userMap = new Map<string, any>();
+
+    if (orderIds.length > 0) {
+      const orderChunks = [];
+      for (let i = 0; i < orderIds.length; i += 30) orderChunks.push(orderIds.slice(i, i + 30));
+      for (const chunk of orderChunks) {
+        const snap = await fastify.db.collection('orders').where('__name__', 'in', chunk).get();
+        snap.forEach((doc: any) => orderMap.set(doc.id, doc.data()));
+      }
+    }
+
+    const userIds = [
+      ...new Set(
+        Array.from(orderMap.values())
+          .map((o) => o.buyerId || o.userId)
+          .filter(Boolean),
+      ),
+    ];
+    if (userIds.length > 0) {
+      const userChunks = [];
+      for (let i = 0; i < userIds.length; i += 30) userChunks.push(userIds.slice(i, i + 30));
+      for (const chunk of userChunks) {
+        const snap = await fastify.db.collection('users').where('__name__', 'in', chunk).get();
+        snap.forEach((doc: any) => userMap.set(doc.id, doc.data()));
+      }
+    }
+
+    if (eventIds.length > 0) {
+      const eventChunks = [];
+      for (let i = 0; i < eventIds.length; i += 30) eventChunks.push(eventIds.slice(i, i + 30));
+      for (const chunk of eventChunks) {
+        const snap = await fastify.db.collection('events').where('__name__', 'in', chunk).get();
+        snap.forEach((doc: any) =>
+          eventMap.set(doc.id, doc.data().title || doc.data().name || 'Event'),
+        );
+      }
+    }
+
     return {
       balance: {
         totalEarned: toNumber(balances.available) + toNumber(balances.pending),
@@ -1059,17 +1223,30 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         instantAvailable: 0,
       },
       payouts: payoutRows,
-      commissionDetails: asArray(ledger.data).map((entry: Record<string, any>) => ({
-        id: entry.entryId,
-        eventId: entry.eventId || null,
-        eventName: null,
-        buyerName: null,
-        amount: toNumber(entry.amount),
-        revenue: toNumber(entry.amount),
-        status: String(entry.status || 'pending').toLowerCase(),
-        date: entry.createdAt || null,
-        source: 'partner_ledger',
-      })),
+      commissionDetails: ledgerEntries.map((entry: Record<string, any>) => {
+        const order = entry.referenceId ? orderMap.get(entry.referenceId) : null;
+        let eventName = entry.eventId ? eventMap.get(entry.eventId) : null;
+        let buyerName = order?.guestName || order?.buyerName || null;
+        const userId = order?.buyerId || order?.userId || null;
+        const user = userId ? userMap.get(userId) : null;
+        const buyerAvatar = user?.photoURL || user?.avatar || null;
+
+        if (!eventName && order?.eventId && eventMap.has(order.eventId)) {
+          eventName = eventMap.get(order.eventId) || null;
+        }
+        return {
+          id: entry.entryId,
+          eventId: entry.eventId || null,
+          eventName: eventName || null,
+          buyerName: buyerName || null,
+          buyerAvatar: buyerAvatar || null,
+          amount: toNumber(entry.amount),
+          revenue: toNumber(entry.amount),
+          status: String(entry.status || 'pending').toLowerCase(),
+          date: entry.createdAt || null,
+          source: 'partner_ledger',
+        };
+      }),
     };
   };
 
@@ -1218,39 +1395,36 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             .header('Cache-Control', 'private, max-age=120')
             .send({ ...cached, fromCache: true });
 
-        const [result, legacyBody, assignmentsPayload, linksPayload] = await Promise.all([
+        const [result, assignmentsPayload] = await Promise.all([
           promoterService.getOverview(ctx),
-          getLegacyOverview(ctx.partnerId),
           buildLegacyAssignments(ctx.partnerId, 'active'),
-          getLegacyLinks(ctx.partnerId, { limit: 5, isActive: 'true' }),
         ]);
-        const legacyStats = asRecord(legacyBody.stats);
         const assignments = asArray(assignmentsPayload);
-        const normalizedLinks = asArray(linksPayload.links).map((link: PlainRecord) =>
-          normalizePromoterLink(link),
-        );
+        const topLinks = asArray(result.topLinks);
+
         const stats: PlainRecord = {
-          ...legacyStats,
           ...asRecord(result.stats),
-          earnings: toNumber(legacyStats.earnings ?? result.stats.totalCommissionEarned),
-          clicks: toNumber(legacyStats.clicks ?? result.stats.totalClicks),
-          conversions: toNumber(legacyStats.conversions ?? result.stats.totalConversions),
-          payoutsPending: toNumber(legacyStats.payoutsPending),
+          earnings: toNumber(result.stats.totalCommissionEarned),
+          clicks: toNumber(result.stats.totalClicks),
+          conversions: toNumber(result.stats.totalConversions),
+          payoutsPending: 0,
         };
-        const topLink = normalizedLinks[0]
+
+        const topLinkData = topLinks[0] || null;
+        const topLink = topLinkData
           ? {
-              id: normalizedLinks[0].id,
-              event: { name: normalizedLinks[0].eventTitle || 'Event' },
-              eventName: normalizedLinks[0].eventTitle || 'Event',
-              linkCode: normalizedLinks[0].code,
-              attributedRevenue: toNumber(normalizedLinks[0].revenue),
-              clicks: toNumber(normalizedLinks[0].clicks),
-              conversions: toNumber(normalizedLinks[0].conversions),
-              commission: toNumber(normalizedLinks[0].commission),
+              id: topLinkData.id || topLinkData.linkId,
+              event: { name: topLinkData.eventTitle || 'Event' },
+              eventName: topLinkData.eventTitle || 'Event',
+              linkCode: topLinkData.code,
+              attributedRevenue: toNumber(topLinkData.revenue),
+              clicks: toNumber(topLinkData.clicks),
+              conversions: toNumber(topLinkData.conversions),
+              commission: toNumber(topLinkData.commissionRate || topLinkData.commission),
             }
           : null;
+
         const normalized = {
-          ...legacyBody,
           stats,
           kpis: buildPromoterKpis(stats, assignments),
           activeAssignments: assignments.map((a: PlainRecord) => ({
@@ -1263,22 +1437,16 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             commission: toNumber(asRecord(a.stats).estimatedCommission ?? a.commission ?? 0),
           })),
           conversionSnapshot: {
-            rate:
-              (legacyBody as any).conversionRate ??
-              `${(toNumber((stats as any).conversionRate) * 100).toFixed(1)}%`,
-            clicks: toNumber(stats.totalClicks ?? stats.clicks),
-            purchases: toNumber(stats.totalConversions ?? stats.conversions),
+            rate: `${(toNumber(stats.conversionRate || result.stats.conversionRate || 0) * 100).toFixed(1)}%`,
+            clicks: toNumber(stats.clicks),
+            purchases: toNumber(stats.conversions),
           },
           topLink,
           leaderboardPosition: null,
-          topLinks: normalizedLinks.length ? normalizedLinks : asArray(result.topLinks),
-          recentActivity: asArray(result.recentActivity).length
-            ? result.recentActivity
-            : asArray(legacyBody.recentActivity),
-          activeLinks: toNumber(
-            legacyBody.activeLinks ?? result.stats.totalLinks ?? normalizedLinks.length,
-          ),
-          upcomingEvents: legacyBody.upcomingEvents ?? assignments.length,
+          topLinks,
+          recentActivity: asArray(result.recentActivity),
+          activeLinks: toNumber(result.stats.totalLinks),
+          upcomingEvents: assignments.length,
         };
 
         await fastify.cache.set('partners', cacheKey, normalized, 120);
@@ -1330,29 +1498,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           to: request.query.to,
           linkId: request.query.linkId,
         };
-        const [result, overview, legacyBody, legacyLinksBody] = await Promise.all([
+        const [result, overview] = await Promise.all([
           promoterService.getAnalytics(ctx, filters),
           promoterService.getOverview(ctx),
-          getLegacyAnalytics(ctx.partnerId),
-          getLegacyLinks(ctx.partnerId, {
-            eventId: request.query.eventId,
-            limit: 25,
-            isActive: request.query.isActive ?? request.query.active,
-          }),
         ]);
         const stats = asRecord(overview.stats);
-        const normalizedLinks = asArray(legacyLinksBody.links).map((link: PlainRecord) =>
-          normalizePromoterLink(link),
-        );
-        const byLink = asArray(result.byLink).length
-          ? result.byLink
-          : normalizedLinks.map((link: PlainRecord) => ({
-              linkId: String(link.linkId || link.id || ''),
-              code: String(link.code || ''),
-              clicks: toNumber(link.clickCount ?? link.clicks),
-              conversions: toNumber(link.conversionCount ?? link.conversions),
-              revenue: toNumber(link.revenue),
-            }));
+
+        const byLink = asArray(result.byLink);
         const timeline = asArray(result.timeSeries).map((point: PlainRecord) => ({
           date: point.date ?? point.label ?? null,
           clicks: toNumber(point.clicks ?? point.value),
@@ -1360,34 +1512,31 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           revenue: toNumber(point.revenue ?? point.amount),
         }));
         const overviewPayload = {
-          totalClicks: toNumber(legacyBody.clicks ?? stats.totalClicks),
-          ticketsSold: toNumber(legacyBody.conversions ?? stats.totalConversions),
-          revenue: toNumber(
-            stats.totalRevenue ?? byLink.reduce((sum, link) => sum + toNumber(link.revenue), 0),
-          ),
-          commission: toNumber(legacyBody.earnings ?? stats.totalCommissionEarned),
-          conversionRate:
-            legacyBody.conversionRate ?? `${(toNumber(stats.conversionRate) * 100).toFixed(1)}%`,
-          activeLinks: normalizedLinks.filter((link: PlainRecord) => link.isActive !== false)
-            .length,
-          totalLinks: toNumber(stats.totalLinks ?? normalizedLinks.length),
+          totalClicks: toNumber(stats.totalClicks),
+          ticketsSold: toNumber(stats.totalConversions),
+          revenue: toNumber(stats.totalRevenue),
+          commission: toNumber(stats.totalCommissionEarned),
+          conversionRate: `${(toNumber(stats.conversionRate) * 100).toFixed(1)}%`,
+          activeLinks: asArray(overview.topLinks).filter((l: any) => l.active !== false).length,
+          totalLinks: toNumber(stats.totalLinks),
         };
-        const activities = normalizedLinks.slice(0, 8).map((link: PlainRecord) => ({
-          id: String(link.id || link.linkId || ''),
-          type: 'link',
-          title: link.campaignLabel || link.label || link.eventTitle || 'Link activity',
-          eventName: link.eventTitle || 'Event',
-          linkCode: link.code || '',
-          commission: toNumber(link.commission),
-          amount: toNumber(link.revenue),
-          createdAt: link.updatedAt ?? link.createdAt ?? null,
-        }));
+        const activities = asArray(overview.topLinks)
+          .slice(0, 8)
+          .map((link: any) => ({
+            id: String(link.linkId || link.id || ''),
+            type: 'link',
+            title: link.eventTitle || 'Link activity',
+            eventName: link.eventTitle || 'Event',
+            linkCode: link.code || '',
+            commission: toNumber(link.commissionRate),
+            amount: toNumber(link.revenue),
+            createdAt: link.updatedAt ?? link.createdAt ?? null,
+          }));
 
         return reply.header('Cache-Control', 'private, max-age=120').send({
-          ...legacyBody,
           overview: overviewPayload,
           timeline,
-          topLinks: normalizedLinks,
+          topLinks: asArray(overview.topLinks),
           activities,
           timeSeries: result.timeSeries,
           byLink,
@@ -1438,21 +1587,29 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           cursor,
           limit,
         });
-        const legacyBody = await getLegacyLinks(ctx.partnerId, {
-          eventId,
-          limit,
-          isActive: activeParam,
-        });
         const unifiedById = mapByAnyId(asArray(result.data), ['linkId', 'id']);
-        const links = asArray(legacyBody.links).map((link: PlainRecord) =>
-          normalizePromoterLink(link, unifiedById.get(String(link.id || ''))),
-        );
+        const links = asArray(result.data).map((link: any) => {
+          const legacyFormat = {
+            id: link.linkId,
+            promoterId: ctx.partnerId,
+            eventId: link.eventId,
+            eventTitle: link.eventTitle || 'Event',
+            code: link.code,
+            isActive: link.active,
+            status: link.status || (link.active ? 'active' : 'deactivated'),
+            createdAt: link.createdAt,
+            clicks: link.clicks || link.clickCount || 0,
+            conversions: link.conversions || link.conversionCount || 0,
+            revenue: link.revenue || 0,
+            commission: link.commissionRate || link.commission || 0,
+          };
+          return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
+        });
         return reply.header('Cache-Control', 'private, max-age=60').send({
-          ...legacyBody,
           links,
           data: links,
-          hasMore: Boolean(result.hasMore ?? (legacyBody as any).hasMore),
-          nextCursor: result.nextCursor ?? (legacyBody as any).nextCursor ?? null,
+          hasMore: Boolean(result.hasMore),
+          nextCursor: result.nextCursor ?? null,
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -1580,27 +1737,48 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
-        const [analytics, legacyBody] = await Promise.all([
-          promoterService.getLinkAnalytics(ctx, request.params.linkId),
-          getLegacyLinkAnalytics(ctx.partnerId, request.params.linkId),
-        ]);
+        const analytics = await promoterService.getLinkAnalytics(ctx, request.params.linkId);
+        if (!analytics)
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Link not found',
+              requestId: request.id,
+            }),
+          );
+
+        const linkData = analytics.link as any;
+        const legacyFormat = {
+          id: linkData.linkId,
+          promoterId: ctx.partnerId,
+          eventId: linkData.eventId,
+          eventTitle: linkData.eventTitle || 'Event',
+          code: linkData.code,
+          isActive: linkData.active,
+          status: linkData.status || (linkData.active ? 'active' : 'deactivated'),
+          createdAt: linkData.createdAt,
+          clicks: analytics.clicks,
+          conversions: analytics.conversions,
+          revenue: analytics.revenue,
+          commission: linkData.commissionRate || linkData.commission || 0,
+        };
+
         const rawLink = await loadRawLink(request.params.linkId);
-        const link = normalizePromoterLink(asRecord(legacyBody.link), {}, rawLink);
-        const funnel = asRecord(legacyBody.funnel);
+        const link = normalizePromoterLink(legacyFormat, linkData, rawLink);
+
         return reply.header('Cache-Control', 'private, max-age=120').send({
-          ...legacyBody,
           link,
           funnel: {
-            clicks: toNumber(funnel.clicks ?? analytics?.clicks),
-            conversions: toNumber(funnel.conversions ?? analytics?.conversions),
-            revenue: toNumber(funnel.revenue ?? analytics?.revenue),
+            clicks: analytics.clicks,
+            conversions: analytics.conversions,
+            revenue: analytics.revenue,
           },
           analytics,
-          clicks: toNumber(analytics?.clicks ?? funnel.clicks),
-          conversions: toNumber(analytics?.conversions ?? funnel.conversions),
-          revenue: toNumber(analytics?.revenue ?? funnel.revenue),
-          conversionRate: analytics?.conversionRate ?? 0,
-          timeSeries: analytics?.timeSeries ?? [],
+          clicks: analytics.clicks,
+          conversions: analytics.conversions,
+          revenue: analytics.revenue,
+          conversionRate: analytics.conversionRate,
+          timeSeries: analytics.timeSeries,
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -1673,8 +1851,68 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           data: asArray(result.data),
           hasMore: Boolean(result.hasMore),
           nextCursor: result.nextCursor ?? null,
+          discoverCursor: legacyEventsBody.nextCursor ?? null,
         });
       } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/events/:assignmentId',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      console.log(`[ROUTE HIT] /events/:assignmentId with ID: ${request.params.assignmentId}`);
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx) {
+        console.log(`[ROUTE HIT] No ctx found`);
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        requireType(ctx, 'promoter');
+        const assignments = await buildLegacyAssignments(ctx.partnerId);
+        console.log(`[ROUTE HIT] assignments length: ${assignments.length}`);
+        const assignment = assignments.find((a: any) => a.id === request.params.assignmentId);
+        if (!assignment) {
+          console.log(
+            `[ROUTE HIT] assignment NOT FOUND in array. Array IDs:`,
+            assignments.map((a: any) => a.id),
+          );
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Assignment not found',
+              requestId: request.id,
+            }),
+          );
+        }
+        return reply.header('Cache-Control', 'private, max-age=60').send({
+          assignment,
+        });
+      } catch (err: any) {
+        console.log(`[ROUTE HIT] Error:`, err);
         if (err.statusCode)
           return reply
             .status(err.statusCode)
@@ -1712,16 +1950,31 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'promoter');
-        const [connections, legacyBody] = await Promise.all([
-          promoterService.getConnections(ctx, request.query.status as any),
-          getLegacyConnections(ctx.partnerId, request.query.status as any),
-        ]);
+        const connections = await promoterService.getConnections(ctx, request.query.status as any);
         const unifiedById = mapByAnyId(asArray(connections), ['connectionId', 'id']);
-        const mergedConnections = asArray(legacyBody.connections).map((connection: PlainRecord) =>
-          normalizePromoterConnection(connection, unifiedById.get(String(connection.id || ''))),
-        );
+        const mergedConnections = asArray(connections).map((conn: any) => {
+          const isSender = conn.fromPartnerId === ctx.partnerId;
+          const targetId = isSender ? conn.toPartnerId : conn.fromPartnerId;
+          const legacyFormat = {
+            id: conn.connectionId,
+            promoterId: ctx.partnerId,
+            status: conn.status,
+            targetId: targetId,
+            otherId: targetId,
+            targetName: 'Partner',
+            otherName: 'Partner',
+            targetType: 'venue',
+            otherType: 'venue',
+            createdAt: conn.createdAt || null,
+            updatedAt: conn.updatedAt || null,
+            message: '',
+          };
+          return normalizePromoterConnection(
+            legacyFormat,
+            unifiedById.get(String(conn.connectionId || '')),
+          );
+        });
         return reply.header('Cache-Control', 'private, max-age=60').send({
-          ...legacyBody,
           connections: mergedConnections,
         });
       } catch (err: any) {
@@ -1836,384 +2089,18 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     },
   );
 
-  // ── Native parity dispatch ────────────────────────────────────────────────
+  // ── Explicit Parity Routes ────────────────────────────────────────────────
 
-  fastify.route({
-    method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    url: '/partners/promoters/*',
-    preHandler: [fastify.requireAuth],
-    handler: async (request: any, reply: any) => {
+  fastify.get(
+    '/partners/promoters/profile',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-
-        const rest = String(request.params?.['*'] || '').replace(/^\/+/, '');
-        if (!rest) {
-          return reply.status(404).send(
-            buildErrorResponse({
-              code: 'NOT_FOUND',
-              message: 'Partner promoter endpoint not found',
-              requestId: request.id,
-            }),
-          );
-        }
-
-        const query = asRecord(request.query);
-        const body = asRecord(request.body);
-
-        if (rest === 'profile' && request.method === 'GET')
-          return reply.send(await getPromoterProfile(ctx.partnerId));
-        if (rest === 'profile' && request.method === 'PUT')
-          return reply.send(await updatePromoterProfile(ctx.partnerId, body));
-        if (rest === 'guests' && request.method === 'GET')
-          return reply.send(
-            await resolvePromoterGuests(
-              ctx.partnerId,
-              Math.min(parseInt(String(query.limit || '20'), 10) || 20, 100),
-            ),
-          );
-        if (rest === 'finance' && request.method === 'GET')
-          return reply.send(await buildPromoterFinancePayload(ctx.partnerId));
-        if (rest === 'payouts' && request.method === 'GET')
-          return reply.send(await buildPromoterFinancePayload(ctx.partnerId));
-        if (rest === 'finance/bank-accounts' && request.method === 'GET') {
-          const accounts = await financeService.getBankAccounts({
-            partnerId: ctx.partnerId,
-            uid: ctx.uid,
-            type: 'promoter',
-            roles: ctx.roles,
-            venueIds: [],
-            displayName: ctx.displayName,
-          });
-          return reply.send({
-            accounts: accounts.map((account) => ({
-              id: account.accountId,
-              bankName: account.bankName || 'Bank Account',
-              last4: account.last4 || '0000',
-              isDefault: account.isDefault ?? false,
-              paymentType: account.paymentType || 'bank_account',
-            })),
-          });
-        }
-        if (rest === 'finance/bank-accounts' && request.method === 'POST')
-          return reply.status(201).send(await createBankAccount(ctx.partnerId, body));
-        if (rest === 'finance/bank-accounts' && request.method === 'DELETE')
-          return reply.send(
-            await deleteBankAccount(ctx.partnerId, String(query.accountId || body.accountId || '')),
-          );
-
-        // notifications
-        if (rest === 'notifications' && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('notifications')
-            .where('recipientId', '==', ctx.partnerId)
-            .limit(100)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          const notifications = ((snap as any).docs || []).map((doc: any) => ({
-            id: doc.id,
-            ...(doc.data() || {}),
-          }));
-          notifications.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          return reply.send({ notifications: notifications.slice(0, 50) });
-        }
-
-        // commissions
-        if (rest === 'commissions' && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('promoter_commissions')
-            .where('promoterId', '==', ctx.partnerId)
-            .limit(100)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          const commissions = ((snap as any).docs || []).map((doc: any) => ({
-            id: doc.id,
-            ...(doc.data() || {}),
-          }));
-          commissions.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          return reply.send({ commissions });
-        }
-
-        // stats (aggregate, no id)
-        if (rest === 'stats' && request.method === 'GET') {
-          const [linksSnap, connectionsSnap, eventsSnap] = await Promise.all([
-            fastify.db
-              .collection('promoter_links')
-              .where('promoterId', '==', ctx.partnerId)
-              .get()
-              .catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db
-              .collection('promoter_connections')
-              .where('promoterId', '==', ctx.partnerId)
-              .where('status', '==', 'active')
-              .get()
-              .catch(() => ({ docs: [] as any[], size: 0 })),
-            fastify.db
-              .collection('events')
-              .where('promoterId', '==', ctx.partnerId)
-              .get()
-              .catch(() => ({ docs: [] as any[], size: 0 })),
-          ]);
-          const allLinkDocs = (linksSnap as any).docs || [];
-          const activeLinks = allLinkDocs.filter((d: any) => d.data().isActive !== false).length;
-          const totalClicks = allLinkDocs.reduce(
-            (s: number, d: any) => s + (d.data().clicks || 0),
-            0,
-          );
-          const totalConversions = allLinkDocs.reduce(
-            (s: number, d: any) => s + (d.data().conversions || 0),
-            0,
-          );
-          const totalEarnings = allLinkDocs.reduce(
-            (s: number, d: any) => s + (d.data().totalEarnings || d.data().earnings || 0),
-            0,
-          );
-          return reply.send({
-            links: (linksSnap as any).size || 0,
-            activeLinks,
-            activeConnections: (connectionsSnap as any).size || 0,
-            events: (eventsSnap as any).size || 0,
-            totalClicks,
-            totalConversions,
-            totalSales: totalConversions,
-            totalEarnings,
-            conversionRate:
-              totalClicks > 0 ? Math.round((totalConversions / totalClicks) * 100) : 0,
-          });
-        }
-
-        // payouts POST (request payout) / DELETE (cancel payout)
-        if (rest === 'payouts' && request.method === 'POST') {
-          const now = new Date().toISOString();
-          const ref = await fastify.db.collection('payout_requests').add({
-            promoterId: ctx.partnerId,
-            amountPaise: body.amountPaise || 0,
-            bankAccountId: body.bankAccountId || null,
-            status: 'pending',
-            requestedAt: now,
-            createdAt: now,
-          });
-          return reply.send({ success: true, id: ref.id });
-        }
-        if (rest === 'payouts' && request.method === 'DELETE') {
-          const payoutId = String(query.payoutId || body.payoutId || '');
-          if (!payoutId)
-            return reply.status(400).send(
-              buildErrorResponse({
-                code: 'BAD_REQUEST',
-                message: 'payoutId required',
-                requestId: request.id,
-              }),
-            );
-          const ref = fastify.db.collection('payout_requests').doc(payoutId);
-          const doc = await ref.get();
-          if (!doc.exists)
-            return reply.status(404).send(
-              buildErrorResponse({
-                code: 'NOT_FOUND',
-                message: 'Payout request not found',
-                requestId: request.id,
-              }),
-            );
-          if ((doc.data() as any).promoterId !== ctx.partnerId)
-            return reply.status(403).send(
-              buildErrorResponse({
-                code: 'FORBIDDEN',
-                message: 'Not your payout request',
-                requestId: request.id,
-              }),
-            );
-          await ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
-          return reply.send({ success: true });
-        }
-
-        // upload (profile image / cover)
-        if (rest === 'upload' && request.method === 'POST') {
-          const fieldName = String(body.field || 'profileImage');
-          const url = String(body.url || '');
-          if (!url)
-            return reply.status(400).send(
-              buildErrorResponse({
-                code: 'BAD_REQUEST',
-                message: 'url required',
-                requestId: request.id,
-              }),
-            );
-          const allowed = ['profileImage', 'coverImage', 'logoUrl'];
-          if (!allowed.includes(fieldName))
-            return reply.status(400).send(
-              buildErrorResponse({
-                code: 'BAD_REQUEST',
-                message: 'field must be one of: ' + allowed.join(', '),
-                requestId: request.id,
-              }),
-            );
-          await fastify.db
-            .collection('promoters')
-            .doc(ctx.partnerId)
-            .set({ [fieldName]: url, updatedAt: new Date().toISOString() }, { merge: true });
-          return reply.send({ success: true, [fieldName]: url });
-        }
-
-        // partners/:id — get a specific partner (venue or host) by id
-        const partnerByIdMatch = rest.match(/^partners\/([^/]+)$/);
-        if (partnerByIdMatch && request.method === 'GET') {
-          const partnerId = partnerByIdMatch[1];
-          const [venueDoc, hostDoc] = await Promise.all([
-            fastify.db
-              .collection('venues')
-              .doc(partnerId)
-              .get()
-              .catch(() => null),
-            fastify.db
-              .collection('hosts')
-              .doc(partnerId)
-              .get()
-              .catch(() => null),
-          ]);
-          if (venueDoc && venueDoc.exists)
-            return reply.send({
-              partner: { id: venueDoc.id, type: 'venue', ...(venueDoc.data() || {}) },
-            });
-          if (hostDoc && hostDoc.exists)
-            return reply.send({
-              partner: { id: hostDoc.id, type: 'host', ...(hostDoc.data() || {}) },
-            });
-          return reply.status(404).send(
-            buildErrorResponse({
-              code: 'NOT_FOUND',
-              message: 'Partner not found',
-              requestId: request.id,
-            }),
-          );
-        }
-
-        // settings/*
-        if (rest === 'settings' && request.method === 'GET') {
-          const doc = await fastify.db
-            .collection('promoters')
-            .doc(ctx.partnerId)
-            .get()
-            .catch(() => null);
-          const data = doc && doc.exists ? doc.data() || {} : {};
-          return reply.send({
-            settings: {
-              notificationsEnabled: data.notificationsEnabled ?? true,
-              marketingEmails: data.marketingEmails ?? true,
-              twoFactorEnabled: data.twoFactorEnabled ?? false,
-              language: data.language || 'en',
-              timezone: data.timezone || 'Asia/Kolkata',
-            },
-          });
-        }
-
-        if (
-          rest === 'settings/identity' &&
-          (request.method === 'PUT' || request.method === 'PATCH')
-        ) {
-          const allowed = [
-            'displayName',
-            'bio',
-            'instagramHandle',
-            'twitterHandle',
-            'website',
-            'city',
-            'genres',
-          ];
-          const patch: Record<string, any> = {};
-          for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
-          patch.updatedAt = new Date().toISOString();
-          await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
-          return reply.send({ success: true });
-        }
-
-        if (rest === 'settings/notifications' && request.method === 'PATCH') {
-          const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
-          if (body.notificationsEnabled !== undefined)
-            patch.notificationsEnabled = body.notificationsEnabled;
-          if (body.marketingEmails !== undefined) patch.marketingEmails = body.marketingEmails;
-          await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
-          return reply.send({ success: true });
-        }
-
-        if (rest === 'settings/payout' && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('bank_accounts')
-            .where('ownerId', '==', ctx.partnerId)
-            .where('ownerType', '==', 'promoter')
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
-          return reply.send({
-            accounts: ((snap as any).docs || []).map((doc: any) => ({
-              id: doc.id,
-              ...(doc.data() || {}),
-              accountNumber: undefined,
-            })),
-          });
-        }
-        if (rest === 'settings/payout' && request.method === 'POST') {
-          const account = buildPayoutAccountRecord(body, {
-            partnerId: ctx.partnerId,
-            ownerType: 'promoter',
-          });
-          const ref = await fastify.db.collection('bank_accounts').add(account.record);
-          return reply.send({
-            success: true,
-            id: ref.id,
-            account: account.response(ref.id).account,
-          });
-        }
-
-        if (rest === 'settings/security/logout-all' && request.method === 'POST') {
-          await (fastify as any).firebaseAdmin
-            .auth()
-            .revokeRefreshTokens(ctx.uid)
-            .catch(() => {});
-          return reply.send({ success: true });
-        }
-
-        if (rest === 'settings/verification' && request.method === 'GET') {
-          const doc = await fastify.db
-            .collection('promoter_verifications')
-            .doc(ctx.partnerId)
-            .get()
-            .catch(() => null);
-          return reply.send({
-            verification:
-              doc && doc.exists ? doc.data() || {} : { status: 'unverified', submittedAt: null },
-          });
-        }
-        if (rest === 'settings/verification' && request.method === 'POST') {
-          await fastify.db
-            .collection('promoter_verifications')
-            .doc(ctx.partnerId)
-            .set(
-              {
-                ...body,
-                promoterId: ctx.partnerId,
-                status: 'pending',
-                submittedAt: new Date().toISOString(),
-              },
-              { merge: true },
-            );
-          return reply.send({ success: true });
-        }
-
-        return reply.status(404).send(
-          buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Partner promoter endpoint not found',
-            requestId: request.id,
-          }),
-        );
+        return reply.send(await getPromoterProfile(ctx.partnerId));
       } catch (err: any) {
-        if (err.statusCode) {
+        if (err.statusCode)
           return reply.status(err.statusCode).send(
             buildErrorResponse({
               code: err.code || 'FORBIDDEN',
@@ -2221,7 +2108,1005 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.put(
+    '/partners/promoters/profile',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = UpdateIdentitySchema.parse(asRecord(request.body));
+        return reply.send(await updatePromoterProfile(ctx.partnerId, body));
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/guests',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const query = PaginationQuerySchema.parse(asRecord(request.query));
+        const limit = Math.min(query.limit || 20, 100);
+        return reply.send(
+          await resolvePromoterGuests(
+            ctx.partnerId,
+            limit,
+            query.cursor,
+            query.status as string,
+            query.eventId as string,
+          ),
+        );
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid query parameters',
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/finance',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        return reply.send(await buildPromoterFinancePayload(ctx.partnerId));
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/payouts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        return reply.send(await buildPromoterFinancePayload(ctx.partnerId));
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/finance/bank-accounts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const accounts = await financeService.getBankAccounts({
+          partnerId: ctx.partnerId,
+          uid: ctx.uid,
+          type: 'promoter',
+          roles: ctx.roles,
+          venueIds: [],
+          displayName: ctx.displayName,
+        });
+        return reply.send({
+          accounts: accounts.map((account: any) => ({
+            id: account.accountId,
+            bankName: account.bankName || 'Bank Account',
+            last4: account.last4 || '0000',
+            isDefault: account.isDefault ?? false,
+            paymentType: account.paymentType || 'bank_account',
+          })),
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/finance/bank-accounts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = BankAccountSchema.parse(asRecord(request.body));
+        return reply.status(201).send(await createBankAccount(ctx.partnerId, body));
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.delete(
+    '/partners/promoters/finance/bank-accounts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const query = asRecord(request.query);
+        const body = asRecord(request.body);
+        return reply.send(
+          await deleteBankAccount(ctx.partnerId, String(query.accountId || body.accountId || '')),
+        );
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/notifications',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const query = PaginationQuerySchema.parse(asRecord(request.query));
+        const limit = Math.min(query.limit || 50, 100);
+
+        let q = fastify.db
+          .collection('notifications')
+          .where('recipientId', '==', ctx.partnerId)
+          .orderBy('createdAt', 'desc')
+          .limit(limit + 1);
+
+        if (query.cursor) {
+          const cursorDoc = await fastify.db.collection('notifications').doc(query.cursor).get();
+          if (cursorDoc.exists) q = q.startAfter(cursorDoc);
         }
+
+        const snap = await q.get().catch(() => ({ docs: [] as any[] }));
+        const allDocs = snap.docs || [];
+        const hasMore = allDocs.length > limit;
+        const docsToReturn = allDocs.slice(0, limit);
+
+        const notifications = docsToReturn.map((doc: any) => ({
+          id: doc.id,
+          ...(doc.data() || {}),
+        }));
+        const nextCursor = hasMore ? (notifications[notifications.length - 1]?.id ?? null) : null;
+
+        return reply.send({ notifications, nextCursor, hasMore });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid query parameters',
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/commissions',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const query = PaginationQuerySchema.parse(asRecord(request.query));
+        const limit = Math.min(query.limit || 50, 100);
+
+        let q = fastify.db
+          .collection('promoter_commissions')
+          .where('promoterId', '==', ctx.partnerId)
+          .orderBy('createdAt', 'desc')
+          .limit(limit + 1);
+
+        if (query.cursor) {
+          const cursorDoc = await fastify.db
+            .collection('promoter_commissions')
+            .doc(query.cursor)
+            .get();
+          if (cursorDoc.exists) q = q.startAfter(cursorDoc);
+        }
+
+        const snap = await q.get().catch(() => ({ docs: [] as any[] }));
+        const allDocs = snap.docs || [];
+        const hasMore = allDocs.length > limit;
+        const docsToReturn = allDocs.slice(0, limit);
+
+        const commissions = docsToReturn.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+        const nextCursor = hasMore ? (commissions[commissions.length - 1]?.id ?? null) : null;
+
+        return reply.send({ commissions, nextCursor, hasMore });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid query parameters',
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/leaderboard',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const timeframeQuery = request.query.timeframe
+          ? String(request.query.timeframe).trim().toLowerCase()
+          : 'all_time';
+        const cityQuery = request.query.city
+          ? String(request.query.city).trim().toLowerCase()
+          : 'all';
+        const cityFilter = cityQuery && cityQuery !== 'all' ? cityQuery : 'global';
+
+        let periodType = 'all_time';
+        let periodValue = 'all';
+
+        if (timeframeQuery === 'month') {
+          periodType = 'month';
+          const d = new Date();
+          periodValue = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+        } else if (timeframeQuery === 'week') {
+          periodType = 'week';
+          const d = new Date();
+          const d2 = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+          const dayNum = d2.getUTCDay() || 7;
+          d2.setUTCDate(d2.getUTCDate() + 4 - dayNum);
+          const yearStart = new Date(Date.UTC(d2.getUTCFullYear(), 0, 1));
+          const weekNo = Math.ceil(((d2.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
+          periodValue = `${d2.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+        }
+
+        let statsSnap;
+        if (periodType === 'all_time' && cityFilter === 'global') {
+          statsSnap = await fastify.db
+            .collection('promoter_stats')
+            .orderBy('totalCommissionEarned', 'desc')
+            .limit(20)
+            .get();
+        } else {
+          statsSnap = await fastify.db
+            .collection('leaderboard_stats')
+            .where('periodType', '==', periodType)
+            .where('periodValue', '==', periodValue)
+            .where('city', '==', cityFilter)
+            .orderBy('totalCommissionEarned', 'desc')
+            .limit(20)
+            .get();
+        }
+
+        const leaderboard = [];
+        let rank = 1;
+        let currentUserFound = false;
+
+        for (const doc of statsSnap.docs) {
+          const data = doc.data();
+          const promoterId = data.promoterId || doc.id;
+          const xpScore = Math.floor((data.totalCommissionEarned || 0) / 100);
+
+          const promoterDoc = await fastify.db.collection('promoters').doc(promoterId).get();
+          const profile = promoterDoc.data() || {};
+
+          if (promoterId === ctx.partnerId) {
+            currentUserFound = true;
+          }
+
+          leaderboard.push({
+            promoterId,
+            displayName: profile.displayName || profile.name || 'Unknown Promoter',
+            avatarUrl: profile.avatarUrl || profile.photoURL || profile.profileImage || null,
+            xpScore,
+            rank,
+          });
+
+          rank++;
+        }
+
+        let currentUserRank = null;
+        if (!currentUserFound) {
+          let currentUserStats;
+          let higherScoresQuery: any;
+
+          if (periodType === 'all_time' && cityFilter === 'global') {
+            currentUserStats = await fastify.db
+              .collection('promoter_stats')
+              .doc(ctx.partnerId)
+              .get();
+            higherScoresQuery = fastify.db.collection('promoter_stats');
+          } else {
+            const docId = `${ctx.partnerId}_${periodType}_${periodValue}_${cityFilter}`;
+            currentUserStats = await fastify.db.collection('leaderboard_stats').doc(docId).get();
+            higherScoresQuery = fastify.db
+              .collection('leaderboard_stats')
+              .where('periodType', '==', periodType)
+              .where('periodValue', '==', periodValue)
+              .where('city', '==', cityFilter);
+          }
+
+          if (currentUserStats.exists) {
+            const data = currentUserStats.data() || {};
+            const xpScore = Math.floor((data.totalCommissionEarned || 0) / 100);
+
+            const higherScoresSnap = await higherScoresQuery
+              .where('totalCommissionEarned', '>', data.totalCommissionEarned || 0)
+              .count()
+              .get();
+
+            const estimatedRank = higherScoresSnap.data().count + 1;
+
+            const promoterDoc = await fastify.db.collection('promoters').doc(ctx.partnerId).get();
+            const profile = promoterDoc.data() || {};
+
+            currentUserRank = {
+              promoterId: ctx.partnerId,
+              displayName: profile.displayName || profile.name || 'Unknown Promoter',
+              avatarUrl: profile.avatarUrl || profile.photoURL || profile.profileImage || null,
+              xpScore,
+              rank: estimatedRank,
+            };
+          }
+        }
+
+        return reply.header('Cache-Control', 'public, max-age=60').send({
+          success: true,
+          leaderboard,
+          currentUserRank,
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  // stats (aggregate, no id) optimized with Firestore Server-Side aggregations
+  fastify.get(
+    '/partners/promoters/stats',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const [
+          linksCountSnap,
+          activeConnectionsCountSnap,
+          eventsCountSnap,
+          linksAggregateSnap,
+          activeLinksCountSnap,
+        ] = await Promise.all([
+          fastify.db
+            .collection('promoter_links')
+            .where('promoterId', '==', ctx.partnerId)
+            .count()
+            .get()
+            .catch(() => ({ data: () => ({ count: 0 }) })),
+          fastify.db
+            .collection('promoter_connections')
+            .where('promoterId', '==', ctx.partnerId)
+            .where('status', '==', 'active')
+            .count()
+            .get()
+            .catch(() => ({ data: () => ({ count: 0 }) })),
+          fastify.db
+            .collection('events')
+            .where('promoterId', '==', ctx.partnerId)
+            .count()
+            .get()
+            .catch(() => ({ data: () => ({ count: 0 }) })),
+          fastify.db
+            .collection('promoter_links')
+            .where('promoterId', '==', ctx.partnerId)
+            .aggregate({
+              totalClicks: AggregateField.sum('clicks'),
+              totalConversions: AggregateField.sum('conversions'),
+              totalEarnings: AggregateField.sum('totalEarnings'),
+              fallbackEarnings: AggregateField.sum('earnings'),
+            })
+            .get()
+            .catch(() => ({
+              data: () => ({
+                totalClicks: 0,
+                totalConversions: 0,
+                totalEarnings: 0,
+                fallbackEarnings: 0,
+              }),
+            })),
+          fastify.db
+            .collection('promoter_links')
+            .where('promoterId', '==', ctx.partnerId)
+            .where('isActive', '==', true)
+            .count()
+            .get()
+            .catch(() => ({ data: () => ({ count: 0 }) })),
+        ]);
+
+        const linksCount = linksCountSnap.data().count || 0;
+        const activeConnectionsCount = activeConnectionsCountSnap.data().count || 0;
+        const eventsCount = eventsCountSnap.data().count || 0;
+
+        const aggData = linksAggregateSnap.data();
+        const totalClicks = aggData.totalClicks || 0;
+        const totalConversions = aggData.totalConversions || 0;
+        // We sum both since previous logic did: `d.data().totalEarnings || d.data().earnings || 0`
+        // For aggregations, we sum both and the schema should theoretically be normalized.
+        // If a document only has `earnings`, `totalEarnings` is 0 and vice versa.
+        const totalEarnings = (aggData.totalEarnings || 0) + (aggData.fallbackEarnings || 0);
+
+        const activeLinksCount = activeLinksCountSnap.data().count || linksCount; // approximation if isActive not explicitly false
+
+        return reply.send({
+          links: linksCount,
+          activeLinks: activeLinksCount,
+          activeConnections: activeConnectionsCount,
+          events: eventsCount,
+          totalClicks,
+          totalConversions,
+          totalSales: totalConversions,
+          totalEarnings,
+          conversionRate: totalClicks > 0 ? Math.round((totalConversions / totalClicks) * 100) : 0,
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/payouts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const body = PayoutRequestSchema.parse(asRecord(request.body));
+        const amountPaise = body.amountPaise;
+
+        const idempotencyKey = request.headers['x-idempotency-key'] as string;
+        if (!idempotencyKey)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'x-idempotency-key header is required',
+              requestId: request.id,
+            }),
+          );
+
+        const work = async () => {
+          // Validate balance
+          const promoterCtx = {
+            partnerId: ctx.partnerId,
+            uid: ctx.uid,
+            type: 'promoter' as const,
+            roles: [],
+            venueIds: [],
+            displayName: ctx.displayName || 'Promoter',
+          };
+          const balances = await financeService.getBalances(promoterCtx);
+          if (amountPaise > balances.availableBalance) {
+            throw Object.assign(new Error('Insufficient balance'), {
+              statusCode: 400,
+              code: 'INSUFFICIENT_FUNDS',
+            });
+          }
+
+          const now = new Date().toISOString();
+          const ref = fastify.db.collection('payout_requests').doc();
+
+          const batch = fastify.db.batch();
+          batch.set(ref, {
+            promoterId: ctx.partnerId,
+            amountPaise,
+            bankAccountId: body.bankAccountId || null,
+            status: 'pending',
+            requestedAt: now,
+            createdAt: now,
+          });
+
+          const auditRef = fastify.db.collection('promoter_audit_logs').doc();
+          batch.set(auditRef, {
+            promoterId: ctx.partnerId,
+            action: 'PAYOUT_REQUESTED',
+            targetId: ref.id,
+            amountPaise,
+            timestamp: now,
+            performedBy: ctx.uid,
+          });
+
+          await batch.commit();
+          return { success: true, id: ref.id };
+        };
+
+        let result;
+        if (fastify.idempotencyService?.executeOnce) {
+          result = await fastify.idempotencyService.executeOnce(idempotencyKey, ctx.uid, work);
+          if (result.cached) return reply.send(result.body);
+        } else {
+          result = await work();
+        }
+
+        return reply.send(result);
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.delete(
+    '/partners/promoters/payouts',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const query = asRecord(request.query);
+        const body = asRecord(request.body);
+        const payoutId = String(query.payoutId || body.payoutId || '');
+        if (!payoutId)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'payoutId required',
+              requestId: request.id,
+            }),
+          );
+        const ref = fastify.db.collection('payout_requests').doc(payoutId);
+        const doc = await ref.get();
+        if (!doc.exists)
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Payout request not found',
+              requestId: request.id,
+            }),
+          );
+        if ((doc.data() as any).promoterId !== ctx.partnerId)
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'FORBIDDEN',
+              message: 'Not your payout request',
+              requestId: request.id,
+            }),
+          );
+        await ref.update({ status: 'cancelled', cancelledAt: new Date().toISOString() });
+        return reply.send({ success: true });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/upload',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = UploadSchema.parse(asRecord(request.body));
+        const fieldName = String(body.field || 'profileImage');
+        const url = String(body.url || '');
+        if (!url)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'url required',
+              requestId: request.id,
+            }),
+          );
+        const allowed = ['profileImage', 'coverImage', 'logoUrl'];
+        if (!allowed.includes(fieldName))
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'field must be one of: ' + allowed.join(', '),
+              requestId: request.id,
+            }),
+          );
+        await fastify.db
+          .collection('promoters')
+          .doc(ctx.partnerId)
+          .set({ [fieldName]: url, updatedAt: new Date().toISOString() }, { merge: true });
+        return reply.send({ success: true, [fieldName]: url });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/partners/:id',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const partnerId = String(request.params.id || '');
+        const [venueDoc, hostDoc] = await Promise.all([
+          fastify.db
+            .collection('venues')
+            .doc(partnerId)
+            .get()
+            .catch(() => null),
+          fastify.db
+            .collection('hosts')
+            .doc(partnerId)
+            .get()
+            .catch(() => null),
+        ]);
+        if (venueDoc && venueDoc.exists)
+          return reply.send({
+            partner: { id: venueDoc.id, type: 'venue', ...(venueDoc.data() || {}) },
+          });
+        if (hostDoc && hostDoc.exists)
+          return reply.send({
+            partner: { id: hostDoc.id, type: 'host', ...(hostDoc.data() || {}) },
+          });
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Partner not found',
+            requestId: request.id,
+          }),
+        );
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/settings',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const doc = await fastify.db
+          .collection('promoters')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        const data = doc && doc.exists ? doc.data() || {} : {};
+        return reply.send({
+          settings: {
+            notificationsEnabled: data.notificationsEnabled ?? true,
+            marketingEmails: data.marketingEmails ?? true,
+            twoFactorEnabled: data.twoFactorEnabled ?? false,
+            language: data.language || 'en',
+            timezone: data.timezone || 'Asia/Kolkata',
+          },
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.route({
+    method: ['PUT', 'PATCH'],
+    url: '/partners/promoters/settings/identity',
+    preHandler: [fastify.requireAuth],
+    handler: async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = UpdateIdentitySchema.parse(asRecord(request.body));
+        const allowed = [
+          'displayName',
+          'bio',
+          'instagramHandle',
+          'twitterHandle',
+          'website',
+          'city',
+          'genres',
+        ];
+        const patch: Record<string, any> = {};
+        for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
+        patch.updatedAt = new Date().toISOString();
+        await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
+        return reply.send({ success: true });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
         return reply.status(500).send(
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
@@ -2232,4 +3117,245 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     },
   });
+
+  fastify.patch(
+    '/partners/promoters/settings/notifications',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = UpdateNotificationsSchema.parse(asRecord(request.body));
+        const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
+        if (body.notificationsEnabled !== undefined)
+          patch.notificationsEnabled = body.notificationsEnabled;
+        if (body.marketingEmails !== undefined) patch.marketingEmails = body.marketingEmails;
+        await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
+        return reply.send({ success: true });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/settings/payout',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const snap = await fastify.db
+          .collection('bank_accounts')
+          .where('ownerId', '==', ctx.partnerId)
+          .where('ownerType', '==', 'promoter')
+          .get()
+          .catch(() => ({ docs: [] as any[] }));
+        return reply.send({
+          accounts: ((snap as any).docs || []).map((doc: any) => ({
+            id: doc.id,
+            ...(doc.data() || {}),
+            accountNumber: undefined,
+          })),
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/settings/payout',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = BankAccountSchema.parse(asRecord(request.body));
+        const account = buildPayoutAccountRecord(body, {
+          partnerId: ctx.partnerId,
+          ownerType: 'promoter',
+        });
+        const ref = await fastify.db.collection('bank_accounts').add(account.record);
+        return reply.send({ success: true, id: ref.id, account: account.response(ref.id).account });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/settings/security/logout-all',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        await (fastify as any).firebaseAdmin
+          .auth()
+          .revokeRefreshTokens(ctx.uid)
+          .catch(() => {});
+        return reply.send({ success: true });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/partners/promoters/settings/verification',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const doc = await fastify.db
+          .collection('promoter_verifications')
+          .doc(ctx.partnerId)
+          .get()
+          .catch(() => null);
+        return reply.send({
+          verification:
+            doc && doc.exists ? doc.data() || {} : { status: 'unverified', submittedAt: null },
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/promoters/settings/verification',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+        const body = SettingsVerificationSchema.parse(asRecord(request.body));
+        await fastify.db
+          .collection('promoter_verifications')
+          .doc(ctx.partnerId)
+          .set(
+            {
+              ...body,
+              promoterId: ctx.partnerId,
+              status: 'pending',
+              submittedAt: new Date().toISOString(),
+            },
+            { merge: true },
+          );
+        return reply.send({ success: true });
+      } catch (err: any) {
+        if (err instanceof z.ZodError)
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'VALIDATION_ERROR',
+              message: 'Invalid payload: ' + (err as any).errors[0]?.message,
+              requestId: request.id,
+            }),
+          );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 }

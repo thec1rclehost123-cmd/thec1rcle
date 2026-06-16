@@ -1,17 +1,14 @@
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import * as Haptics from 'expo-haptics';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withSpring,
   FadeInDown,
 } from 'react-native-reanimated';
-
-import { Badge } from './Primitives';
-
 import { colors, radii, gradients } from '@/lib/design/theme';
+import { Badge } from './Primitives';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH - 32;
@@ -78,11 +75,11 @@ export function EventCard({
         onPress={handlePress}
         style={[animatedStyle, styles.compactCard]}
       >
-        <Image
+        <Animated.Image
+          sharedTransitionTag={`poster-${id}`}
           source={{ uri: imageUrl }}
           style={styles.compactImage}
-          contentFit="cover"
-          transition={200}
+          resizeMode="cover"
         />
         <View style={styles.compactContent}>
           <Text style={styles.compactTitle} numberOfLines={1}>
@@ -110,11 +107,11 @@ export function EventCard({
         onPress={handlePress}
         style={[animatedStyle, styles.featuredCard]}
       >
-        <Image
+        <Animated.Image
+          sharedTransitionTag={`poster-${id}`}
           source={{ uri: imageUrl }}
           style={styles.featuredImage}
-          contentFit="cover"
-          transition={200}
+          resizeMode="cover"
         />
 
         {/* Gradient overlay */}
@@ -170,11 +167,11 @@ export function EventCard({
       onPress={handlePress}
       style={[animatedStyle, styles.defaultCard]}
     >
-      <Image
+      <Animated.Image
+        sharedTransitionTag={`poster-${id}`}
         source={{ uri: imageUrl }}
         style={styles.defaultImage}
-        contentFit="cover"
-        transition={200}
+        resizeMode="cover"
       />
 
       {/* Gradient overlay */}

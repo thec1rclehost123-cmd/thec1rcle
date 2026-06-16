@@ -28,6 +28,9 @@ const nextConfig = {
     ],
   },
   productionBrowserSourceMaps: false,
+  devIndicators: {
+    buildActivityPosition: 'bottom-right',
+  },
   typescript: {
     ignoreBuildErrors: false,
   },

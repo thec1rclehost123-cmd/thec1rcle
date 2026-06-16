@@ -3,12 +3,6 @@
  * 4 steps: Name → City → Vibe Tags → Photo
  */
 
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Haptics from 'expo-haptics';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
-import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
 import { useState, useRef } from 'react';
 import {
   View,
@@ -20,24 +14,25 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
-  DeviceEventEmitter,
 } from 'react-native';
-import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { apiFetch } from '@/lib/api';
-import { colors, radii, gradients } from '@/lib/design/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
+import * as Haptics from 'expo-haptics';
+import { DeviceEventEmitter } from 'react-native';
+import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
+import { apiFetch } from '@/lib/api';
+import { colors, radii, gradients } from '@/lib/design/theme';
 
 export const PROFILE_SETUP_KEY = 'c1rcle_profile_setup_complete';
 
 export async function hasCompletedProfileSetup(): Promise<boolean> {
-  try {
-    return (await AsyncStorage.getItem(PROFILE_SETUP_KEY)) === 'true';
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -205,6 +200,8 @@ export default function ProfileSetupScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
+          bounces={false}
+          overScrollMode="never"
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -429,7 +426,7 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontSize: 32,
     fontWeight: '900',
-    letterSpacing: -0.5,
+    letterSpacing: 0,
     marginBottom: 10,
     lineHeight: 38,
   },
