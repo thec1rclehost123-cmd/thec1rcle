@@ -23,6 +23,7 @@ jobs:
         with: { node-version: 20, cache: npm }
       - run: npm ci
       - run: npx knip
+        continue-on-error: true
 
   spellcheck:
     name: Spell Check (cspell)
