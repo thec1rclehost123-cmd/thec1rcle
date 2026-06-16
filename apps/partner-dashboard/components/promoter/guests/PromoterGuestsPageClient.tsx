@@ -76,7 +76,7 @@ export function PromoterGuestsPageClient() {
                   <div
                     className="bg-emerald-500 h-full rounded-full transition-all duration-1000"
                     style={{
-                      width: `${(data.totalUsed / Math.max(data.totalAllowance, 1)) * 100}%`,
+                      width: `${((data.pages[0]?.totalUsed ?? 0) / Math.max(data.pages[0]?.totalAllowance ?? 1, 1)) * 100}%`,
                     }}
                   />
                 </div>
@@ -156,9 +156,12 @@ export function PromoterGuestsPageClient() {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-text-secondary font-medium">
-                        {new Date(
-                          guest.dateAdded || guest.createdAt || Date.now(),
-                        ).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                        {guest.dateAdded || guest.createdAt
+                          ? new Date(guest.dateAdded || guest.createdAt).toLocaleDateString(
+                              'en-US',
+                              { month: 'short', day: 'numeric' },
+                            )
+                          : '—'}
                       </td>
                       <td className="px-6 py-4">
                         <span

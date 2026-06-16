@@ -18,6 +18,9 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { VenueActionButton, VenuePageShell } from '@/components/venue-layout/VenuePageShell';
 
 import { OverviewResponse, GuestsResponse } from '@/components/promoter/overview/types';
+
+type AnalyticsResponse = { timeline?: any[]; overview?: any; [key: string]: any };
+const PROMOTER_OVERVIEW_STALE_MS = 5 * 60 * 1000;
 import { OrderRow } from '@/components/promoter/overview/OrderRow';
 import { UpcomingEventCard } from '@/components/promoter/overview/UpcomingEventCard';
 import {

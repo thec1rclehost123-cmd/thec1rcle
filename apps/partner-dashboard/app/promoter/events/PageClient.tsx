@@ -30,7 +30,7 @@ import AnalyticsDrawer from '@/components/promoter/links/AnalyticsDrawer';
 const GUEST_PORTAL_URL =
   process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || process.env.NEXT_PUBLIC_SITE_URL || '';
 
-type PromoterTab = 'available' | 'linked';
+type PromoterTab = 'all' | 'available' | 'linked';
 
 interface PromoterEvent {
   id: string;

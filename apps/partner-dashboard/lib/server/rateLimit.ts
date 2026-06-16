@@ -1,3 +1,5 @@
+import { NextRequest, NextResponse } from 'next/server';
+
 const rateLimitMap = new Map<string, { count: number; expires: number }>();
 
 /**
@@ -19,4 +21,17 @@ export function checkRateLimit(identifier: string, limit: number, windowMs: numb
 
   record.count++;
   return true;
+}
+
+type Handler = (req: NextRequest) => Promise<NextResponse>;
+
+export function withRateLimit(handler: Handler, limit: number, windowMs = 60_000): Handler {
+  return async (req: NextRequest) => {
+    const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
+    const identifier = `${req.nextUrl.pathname}:${ip}`;
+    if (!checkRateLimit(identifier, limit, windowMs)) {
+      return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
+    }
+    return handler(req);
+  };
 }
