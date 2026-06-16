@@ -11,8 +11,6 @@ import { Resend } from 'resend';
 import TicketEmail from '../../components/emails/TicketEmail';
 import { generateICSBuffer } from './generateICS';
 import { generateTicketPDF } from './generateTicketPDF';
-import { generateOrderQRCodes } from '../server/qrStore';
-
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 /**
@@ -142,16 +140,7 @@ export async function sendTicketEmail({
     // ── Generate QR code data ───────────────────────────────
     let qrCodeData = orderId; // Fallback: just the order ID
 
-    if (order && event) {
-      try {
-        const qrCodes = generateOrderQRCodes(order, event);
-        if (qrCodes.length > 0) {
-          qrCodeData = qrCodes[0].qrData; // Use the signed QR payload
-        }
-      } catch (qrError) {
-        console.warn('[Email] QR generation failed, using orderId fallback:', qrError.message);
-      }
-    }
+    // QR generation removed — qrStore was a deleted lib/server module; orderId is the fallback
 
     // ── Build attachments ───────────────────────────────────
     const attachments = [];
