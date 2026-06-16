@@ -17,7 +17,7 @@ const GATEWAY_URL = (
   process.env.EXPO_PUBLIC_GATEWAY_URL ||
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   'http://localhost:4000'
-).replace(/^https?/, (m) => (m === 'https' ? 'wss' : 'ws'));
+).replace(/^https?/, (m: string) => (m === 'https' ? 'wss' : 'ws'));
 
 class WebSocketManager {
   private ws: WebSocket | null = null;

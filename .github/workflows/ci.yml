@@ -94,7 +94,7 @@ jobs:
           - workspace: apps/admin-console
             test-command: npx vitest run --coverage --passWithNoTests
           - workspace: apps/api-gateway
-            test-command: npx vitest run --coverage --passWithNoTests
+            test-command: npm run build --workspace=packages/core && npx vitest run --coverage --passWithNoTests
           - workspace: packages/core
             test-command: npx vitest run --coverage --passWithNoTests
           - workspace: apps/mobile-app
