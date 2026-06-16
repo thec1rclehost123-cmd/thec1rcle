@@ -15,9 +15,10 @@ RUN turbo prune @c1rcle/api-gateway --docker
 FROM node:20-alpine AS installer
 WORKDIR /app
 
-# First copy the pruned lockfile and package.json
+# First copy the pruned lockfile, package.json, and root config files
 COPY --from=builder /app/out/json/ .
 COPY --from=builder /app/out/package-lock.json ./package-lock.json
+COPY --from=builder /app/.npmrc ./.npmrc
 
 # Install dependencies (only what's needed for the pruned workspace)
 RUN npm install

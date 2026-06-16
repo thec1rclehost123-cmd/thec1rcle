@@ -17,6 +17,8 @@ services:
       dockerfile: apps/api-gateway/Dockerfile
     ports:
       - "4000:4000"
+    env_file:
+      - apps/api-gateway/.env.development
     environment:
       - NODE_ENV=development
       - REDIS_URL=redis://redis:6379

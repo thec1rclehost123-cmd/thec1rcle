@@ -566,5 +566,21 @@
     "reason": "Legacy promoter link store uses firebase-admin/firestore directly during Phase 0.",
     "parity_notes": "Preserve promoter link read/write behavior while migrating to gateway.",
     "remove_when": "Remove when P-4 migration completes and this store is deleted."
+  },
+  "apps/partner-dashboard/app/api/promoter/guests/assign/route.ts": {
+    "classification": "legacy_firebase_admin",
+    "phase": "P-4",
+    "target_owner": "Fastify partner promoter routes + PromoterService",
+    "reason": "Legacy promoter route uses firebase-admin/firestore FieldValue for serverTimestamp during Phase 0.",
+    "parity_notes": "Preserve manual guest assignment and audit log behavior while re-homing into Fastify and packages/core.",
+    "remove_when": "Remove when P-4 migration completes and this route is replaced by a gateway proxy."
+  },
+  "apps/mobile-app/functions/notifications.ts": {
+    "classification": "firebase_functions_deployment",
+    "phase": "N/A",
+    "target_owner": "Firebase Cloud Functions deployment (functions/ top-level)",
+    "reason": "This file is Firebase Cloud Functions server code co-located in the mobile-app workspace for development convenience. It uses firebase-admin legitimately as a server-side Cloud Functions trigger. It is not shipped in the mobile app bundle.",
+    "parity_notes": "File should eventually be moved to the top-level functions/ directory.",
+    "remove_when": "Remove when this file is relocated to functions/ and the workspace reference is updated."
   }
 }

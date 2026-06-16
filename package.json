@@ -13,6 +13,8 @@
     "dev:partner": "npm run dev -w apps/partner-dashboard",
     "dev:admin": "npm run dev -w apps/admin-console",
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
+    "docker:up": "docker compose up -d redis api-gateway --build",
+    "docker:down": "docker compose down",
     "build": "turbo build",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
