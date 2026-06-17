@@ -28,7 +28,7 @@
     "test:integration": "echo 'No integration tests configured yet' && exit 0",
     "guardrails:check": "node scripts/check-backend-boundaries.mjs",
     "test:guardrails": "node --test scripts/check-backend-boundaries.test.mjs",
-    "architecture:guest": "echo 'Skipping guest architecture tests for CI green check'",
+    "architecture:guest": "npm test -w apps/guest-portal",
     "prepush": "npm run lint && npm run stylelint:check && npm run type-check && (npm test || echo Tests non-blocking per CI continue-on-error policy) && npm run build && npm run guardrails:check"
   },
   "lint-staged": {

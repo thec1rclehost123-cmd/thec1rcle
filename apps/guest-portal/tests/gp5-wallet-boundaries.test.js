@@ -165,12 +165,12 @@ test('Ticket share and transfer modals keep OTP requests aligned with gateway au
     'ticket OTP helpers must not send the removed transaction OTP type',
   );
   assert.equal(
-    ticketApi.includes('type: "email", recipient:'),
+    ticketApi.includes("type: 'email', recipient:"),
     true,
     'ticket OTP helpers should send email recipient bodies',
   );
-  assert.match(shareModal, /import \{ useEffect, useState \} from "react";/);
-  assert.match(transferModal, /import \{ useEffect, useState \} from "react";/);
+  assert.match(shareModal, /import \{ useEffect, useState \} from 'react';/);
+  assert.match(transferModal, /import \{ useEffect, useState \} from 'react';/);
   assert.equal(shareModal.includes('Share2'), true, 'ShareModal should import the icon it renders');
 });
 

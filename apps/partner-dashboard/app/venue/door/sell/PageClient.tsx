@@ -248,7 +248,7 @@ export function DoorSellClient() {
   useEffect(() => {
     setCapacity(null);
     if (selectedEventId) fetchCapacity();
-  }, [selectedEventId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedEventId]);
 
   // Reset event selection and dine-in guest count when type changes
   useEffect(() => {

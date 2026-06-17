@@ -70,7 +70,7 @@ test('Auth provider preserves an active guest session across transient bootstrap
     'bootstrap failures should only clear state when no session was established',
   );
   assert.equal(
-    source.includes('console.error("Guest auth bootstrap failed", authError);'),
+    source.includes("console.error('Guest auth bootstrap failed', authError);"),
     true,
     'bootstrap failures should still be surfaced for investigation',
   );

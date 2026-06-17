@@ -140,9 +140,9 @@ test('Sitemap and robots are rendering-owned and gateway-backed', () => {
     true,
     'sitemap must include canonical event URLs from gateway public reads',
   );
-  assert.equal(sitemap.includes('itemPath("/host"'), true, 'sitemap must use canonical host URLs');
+  assert.equal(sitemap.includes("itemPath('/host'"), true, 'sitemap must use canonical host URLs');
   assert.equal(
-    sitemap.includes('itemPath("/venue"'),
+    sitemap.includes("itemPath('/venue'"),
     true,
     'sitemap must use canonical venue URLs',
   );

@@ -1,5 +1,5 @@
-import { LegalPage } from "@/components/LegalPage";
+import { LegalPage } from '@/components/LegalPage';
 
 export default function SafetyPolicyScreen() {
-    return <LegalPage type="safety" />;
+  return <LegalPage type="safety" />;
 }

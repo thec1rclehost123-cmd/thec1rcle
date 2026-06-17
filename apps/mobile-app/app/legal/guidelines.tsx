@@ -1,5 +1,5 @@
-import { LegalPage } from "@/components/LegalPage";
+import { LegalPage } from '@/components/LegalPage';
 
 export default function GuidelinesScreen() {
-    return <LegalPage type="guidelines" />;
+  return <LegalPage type="guidelines" />;
 }

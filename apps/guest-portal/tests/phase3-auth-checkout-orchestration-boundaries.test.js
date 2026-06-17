@@ -13,7 +13,7 @@ test('phase 3 checkout orchestration moves pure decisions into feature models', 
   const checkoutHook = read('features/checkout/hooks/useCheckoutSession.js');
   const checkoutModel = read('features/checkout/utils/checkoutSessionModel.js');
 
-  assert.equal(checkoutHook.includes('from "../utils/checkoutSessionModel"'), true);
+  assert.equal(checkoutHook.includes("from '../utils/checkoutSessionModel'"), true);
   assert.equal(checkoutHook.includes('buildCheckoutQuotePayload'), true);
   assert.equal(checkoutHook.includes('isReservationActive'), true);
   assert.equal(checkoutHook.includes('applyTicketQuantityDelta'), true);
@@ -33,7 +33,7 @@ test('phase 3 auth orchestration moves provider and flow decisions behind featur
   const authApi = read('features/auth/api/authApi.js');
   const authSessionModel = read('features/auth/utils/authSessionModel.js');
 
-  assert.equal(loginFlow.includes('from "../utils/loginFlowModel"'), true);
+  assert.equal(loginFlow.includes("from '../utils/loginFlowModel'"), true);
   assert.equal(loginFlow.includes('resolveAuthMode'), true);
   assert.equal(loginFlow.includes('buildCleanAuthForm'), true);
   assert.equal(loginFlow.includes('getNextLoginAction'), true);
@@ -56,8 +56,8 @@ test('phase 3 auth orchestration moves provider and flow decisions behind featur
   assert.equal(authApi.includes('guestApi.auth.me'), true);
   assert.equal(authApi.includes('guestApi.auth.login'), true);
   assert.equal(authApi.includes('guestApi.auth.register'), true);
-  assert.equal(authApi.includes('guestBffJson("/profile/update"'), true);
-  assert.equal(authApi.includes('isGuestBffEnabled("profile")'), true);
+  assert.equal(authApi.includes("guestBffJson('/profile/update'"), true);
+  assert.equal(authApi.includes("isGuestBffEnabled('profile')"), true);
   assert.equal(authApi.includes('guestApi.profiles.personal'), true);
   assert.equal(authApi.includes('guestApi.profiles.social'), true);
   assert.equal(authApi.includes('guestApi.profiles.bio'), true);

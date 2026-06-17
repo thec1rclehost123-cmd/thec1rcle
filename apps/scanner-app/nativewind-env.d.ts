@@ -34,3 +34,9 @@ declare module 'react-native' {
     columnWrapperClassName?: string;
   }
 }
+
+declare module 'react-native-safe-area-context' {
+  interface NativeSafeAreaViewProps {
+    className?: string;
+  }
+}

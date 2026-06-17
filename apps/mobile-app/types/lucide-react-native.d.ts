@@ -1,10 +1,10 @@
-import "lucide-react-native";
-import type { ColorValue } from "react-native";
+import 'lucide-react-native';
+import type { ColorValue } from 'react-native';
 
-declare module "lucide-react-native" {
-    interface LucideProps {
-        color?: ColorValue;
-        fill?: ColorValue;
-        strokeWidth?: string | number;
-    }
+declare module 'lucide-react-native' {
+  interface LucideProps {
+    color?: ColorValue;
+    fill?: ColorValue;
+    strokeWidth?: string | number;
+  }
 }

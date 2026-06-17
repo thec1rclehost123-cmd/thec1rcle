@@ -62,7 +62,7 @@ test('login page reports form validity before advancing auth flow', () => {
 test('profile client fallback routes signed-out users into login flow', () => {
   const source = readFileSync(profilePageClientPath, 'utf8');
 
-  assert.equal(source.includes('router.replace("/login?next=/profile")'), true);
+  assert.equal(source.includes("router.replace('/login?next=/profile')"), true);
 });
 
 test('logout redirects reuse the canonical login entry after awaiting sign-out', () => {
@@ -73,10 +73,10 @@ test('logout redirects reuse the canonical login entry after awaiting sign-out',
   const navSource = readFileSync(navControlsPath, 'utf8');
 
   assert.equal(profileSource.includes('await logout();'), true);
-  assert.equal(profileSource.includes('router.replace(buildLoginUrl("/profile"));'), true);
+  assert.equal(profileSource.includes("router.replace(buildLoginUrl('/profile'));"), true);
   assert.equal(profileSource.includes("router.replace('/login');"), false);
   assert.equal(navSource.includes('await logout();'), true);
-  assert.equal(navSource.includes('router.replace(buildLoginUrl("/profile"));'), true);
+  assert.equal(navSource.includes("router.replace(buildLoginUrl('/profile'));"), true);
 });
 
 test('profile entry links preserve /profile as the return target', () => {
@@ -85,12 +85,12 @@ test('profile entry links preserve /profile as the return target', () => {
 
   assert.equal(desktop.includes(') : !isAuthPage && !loading ? ('), true);
   assert.equal(desktop.includes('href="/login?next=/profile"'), true);
-  assert.equal(mobile.includes('"/login?next=/profile"'), true);
-  assert.equal(desktop.includes('const isLoginPage = pathname === "/login";'), true);
-  assert.equal(desktop.includes('const isSignupPage = pathname === "/signup";'), true);
+  assert.equal(mobile.includes("'/login?next=/profile'"), true);
+  assert.equal(desktop.includes("const isLoginPage = pathname === '/login';"), true);
+  assert.equal(desktop.includes("const isSignupPage = pathname === '/signup';"), true);
   assert.equal(desktop.includes('user && !isAuthPage'), true);
   assert.equal(
-    desktop.includes('const authToggleLabel = isSignupPage ? "Login" : "Sign Up";'),
+    desktop.includes("const authToggleLabel = isSignupPage ? 'Login' : 'Sign Up';"),
     true,
   );
 });
@@ -99,9 +99,9 @@ test('auth callback redirects onboarding-required users into explicit onboarding
   const source = readFileSync(authCallbackPath, 'utf8');
 
   assert.equal(source.includes('buildLoginUrl(returnUrl, { onboarding: true })'), true);
-  assert.equal(source.includes('getReturnUrl(searchParams, "/profile")'), true);
-  assert.equal(source.includes('syncStatus === "transient_error"'), true);
-  assert.equal(source.includes('syncStatus === "signed_out"'), true);
+  assert.equal(source.includes("getReturnUrl(searchParams, '/profile')"), true);
+  assert.equal(source.includes("syncStatus === 'transient_error'"), true);
+  assert.equal(source.includes("syncStatus === 'signed_out'"), true);
   assert.equal(source.includes('Retrying your secure session'), true);
 });
 
@@ -114,7 +114,7 @@ test('auth flows standardize callback redirects on the next query param', () => 
     true,
   );
   assert.equal(loginSource.includes('returnUrl='), false);
-  assert.equal(loginSource.includes('from "../utils/loginFlowModel"'), true);
+  assert.equal(loginSource.includes("from '../utils/loginFlowModel'"), true);
   assert.equal(loginSource.includes('resolveAuthMode'), true);
   assert.equal(loginSource.includes('getNextLoginAction'), true);
   assert.equal(loginSource.includes('getCitySelectionAction'), true);
@@ -137,8 +137,8 @@ test('signup route reuses the login funnel behind a dedicated /signup URL', () =
 test('legacy /auth route immediately folds into the canonical /login surface', () => {
   const source = readFileSync(legacyAuthPagePath, 'utf8');
 
-  assert.equal(source.includes('import { redirect } from "next/navigation";'), true);
-  assert.equal(source.includes('"/login"'), true);
+  assert.equal(source.includes("import { redirect } from 'next/navigation';"), true);
+  assert.equal(source.includes("'/login'"), true);
   assert.equal(source.includes('redirect(buildLoginRedirect(searchParams));'), true);
 });
 
@@ -147,9 +147,9 @@ test('signup route gets the same focused auth shell treatment as login', () => {
   const footer = readFileSync(contextualFooterPath, 'utf8');
   const mobileNav = readFileSync(mobileBottomNavPath, 'utf8');
 
-  assert.equal(pageWrapper.includes('pathname === "/signup"'), true);
-  assert.equal(footer.includes('pathname === "/signup"'), true);
-  assert.equal(mobileNav.includes('pathname === "/signup"'), true);
+  assert.equal(pageWrapper.includes("pathname === '/signup'"), true);
+  assert.equal(footer.includes("pathname === '/signup'"), true);
+  assert.equal(mobileNav.includes("pathname === '/signup'"), true);
 });
 
 test('login client enters onboarding mode from URL state and completes city selection correctly', () => {
@@ -157,8 +157,8 @@ test('login client enters onboarding mode from URL state and completes city sele
   const pageClientSource = readFileSync(loginPageClientPath, 'utf8');
   const modelSource = readFileSync(loginFlowModelPath, 'utf8');
 
-  assert.equal(modelSource.includes('pathname === "/signup"'), true);
-  assert.equal(modelSource.includes('searchParams.get("onboarding") === "1"'), true);
+  assert.equal(modelSource.includes("pathname === '/signup'"), true);
+  assert.equal(modelSource.includes("searchParams.get('onboarding') === '1'"), true);
   assert.equal(source.includes('setIsLoginMode(false);'), true);
   assert.equal(source.includes('setIsOnboarding(nextState.isOnboarding);'), true);
   assert.equal(pageClientSource.includes('Continue with Google'), true);
@@ -172,9 +172,9 @@ test('login client no longer stores the password in session persistence or treat
   const source = readFileSync(loginFlowPath, 'utf8');
   const modelSource = readFileSync(loginFlowModelPath, 'utf8');
 
-  assert.equal(modelSource.includes('password: ""'), true);
+  assert.equal(modelSource.includes("password: ''"), true);
   assert.equal(
-    modelSource.includes('return "Google sign-in is not enabled for this Firebase project."'),
+    modelSource.includes("return 'Google sign-in is not enabled for this Firebase project.';"),
     true,
   );
   assert.equal(source.includes('router.push(buildSignupUrl(redirectUrl))'), true);
@@ -187,7 +187,7 @@ test('login client no longer stores the password in session persistence or treat
     modelSource.includes('if (step === 1 && form.email && form.password && isLoginMode)'),
     true,
   );
-  assert.equal(source.includes('error?.code === "auth/user-not-found"'), true);
+  assert.equal(source.includes("error?.code === 'auth/user-not-found'"), true);
   assert.equal(modelSource.includes('auth/invalid-credential'), true);
   assert.equal(source.includes('!googleProfile?.phone || !googleProfile?.gender'), false);
   assert.equal(source.includes('googleProfile?.onboardingComplete !== true'), false);
@@ -239,7 +239,7 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
     'GlobalAuthManager must replay venue follow through the social feature seam',
   );
   assert.equal(
-    manager.includes('intent.type === "RESERVE_VENUE"'),
+    manager.includes("intent.type === 'RESERVE_VENUE'"),
     true,
     'GlobalAuthManager must replay venue reservation intents',
   );
@@ -255,7 +255,7 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
   );
 
   assert.equal(
-    hostFollow.includes('saveIntent("FOLLOW_HOST"'),
+    hostFollow.includes("saveIntent('FOLLOW_HOST'"),
     true,
     'Host follow CTA should persist host follow intents',
   );
@@ -271,12 +271,12 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
   );
 
   assert.equal(
-    venueFollow.includes('saveIntent("FOLLOW_VENUE"'),
+    venueFollow.includes("saveIntent('FOLLOW_VENUE'"),
     true,
     'Venue page should persist venue follow intents',
   );
   assert.equal(
-    venueFollow.includes('saveIntent("RESERVE_VENUE"'),
+    venueFollow.includes("saveIntent('RESERVE_VENUE'"),
     true,
     'Venue page should persist venue reservation intents',
   );
@@ -307,7 +307,7 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
     'Legacy host profile should persist host unfollow actions',
   );
   assert.equal(
-    legacyHostFollow.includes('saveIntent("FOLLOW_HOST"'),
+    legacyHostFollow.includes("saveIntent('FOLLOW_HOST'"),
     true,
     'Legacy host profile should persist follow intents for auth replay',
   );
@@ -328,7 +328,7 @@ test('auth intent replay uses real RSVP and follow gateway mutations', () => {
     'Legacy venue profile should persist venue unfollow actions',
   );
   assert.equal(
-    legacyVenueFollow.includes('saveIntent("FOLLOW_VENUE"'),
+    legacyVenueFollow.includes("saveIntent('FOLLOW_VENUE'"),
     true,
     'Legacy venue profile should persist follow intents for auth replay',
   );
@@ -345,8 +345,8 @@ test('auth and profile surfaces use typed guest API helpers', () => {
 
   assert.equal(authProvider.includes('loadGuestBootstrap'), true);
   assert.equal(authProvider.includes('syncStatus'), true);
-  assert.equal(authProvider.includes('setSyncStatus("transient_error")'), true);
-  assert.equal(authProvider.includes('setSyncStatus("signed_out")'), true);
+  assert.equal(authProvider.includes("setSyncStatus('transient_error')"), true);
+  assert.equal(authProvider.includes("setSyncStatus('signed_out')"), true);
   assert.equal(authProvider.includes('loginGuest'), true);
   assert.equal(authProvider.includes('registerGuest'), true);
   assert.equal(authProvider.includes('logoutGuest'), true);
@@ -361,8 +361,8 @@ test('auth and profile surfaces use typed guest API helpers', () => {
   assert.equal(authApi.includes('guestApi.auth.login'), true);
   assert.equal(authApi.includes('guestApi.auth.register'), true);
   assert.equal(authApi.includes('guestApi.auth.logout'), true);
-  assert.equal(authApi.includes('guestBffJson("/profile/update"'), true);
-  assert.equal(authApi.includes('isGuestBffEnabled("profile")'), true);
+  assert.equal(authApi.includes("guestBffJson('/profile/update'"), true);
+  assert.equal(authApi.includes("isGuestBffEnabled('profile')"), true);
   assert.equal(authApi.includes('guestApi.profiles.personal'), true);
   assert.equal(authApi.includes('guestApi.profiles.social'), true);
   assert.equal(authApi.includes('guestApi.profiles.bio'), true);

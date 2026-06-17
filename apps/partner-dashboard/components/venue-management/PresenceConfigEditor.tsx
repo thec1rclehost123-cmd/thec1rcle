@@ -104,7 +104,6 @@ export default function PresenceConfigEditor() {
     };
 
     fetchConfig();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [venueId, authLoading, user]);
 
   const handleImageUpload = async (idx: number, file: File) => {
@@ -338,7 +337,7 @@ export default function PresenceConfigEditor() {
               >
                 {url ? (
                   <>
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {}
                     <img
                       src={url}
                       alt={`Gallery photo ${idx + 1}`}

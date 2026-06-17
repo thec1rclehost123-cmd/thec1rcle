@@ -15,23 +15,36 @@ export {};
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-declare module "react-native" {
-    interface ViewProps {
-        children?: any;
-    }
-    interface TextProps {
-        children?: any;
-    }
+declare module 'react-native' {
+  interface ViewProps {
+    children?: any;
+  }
+  interface TextProps {
+    children?: any;
+  }
 }
 
-declare module "expo-linear-gradient" {
-    interface LinearGradientProps {
-        children?: any;
-    }
+declare module 'react-native' {
+  // absoluteFillObject was removed from the RN 0.83 namespace types but exists at runtime
+  namespace StyleSheet {
+    const absoluteFillObject: {
+      position: 'absolute';
+      left: 0;
+      right: 0;
+      bottom: 0;
+      top: 0;
+    };
+  }
 }
 
-declare module "expo-blur" {
-    interface BlurViewProps {
-        children?: any;
-    }
+declare module 'expo-linear-gradient' {
+  interface LinearGradientProps {
+    children?: any;
+  }
+}
+
+declare module 'expo-blur' {
+  interface BlurViewProps {
+    children?: any;
+  }
 }

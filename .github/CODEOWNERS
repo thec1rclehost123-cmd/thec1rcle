@@ -1,0 +1,9 @@
+# CI/CD workflow files require owner approval
+.github/workflows/**   @thec1rclehost123-cmd
+
+# Firebase and deployment config
+firebase.json          @thec1rclehost123-cmd
+functions/             @thec1rclehost123-cmd
+
+# Core package (shared business logic)
+packages/core/         @thec1rclehost123-cmd

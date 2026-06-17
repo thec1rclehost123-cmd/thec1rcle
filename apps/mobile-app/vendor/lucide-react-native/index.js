@@ -1,45 +1,58 @@
 // Runtime shim for Metro: avoids the generated lucide-react-native root barrel.
 const icons = {
-  AlertCircle: require("../../node_modules/lucide-react-native/dist/cjs/icons/circle-alert.js").default,
-  AlertTriangle: require("../../node_modules/lucide-react-native/dist/cjs/icons/triangle-alert.js").default,
-  ArrowLeft: require("../../node_modules/lucide-react-native/dist/cjs/icons/arrow-left.js").default,
-  ArrowRightCircle: require("../../node_modules/lucide-react-native/dist/cjs/icons/circle-arrow-right.js").default,
-  Bell: require("../../node_modules/lucide-react-native/dist/cjs/icons/bell.js").default,
-  Building2: require("../../node_modules/lucide-react-native/dist/cjs/icons/building-2.js").default,
-  CalendarDays: require("../../node_modules/lucide-react-native/dist/cjs/icons/calendar-days.js").default,
-  Camera: require("../../node_modules/lucide-react-native/dist/cjs/icons/camera.js").default,
-  Check: require("../../node_modules/lucide-react-native/dist/cjs/icons/check.js").default,
-  CheckCircle2: require("../../node_modules/lucide-react-native/dist/cjs/icons/circle-check.js").default,
-  ChevronDown: require("../../node_modules/lucide-react-native/dist/cjs/icons/chevron-down.js").default,
-  ChevronRight: require("../../node_modules/lucide-react-native/dist/cjs/icons/chevron-right.js").default,
-  CircleUser: require("../../node_modules/lucide-react-native/dist/cjs/icons/circle-user.js").default,
-  Clock: require("../../node_modules/lucide-react-native/dist/cjs/icons/clock.js").default,
-  Compass: require("../../node_modules/lucide-react-native/dist/cjs/icons/compass.js").default,
-  CreditCard: require("../../node_modules/lucide-react-native/dist/cjs/icons/credit-card.js").default,
-  Crown: require("../../node_modules/lucide-react-native/dist/cjs/icons/crown.js").default,
-  ExternalLink: require("../../node_modules/lucide-react-native/dist/cjs/icons/external-link.js").default,
-  Eye: require("../../node_modules/lucide-react-native/dist/cjs/icons/eye.js").default,
-  EyeOff: require("../../node_modules/lucide-react-native/dist/cjs/icons/eye-off.js").default,
-  Heart: require("../../node_modules/lucide-react-native/dist/cjs/icons/heart.js").default,
-  Home: require("../../node_modules/lucide-react-native/dist/cjs/icons/house.js").default,
-  Info: require("../../node_modules/lucide-react-native/dist/cjs/icons/info.js").default,
-  Lock: require("../../node_modules/lucide-react-native/dist/cjs/icons/lock.js").default,
-  LockKeyhole: require("../../node_modules/lucide-react-native/dist/cjs/icons/lock-keyhole.js").default,
-  Mail: require("../../node_modules/lucide-react-native/dist/cjs/icons/mail.js").default,
-  MapPin: require("../../node_modules/lucide-react-native/dist/cjs/icons/map-pin.js").default,
-  MessageCircle: require("../../node_modules/lucide-react-native/dist/cjs/icons/message-circle.js").default,
-  Plus: require("../../node_modules/lucide-react-native/dist/cjs/icons/plus.js").default,
-  RotateCcw: require("../../node_modules/lucide-react-native/dist/cjs/icons/rotate-ccw.js").default,
-  ScanLine: require("../../node_modules/lucide-react-native/dist/cjs/icons/scan-line.js").default,
-  Search: require("../../node_modules/lucide-react-native/dist/cjs/icons/search.js").default,
-  Send: require("../../node_modules/lucide-react-native/dist/cjs/icons/send.js").default,
-  Shield: require("../../node_modules/lucide-react-native/dist/cjs/icons/shield.js").default,
-  ShieldCheck: require("../../node_modules/lucide-react-native/dist/cjs/icons/shield-check.js").default,
-  Sparkles: require("../../node_modules/lucide-react-native/dist/cjs/icons/sparkles.js").default,
-  Ticket: require("../../node_modules/lucide-react-native/dist/cjs/icons/ticket.js").default,
-  Users: require("../../node_modules/lucide-react-native/dist/cjs/icons/users.js").default,
-  Wallet: require("../../node_modules/lucide-react-native/dist/cjs/icons/wallet.js").default,
-  X: require("../../node_modules/lucide-react-native/dist/cjs/icons/x.js").default,
+  AlertCircle: require('../../node_modules/lucide-react-native/dist/cjs/icons/circle-alert.js')
+    .default,
+  AlertTriangle: require('../../node_modules/lucide-react-native/dist/cjs/icons/triangle-alert.js')
+    .default,
+  ArrowLeft: require('../../node_modules/lucide-react-native/dist/cjs/icons/arrow-left.js').default,
+  ArrowRightCircle:
+    require('../../node_modules/lucide-react-native/dist/cjs/icons/circle-arrow-right.js').default,
+  Bell: require('../../node_modules/lucide-react-native/dist/cjs/icons/bell.js').default,
+  Building2: require('../../node_modules/lucide-react-native/dist/cjs/icons/building-2.js').default,
+  CalendarDays: require('../../node_modules/lucide-react-native/dist/cjs/icons/calendar-days.js')
+    .default,
+  Camera: require('../../node_modules/lucide-react-native/dist/cjs/icons/camera.js').default,
+  Check: require('../../node_modules/lucide-react-native/dist/cjs/icons/check.js').default,
+  CheckCircle2: require('../../node_modules/lucide-react-native/dist/cjs/icons/circle-check.js')
+    .default,
+  ChevronDown: require('../../node_modules/lucide-react-native/dist/cjs/icons/chevron-down.js')
+    .default,
+  ChevronRight: require('../../node_modules/lucide-react-native/dist/cjs/icons/chevron-right.js')
+    .default,
+  CircleUser: require('../../node_modules/lucide-react-native/dist/cjs/icons/circle-user.js')
+    .default,
+  Clock: require('../../node_modules/lucide-react-native/dist/cjs/icons/clock.js').default,
+  Compass: require('../../node_modules/lucide-react-native/dist/cjs/icons/compass.js').default,
+  CreditCard: require('../../node_modules/lucide-react-native/dist/cjs/icons/credit-card.js')
+    .default,
+  Crown: require('../../node_modules/lucide-react-native/dist/cjs/icons/crown.js').default,
+  ExternalLink: require('../../node_modules/lucide-react-native/dist/cjs/icons/external-link.js')
+    .default,
+  Eye: require('../../node_modules/lucide-react-native/dist/cjs/icons/eye.js').default,
+  EyeOff: require('../../node_modules/lucide-react-native/dist/cjs/icons/eye-off.js').default,
+  Heart: require('../../node_modules/lucide-react-native/dist/cjs/icons/heart.js').default,
+  Home: require('../../node_modules/lucide-react-native/dist/cjs/icons/house.js').default,
+  Info: require('../../node_modules/lucide-react-native/dist/cjs/icons/info.js').default,
+  Lock: require('../../node_modules/lucide-react-native/dist/cjs/icons/lock.js').default,
+  LockKeyhole: require('../../node_modules/lucide-react-native/dist/cjs/icons/lock-keyhole.js')
+    .default,
+  Mail: require('../../node_modules/lucide-react-native/dist/cjs/icons/mail.js').default,
+  MapPin: require('../../node_modules/lucide-react-native/dist/cjs/icons/map-pin.js').default,
+  MessageCircle: require('../../node_modules/lucide-react-native/dist/cjs/icons/message-circle.js')
+    .default,
+  Plus: require('../../node_modules/lucide-react-native/dist/cjs/icons/plus.js').default,
+  RotateCcw: require('../../node_modules/lucide-react-native/dist/cjs/icons/rotate-ccw.js').default,
+  ScanLine: require('../../node_modules/lucide-react-native/dist/cjs/icons/scan-line.js').default,
+  Search: require('../../node_modules/lucide-react-native/dist/cjs/icons/search.js').default,
+  Send: require('../../node_modules/lucide-react-native/dist/cjs/icons/send.js').default,
+  Shield: require('../../node_modules/lucide-react-native/dist/cjs/icons/shield.js').default,
+  ShieldCheck: require('../../node_modules/lucide-react-native/dist/cjs/icons/shield-check.js')
+    .default,
+  Sparkles: require('../../node_modules/lucide-react-native/dist/cjs/icons/sparkles.js').default,
+  Ticket: require('../../node_modules/lucide-react-native/dist/cjs/icons/ticket.js').default,
+  Users: require('../../node_modules/lucide-react-native/dist/cjs/icons/users.js').default,
+  Wallet: require('../../node_modules/lucide-react-native/dist/cjs/icons/wallet.js').default,
+  X: require('../../node_modules/lucide-react-native/dist/cjs/icons/x.js').default,
 };
 
 module.exports = icons;

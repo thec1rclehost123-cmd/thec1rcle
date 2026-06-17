@@ -4,18 +4,20 @@ import { createReservation } from './inventory-engine.js';
 
 vi.mock('./admin.js', () => ({
   getAdminDb: vi.fn(() => ({
-    runTransaction: vi.fn(async (cb) => cb({
-      get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
-      set: vi.fn(),
-      update: vi.fn(),
-      delete: vi.fn(),
-      collection: vi.fn(() => ({
-        doc: vi.fn(() => ({
-          get: vi.fn(),
-          set: vi.fn(),
+    runTransaction: vi.fn(async (cb) =>
+      cb({
+        get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
+        set: vi.fn(),
+        update: vi.fn(),
+        delete: vi.fn(),
+        collection: vi.fn(() => ({
+          doc: vi.fn(() => ({
+            get: vi.fn(),
+            set: vi.fn(),
+          })),
         })),
-      })),
-    })),
+      }),
+    ),
     collection: vi.fn((col) => ({
       doc: vi.fn((id) => ({
         update: vi.fn(),
@@ -35,14 +37,20 @@ vi.mock('./order-engine.js', async (importOriginal) => {
   return {
     ...mod,
     executeOrderCreation: vi.fn(async (transaction, { db, event, orderData, reservationId }) => {
-      const status = orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
+      const status =
+        orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
       const finalOrder = { ...orderData, status, updatedAt: new Date().toISOString() };
       if (currentOrderRepo) {
         if (finalOrder.isRSVP) currentOrderRepo.rsvpOrders.set(finalOrder.id, finalOrder);
         else currentOrderRepo.orders.set(finalOrder.id, finalOrder);
         if (reservationId) {
           const res = currentOrderRepo.reservations.get(reservationId);
-          if (res) currentOrderRepo.reservations.set(reservationId, { ...res, status: 'converted', orderId: finalOrder.id });
+          if (res)
+            currentOrderRepo.reservations.set(reservationId, {
+              ...res,
+              status: 'converted',
+              orderId: finalOrder.id,
+            });
         }
       }
       return finalOrder;
@@ -52,7 +60,9 @@ vi.mock('./order-engine.js', async (importOriginal) => {
 
 vi.mock('./inventory-engine.js', () => ({
   releaseReservation: vi.fn().mockResolvedValue({ success: true }),
-  createReservation: vi.fn().mockResolvedValue({ success: true, reservationId: 'res-mock', expiresAt: '2099-01-01' }),
+  createReservation: vi
+    .fn()
+    .mockResolvedValue({ success: true, reservationId: 'res-mock', expiresAt: '2099-01-01' }),
 }));
 
 class FakeOrderRepository {
