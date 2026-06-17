@@ -335,7 +335,7 @@ function FeaturedCarousel({ events }: { events: Event[] }) {
       targetX.value = 0;
       scrollX.value = 0;
       if (scrollViewRef.current) {
-        scrollViewRef.current.scrollTo({ x: 0, animated: false });
+        (scrollViewRef.current as unknown as ScrollView).scrollTo({ x: 0, animated: false });
       }
     }, 100);
 

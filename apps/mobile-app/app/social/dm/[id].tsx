@@ -319,7 +319,11 @@ export default function DirectMessageScreen() {
           style={styles.messages}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          onScroll={(e) => {
+          onScroll={(
+            e: import('react-native').NativeSyntheticEvent<
+              import('react-native').NativeScrollEvent
+            >,
+          ) => {
             const y = e.nativeEvent.contentOffset.y;
             if (y > 40 && !isScrolled) setIsScrolled(true);
             else if (y <= 40 && isScrolled) setIsScrolled(false);

@@ -433,8 +433,8 @@ export default function ImmersiveFeedScreen() {
         bounces={false}
         overScrollMode="never"
         data={feedEvents}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item, index }) => (
+        keyExtractor={(item: Event) => item.id}
+        renderItem={({ item, index }: { item: Event; index: number }) => (
           <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
         )}
         showsVerticalScrollIndicator={false}
