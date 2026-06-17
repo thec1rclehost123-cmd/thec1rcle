@@ -60,6 +60,7 @@ jobs:
       - run: npm run architecture:guest
       - run: npm --workspace=apps/guest-portal run type-check
       - run: npm --workspace=apps/guest-portal test
+      - run: npm --workspace=packages/core run build
       - run: npm --workspace=apps/api-gateway test
 
   lhci:
