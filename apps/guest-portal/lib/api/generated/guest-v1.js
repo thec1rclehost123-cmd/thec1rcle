@@ -38,6 +38,8 @@ export const guestV1Operations = Object.freeze({
   calculateCheckout: { method: 'POST', path: '/checkout/calculate' },
   validateCheckoutPromo: { method: 'POST', path: '/checkout/promo' },
   reserveCheckoutInventory: { method: 'POST', path: '/checkout/reserve' },
+  createCheckoutIntent: { method: 'POST', path: '/checkout/intent' },
+  verifyCheckoutPayment: { method: 'POST', path: '/checkout/verify' },
   initiateCheckout: { method: 'POST', path: '/checkout/initiate' },
   getPaymentConfig: { method: 'GET', path: '/payments/config' },
   createPaymentOrder: { method: 'POST', path: '/payments/order' },
