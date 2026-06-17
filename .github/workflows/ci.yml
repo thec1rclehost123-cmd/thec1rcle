@@ -55,8 +55,9 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx turbo lint --filter='...[origin/main]'
-              # Only lints packages affected by this PR
+      - run: npx turbo lint --filter='...[origin/main]' --no-daemon
+        env:
+          TURBO_TELEMETRY_DISABLED: 1
       - run: |
           git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx prettier --check
 
