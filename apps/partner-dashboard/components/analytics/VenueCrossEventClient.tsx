@@ -306,27 +306,27 @@ export default function VenueCrossEventClient() {
   });
 
   // Auto-stamp on first load
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (overviewQuery.data && !overviewRefreshedAt) setOverviewRefreshedAt(new Date());
   }, [overviewQuery.data]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (tsRevenueQuery.data && !revenueRefreshedAt) setRevenueRefreshedAt(new Date());
   }, [tsRevenueQuery.data]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (audienceQuery.data && !audienceRefreshedAt) setAudienceRefreshedAt(new Date());
   }, [audienceQuery.data]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (hostsQuery.data && !hostsRefreshedAt) setHostsRefreshedAt(new Date());
   }, [hostsQuery.data]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (opsQuery.data && !opsRefreshedAt) setOpsRefreshedAt(new Date());
   }, [opsQuery.data]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (strategyQuery.data && !strategyRefreshedAt) setStrategyRefreshedAt(new Date());
   }, [strategyQuery.data]);

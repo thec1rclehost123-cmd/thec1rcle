@@ -10,7 +10,7 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "type-check": "tsc --noEmit",
-    "test": "echo 'Skipping guest-portal tests for CI green check'"
+    "test": "node --test"
   },
   "dependencies": {
     "@c1rcle/core": "*",

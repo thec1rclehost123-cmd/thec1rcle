@@ -936,13 +936,13 @@ export default function HostEventWorkspacePage() {
 
   useEffect(() => {
     if (ticketsQuery.data && !ticketsRefreshedAt) setTicketsRefreshedAt(new Date());
-  }, [ticketsQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ticketsQuery.data]);
   useEffect(() => {
     if (financeQuery.data && !revenueRefreshedAt) setRevenueRefreshedAt(new Date());
-  }, [financeQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [financeQuery.data]);
   useEffect(() => {
     if (attendeesQuery.data && !attendeesRefreshedAt) setAttendeesRefreshedAt(new Date());
-  }, [attendeesQuery.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [attendeesQuery.data]);
   useEffect(() => {
     if (!attendeeDetailQuery.data) return;
     setSelectedOrderId(

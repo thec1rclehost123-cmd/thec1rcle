@@ -803,5 +803,9 @@ const styles = StyleSheet.create({
 });
 `;
 
-fs.writeFileSync('/Users/aayushdivase/Desktop/thec1rcle/thec1rcle/apps/mobile-app/app/(tabs)/venues.tsx', fileContent, 'utf8');
+fs.writeFileSync(
+  '/Users/aayushdivase/Desktop/thec1rcle/thec1rcle/apps/mobile-app/app/(tabs)/venues.tsx',
+  fileContent,
+  'utf8',
+);
 console.log('Successfully wrote the new venues.tsx file.');

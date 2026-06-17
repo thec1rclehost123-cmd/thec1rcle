@@ -2,10 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
-import {
-  applyPublicCacheHeaders,
-  buildVersionedPublicCacheKey,
-} from '../../utils/public-cache';
+import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import {
   getEventQueueStatus,

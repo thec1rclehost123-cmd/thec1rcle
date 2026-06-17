@@ -70,12 +70,12 @@ test('checkout inventory refresh is event-driven instead of interval polling', (
 test('root client providers defer side-effect managers out of the provider module', () => {
   const source = readFileSync(join(root, 'components/providers/AppProviders.jsx'), 'utf8');
 
-  assert.equal(source.includes('import GlobalAuthManager from "../GlobalAuthManager"'), false);
-  assert.equal(source.includes('import OfflineListener from "../OfflineListener"'), false);
-  assert.equal(source.includes('import CacheWarmer from "../CacheWarmer"'), false);
-  assert.equal(source.includes('dynamic(() => import("../GlobalAuthManager")'), true);
-  assert.equal(source.includes('dynamic(() => import("../OfflineListener")'), true);
-  assert.equal(source.includes('dynamic(() => import("../CacheWarmer")'), true);
+  assert.equal(source.includes("import GlobalAuthManager from '../GlobalAuthManager'"), false);
+  assert.equal(source.includes("import OfflineListener from '../OfflineListener'"), false);
+  assert.equal(source.includes("import CacheWarmer from '../CacheWarmer'"), false);
+  assert.equal(source.includes("dynamic(() => import('../GlobalAuthManager')"), true);
+  assert.equal(source.includes("dynamic(() => import('../OfflineListener')"), true);
+  assert.equal(source.includes("dynamic(() => import('../CacheWarmer')"), true);
 });
 
 test('guest API client records duplicate GET diagnostics in development only', () => {
@@ -83,6 +83,6 @@ test('guest API client records duplicate GET diagnostics in development only', (
 
   assert.equal(source.includes('getGuestFetchDiagnostics'), true);
   assert.equal(source.includes('__C1RCLE_GUEST_FETCH_DIAGNOSTICS__'), true);
-  assert.equal(source.includes('process.env.NODE_ENV === "production"'), true);
+  assert.equal(source.includes("process.env.NODE_ENV === 'production'"), true);
   assert.equal(source.includes('recordGuestFetch(normalizedPath, method)'), true);
 });

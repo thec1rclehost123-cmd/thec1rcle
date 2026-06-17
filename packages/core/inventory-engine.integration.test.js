@@ -85,7 +85,9 @@ const redisMock = {
   },
 };
 
-vi.mock('./redis.js', () => ({ getRedisClient: () => redisMock.status === 'end' ? null : redisMock }));
+vi.mock('./redis.js', () => ({
+  getRedisClient: () => (redisMock.status === 'end' ? null : redisMock),
+}));
 
 const {
   calculateEffectiveInventory,

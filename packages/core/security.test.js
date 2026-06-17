@@ -15,34 +15,37 @@ const _store = new Map();
 // Pipeline builder: queues commands, exec() runs them and returns [[err, val], ...]
 function makePipeline() {
   const cmds = [];
-  const pipe = new Proxy({}, {
-    get: (target, prop) => {
-      if (prop === 'then') return undefined;
-      if (prop === 'exec') return async () => Promise.all(cmds.map((fn) => fn()));
-      if (prop === 'incr') {
-        return (key) => {
-          cmds.push(async () => {
-            const v = (_store.get(key) || 0) + 1;
-            _store.set(key, v);
-            return [null, v];
-          });
+  const pipe = new Proxy(
+    {},
+    {
+      get: (target, prop) => {
+        if (prop === 'then') return undefined;
+        if (prop === 'exec') return async () => Promise.all(cmds.map((fn) => fn()));
+        if (prop === 'incr') {
+          return (key) => {
+            cmds.push(async () => {
+              const v = (_store.get(key) || 0) + 1;
+              _store.set(key, v);
+              return [null, v];
+            });
+            return pipe;
+          };
+        }
+        if (prop === 'ttl') {
+          return (key) => {
+            cmds.push(async () => [null, _store.has(key) ? 60 : -1]);
+            return pipe;
+          };
+        }
+        return (...args) => {
+          if (prop === 'echo') cmds.push(async () => [null, args[0]]);
+          else if (prop === 'pfcount') cmds.push(async () => [null, 0]);
+          else cmds.push(async () => [null, 1]);
           return pipe;
         };
-      }
-      if (prop === 'ttl') {
-        return (key) => {
-          cmds.push(async () => [null, _store.has(key) ? 60 : -1]);
-          return pipe;
-        };
-      }
-      return (...args) => {
-        if (prop === 'echo') cmds.push(async () => [null, args[0]]);
-        else if (prop === 'pfcount') cmds.push(async () => [null, 0]);
-        else cmds.push(async () => [null, 1]);
-        return pipe;
-      };
-    }
-  });
+      },
+    },
+  );
   return pipe;
 }
 

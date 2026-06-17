@@ -28,9 +28,16 @@ import {
   Utensils,
   X,
   ChevronRight,
-  ChevronDown
+  ChevronDown,
 } from 'lucide-react-native';
-import Animated, { FadeIn, FadeInDown, FadeInRight, useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  FadeInRight,
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+} from 'react-native-reanimated';
 
 import { colors, spacing, typography, radii } from '@/lib/design/theme';
 import {
@@ -47,9 +54,23 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
 const PUNE_CITY = 'Pune';
 const PUNE_SIGNAL_WORDS = [
-  'pune', 'koregaon park', 'kalyani nagar', 'viman nagar', 'kharadi',
-  'baner', 'aundh', 'wakad', 'balewadi', 'mundhwa', 'hadapsar',
-  'shivaji nagar', 'fc road', 'camp', 'yerwada', 'magarpatta', 'hinjewadi',
+  'pune',
+  'koregaon park',
+  'kalyani nagar',
+  'viman nagar',
+  'kharadi',
+  'baner',
+  'aundh',
+  'wakad',
+  'balewadi',
+  'mundhwa',
+  'hadapsar',
+  'shivaji nagar',
+  'fc road',
+  'camp',
+  'yerwada',
+  'magarpatta',
+  'hinjewadi',
 ];
 
 type Tab = 'venues' | 'hosts';
@@ -76,7 +97,9 @@ const VENUE_FILTERS = [
 
 // --- Helpers ---
 function getVenueImage(venue?: Venue | null): string | undefined {
-  return venue?.coverImage || venue?.coverURL || venue?.bannerImage || venue?.photoURL || venue?.image;
+  return (
+    venue?.coverImage || venue?.coverURL || venue?.bannerImage || venue?.photoURL || venue?.image
+  );
 }
 function uniqueCompact(values: (string | undefined | null)[], limit = 3): string[] {
   const seen = new Set<string>();
@@ -101,8 +124,13 @@ function hasPuneSignal(values: (string | undefined | null)[]): boolean {
 }
 function isPuneVenue(venue: Venue): boolean {
   return hasPuneSignal([
-    venue.city, venue.area, venue.neighborhood, venue.address,
-    venue.addressLine1, venue.displayName, venue.name,
+    venue.city,
+    venue.area,
+    venue.neighborhood,
+    venue.address,
+    venue.addressLine1,
+    venue.displayName,
+    venue.name,
   ]);
 }
 function isPuneEvent(event: Event): boolean {
@@ -141,7 +169,8 @@ function getEventsForVenue(venue: Venue, events: Event[]): Event[] {
     const eventKeys = getEventVenueCandidates(event).filter(Boolean);
     return eventKeys.some((eventKey) =>
       venueKeys.some(
-        (venueKey) => eventKey === venueKey || eventKey.includes(venueKey) || venueKey.includes(eventKey),
+        (venueKey) =>
+          eventKey === venueKey || eventKey.includes(venueKey) || venueKey.includes(eventKey),
       ),
     );
   });
@@ -154,7 +183,11 @@ function isVenueBookable(venue: Venue): boolean {
 
 function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }: any) {
   return (
-    <BlurView intensity={85} tint="dark" style={[styles.headerBlur, { paddingTop: Math.max(insetsTop, 16) }]}>
+    <BlurView
+      intensity={85}
+      tint="dark"
+      style={[styles.headerBlur, { paddingTop: Math.max(insetsTop, 16) }]}
+    >
       <View style={styles.headerTopRow}>
         <View style={styles.locationPill}>
           <MapPin size={16} color="#F44A22" />
@@ -162,7 +195,10 @@ function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }:
           <ChevronDown size={14} color="rgba(255,255,255,0.6)" />
         </View>
         <Pressable style={styles.profileBtn}>
-          <Image source={{ uri: 'https://thec1rcle.com/default-avatar.png' }} style={styles.profileImg} />
+          <Image
+            source={{ uri: 'https://thec1rcle.com/default-avatar.png' }}
+            style={styles.profileImg}
+          />
         </Pressable>
       </View>
 
@@ -182,7 +218,11 @@ function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }:
         )}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRail}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filterRail}
+      >
         {VENUE_FILTERS.map((f) => {
           const isActive = activeFilter === f.id;
           const Icon = f.icon;
@@ -196,7 +236,9 @@ function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }:
               }}
             >
               {isActive && <Icon size={14} color="#fff" style={{ marginRight: 6 }} />}
-              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{f.label}</Text>
+              <Text style={[styles.filterText, isActive && styles.filterTextActive]}>
+                {f.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -208,10 +250,10 @@ function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }:
 function EditorialHeroCard({ venue }: { venue: Venue }) {
   if (!venue) return null;
   const image = getVenueImage(venue);
-  
+
   return (
     <Animated.View entering={FadeInDown.delay(100)}>
-      <Pressable 
+      <Pressable
         style={styles.heroCard}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -223,19 +265,19 @@ function EditorialHeroCard({ venue }: { venue: Venue }) {
         ) : (
           <LinearGradient colors={['#2A1A12', '#111']} style={StyleSheet.absoluteFill} />
         )}
-        <LinearGradient 
-          colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']} 
-          style={StyleSheet.absoluteFill} 
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.6)', 'rgba(0,0,0,0.9)']}
+          style={StyleSheet.absoluteFill}
         />
-        
+
         <View style={styles.heroContent}>
           <View style={styles.heroBadge}>
             <Sparkles size={12} color="#F44A22" />
             <Text style={styles.heroBadgeText}>SPOTLIGHT</Text>
           </View>
-          
+
           <Text style={styles.heroTitle}>{getVenueDisplayName(venue)}</Text>
-          
+
           <View style={styles.heroMetaRow}>
             <Text style={styles.heroMetaText}>{getVenueLocationLabel(venue)}</Text>
             {venue.venueType && (
@@ -265,28 +307,43 @@ function EditorialHeroCard({ venue }: { venue: Venue }) {
   );
 }
 
-function CuratedRail({ title, venues }: { title: string, venues: Venue[] }) {
+function CuratedRail({ title, venues }: { title: string; venues: Venue[] }) {
   if (!venues.length) return null;
   return (
     <Animated.View entering={FadeInDown.delay(200)} style={styles.railSection}>
       <Text style={styles.railTitle}>{title}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.railScroll}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.railScroll}
+      >
         {venues.map((v, i) => {
           const image = getVenueImage(v);
           return (
-            <Pressable 
-              key={v.id} 
+            <Pressable
+              key={v.id}
               style={styles.railCard}
               onPress={() => {
                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 router.push({ pathname: '/venue/[id]', params: { id: v.id } });
               }}
             >
-              <Image source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }} style={styles.railImage} contentFit="cover" />
-              <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.railGradient} />
+              <Image
+                source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
+                style={styles.railImage}
+                contentFit="cover"
+              />
+              <LinearGradient
+                colors={['transparent', 'rgba(0,0,0,0.8)']}
+                style={styles.railGradient}
+              />
               <View style={styles.railContent}>
-                <Text style={styles.railVenueName} numberOfLines={1}>{getVenueDisplayName(v)}</Text>
-                <Text style={styles.railVenueLoc} numberOfLines={1}>{getVenueLocationLabel(v)}</Text>
+                <Text style={styles.railVenueName} numberOfLines={1}>
+                  {getVenueDisplayName(v)}
+                </Text>
+                <Text style={styles.railVenueLoc} numberOfLines={1}>
+                  {getVenueLocationLabel(v)}
+                </Text>
               </View>
             </Pressable>
           );
@@ -298,10 +355,10 @@ function CuratedRail({ title, venues }: { title: string, venues: Venue[] }) {
 
 function ZomatoVenueCard({ venue }: { venue: Venue }) {
   const image = getVenueImage(venue);
-  
+
   return (
     <Animated.View entering={FadeInDown}>
-      <Pressable 
+      <Pressable
         style={styles.zCard}
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -309,24 +366,31 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
         }}
       >
         <View style={styles.zImageContainer}>
-          <Image source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }} style={styles.zImage} contentFit="cover" />
-          <LinearGradient colors={['rgba(0,0,0,0.4)', 'transparent']} style={StyleSheet.absoluteFill} />
-          
+          <Image
+            source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
+            style={styles.zImage}
+            contentFit="cover"
+          />
+          <LinearGradient
+            colors={['rgba(0,0,0,0.4)', 'transparent']}
+            style={StyleSheet.absoluteFill}
+          />
+
           {venue.isVerified && (
             <BlurView intensity={40} tint="dark" style={styles.zBadgeVerified}>
               <Text style={styles.zBadgeText}>✓ Verified</Text>
             </BlurView>
           )}
-          
+
           <View style={styles.zBadgesBottom}>
             {venue.upcomingEventsCount ? (
               <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
-                <Ticket size={10} color="#fff" style={{marginRight: 4}}/>
+                <Ticket size={10} color="#fff" style={{ marginRight: 4 }} />
                 <Text style={styles.zBadgeText}>{venue.upcomingEventsCount} Events</Text>
               </BlurView>
             ) : null}
             <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
-              <Heart size={10} color="#F44A22" style={{marginRight: 4}}/>
+              <Heart size={10} color="#F44A22" style={{ marginRight: 4 }} />
               <Text style={styles.zBadgeText}>{formatCompactCount(venue.followers)}</Text>
             </BlurView>
           </View>
@@ -334,17 +398,20 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
 
         <View style={styles.zInfo}>
           <View style={styles.zInfoRow}>
-            <Text style={styles.zTitle} numberOfLines={1}>{getVenueDisplayName(venue)}</Text>
+            <Text style={styles.zTitle} numberOfLines={1}>
+              {getVenueDisplayName(venue)}
+            </Text>
             {isVenueBookable(venue) && (
               <View style={styles.zBookMark}>
                 <Utensils size={12} color="#F44A22" />
               </View>
             )}
           </View>
-          
+
           <View style={styles.zSubRow}>
             <Text style={styles.zSubText} numberOfLines={1}>
-              {venue.venueType ? `${venue.venueType} • ` : ''}{getVenueLocationLabel(venue)}
+              {venue.venueType ? `${venue.venueType} • ` : ''}
+              {getVenueLocationLabel(venue)}
             </Text>
             <Text style={styles.zDistance}>2.4 km</Text>
           </View>
@@ -359,7 +426,7 @@ export default function VenuesTab() {
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState('');
   const [activeFilter, setActiveFilter] = useState<VenueFilter>('all');
-  
+
   const { venues, loading, fetchVenues } = useVenuesStore();
   const { events, fetchEvents } = useEventsStore();
   const { user } = useAuth();
@@ -378,67 +445,73 @@ export default function VenuesTab() {
       const upcoming = vEvents.filter(isUpcomingEvent);
       return { ...v, upcomingEventsCount: upcoming.length };
     });
-    
+
     // Zomato style: Shuffle slightly to make feed feel fresh, but keep highest followers up top
     return list.sort((a, b) => (b.followers || 0) - (a.followers || 0));
   }, [venues, events]);
 
   const filteredVenues = useMemo(() => {
     let result = puneVenues;
-    
+
     if (activeFilter === 'bookable') {
       result = result.filter(isVenueBookable);
     } else if (activeFilter === 'events') {
-      result = result.filter(v => (v.upcomingEventsCount || 0) > 0);
+      result = result.filter((v) => (v.upcomingEventsCount || 0) > 0);
     } else if (activeFilter === 'tonight') {
-      result = result.filter(v => getEventsForVenue(v, events).some(isTodayEvent));
+      result = result.filter((v) => getEventsForVenue(v, events).some(isTodayEvent));
     }
 
     if (search.trim()) {
       const lower = search.toLowerCase();
-      result = result.filter(v => 
-        (v.name?.toLowerCase().includes(lower) || 
-         v.displayName?.toLowerCase().includes(lower) ||
-         v.venueType?.toLowerCase().includes(lower) ||
-         v.neighborhood?.toLowerCase().includes(lower) ||
-         v.tags?.some(t => t.toLowerCase().includes(lower)))
+      result = result.filter(
+        (v) =>
+          v.name?.toLowerCase().includes(lower) ||
+          v.displayName?.toLowerCase().includes(lower) ||
+          v.venueType?.toLowerCase().includes(lower) ||
+          v.neighborhood?.toLowerCase().includes(lower) ||
+          v.tags?.some((t) => t.toLowerCase().includes(lower)),
       );
     }
-    
+
     return result;
   }, [puneVenues, activeFilter, search, events]);
 
-  const spotlightVenue = puneVenues.find(v => v.coverImage || v.image) || puneVenues[0];
+  const spotlightVenue = puneVenues.find((v) => v.coverImage || v.image) || puneVenues[0];
   const bookableVenues = puneVenues.filter(isVenueBookable).slice(0, 6);
-  
+
   // Remove spotlight and curated from main feed to avoid duplication
-  const feedVenues = filteredVenues.filter(v => v.id !== spotlightVenue?.id);
+  const feedVenues = filteredVenues.filter((v) => v.id !== spotlightVenue?.id);
 
   return (
     <View style={styles.container}>
-      <ZomatoHeader 
-        search={search} 
-        setSearch={setSearch} 
-        activeFilter={activeFilter} 
-        setFilter={setActiveFilter} 
-        insetsTop={insets.top} 
+      <ZomatoHeader
+        search={search}
+        setSearch={setSearch}
+        activeFilter={activeFilter}
+        setFilter={setActiveFilter}
+        insetsTop={insets.top}
       />
 
-      <ScrollView 
+      <ScrollView
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl 
-            refreshing={loading} 
-            onRefresh={() => { fetchVenues(); fetchEvents(); }} 
-            tintColor="#F44A22" 
+          <RefreshControl
+            refreshing={loading}
+            onRefresh={() => {
+              fetchVenues();
+              fetchEvents();
+            }}
+            tintColor="#F44A22"
           />
         }
       >
         {search === '' && activeFilter === 'all' && (
           <>
             {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
-            {bookableVenues.length > 0 && <CuratedRail title="Reserve a Table" venues={bookableVenues} />}
+            {bookableVenues.length > 0 && (
+              <CuratedRail title="Reserve a Table" venues={bookableVenues} />
+            )}
           </>
         )}
 
@@ -797,5 +870,5 @@ const styles = StyleSheet.create({
   emptySub: {
     color: 'rgba(255,255,255,0.5)',
     fontSize: 15,
-  }
+  },
 });

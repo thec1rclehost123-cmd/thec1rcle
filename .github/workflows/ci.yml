@@ -100,11 +100,11 @@ jobs:
           - workspace: apps/admin-console
             test-command: npx vitest run --coverage --passWithNoTests
           - workspace: apps/api-gateway
-            test-command: echo 'Skipping api-gateway tests'
+            test-command: npx vitest run --passWithNoTests
           - workspace: packages/core
-            test-command: echo 'Skipping core tests'
+            test-command: npx vitest run
           - workspace: apps/mobile-app
-            test-command: echo 'Skipping mobile-app tests'
+            test-command: npx jest --testPathPattern=scanner --verbose
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

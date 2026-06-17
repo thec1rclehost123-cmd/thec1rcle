@@ -104,7 +104,7 @@ test('Checkout payment surfaces stay on typed guest API helpers', () => {
     'checkout session hook must initiate through the checkout adapter',
   );
   assert.equal(
-    checkoutHook.includes('from "../utils/checkoutSessionModel"'),
+    checkoutHook.includes("from '../utils/checkoutSessionModel'"),
     true,
     'checkout session hook should delegate orchestration decisions to a feature model',
   );
@@ -134,22 +134,22 @@ test('Checkout payment surfaces stay on typed guest API helpers', () => {
     'checkout session hook should build initiation payloads through the checkout model',
   );
   assert.equal(
-    checkoutApi.includes('guestBffJson("/checkout/quote"'),
+    checkoutApi.includes("guestBffJson('/checkout/quote'"),
     true,
     'checkout API adapter must use the BFF quote route',
   );
   assert.equal(
-    checkoutApi.includes('guestBffJson("/checkout/reserve"'),
+    checkoutApi.includes("guestBffJson('/checkout/reserve'"),
     true,
     'checkout API adapter must use the BFF reserve route',
   );
   assert.equal(
-    checkoutApi.includes('guestBffJson("/checkout/initiate"'),
+    checkoutApi.includes("guestBffJson('/checkout/initiate'"),
     true,
     'checkout API adapter must use the BFF initiate route',
   );
   assert.equal(
-    checkoutApi.includes('guestBffJson("/checkout/verify"'),
+    checkoutApi.includes("guestBffJson('/checkout/verify'"),
     true,
     'checkout API adapter must use the BFF verify route',
   );

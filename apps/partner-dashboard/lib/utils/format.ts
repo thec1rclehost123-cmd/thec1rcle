@@ -21,7 +21,6 @@ export function formatINRFromPaise(paise: number): string {
 
 // ── Date / Time ──────────────────────────────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function toDate(value: any): Date | null {
   if (!value) return null;
   // Firestore Timestamp ({ toDate(): Date })
@@ -35,7 +34,7 @@ function toDate(value: any): Date | null {
 }
 
 /** 15 Jan 2026 — also accepts Firestore Timestamps */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatDate(value: any): string {
   const d = toDate(value);
   if (!d) return '—';
@@ -43,7 +42,7 @@ export function formatDate(value: any): string {
 }
 
 /** Mar 2026 */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatMonthYear(value: any): string {
   const d = toDate(value);
   if (!d) return '—';
@@ -51,7 +50,7 @@ export function formatMonthYear(value: any): string {
 }
 
 /** "2 days ago", "3h ago", "just now" — falls back to formatDate beyond 30 days */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatRelativeDate(value: any): string {
   const d = toDate(value);
   if (!d) return '—';
@@ -69,7 +68,7 @@ export function formatRelativeDate(value: any): string {
 }
 
 /** 15 Jan */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatDateShort(value: any): string {
   const d = toDate(value);
   if (!d) return '—';
@@ -77,7 +76,7 @@ export function formatDateShort(value: any): string {
 }
 
 /** 15 Jan 2026, 8:30 PM */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatDatetime(value: any): string {
   const d = toDate(value);
   if (!d) return '—';
@@ -92,7 +91,7 @@ export function formatDatetime(value: any): string {
 }
 
 /** 8:30 PM */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export function formatTime(value: any): string {
   const d = toDate(value);
   if (!d) return '—';

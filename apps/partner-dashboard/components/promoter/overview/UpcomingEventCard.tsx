@@ -31,7 +31,6 @@ export function UpcomingEventCard({
           }}
         >
           {assignment.coverImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={assignment.coverImage} alt="" className="h-full w-full object-cover" />
           ) : (
             <div className="flex h-full w-full items-center justify-center">

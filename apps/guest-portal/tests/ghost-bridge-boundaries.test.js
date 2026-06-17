@@ -198,7 +198,7 @@ test('about route no longer keeps dead host modal scaffolding', () => {
     'about page should not import router state it no longer uses',
   );
   assert.equal(
-    source.includes('window.open("https://thec1rclehost.com/host", "_blank")'),
+    source.includes("window.open('https://thec1rclehost.com/host', '_blank')"),
     true,
     'about page should keep the dedicated host site handoff',
   );

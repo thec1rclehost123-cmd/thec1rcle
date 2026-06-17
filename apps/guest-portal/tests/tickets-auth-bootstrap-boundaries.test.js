@@ -33,7 +33,7 @@ test('tickets server state is React Query owned, with a compatibility-only store
   assert.equal(querySource.includes('guestApi.tickets.coverWallet'), false);
   assert.equal(querySource.includes('coverWalletsByOrder'), true);
   assert.equal(querySource.includes('invalidateTicketsQueries'), true);
-  assert.equal(clientSource.includes('credentials = "include"'), true);
+  assert.equal(clientSource.includes("credentials = 'include'"), true);
 });
 
 test('cache warmer only preloads tickets after canonical auth bootstrap succeeds', () => {

@@ -142,7 +142,7 @@ export function useInstantSearch(options = {}) {
     if (query) {
       executeSearch(query, 0);
     }
-  }, [filters]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [filters]);
 
   // Load more (pagination)
   const loadMore = useCallback(() => {

@@ -863,26 +863,28 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
       if (Number.isNaN(startAt.getTime())) return false;
 
       if (normalizedDatePreset === 'weekend') {
-        const day = startAt.getDay();
+        const day = startAt.getUTCDay();
         if (day !== 0 && day !== 6) return false;
       }
       if (normalizedDatePreset === 'today') {
         const now = new Date();
         if (
-          startAt.getFullYear() !== now.getFullYear() ||
-          startAt.getMonth() !== now.getMonth() ||
-          startAt.getDate() !== now.getDate()
+          startAt.getUTCFullYear() !== now.getUTCFullYear() ||
+          startAt.getUTCMonth() !== now.getUTCMonth() ||
+          startAt.getUTCDate() !== now.getUTCDate()
         ) {
           return false;
         }
       }
       if (normalizedDatePreset === 'tomorrow') {
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
+        const now = new Date();
+        const tomorrowUTC = new Date(
+          Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1),
+        );
         if (
-          startAt.getFullYear() !== tomorrow.getFullYear() ||
-          startAt.getMonth() !== tomorrow.getMonth() ||
-          startAt.getDate() !== tomorrow.getDate()
+          startAt.getUTCFullYear() !== tomorrowUTC.getUTCFullYear() ||
+          startAt.getUTCMonth() !== tomorrowUTC.getUTCMonth() ||
+          startAt.getUTCDate() !== tomorrowUTC.getUTCDate()
         ) {
           return false;
         }

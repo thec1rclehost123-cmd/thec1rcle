@@ -67,7 +67,7 @@ export function useLoginFlow() {
     if (!socialName) return;
     socialNameApplied.current = true;
     setForm((prev) => (prev.name ? prev : { ...prev, name: socialName }));
-  }, [isOnboarding, forceOnboarding, user?.displayName]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isOnboarding, forceOnboarding, user?.displayName]);
 
   useEffect(() => {
     setMounted(true);
