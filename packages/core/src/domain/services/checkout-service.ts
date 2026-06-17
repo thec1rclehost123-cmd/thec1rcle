@@ -67,6 +67,186 @@ export class CheckoutService {
   }
 
   /**
+   * Zero-trust mobile checkout intent.
+   * Client supplies only eventId, tierId, and quantity; price and totals are
+   * resolved from the event document before creating the Razorpay order.
+   */
+  async createCheckoutIntent(params: {
+    eventId: string;
+    tierId: string;
+    quantity: number;
+    user: {
+      id: string;
+      name?: string | null;
+      email?: string | null;
+      phone?: string | null;
+    };
+    deviceId?: string | null;
+    workspaceId?: string | null;
+    paymentGatewayConfig: {
+      keyId?: string;
+      keySecret?: string;
+      allowMockPayment?: boolean;
+    };
+  }): Promise<any> {
+    const { eventId, tierId, quantity, user, workspaceId = null } = params;
+    const item = { tierId, quantity };
+    const startTime = Date.now();
+
+    telemetry.track('CHECKOUT_INTENT_REQUESTED', {
+      eventId,
+      tierId,
+      quantity,
+      userId: user.id,
+    });
+
+    try {
+      const reservationResult = await this.inventory.reserve({
+        eventId,
+        userId: user.id,
+        deviceId: params.deviceId || null,
+        items: [item],
+        workspaceId,
+        reservationMinutes: 10,
+        strictMode: true,
+      });
+
+      const reservationId = reservationResult.reservationId;
+      const expiresAt = reservationResult.expiresAt;
+      const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
+      if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+
+      const pricingResult = await calculatePricing({
+        event,
+        items: [item],
+        userId: user.id,
+      });
+
+      if (!pricingResult.success) {
+        throw this.withCode(new Error(pricingResult.error || 'Unable to price checkout'), 'BAD_REQUEST');
+      }
+
+      const pricing = pricingResult.pricing;
+      const pricedItem = pricing.items.find((priced: any) => priced.tierId === tierId);
+      if (!pricedItem) {
+        throw this.withCode(new Error('Ticket tier not found'), 'BAD_REQUEST');
+      }
+      if (Number(pricing.grandTotal || 0) <= 0 || pricing.isFree) {
+        throw this.withCode(
+          new Error('Payment intent is not required for free tickets'),
+          'BAD_REQUEST',
+        );
+      }
+
+      const resolvedWorkspaceId = workspaceId || (event as any).workspaceId || null;
+      const reservation = {
+        id: reservationId,
+        eventId,
+        workspaceId: resolvedWorkspaceId,
+        customerId: user.id,
+        deviceId: params.deviceId || null,
+        queueId: null,
+        items: [item],
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        expiresAt,
+      };
+
+      const orderPayload = buildOrderPayload({
+        reservation,
+        event,
+        pricing,
+        user: {
+          id: user.id,
+          name: user.name || user.email || 'Guest',
+          email: user.email || '',
+          phone: user.phone || '',
+        },
+        workspaceId: resolvedWorkspaceId,
+      });
+
+      let order: Order | null = null;
+      await this.orderRepo.runInTransaction(async (transaction) => {
+        const existingOrder = await this.orderRepo.getOrderByReservationId(
+          reservationId,
+          transaction,
+        );
+        if (existingOrder) {
+          if (existingOrder.userId !== user.id) {
+            throw this.withCode(new Error('Forbidden'), 'FORBIDDEN');
+          }
+          order = existingOrder;
+          return;
+        }
+
+        await Promise.all([
+          this.orderRepo.createOrder(orderPayload, transaction),
+          this.orderRepo.updateReservation(
+            reservationId,
+            {
+              status: 'converted',
+              orderId: orderPayload.id,
+              convertedAt: new Date().toISOString(),
+            },
+            transaction,
+          ),
+        ]);
+        order = orderPayload;
+      });
+
+      const finalOrder = (order ?? orderPayload) as Order;
+      if (!finalOrder) throw new Error('Checkout order could not be created');
+
+      const payment = await this.payment.prepareRazorpayOrder({
+        order: finalOrder,
+        userId: user.id,
+        config: {
+          keyId: params.paymentGatewayConfig.keyId || '',
+          keySecret: params.paymentGatewayConfig.keySecret || '',
+          allowMockPayment: params.paymentGatewayConfig.allowMockPayment,
+        },
+      });
+
+      telemetry.track('CHECKOUT_INTENT_CREATED', {
+        orderId: finalOrder.id,
+        reservationId,
+        eventId,
+        userId: user.id,
+        duration: Date.now() - startTime,
+      });
+
+      return {
+        success: true,
+        orderId: finalOrder.id,
+        reservationId,
+        razorpayOrderId: payment.razorpayOrderId,
+        amount: payment.amount,
+        amountPaise: Math.round(Number(payment.amount || 0) * 100),
+        currency: payment.currency || 'INR',
+        key: payment.key,
+        expiresAt,
+        pricing,
+      };
+    } catch (error: any) {
+      const message = String(error?.message || '');
+      if (
+        message.toLowerCase().includes('sold out') ||
+        message.toLowerCase().includes('only ') ||
+        message.toLowerCase().includes('left')
+      ) {
+        throw this.withCode(new Error('Sold Out'), 'SOLD_OUT');
+      }
+
+      telemetry.error('[Checkout] Intent failed', error, {
+        userId: user.id,
+        eventId,
+        tierId,
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Core Orchestrator: Transition from reservation to order
    */
   async initiateCheckout(
@@ -378,6 +558,10 @@ export class CheckoutService {
       message: order.status === 'confirmed' ? 'Order confirmed!' : 'Checkout initiated.',
       normalizedStatus: requiresPayment ? PAYMENT_PENDING_ORDER_STATUS : order.status,
     };
+  }
+
+  private withCode<T extends Error>(error: T, code: string): T & { code: string } {
+    return Object.assign(error, { code });
   }
 
   /**

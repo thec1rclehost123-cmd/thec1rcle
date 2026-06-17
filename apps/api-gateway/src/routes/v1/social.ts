@@ -57,6 +57,11 @@ const VenueFollowParams = z
   })
   .strict();
 
+const SwipeBody = z.object({
+  targetUserId: z.string(),
+  action: z.enum(['like', 'pass']),
+}).strict();
+
 export default async function socialRoutes(fastify: FastifyInstance) {
   /**
    * GET /api/v1/follow
@@ -1664,7 +1669,141 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       );
     }
   });
+  fastify.get('/social/discover', async (request: any, reply: any) => {
+    const userId = request.user?.uid;
+    if (!userId) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: request.id,
+        })
+      );
+    }
+
+    try {
+      const { getDiscoverProfiles } = await import('@c1rcle/core/guest-dating-service');
+      const profiles = await getDiscoverProfiles(fastify.db, userId);
+      return buildSuccessResponse({ profiles });
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, userId, error: error.message },
+        'GET /social/discover failed',
+      );
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.post('/social/swipe', {
+    preHandler: [fastify.validate({ body: SwipeBody })],
+  }, async (request: any, reply: any) => {
+    const userId = request.user?.uid;
+    if (!userId) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: request.id,
+        })
+      );
+    }
+
+    try {
+      const { processSwipeAction } = await import('@c1rcle/core/guest-dating-service');
+      const result = await processSwipeAction(fastify.db, userId, request.body.targetUserId, request.body.action);
+      return buildSuccessResponse(result);
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, userId, error: error.message },
+        'POST /social/swipe failed',
+      );
+      
+      const code = error.message.includes('limit exceeded') ? 'TOO_MANY_REQUESTS' : 'BAD_REQUEST';
+      const status = error.message.includes('limit exceeded') ? 429 : 400;
+
+      return reply.status(status).send(
+        buildErrorResponse({
+          code,
+          message: error.message,
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  const UserIdParam = z.object({ id: z.string() }).strict();
+
+  fastify.get('/social/matches', async (request: any, reply: any) => {
+    const userId = request.user?.uid;
+    if (!userId) {
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Authentication required',
+          requestId: request.id,
+        })
+      );
+    }
+
+    try {
+      const { getUserMatches } = await import('@c1rcle/core/guest-dating-service');
+      const matches = await getUserMatches(fastify.db, userId);
+      return buildSuccessResponse({ matches });
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, userId, error: error.message },
+        'GET /social/matches failed',
+      );
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.get('/users/:id', {
+    preHandler: [fastify.validate({ params: UserIdParam })],
+  }, async (request: any, reply: any) => {
+    try {
+      const { getPublicUserProfile } = await import('@c1rcle/core/guest-dating-service');
+      const profile = await getPublicUserProfile(fastify.db, request.params.id);
+      return buildSuccessResponse(profile);
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, targetUserId: request.params.id, error: error.message },
+        'GET /users/:id failed',
+      );
+      
+      if (error.message.includes('not found')) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'User not found',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
 }
+
 
 /**
  * Handle multipart image upload to Firebase Storage

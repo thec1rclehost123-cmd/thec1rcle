@@ -22,6 +22,7 @@ const TIME_OF_DAY_BOOSTS: Record<string, number[]> = {
 
 interface RecommendationsState {
     recommendations: Event[];
+    scoredEvents: Record<string, { score: number }>;
     browsedCategories: string[];
 
     // Call on each event detail open
@@ -55,6 +56,7 @@ function scoreEvent(
 
 export const useRecommendationsStore = create<RecommendationsState>((set, get) => ({
     recommendations: [],
+    scoredEvents: {},
     browsedCategories: [],
 
     loadBrowsed: async () => {
@@ -106,10 +108,11 @@ export const useRecommendationsStore = create<RecommendationsState>((set, get) =
                 event: e,
                 score: scoreEvent(e, pastOrderCategories, browsedCategories, hour),
             }))
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 10)
-            .map(({ event }) => event);
+            .sort((a, b) => b.score - a.score);
 
-        set({ recommendations: scored });
+        set({
+            recommendations: scored.slice(0, 10).map(({ event }) => event),
+            scoredEvents: Object.fromEntries(scored.map(({ event, score }) => [event.id, { score }])),
+        });
     },
 }));

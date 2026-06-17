@@ -1,5 +1,6 @@
 import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import { CheckoutService } from './src/domain/services/checkout-service.js';
+import { createReservation } from './inventory-engine.js';
 
 vi.mock('./admin.js', () => ({
   getAdminDb: vi.fn(() => ({
@@ -341,6 +342,65 @@ describe('CheckoutService parity', () => {
     });
 
     expect(firstPayment.razorpayOrderId).toBe(secondPayment.razorpayOrderId);
+    expect(orderRepo.payments.size).toBe(1);
+  });
+
+  it('creates a zero-trust checkout intent with a 10 minute Redis reservation and backend pricing', async () => {
+    const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
+    const eventRepo = new FakeEventRepository({
+      'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
+    });
+    const service = new CheckoutService(orderRepo as any, eventRepo as any);
+
+    const intent = await service.createCheckoutIntent({
+      eventId: 'evt-paid',
+      tierId: 'tier-1',
+      quantity: 2,
+      user: {
+        id: 'user_1',
+        name: 'Test User',
+        email: 'test@example.com',
+        phone: '+15555550123',
+      },
+      deviceId: 'device_1',
+      workspaceId: 'ws_1',
+      paymentGatewayConfig: {
+        keyId: '',
+        keySecret: '',
+        allowMockPayment: true,
+      },
+    });
+
+    expect(createReservation).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'evt-paid' }),
+      'user_1',
+      'device_1',
+      [{ tierId: 'tier-1', quantity: 2 }],
+      { reservationMinutes: 10, strictMode: true },
+    );
+    expect(intent).toMatchObject({
+      success: true,
+      reservationId: 'res-mock',
+      razorpayOrderId: expect.stringMatching(/^order_mock_/),
+      amount: 1088.5,
+      amountPaise: 108850,
+      expiresAt: '2099-01-01',
+    });
+    expect(orderRepo.orders.size).toBe(1);
+    expect(orderRepo.reservations.get('res-mock')).toMatchObject({
+      status: 'converted',
+      orderId: intent.orderId,
+    });
+    expect([...orderRepo.orders.values()][0].tickets).toEqual([
+      {
+        ticketId: 'tier-1',
+        name: 'General Admission',
+        quantity: 2,
+        price: 500,
+        total: 1000,
+      },
+    ]);
     expect(orderRepo.payments.size).toBe(1);
   });
 

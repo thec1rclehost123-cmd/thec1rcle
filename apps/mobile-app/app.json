@@ -16,9 +16,6 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.c1rcle.app",
       "backgroundColor": "#161616",
-      "config": {
-        "googleMapsApiKey": "GOOGLE_MAPS_API_KEY_HERE"
-      },
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "THE C1RCLE needs your location for safety features like SOS alerts and sharing your location with friends.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "THE C1RCLE needs background location access to share your location with friends during events.",
@@ -32,11 +29,6 @@
         "backgroundColor": "#161616"
       },
       "package": "com.c1rcle.app",
-      "config": {
-        "googleMaps": {
-          "apiKey": "GOOGLE_MAPS_API_KEY_HERE"
-        }
-      },
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",

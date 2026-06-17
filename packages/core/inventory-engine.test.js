@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { validatePurchase } from './inventory-engine.js';
+import { listAvailableTicketTiers, validatePurchase } from './inventory-engine.js';
 
 // Mock Redis to avoid connection errors during logic tests
 vi.mock('./redis.js', () => ({
@@ -7,6 +7,101 @@ vi.mock('./redis.js', () => ({
 }));
 
 describe('Inventory Engine', () => {
+  describe('listAvailableTicketTiers', () => {
+    function buildDb(event) {
+      return {
+        collection: vi.fn(() => ({
+          doc: vi.fn(() => ({
+            get: vi.fn(async () => ({
+              exists: Boolean(event),
+              id: event?.id || 'event-1',
+              data: () => event,
+            })),
+          })),
+        })),
+      };
+    }
+
+    it('returns guest-safe tiers with scheduled prices and effective remaining inventory', async () => {
+      const result = await listAvailableTicketTiers(
+        buildDb({
+          id: 'event-1',
+          lifecycle: 'scheduled',
+          visibility: 'public',
+          currency: 'INR',
+          tickets: [
+            {
+              id: 'ga',
+              name: 'General Admission',
+              price: 1500,
+              quantity: 100,
+              sold: 25,
+              salesStart: '2026-06-01T00:00:00.000Z',
+              salesEnd: '2026-06-30T23:59:59.000Z',
+              scheduledPrices: [
+                {
+                  name: 'Early access',
+                  price: 1200,
+                  startsAt: '2026-06-10T00:00:00.000Z',
+                  endsAt: '2026-06-20T00:00:00.000Z',
+                },
+              ],
+            },
+            {
+              id: 'vip',
+              name: 'VIP',
+              price: 5000,
+              inventory: { totalQuantity: 20, soldQuantity: 5 },
+              salesStart: '2026-06-01T00:00:00.000Z',
+              salesEnd: '2026-06-30T23:59:59.000Z',
+            },
+          ],
+        }),
+        'event-1',
+        { timestamp: new Date('2026-06-17T12:00:00.000Z') },
+      );
+
+      expect(result).toMatchObject({
+        eventId: 'event-1',
+        currency: 'INR',
+        availableCount: 2,
+        hasAvailableTickets: true,
+        tiers: [
+          {
+            tierId: 'ga',
+            name: 'General Admission',
+            price: 1200,
+            priceLabel: 'Early access',
+            isScheduledPrice: true,
+            remaining: 75,
+            isAvailable: true,
+          },
+          {
+            tierId: 'vip',
+            name: 'VIP',
+            price: 5000,
+            remaining: 15,
+            isAvailable: true,
+          },
+        ],
+      });
+    });
+
+    it('does not expose private events', async () => {
+      const result = await listAvailableTicketTiers(
+        buildDb({
+          id: 'private-event',
+          lifecycle: 'scheduled',
+          visibility: 'private',
+          tickets: [{ id: 'ga', price: 1500, quantity: 10 }],
+        }),
+        'private-event',
+      );
+
+      expect(result).toBeNull();
+    });
+  });
+
   describe('validatePurchase', () => {
     const mockEvent = {
       id: 'event-1',

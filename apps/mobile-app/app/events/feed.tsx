@@ -311,6 +311,13 @@ export default function ImmersiveFeedScreen() {
         itemVisiblePercentThreshold: 50,
     }).current;
 
+    const renderFeedItem = useCallback(
+        ({ item, index }: { item: Event; index: number }) => (
+            <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
+        ),
+        [insets.top, scrollY],
+    );
+
     if (feedEvents.length === 0) {
         return (
             <View
@@ -382,10 +389,8 @@ export default function ImmersiveFeedScreen() {
                 bounces={false} 
                 overScrollMode="never"
                 data={feedEvents}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item, index }) => (
-                    <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
-                )}
+                keyExtractor={(item: Event) => item.id}
+                renderItem={renderFeedItem}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={ITEM_HEIGHT}
                 snapToAlignment="start"

@@ -58,6 +58,18 @@ const ShareBundleBody = z
   })
   .strict();
 
+const GroupTransferParam = z
+  .object({
+    id: z.string(),
+  })
+  .strict();
+
+const GroupClaimBody = z
+  .object({
+    transferToken: z.string(),
+  })
+  .strict();
+
 const ShareBundleQuery = z
   .object({
     orderId: z.string(),
@@ -200,6 +212,85 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
       );
     }
   });
+
+  fastify.get('/tickets/me', async (request: any, reply) => {
+    const userId = requireUser(reply, request);
+    if (!userId) return;
+
+    try {
+      const { getUserTicketsFromCollection } = await import('@c1rcle/core/ticket-engine');
+      const data = await getUserTicketsFromCollection(userId);
+      return buildSuccessResponse(data);
+    } catch (error: any) {
+      fastify.log.error(
+        { requestId: request.id, userId, error: error.message },
+        'GET /tickets/me failed',
+      );
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.post(
+    '/:id/transfer',
+    {
+      preHandler: [fastify.validate({ params: GroupTransferParam })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      try {
+        const { initiateGroupTransfer } = await import('@c1rcle/core/ticket-engine');
+        const data = await initiateGroupTransfer(userId, request.params.id);
+        
+        fastify.log.info({ requestId: request.id, userId, ticketId: request.params.id }, 'Group transfer initiated');
+        return buildSuccessResponse(data);
+      } catch (error: any) {
+        fastify.log.error({ requestId: request.id, userId, error: error.message }, 'POST /:id/transfer failed');
+        return reply.status(error.message.includes('Unauthorized') ? 403 : 400).send(
+          buildErrorResponse({
+            code: error.message.includes('Unauthorized') ? 'FORBIDDEN' : 'BAD_REQUEST',
+            message: error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    }
+  );
+
+  fastify.post(
+    '/claim',
+    {
+      preHandler: [fastify.validate({ body: GroupClaimBody })],
+    },
+    async (request: any, reply) => {
+      const userId = requireUser(reply, request);
+      if (!userId) return;
+
+      try {
+        const { claimGroupTransfer } = await import('@c1rcle/core/ticket-engine');
+        const data = await claimGroupTransfer(userId, request.body.transferToken);
+        
+        fastify.log.info({ requestId: request.id, userId, ticketId: data.ticketId }, 'Group transfer claimed');
+        return buildSuccessResponse(data);
+      } catch (error: any) {
+        fastify.log.error({ requestId: request.id, userId, error: error.message }, 'POST /claim failed');
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    }
+  );
 
   fastify.post(
     '/tickets/transfer',

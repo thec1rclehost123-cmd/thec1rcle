@@ -14,7 +14,7 @@ import {
 import type { ImageSourcePropType } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
-import { Image } from "react-native";
+import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { ArrowLeft, BadgeCheck, Heart, MapPin, MessageCircle, Send, Sparkles, X } from "lucide-react-native";

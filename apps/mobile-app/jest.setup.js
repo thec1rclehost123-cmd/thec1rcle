@@ -23,6 +23,39 @@ jest.mock('expo-secure-store', () => ({
     deleteItemAsync: jest.fn().mockResolvedValue(undefined),
 }), { virtual: true });
 
+const mockAsyncStorage = new Map();
+jest.mock('@react-native-async-storage/async-storage', () => ({
+    setItem: jest.fn(async (key, value) => {
+        mockAsyncStorage.set(key, value);
+    }),
+    getItem: jest.fn(async (key) => mockAsyncStorage.get(key) ?? null),
+    removeItem: jest.fn(async (key) => {
+        mockAsyncStorage.delete(key);
+    }),
+    getAllKeys: jest.fn(async () => Array.from(mockAsyncStorage.keys())),
+    multiRemove: jest.fn(async (keys) => {
+        keys.forEach((key) => mockAsyncStorage.delete(key));
+    }),
+    clear: jest.fn(async () => {
+        mockAsyncStorage.clear();
+    }),
+}), { virtual: true });
+
+jest.mock('@sentry/react-native', () => ({
+    init: jest.fn(),
+    captureException: jest.fn(),
+    setTag: jest.fn(),
+    setUser: jest.fn(),
+}), { virtual: true });
+
+jest.mock('react-native-css-interop/jsx-runtime', () => require('react/jsx-runtime'));
+jest.mock('react-native-css-interop/jsx-dev-runtime', () => require('react/jsx-dev-runtime'));
+jest.mock('react-native-css-interop', () => ({
+    cssInterop: jest.fn(),
+    remapProps: jest.fn(),
+    createInteropElement: require('react').createElement,
+}));
+
 jest.mock('expo-crypto', () => ({
     randomUUID: () => 'test-uuid-1234-5678-abcd-efgh',
 }), { virtual: true });

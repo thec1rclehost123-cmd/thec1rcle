@@ -10,6 +10,9 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { colors } from "@/lib/design/theme";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { DemoDataProvider } from "@/components/DemoDataProvider";
+import { initSentry } from "@/lib/sentry";
+
+initSentry();
 
 SplashScreen.preventAutoHideAsync().catch(() => {
     // Expo may already have hidden it during a fast refresh.
