@@ -156,7 +156,7 @@ const CATEGORY_FILTERS = [
 type CategoryFilter = typeof CATEGORY_FILTERS[number]["id"];
 type ExploreSection = {
     key: string;
-    render: () => ReactElement | null;
+    render: () => any;
 };
 
 // ── Category config ────────────────────────────────────────────────────────────
