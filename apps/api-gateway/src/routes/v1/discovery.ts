@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
-import { buildErrorResponse } from '../../lib/api-contracts';
 import { randomUUID } from 'node:crypto';
+import { buildErrorResponse } from '../../lib/api-contracts';
 
 const DiscoveryQuerySchema = z.object({
   action: z.enum(['list', 'search', 'get', 'discover']),
@@ -105,12 +105,19 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
               });
             }
           } else if (role === 'venue') {
-            const snap = await fastify.db
-              .collection(PARTNERSHIPS_COL)
-              .where('venueId', '==', partnerId)
-              .get()
-              .catch(() => ({ docs: [] as any[] }));
-            for (const doc of (snap as any).docs) {
+            const [partnerSnap, promoterSnap] = await Promise.all([
+              fastify.db
+                .collection(PARTNERSHIPS_COL)
+                .where('venueId', '==', partnerId)
+                .get()
+                .catch(() => ({ docs: [] as any[] })),
+              fastify.db
+                .collection(PROMOTER_CONNECTIONS_COL)
+                .where('venueId', '==', partnerId)
+                .get()
+                .catch(() => ({ docs: [] as any[] })),
+            ]);
+            for (const doc of (partnerSnap as any).docs) {
               const data = doc.data();
               connections.push({
                 id: doc.id,
@@ -124,6 +131,20 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 createdAt: data.createdAt,
               });
             }
+            for (const doc of (promoterSnap as any).docs) {
+              const data = doc.data();
+              connections.push({
+                id: doc.id,
+                type: 'promoter_connection',
+                status: data.status,
+                initiatedBy: data.initiatedBy || 'promoter',
+                otherId: data.promoterId,
+                otherName: data.promoterName || '',
+                city: data.city || '',
+                photoURL: data.promoterPhotoURL || null,
+                createdAt: data.createdAt,
+              });
+            }
           } else if (role === 'promoter') {
             const snap = await fastify.db
               .collection(PROMOTER_CONNECTIONS_COL)
@@ -132,15 +153,23 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
               .catch(() => ({ docs: [] as any[] }));
             for (const doc of (snap as any).docs) {
               const data = doc.data();
+              const isVenue = !!data.venueId;
+              const otherId = isVenue ? data.venueId : data.hostId;
+              const otherName = isVenue ? data.venueName || '' : data.hostName || '';
+              const city = isVenue
+                ? data.venueCity || data.city || ''
+                : data.hostCity || data.city || '';
+              const photoURL = isVenue ? data.venuePhotoURL || null : data.hostPhotoURL || null;
               connections.push({
                 id: doc.id,
                 type: 'promoter_connection',
                 status: data.status,
                 initiatedBy: data.initiatedBy || 'host',
-                otherId: data.hostId,
-                otherName: data.hostName || '',
-                city: data.city || '',
-                photoURL: data.hostPhotoURL || null,
+                otherId,
+                otherName,
+                otherType: isVenue ? 'venue' : 'host',
+                city,
+                photoURL,
                 createdAt: data.createdAt,
               });
             }
@@ -337,152 +366,96 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           );
         }
 
-        // Fetch requester details
-        let reqName = data.requesterName || '';
-        let reqPhotoURL = null;
-        let reqCity = '';
+        const getProfile = async (id: string, type: string) => {
+          let colName = '';
+          if (type === 'host') colName = 'hosts';
+          else if (type === 'venue') colName = 'venues';
+          else if (type === 'promoter') colName = 'users';
 
-        if (data.requesterType === 'host') {
-          const doc = await fastify.db
-            .collection('hosts')
-            .doc(data.requesterId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            reqName = reqName || d.displayName || d.name || '';
-            reqPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            reqCity = d.city || '';
+          if (!colName) return null;
+          try {
+            const doc = await fastify.db.collection(colName).doc(id).get();
+            return doc.exists ? doc.data() : null;
+          } catch (err) {
+            fastify.log.error(`Failed to fetch profile for ${colName}/${id}: ${err}`);
+            return null;
           }
-        } else if (data.requesterType === 'venue') {
-          const doc = await fastify.db
-            .collection('venues')
-            .doc(data.requesterId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            reqName = reqName || d.displayName || d.name || '';
-            reqPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            reqCity = d.city || '';
-          }
-        } else if (data.requesterType === 'promoter') {
-          const doc = await fastify.db
-            .collection('users')
-            .doc(data.requesterId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            reqName = reqName || d.displayName || d.name || '';
-            reqPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            reqCity = d.city || '';
-          }
-        }
+        };
 
-        // Fetch target details
-        let tgtName = data.targetName || '';
-        let tgtPhotoURL = null;
-        let tgtCity = '';
+        const [requesterProfile, targetProfile] = await Promise.all([
+          getProfile(data.requesterId, data.requesterType),
+          getProfile(data.targetId, data.targetType),
+        ]);
 
-        if (data.targetType === 'host') {
-          const doc = await fastify.db
-            .collection('hosts')
-            .doc(data.targetId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            tgtName = tgtName || d.displayName || d.name || '';
-            tgtPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            tgtCity = d.city || '';
-          }
-        } else if (data.targetType === 'venue') {
-          const doc = await fastify.db
-            .collection('venues')
-            .doc(data.targetId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            tgtName = tgtName || d.displayName || d.name || '';
-            tgtPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            tgtCity = d.city || '';
-          }
-        } else if (data.targetType === 'promoter') {
-          const doc = await fastify.db
-            .collection('users')
-            .doc(data.targetId)
-            .get()
-            .catch(() => null);
-          if (doc && doc.exists) {
-            const d = doc.data();
-            tgtName = tgtName || d.displayName || d.name || '';
-            tgtPhotoURL = d.photoURL || d.avatar || d.logo || null;
-            tgtCity = d.city || '';
-          }
-        }
+        const requesterName =
+          requesterProfile?.displayName || requesterProfile?.name || data.requesterName || '';
+        const requesterCity = requesterProfile?.city || '';
+        const requesterPhoto =
+          requesterProfile?.photoURL || requesterProfile?.avatar || requesterProfile?.logo || null;
 
-        const isPromoterConnection =
+        const targetName =
+          targetProfile?.displayName || targetProfile?.name || data.targetName || '';
+        const targetCity = targetProfile?.city || '';
+        const targetPhoto =
+          targetProfile?.photoURL || targetProfile?.avatar || targetProfile?.logo || null;
+
+        // Determine collection: if either requester or target is a promoter, use promoter_connections
+        const isPromoterInvolved =
           data.requesterType === 'promoter' || data.targetType === 'promoter';
+        const collectionName = isPromoterInvolved ? PROMOTER_CONNECTIONS_COL : PARTNERSHIPS_COL;
 
-        if (isPromoterConnection) {
-          const hostId = data.requesterType === 'host' ? data.requesterId : data.targetId;
-          const promoterId = data.requesterType === 'promoter' ? data.requesterId : data.targetId;
-          const hostName = data.requesterType === 'host' ? reqName : tgtName;
-          const promoterName = data.requesterType === 'promoter' ? reqName : tgtName;
-          const hostPhotoURL = data.requesterType === 'host' ? reqPhotoURL : tgtPhotoURL;
-          const promoterPhotoURL = data.requesterType === 'promoter' ? reqPhotoURL : tgtPhotoURL;
-          const city = data.requesterType === 'promoter' ? reqCity : tgtCity;
+        // Build database document
+        const docData: Record<string, any> = {
+          status: 'pending',
+          initiatedBy: data.requesterType,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
 
-          const docId = randomUUID();
-          const connDoc = {
-            id: docId,
-            hostId,
-            promoterId,
-            hostName,
-            promoterName,
-            hostPhotoURL,
-            promoterPhotoURL,
-            city,
-            status: 'pending',
-            initiatedBy: data.requesterType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          await fastify.db.collection(PROMOTER_CONNECTIONS_COL).doc(docId).set(connDoc);
-          return { success: true, id: docId };
-        } else {
-          const hostId = data.requesterType === 'host' ? data.requesterId : data.targetId;
-          const venueId = data.requesterType === 'venue' ? data.requesterId : data.targetId;
-          const hostName = data.requesterType === 'host' ? reqName : tgtName;
-          const venueName = data.requesterType === 'venue' ? reqName : tgtName;
-          const hostPhotoURL = data.requesterType === 'host' ? reqPhotoURL : tgtPhotoURL;
-          const venuePhotoURL = data.requesterType === 'venue' ? reqPhotoURL : tgtPhotoURL;
-          const hostCity = data.requesterType === 'host' ? reqCity : tgtCity;
-          const venueCity = data.requesterType === 'venue' ? reqCity : tgtCity;
-          const city = venueCity || hostCity;
-
-          const connDoc = {
-            hostId,
-            venueId,
-            hostName,
-            venueName,
-            hostPhotoURL,
-            venuePhotoURL,
-            hostCity,
-            venueCity,
-            city,
-            status: 'pending',
-            initiatedBy: data.requesterType,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
-
-          const ref = await fastify.db.collection(PARTNERSHIPS_COL).add(connDoc);
-          return { success: true, id: ref.id };
+        // Set requester-specific fields based on type
+        if (data.requesterType === 'host') {
+          docData.hostId = data.requesterId;
+          docData.hostName = requesterName;
+          docData.hostCity = requesterCity;
+          docData.hostPhotoURL = requesterPhoto;
+        } else if (data.requesterType === 'venue') {
+          docData.venueId = data.requesterId;
+          docData.venueName = requesterName;
+          docData.venueCity = requesterCity;
+          docData.venuePhotoURL = requesterPhoto;
+        } else if (data.requesterType === 'promoter') {
+          docData.promoterId = data.requesterId;
+          docData.promoterName = requesterName;
+          docData.city = requesterCity;
+          docData.promoterCity = requesterCity;
+          docData.promoterPhotoURL = requesterPhoto;
         }
+
+        // Set target-specific fields based on type
+        if (data.targetType === 'host') {
+          docData.hostId = data.targetId;
+          docData.hostName = targetName;
+          docData.hostCity = targetCity;
+          docData.hostPhotoURL = targetPhoto;
+        } else if (data.targetType === 'venue') {
+          docData.venueId = data.targetId;
+          docData.venueName = targetName;
+          docData.venueCity = targetCity;
+          docData.venuePhotoURL = targetPhoto;
+        } else if (data.targetType === 'promoter') {
+          docData.promoterId = data.targetId;
+          docData.promoterName = targetName;
+          docData.city = targetCity;
+          docData.promoterCity = targetCity;
+          docData.promoterPhotoURL = targetPhoto;
+        }
+
+        const ref = await fastify.db.collection(collectionName).add({
+          ...data,
+          ...docData,
+        });
+
+        return { success: true, id: ref.id };
       } catch (error: any) {
         if ((error as any).statusCode) throw error;
         return reply.status(500).send(

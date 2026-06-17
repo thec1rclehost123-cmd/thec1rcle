@@ -1119,6 +1119,333 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
     },
   );
 
+  // ── Partner Profile ─────────────────────────────────────────────────────────
+
+  fastify.get(
+    '/partners/venues/partners/:id',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx)
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        const partnerId = request.params.id;
+        const query = asRecord(request.query);
+        const viewerId = query.viewerId || ctx.partnerId;
+        const viewerRole = query.viewerRole || ctx.type;
+
+        const [venueDoc, hostDoc, promoterDoc] = await Promise.all([
+          fastify.db
+            .collection('venues')
+            .doc(partnerId)
+            .get()
+            .catch(() => null),
+          fastify.db
+            .collection('hosts')
+            .doc(partnerId)
+            .get()
+            .catch(() => null),
+          fastify.db
+            .collection('promoters')
+            .doc(partnerId)
+            .get()
+            .catch(() => null),
+        ]);
+
+        let targetType: 'venue' | 'host' | 'promoter';
+        let docData: any;
+        if (venueDoc && venueDoc.exists) {
+          targetType = 'venue';
+          docData = venueDoc.data();
+        } else if (hostDoc && hostDoc.exists) {
+          targetType = 'host';
+          docData = hostDoc.data();
+        } else if (promoterDoc && promoterDoc.exists) {
+          targetType = 'promoter';
+          docData = promoterDoc.data();
+        } else {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Partner not found',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        // Fetch events
+        let eventsQuery;
+        if (targetType === 'venue') {
+          eventsQuery = fastify.db
+            .collection('events')
+            .where('venueId', '==', partnerId)
+            .limit(100)
+            .get();
+        } else if (targetType === 'host') {
+          eventsQuery = fastify.db
+            .collection('events')
+            .where('hostId', '==', partnerId)
+            .limit(100)
+            .get();
+        } else {
+          eventsQuery = fastify.db
+            .collection('events')
+            .where('promoterId', '==', partnerId)
+            .limit(100)
+            .get();
+        }
+        const eventsSnap = await eventsQuery.catch(() => ({ docs: [] }));
+        const allEvents: any[] = (eventsSnap.docs || []).map((doc: any) => {
+          const d = doc.data() || {};
+          const startDate = d.startDate || d.date || d.eventDate;
+          let dateIso = null;
+          let dateLabel = 'Date TBA';
+          if (startDate) {
+            try {
+              const dateObj = new Date(startDate);
+              if (!isNaN(dateObj.getTime())) {
+                dateIso = dateObj.toISOString();
+                dateLabel = dateObj.toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                });
+              }
+            } catch {}
+          }
+          return {
+            id: doc.id,
+            title: d.title || d.name || 'Untitled Event',
+            dateIso,
+            dateLabel,
+            imageUrl: d.image || d.coverImage || d.poster || '',
+            venueName: d.venueName || d.venue || '',
+            city: d.city || d.cityName || '',
+            lifecycle: d.lifecycle || d.status || 'scheduled',
+          };
+        });
+
+        let promoterEvents: any[] = [];
+        if (targetType === 'promoter') {
+          const assignmentsSnap = await fastify.db
+            .collection('promoter_assignments')
+            .where('promoterId', '==', partnerId)
+            .limit(100)
+            .get()
+            .catch(() => ({ docs: [] }));
+          const assignedEventIds = Array.from(
+            new Set(
+              (assignmentsSnap.docs || []).map((doc: any) => doc.data()?.eventId).filter(Boolean),
+            ),
+          );
+          if (assignedEventIds.length > 0) {
+            const chunks = [];
+            for (let i = 0; i < assignedEventIds.length; i += 30) {
+              chunks.push(assignedEventIds.slice(i, i + 30));
+            }
+            const eventDocsSnaps = await Promise.all(
+              chunks.map((chunk) =>
+                fastify.db
+                  .collection('events')
+                  .where('__name__', 'in', chunk)
+                  .get()
+                  .catch(() => ({ docs: [] })),
+              ),
+            );
+            for (const snap of eventDocsSnaps) {
+              for (const doc of snap.docs || []) {
+                const d = doc.data() || {};
+                const startDate = d.startDate || d.date || d.eventDate;
+                let dateIso = null;
+                let dateLabel = 'Date TBA';
+                if (startDate) {
+                  try {
+                    const dateObj = new Date(startDate);
+                    if (!isNaN(dateObj.getTime())) {
+                      dateIso = dateObj.toISOString();
+                      dateLabel = dateObj.toLocaleDateString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                      });
+                    }
+                  } catch {}
+                }
+                promoterEvents.push({
+                  id: doc.id,
+                  title: d.title || d.name || 'Untitled Event',
+                  dateIso,
+                  dateLabel,
+                  imageUrl: d.image || d.coverImage || d.poster || '',
+                  venueName: d.venueName || d.venue || '',
+                  city: d.city || d.cityName || '',
+                  lifecycle: d.lifecycle || d.status || 'scheduled',
+                });
+              }
+            }
+          }
+        }
+
+        const nowIso = new Date().toISOString();
+        const eventsList = targetType === 'promoter' ? promoterEvents : allEvents;
+        const upcomingEvents = eventsList
+          .filter((e: any) => !e.dateIso || e.dateIso >= nowIso)
+          .sort((a, b) => String(a.dateIso || '').localeCompare(String(b.dateIso || '')))
+          .slice(0, 6);
+        const pastEvents = eventsList
+          .filter((e: any) => e.dateIso && e.dateIso < nowIso)
+          .sort((a, b) => String(b.dateIso || '').localeCompare(String(a.dateIso || '')))
+          .slice(0, 8);
+
+        let memberSinceLabel = '';
+        const createdDate = docData.createdAt || docData.submittedAt;
+        if (createdDate) {
+          try {
+            const d = new Date(createdDate);
+            if (!isNaN(d.getTime())) {
+              memberSinceLabel = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+            }
+          } catch {}
+        }
+
+        const totalEvents = eventsList.length;
+        const contactPoints = [
+          docData.email || docData.contactEmail,
+          docData.phone || docData.contactPhone,
+          docData.website,
+          ...Object.values(docData.socialLinks || {}),
+        ].filter(Boolean).length;
+        const stats = {
+          totalEvents: docData.eventsCount || totalEvents,
+          upcomingEvents: upcomingEvents.length,
+          pastEvents: pastEvents.length,
+          contactPoints,
+        };
+
+        // Resolve connection
+        let connection = null;
+        if (viewerId && viewerRole) {
+          if (
+            (viewerRole === 'venue' && targetType === 'host') ||
+            (viewerRole === 'host' && targetType === 'venue')
+          ) {
+            const venueId = viewerRole === 'venue' ? viewerId : partnerId;
+            const hostId = viewerRole === 'host' ? viewerId : partnerId;
+            const snap = await fastify.db
+              .collection('partnerships')
+              .where('venueId', '==', venueId)
+              .where('hostId', '==', hostId)
+              .limit(1)
+              .get()
+              .catch(() => null);
+            if (snap && !snap.empty) {
+              const cData = snap.docs[0].data();
+              connection = {
+                id: snap.docs[0].id,
+                status: cData.status || null,
+                type: 'partnership',
+                initiatedBy: cData.initiatedBy || null,
+              };
+            }
+          }
+
+          const promoterId =
+            viewerRole === 'promoter' ? viewerId : targetType === 'promoter' ? partnerId : '';
+          const targetId = viewerRole === 'promoter' ? partnerId : viewerId;
+          if (promoterId && targetId) {
+            const snap = await fastify.db
+              .collection('promoter_connections')
+              .where('promoterId', '==', promoterId)
+              .where('targetId', '==', targetId)
+              .limit(1)
+              .get()
+              .catch(() => null);
+            if (snap && !snap.empty) {
+              const cData = snap.docs[0].data();
+              connection = {
+                id: snap.docs[0].id,
+                status: cData.status || null,
+                type: 'promoter_connection',
+                initiatedBy: cData.initiatedBy || null,
+              };
+            }
+          }
+        }
+
+        return reply.send({
+          profile: {
+            id: partnerId,
+            type: targetType,
+            name:
+              docData.displayName ||
+              docData.name ||
+              docData.brandName ||
+              docData.venueName ||
+              'Unknown Partner',
+            legalName: docData.legalName || docData.name || 'Unknown Partner',
+            bio: docData.bio || docData.description || docData.summary || '',
+            city: docData.city || '',
+            area: docData.area || '',
+            locationLabel: [docData.city, docData.area].filter(Boolean).join(', ') || 'India',
+            phone: docData.phone || docData.contactPhone || '',
+            email: docData.email || docData.contactEmail || '',
+            avatarUrl:
+              docData.profileImage ||
+              docData.avatar ||
+              docData.avatarUrl ||
+              docData.photoURL ||
+              docData.photoUrl ||
+              docData.logoUrl ||
+              docData.logoImage ||
+              docData.logo ||
+              '',
+            coverImageUrl:
+              docData.coverImage ||
+              docData.bannerImage ||
+              docData.heroImage ||
+              docData.coverURL ||
+              '',
+            website: docData.website || '',
+            socialLinks: docData.socialLinks || {
+              instagram: docData.instagram || docData.instagramHandle || '',
+              x: docData.x || docData.twitter || docData.twitterHandle || '',
+              spotify: docData.spotify || docData.spotifyHandle || '',
+            },
+            isVerified: !!(docData.isVerified || docData.isApproved || docData.status === 'active'),
+            memberSinceLabel,
+            stats,
+            upcomingEvents,
+            pastEvents,
+          },
+          connection,
+        });
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   // ── Public venue detail/list parity ───────────────────────────────────────
 
   fastify.get('/partners/venues/directory', async (request: any, reply: any) => {
