@@ -141,26 +141,8 @@ function FeedCard({
 
     const posterTransitionTag = `poster-${event.id}-feed-${index}`;
 
-    // Card scale + opacity transition
     const cardAnimStyle = useAnimatedStyle(() => {
-        const input = [
-            (index - 1) * ITEM_HEIGHT,
-            index * ITEM_HEIGHT,
-            (index + 1) * ITEM_HEIGHT,
-        ];
-        const scale = interpolate(
-            scrollY.value,
-            input,
-            [0.85, 1, 0.85],
-            Extrapolate.CLAMP,
-        );
-        const opacity = interpolate(
-            scrollY.value,
-            input,
-            [0.3, 1, 0.3],
-            Extrapolate.CLAMP,
-        );
-        return { transform: [{ scale }], opacity };
+        return { transform: [{ scale: 1 }], opacity: 1 };
     });
 
     return (
