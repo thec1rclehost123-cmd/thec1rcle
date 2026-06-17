@@ -23,6 +23,8 @@ vi.mock('./redis.js', () => ({
     zincrby: vi.fn(),
     zrevrange: vi.fn(),
     expire: vi.fn(),
+    lpush: vi.fn(),
+    publish: vi.fn(),
   }),
 }));
 

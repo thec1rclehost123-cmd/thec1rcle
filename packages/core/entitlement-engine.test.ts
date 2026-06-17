@@ -6,14 +6,14 @@ vi.mock('./admin.js', () => {
   const mockDb = {
     collection: () => ({
       doc: () => ({
-        get: vi.fn(),
+        get: vi.fn().mockResolvedValue({ exists: false, data: () => ({}) }),
         update: vi.fn(),
         set: vi.fn(),
       }),
     }),
     runTransaction: async (cb: any) =>
       cb({
-        get: vi.fn(),
+        get: vi.fn().mockResolvedValue({ exists: false, data: () => ({}) }),
         update: vi.fn(),
         set: vi.fn(),
       }),

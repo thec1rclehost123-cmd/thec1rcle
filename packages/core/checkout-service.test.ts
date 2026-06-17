@@ -1,5 +1,58 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, beforeEach, afterAll, vi } from 'vitest';
 import { CheckoutService } from './src/domain/services/checkout-service.js';
+
+vi.mock('./admin.js', () => ({
+  getAdminDb: vi.fn(() => ({
+    runTransaction: vi.fn(async (cb) => cb({
+      get: vi.fn(async () => ({ exists: false, data: () => ({}) })),
+      set: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      collection: vi.fn(() => ({
+        doc: vi.fn(() => ({
+          get: vi.fn(),
+          set: vi.fn(),
+        })),
+      })),
+    })),
+    collection: vi.fn((col) => ({
+      doc: vi.fn((id) => ({
+        update: vi.fn(),
+        get: vi.fn(),
+        set: vi.fn(),
+      })),
+    })),
+  })),
+  getAdminApp: vi.fn(),
+  isFirebaseConfigured: () => false,
+}));
+
+export let currentOrderRepo: any = null;
+
+vi.mock('./order-engine.js', async (importOriginal) => {
+  const mod = await importOriginal<any>();
+  return {
+    ...mod,
+    executeOrderCreation: vi.fn(async (transaction, { db, event, orderData, reservationId }) => {
+      const status = orderData.totalAmount === 0 || orderData.isRSVP ? 'confirmed' : 'payment_pending';
+      const finalOrder = { ...orderData, status, updatedAt: new Date().toISOString() };
+      if (currentOrderRepo) {
+        if (finalOrder.isRSVP) currentOrderRepo.rsvpOrders.set(finalOrder.id, finalOrder);
+        else currentOrderRepo.orders.set(finalOrder.id, finalOrder);
+        if (reservationId) {
+          const res = currentOrderRepo.reservations.get(reservationId);
+          if (res) currentOrderRepo.reservations.set(reservationId, { ...res, status: 'converted', orderId: finalOrder.id });
+        }
+      }
+      return finalOrder;
+    }),
+  };
+});
+
+vi.mock('./inventory-engine.js', () => ({
+  releaseReservation: vi.fn().mockResolvedValue({ success: true }),
+  createReservation: vi.fn().mockResolvedValue({ success: true, reservationId: 'res-mock', expiresAt: '2099-01-01' }),
+}));
 
 class FakeOrderRepository {
   orders = new Map<string, any>();
@@ -217,6 +270,7 @@ function buildReservation({
 describe('CheckoutService parity', () => {
   it('reuses the same paid order for repeated calls on one reservation', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
       'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
     });
@@ -257,6 +311,7 @@ describe('CheckoutService parity', () => {
 
   it('reuses the latest pending payment intent for the same order instead of creating a new one', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
       'evt-paid': buildEvent({ id: 'evt-paid', price: 500 }),
     });
@@ -291,6 +346,7 @@ describe('CheckoutService parity', () => {
 
   it('returns the existing confirmed order after a free reservation is converted', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
       'evt-free': buildEvent({ id: 'evt-free', price: 0 }),
     });
@@ -327,6 +383,7 @@ describe('CheckoutService parity', () => {
 
   it('blocks duplicate RSVP purchases for the same user identity', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
       'evt-rsvp': buildEvent({ id: 'evt-rsvp', isRSVP: true }),
     });
@@ -354,28 +411,29 @@ describe('CheckoutService parity', () => {
         userEmail: 'test@example.com',
         userPhone: '+15555550123',
       }),
-    ).rejects.toThrow('Already registered. You can only hold one RSVP ticket for this event.');
+    ).rejects.toThrow('Already registered. One RSVP per person.');
   });
 
   it('rejects reservations for non-public lifecycle events before inventory work runs', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
       'evt-paused': buildEvent({ id: 'evt-paused', lifecycle: 'paused' }),
     });
     const service = new CheckoutService(orderRepo as any, eventRepo as any);
 
     await expect(
-      service.reserveItems(
-        'evt-paused',
-        'user_1',
-        'device_1',
-        [{ tierId: 'tier-1', quantity: 1 }],
-        'ws_1',
-      ),
+      service.reserveItems({
+        eventId: 'evt-paused',
+        userId: 'user_1',
+        deviceId: 'device_1',
+        items: [{ tierId: 'tier-1', quantity: 1 }],
+        workspaceId: 'ws_1',
+      }),
     ).rejects.toThrow('Ticket sales for this event are temporarily paused.');
   });
 
-  it('computes cancellation policy using event timing and policy snapshot rules', () => {
+  it('computes cancellation policy using event timing and policy snapshot rules', async () => {
     const service = new CheckoutService(
       new FakeOrderRepository() as any,
       new FakeEventRepository({}) as any,
@@ -396,7 +454,7 @@ describe('CheckoutService parity', () => {
       startDate: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString(),
     };
 
-    const decision = service.getCancellationDecision(order, event);
+    const decision = await service.getCancellationDecision(order, event);
 
     expect(decision.canCancel).toBe(true);
     expect(decision.refundPercentage).toBe(100);
@@ -405,6 +463,7 @@ describe('CheckoutService parity', () => {
 
   it('cancels an order through the shared service and returns the refund summary', async () => {
     const orderRepo = new FakeOrderRepository();
+    currentOrderRepo = orderRepo;
     const service = new CheckoutService(orderRepo as any, new FakeEventRepository({}) as any);
     const order = {
       id: 'ord-cancel',

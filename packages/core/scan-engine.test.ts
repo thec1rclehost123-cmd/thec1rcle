@@ -2,11 +2,11 @@ import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHmac } from 'node:crypto';
 
 const originalNodeEnv = process.env.NODE_ENV;
-const originalQrSecret = process.env.QR_SECRET_KEY;
+const originalQrSecret = process.env.QR_SECRET;
 
 beforeEach(() => {
   process.env.NODE_ENV = 'test';
-  process.env.QR_SECRET_KEY = 'test-qr-secret';
+  process.env.QR_SECRET = 'test-qr-secret';
   vi.resetModules();
 });
 
@@ -53,8 +53,8 @@ describe('scan-engine', () => {
 afterAll(() => {
   process.env.NODE_ENV = originalNodeEnv;
   if (originalQrSecret === undefined) {
-    delete process.env.QR_SECRET_KEY;
+    delete process.env.QR_SECRET;
   } else {
-    process.env.QR_SECRET_KEY = originalQrSecret;
+    process.env.QR_SECRET = originalQrSecret;
   }
 });

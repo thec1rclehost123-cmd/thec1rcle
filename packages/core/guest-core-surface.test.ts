@@ -71,6 +71,7 @@ describe('guest core surface', () => {
         visibility: 'public',
         lifecycle: 'scheduled',
         statusKey: 'upcoming',
+        startAt: new Date(Date.now() + 86400000).toISOString(),
       }),
     ).toBe(true);
     expect(buildGuestDiscoveryEnvelope([{ id: 'event_1' }], { hasMore: true })).toEqual({

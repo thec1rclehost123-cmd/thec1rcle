@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterAll } from 'vitest';
 import { generateAdmissionToken, validateAdmission } from './surge.js';
 
 // Mock dependecies
@@ -11,7 +11,20 @@ vi.mock('./admin.js', () => ({
   isFirebaseConfigured: () => false,
 }));
 
+const originalQueueSecret = process.env.QUEUE_SECRET_KEY;
+
 describe('Surge Protection System', () => {
+  beforeEach(() => {
+    process.env.QUEUE_SECRET_KEY = 'test-queue-secret';
+  });
+
+  afterAll(() => {
+    if (originalQueueSecret === undefined) {
+      delete process.env.QUEUE_SECRET_KEY;
+    } else {
+      process.env.QUEUE_SECRET_KEY = originalQueueSecret;
+    }
+  });
   describe('Admission Tokens', () => {
     const mockEventId = 'event-1';
     const mockUserId = 'user-1';

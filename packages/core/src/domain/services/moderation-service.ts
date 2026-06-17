@@ -12,6 +12,11 @@ export class ModerationService {
 
     const reportId = await this.reportRepo.save(fullReport);
 
+    const existingReports = await this.reportRepo.listByTarget(report.targetId);
+    if (existingReports.length >= 5) {
+      console.log(`[Moderation] Target ${report.targetId} reached report threshold (${existingReports.length})`);
+    }
+
     return reportId;
   }
 

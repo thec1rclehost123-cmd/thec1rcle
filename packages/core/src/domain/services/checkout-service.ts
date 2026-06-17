@@ -401,7 +401,16 @@ export class CheckoutService {
       await this.inventory.release(order.reservationId).catch(() => undefined);
     }
 
-    return result;
+    return {
+      success: result.success,
+      orderId: order.id,
+      refund: {
+        percentage: result.decision.refundPercentage,
+        amount: result.decision.refundAmount,
+        status: result.refundResult ? 'processing' : 'not_applicable',
+        razorpayRefundId: result.refundResult?.id,
+      },
+    };
   }
 
   async getCancellationDecision(order: any, event: any) {

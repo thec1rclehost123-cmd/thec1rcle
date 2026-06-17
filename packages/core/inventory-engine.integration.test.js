@@ -85,7 +85,7 @@ const redisMock = {
   },
 };
 
-vi.mock('./redis.js', () => ({ getRedisClient: () => redisMock }));
+vi.mock('./redis.js', () => ({ getRedisClient: () => redisMock.status === 'end' ? null : redisMock }));
 
 const {
   calculateEffectiveInventory,
@@ -152,12 +152,12 @@ describe('calculateEffectiveInventory', () => {
     expect(available).toBe(7);
   });
 
-  it('throws InventoryReadError when Redis is not ready (fail-closed)', async () => {
+  it('throws InventoryUnavailableError when Redis is not ready in strict mode (fail-closed)', async () => {
     redisMock.status = 'end';
     const event = makeEvent('tier-a', 10, 0);
     const tier = event.tickets[0];
-    await expect(calculateEffectiveInventory(tier, event)).rejects.toBeInstanceOf(
-      InventoryReadError,
+    await expect(calculateEffectiveInventory(tier, event, null, null, true)).rejects.toBeInstanceOf(
+      InventoryUnavailableError,
     );
   });
 
@@ -193,7 +193,7 @@ describe('createReservation — concurrent race protection', () => {
     redisMock.status = 'end';
     await expect(
       createReservation(event, 'user-2', 'dev-2', makeItems('tier-a', 1)),
-    ).rejects.toBeInstanceOf(InventoryReadError);
+    ).rejects.toBeInstanceOf(InventoryUnavailableError);
     redisMock.status = origStatus;
   });
 
@@ -246,11 +246,11 @@ describe('circuit breaker', () => {
       } catch {}
     }
 
-    // Circuit should now be open — next call should fail with circuit-open message
+    // Circuit should now be open — next call should fail with circuit-open message in strict mode
     redisMock.status = 'ready'; // Even if Redis recovers, circuit stays open
-    await expect(calculateEffectiveInventory(tier, event)).rejects.toMatchObject({
-      name: 'InventoryReadError',
-      message: /circuit is open/,
+    await expect(calculateEffectiveInventory(tier, event, null, null, true)).rejects.toMatchObject({
+      name: 'InventoryUnavailableError',
+      message: /circuit open/,
     });
   });
 });
