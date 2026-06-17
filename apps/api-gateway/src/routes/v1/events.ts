@@ -3,8 +3,14 @@ import { z } from 'zod';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
 import {
+  applyPublicCacheHeaders,
+  buildVersionedPublicCacheKey,
+} from '../../utils/public-cache';
+import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
+import {
   getEventQueueStatus,
   getEventSurgeStatus,
+  getEventWaitlistStatus,
   joinEventQueue,
   joinEventWaitlist,
   toggleEventRsvp,
@@ -14,6 +20,48 @@ import {
 } from '@c1rcle/core/guest-event-conversion';
 // @ts-ignore - JS module with runtime exports
 import { buildEvent } from '@c1rcle/core/event-engine';
+// @ts-ignore - JS module with runtime exports
+import { normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
+
+const ExploreEventListQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(24).optional(),
+    cursor: z.string().min(1).max(500).optional(),
+    lastId: z.string().min(1).max(500).optional(),
+    sort: z.string().trim().max(64).optional(),
+    city: z.string().trim().max(120).optional(),
+    cityKey: z.string().trim().max(120).optional(),
+    category: z.string().trim().max(80).optional(),
+    type: z.string().trim().max(80).optional(),
+    eventType: z.string().trim().max(80).optional(),
+    curatedCategory: z.string().trim().max(80).optional(),
+    date: z.string().trim().max(40).optional(),
+    datePreset: z.string().trim().max(40).optional(),
+    dayKey: z.string().trim().max(20).optional(),
+    startDate: z.string().trim().max(40).optional(),
+    endDate: z.string().trim().max(40).optional(),
+    search: z.string().trim().max(120).optional(),
+    q: z.string().trim().max(120).optional(),
+    status: z.string().trim().max(40).optional(),
+    statusKey: z.string().trim().max(40).optional(),
+    area: z.string().trim().max(120).optional(),
+    areaKey: z.string().trim().max(120).optional(),
+    priceType: z.enum(['free', 'paid']).optional(),
+    host: z.string().trim().max(120).optional(),
+    hostId: z.string().trim().max(120).optional(),
+    hostSlug: z.string().trim().max(120).optional(),
+    venue: z.string().trim().max(120).optional(),
+    venueId: z.string().trim().max(120).optional(),
+    venueSlug: z.string().trim().max(120).optional(),
+  })
+  .strict();
+
+const ExploreFeaturedEventListQuery = ExploreEventListQuery.extend({
+  limit: z.coerce.number().int().min(1).max(12).optional(),
+});
+
+const EXPLORE_EVENTS_CACHE_SCHEMA_VERSION = 1;
+const EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION = 1;
 
 const EventNearbyQuery = z
   .object({
@@ -104,6 +152,58 @@ const EventQueueQuery = z
   })
   .strict();
 const EventQueueBody = z.object({}).strict();
+const EventWaitlistBody = z
+  .object({
+    ticketId: z.string().min(1).max(120).optional(),
+    tierId: z.string().min(1).max(120).optional(),
+    email: z.string().email().optional(),
+    phone: z.string().max(40).nullable().optional(),
+  })
+  .strict();
+
+function sortObjectKeys(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sortObjectKeys);
+  const sorted: any = {};
+  Object.keys(obj)
+    .sort()
+    .forEach((key) => {
+      sorted[key] = sortObjectKeys(obj[key]);
+    });
+  return sorted;
+}
+
+function normalizeExploreEventsQuery(rawQuery: Record<string, any> = {}) {
+  const query = { ...(rawQuery || {}) };
+  const normalizedCityKey = normalizeCityKey(query.cityKey || query.city || null);
+
+  if (normalizedCityKey) {
+    query.cityKey = normalizedCityKey;
+    delete query.city;
+  }
+
+  if (query.category && !query.eventType && !query.type) {
+    query.eventType = String(query.category).trim();
+  }
+
+  if (query.date && !query.datePreset && !query.dayKey && !query.startDate && !query.endDate) {
+    query.datePreset = String(query.date).trim().toLowerCase();
+  }
+  delete query.date;
+
+  if (query.sort) {
+    const normalizedSort = String(query.sort).trim().toLowerCase();
+    query.sort =
+      normalizedSort === 'trending' || normalizedSort === 'popular'
+        ? 'heat'
+        : normalizedSort === 'newest'
+          ? 'new'
+          : normalizedSort;
+  }
+
+  return sortObjectKeys(query);
+}
+
 function getRequestViewerId(request: any) {
   const ip = request.headers['x-forwarded-for'] || request.ip || '127.0.0.1';
   const userAgent = request.headers['user-agent'] || 'unknown';
@@ -239,39 +339,91 @@ async function enrichPartnerSnapshots(db: any, event: Record<string, any>) {
 export default async function eventRoutes(fastify: FastifyInstance) {
   /**
    * GET /api/v1/events
-   * List events with filters
+   * Public Explore feed events with filters
    */
-  fastify.get('/events', async (request: any, reply) => {
-    try {
-      const rawQuery = request.query || {};
-      const workspaceId = request.workspaceId; // 🏢 SaaS: Extract tenant context
+  fastify.get(
+    '/events',
+    { preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
+    async (request: any, reply) => {
+      try {
+        await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);
+        applyPublicCacheHeaders(reply, 60);
 
-      const query = {
-        ...rawQuery,
-        limit: parseInt(rawQuery.limit, 10) || 12,
-        lastId: rawQuery.lastId || undefined,
-      };
+        const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
+        const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+          normalizedQuery,
+        )}`;
+        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+        const cached = await fastify.cache.get('public-discovery', cacheKey);
+        if (cached) return cached;
 
-      // 🛡️ SaaS: If workspaceId is provided, scope the cache and query
-      const cacheKey = JSON.stringify({ ...query, workspaceId });
-      const cached = await fastify.cache.get('events:list', cacheKey);
-      if (cached) return cached;
+        const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery);
+        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        return result;
+      } catch (error: any) {
+        if (error.message === 'RATE_LIMITED')
+          return reply.status(429).send(
+            buildErrorResponse({
+              code: 'RATE_LIMITED',
+              message: 'Too many requests',
+              requestId: request.id,
+            }),
+          );
+        request.log.error({ error }, 'Failed to list explore events');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load events',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
-      const result = await fastify.eventService.listEvents(query, workspaceId);
+  /**
+   * GET /api/v1/events/featured
+   * Public Explore hero carousel events
+   */
+  fastify.get(
+    '/events/featured',
+    { preHandler: [fastify.validate({ querystring: ExploreFeaturedEventListQuery })] },
+    async (request: any, reply) => {
+      try {
+        await enforcePublicRateLimit(fastify, request, 'events:featured', 120, 60);
+        applyPublicCacheHeaders(reply, 60);
 
-      await fastify.cache.set('events:list', cacheKey, result, 60); // 60s TTL
-      return result;
-    } catch (error: any) {
-      fastify.log.error(`Error in GET /events: ${error.message}`);
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal Server Error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+        const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
+        const rawCacheKey = `featured:v${EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+          normalizedQuery,
+        )}`;
+        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+        const cached = await fastify.cache.get('public-discovery', cacheKey);
+        if (cached) return cached;
+
+        const result = await fastify.publicDiscoveryService.listFeaturedEvents(normalizedQuery);
+        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        return result;
+      } catch (error: any) {
+        if (error.message === 'RATE_LIMITED')
+          return reply.status(429).send(
+            buildErrorResponse({
+              code: 'RATE_LIMITED',
+              message: 'Too many requests',
+              requestId: request.id,
+            }),
+          );
+        request.log.error({ error }, 'Failed to list featured explore events');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load featured events',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   /**
    * GET /api/v1/events/nearby
@@ -522,6 +674,77 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     },
   );
 
+  fastify.post(
+    '/events/:id/waitlist',
+    {
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: EventParamId, body: EventWaitlistBody }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      const email = request.user?.email || request.body?.email || null;
+      if (!userId || !email)
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Sign in with an email to join the waitlist',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        const entry = await joinEventWaitlist(fastify.db, {
+          eventId: request.params.id,
+          ticketId: request.body?.ticketId,
+          tierId: request.body?.tierId,
+          userId,
+          email,
+          phone: request.body?.phone || request.user?.phoneNumber || null,
+        });
+        const status = await getEventWaitlistStatus(fastify.db, {
+          eventId: request.params.id,
+          email,
+        });
+        return buildSuccessResponse({
+          ...status,
+          entry: status.entry || entry,
+        });
+      } catch (error: any) {
+        request.log.error({ error }, 'Failed to join event waitlist');
+        const message = String(error.message || '');
+        const statusCode =
+          message === 'Event not found'
+            ? 404
+            : message === 'Event is not sold out'
+              ? 409
+              : message.includes('required')
+                ? 400
+                : 500;
+        return reply.status(statusCode).send(
+          buildErrorResponse({
+            code:
+              statusCode === 404
+                ? 'NOT_FOUND'
+                : statusCode === 409
+                  ? 'EVENT_NOT_SOLD_OUT'
+                  : statusCode === 400
+                    ? 'BAD_REQUEST'
+                    : 'INTERNAL_ERROR',
+            message:
+              statusCode === 409
+                ? 'Waitlist is only available when this event is sold out'
+                : statusCode === 500
+                  ? 'Unable to join waitlist'
+                  : error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
   fastify.get(
     '/events/:id',
     {
@@ -529,14 +752,17 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { id } = request.params;
-      const workspaceId = request.workspaceId; // 🛡️ SaaS: Contextual fetch
       try {
-        const cacheKey = `${id}:${workspaceId || 'global'}`;
-        const cached = await fastify.cache.get('events:detail', cacheKey);
+        await enforcePublicRateLimit(fastify, request, 'events:detail', 120, 60);
+        applyPublicCacheHeaders(reply, 60);
+
+        const rawCacheKey = `detail:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${id}`;
+        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+        const cached = await fastify.cache.get('public-discovery', cacheKey);
         if (cached) return cached;
 
-        const event = await fastify.eventService.getEventByIdOrSlug(id, workspaceId);
-        if (!event)
+        const detail = await fastify.publicDiscoveryService.getEventDetail(id);
+        if (!detail)
           return reply.status(404).send(
             buildErrorResponse({
               code: 'NOT_FOUND',
@@ -545,14 +771,22 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }),
           );
 
-        await fastify.cache.set('events:detail', cacheKey, event, 300); // 300s TTL
-        return event;
+        await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        return detail;
       } catch (error: any) {
-        fastify.log.error(`Error in GET /events/:id: ${error.message}`);
+        if (error.message === 'RATE_LIMITED')
+          return reply.status(429).send(
+            buildErrorResponse({
+              code: 'RATE_LIMITED',
+              message: 'Too many requests',
+              requestId: request.id,
+            }),
+          );
+        request.log.error({ error }, 'Failed to load event detail');
         return reply.status(500).send(
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
-            message: 'Internal Server Error',
+            message: 'Unable to load event',
             requestId: request.id,
           }),
         );

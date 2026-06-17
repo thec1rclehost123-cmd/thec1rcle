@@ -106,6 +106,66 @@ describe('PublicDiscoveryService', () => {
     expect(result.appliedFilters.cityKey).toBe('pune-in');
   });
 
+  it('listEvents accepts Explore aliases for category and date=tonight', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2099-04-20T12:00:00.000Z'));
+
+    const service = buildService();
+    service.events = {
+      queryList: vi.fn(async () => [
+        {
+          id: 'event_club_today',
+          visibility: 'public',
+          lifecycle: 'scheduled',
+          statusKey: 'upcoming',
+          cityKey: 'mumbai-in',
+          category: 'Club',
+          eventType: 'club',
+          startAt: '2099-04-20T20:00:00.000Z',
+          endAt: '2099-04-21T04:00:00.000Z',
+        },
+        {
+          id: 'event_art_today',
+          visibility: 'public',
+          lifecycle: 'scheduled',
+          statusKey: 'upcoming',
+          cityKey: 'mumbai-in',
+          category: 'Gallery',
+          eventType: 'gallery',
+          startAt: '2099-04-20T19:00:00.000Z',
+          endAt: '2099-04-21T01:00:00.000Z',
+        },
+        {
+          id: 'event_club_tomorrow',
+          visibility: 'public',
+          lifecycle: 'scheduled',
+          statusKey: 'upcoming',
+          cityKey: 'mumbai-in',
+          category: 'club',
+          eventType: 'club',
+          startAt: '2099-04-21T20:00:00.000Z',
+          endAt: '2099-04-22T04:00:00.000Z',
+        },
+      ]),
+    };
+
+    const result = await service.listEvents({
+      limit: 12,
+      city: 'Mumbai',
+      category: 'club',
+      date: 'tonight',
+      sort: 'soonest',
+    });
+
+    expect(result.items.map((item: any) => item.id)).toEqual(['event_club_today']);
+    expect(result.appliedFilters).toMatchObject({
+      cityKey: 'mumbai-in',
+      category: 'club',
+      eventType: 'club',
+      datePreset: 'tonight',
+    });
+  });
+
   it('listEvents uses bounded read-model queries for first-page city browsing', async () => {
     const service = buildService();
     service.events = {

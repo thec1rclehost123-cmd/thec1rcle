@@ -301,6 +301,108 @@ export async function getEventQueueStatus(db, queueId) {
   return surgeCore.getQueueStatus(db, queueId);
 }
 
+function numberOrNull(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function firstNumber(...values) {
+  for (const value of values) {
+    const n = numberOrNull(value);
+    if (n !== null) return n;
+  }
+  return null;
+}
+
+function getEventTicketTiers(event = {}) {
+  if (Array.isArray(event.ticketCatalog?.tiers)) return event.ticketCatalog.tiers;
+  if (Array.isArray(event.tickets)) return event.tickets;
+  if (Array.isArray(event.ticketTiers)) return event.ticketTiers;
+  if (Array.isArray(event.tiers)) return event.tiers;
+  return [];
+}
+
+function getTierKey(tier = {}) {
+  return String(tier.id || tier.tierId || tier.ticketId || tier.name || '');
+}
+
+function getTierRemaining(tier = {}) {
+  const explicitRemaining = firstNumber(
+    tier.remaining,
+    tier.availableQuantity,
+    tier.availableCount,
+    tier.inventory?.remaining,
+    tier.inventory?.availableQuantity,
+  );
+  if (explicitRemaining !== null) return explicitRemaining;
+
+  const inventory = tier.inventory || {};
+  const capacity = firstNumber(
+    inventory.totalQuantity,
+    inventory.capacity,
+    tier.totalQuantity,
+    tier.capacity,
+    tier.quantity,
+  );
+  if (capacity !== null) {
+    const sold =
+      firstNumber(inventory.soldQuantity, tier.soldQuantity, tier.sold, tier.ticketsSold) || 0;
+    const held =
+      firstNumber(inventory.heldQuantity, tier.heldQuantity, tier.held, tier.lockedQuantity) || 0;
+    return Math.max(0, capacity - sold - held);
+  }
+
+  if (
+    tier.isSoldOut === true ||
+    tier.soldOut === true ||
+    String(tier.status || '').toLowerCase() === 'sold_out' ||
+    tier.available === false
+  ) {
+    return 0;
+  }
+
+  return Number.POSITIVE_INFINITY;
+}
+
+function isEventSoldOutForWaitlist(event = {}, tierId = 'any') {
+  if (
+    event.isSoldOut === true ||
+    event.soldOut === true ||
+    String(event.status || '').toLowerCase() === 'sold_out'
+  ) {
+    return true;
+  }
+
+  const tiers = getEventTicketTiers(event);
+  if (tiers.length > 0) {
+    const relevantTiers =
+      tierId && tierId !== 'any' ? tiers.filter((tier) => getTierKey(tier) === tierId) : tiers;
+    if (relevantTiers.length === 0) return false;
+    return relevantTiers.every((tier) => getTierRemaining(tier) <= 0);
+  }
+
+  const capacity = firstNumber(event.capacity, event.totalCapacity, event.inventory?.capacity);
+  if (capacity !== null && capacity > 0) {
+    const sold =
+      firstNumber(event.ticketsSold, event.totalTicketsSold, event.sold, event.ticketCount) || 0;
+    const held =
+      firstNumber(event.heldQuantity, event.lockedQuantity, event.inventory?.heldQuantity) || 0;
+    return sold + held >= capacity;
+  }
+
+  return false;
+}
+
+async function assertEventSoldOutForWaitlist(db, eventId, tierId) {
+  const eventDoc = await db.collection('events').doc(eventId).get();
+  if (!eventDoc.exists) throw new Error('Event not found');
+
+  const event = { id: eventDoc.id, ...eventDoc.data() };
+  if (!isEventSoldOutForWaitlist(event, tierId)) {
+    throw new Error('Event is not sold out');
+  }
+}
+
 export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId, email, phone }) {
   if (!eventId || !email) throw new Error('Event ID and Email are required');
 
@@ -316,6 +418,8 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
   if (!existingSnapshot.empty) {
     return serialize({ id: existingSnapshot.docs[0].id, ...existingSnapshot.docs[0].data() });
   }
+
+  await assertEventSoldOutForWaitlist(db, eventId, normalizedTierId);
 
   const id = `wl_${randomUUID().substring(0, 8)}`;
   const entry = {
@@ -333,6 +437,50 @@ export async function joinEventWaitlist(db, { eventId, ticketId, tierId, userId,
 
   await db.collection(WAITLIST_COLLECTION).doc(id).set(entry);
   return entry;
+}
+
+export async function getEventWaitlistStatus(db, { eventId, email }) {
+  if (!eventId || !email) throw new Error('Event ID and Email are required');
+
+  const waitlist = db.collection(WAITLIST_COLLECTION);
+  const totalSnap = await waitlist
+    .where('eventId', '==', eventId)
+    .where('status', '==', 'waiting')
+    .count()
+    .get();
+  const totalWaiting = Number(totalSnap.data().count || 0);
+
+  const userSnap = await waitlist
+    .where('eventId', '==', eventId)
+    .where('email', '==', email)
+    .where('status', '==', 'waiting')
+    .limit(1)
+    .get();
+
+  if (userSnap.empty) {
+    return {
+      joined: false,
+      position: null,
+      totalWaiting,
+      entry: null,
+    };
+  }
+
+  const userDoc = userSnap.docs[0];
+  const entry = serialize({ id: userDoc.id, ...userDoc.data() });
+  const beforeSnap = await waitlist
+    .where('eventId', '==', eventId)
+    .where('status', '==', 'waiting')
+    .where('createdAt', '<', entry.createdAt)
+    .count()
+    .get();
+
+  return {
+    joined: true,
+    position: Number(beforeSnap.data().count || 0) + 1,
+    totalWaiting,
+    entry,
+  };
 }
 
 export async function verifyEventWaitlistAccess(db, { eventId, email }) {

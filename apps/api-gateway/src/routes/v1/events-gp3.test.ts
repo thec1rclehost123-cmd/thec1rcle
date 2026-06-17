@@ -5,7 +5,9 @@ import eventRoutes from './events';
 import {
   getEventQueueStatus,
   getEventSurgeStatus,
+  getEventWaitlistStatus,
   joinEventQueue,
+  joinEventWaitlist,
   toggleEventRsvp,
   trackGuestEventInteraction,
   trackGuestEventView,
@@ -19,10 +21,23 @@ vi.mock('@c1rcle/core/guest-event-conversion', () => ({
     lanePosition: 2,
   })),
   getEventSurgeStatus: vi.fn(async () => ({ status: 'surge' })),
+  getEventWaitlistStatus: vi.fn(async () => ({
+    joined: true,
+    position: 3,
+    totalWaiting: 10,
+    entry: { id: 'wl_1', eventId: 'event_1', email: 'guest@example.com' },
+  })),
   joinEventQueue: vi.fn(async () => ({
     id: 'queue_1',
     eventId: 'event_1',
     userId: 'user_1',
+    status: 'waiting',
+  })),
+  joinEventWaitlist: vi.fn(async () => ({
+    id: 'wl_1',
+    eventId: 'event_1',
+    userId: 'user_1',
+    email: 'guest@example.com',
     status: 'waiting',
   })),
   toggleEventRsvp: vi.fn(async () => ({ success: true })),
@@ -98,6 +113,29 @@ async function buildServer({ authenticated = false } = {}) {
     getEventByIdOrSlug: vi.fn(),
   } as any);
   server.decorate('publicDiscoveryService', {
+    listEvents: vi.fn(async (query) => ({
+      items: [{ id: 'event_1' }],
+      nextCursor: null,
+      hasMore: false,
+      appliedFilters: query,
+    })),
+    listFeaturedEvents: vi.fn(async (query) => ({
+      items: [{ id: 'event_featured' }],
+      nextCursor: null,
+      hasMore: false,
+      appliedFilters: query,
+    })),
+    getEventDetail: vi.fn(async (idOrSlug) => ({
+      event: {
+        id: idOrSlug,
+        title: 'Neon District',
+        description: 'Full event description',
+        lineup: ['DJ Mira'],
+        location: 'Lower Parel, Mumbai',
+        rules: ['21+ entry'],
+      },
+      interestedData: { count: 2, users: [] },
+    })),
     syncEventReadModels: vi.fn(async () => undefined),
   } as any);
   server.decorate('invalidatePublicDiscovery', vi.fn(async () => undefined) as any);
@@ -120,6 +158,129 @@ async function buildServer({ authenticated = false } = {}) {
 describe('event routes GP-3 conversion contracts', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('GET /events serves the public Explore feed through public discovery filters', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events?limit=12&city=mumbai&category=club&date=tonight&sort=popular',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ items: [{ id: 'event_1' }], hasMore: false });
+    expect((server as any).publicDiscoveryService.listEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 12,
+        cityKey: 'mumbai-in',
+        category: 'club',
+        eventType: 'club',
+        datePreset: 'tonight',
+        sort: 'heat',
+      }),
+    );
+    expect((server as any).eventService.listEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events rejects invalid Explore feed query params', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events?limit=999',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect((server as any).publicDiscoveryService.listEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/featured serves hero carousel events through public discovery', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/featured?limit=6&city=mumbai&category=club&date=tonight&sort=trending',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ items: [{ id: 'event_featured' }], hasMore: false });
+    expect((server as any).publicDiscoveryService.listFeaturedEvents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        limit: 6,
+        cityKey: 'mumbai-in',
+        category: 'club',
+        eventType: 'club',
+        datePreset: 'tonight',
+        sort: 'heat',
+      }),
+    );
+    expect((server as any).publicDiscoveryService.listEvents).not.toHaveBeenCalled();
+    expect((server as any).eventService.listEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/featured caps hero carousel page size', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/featured?limit=24',
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect((server as any).publicDiscoveryService.listFeaturedEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/:id serves full public event detail through public discovery', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      event: {
+        id: 'event_1',
+        title: 'Neon District',
+        description: 'Full event description',
+        lineup: ['DJ Mira'],
+        location: 'Lower Parel, Mumbai',
+        rules: ['21+ entry'],
+      },
+      interestedData: { count: 2, users: [] },
+    });
+    expect((server as any).publicDiscoveryService.getEventDetail).toHaveBeenCalledWith('event_1');
+    expect((server as any).eventService.getEventByIdOrSlug).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/:id returns 404 for missing or private events', async () => {
+    const server = await buildServer();
+    (server as any).publicDiscoveryService.getEventDetail.mockResolvedValueOnce(null);
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/private_event',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe('NOT_FOUND');
+    expect((server as any).eventService.getEventByIdOrSlug).not.toHaveBeenCalled();
+
+    await server.close();
   });
 
   it('POST /events/:id/view and /track are non-blocking analytics endpoints', async () => {
@@ -217,6 +378,59 @@ describe('event routes GP-3 conversion contracts', () => {
       expect.objectContaining({ userId: 'client_user' }),
     );
     expect(getEventQueueStatus).toHaveBeenCalledWith(expect.anything(), 'queue_1');
+
+    await server.close();
+  });
+
+  it('POST /events/:id/waitlist uses authenticated identity and returns queue position', async () => {
+    const unauthenticated = await buildServer();
+    const rejected = await unauthenticated.inject({
+      method: 'POST',
+      url: '/api/v1/events/event_1/waitlist',
+      payload: { tierId: 'tier_1' },
+    });
+    expect(rejected.statusCode).toBe(401);
+    await unauthenticated.close();
+
+    const server = await buildServer({ authenticated: true });
+    const accepted = await server.inject({
+      method: 'POST',
+      url: '/api/v1/events/event_1/waitlist',
+      payload: {
+        tierId: 'tier_1',
+        email: 'client-controlled@example.com',
+        phone: '+919999999999',
+      },
+    });
+
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toMatchObject({
+      success: true,
+      joined: true,
+      position: 3,
+      totalWaiting: 10,
+      data: {
+        joined: true,
+        position: 3,
+        totalWaiting: 10,
+      },
+    });
+    expect(joinEventWaitlist).toHaveBeenCalledWith(expect.anything(), {
+      eventId: 'event_1',
+      ticketId: undefined,
+      tierId: 'tier_1',
+      userId: 'user_1',
+      email: 'guest@example.com',
+      phone: '+919999999999',
+    });
+    expect(joinEventWaitlist).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ email: 'client-controlled@example.com' }),
+    );
+    expect(getEventWaitlistStatus).toHaveBeenCalledWith(expect.anything(), {
+      eventId: 'event_1',
+      email: 'guest@example.com',
+    });
 
     await server.close();
   });

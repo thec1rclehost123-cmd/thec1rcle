@@ -73,6 +73,16 @@ export function joinEventWaitlist(
     phone: any;
   },
 ): Promise<any>;
+export function getEventWaitlistStatus(
+  db: any,
+  {
+    eventId,
+    email,
+  }: {
+    eventId: any;
+    email: any;
+  },
+): Promise<any>;
 export function verifyEventWaitlistAccess(
   db: any,
   {

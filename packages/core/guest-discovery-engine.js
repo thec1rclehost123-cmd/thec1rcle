@@ -662,7 +662,9 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
   const cursor = query.cursor || query.lastId || null;
   const cityKey = normalizeCityKey(query.cityKey || query.city);
   const statusKey = query.statusKey || query.status || null;
-  const eventType = query.eventType || query.type || null;
+  const eventType = query.eventType || query.type || query.category || null;
+  const eventTypeKey = normalizeFilterKey(eventType);
+  const curatedCategoryKey = normalizeFilterKey(query.curatedCategory || null);
   const search = String(query.search || query.q || '')
     .trim()
     .toLowerCase();
@@ -672,9 +674,10 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
   const venue = String(query.venue || query.venueId || query.venueSlug || '')
     .trim()
     .toLowerCase();
-  const datePreset = String(query.datePreset || '')
+  const datePreset = String(query.datePreset || query.date || '')
     .trim()
     .toLowerCase();
+  const normalizedDatePreset = datePreset === 'tonight' ? 'today' : datePreset;
   const startDate = query.startDate ? new Date(query.startDate) : null;
   const endDate = query.endDate
     ? new Date(
@@ -692,12 +695,17 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
         item.statusKey === statusKey ||
         String(item.lifecycle || '').toLowerCase() === String(statusKey).toLowerCase(),
     );
-  if (eventType)
-    items = items.filter((item) => item.eventType === eventType || item.category === eventType);
-  if (query.curatedCategory)
-    items = items.filter((item) => item.curatedCategory === query.curatedCategory);
-  if (query.priceType === 'free') items = items.filter((item) => item.isFree);
-  if (query.priceType === 'paid') items = items.filter((item) => !item.isFree);
+  if (eventTypeKey)
+    items = items.filter((item) =>
+      [item.eventType, item.category, item.curatedCategory].some(
+        (value) => normalizeFilterKey(value) === eventTypeKey,
+      ),
+    );
+  if (curatedCategoryKey)
+    items = items.filter((item) => normalizeFilterKey(item.curatedCategory) === curatedCategoryKey);
+  const priceType = String(query.priceType || '').toLowerCase();
+  if (priceType === 'free') items = items.filter((item) => item.isFree);
+  if (priceType === 'paid') items = items.filter((item) => !item.isFree);
   if (query.dayKey) items = items.filter((item) => item.dayKey === query.dayKey);
   if (host) {
     items = items.filter(
@@ -721,21 +729,32 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
           .includes(venue),
     );
   }
-  if (datePreset || startDate || endDate) {
+  if (normalizedDatePreset || startDate || endDate) {
     items = items.filter((item) => {
       const startAt = new Date(item.startAt || item.startDate || item.startDateTime || 0);
       if (Number.isNaN(startAt.getTime())) return false;
 
-      if (datePreset === 'weekend') {
+      if (normalizedDatePreset === 'weekend') {
         const day = startAt.getDay();
         if (day !== 0 && day !== 6) return false;
       }
-      if (datePreset === 'today') {
+      if (normalizedDatePreset === 'today') {
         const now = new Date();
         if (
           startAt.getFullYear() !== now.getFullYear() ||
           startAt.getMonth() !== now.getMonth() ||
           startAt.getDate() !== now.getDate()
+        ) {
+          return false;
+        }
+      }
+      if (normalizedDatePreset === 'tomorrow') {
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        if (
+          startAt.getFullYear() !== tomorrow.getFullYear() ||
+          startAt.getMonth() !== tomorrow.getMonth() ||
+          startAt.getDate() !== tomorrow.getDate()
         ) {
           return false;
         }
@@ -768,8 +787,9 @@ export function filterGuestEventCards(rawItems = [], query = {}) {
       cityKey: cityKey || null,
       statusKey: statusKey || null,
       eventType: eventType || null,
+      category: query.category || null,
       curatedCategory: query.curatedCategory || null,
-      priceType: query.priceType || null,
+      priceType: priceType || null,
       dayKey: query.dayKey || null,
       datePreset: datePreset || null,
       startDate: query.startDate || null,

@@ -1,22 +1,71 @@
 import { describe, expect, it } from 'vitest';
-import { joinEventWaitlist, selectInterestedUsersForDisplay } from './guest-event-conversion.js';
+import {
+  getEventWaitlistStatus,
+  joinEventWaitlist,
+  selectInterestedUsersForDisplay,
+} from './guest-event-conversion.js';
 
-function createWaitlistDb(initialDocs = []) {
+function createWaitlistDb(
+  initialDocs = [],
+  eventData = {
+    id: 'event_1',
+    tickets: [
+      { id: 'tier_1', remaining: 0 },
+      { id: 'tier_2', remaining: 0 },
+    ],
+  },
+) {
   const stored = [...initialDocs];
   return {
     stored,
     collection(name) {
+      if (name === 'events') {
+        return {
+          doc(id) {
+            return {
+              async get() {
+                return {
+                  id,
+                  exists: Boolean(eventData),
+                  data: () => eventData,
+                };
+              },
+            };
+          },
+        };
+      }
+
       if (name !== 'waitlist') throw new Error(`Unexpected collection ${name}`);
       const createQuery = (filters = []) => ({
-        where(field, _op, value) {
-          return createQuery([...filters, { field, value }]);
+        where(field, op, value) {
+          return createQuery([...filters, { field, op, value }]);
         },
         limit() {
           return createQuery(filters);
         },
+        count() {
+          return {
+            async get() {
+              const count = stored.filter((entry) =>
+                filters.every((filter) =>
+                  filter.op === '<'
+                    ? entry[filter.field] < filter.value
+                    : entry[filter.field] === filter.value,
+                ),
+              ).length;
+              return { data: () => ({ count }) };
+            },
+          };
+        },
         async get() {
           const docs = stored
-            .filter((entry) => filters.every((filter) => entry[filter.field] === filter.value))
+            .filter((entry) =>
+              filters.every((filter) =>
+                filter.op === '<'
+                  ? entry[filter.field] < filter.value
+                  : entry[filter.field] === filter.value,
+              ),
+            )
             .map((entry) => ({
               id: entry.id,
               data: () => entry,
@@ -81,5 +130,69 @@ describe('guest event conversion service', () => {
     expect(created.ticketId).toBe('tier_2');
     expect(created.tierId).toBe('tier_2');
     expect(db.stored).toHaveLength(2);
+  });
+
+  it('joinEventWaitlist rejects new entries when the event still has tickets available', async () => {
+    const db = createWaitlistDb([], {
+      id: 'event_1',
+      tickets: [{ id: 'tier_1', remaining: 4 }],
+    });
+
+    await expect(
+      joinEventWaitlist(db, {
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        email: 'guest@example.com',
+      }),
+    ).rejects.toThrow('Event is not sold out');
+    expect(db.stored).toHaveLength(0);
+  });
+
+  it('getEventWaitlistStatus returns joined state, position, and total waiting count', async () => {
+    const db = createWaitlistDb([
+      {
+        id: 'wl_first',
+        eventId: 'event_1',
+        email: 'first@example.com',
+        status: 'waiting',
+        createdAt: '2026-01-01T10:00:00.000Z',
+      },
+      {
+        id: 'wl_guest',
+        eventId: 'event_1',
+        email: 'guest@example.com',
+        status: 'waiting',
+        createdAt: '2026-01-01T11:00:00.000Z',
+      },
+      {
+        id: 'wl_notified',
+        eventId: 'event_1',
+        email: 'notified@example.com',
+        status: 'notified',
+        createdAt: '2026-01-01T09:00:00.000Z',
+      },
+    ]);
+
+    const joined = await getEventWaitlistStatus(db, {
+      eventId: 'event_1',
+      email: 'guest@example.com',
+    });
+    const missing = await getEventWaitlistStatus(db, {
+      eventId: 'event_1',
+      email: 'missing@example.com',
+    });
+
+    expect(joined).toMatchObject({
+      joined: true,
+      position: 2,
+      totalWaiting: 2,
+      entry: { id: 'wl_guest', email: 'guest@example.com' },
+    });
+    expect(missing).toEqual({
+      joined: false,
+      position: null,
+      totalWaiting: 2,
+      entry: null,
+    });
   });
 });

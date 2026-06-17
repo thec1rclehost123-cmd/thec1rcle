@@ -36,6 +36,10 @@ export function joinEventWaitlist(db: any, { eventId, ticketId, tierId, userId, 
     email: any;
     phone: any;
 }): Promise<any>;
+export function getEventWaitlistStatus(db: any, { eventId, email }: {
+    eventId: any;
+    email: any;
+}): Promise<any>;
 export function verifyEventWaitlistAccess(db: any, { eventId, email }: {
     eventId: any;
     email: any;
