@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useEvent } from '@/store/eventContext';
+
 import { refreshEventStats } from '@/lib/api/eventCode';
+import { useEvent } from '@/store/eventContext';
 
 interface StatsData {
   totalEntered: number;

@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity } from 'react-native';
 
 interface ScanResultProps {
   result: {

@@ -1,3 +1,6 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import { useState, useRef } from 'react';
 import {
   View,
@@ -10,11 +13,9 @@ import {
   Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useEvent } from '@/store/eventContext';
+
 import { validateEventCode } from '@/lib/api/eventCode';
+import { useEvent } from '@/store/eventContext';
 
 export default function EventCodeScreen() {
   const [code, setCode] = useState('');

@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import { scannerFetch } from './client';
+
 import { EventData } from '@/store/eventContext';
 
 const SCANNER_CODE_KEY = 'scanner_active_code';

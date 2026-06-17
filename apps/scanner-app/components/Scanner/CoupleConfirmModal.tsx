@@ -1,6 +1,6 @@
-import { View, Text, TouchableOpacity, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { View, Text, TouchableOpacity, Modal } from 'react-native';
 
 interface CoupleConfirmModalProps {
   visible: boolean;
