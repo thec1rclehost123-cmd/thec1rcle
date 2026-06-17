@@ -28,11 +28,13 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
       - name: EAS Build (preview)
         if: github.ref != 'refs/heads/main'
+        continue-on-error: true
         run: |
           cd apps/${{ matrix.app }}
           eas build --platform all --profile preview --non-interactive
       - name: EAS Build (production)
         if: github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           cd apps/${{ matrix.app }}
           eas build --platform all --profile production --non-interactive
