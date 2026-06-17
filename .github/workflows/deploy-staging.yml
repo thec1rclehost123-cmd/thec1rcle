@@ -87,7 +87,7 @@ jobs:
           vercel-project-id: ${{ steps.vars.outputs.pid }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
           vercel-version: latest
-          working-directory: ./
+          working-directory: ${{ matrix.app == 'admin-console' && './' || format('apps/{0}', matrix.app) }}
 
   deploy-services:
     needs: [validate]
