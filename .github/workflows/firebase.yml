@@ -58,6 +58,10 @@ jobs:
           workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
           service_account: ${{ secrets.FIREBASE_SA_EMAIL }}
       - run: npm ci && cd functions && npm ci && npm run build
+      - name: Bundle core into functions node_modules
+        run: |
+          rm -rf functions/node_modules/@c1rcle/core
+          cp -rL packages/core functions/node_modules/@c1rcle/core
       - name: Deploy functions + rules
         run: |
           npx firebase-tools deploy \
