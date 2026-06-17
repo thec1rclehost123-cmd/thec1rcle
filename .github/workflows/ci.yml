@@ -116,6 +116,9 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - name: Build core (api-gateway tests need the compiled dist exports)
+        if: matrix.workspace == 'apps/api-gateway'
+        run: cd packages/core && npm run build
       - name: Run tests
         run: |
           cd ${{ matrix.workspace }}
