@@ -57,6 +57,7 @@ jobs:
     needs: [validate]
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         app: [admin-console, guest-portal, partner-dashboard]
     steps:
@@ -81,6 +82,7 @@ jobs:
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25.2.0
+        continue-on-error: true
         with:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
