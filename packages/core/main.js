@@ -35,3 +35,5 @@ export * from './guest-discovery-engine.js';
 export * from './guest-auth-engine.js';
 export * from './guest-scanner-engine.js';
 export * from './guest-pass-engine.js';
+export * from './guest-chat-service.js';
+export * from './guest-dating-service.js';

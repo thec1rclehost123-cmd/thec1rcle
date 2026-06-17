@@ -25,6 +25,8 @@ const envSchema = z.object({
   QR_SECRET_KEY: z.string().optional(),
   QUEUE_SECRET_KEY: z.string().min(1).optional(),
   INTERNAL_API_KEY: z.string().optional(),
+  CRON_SECRET: z.string().optional(),
+  ARCHIVE_CHATS_CRON_SECRET: z.string().optional(),
   SCANNER_SESSION_SECRET: z.string().optional(),
   DEV_TOY_MODE: z.enum(['true', 'false']).default('false'),
   FRONTEND_URLS: z
@@ -66,6 +68,11 @@ if (_env.data.NODE_ENV === 'production') {
   ].filter((name) => !process.env[name]);
   if (missingSecrets.length > 0) {
     console.error(`❌ Missing required production secrets: ${missingSecrets.join(', ')}`);
+    process.exit(1);
+  }
+
+  if (!process.env.CRON_SECRET && !process.env.ARCHIVE_CHATS_CRON_SECRET) {
+    console.error('❌ Missing required production secret: CRON_SECRET');
     process.exit(1);
   }
 }

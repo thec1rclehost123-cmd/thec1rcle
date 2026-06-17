@@ -192,6 +192,134 @@ export function computeHeatScore(event = {}) {
   return Math.round(followers * 0.1 + views * 0.05 + rsvps * 2 + ticketSales * 4 + freshness);
 }
 
+function toFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function extractEventCoordinates(event = {}) {
+  const candidates = [
+    event.coordinates,
+    event.mapLocation,
+    event.locationCoordinates,
+    event.geo,
+    event._geoloc,
+    event.location,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const latitude =
+      toFiniteNumber(candidate.latitude) ??
+      toFiniteNumber(candidate.lat) ??
+      toFiniteNumber(candidate._latitude);
+    const longitude =
+      toFiniteNumber(candidate.longitude) ??
+      toFiniteNumber(candidate.lng) ??
+      toFiniteNumber(candidate.lon) ??
+      toFiniteNumber(candidate._longitude);
+    if (latitude !== null && longitude !== null) return { latitude, longitude };
+  }
+
+  const latitude = toFiniteNumber(event.latitude) ?? toFiniteNumber(event.lat);
+  const longitude = toFiniteNumber(event.longitude) ?? toFiniteNumber(event.lng);
+  if (latitude !== null && longitude !== null) return { latitude, longitude };
+
+  return null;
+}
+
+function distanceKm(originLat, originLng, targetLat, targetLng) {
+  const toRadians = (degrees) => degrees * (Math.PI / 180);
+  const earthRadiusKm = 6371;
+  const dLat = toRadians(targetLat - originLat);
+  const dLng = toRadians(targetLng - originLng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRadians(originLat)) *
+      Math.cos(toRadians(targetLat)) *
+      Math.sin(dLng / 2) ** 2;
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function mapPinFromEvent(event = {}, coordinates) {
+  return {
+    id: event.id,
+    latitude: coordinates.latitude,
+    longitude: coordinates.longitude,
+    heatScore: Number(event.heatScore ?? computeHeatScore(event)) || 0,
+  };
+}
+
+export async function listEventMapPins(
+  db,
+  { lat, lng, radius = 15, limit = 500, now = new Date() } = {},
+) {
+  const latitude = toFiniteNumber(lat);
+  const longitude = toFiniteNumber(lng);
+  if (latitude === null || longitude === null) throw new Error('lat and lng are required');
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+    throw new Error('Invalid coordinates');
+  }
+
+  const safeRadius = Math.max(0.5, Math.min(Number(radius) || 15, 50));
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 500, 500));
+  const latDelta = safeRadius / 111.12;
+  const lngDelta = safeRadius / (111.12 * Math.max(Math.cos(latitude * (Math.PI / 180)), 0.1));
+  const minLat = latitude - latDelta;
+  const maxLat = latitude + latDelta;
+  const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+
+  const queryLimit = Math.min(Math.max(safeLimit * 3, 100), 1000);
+  const snapshots = await Promise.all(
+    ['coordinates.latitude', 'latitude'].map((field) =>
+      db
+        .collection('events')
+        .where(field, '>=', minLat)
+        .where(field, '<=', maxLat)
+        .limit(queryLimit)
+        .get()
+        .catch(() => ({ docs: [] })),
+    ),
+  );
+
+  const seen = new Map();
+  snapshots
+    .flatMap((snapshot) => snapshot.docs || [])
+    .forEach((doc) => {
+      if (!seen.has(doc.id)) seen.set(doc.id, { id: doc.id, ...(doc.data() || {}) });
+    });
+
+  const pins = [...seen.values()]
+    .filter((event) => isEventPublic(event) && isCurrentOrUpcomingGuestEvent(event))
+    .map((event) => {
+      const coordinates = extractEventCoordinates(event);
+      if (!coordinates) return null;
+      if (Math.abs(coordinates.longitude - longitude) > lngDelta) return null;
+      const distance = distanceKm(latitude, longitude, coordinates.latitude, coordinates.longitude);
+      if (distance > safeRadius) return null;
+      return {
+        ...mapPinFromEvent(event, coordinates),
+        distance,
+        startsAt: new Date(event.startAt || event.startDate || event.startDateTime || nowTime).getTime(),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => {
+      const heatDelta = Number(b.heatScore || 0) - Number(a.heatScore || 0);
+      if (heatDelta !== 0) return heatDelta;
+      return Number(a.startsAt || 0) - Number(b.startsAt || 0);
+    })
+    .slice(0, safeLimit)
+    .map(({ distance, startsAt, ...pin }) => pin);
+
+  return {
+    pins,
+    count: pins.length,
+    center: { lat: latitude, lng: longitude },
+    radiusKm: safeRadius,
+  };
+}
+
 export function buildSearchText(parts = []) {
   return parts.filter(Boolean).join(' ').toLowerCase();
 }

@@ -16,6 +16,10 @@ export function isEventPublic(event?: {}): boolean;
 export function isGuestDiscoveryVisible(event?: {}): boolean;
 export function isEventDetailVisible(event?: {}): boolean;
 export function computeHeatScore(event?: {}): number;
+export function listEventMapPins(
+  db: any,
+  options?: { lat?: number | string; lng?: number | string; radius?: number; limit?: number },
+): Promise<any>;
 export function buildSearchText(parts?: any[]): string;
 export function derivePriceRange(rawEvent?: {}, priceMin?: number, priceMax?: number): any;
 export function deriveTickets(rawEvent?: {}, priceMin?: number): any;

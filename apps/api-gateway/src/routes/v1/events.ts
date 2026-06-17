@@ -19,9 +19,11 @@ import {
   verifyEventWaitlistAccess,
 } from '@c1rcle/core/guest-event-conversion';
 // @ts-ignore - JS module with runtime exports
+import { getEventAttendees } from '@c1rcle/core/guest-chat-service';
+// @ts-ignore - JS module with runtime exports
 import { buildEvent } from '@c1rcle/core/event-engine';
 // @ts-ignore - JS module with runtime exports
-import { normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
+import { listEventMapPins, normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
 
 const ExploreEventListQuery = z
   .object({
@@ -60,8 +62,18 @@ const ExploreFeaturedEventListQuery = ExploreEventListQuery.extend({
   limit: z.coerce.number().int().min(1).max(12).optional(),
 });
 
+const EventMapQuery = z
+  .object({
+    lat: z.coerce.number().min(-90).max(90),
+    lng: z.coerce.number().min(-180).max(180),
+    radius: z.coerce.number().positive().max(50).optional().default(15),
+    limit: z.coerce.number().int().min(1).max(500).optional().default(500),
+  })
+  .strict();
+
 const EXPLORE_EVENTS_CACHE_SCHEMA_VERSION = 1;
 const EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION = 1;
+const EXPLORE_MAP_EVENTS_CACHE_SCHEMA_VERSION = 1;
 
 const EventNearbyQuery = z
   .object({
@@ -158,6 +170,11 @@ const EventWaitlistBody = z
     tierId: z.string().min(1).max(120).optional(),
     email: z.string().email().optional(),
     phone: z.string().max(40).nullable().optional(),
+  })
+  .strict();
+const EventAttendeesQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional().default(100),
   })
   .strict();
 
@@ -418,6 +435,55 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
             message: 'Unable to load featured events',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  /**
+   * GET /api/v1/events/map
+   * Lightweight pins for zoomable mobile maps.
+   */
+  fastify.get(
+    '/events/map',
+    { preHandler: [fastify.validate({ querystring: EventMapQuery })] },
+    async (request: any, reply) => {
+      try {
+        await enforcePublicRateLimit(fastify, request, 'events:map', 180, 60);
+        applyPublicCacheHeaders(reply, 30);
+
+        const normalizedQuery = {
+          lat: Number(request.query.lat.toFixed(3)),
+          lng: Number(request.query.lng.toFixed(3)),
+          radius: Number(request.query.radius),
+          limit: Number(request.query.limit),
+        };
+        const rawCacheKey = `map:v${EXPLORE_MAP_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+          normalizedQuery,
+        )}`;
+        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+        const cached = await fastify.cache.get('public-discovery', cacheKey);
+        if (cached) return cached;
+
+        const result = await listEventMapPins(fastify.db, request.query);
+        await fastify.cache.set('public-discovery', cacheKey, result, 30);
+        return result;
+      } catch (error: any) {
+        if (error.message === 'RATE_LIMITED')
+          return reply.status(429).send(
+            buildErrorResponse({
+              code: 'RATE_LIMITED',
+              message: 'Too many requests',
+              requestId: request.id,
+            }),
+          );
+        request.log.error({ error }, 'Failed to list event map pins');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load map events',
             requestId: request.id,
           }),
         );
@@ -738,6 +804,46 @@ export default async function eventRoutes(fastify: FastifyInstance) {
                 : statusCode === 500
                   ? 'Unable to join waitlist'
                   : error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/events/:id/attendees',
+    {
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: EventParamId, querystring: EventAttendeesQuery }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        reply.header('Cache-Control', 'private, no-store');
+        const result = await getEventAttendees(fastify.db, request.params.id, userId, {
+          limit: request.query.limit,
+        });
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        request.log.error({ error, userId, eventId: request.params.id }, 'GET event attendees failed');
+        const status = error.message === 'Event not found' ? 404 : error.message?.includes('required') ? 400 : 500;
+        return reply.status(status).send(
+          buildErrorResponse({
+            code: status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
+            message: status === 500 ? 'Unable to load attendees' : error.message,
             requestId: request.id,
           }),
         );

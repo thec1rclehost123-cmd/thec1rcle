@@ -1,6 +1,7 @@
 import { inngest, Events } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
 import { issueEntitlements } from '../entitlement-engine.js';
+import { ensureEventChatMembership } from '../guest-chat-service.js';
 import { FieldValue } from 'firebase-admin/firestore';
 // NOTE: generateEntitlementQR is intentionally NOT imported here.
 // The rotating QR is generated live by the mobile app at display time.
@@ -112,6 +113,20 @@ export const handleTicketFulfillment = inngest.createFunction(
           fulfillmentStatus: 'completed',
         });
       return { linked: entitlements.length };
+    });
+
+    // Step 2b: Unlock the event group chat for the ticket holder.
+    // This writes one per-user membership row and avoids fan-out to every attendee.
+    await step.run('unlock-event-chat', async () => {
+      if (!userId || !eventId) return { skipped: true, reason: 'Missing userId or eventId' };
+      const result = await ensureEventChatMembership(db, {
+        eventId,
+        userId,
+        userEmail,
+        source: 'ticket',
+        orderId,
+      });
+      return { chatId: result.chat.id, memberId: result.member.id };
     });
 
     // Step 3: Generate PDF ticket (placeholder - integrate with PDF service)
