@@ -3,7 +3,6 @@ import { db } from './firebase';
 import {
   createReservation as coreCreateReservation,
   releaseReservation as coreReleaseReservation,
-  validatePurchase as coreValidatePurchase,
 } from '@c1rcle/core/inventory-engine';
 
 const RESERVATIONS_COLLECTION = 'cart_reservations';
