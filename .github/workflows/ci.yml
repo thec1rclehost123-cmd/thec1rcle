@@ -57,7 +57,7 @@ jobs:
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npx turbo lint
+      - run: npx turbo lint --concurrency=2
       - run: |
           git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx --no-install prettier --check 2>&1 || true
 
