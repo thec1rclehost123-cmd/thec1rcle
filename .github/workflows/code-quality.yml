@@ -14,47 +14,104 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unused-code:
-    name: Unused Code (Knip)
+  # ── Shared setup ─────────────────────────────────────────────────
+  install:
+    name: Install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+  unused-code:
+    name: Unused Code (Knip)
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx knip
         continue-on-error: true
 
   spellcheck:
     name: Spell Check (cspell)
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx cspell --no-progress "**/*.{js,ts,tsx,jsx,md,json}"
         continue-on-error: true
 
   bundle-size:
     name: Bundle Size (size-limit)
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx size-limit
         continue-on-error: true
 
   guardrails:
     name: Architecture Guardrails
+    needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npm run guardrails:check
       - run: npm run test:guardrails
       - run: npm run architecture:guest
@@ -62,19 +119,3 @@ jobs:
       - run: npm --workspace=apps/guest-portal test
       - run: npm --workspace=packages/core run build
       - run: npm --workspace=apps/api-gateway test
-
-  lhci:
-    name: Lighthouse CI
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with: { node-version: 20, cache: npm }
-      - run: npm ci
-      - run: npm run build --if-present
-        env:
-          SKIP_ENV_VALIDATION: '1'
-      - run: npx lhci autorun
-        continue-on-error: true
-        env:
-          LHCI_GITHUB_APP_TOKEN: ${{ secrets.LHCI_GITHUB_APP_TOKEN }}

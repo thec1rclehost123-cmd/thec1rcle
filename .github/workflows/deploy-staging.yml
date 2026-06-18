@@ -5,56 +5,26 @@ on:
     branches:
       - staging
 
+# CI (ci.yml) already validated lint + type-check + tests + build
+# before this code could merge to staging via branch protection.
+# No redundant validation step needed here — just deploy.
+
 jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repo
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: 'npm'
-
-      - name: Cache Turbo
-        uses: actions/cache@v4
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-turbo-
-
-      - name: Install Dependencies
-        run: npm ci
-
-      - name: Run Linting
-        run: NODE_OPTIONS="--max-old-space-size=4096" npm run lint
-
-      - name: Run Type Checking
-        run: npm run type-check
-
-      - name: Run Unit Tests
-        run: npx turbo run test --filter=@c1rcle/core
-
   sonar-analysis:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
-
+          fetch-depth: 0
       - name: SonarCloud Scan
         uses: sonarsource/sonarcloud-github-action@master
         continue-on-error: true
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Needed to get PR information, if any
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   deploy-web:
-    needs: [validate]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -76,9 +46,9 @@ jobs:
       - name: Set Project IDs
         id: vars
         run: |
-          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT"; echo "domain=staging-admin.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
-          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT"; echo "domain=staging.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
-          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT"; echo "domain=staging-partner.thec1rcle.com" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "admin-console" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "guest-portal" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT"; fi
+          if [ "${{ matrix.app }}" == "partner-dashboard" ]; then echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT"; fi
 
       - name: Deploy to Vercel
         uses: amondnet/vercel-action@v25.2.0
@@ -92,7 +62,6 @@ jobs:
           working-directory: ${{ matrix.app == 'admin-console' && './' || format('apps/{0}', matrix.app) }}
 
   deploy-services:
-    needs: [validate]
     runs-on: ubuntu-latest
     env:
       GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
@@ -110,7 +79,7 @@ jobs:
         run: npm ci
 
       - name: Install Functions Dependencies
-        run: npm install
+        run: npm ci
         working-directory: functions
 
       - name: Deploy Firebase Functions

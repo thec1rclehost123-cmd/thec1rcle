@@ -13,7 +13,6 @@ concurrency:
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  # Enables Turbo remote cache — add TURBO_TOKEN to repo secrets
 
 jobs:
     # ── 1. Shared setup ──────────────────────────────────────────
@@ -49,14 +48,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
+        id: nm-cache
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo lint --filter='...[origin/main]'
-              # Only lints packages affected by this PR
       - run: |
           git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx prettier --check
 
@@ -70,14 +71,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
+        id: nm-cache
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo type-check
-              # Runs tsc --noEmit in each workspace via Turbo
 
     # ── 4. Tests ─────────────────────────────────────────────────
   test:
@@ -112,12 +115,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
+        id: nm-cache
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - name: Build core (api-gateway tests need the compiled dist exports)
         if: matrix.workspace == 'apps/api-gateway'
         run: cd packages/core && npm run build
@@ -144,14 +150,16 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
+        id: nm-cache
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter='...[origin/main]'
-              # Skips packages unchanged vs main; uses remote cache
         env:
           SKIP_ENV_VALIDATION: '1'
 
@@ -166,13 +174,15 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
+        id: nm-cache
         with:
           path: |
             node_modules
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm audit --audit-level=critical --workspaces
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+      - run: npm audit --audit-level=critical
       - uses: trufflesecurity/trufflehog@main
         with: { extra_args: --only-verified }
-      # Zod fuzz step removed — scripts/fuzz-schemas.ts does not exist in the repo
