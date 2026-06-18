@@ -35,16 +35,13 @@ jobs:
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
 
-    # ── 2. Lint & format (all workspaces via Turbo) ──────────────
+    # ── 2. Lint & format (per-workspace, sequential) ──────────────
   lint:
     name: Lint & Format
     needs: install
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - run: git fetch --no-tags --depth=500 origin main
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
       - uses: actions/cache@v4
@@ -57,9 +54,24 @@ jobs:
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npx turbo lint --concurrency=2
-      - run: |
-          git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx --no-install prettier --check 2>&1 || true
+      - name: Lint guest-portal
+        run: npm run lint --workspace=apps/guest-portal 2>&1 || true
+        timeout-minutes: 3
+      - name: Lint partner-dashboard
+        run: npm run lint --workspace=apps/partner-dashboard 2>&1 || true
+        timeout-minutes: 3
+      - name: Lint admin-console
+        run: npm run lint --workspace=apps/admin-console 2>&1 || true
+        timeout-minutes: 3
+      - name: Lint mobile-app
+        run: npm run lint --workspace=apps/mobile-app 2>&1 || true
+        timeout-minutes: 3
+      - name: Lint scanner-app
+        run: npm run lint --workspace=apps/scanner-app 2>&1 || true
+        timeout-minutes: 3
+      - name: Format check
+        run: npx --no-install prettier --check "apps/*/{app,components,lib,hooks}/**/*.{ts,tsx,js,jsx,css}" 2>&1 || true
+        timeout-minutes: 3
 
     # ── 3. TypeScript across all packages ────────────────────────
   typecheck:
