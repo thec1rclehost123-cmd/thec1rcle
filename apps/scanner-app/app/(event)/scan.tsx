@@ -1,22 +1,22 @@
+import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import * as Haptics from 'expo-haptics';
 import { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withSpring,
   withTiming,
-  runOnJS,
 } from 'react-native-reanimated';
-import { useEvent } from '@/store/eventContext';
-import { processQRScan } from '@/lib/api/scan';
-import ScanResult from '@/components/Scanner/ScanResult';
-import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-const { width, height } = Dimensions.get('window');
+import CoupleConfirmModal from '@/components/Scanner/CoupleConfirmModal';
+import ScanResult from '@/components/Scanner/ScanResult';
+import { processQRScan } from '@/lib/api/scan';
+import { useEvent } from '@/store/eventContext';
+
+const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
 
 type ScanResultType =

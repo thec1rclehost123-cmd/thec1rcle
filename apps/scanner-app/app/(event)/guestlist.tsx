@@ -1,9 +1,10 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useEvent } from '@/store/eventContext';
+
 import { fetchGuestList } from '@/lib/api/guestlist';
+import { useEvent } from '@/store/eventContext';
 
 interface Guest {
   id: string;
