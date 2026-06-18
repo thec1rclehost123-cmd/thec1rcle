@@ -161,6 +161,9 @@ jobs:
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter='...[origin/main]'
         env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
           SKIP_ENV_VALIDATION: '1'
 
     # ── 6. Security ───────────────────────────────────────────────
