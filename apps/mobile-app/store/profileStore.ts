@@ -10,6 +10,7 @@ import { create } from 'zustand';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { getFirebaseApp } from '@/lib/firebase/client';
 import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { apiFetch } from '@/lib/api';
 
 function getDb() {
   return getFirestore(getFirebaseApp());
@@ -33,6 +34,11 @@ export interface UserProfile {
   connections?: number;
   instagram?: string;
   spotify?: string;
+  datingPhotos?: string[];
+  photos?: string[];
+  notificationPreferences?: Record<string, boolean>;
+  pushNewMatches?: boolean;
+  pushEventUpdates?: boolean;
 
   // Personalisation
   vibeTags?: string[];
@@ -83,6 +89,22 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     isPremium: data?.isPremium,
     instagram: data?.instagram ?? '',
     spotify: data?.spotify ?? '',
+    datingPhotos: Array.isArray(rawData.datingPhotos)
+      ? rawData.datingPhotos
+      : Array.isArray(rawData.photos)
+        ? rawData.photos
+        : [],
+    photos: Array.isArray(rawData.photos)
+      ? rawData.photos
+      : Array.isArray(rawData.datingPhotos)
+        ? rawData.datingPhotos
+        : [],
+    notificationPreferences:
+      typeof rawData.notificationPreferences === 'object' && rawData.notificationPreferences
+        ? rawData.notificationPreferences
+        : {},
+    pushNewMatches: rawData.pushNewMatches,
+    pushEventUpdates: rawData.pushEventUpdates,
   };
 }
 
@@ -126,9 +148,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ profile: nextProfile, error: null });
 
     try {
-      await setDoc(doc(getDb(), 'users', userId), omitUndefined({ ...updates, updatedAt: now }), {
-        merge: true,
+      const response = await apiFetch<{
+        profile?: Partial<UserProfile>;
+        data?: { profile?: Partial<UserProfile> };
+      }>('/api/v1/users/me/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(omitUndefined(updates)),
       });
+      const savedProfile = response.profile || response.data?.profile;
+      if (savedProfile) {
+        set({ profile: normalizeProfile(userId, savedProfile) });
+      }
       return true;
     } catch (error: any) {
       console.error('Error updating profile:', error);

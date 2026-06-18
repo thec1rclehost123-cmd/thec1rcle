@@ -83,6 +83,7 @@ export class CheckoutService {
     };
     deviceId?: string | null;
     workspaceId?: string | null;
+    reservationMinutes?: number;
     paymentGatewayConfig: {
       keyId?: string;
       keySecret?: string;
@@ -107,7 +108,7 @@ export class CheckoutService {
         deviceId: params.deviceId || null,
         items: [item],
         workspaceId,
-        reservationMinutes: 10,
+        reservationMinutes: params.reservationMinutes || 5,
         strictMode: true,
       });
 
@@ -123,7 +124,10 @@ export class CheckoutService {
       });
 
       if (!pricingResult.success) {
-        throw this.withCode(new Error(pricingResult.error || 'Unable to price checkout'), 'BAD_REQUEST');
+        throw this.withCode(
+          new Error(pricingResult.error || 'Unable to price checkout'),
+          'BAD_REQUEST',
+        );
       }
 
       const pricing = pricingResult.pricing;

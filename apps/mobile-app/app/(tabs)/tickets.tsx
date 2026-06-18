@@ -1,6 +1,4 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getOrders } from '@/lib/api';
 import {
   View,
   Text,
@@ -141,7 +139,8 @@ function QRModal({
 
   if (!order) return null;
 
-  const qrData = (order as any).qrData || order.id;
+  const activeQr = order.qrCodes?.[0];
+  const qrData = activeQr?.qrCode || (order as any).qrData || order.id;
   const totalGuests = (order as any).totalGuests ?? 0;
   const totalRevenue = (order as any).totalRevenue ?? 0;
   const ticketType = order.tickets?.[0]?.tierName || 'General Entry';
@@ -1190,13 +1189,6 @@ export default function TicketsScreen() {
   const kpiSales = stats.totalSales ?? 0;
   const kpiEarnings = stats.totalEarnings ?? 0;
 
-  // React Query: primary data source for orders (gateway-backed, cached 5min)
-  const ordersQuery = useQuery({
-    queryKey: ['my-orders', user?.uid],
-    queryFn: getOrders,
-    enabled: Boolean(user?.uid),
-    staleTime: 5 * 60 * 1000,
-  });
   const pendingReservation = useCartStore((state) => state.pendingReservation);
   const pendingPaymentOrderId = useCartStore((state) => state.pendingPaymentOrderId);
   const clearPendingReservation = useCartStore((state) => state.clearPendingReservation);
@@ -1223,18 +1215,13 @@ export default function TicketsScreen() {
     }
 
     try {
-      // Prefer React Query (HTTP gateway) — falls back to Firestore store on error
-      const result = await ordersQuery.refetch();
-      if (result.data?.orders && result.data.orders.length > 0) {
-        await cacheUserOrders(result.data.orders as any);
+      await fetchUserOrders(user.uid);
+      const store = useTicketsStore.getState();
+      if (store.orders.length > 0) {
+        await cacheUserOrders(store.orders);
         setIsOffline(false);
       } else {
-        await fetchUserOrders(user.uid);
-        const store = useTicketsStore.getState();
-        if (store.orders.length > 0) {
-          await cacheUserOrders(store.orders);
-          setIsOffline(false);
-        }
+        setIsOffline(false);
       }
     } catch (err) {
       setIsOffline(true);
@@ -1246,10 +1233,8 @@ export default function TicketsScreen() {
     loadData();
   };
 
-  // React Query data is preferred; fall back to Zustand store (Firestore) then AsyncStorage cache
-  const gatewayOrders = (ordersQuery.data?.orders ?? []) as Order[];
-  const orders = gatewayOrders.length > 0 ? gatewayOrders : storeOrders;
-  const loading = ordersQuery.isFetching || storeLoading;
+  const orders = storeOrders;
+  const loading = storeLoading;
   const displayOrders = orders.length > 0 ? orders : cachedOrders;
   const nowMs = Date.now();
 
@@ -1309,6 +1294,22 @@ export default function TicketsScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orderId, orders, cachedOrders]);
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+    const refreshedOrder = displayOrders.find((order) => order.id === selectedOrder.id);
+    if (refreshedOrder && refreshedOrder !== selectedOrder) {
+      setSelectedOrder(refreshedOrder);
+    }
+  }, [displayOrders, selectedOrder]);
+
+  useEffect(() => {
+    if (!showQRModal || !user?.uid) return;
+    const refreshTimer = setInterval(() => {
+      void fetchUserOrders(user.uid);
+    }, 45_000);
+    return () => clearInterval(refreshTimer);
+  }, [fetchUserOrders, showQRModal, user?.uid]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

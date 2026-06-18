@@ -16,6 +16,11 @@ import {
 } from '@c1rcle/core/inventory-engine';
 // @ts-ignore
 import { verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
+// @ts-ignore
+import {
+  finalizeRazorpayTicketPurchase,
+  verifyRazorpayWebhookSignature,
+} from '@c1rcle/core/ticket-checkout-wallet-service';
 import { z } from 'zod';
 import * as Sentry from '@sentry/node';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
@@ -24,6 +29,13 @@ function allowMockRazorpay() {
   const isProduction =
     process.env.NODE_ENV === 'production' || process.env.VERCEL_ENV === 'production';
   return !isProduction && process.env.C1RCLE_ALLOW_MOCK_RAZORPAY === 'true';
+}
+
+function buildWebhookRawBody(request: any): string {
+  if (request.rawBody) return request.rawBody;
+  if (typeof request.body === 'string') return request.body;
+  if (Buffer.isBuffer(request.body)) return request.body.toString('utf8');
+  return JSON.stringify(request.body || {});
 }
 
 const CheckoutItem = z.object({
@@ -206,6 +218,19 @@ function buildReservationSnapshot(reservation: any) {
 }
 
 export default async function checkoutRoutes(fastify: FastifyInstance) {
+  fastify.addContentTypeParser(
+    'application/json',
+    { parseAs: 'buffer' },
+    (_req: any, body, done) => {
+      _req.rawBody = (body as Buffer).toString('utf8');
+      try {
+        done(null, JSON.parse(_req.rawBody));
+      } catch (err: any) {
+        done(err, undefined);
+      }
+    },
+  );
+
   /**
    * Calculate server-side pricing (discounts, fees, grand total)
    * POST /checkout/calculate
@@ -483,6 +508,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
             },
             deviceId: request.headers['user-agent'] || null,
             workspaceId: request.workspaceId || null,
+            reservationMinutes: 5,
             paymentGatewayConfig: {
               keyId: process.env.RAZORPAY_KEY_ID,
               keySecret: process.env.RAZORPAY_KEY_SECRET,
@@ -558,6 +584,92 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  /**
+   * Razorpay server-to-server success webhook.
+   * POST /checkout/webhook
+   */
+  fastify.post('/checkout/webhook', async (request: any, reply) => {
+    const rawBody = buildWebhookRawBody(request);
+    const signature = request.headers['x-razorpay-signature'] as string | undefined;
+
+    try {
+      verifyRazorpayWebhookSignature({
+        rawBody,
+        signature,
+        webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
+      });
+
+      const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
+      const eventType = payload?.event || payload?.type;
+      const paymentEntity = payload?.payload?.payment?.entity || payload?.payment || payload;
+      const razorpayPaymentId = paymentEntity?.id || payload?.razorpay_payment_id || null;
+      const razorpayOrderId = paymentEntity?.order_id || payload?.razorpay_order_id || null;
+
+      if (eventType !== 'payment.captured' && eventType !== 'payment_success') {
+        return { success: true, ignored: true, eventType };
+      }
+
+      if (!razorpayOrderId || !razorpayPaymentId) {
+        return reply.status(400).send({
+          success: false,
+          error: 'Webhook missing Razorpay order or payment id',
+        });
+      }
+
+      const result = await finalizeRazorpayTicketPurchase({
+        db: fastify.db,
+        checkoutService: fastify.checkoutService,
+        razorpayOrderId,
+        razorpayPaymentId,
+        paymentGatewayConfig: {
+          keyId: process.env.RAZORPAY_KEY_ID,
+          keySecret: process.env.RAZORPAY_KEY_SECRET,
+          allowMockPayment: allowMockRazorpay(),
+        },
+      });
+
+      request.log.info(
+        {
+          razorpayOrderId,
+          razorpayPaymentId,
+          orderId: result?.order?.id,
+          ticketsCount: result?.ticketsCount,
+          alreadyConfirmed: result?.alreadyConfirmed,
+        },
+        'Checkout webhook finalized tickets',
+      );
+
+      return {
+        success: true,
+        alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+        orderId: result?.order?.id || null,
+        ticketsCount: result?.ticketsCount || 0,
+      };
+    } catch (error: any) {
+      const status =
+        error.code === 'INVALID_SIGNATURE'
+          ? 401
+          : error.code === 'NOT_FOUND'
+            ? 404
+            : error.code === 'CONFLICT'
+              ? 409
+              : error.code === 'PAYMENT_NOT_CONFIGURED'
+                ? 500
+                : 500;
+
+      if (status >= 500) {
+        fastify.log.error(`Checkout webhook failed: ${error.message}`);
+      } else {
+        fastify.log.warn(`Checkout webhook rejected: ${error.message}`);
+      }
+
+      return reply.status(status).send({
+        success: false,
+        error: status >= 500 ? 'Internal server error' : error.message,
+      });
+    }
+  });
 
   /**
    * Verify Razorpay checkout and issue tickets

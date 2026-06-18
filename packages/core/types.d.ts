@@ -18,6 +18,31 @@ declare module '@c1rcle/core/ticket-engine' {
   ): { valid: boolean; reason?: string };
 }
 
+declare module '@c1rcle/core/ticket-checkout-wallet-service' {
+  export function verifyRazorpayWebhookSignature(params: {
+    rawBody: string;
+    signature?: string;
+    webhookSecret?: string;
+  }): boolean;
+  export function createTicketQrJwt(
+    ticket: any,
+    options?: { expiresInSeconds?: number },
+  ): {
+    qrPayload: string;
+    qrExpiresAt: string;
+    qrExpiresInSeconds: number;
+  };
+  export function generateTicketsForOrder(params: { db?: any; orderId: string }): Promise<any>;
+  export function finalizeRazorpayTicketPurchase(params: {
+    db?: any;
+    checkoutService: any;
+    razorpayOrderId: string;
+    razorpayPaymentId: string;
+    paymentGatewayConfig?: any;
+  }): Promise<any>;
+  export function getUserTicketWallet(params: { db?: any; userId: string }): Promise<any>;
+}
+
 declare module '@c1rcle/core/staff-engine' {
   export const ROLE_PRESETS: Record<string, any>;
   export function hasStaffPermission(

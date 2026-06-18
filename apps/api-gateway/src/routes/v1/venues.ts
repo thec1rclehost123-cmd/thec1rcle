@@ -1855,63 +1855,57 @@ export default async function venueRoutes(fastify: FastifyInstance) {
   const VenueDirectoryQuery = z.object({ city: z.string().optional() });
   const VenuePublicIdParam = z.object({ id: z.string() });
 
-  fastify.get('/venues', {
-    preHandler: [fastify.validate({ querystring: VenueDirectoryQuery })]
-  }, async (request: any, reply: any) => {
-    try {
-      const { getAllVenues } = await import('@c1rcle/core/venue-service');
-      const venues = await getAllVenues(fastify.db, request.query.city);
-      return { success: true, data: venues };
-    } catch (error: any) {
-      fastify.log.error({ error: error.message }, 'GET /venues failed');
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
-  });
-
-  fastify.get('/venues/:id', {
-    preHandler: [fastify.validate({ params: VenuePublicIdParam })]
-  }, async (request: any, reply: any) => {
-    try {
-      const { getVenueById } = await import('@c1rcle/core/venue-service');
-      const venue = await getVenueById(fastify.db, request.params.id);
-      return { success: true, data: venue };
-    } catch (error: any) {
-      fastify.log.error({ error: error.message }, 'GET /venues/:id failed');
-      if (error.message.includes('not found')) {
-        return reply.status(404).send({ error: 'Venue not found' });
+  fastify.get(
+    '/venues',
+    {
+      preHandler: [fastify.validate({ querystring: VenueDirectoryQuery })],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const { getAllVenues } = await import('@c1rcle/core/venue-service');
+        const venues = await getAllVenues(fastify.db, request.query.city);
+        return { success: true, data: venues };
+      } catch (error: any) {
+        fastify.log.error({ error: error.message }, 'GET /venues failed');
+        return reply.status(500).send({ error: 'Internal server error' });
       }
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
-  });
+    },
+  );
 
-  fastify.get('/venues/:id/events', {
-    preHandler: [fastify.validate({ params: VenuePublicIdParam })]
-  }, async (request: any, reply: any) => {
-    try {
-      const { getVenueEvents } = await import('@c1rcle/core/venue-service');
-      const events = await getVenueEvents(fastify.db, request.params.id);
-      return { success: true, data: events };
-    } catch (error: any) {
-      fastify.log.error({ error: error.message }, 'GET /venues/:id/events failed');
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
-  });
+  fastify.get(
+    '/venues/:id',
+    {
+      preHandler: [fastify.validate({ params: VenuePublicIdParam })],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const { getVenueById } = await import('@c1rcle/core/venue-service');
+        const venue = await getVenueById(fastify.db, request.params.id);
+        return { success: true, data: venue };
+      } catch (error: any) {
+        fastify.log.error({ error: error.message }, 'GET /venues/:id failed');
+        if (error.message.includes('not found')) {
+          return reply.status(404).send({ error: 'Venue not found' });
+        }
+        return reply.status(500).send({ error: 'Internal server error' });
+      }
+    },
+  );
 
-  fastify.post('/venues/:id/follow', {
-    preHandler: [fastify.validate({ params: VenuePublicIdParam })]
-  }, async (request: any, reply: any) => {
-    const userId = request.user?.uid;
-    if (!userId) {
-      return reply.status(401).send({ error: 'Authentication required' });
-    }
-
-    try {
-      const { toggleVenueFollow } = await import('@c1rcle/core/venue-service');
-      const result = await toggleVenueFollow(fastify.db, request.params.id, userId);
-      return { success: true, data: result };
-    } catch (error: any) {
-      fastify.log.error({ error: error.message }, 'POST /venues/:id/follow failed');
-      return reply.status(500).send({ error: 'Internal server error' });
-    }
-  });
+  fastify.get(
+    '/venues/:id/events',
+    {
+      preHandler: [fastify.validate({ params: VenuePublicIdParam })],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const { getVenueEvents } = await import('@c1rcle/core/venue-service');
+        const events = await getVenueEvents(fastify.db, request.params.id);
+        return { success: true, data: events };
+      } catch (error: any) {
+        fastify.log.error({ error: error.message }, 'GET /venues/:id/events failed');
+        return reply.status(500).send({ error: 'Internal server error' });
+      }
+    },
+  );
 }

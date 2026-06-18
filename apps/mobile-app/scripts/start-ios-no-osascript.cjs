@@ -1,3 +1,5 @@
+/* eslint-disable */
+
 #!/usr/bin/env node
 
 const { execFile, execFileSync, spawn } = require("node:child_process");

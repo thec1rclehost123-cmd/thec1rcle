@@ -1,7 +1,13 @@
 import Fastify from 'fastify';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { followEntityMock, unfollowEntityMock, isFollowingMock } = vi.hoisted(() => ({
+const {
+  followEntityMock,
+  unfollowEntityMock,
+  isFollowingMock,
+  followVenueMock,
+  unfollowVenueMock,
+} = vi.hoisted(() => ({
   followEntityMock: vi.fn(async (followerId: string, targetId: string, targetType: string) => ({
     id: `${followerId}_${targetId}`,
     followerId,
@@ -10,6 +16,16 @@ const { followEntityMock, unfollowEntityMock, isFollowingMock } = vi.hoisted(() 
   })),
   unfollowEntityMock: vi.fn(async () => ({ unfollowed: true })),
   isFollowingMock: vi.fn(async () => true),
+  followVenueMock: vi.fn(async (_db: any, userId: string, venueId: string) => ({
+    following: true,
+    userId,
+    venueId,
+  })),
+  unfollowVenueMock: vi.fn(async (_db: any, userId: string, venueId: string) => ({
+    following: false,
+    userId,
+    venueId,
+  })),
 }));
 
 vi.mock('@c1rcle/core/follow-graph-engine', () => ({
@@ -18,11 +34,28 @@ vi.mock('@c1rcle/core/follow-graph-engine', () => ({
   isFollowing: isFollowingMock,
 }));
 
+vi.mock('@c1rcle/core/venues-service', () => ({
+  followVenue: followVenueMock,
+  unfollowVenue: unfollowVenueMock,
+}));
+
 import socialRoutes from './social';
 import validatePlugin from '../../plugins/validate';
 
 async function buildServer() {
   const server = Fastify({ logger: false });
+  const fakeDb = {
+    collection: vi.fn(() => ({
+      doc: vi.fn(() => ({
+        collection: vi.fn(() => ({
+          doc: vi.fn(() => ({
+            get: vi.fn(async () => ({ exists: true })),
+          })),
+        })),
+      })),
+    })),
+  };
+  server.decorate('db', fakeDb as any);
   server.decorate('requireAuth', async (_request: any, reply: any) => {
     if (!_request.user) return reply.status(401).send({ error: 'Unauthorized' });
   });
@@ -114,8 +147,14 @@ describe('guest follow routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ success: true, unfollowed: true });
-    expect(unfollowEntityMock).toHaveBeenCalledWith('user_1', 'venue_1', 'venue');
+    expect(response.json()).toEqual({
+      success: true,
+      following: false,
+      userId: 'user_1',
+      venueId: 'venue_1',
+    });
+    expect(unfollowVenueMock).toHaveBeenCalledWith(expect.any(Object), 'user_1', 'venue_1');
+    expect(unfollowEntityMock).not.toHaveBeenCalled();
 
     await server.close();
   });

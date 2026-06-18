@@ -355,7 +355,7 @@ describe('CheckoutService parity', () => {
     expect(orderRepo.payments.size).toBe(1);
   });
 
-  it('creates a zero-trust checkout intent with a 10 minute Redis reservation and backend pricing', async () => {
+  it('creates a zero-trust checkout intent with a 5 minute Redis reservation and backend pricing', async () => {
     const orderRepo = new FakeOrderRepository();
     currentOrderRepo = orderRepo;
     const eventRepo = new FakeEventRepository({
@@ -387,7 +387,7 @@ describe('CheckoutService parity', () => {
       'user_1',
       'device_1',
       [{ tierId: 'tier-1', quantity: 2 }],
-      { reservationMinutes: 10, strictMode: true },
+      { reservationMinutes: 5, strictMode: true },
     );
     expect(intent).toMatchObject({
       success: true,

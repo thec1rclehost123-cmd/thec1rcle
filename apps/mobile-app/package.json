@@ -91,6 +91,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "watchman": false,
     "transform": {
       "^.+\\.(js|ts|tsx)$": [
         "babel-jest",

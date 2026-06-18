@@ -1,0 +1,193 @@
+apps/admin-console/.env.example:5:NEXT_PUBLIC_FIREBASE_API_KEY=
+apps/admin-console/.env.example:6:NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+apps/admin-console/.env.example:7:NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+apps/admin-console/.env.example:8:NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+apps/admin-console/.env.example:9:NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+apps/admin-console/.env.example:10:NEXT_PUBLIC_FIREBASE_APP_ID=
+apps/admin-console/.env.example:11:NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=
+apps/admin-console/.env.example:14:FIREBASE_PROJECT_ID=
+apps/admin-console/.env.example:17:FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY_HERE\n-----END PRIVATE KEY-----\n"
+apps/admin-console/.env.example:21:RESEND_API_KEY=
+apps/admin-console/.env.example:25:MSG91_TEMPLATE_ID=
+apps/admin-console/.env.example:28:GEMINI_API_KEY=
+apps/admin-console/.env.example:33:# ── API Gateway ───────────────────────────────────────────────────────────────
+apps/admin-console/.env.example:34:PUBLIC_API_URL=http://localhost:4000/api/v1
+apps/admin-console/.env.example:35:INTERNAL_API_KEY=
+apps/admin-console/.env.example:36:NEXT_PUBLIC_GATEWAY_URL=http://localhost:4000
+apps/admin-console/.env.example:38:# ── Partner Dashboard URL (used in email links) ───────────────────────────────
+apps/admin-console/.env.example:39:NEXT_PUBLIC_DASHBOARD_URL=https://partners.thec1rcle.com
+apps/admin-console/.env.example:44:# ── Admin Provisioning ────────────────────────────────────────────────────────
+apps/admin-console/.env.example:45:ADMIN_PROVISION_SECRET=
+apps/admin-console/.env.example:48:NEXT_PUBLIC_SENTRY_DSN=
+apps/admin-console/.env.example:50:SENTRY_PROJECT=admin-console
+apps/admin-console/.env.example:53:NEXT_PUBLIC_DEFAULT_CITY=Pune
+apps/admin-console/.lighthouserc.json:5:      "startServerReadyPattern": "ready on",
+apps/admin-console/Dockerfile:5:COPY . .
+apps/admin-console/Dockerfile:11:COPY --from=builder /app/out/json/ .
+apps/admin-console/Dockerfile:12:COPY --from=builder /app/out/package-lock.json ./package-lock.json
+apps/admin-console/Dockerfile:14:COPY --from=builder /app/out/full/ .
+apps/admin-console/Dockerfile:15:COPY turbo.json turbo.json
+apps/admin-console/Dockerfile:24:COPY --from=installer /app/apps/admin-console/public ./apps/admin-console/public
+apps/admin-console/Dockerfile:25:COPY --from=installer --chown=nextjs:nodejs /app/apps/admin-console/.next/standalone ./
+apps/admin-console/Dockerfile:26:COPY --from=installer --chown=nextjs:nodejs /app/apps/admin-console/.next/static ./apps/admin-console/.next/static
+apps/admin-console/Dockerfile:29:EXPOSE 3002
+apps/admin-console/Dockerfile:30:ENV PORT 3002
+apps/admin-console/SECURITY_TEST_PLAN.md:2:# Security & Governance Test Suite Plan
+apps/admin-console/SECURITY_TEST_PLAN.md:6:    - Input: `FINANCIAL_REFUND` on Proposal `123`
+apps/admin-console/SECURITY_TEST_PLAN.md:7:    - Expected: `PROP_123`
+apps/admin-console/SECURITY_TEST_PLAN.md:10:    - Action: `adminA` proposes, `adminA` attempts `resolveProposal`
+apps/admin-console/SECURITY_TEST_PLAN.md:13:- [ ] **Cooling Period**
+apps/admin-console/SECURITY_TEST_PLAN.md:14:    - Action: Propose Tier 3, immediately resolve as Super Admin (no override)
+apps/admin-console/SECURITY_TEST_PLAN.md:15:    - Expected: Error "Cooling Period Active"
+apps/admin-console/SECURITY_TEST_PLAN.md:16:    - Status: ✅ Enforced in resolveProposal
+apps/admin-console/SECURITY_TEST_PLAN.md:20:    - Setup: Proposal `P1` approved.
+apps/admin-console/SECURITY_TEST_PLAN.md:21:    - Action 1: `resolveProposal` (Success)
+apps/admin-console/SECURITY_TEST_PLAN.md:22:    - Action 2: `resolveProposal` (Replay)
+apps/admin-console/SECURITY_TEST_PLAN.md:23:    - Expected: `alreadyProcessed: true`
+apps/admin-console/SECURITY_TEST_PLAN.md:30:- [ ] **PII Redaction**
+apps/admin-console/SECURITY_TEST_PLAN.md:43:- [ ] **Manual Processing**
+apps/admin-console/SECURITY_TEST_PLAN.md:44:    - Action: POST `PROCESS_RETRY_JOB`
+apps/admin-console/app/admins/page.jsx:3:import { useAuth } from "@/components/providers/AuthProvider";
+apps/admin-console/app/admins/page.jsx:4:import { useToast } from "@/components/providers/ToastProvider";
+apps/admin-console/app/admins/page.jsx:9:    UserPlus,
+apps/admin-console/app/admins/page.jsx:23:import ProvisionAdminModal from "@/components/admin/ProvisionAdminModal";
+apps/admin-console/app/admins/page.jsx:28:    { id: 'finance', label: 'Finance', desc: 'Payouts, refunds, and financial reporting.' },
+apps/admin-console/app/admins/page.jsx:41:    const [isProvisionOpen, setIsProvisionOpen] = useState(false);
+apps/admin-console/app/admins/page.jsx:67:                method: 'POST',
+apps/admin-console/app/admins/page.jsx:77:                        admin_role: modalConfig.action === 'ADMIN_ROLE_UPDATE' ? inputValue : undefined,
+apps/admin-console/app/admins/page.jsx:96:    const handleProvision = async ({ email, name, role }) => {
+apps/admin-console/app/admins/page.jsx:100:                method: 'POST',
+apps/admin-console/app/admins/page.jsx:106:                    action: 'ADMIN_PROVISION',
+apps/admin-console/app/admins/page.jsx:119:            showToast(`Provisioned ${name} as ${role} successfully.`, "success");
+apps/admin-console/app/admins/page.jsx:147:                    onClick={() => setIsProvisionOpen(true)}
+apps/admin-console/app/admins/page.jsx:150:                    <UserPlus className="h-4 w-4" />
+apps/admin-console/app/admins/page.jsx:229:                {/* Inspection Panel */}
+apps/admin-console/app/admins/page.jsx:254:                                            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Permission Scope</p>
+apps/admin-console/app/admins/page.jsx:271:                                                        action: 'ADMIN_ROLE_UPDATE',
+apps/admin-console/app/admins/page.jsx:274:                                                        label: 'Update Permissions',
+apps/admin-console/app/admins/page.jsx:296:                                                title: 'Revoke Permissions',
+apps/admin-console/app/admins/page.jsx:342:            {isProvisionOpen && (
+apps/admin-console/app/admins/page.jsx:343:                <ProvisionAdminModal
+apps/admin-console/app/admins/page.jsx:344:                    isOpen={isProvisionOpen}
+apps/admin-console/app/admins/page.jsx:345:                    onClose={() => setIsProvisionOpen(false)}
+apps/admin-console/app/admins/page.jsx:346:                    onProvision={handleProvision}
+apps/admin-console/app/analytics/page.jsx:3:import { useAuth } from "@/components/providers/AuthProvider";
+apps/admin-console/app/analytics/page.jsx:61:                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Platform Performance</span>
+apps/admin-console/app/analytics/page.jsx:93:            {/* Chart Placeholders */}
+apps/admin-console/app/analytics/page.jsx:119:                            { label: 'Successful Purchases', value: '8,200', p: 66 }
+apps/admin-console/app/api/actions/route.js:11:const DatabaseCorrectionParamsSchema = z.object({
+apps/admin-console/app/api/actions/route.js:20:    DUAL_APPROVAL: {
+apps/admin-console/app/api/actions/route.js:21:        'EVENT_PAUSE': true,
+apps/admin-console/app/api/actions/route.js:22:        'VENUE_SUSPEND': true,
+apps/admin-console/app/api/actions/route.js:34:            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+apps/admin-console/app/api/actions/route.js:53:        const IDEMPOTENT_ACTIONS = ['FINANCIAL_REFUND', 'PAYOUT_BATCH_RUN'];
+apps/admin-console/app/api/actions/route.js:54:        if (IDEMPOTENT_ACTIONS.includes(action) && body.idempotencyKey) {
+apps/admin-console/app/api/actions/route.js:71:        // --- 🔐 AUTHORITY & POLICY ---
+apps/admin-console/app/api/actions/route.js:74:        // --- 🗳️ GOVERNANCE: DUAL APPROVAL PIPELINE ---
+apps/admin-console/app/api/actions/route.js:75:        const requiresDualApproval = (isTier2 && GOVERNANCE_CONFIG.DUAL_APPROVAL[action]) || isTier3;
+apps/admin-console/app/api/actions/route.js:77:        if (requiresDualApproval && action !== 'ACTION_APPROVE' && action !== 'ACTION_REJECT') {
+apps/admin-console/app/api/actions/route.js:86:                    ? "Critical Authority Proposed: Tier 3 actions require dual sign-off."
+apps/admin-console/app/api/actions/route.js:87:                    : "Authority Proposed: This action requires dual sign-off."
+apps/admin-console/app/api/actions/route.js:91:        // --- 🚨 ELEVATED-RISK PRE-CHECK ---
+apps/admin-console/app/api/actions/route.js:95:        const ELEVATED_RISK_ACTIONS = ['DATABASE_CORRECTION', 'ADMIN_PROVISION', 'FINANCIAL_REFUND', 'PAYOUT_BATCH_RUN'];
+apps/admin-console/app/api/actions/route.js:117:        // --- 📸 CAPTURE PRE-ACTION STATE FOR AUDIT DELTA ---
+apps/admin-console/app/api/actions/route.js:138:            case 'VENUE_SUSPEND':
+apps/admin-console/app/api/actions/route.js:144:            case 'EVENT_PAUSE':
+apps/admin-console/app/api/actions/route.js:150:            case 'FEATURE_EVENT_PIN':
+apps/admin-console/app/api/actions/route.js:153:            case 'FEATURE_EVENT_UNPIN':
+apps/admin-console/app/api/actions/route.js:156:            case 'ACTION_APPROVE':
+apps/admin-console/app/api/actions/route.js:157:                await adminStore.resolveProposal(targetId, adminId, adminRole, 'approved', null, context);
+apps/admin-console/app/api/actions/route.js:160:                await adminStore.resolveProposal(targetId, adminId, adminRole, 'rejected', reason, context);
+apps/admin-console/app/api/actions/route.js:168:            case 'ONBOARDING_APPROVE':
+apps/admin-console/app/api/actions/route.js:177:            case 'ADMIN_PROVISION':
+apps/admin-console/app/api/actions/route.js:178:                await adminStore.adminProvision(params, adminId, adminRole, reason);
+apps/admin-console/app/api/actions/route.js:186:            case 'PAYOUT_BATCH_RUN':
+apps/admin-console/app/api/actions/route.js:187:                await adminStore.executePayoutBatch(targetId, adminId, reason, evidence);
+apps/admin-console/app/api/actions/route.js:189:            case 'PAYOUT_RELEASE':
+apps/admin-console/app/api/actions/route.js:192:            case 'PROMOTER_SUSPEND':
+apps/admin-console/app/api/actions/route.js:193:                await adminStore.updatePromoterStatus(targetId, 'suspended', adminId, reason);
+apps/admin-console/app/api/actions/route.js:195:            case 'PROMOTER_ACTIVATE':
+apps/admin-console/app/api/actions/route.js:196:                await adminStore.updatePromoterStatus(targetId, 'active', adminId, reason);
+apps/admin-console/app/api/actions/route.js:198:            case 'PROMOTER_DISABLE':
+apps/admin-console/app/api/actions/route.js:199:                await adminStore.updatePromoterStatus(targetId, 'disabled', adminId, reason);
+apps/admin-console/app/api/actions/route.js:204:            case 'SUPPORT_RESOLVE':
+apps/admin-console/app/api/actions/route.js:207:            case 'SAFETY_REPORT_DISMISS':
+apps/admin-console/app/api/actions/route.js:210:            case 'ADMIN_ROLE_UPDATE':
+apps/admin-console/app/api/actions/route.js:213:            case 'MEDIA_REPORT_DISMISS':
+apps/admin-console/app/api/actions/route.js:223:                const parsedParams = DatabaseCorrectionParamsSchema.safeParse(params);
+apps/admin-console/app/api/actions/route.js:224:                if (!parsedParams.success) {
+apps/admin-console/app/api/actions/route.js:227:                await adminStore.databaseCorrection(targetId, parsedParams.data.id || 'global', parsedParams.data.after, adminId, reason, context);
+apps/admin-console/app/api/actions/route.js:230:            case 'PARTNER_REPROVISION':
+apps/admin-console/app/api/actions/route.js:246:        // Persist the before/after delta to the audit log
+apps/admin-console/app/api/actions/route.js:262:        const CRITICAL_ACTIONS = ['DATABASE_CORRECTION', 'ADMIN_PROVISION', 'FINANCIAL_REFUND', 'PAYOUT_BATCH_RUN'];
+apps/admin-console/app/api/actions/route.js:303:export const POST = withAdminAuth(handler);
+apps/admin-console/app/api/admin/refunds/[id]/approve/route.js:2: * THE C1RCLE - Admin Refund Approval API
+apps/admin-console/app/api/admin/refunds/[id]/approve/route.js:15:            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+apps/admin-console/app/api/admin/refunds/[id]/approve/route.js:32:        console.error("POST /api/admin/refunds/[id]/approve error:", error);
+apps/admin-console/app/api/admin/refunds/[id]/approve/route.js:42:export const POST = withAdminAuth(handler);
+apps/admin-console/app/api/admin/refunds/[id]/reject/route.js:2: * THE C1RCLE - Admin Refund Rejection API
+apps/admin-console/app/api/admin/refunds/[id]/reject/route.js:15:            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+apps/admin-console/app/api/admin/refunds/[id]/reject/route.js:31:        console.error("POST /api/admin/refunds/[id]/reject error:", error);
+apps/admin-console/app/api/admin/refunds/[id]/reject/route.js:41:export const POST = withAdminAuth(handler);
+apps/admin-console/app/api/admin/refunds/route.js:2: * THE C1RCLE - Admin Refunds API
+apps/admin-console/app/api/admin/refunds/route.js:16:        const { searchParams } = new URL(request.url);
+apps/admin-console/app/api/admin/refunds/route.js:17:        const status = searchParams.get('status') || 'pending';
+apps/admin-console/app/api/admin/refunds/route.js:18:        const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+apps/admin-console/app/api/admin/refunds/route.js:27:        const cursor = searchParams.get('cursor') || null;
+apps/admin-console/app/api/auth/host-verification/route.ts:5:export async function POST(req: NextRequest) {
+apps/admin-console/app/api/auth/host-verification/route.ts:18:            method: "POST",
+apps/admin-console/app/api/auth/host-verification/route.ts:24:        console.error("[Auth API] POST /host-verification Error:", error);
+apps/admin-console/app/api/auth/me/route.ts:49:        console.error("[Auth API] GET /me Error:", error);
+apps/admin-console/app/api/auth/onboard/route.ts:5:export async function POST(req: NextRequest) {
+apps/admin-console/app/api/auth/onboard/route.ts:18:            method: "POST",
+apps/admin-console/app/api/auth/onboard/route.ts:24:        console.error("[Auth API] POST /onboard Error:", error);
+apps/admin-console/app/api/auth/profile/route.ts:6:const POST_ALLOWED_FIELDS = new Set([
+apps/admin-console/app/api/auth/profile/route.ts:12:const PATCH_ALLOWED_USER_FIELDS = new Set([
+apps/admin-console/app/api/auth/profile/route.ts:17:const PROTECTED_FIELDS = new Set([
+apps/admin-console/app/api/auth/profile/route.ts:24:export async function POST(req: NextRequest) {
+apps/admin-console/app/api/auth/profile/route.ts:39:        const unknownFields = Object.keys(body).filter(k => !POST_ALLOWED_FIELDS.has(k));
+apps/admin-console/app/api/auth/profile/route.ts:72:        console.error("[Auth API] POST /profile Error:", error);
+apps/admin-console/app/api/auth/profile/route.ts:77:export async function PATCH(req: NextRequest) {
+apps/admin-console/app/api/auth/profile/route.ts:108:                k => PROTECTED_FIELDS.has(k) || !PATCH_ALLOWED_USER_FIELDS.has(k)
+apps/admin-console/app/api/auth/profile/route.ts:122:        return NextResponse.json({ success: true, message: "Profile updated successfully" });
+apps/admin-console/app/api/auth/profile/route.ts:124:        console.error("[Auth API] PATCH /profile Error:", error);
+apps/admin-console/app/api/exports/route.js:8:const ALLOWED_EXPORTS = ['users', 'venues', 'hosts', 'events', 'orders', 'admin_audit_logs'];
+apps/admin-console/app/api/exports/route.js:13:            return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+apps/admin-console/app/api/exports/route.js:16:        const { searchParams } = new URL(req.url);
+apps/admin-console/app/api/exports/route.js:17:        const collection = searchParams.get('collection');
+apps/admin-console/app/api/exports/route.js:18:        const limitStr = searchParams.get('limit') || '500';
+apps/admin-console/app/api/exports/route.js:29:        if (!collection || !ALLOWED_EXPORTS.includes(collection)) {
+apps/admin-console/app/api/exports/route.js:34:        const ALLOWED_MAP = {
+apps/admin-console/app/api/exports/route.js:40:        const allowed = ALLOWED_MAP[adminRole] || [];
+apps/admin-console/app/api/exports/route.js:51:        // --- 🧹 PII SANITIZATION ---
+apps/admin-console/app/api/exports/route.js:88:            action: 'DATA_EXPORT',
+apps/admin-console/app/api/kyc/[uid]/route.js:9:const STEP_SEQUENCES = {
+apps/admin-console/app/api/kyc/[uid]/route.js:50:    const stepSequence = STEP_SEQUENCES[entityType] ?? STEP_SEQUENCES.individual;
+apps/admin-console/app/api/kyc/[uid]/route.js:68:// ── PATCH — admin approves/rejects/requests_resubmission on a step ────────────
+apps/admin-console/app/api/kyc/[uid]/route.js:72:        return NextResponse.json({ error: "Too many requests. Please slow down." }, { status: 429 });
+apps/admin-console/app/api/kyc/[uid]/route.js:95:    const stepSequence = STEP_SEQUENCES[entityType] ?? STEP_SEQUENCES.individual;
+apps/admin-console/app/api/kyc/[uid]/route.js:131:    const updatePayload = {
+apps/admin-console/app/api/kyc/[uid]/route.js:142:        updatePayload[`kycStepResubmissionReason.${stepId}`] = resubmitReason;
+apps/admin-console/app/api/kyc/[uid]/route.js:144:        updatePayload[`kycStepResubmissionReason.${stepId}`] = FieldValue.delete();
+apps/admin-console/app/api/kyc/[uid]/route.js:147:    await reqDoc.ref.update(updatePayload);
+apps/admin-console/app/api/kyc/[uid]/route.js:158:        action: `KYC_STEP_${action.toUpperCase()}`,
+apps/admin-console/app/api/kyc/[uid]/route.js:171:export const PATCH = withAdminAuth(patchHandler);
+apps/admin-console/app/api/ledger/route.js:11:        const { searchParams } = new URL(req.url);
+apps/admin-console/app/api/ledger/route.js:12:        const entityId = searchParams.get("entityId");
+apps/admin-console/app/api/ledger/route.js:13:        const actorId = searchParams.get("actorId");
+apps/admin-console/app/api/ledger/route.js:14:        const state = searchParams.get("state");
+apps/admin-console/app/api/ledger/route.js:15:        const rawLimit = parseInt(searchParams.get("limit") || "100", 10);
+apps/admin-console/app/api/ledger/route.js:30:        console.error("Ledger API error:", err);
+apps/admin-console/app/api/list/route.js:17:    const { searchParams } = new URL(req.url);
+apps/admin-console/app/api/list/route.js:18:    const collection = searchParams.get('collection');
+apps/admin-console/app/api/list/route.js:19:    const status = searchParams.get('status');
+apps/admin-console/app/api/list/route.js:20:    const sortBy = searchParams.get('sortBy') || 'createdAt';
+apps/admin-console/app/api/list/route.js:21:    const cursor = searchParams.get('cursor') || null;
+apps/admin-console/app/api/list/route.js:22:    const rawLimit = parseInt(searchParams.get('limit') || '50', 10);
+apps/admin-console/app/api/list/route.js:41:    const ALLOWED_MAP = {
+apps/admin-console/app/api/list/route.js:51:    const allowed = ALLOWED_MAP[adminRole] || [];
+apps/admin-console/app/api/list/route.js:67:        console.error(`[SECURITY] List API Error [${collection}]:`, error.message);
+apps/admin-console/app/api/logs/route.js:9:        const { searchParams } = new URL(req.url);
+apps/admin-console/app/api/logs/route.js:10:        const limit = Math.min(parseInt(searchParams.get('limit') || '100', 10), 500);
+apps/admin-console/app/api/logs/route.js:11:        const cursor = searchParams.get('cursor') || null;
+apps/admin-console/app/api/logs/route.js:30:        console.error("[Logs API] Error:", error);

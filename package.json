@@ -45,6 +45,7 @@
     "expo": "^56.0.12",
     "husky": "^9.1.7",
     "lint-staged": "^15.2.11",
+    "prettier": "^3.8.4",
     "size-limit": "^12.1.0",
     "stylelint": "^17.13.0",
     "stylelint-config-standard": "^40.0.0",

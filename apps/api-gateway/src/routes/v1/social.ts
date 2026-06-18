@@ -57,10 +57,12 @@ const VenueFollowParams = z
   })
   .strict();
 
-const SwipeBody = z.object({
-  targetUserId: z.string(),
-  action: z.enum(['like', 'pass']),
-}).strict();
+const SwipeBody = z
+  .object({
+    targetUserId: z.string(),
+    action: z.enum(['like', 'pass']),
+  })
+  .strict();
 
 export default async function socialRoutes(fastify: FastifyInstance) {
   /**
@@ -212,10 +214,22 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const follow = await followEntity(userId, venueId, 'venue');
-      return reply.status(201).send({ success: true, follow });
+      const { followVenue } = await import('@c1rcle/core/venues-service');
+      const result = await followVenue(fastify.db, userId, venueId, {
+        venueName: request.body?.venueName,
+      });
+      return reply.status(201).send({ success: true, follow: result, data: result });
     } catch (error: any) {
       fastify.log.error(`Error in POST /venues/:venueId/follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND' || error.message?.includes('not found')) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Venue not found',
+            requestId: request.id,
+          }),
+        );
+      }
       return reply.status(500).send(
         buildErrorResponse({
           code: 'INTERNAL_ERROR',
@@ -254,10 +268,20 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const result = await unfollowEntity(userId, venueId, 'venue');
+      const { unfollowVenue } = await import('@c1rcle/core/venues-service');
+      const result = await unfollowVenue(fastify.db, userId, venueId);
       return { success: true, ...result };
     } catch (error: any) {
       fastify.log.error(`Error in DELETE /venues/:venueId/follow: ${error.message}`);
+      if (error.code === 'NOT_FOUND' || error.message?.includes('not found')) {
+        return reply.status(404).send(
+          buildErrorResponse({
+            code: 'NOT_FOUND',
+            message: 'Venue not found',
+            requestId: request.id,
+          }),
+        );
+      }
       return reply.status(500).send(
         buildErrorResponse({
           code: 'INTERNAL_ERROR',
@@ -285,7 +309,13 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
     try {
       const { venueId } = parsed.data;
-      const followingResult = await isFollowing(userId, venueId);
+      const followDoc = await fastify.db
+        .collection('userFollows')
+        .doc(userId)
+        .collection('venues')
+        .doc(venueId)
+        .get();
+      const followingResult = followDoc.exists;
       return buildSuccessResponse({ isFollowing: followingResult });
     } catch (error: any) {
       fastify.log.error(`Error in GET /venues/:venueId/follow-status: ${error.message}`);
@@ -1677,7 +1707,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           code: 'UNAUTHORIZED',
           message: 'Authentication required',
           requestId: request.id,
-        })
+        }),
       );
     }
 
@@ -1700,42 +1730,51 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.post('/social/swipe', {
-    preHandler: [fastify.validate({ body: SwipeBody })],
-  }, async (request: any, reply: any) => {
-    const userId = request.user?.uid;
-    if (!userId) {
-      return reply.status(401).send(
-        buildErrorResponse({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-          requestId: request.id,
-        })
-      );
-    }
+  fastify.post(
+    '/social/swipe',
+    {
+      preHandler: [fastify.validate({ body: SwipeBody })],
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-    try {
-      const { processSwipeAction } = await import('@c1rcle/core/guest-dating-service');
-      const result = await processSwipeAction(fastify.db, userId, request.body.targetUserId, request.body.action);
-      return buildSuccessResponse(result);
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'POST /social/swipe failed',
-      );
-      
-      const code = error.message.includes('limit exceeded') ? 'TOO_MANY_REQUESTS' : 'BAD_REQUEST';
-      const status = error.message.includes('limit exceeded') ? 429 : 400;
+      try {
+        const { processSwipeAction } = await import('@c1rcle/core/guest-dating-service');
+        const result = await processSwipeAction(
+          fastify.db,
+          userId,
+          request.body.targetUserId,
+          request.body.action,
+        );
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'POST /social/swipe failed',
+        );
 
-      return reply.status(status).send(
-        buildErrorResponse({
-          code,
-          message: error.message,
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+        const code = error.message.includes('limit exceeded') ? 'TOO_MANY_REQUESTS' : 'BAD_REQUEST';
+        const status = error.message.includes('limit exceeded') ? 429 : 400;
+
+        return reply.status(status).send(
+          buildErrorResponse({
+            code,
+            message: error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   const UserIdParam = z.object({ id: z.string() }).strict();
 
@@ -1747,7 +1786,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           code: 'UNAUTHORIZED',
           message: 'Authentication required',
           requestId: request.id,
-        })
+        }),
       );
     }
 
@@ -1770,40 +1809,43 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/users/:id', {
-    preHandler: [fastify.validate({ params: UserIdParam })],
-  }, async (request: any, reply: any) => {
-    try {
-      const { getPublicUserProfile } = await import('@c1rcle/core/guest-dating-service');
-      const profile = await getPublicUserProfile(fastify.db, request.params.id);
-      return buildSuccessResponse(profile);
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, targetUserId: request.params.id, error: error.message },
-        'GET /users/:id failed',
-      );
-      
-      if (error.message.includes('not found')) {
-        return reply.status(404).send(
+  fastify.get(
+    '/users/:id',
+    {
+      preHandler: [fastify.validate({ params: UserIdParam })],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const { getPublicUserProfile } = await import('@c1rcle/core/guest-dating-service');
+        const profile = await getPublicUserProfile(fastify.db, request.params.id);
+        return buildSuccessResponse(profile);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, targetUserId: request.params.id, error: error.message },
+          'GET /users/:id failed',
+        );
+
+        if (error.message.includes('not found')) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'User not found',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        return reply.status(500).send(
           buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'User not found',
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
             requestId: request.id,
           }),
         );
       }
-
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+    },
+  );
 }
-
 
 /**
  * Handle multipart image upload to Firebase Storage
