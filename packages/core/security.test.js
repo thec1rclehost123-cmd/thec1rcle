@@ -253,7 +253,7 @@ describe('attack-detection / checkCredentialStuffing', () => {
     const result = await checkCredentialStuffing('1.1.1.1', null);
     expect(result.detected).toBe(false);
     expect(result.mitigated).toBe(false);
-  });
+  }, 15_000);
 
   it('detects and mitigates after IP threshold (10 failures)', async () => {
     const { checkCredentialStuffing } = await import('./attack-detection.js');

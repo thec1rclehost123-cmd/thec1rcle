@@ -57,7 +57,11 @@ const ReportMessageBody = z
   .default({});
 
 function statusForChatError(message = '') {
-  if (message === 'Chat not found' || message === 'Event not found' || message === 'Message not found') {
+  if (
+    message === 'Chat not found' ||
+    message === 'Event not found' ||
+    message === 'Message not found'
+  ) {
     return 404;
   }
   if (

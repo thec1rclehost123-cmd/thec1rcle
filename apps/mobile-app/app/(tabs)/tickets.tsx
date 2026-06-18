@@ -44,9 +44,11 @@ import { SkeletonList } from '@/components/ui/Skeleton';
 import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { buildCalendarEventUrl } from '@/lib/calendar';
-import { Wallet, ChevronLeft, Menu, Ticket as TicketIcon } from 'lucide-react-native';
-
 import {
+  Wallet,
+  ChevronLeft,
+  Menu,
+  Ticket as TicketIcon,
   Info,
   ArrowRightCircle,
   CalendarDays,

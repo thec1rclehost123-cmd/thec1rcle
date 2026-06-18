@@ -51,13 +51,21 @@ function avatarFromProfile(profile = {}) {
 
 async function getUserProfile(db, userId) {
   if (!userId) return {};
-  const doc = await db.collection('users').doc(userId).get().catch(() => null);
+  const doc = await db
+    .collection('users')
+    .doc(userId)
+    .get()
+    .catch(() => null);
   return doc?.exists ? { id: doc.id, ...(doc.data() || {}) } : {};
 }
 
 async function getEventSnapshot(db, eventId) {
   if (!eventId) return {};
-  const doc = await db.collection('events').doc(eventId).get().catch(() => null);
+  const doc = await db
+    .collection('events')
+    .doc(eventId)
+    .get()
+    .catch(() => null);
   return doc?.exists ? { id: doc.id, ...(doc.data() || {}) } : {};
 }
 
@@ -107,7 +115,9 @@ async function enrichLike(db, like) {
   ]);
   const superLike = isSuperLike(like);
   const createdAt =
-    typeof like.createdAt?.toDate === 'function' ? like.createdAt.toDate().toISOString() : like.createdAt || null;
+    typeof like.createdAt?.toDate === 'function'
+      ? like.createdAt.toDate().toISOString()
+      : like.createdAt || null;
 
   return {
     id: like.id,
@@ -136,10 +146,7 @@ export async function listReceivedLikes(db, userId) {
 
   const viewerProfile = await getUserProfile(db, userId);
   const hasPremiumAccess = isPremiumProfile(viewerProfile);
-  const snapshot = await db
-    .collection(USER_LIKES_COLLECTION)
-    .where('toUserId', '==', userId)
-    .get();
+  const snapshot = await db.collection(USER_LIKES_COLLECTION).where('toUserId', '==', userId).get();
 
   const pending = (snapshot.docs || [])
     .map((doc) => serializeDoc(doc))
@@ -202,7 +209,11 @@ export async function respondToLikeRequest(db, userId, likeId, { action } = {}) 
   const deterministicPair = pairKey(like.fromUserId, userId);
   const eventKey = safeIdPart(like.eventId || 'global');
   const matchId = `match_${eventKey}_${deterministicPair}`;
-  const existingConversation = await findExistingConversation(db, participants, like.eventId || null);
+  const existingConversation = await findExistingConversation(
+    db,
+    participants,
+    like.eventId || null,
+  );
   const conversationId = existingConversation?.id || `dm_${eventKey}_${deterministicPair}`;
 
   const match = {
@@ -232,16 +243,20 @@ export async function respondToLikeRequest(db, userId, likeId, { action } = {}) 
   };
 
   const batch = db.batch();
-  batch.set(likeRef, {
-    status: 'accepted',
-    isDeleted: false,
-    acceptedAt: now,
-    respondedAt: now,
-    respondedBy: userId,
-    matchId,
-    conversationId,
-    updatedAt: now,
-  }, { merge: true });
+  batch.set(
+    likeRef,
+    {
+      status: 'accepted',
+      isDeleted: false,
+      acceptedAt: now,
+      respondedAt: now,
+      respondedBy: userId,
+      matchId,
+      conversationId,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
   batch.set(db.collection(USER_MATCHES_COLLECTION).doc(matchId), match, { merge: true });
   batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, {
     merge: true,
