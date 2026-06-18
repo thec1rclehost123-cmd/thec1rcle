@@ -92,6 +92,11 @@ jobs:
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter=@c1rcle/guest-portal --filter=@c1rcle/partner-dashboard --filter=@c1rcle/admin-console --filter=@c1rcle/api-gateway
+        env:
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          SKIP_ENV_VALIDATION: '1'
       - uses: actions/cache@v4
         with:
           path: |
