@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -18,27 +18,11 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 import { useCartStore, type CartItem } from '@/store/cartStore';
+import { calculatePricing, type PricingResult } from '@/lib/api';
+import { processFullCheckout, type CheckoutStatus } from '@/lib/payments';
+import { trackPurchaseFailed, trackTicketPurchase } from '@/lib/analytics';
 import { colors, gradients, typography } from '@/lib/design/theme';
 import { formatEventDate, formatEventTime } from '@/lib/utils/date';
-
-type PromoKind = 'percent' | 'flat';
-type PaymentMethodId = 'card' | 'gpay' | 'bank' | 'upi' | 'wallet';
-
-interface PromoDefinition {
-  code: string;
-  label: string;
-  kind: PromoKind;
-  amount: number;
-  maxDiscount?: number;
-}
-
-interface PaymentMethod {
-  id: PaymentMethodId;
-  title: string;
-  subtitle: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  feeRate: number;
-}
 
 const checkoutFont = {
   regular: typography.fontFamily.body,
@@ -47,83 +31,30 @@ const checkoutFont = {
   black: typography.fontFamily.brandAccent,
 };
 
-const PROMOS: PromoDefinition[] = [
-  {
-    code: 'C1RCLE10',
-    label: '10% off ticket subtotal',
-    kind: 'percent',
-    amount: 10,
-    maxDiscount: 750,
-  },
-  {
-    code: 'HOST20',
-    label: '20% host invite discount',
-    kind: 'percent',
-    amount: 20,
-    maxDiscount: 1200,
-  },
-  { code: 'WELCOME500', label: 'Flat ₹500 off', kind: 'flat', amount: 500 },
-  {
-    code: 'EARLYBIRD',
-    label: '15% early access discount',
-    kind: 'percent',
-    amount: 15,
-    maxDiscount: 1000,
-  },
-];
-
-const PAYMENT_METHODS: PaymentMethod[] = [
-  {
-    id: 'card',
-    title: 'Credit or debit card',
-    subtitle: 'Visa, Mastercard, RuPay, Amex',
-    icon: 'card-outline',
-    feeRate: 0.025,
-  },
-  {
-    id: 'gpay',
-    title: 'Google Pay',
-    subtitle: 'Fast UPI payment through GPay',
-    icon: 'logo-google',
-    feeRate: 0.012,
-  },
-  {
-    id: 'upi',
-    title: 'UPI',
-    subtitle: 'Pay with any UPI app',
-    icon: 'phone-portrait-outline',
-    feeRate: 0.01,
-  },
-  {
-    id: 'bank',
-    title: 'Bank account',
-    subtitle: 'Net banking or direct bank transfer',
-    icon: 'business-outline',
-    feeRate: 0.006,
-  },
-  {
-    id: 'wallet',
-    title: 'Wallet balance',
-    subtitle: 'Use saved C1RCLE credits',
-    icon: 'wallet-outline',
-    feeRate: 0,
-  },
-];
-
 function formatMoney(value: number) {
   if (value <= 0) return '₹0';
   return `₹${Math.round(value).toLocaleString('en-IN')}`;
 }
 
-function calculatePromoDiscount(promo: PromoDefinition | null, subtotal: number) {
-  if (!promo || subtotal <= 0) return 0;
-  if (promo.kind === 'flat') return Math.min(subtotal, promo.amount);
-  const percentDiscount = Math.round(subtotal * (promo.amount / 100));
-  return Math.min(percentDiscount, promo.maxDiscount ?? percentDiscount);
-}
-
-function buildOrderId() {
-  return `UI-${Date.now().toString(36).toUpperCase()}`;
+function getCheckoutStatusLabel(status: CheckoutStatus | null) {
+  switch (status) {
+    case 'reserving':
+      return 'Reserving your tickets...';
+    case 'initiating':
+      return 'Creating your secure order...';
+    case 'awaiting_payment':
+      return 'Opening Razorpay...';
+    case 'verifying':
+      return 'Verifying payment...';
+    case 'confirmed':
+      return 'Confirmed';
+    case 'failed':
+      return 'Payment failed';
+    case 'cancelled':
+      return 'Payment cancelled';
+    default:
+      return 'Pay securely';
+  }
 }
 
 function CheckoutItemRow({
@@ -171,130 +102,161 @@ function CheckoutItemRow({
   );
 }
 
-function MethodRow({
-  method,
-  selected,
-  onPress,
-}: {
-  method: PaymentMethod;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={[styles.methodRow, selected && styles.methodRowSelected]}>
-      <View style={[styles.methodIcon, selected && styles.methodIconSelected]}>
-        <Ionicons name={method.icon} size={20} color={selected ? '#fff' : colors.goldStone} />
-      </View>
-      <View style={styles.methodCopy}>
-        <Text style={styles.methodTitle}>{method.title}</Text>
-        <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
-      </View>
-      <Ionicons
-        name={selected ? 'radio-button-on' : 'radio-button-off'}
-        size={22}
-        color={selected ? colors.irisGlow : 'rgba(255,255,255,0.32)'}
-      />
-    </Pressable>
-  );
-}
-
 export default function CheckoutScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuthStore();
   const profile = useProfileStore((state) => state.profile);
-  const { items, removeItem, updateQuantity, clearCart } = useCartStore();
+  const { items, promo, removeItem, updateQuantity, clearCart, applyPromoCode, clearPromoCode } =
+    useCartStore();
 
   const [promoInput, setPromoInput] = useState('');
-  const [appliedPromo, setAppliedPromo] = useState<PromoDefinition | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
-  const [paymentMethodId, setPaymentMethodId] = useState<PaymentMethodId>('card');
   const [processing, setProcessing] = useState(false);
-  const [cardName, setCardName] = useState(profile?.displayName || user?.displayName || '');
-  const [cardNumber, setCardNumber] = useState('');
-  const [cardExpiry, setCardExpiry] = useState('');
-  const [cardCvv, setCardCvv] = useState('');
+  const [checkoutStatus, setCheckoutStatus] = useState<CheckoutStatus | null>(null);
   const [billingEmail, setBillingEmail] = useState(profile?.email || user?.email || '');
-  const [upiId, setUpiId] = useState('');
+  const [pricing, setPricing] = useState<PricingResult['pricing'] | null>(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
 
   const cartEventTitle = items[0]?.eventTitle || 'Your booking';
   const cartEventDate = items[0]?.eventDate || '';
   const cartEventVenue = items[0]?.eventVenue || 'Venue TBA';
   const cartEventImage = items[0]?.eventCoverImage;
+  const eventId = items[0]?.eventId || '';
+  const promoterCode = items.find((item) => item.promoterCode)?.promoterCode;
   const ticketCount = items.reduce((sum, item) => sum + item.quantity, 0);
-  const selectedMethod =
-    PAYMENT_METHODS.find((method) => method.id === paymentMethodId) || PAYMENT_METHODS[0];
+  const checkoutItems = useMemo(
+    () => items.map((item) => ({ tierId: item.tier.id, quantity: item.quantity })),
+    [items],
+  );
 
-  const subtotal = useMemo(() => {
+  const localSubtotal = useMemo(() => {
     return items.reduce((sum, item) => sum + item.tier.price * item.quantity, 0);
   }, [items]);
 
-  const discount = calculatePromoDiscount(appliedPromo, subtotal);
-  const taxableBase = Math.max(0, subtotal - discount);
-  const platformFee = subtotal > 0 ? Math.max(49, Math.round(taxableBase * 0.04)) : 0;
-  const paymentFee = subtotal > 0 ? Math.round(taxableBase * selectedMethod.feeRate) : 0;
-  const taxes = subtotal > 0 ? Math.round((platformFee + paymentFee) * 0.18) : 0;
-  const total = Math.max(0, taxableBase + platformFee + paymentFee + taxes);
-  const isFreeOrder = total === 0;
-
-  const handleApplyPromo = () => {
-    const normalized = promoInput.trim().toUpperCase();
-    if (!normalized) return;
-    const promo = PROMOS.find((candidate) => candidate.code === normalized);
-    if (!promo) {
-      setPromoError('Try C1RCLE10, HOST20, WELCOME500, or EARLYBIRD.');
+  useEffect(() => {
+    if (!eventId || checkoutItems.length === 0) {
+      setPricing(null);
+      setQuoteError(null);
       return;
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setAppliedPromo(promo);
-    setPromoInput('');
+
+    let cancelled = false;
+    setQuoteLoading(true);
+    setQuoteError(null);
+
+    calculatePricing({
+      eventId,
+      items: checkoutItems,
+      promoCode: promo?.code ?? null,
+      promoterCode: promoterCode ?? null,
+    })
+      .then((result) => {
+        if (cancelled) return;
+        setPricing(result.pricing);
+      })
+      .catch((error: any) => {
+        if (cancelled) return;
+        setPricing(null);
+        setQuoteError(error.message || 'We could not refresh live pricing.');
+      })
+      .finally(() => {
+        if (!cancelled) setQuoteLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [checkoutItems, eventId, promo?.code, promoterCode]);
+
+  const subtotal = Number(pricing?.subtotal ?? localSubtotal);
+  const discount = Number(
+    pricing?.discountTotal ?? pricing?.discount ?? promo?.discountAmount ?? 0,
+  );
+  const platformFee = Number(
+    pricing?.fees?.platform ?? pricing?.fees?.platformFee ?? pricing?.platformFee ?? 0,
+  );
+  const paymentFee = Number(pricing?.fees?.payment ?? pricing?.fees?.paymentFee ?? 0);
+  const taxes = Number(pricing?.fees?.gst ?? 0);
+  const total = Number(
+    pricing?.grandTotal ?? Math.max(0, subtotal - discount + platformFee + paymentFee + taxes),
+  );
+  const isFreeOrder = Boolean(pricing?.isFree ?? total === 0);
+
+  const handleApplyPromo = async () => {
+    const normalized = promoInput.trim().toUpperCase();
+    if (!normalized || !eventId) return;
+
     setPromoError(null);
+    const result = await applyPromoCode(normalized, eventId);
+
+    if (!result.success) {
+      setPromoError(result.error || 'This promo code is not available for this order.');
+      return;
+    }
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setPromoInput('');
   };
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (items.length === 0) return;
-    if (
-      paymentMethodId === 'card' &&
-      !isFreeOrder &&
-      (!cardName.trim() || !cardNumber.trim() || !cardExpiry.trim() || !cardCvv.trim())
-    ) {
-      Alert.alert(
-        'Card details needed',
-        'Add the visible card fields to continue the UI payment flow.',
-      );
+    if (!user?.uid) {
+      Alert.alert('Sign in needed', 'Please sign in before checkout.');
       return;
     }
-    if (
-      (paymentMethodId === 'gpay' || paymentMethodId === 'upi') &&
-      !isFreeOrder &&
-      !upiId.trim()
-    ) {
-      Alert.alert('UPI ID needed', 'Add a UPI ID or phone handle to continue.');
-      return;
-    }
-    if (!billingEmail.trim()) {
+    const email = billingEmail.trim();
+    if (!email) {
       Alert.alert('Email needed', 'Add an email for the ticket receipt.');
+      return;
+    }
+    if (quoteError) {
+      Alert.alert(
+        'Live price unavailable',
+        'Refresh pricing before checkout so the backend can confirm fees and inventory.',
+      );
       return;
     }
 
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setProcessing(true);
-    const orderId = buildOrderId();
-    setTimeout(() => {
-      clearCart();
+
+    const result = await processFullCheckout({
+      eventId,
+      eventTitle: cartEventTitle,
+      items: checkoutItems,
+      userName: profile?.displayName || user.displayName || email,
+      userEmail: email,
+      userPhone: profile?.phone || '',
+      promoCode: promo?.code ?? null,
+      promoterCode: promoterCode ?? null,
+      onStatusChange: setCheckoutStatus,
+    });
+
+    if (!result.success || !result.orderId) {
+      trackPurchaseFailed(eventId, result.error || 'Checkout failed');
       setProcessing(false);
-      router.replace({
-        pathname: '/checkout/success',
-        params: {
-          orderId,
-          eventTitle: cartEventTitle,
-          eventDate: cartEventDate,
-          venueLocation: cartEventVenue,
-          totalAmount: String(total),
-          ticketCount: String(ticketCount),
-          paymentMethod: selectedMethod.title,
-        },
-      });
-    }, 850);
+      Alert.alert(
+        'Checkout failed',
+        result.error || 'We could not complete checkout. Please try again.',
+      );
+      return;
+    }
+
+    trackTicketPurchase(eventId, 'Selected tickets', total, ticketCount);
+    setProcessing(false);
+    router.replace({
+      pathname: '/checkout/success',
+      params: {
+        orderId: result.orderId,
+        eventTitle: cartEventTitle,
+        eventDate: cartEventDate,
+        venueLocation: cartEventVenue,
+        totalAmount: String(total),
+        ticketCount: String(ticketCount),
+        paymentMethod: result.requiresPayment ? 'Razorpay' : 'Free checkout',
+      },
+    });
   };
 
   if (items.length === 0) {
@@ -379,15 +341,17 @@ export default function CheckoutScreen() {
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Promo code</Text>
           <Text style={styles.panelCopy}>
-            Use an event, host, or C1RCLE code. This is UI-only validation for now.
+            Codes are checked against live event pricing before payment.
           </Text>
-          {appliedPromo ? (
+          {promo ? (
             <View style={styles.appliedPromoRow}>
               <View>
-                <Text style={styles.appliedPromoCode}>{appliedPromo.code}</Text>
-                <Text style={styles.appliedPromoLabel}>{appliedPromo.label}</Text>
+                <Text style={styles.appliedPromoCode}>{promo.code}</Text>
+                <Text style={styles.appliedPromoLabel}>
+                  {promo.label || `${promo.discountPercent}% discount`}
+                </Text>
               </View>
-              <Pressable onPress={() => setAppliedPromo(null)}>
+              <Pressable onPress={clearPromoCode}>
                 <Text style={styles.removePromoText}>Remove</Text>
               </Pressable>
             </View>
@@ -415,83 +379,23 @@ export default function CheckoutScreen() {
         </View>
 
         <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Payment method</Text>
-          <Text style={styles.panelCopy}>Choose how this payment would be processed.</Text>
-          {PAYMENT_METHODS.map((method) => (
-            <MethodRow
-              key={method.id}
-              method={method}
-              selected={paymentMethodId === method.id}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setPaymentMethodId(method.id);
-              }}
+          <Text style={styles.panelTitle}>Secure payment</Text>
+          <Text style={styles.panelCopy}>
+            THE C1RCLE reserves inventory first, then Razorpay collects payment details in the
+            native checkout.
+          </Text>
+          <View style={styles.bankNotice}>
+            <Ionicons
+              name={isFreeOrder ? 'checkmark-circle-outline' : 'shield-checkmark-outline'}
+              size={20}
+              color={colors.irisGlow}
             />
-          ))}
-        </View>
-
-        <View style={styles.panel}>
-          <Text style={styles.panelTitle}>Payment details</Text>
-          {paymentMethodId === 'card' ? (
-            <>
-              <TextInput
-                placeholder="Name on card"
-                placeholderTextColor="rgba(255,255,255,0.32)"
-                value={cardName}
-                onChangeText={setCardName}
-                style={styles.input}
-              />
-              <TextInput
-                placeholder="Card number"
-                placeholderTextColor="rgba(255,255,255,0.32)"
-                value={cardNumber}
-                onChangeText={setCardNumber}
-                keyboardType="number-pad"
-                style={styles.input}
-              />
-              <View style={styles.splitRow}>
-                <TextInput
-                  placeholder="MM/YY"
-                  placeholderTextColor="rgba(255,255,255,0.32)"
-                  value={cardExpiry}
-                  onChangeText={setCardExpiry}
-                  style={[styles.input, styles.splitInput]}
-                />
-                <TextInput
-                  placeholder="CVV"
-                  placeholderTextColor="rgba(255,255,255,0.32)"
-                  value={cardCvv}
-                  onChangeText={setCardCvv}
-                  keyboardType="number-pad"
-                  secureTextEntry
-                  style={[styles.input, styles.splitInput]}
-                />
-              </View>
-            </>
-          ) : paymentMethodId === 'gpay' || paymentMethodId === 'upi' ? (
-            <TextInput
-              placeholder="yourname@upi"
-              placeholderTextColor="rgba(255,255,255,0.32)"
-              value={upiId}
-              onChangeText={setUpiId}
-              autoCapitalize="none"
-              style={styles.input}
-            />
-          ) : paymentMethodId === 'bank' ? (
-            <View style={styles.bankNotice}>
-              <Ionicons name="shield-checkmark-outline" size={20} color={colors.irisGlow} />
-              <Text style={styles.bankNoticeText}>
-                Bank authorization would open after tapping pay.
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.bankNotice}>
-              <Ionicons name="wallet-outline" size={20} color={colors.irisGlow} />
-              <Text style={styles.bankNoticeText}>
-                Wallet credits would be checked before confirmation.
-              </Text>
-            </View>
-          )}
+            <Text style={styles.bankNoticeText}>
+              {isFreeOrder
+                ? 'This order will be confirmed by the backend with no payment required.'
+                : 'Card, UPI, wallet, and bank options open inside Razorpay after live inventory is reserved.'}
+            </Text>
+          </View>
           <TextInput
             placeholder="Receipt email"
             placeholderTextColor="rgba(255,255,255,0.32)"
@@ -505,6 +409,18 @@ export default function CheckoutScreen() {
 
         <View style={styles.panel}>
           <Text style={styles.panelTitle}>Order summary</Text>
+          {quoteLoading ? (
+            <View style={styles.quoteStateRow}>
+              <ActivityIndicator color={colors.irisGlow} size="small" />
+              <Text style={styles.quoteStateText}>Refreshing live price...</Text>
+            </View>
+          ) : null}
+          {quoteError ? (
+            <View style={styles.quoteErrorBox}>
+              <Ionicons name="warning-outline" size={17} color={colors.error} />
+              <Text style={styles.quoteErrorText}>{quoteError}</Text>
+            </View>
+          ) : null}
           <View style={styles.summaryRow}>
             <Text style={styles.summaryLabel}>Tickets ({ticketCount})</Text>
             <Text style={styles.summaryValue}>{formatMoney(subtotal)}</Text>
@@ -512,25 +428,31 @@ export default function CheckoutScreen() {
           {discount > 0 ? (
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, styles.discountText]}>
-                Discount {appliedPromo?.code ? `(${appliedPromo.code})` : ''}
+                Discount {promo?.code ? `(${promo.code})` : ''}
               </Text>
               <Text style={[styles.summaryValue, styles.discountText]}>
                 -{formatMoney(discount)}
               </Text>
             </View>
           ) : null}
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Platform fee</Text>
-            <Text style={styles.summaryValue}>{formatMoney(platformFee)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>{selectedMethod.title} fee</Text>
-            <Text style={styles.summaryValue}>{formatMoney(paymentFee)}</Text>
-          </View>
-          <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Taxes</Text>
-            <Text style={styles.summaryValue}>{formatMoney(taxes)}</Text>
-          </View>
+          {platformFee > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Platform fee</Text>
+              <Text style={styles.summaryValue}>{formatMoney(platformFee)}</Text>
+            </View>
+          ) : null}
+          {paymentFee > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Payment fee</Text>
+              <Text style={styles.summaryValue}>{formatMoney(paymentFee)}</Text>
+            </View>
+          ) : null}
+          {taxes > 0 ? (
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>GST on fees</Text>
+              <Text style={styles.summaryValue}>{formatMoney(taxes)}</Text>
+            </View>
+          ) : null}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>{formatMoney(total)}</Text>
@@ -538,8 +460,8 @@ export default function CheckoutScreen() {
         </View>
 
         <Text style={styles.termsText}>
-          By paying, you agree to ticket transfer, refund, and venue entry rules. This screen is a
-          frontend-only payment flow.
+          By paying, you agree to ticket transfer, refund, and venue entry rules. Prices, inventory,
+          and order creation are confirmed by THE C1RCLE servers.
         </Text>
       </ScrollView>
 
@@ -550,14 +472,19 @@ export default function CheckoutScreen() {
         </View>
         <Pressable
           onPress={handlePay}
-          disabled={processing}
-          style={[styles.payButton, processing && styles.payButtonDisabled]}
+          disabled={processing || quoteLoading || !!quoteError}
+          style={[
+            styles.payButton,
+            (processing || quoteLoading || !!quoteError) && styles.payButtonDisabled,
+          ]}
         >
           {processing ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <>
-              <Text style={styles.payButtonText}>{isFreeOrder ? 'Confirm' : 'Pay now'}</Text>
+              <Text style={styles.payButtonText}>
+                {isFreeOrder ? 'Confirm' : getCheckoutStatusLabel(checkoutStatus)}
+              </Text>
               <Ionicons name="lock-closed" size={16} color="#fff" />
             </>
           )}
@@ -904,6 +831,36 @@ const styles = StyleSheet.create({
     color: colors.gold,
     fontFamily: checkoutFont.medium,
     fontSize: 13,
+  },
+  quoteStateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 14,
+    marginBottom: 2,
+  },
+  quoteStateText: {
+    color: colors.goldStone,
+    fontFamily: checkoutFont.medium,
+    fontSize: 12,
+  },
+  quoteErrorBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    padding: 11,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 84, 112, 0.10)',
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255, 84, 112, 0.32)',
+    marginTop: 12,
+  },
+  quoteErrorText: {
+    flex: 1,
+    color: colors.error,
+    fontFamily: checkoutFont.medium,
+    fontSize: 12,
+    lineHeight: 17,
   },
   summaryRow: {
     flexDirection: 'row',

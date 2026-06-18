@@ -3,10 +3,9 @@
  * Base component for all legal content pages
  */
 
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { colors, radii } from '@/lib/design/theme';
 import { trackScreen } from '@/lib/analytics';

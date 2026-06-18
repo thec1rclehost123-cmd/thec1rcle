@@ -3,12 +3,16 @@
  * Multi-provider analytics with Firebase Analytics, Mixpanel, and Amplitude support
  */
 
+import { AppState } from 'react-native';
+
 // Optional Firebase Analytics import - gracefully handle if not installed
 let FirebaseAnalytics: any = null;
 try {
   FirebaseAnalytics = require('expo-firebase-analytics');
 } catch {
-  console.log('[Analytics] expo-firebase-analytics not installed, using console only');
+  if (process.env.EXPO_PUBLIC_ANALYTICS_DEBUG === 'true') {
+    console.log('[Analytics] expo-firebase-analytics not installed, using console only');
+  }
 }
 
 type AnalyticsEvent = {
@@ -37,6 +41,8 @@ const config = {
 // Provider-specific initializations
 let mixpanelClient: any = null;
 let amplitudeClient: any = null;
+let autoFlushInterval: ReturnType<typeof setInterval> | null = null;
+let autoFlushSubscription: { remove: () => void } | null = null;
 
 /**
  * Initialize analytics providers
@@ -213,6 +219,43 @@ export async function flush(): Promise<void> {
   // This flush is for any secondary batch processing
 }
 
+function startFlushInterval() {
+  if (autoFlushInterval || typeof setInterval === 'undefined') return;
+  autoFlushInterval = setInterval(flush, config.flushInterval);
+}
+
+function stopFlushInterval() {
+  if (!autoFlushInterval) return;
+  clearInterval(autoFlushInterval);
+  autoFlushInterval = null;
+}
+
+export function startAnalyticsAutoFlush(options: { force?: boolean } = {}) {
+  if (!options.force && __DEV__) {
+    return () => {};
+  }
+
+  if (AppState.currentState === 'active') {
+    startFlushInterval();
+  }
+
+  autoFlushSubscription?.remove();
+  autoFlushSubscription = AppState.addEventListener('change', (state) => {
+    if (state === 'active') {
+      startFlushInterval();
+    } else {
+      stopFlushInterval();
+      void flush();
+    }
+  });
+
+  return () => {
+    stopFlushInterval();
+    autoFlushSubscription?.remove();
+    autoFlushSubscription = null;
+  };
+}
+
 // ============================================
 // Pre-defined Event Helpers
 // ============================================
@@ -362,10 +405,7 @@ export function trackPurchaseFailed(eventId: string, error: string): void {
   });
 }
 
-// Initialize auto-flush interval
-if (typeof setInterval !== 'undefined' && !__DEV__) {
-  setInterval(flush, config.flushInterval);
-}
+startAnalyticsAutoFlush();
 
 export default {
   initAnalytics,
@@ -375,5 +415,6 @@ export default {
   trackScreen,
   trackError,
   flush,
+  startAnalyticsAutoFlush,
   AnalyticsEvents,
 };

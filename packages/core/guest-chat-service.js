@@ -87,8 +87,7 @@ async function getEvent(db, eventId) {
 function buildEventChat(event, roomNumber = 1) {
   const title = event?.title || event?.eventTitle || 'Event chat';
   const normalizedRoomNumber = Math.max(1, Number(roomNumber) || 1);
-  const roomTitle =
-    normalizedRoomNumber === 1 ? title : `${title} - Room ${normalizedRoomNumber}`;
+  const roomTitle = normalizedRoomNumber === 1 ? title : `${title} - Room ${normalizedRoomNumber}`;
   const cover =
     event?.eventCover ||
     event?.coverImage ||
@@ -378,7 +377,8 @@ function toInboxChat(chat, member = {}) {
     activeAvatars: Array.isArray(chat.activeAvatars) ? chat.activeAvatars : [],
     lastMessage: lastMessage?.content || chat.lastMessageText || '',
     lastMessageType: lastMessage?.type || null,
-    lastMessageTime: lastMessage?.createdAt || chat.lastMessageAt || chat.updatedAt || chat.createdAt || null,
+    lastMessageTime:
+      lastMessage?.createdAt || chat.lastMessageAt || chat.updatedAt || chat.createdAt || null,
     lastMessageAt: lastMessage?.createdAt || chat.lastMessageAt || null,
     unreadCount: Number(member.unreadCount || 0),
     status: chat.status || member.status || 'active',
@@ -397,9 +397,13 @@ async function fetchChatsByIds(db, chatIds) {
 
   const snapshots = await Promise.all(
     chunks.map((chunk) =>
-      db.collection(CHATS_COLLECTION).where('__name__', 'in', chunk).get().catch(() => ({
-        docs: [],
-      })),
+      db
+        .collection(CHATS_COLLECTION)
+        .where('__name__', 'in', chunk)
+        .get()
+        .catch(() => ({
+          docs: [],
+        })),
     ),
   );
 
@@ -496,7 +500,8 @@ async function assertChatAccess(db, resolved, userId, { forSend = false } = {}) 
     if (
       forSend &&
       chat.type === 'event' &&
-      (chat.isActive === false || ['archived', 'inactive', 'closed'].includes(String(chat.status || '').toLowerCase()))
+      (chat.isActive === false ||
+        ['archived', 'inactive', 'closed'].includes(String(chat.status || '').toLowerCase()))
     ) {
       throw new Error('Chat is not open');
     }
@@ -519,7 +524,9 @@ function normalizeMessage(doc, chat) {
   const data = typeof doc.data === 'function' ? doc.data() || {} : doc || {};
   const rawType = data.type || (data.imageUrl ? 'image' : 'text');
   const isReported = Boolean(data.isReported);
-  const content = isReported ? REPORTED_MESSAGE_PLACEHOLDER : data.content || data.text || data.imageUrl || '';
+  const content = isReported
+    ? REPORTED_MESSAGE_PLACEHOLDER
+    : data.content || data.text || data.imageUrl || '';
 
   return {
     id: doc.id || data.id,
@@ -569,7 +576,8 @@ export async function getChatMessages(db, userId, chatId, { limit = 50, before =
   const hasMore = docs.length > safeLimit;
   const pageDocs = docs.slice(0, safeLimit);
   const messages = pageDocs.map((doc) => normalizeMessage(doc, access.chat)).reverse();
-  const nextCursor = hasMore && pageDocs.length ? pageDocs[pageDocs.length - 1].data().createdAt : null;
+  const nextCursor =
+    hasMore && pageDocs.length ? pageDocs[pageDocs.length - 1].data().createdAt : null;
 
   return {
     chat: toInboxChat(access.chat, access.member),
@@ -717,17 +725,15 @@ export async function sendChatMessage(
   }
 
   await batch.commit();
-  return { message: normalizeMessage(message, access.chat), chat: toInboxChat(access.chat, access.member) };
+  return {
+    message: normalizeMessage(message, access.chat),
+    chat: toInboxChat(access.chat, access.member),
+  };
 }
 
-export async function reportChatMessage(
-  db,
-  userId,
-  chatId,
-  messageId,
-  { reason = null } = {},
-) {
-  if (!userId || !chatId || !messageId) throw new Error('userId, chatId and messageId are required');
+export async function reportChatMessage(db, userId, chatId, messageId, { reason = null } = {}) {
+  if (!userId || !chatId || !messageId)
+    throw new Error('userId, chatId and messageId are required');
 
   const resolved = await resolveChat(db, chatId);
   if (!resolved) throw new Error('Chat not found');
@@ -771,7 +777,9 @@ export async function reportChatMessage(
     batch.set(db.collection(DIRECT_MESSAGES_COLLECTION).doc(messageId), update, { merge: true });
   }
   if (access.chat.type === 'event') {
-    batch.set(db.collection(EVENT_GROUP_MESSAGES_COLLECTION).doc(messageId), update, { merge: true });
+    batch.set(db.collection(EVENT_GROUP_MESSAGES_COLLECTION).doc(messageId), update, {
+      merge: true,
+    });
   }
 
   await batch.commit();
@@ -783,7 +791,10 @@ export async function reportChatMessage(
       status: 'pending',
       createdAt: now,
     },
-    message: normalizeMessage({ id: messageId, data: () => ({ ...message, ...update }) }, access.chat),
+    message: normalizeMessage(
+      { id: messageId, data: () => ({ ...message, ...update }) },
+      access.chat,
+    ),
   };
 }
 
@@ -798,7 +809,11 @@ async function fetchUsersByIds(db, userIds) {
 
   const snapshots = await Promise.all(
     chunks.map((chunk) =>
-      db.collection('users').where('__name__', 'in', chunk).get().catch(() => ({ docs: [] })),
+      db
+        .collection('users')
+        .where('__name__', 'in', chunk)
+        .get()
+        .catch(() => ({ docs: [] })),
     ),
   );
 
@@ -912,7 +927,10 @@ export async function getEventAttendees(db, eventId, userId, { limit = 100 } = {
   if (!eventId || !userId) throw new Error('eventId and userId are required');
 
   const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 100));
-  const [event, viewerProfile] = await Promise.all([getEvent(db, eventId), getUserProfile(db, userId)]);
+  const [event, viewerProfile] = await Promise.all([
+    getEvent(db, eventId),
+    getUserProfile(db, userId),
+  ]);
   if (!event) throw new Error('Event not found');
 
   const hasPremiumAccess = isPremiumProfile(viewerProfile);
@@ -1000,7 +1018,9 @@ export async function archiveExpiredEventChats(
 
     const activeChats = (chatSnapshot.docs || [])
       .map((doc) => serializeDoc(doc))
-      .filter((chat) => chat && chat.isActive !== false && String(chat.status || 'active') !== 'archived');
+      .filter(
+        (chat) => chat && chat.isActive !== false && String(chat.status || 'active') !== 'archived',
+      );
 
     if (activeChats.length === 0) continue;
     archivedEventIds.push(event.id);

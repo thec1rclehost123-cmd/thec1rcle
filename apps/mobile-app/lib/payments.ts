@@ -261,6 +261,13 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
 }
 
 // ─── Razorpay Native SDK Integration ─────────────────────────────
+let razorpayCheckoutForTests: any | null = null;
+
+export function __setRazorpayCheckoutForTests(checkout: any | null): void {
+  if (__DEV__) {
+    razorpayCheckoutForTests = checkout;
+  }
+}
 
 interface RazorpayOptions {
   key?: string;
@@ -345,6 +352,8 @@ async function openNativeRazorpay(options: RazorpayOptions): Promise<RazorpayRes
  * Returns null if not installed (e.g. in Expo Go).
  */
 async function importRazorpaySDK(): Promise<any | null> {
+  if (razorpayCheckoutForTests) return razorpayCheckoutForTests;
+
   try {
     const mod = await import('react-native-razorpay');
     return mod.default || mod;

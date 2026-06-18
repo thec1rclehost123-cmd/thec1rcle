@@ -835,8 +835,16 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
         return buildSuccessResponse(result);
       } catch (error: any) {
-        request.log.error({ error, userId, eventId: request.params.id }, 'GET event attendees failed');
-        const status = error.message === 'Event not found' ? 404 : error.message?.includes('required') ? 400 : 500;
+        request.log.error(
+          { error, userId, eventId: request.params.id },
+          'GET event attendees failed',
+        );
+        const status =
+          error.message === 'Event not found'
+            ? 404
+            : error.message?.includes('required')
+              ? 400
+              : 500;
         return reply.status(status).send(
           buildErrorResponse({
             code: status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR',

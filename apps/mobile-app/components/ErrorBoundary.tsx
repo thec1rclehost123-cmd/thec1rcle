@@ -6,6 +6,7 @@
 
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { CrashScreen } from './CrashScreen';
+import { captureException } from '@/lib/sentry';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -29,14 +30,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
-
-    // Report to Sentry in production
-    // When Sentry is configured, uncomment:
-    // if (!__DEV__) {
-    //     Sentry.captureException(error, {
-    //         extra: { componentStack: errorInfo.componentStack },
-    //     });
-    // }
+    captureException(error, { componentStack: errorInfo.componentStack });
   }
 
   handleRetry = () => {

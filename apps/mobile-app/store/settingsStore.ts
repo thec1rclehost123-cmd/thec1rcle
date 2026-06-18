@@ -130,7 +130,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
             set({ settings: merged, lastSyncedAt: new Date() });
             await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
           }
-        } catch (e) {
+        } catch {
           // Ignore errors — local settings remain in effect
         }
       }

@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
 } from 'react-native';
 import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -319,11 +321,7 @@ export default function DirectMessageScreen() {
           style={styles.messages}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          onScroll={(
-            e: import('react-native').NativeSyntheticEvent<
-              import('react-native').NativeScrollEvent
-            >,
-          ) => {
+          onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
             const y = e.nativeEvent.contentOffset.y;
             if (y > 40 && !isScrolled) setIsScrolled(true);
             else if (y <= 40 && isScrolled) setIsScrolled(false);
