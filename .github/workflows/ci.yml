@@ -84,23 +84,25 @@ jobs:
     name: Tests
     needs: install
     runs-on: ubuntu-latest
-    continue-on-error: true
+    continue-on-error: ${{ matrix.allow-failure == true }}
     env:
       DEV_TOY_MODE: 'true'
       QUEUE_SECRET_KEY: ci-test-key
       TICKET_SECRET: ci-test-key
       QR_SECRET_KEY: ci-test-key
     strategy:
+      fail-fast: false
       matrix:
         include:
           - workspace: apps/guest-portal
             test-command: npm test
           - workspace: apps/partner-dashboard
-            test-command: npx vitest run --coverage --passWithNoTests
+            test-command: npx vitest run
           - workspace: apps/admin-console
-            test-command: npx vitest run --coverage --passWithNoTests
-          - workspace: apps/api-gateway
             test-command: npx vitest run --passWithNoTests
+            allow-failure: true
+          - workspace: apps/api-gateway
+            test-command: npx vitest run
           - workspace: packages/core
             test-command: npx vitest run
           - workspace: apps/mobile-app
