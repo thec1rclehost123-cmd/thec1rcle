@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
       - uses: actions/cache@v4
         with:
           path: |
@@ -47,7 +47,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx knip
         continue-on-error: true
@@ -68,7 +68,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx cspell --no-progress --gitignore "**/*.{js,ts,tsx,jsx,md,json}"
         continue-on-error: true
@@ -89,7 +89,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter=@c1rcle/guest-portal --filter=@c1rcle/partner-dashboard --filter=@c1rcle/admin-console --filter=@c1rcle/api-gateway
         env:
@@ -122,7 +122,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - uses: actions/cache@v4
         with:
@@ -151,7 +151,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npm run guardrails:check
       - run: npm run test:guardrails

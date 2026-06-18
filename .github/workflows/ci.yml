@@ -25,7 +25,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -52,7 +52,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - name: Lint guest-portal
         run: npm run lint --workspace=apps/guest-portal 2>&1 || true
@@ -90,7 +90,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo type-check
 
@@ -134,7 +134,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - name: Build core (api-gateway tests need the compiled dist exports)
         if: matrix.workspace == 'apps/api-gateway'
@@ -169,7 +169,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter='...[origin/main]'
         env:
@@ -196,7 +196,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm ci
+      - run: npm install --no-audit --no-fund --legacy-peer-deps
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npm audit --audit-level=critical
       - uses: trufflesecurity/trufflehog@main

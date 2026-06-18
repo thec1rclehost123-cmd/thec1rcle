@@ -59,6 +59,8 @@
     "tmp": ">=0.2.7"
   },
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "isexe": "^2.0.0",
+    "lodash.kebabcase": "^4.1.1"
   }
 }
