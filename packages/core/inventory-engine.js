@@ -84,12 +84,7 @@ const DEFAULT_RESERVATION_MINUTES = 10;
 
 // Shard configuration for Firestore sharded counters
 const NUM_SHARDS = 10;
-const PUBLIC_TICKET_EVENT_LIFECYCLES = new Set([
-  'active',
-  'published',
-  'scheduled',
-  'live',
-]);
+const PUBLIC_TICKET_EVENT_LIFECYCLES = new Set(['active', 'published', 'scheduled', 'live']);
 const HIDDEN_TICKET_STATUSES = new Set(['hidden', 'disabled', 'inactive', 'deleted', 'archived']);
 
 /**
@@ -134,7 +129,7 @@ function getTicketTiers(event = {}) {
 }
 
 function isPublicTicketEvent(event = {}) {
-  if (!event || event.isPrivate || event.isDeleted) return false;
+  if (event.isPrivate || event.isDeleted) return false;
   const visibility = String(
     event.visibility || event.settings?.visibility || 'public',
   ).toLowerCase();

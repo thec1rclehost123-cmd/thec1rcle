@@ -171,8 +171,19 @@ const CATEGORIES = [
 ] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function getLowestPrice(event: Event): number {
-  return event.minPrice ?? 0;
+function getLowestPrice(event: Event): number | null {
+  const tiers = [
+    ...((event as any).tickets || []),
+    ...((event as any).ticketTiers || []),
+    ...((event as any).tiers || []),
+  ];
+  const availablePrices = tiers
+    .filter((tier: any) => Number(tier?.remaining ?? tier?.available ?? 1) > 0)
+    .map((tier: any) => Number(tier?.price ?? tier?.amount ?? 0))
+    .filter((price: number) => Number.isFinite(price));
+  if (availablePrices.length > 0) return Math.min(...availablePrices);
+  if (event.minPrice !== undefined && event.minPrice !== null) return Number(event.minPrice);
+  return null;
 }
 
 function getGreeting(): string {

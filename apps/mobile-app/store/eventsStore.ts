@@ -1,28 +1,6 @@
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, collection, getDocs, getDoc, doc } from 'firebase/firestore';
-import { DEMO_EVENTS, DEMO_MODE } from '@/lib/demo';
-
-// Lazy Firestore singleton — reuses the same app instance as auth
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
-
-// Serialise Firestore doc to plain JSON (converts Timestamps to ISO strings)
-function serialiseDoc(docSnap: any): any {
-  const data = docSnap.data();
-  const out: any = { id: docSnap.id };
-  for (const key of Object.keys(data)) {
-    const val = data[key];
-    // Firestore Timestamp → ISO string
-    if (val && typeof val === 'object' && typeof val.toDate === 'function') {
-      out[key] = val.toDate().toISOString();
-    } else {
-      out[key] = val;
-    }
-  }
-  return out;
-}
+import { apiFetch } from '@/lib/api';
+import { DEMO_EVENTS, PUBLIC_DEMO_MODE } from '@/lib/demo';
 
 // Event type matching Firestore schema
 export interface Event {
@@ -58,10 +36,23 @@ export interface Event {
   };
   poster?: string; // Standard DB field
   image?: string; // Standard DB field
+  images?: string[];
+  venueId?: string;
+  venueName?: string;
+  address?: string;
+  slug?: string;
+  statusKey?: string;
+  ticketTiers?: TicketTier[];
+  tiers?: TicketTier[];
+  interestedData?: {
+    count?: number;
+    users?: any[];
+  };
 }
 
 export interface TicketTier {
   id: string;
+  tierId?: string;
   name: string;
   price: number;
   quantity: number;
@@ -79,30 +70,6 @@ export interface SearchFilters {
   dateTo?: Date;
   priceMin?: number;
   priceMax?: number;
-}
-
-// Mirrors guest portal PUBLIC_LIFECYCLE_STATES from @c1rcle/core
-const PUBLIC_LIFECYCLES = new Set(['scheduled', 'live']);
-
-function isPublicEvent(e: Event): boolean {
-  // Strictly mirror guest portal filterAndSortEvents from @c1rcle/core/event-engine:
-  // 1. lifecycle must be in PUBLIC_LIFECYCLE_STATES — no fallback for missing field
-  if (!e.lifecycle || !PUBLIC_LIFECYCLES.has(e.lifecycle)) return false;
-
-  // 2. Reject deleted events
-  if ((e as any).isDeleted === true) return false;
-
-  // 3. Exclude past events — normalize date-only strings (YYYY-MM-DD) to end-of-day
-  //    so today's events aren't filtered out (mirrors guest portal behaviour)
-  const nowIso = new Date().toISOString();
-  const end = e.endDate || e.startDate;
-  const endNormalized = end && end.length === 10 ? end + 'T23:59:59.999Z' : end;
-  if (!endNormalized || endNormalized < nowIso) return false;
-
-  // 4. Basic title sanity check
-  if ((e.title ?? '').length < 2) return false;
-
-  return true;
 }
 
 // Robust heat score extractor (mirrors Guest Portal logic)
@@ -137,6 +104,150 @@ interface EventsState {
   loadMoreByCategory: (category: string, city?: string) => Promise<void>;
 }
 
+type EventListResponse = {
+  items?: any[];
+  events?: any[];
+  data?: {
+    items?: any[];
+    events?: any[];
+  };
+  nextCursor?: string | null;
+  lastId?: string | null;
+  hasMore?: boolean;
+};
+
+function toIsoString(value: any): string {
+  try {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value.toDate === 'function') return value.toDate().toISOString();
+    if (value.seconds != null) return new Date(value.seconds * 1000).toISOString();
+  } catch {
+    // ignore malformed date fields
+  }
+  return '';
+}
+
+function normalizeTicketTier(raw: any): TicketTier {
+  const id = String(raw?.id || raw?.tierId || raw?.ticketId || raw?.name || 'ticket-tier');
+  const quantity = Number(raw?.quantity ?? raw?.capacity ?? raw?.total ?? 0);
+  const remaining = Number(raw?.remaining ?? raw?.available ?? raw?.availableQuantity ?? quantity);
+  const price =
+    raw?.price ??
+    raw?.amount ??
+    (raw?.pricePaise !== undefined ? Number(raw.pricePaise) / 100 : undefined) ??
+    (raw?.amountPaise !== undefined ? Number(raw.amountPaise) / 100 : undefined) ??
+    0;
+
+  return {
+    ...raw,
+    id,
+    tierId: raw?.tierId || id,
+    name: String(raw?.name || raw?.tierName || raw?.label || 'General Entry'),
+    price: Number(price),
+    quantity,
+    remaining: Number.isFinite(remaining) ? remaining : 0,
+    soldPercent: Number(raw?.soldPercent ?? 0),
+    description: raw?.description,
+    entryType: raw?.entryType,
+  };
+}
+
+function extractTicketTiers(source: any): TicketTier[] {
+  const raw =
+    source?.tickets ||
+    source?.ticketTiers ||
+    source?.tiers ||
+    source?.data?.tiers ||
+    source?.data?.tickets ||
+    [];
+
+  return Array.isArray(raw) ? raw.map(normalizeTicketTier) : [];
+}
+
+function calculateMinPrice(source: any, tickets: TicketTier[]): number | undefined {
+  const explicit = source?.minPrice ?? source?.lowestPrice ?? source?.priceFrom;
+  if (explicit !== undefined && explicit !== null && Number.isFinite(Number(explicit))) {
+    return Number(explicit);
+  }
+
+  const availablePrices = tickets
+    .filter((tier) => tier.remaining > 0)
+    .map((tier) => Number(tier.price))
+    .filter((price) => Number.isFinite(price));
+  if (availablePrices.length > 0) return Math.min(...availablePrices);
+
+  const allPrices = tickets
+    .map((tier) => Number(tier.price))
+    .filter((price) => Number.isFinite(price));
+  if (allPrices.length > 0) return Math.min(...allPrices);
+
+  return undefined;
+}
+
+function normalizeEvent(raw: any): Event {
+  const tickets = extractTicketTiers(raw);
+  const startDate =
+    toIsoString(raw?.startDate) ||
+    toIsoString(raw?.startAt) ||
+    toIsoString(raw?.startsAt) ||
+    toIsoString(raw?.date);
+  const endDate = toIsoString(raw?.endDate) || toIsoString(raw?.endAt) || toIsoString(raw?.endsAt);
+  const coverImage =
+    raw?.coverImage ||
+    raw?.coverPhoto ||
+    raw?.posterUrl ||
+    raw?.poster ||
+    raw?.image ||
+    raw?.images?.[0] ||
+    '';
+
+  return {
+    ...raw,
+    id: String(raw?.id || raw?.eventId || raw?.slug || ''),
+    title: String(raw?.title || raw?.name || 'Untitled event'),
+    description: raw?.description,
+    startDate,
+    endDate,
+    venue: raw?.venue || raw?.venueName || raw?.venueData?.name || raw?.locationName,
+    location: raw?.location || raw?.address || raw?.area || raw?.venueData?.area,
+    city: raw?.city || raw?.cityName || raw?.cityKey,
+    hostId: raw?.hostId || raw?.hostData?.id,
+    hostName: raw?.hostName || raw?.hostData?.name || raw?.host,
+    coverImage,
+    category: raw?.category || raw?.eventType || raw?.curatedCategory,
+    type: raw?.type || raw?.eventType || raw?.category,
+    poster: raw?.poster || raw?.posterUrl || coverImage,
+    image: raw?.image || coverImage,
+    tickets,
+    ticketTiers: tickets,
+    tiers: tickets,
+    minPrice: calculateMinPrice(raw, tickets),
+  };
+}
+
+function extractEvents(response: EventListResponse | any): Event[] {
+  const rawItems =
+    response?.items || response?.events || response?.data?.items || response?.data?.events || [];
+  return Array.isArray(rawItems) ? rawItems.map(normalizeEvent).filter((event) => event.id) : [];
+}
+
+function buildQuery(params: Record<string, string | number | undefined>): string {
+  const query = Object.entries(params)
+    .filter(([, value]) => value !== undefined && value !== '')
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+  return query ? `?${query}` : '';
+}
+
+async function fetchEventTickets(eventId: string): Promise<TicketTier[]> {
+  const response = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(eventId)}/tickets`, {
+    requireAuth: false,
+  });
+  return extractTicketTiers(response);
+}
+
 export const useEventsStore = create<EventsState>((set, get) => ({
   events: [],
   featuredEvents: [],
@@ -158,20 +269,19 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
     try {
       let events: Event[] = [];
-      if (DEMO_MODE) {
+      if (PUBLIC_DEMO_MODE) {
         // Simulate network delay
         await new Promise((resolve) => setTimeout(resolve, 800));
-        events = DEMO_EVENTS as any;
+        events = (DEMO_EVENTS as any).map(normalizeEvent);
       } else {
-        const db = getDb();
-        // Plain collection scan — no query(), no where, no orderBy, no limit.
-        // This is the simplest possible Firestore read and requires zero indexes.
-        // isPublicEvent filters to scheduled/live + removes garbage client-side.
-        const snapshot = await getDocs(collection(db, 'events'));
-        events = snapshot.docs.map(serialiseDoc).filter(isPublicEvent);
+        const response = await apiFetch<EventListResponse>(
+          `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest' })}`,
+          { requireAuth: false },
+        );
+        events = extractEvents(response);
       }
 
-      if (city) {
+      if (PUBLIC_DEMO_MODE && city) {
         events = events.filter((e) => (e.city ?? '').toLowerCase() === city.toLowerCase());
       }
 
@@ -195,13 +305,14 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       let all = existing;
 
       if (all.length === 0) {
-        if (DEMO_MODE) {
+        if (PUBLIC_DEMO_MODE) {
           await new Promise((resolve) => setTimeout(resolve, 500));
-          all = DEMO_EVENTS as any;
+          all = (DEMO_EVENTS as any).map(normalizeEvent);
         } else {
-          all = (await getDocs(collection(getDb(), 'events'))).docs
-            .map(serialiseDoc)
-            .filter(isPublicEvent);
+          const response = await apiFetch<EventListResponse>('/api/v1/events/featured?limit=6', {
+            requireAuth: false,
+          });
+          all = extractEvents(response);
         }
       }
 
@@ -225,13 +336,16 @@ export const useEventsStore = create<EventsState>((set, get) => ({
 
     try {
       let events: Event[] = [];
-      const limitVal = options?.limit || 50;
+      const limitVal = Math.min(options?.limit || 24, 24);
 
-      if (DEMO_MODE) {
-        events = (DEMO_EVENTS as any).slice(0, limitVal);
+      if (PUBLIC_DEMO_MODE) {
+        events = (DEMO_EVENTS as any).slice(0, limitVal).map(normalizeEvent);
       } else {
-        const snapshot = await getDocs(collection(getDb(), 'events'));
-        events = snapshot.docs.map(serialiseDoc).filter(isPublicEvent).slice(0, limitVal);
+        const response = await apiFetch<EventListResponse>(
+          `/api/v1/events${buildQuery({ limit: limitVal, sort: 'soonest' })}`,
+          { requireAuth: false },
+        );
+        events = extractEvents(response);
       }
       set({ events, loading: false });
     } catch (error: any) {
@@ -249,12 +363,21 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       let base = get().events;
 
       if (base.length === 0) {
-        if (DEMO_MODE) {
-          base = DEMO_EVENTS as any;
+        if (PUBLIC_DEMO_MODE) {
+          base = (DEMO_EVENTS as any).map(normalizeEvent);
         } else {
-          base = (await getDocs(collection(getDb(), 'events'))).docs
-            .map(serialiseDoc)
-            .filter(isPublicEvent);
+          const response = await apiFetch<EventListResponse>(
+            `/api/v1/events${buildQuery({
+              city: filters.city && filters.city !== 'All Cities' ? filters.city : undefined,
+              category:
+                filters.category && filters.category !== 'all' ? filters.category : undefined,
+              search: filters.query,
+              limit: 24,
+              sort: 'soonest',
+            })}`,
+            { requireAuth: false },
+          );
+          base = extractEvents(response);
         }
       }
 
@@ -266,8 +389,10 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         );
       }
       if (filters.category && filters.category !== 'all') {
+        const category = filters.category.toLowerCase();
         results = results.filter(
-          (e: Event) => e.category === filters.category || e.type === filters.category,
+          (e: Event) =>
+            e.category?.toLowerCase() === category || e.type?.toLowerCase() === category,
         );
       }
       if (filters.dateFrom) {
@@ -310,15 +435,24 @@ export const useEventsStore = create<EventsState>((set, get) => ({
   getEventById: async (id: string): Promise<Event | null> => {
     if (!id || typeof id !== 'string') return null;
     try {
-      if (DEMO_MODE) {
+      if (PUBLIC_DEMO_MODE) {
         await new Promise((resolve) => setTimeout(resolve, 300));
         const event = (DEMO_EVENTS as any).find((e: any) => e.id === id);
-        return event || null;
+        return event ? normalizeEvent(event) : null;
       }
-      const db = getDb();
-      const docSnap = await getDoc(doc(db, 'events', id));
-      if (!docSnap.exists()) return null;
-      return serialiseDoc(docSnap) as Event;
+      const detail = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(id)}`, {
+        requireAuth: false,
+      });
+      const event = normalizeEvent(detail?.event || detail?.data?.event || detail);
+      const tickets = event.tickets?.length ? event.tickets : await fetchEventTickets(event.id);
+      return {
+        ...event,
+        tickets,
+        ticketTiers: tickets,
+        tiers: tickets,
+        minPrice: calculateMinPrice(event, tickets),
+        interestedData: detail?.interestedData || detail?.data?.interestedData,
+      };
     } catch (error: any) {
       console.error('Error fetching event by id:', error);
       return null;
@@ -339,17 +473,23 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       let base = get().events;
 
       if (base.length === 0) {
-        if (DEMO_MODE) {
-          base = DEMO_EVENTS as any;
+        if (PUBLIC_DEMO_MODE) {
+          base = (DEMO_EVENTS as any).map(normalizeEvent);
         } else {
-          base = (await getDocs(collection(getDb(), 'events'))).docs
-            .map(serialiseDoc)
-            .filter(isPublicEvent);
+          const response = await apiFetch<EventListResponse>(
+            `/api/v1/events${buildQuery({ category, city, limit: 24, sort: 'soonest' })}`,
+            { requireAuth: false },
+          );
+          base = extractEvents(response);
         }
       }
 
-      let events = base.filter((e: Event) => e.category === category || e.type === category);
-      if (city)
+      const categoryKey = category.toLowerCase();
+      let events = base.filter(
+        (e: Event) =>
+          e.category?.toLowerCase() === categoryKey || e.type?.toLowerCase() === categoryKey,
+      );
+      if (PUBLIC_DEMO_MODE && city)
         events = events.filter((e: Event) => (e.city ?? '').toLowerCase() === city.toLowerCase());
 
       set((s) => ({

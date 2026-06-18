@@ -205,7 +205,12 @@ export default function ProfileScreen() {
       (a, b) => (safeDate(a.eventDate)?.getTime() ?? 0) - (safeDate(b.eventDate)?.getTime() ?? 0),
     )[0];
 
-  const displayName = 'Aayush Divase';
+  const displayName =
+    profile?.displayName?.trim() ||
+    user?.displayName?.trim() ||
+    user?.phoneNumber ||
+    user?.email?.split('@')[0] ||
+    'Your profile';
   const attendedCount = pastOrders.length;
   const displayPhoto = profile?.photoURL || user?.photoURL || '';
   const isDefaultMockPhoto = !displayPhoto || displayPhoto.includes('img=68');

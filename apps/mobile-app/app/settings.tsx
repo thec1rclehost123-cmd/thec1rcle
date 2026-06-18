@@ -17,7 +17,6 @@ import {
   CircleUser,
   ExternalLink,
   Eye,
-  Lock,
   Mail,
   ShieldCheck,
   Trash2,
@@ -153,7 +152,8 @@ function SettingsRow({
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Aayush';
+  const displayName =
+    user?.displayName || user?.phoneNumber || user?.email?.split('@')[0] || 'Your account';
 
   useEffect(() => {
     trackScreen('Settings');

@@ -12,7 +12,8 @@ import {
 
 export default function AccountSettingsScreen() {
   const { user } = useAuth();
-  const email = user?.email || 'outfitrank@gmail.com';
+  const email = user?.email || 'No email';
+  const phoneNumber = user?.phoneNumber || 'No phone number';
 
   return (
     <DittoSettingsScreen title="Account Settings">
@@ -26,7 +27,7 @@ export default function AccountSettingsScreen() {
         <Divider />
         <SettingsRow
           title="Phone Number"
-          value="+1 602-349-2605"
+          value={phoneNumber}
           onPress={() =>
             Alert.alert('Phone Number', 'Phone number editing will be available soon.')
           }

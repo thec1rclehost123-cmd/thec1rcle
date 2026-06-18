@@ -1,16 +1,15 @@
 /**
  * DemoDataProvider
  *
- * When DEMO_MODE is true (see lib/demo/index.ts), this component hydrates all
- * Zustand stores with realistic dummy data on first mount — bypassing Firestore
- * entirely. Use this to showcase every screen without needing a live backend.
- *
- * Toggle: set DEMO_MODE = true/false in lib/demo/index.ts
+ * Public showcase mode keeps Explore/Event Detail populated for manual QA.
+ * Full DEMO_MODE remains explicit and is the only mode that injects personal
+ * profile, ticket, notification, match, or chat data.
  */
 
-import { useEffect } from 'react';
+import { type ReactNode, useEffect } from 'react';
 import {
   DEMO_MODE,
+  PUBLIC_DEMO_MODE,
   DEMO_EVENTS,
   DEMO_VENUES,
   DEMO_ORDERS,
@@ -35,9 +34,9 @@ import { useFollowStore } from '@/store/followStore';
 // No-op async that returns immediately — replaces Firestore fetches in demo mode
 const noop = async () => {};
 
-export function DemoDataProvider({ children }: { children: React.ReactNode }) {
+export function DemoDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
-    if (!DEMO_MODE) return;
+    if (!PUBLIC_DEMO_MODE && !DEMO_MODE) return;
     let cancelled = false;
 
     // ── Events ──────────────────────────────────────────────────────────
@@ -68,6 +67,12 @@ export function DemoDataProvider({ children }: { children: React.ReactNode }) {
       error: null,
       fetchVenues: noop as any,
     });
+
+    if (!DEMO_MODE) {
+      return () => {
+        cancelled = true;
+      };
+    }
 
     // ── Tickets / Orders ─────────────────────────────────────────────────
     useTicketsStore.setState({

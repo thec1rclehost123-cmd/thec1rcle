@@ -71,6 +71,7 @@ interface TicketsState {
 
   fetchUserOrders: (userId: string) => Promise<void>;
   getOrderById: (orderId: string) => Promise<Order | null>;
+  clearOrders: () => void;
 }
 
 function toIso(value: any): string | null {
@@ -173,8 +174,8 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
 
       set({ orders: all, loading: false });
     } catch (error: any) {
-      console.error('Error fetching orders:', error);
-      set({ error: error.message, loading: false });
+      console.warn('Unable to fetch wallet orders; showing an empty ticket wallet.', error);
+      set({ orders: [], error: null, loading: false });
     }
   },
 
@@ -186,8 +187,12 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
       await get().fetchUserOrders('');
       return get().orders.find((order) => order.id === orderId) || null;
     } catch (error: any) {
-      console.error('Error fetching order by ID:', error);
+      console.warn('Unable to fetch order by ID:', error);
       return null;
     }
+  },
+
+  clearOrders: () => {
+    set({ orders: [], loading: false, error: null });
   },
 }));

@@ -4,6 +4,12 @@ type DeleteStats = {
   userLikesDeleted: number;
   userPassesDeleted: number;
   userFollowsDeleted: number;
+  userEventInterestsDeleted: number;
+  eventInterestMirrorsDeleted: number;
+  eventGroupChatMembershipsDeleted: number;
+  notificationsDeleted: number;
+  ticketsDeleted: number;
+  ordersDeleted: number;
   venueFollowerMirrorsDeleted: number;
   storageObjectsDeleted: number;
 };
@@ -118,6 +124,22 @@ async function deleteVenueFollowerMirrors(db: any, uid: string): Promise<number>
   return deleteQuerySnapshot(db, mirrors);
 }
 
+async function deleteUserEventInterests(db: any, uid: string): Promise<number> {
+  const userInterestsRef = db.collection('userEventInterests').doc(uid);
+  const eventsDeleted = await deleteCollection(db, userInterestsRef.collection('events'));
+  await userInterestsRef.delete().catch(() => {});
+  return eventsDeleted;
+}
+
+async function deleteCollectionGroupByUserId(
+  db: any,
+  collectionId: string,
+  uid: string,
+): Promise<number> {
+  if (typeof db.collectionGroup !== 'function') return 0;
+  return deleteQuerySnapshot(db, db.collectionGroup(collectionId).where('userId', '==', uid));
+}
+
 export async function deleteUserAccountCascade(input: {
   db: any;
   auth: any;
@@ -133,15 +155,37 @@ export async function deleteUserAccountCascade(input: {
   const userDoc = await userRef.get();
   const userData = userDoc.exists ? userDoc.data() || {} : {};
 
-  const [userLikesFrom, userLikesTo, userPassesFrom, userPassesTo, userFollows, mirrorFollows] =
-    await Promise.all([
-      deleteQuerySnapshot(db, db.collection('userLikes').where('fromUserId', '==', uid)),
-      deleteQuerySnapshot(db, db.collection('userLikes').where('toUserId', '==', uid)),
-      deleteQuerySnapshot(db, db.collection('userPasses').where('fromUserId', '==', uid)),
-      deleteQuerySnapshot(db, db.collection('userPasses').where('toUserId', '==', uid)),
-      deleteUserFollows(db, uid),
-      deleteVenueFollowerMirrors(db, uid),
-    ]);
+  const [
+    userLikesFrom,
+    userLikesTo,
+    userPassesFrom,
+    userPassesTo,
+    userFollows,
+    mirrorFollows,
+    userEventInterests,
+    eventInterestMirrors,
+    eventGroupChatMemberships,
+    notificationsByTarget,
+    notificationsByUser,
+    tickets,
+    orders,
+    rsvpOrders,
+  ] = await Promise.all([
+    deleteQuerySnapshot(db, db.collection('userLikes').where('fromUserId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('userLikes').where('toUserId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('userPasses').where('fromUserId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('userPasses').where('toUserId', '==', uid)),
+    deleteUserFollows(db, uid),
+    deleteVenueFollowerMirrors(db, uid),
+    deleteUserEventInterests(db, uid),
+    deleteCollectionGroupByUserId(db, 'interestedUsers', uid),
+    deleteCollectionGroupByUserId(db, 'members', uid),
+    deleteQuerySnapshot(db, db.collection('notifications').where('targetId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('notifications').where('userId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('tickets').where('userId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('orders').where('userId', '==', uid)),
+    deleteQuerySnapshot(db, db.collection('rsvp_orders').where('userId', '==', uid)),
+  ]);
 
   const storageObjectsDeleted = await deleteUserStorage(storage, uid, userData);
 
@@ -165,6 +209,12 @@ export async function deleteUserAccountCascade(input: {
     userLikesDeleted: userLikesFrom + userLikesTo,
     userPassesDeleted: userPassesFrom + userPassesTo,
     userFollowsDeleted: userFollows,
+    userEventInterestsDeleted: userEventInterests,
+    eventInterestMirrorsDeleted: eventInterestMirrors,
+    eventGroupChatMembershipsDeleted: eventGroupChatMemberships,
+    notificationsDeleted: notificationsByTarget + notificationsByUser,
+    ticketsDeleted: tickets,
+    ordersDeleted: orders + rsvpOrders,
     venueFollowerMirrorsDeleted: mirrorFollows,
     storageObjectsDeleted,
   };

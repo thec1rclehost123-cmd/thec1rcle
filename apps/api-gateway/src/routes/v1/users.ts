@@ -30,6 +30,14 @@ const UserSettingsBody = z
     instagram: z.string().nullable().optional(),
     spotify: z.string().nullable().optional(),
     datingActive: z.boolean().optional(),
+    settings: z
+      .object({
+        notifications: z.record(z.string(), z.boolean()).optional(),
+        privacy: z.record(z.string(), z.unknown()).optional(),
+        appearance: z.record(z.string(), z.unknown()).optional(),
+        updatedAt: z.string().optional(),
+      })
+      .optional(),
   })
   .strict();
 
@@ -71,36 +79,43 @@ export default async function userRoutes(fastify: FastifyInstance) {
     }
   });
 
-  fastify.get('/users/me', async (request: any, reply: any) => {
-    const userId = request.user?.uid;
-    if (!userId) {
-      return reply.status(401).send(
-        buildErrorResponse({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-          requestId: request.id,
-        }),
-      );
-    }
+  fastify.get(
+    '/users/me',
+    {
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-    try {
-      const { getPrivateProfile } = await import('@c1rcle/core/user-service');
-      const profile = await getPrivateProfile(fastify.db, userId);
-      return buildSuccessResponse({ profile });
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'GET /users/me failed',
-      );
-      return reply.status(error.message.includes('not found') ? 404 : 500).send(
-        buildErrorResponse({
-          code: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
-          message: error.message,
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const { getPrivateProfile } = await import('@c1rcle/core/user-service');
+        const profile = await getPrivateProfile(fastify.db, userId);
+        return buildSuccessResponse({ profile });
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /users/me failed',
+        );
+        return reply.status(error.message.includes('not found') ? 404 : 500).send(
+          buildErrorResponse({
+            code: error.message.includes('not found') ? 'NOT_FOUND' : 'INTERNAL_ERROR',
+            message: error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.put(
     '/users/me',

@@ -13,7 +13,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Eye, EyeOff, Mail } from 'lucide-react-native';
+import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/hooks/useAuth';
@@ -64,9 +64,6 @@ export default function LoginScreen() {
   // Animated values for staggered layout slide & fade-in
   const fadeLogo = useRef(new Animated.Value(1)).current;
   const slideLogo = useRef(new Animated.Value(0)).current;
-
-  const fadeIntro = useRef(new Animated.Value(1)).current;
-  const slideIntro = useRef(new Animated.Value(0)).current;
 
   const fadeApple = useRef(new Animated.Value(1)).current;
   const slideApple = useRef(new Animated.Value(0)).current;
@@ -149,17 +146,17 @@ export default function LoginScreen() {
     if (!email.trim() || !password) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     const result = await login(email.trim(), password);
-    if (result.success) router.replace('/(tabs)/explore');
+    if (result.success) router.replace('/');
   };
 
   const handleApple = async () => {
     const result = await loginApple();
-    if (result.success) router.replace('/(tabs)/explore');
+    if (result.success) router.replace('/');
   };
 
   const handleGoogle = async () => {
     const result = await loginGoogle();
-    if (result.success) router.replace('/(tabs)/explore');
+    if (result.success) router.replace('/');
   };
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !loading;
@@ -224,6 +221,21 @@ export default function LoginScreen() {
                       <GoogleSvg size={18} />
                     </View>
                     <Text style={s.googleBtnText}>Continue with Google</Text>
+                  </Pressable>
+                </Animated.View>
+
+                <Animated.View
+                  style={{ opacity: fadeEmail, transform: [{ translateY: slideEmail }] }}
+                >
+                  <Pressable
+                    style={s.emailBtn}
+                    onPress={() => router.push('/(auth)/phone' as any)}
+                    disabled={loading}
+                  >
+                    <View style={s.btnIcon}>
+                      <Phone size={16} color="#ffffff" />
+                    </View>
+                    <Text style={s.emailBtnText}>Continue with Phone</Text>
                   </Pressable>
                 </Animated.View>
 

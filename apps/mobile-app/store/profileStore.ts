@@ -9,7 +9,7 @@ import { create } from 'zustand';
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { getFirebaseAuth } from '@/lib/firebase';
 import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { apiFetch } from '@/lib/api';
 
 function getDb() {
@@ -129,7 +129,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
 
       set({ profile, loading: false });
     } catch (error: any) {
-      console.error('Error loading profile:', error);
+      console.warn('Unable to load Firestore profile; using auth-derived profile.', error);
       // Fallback to auth-derived profile so the app stays usable
       set({ profile: normalizeProfile(userId), error: error.message, loading: false });
     }
@@ -148,20 +148,32 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ profile: nextProfile, error: null });
 
     try {
-      const response = await apiFetch<{
+      await setDoc(
+        doc(getDb(), 'users', userId),
+        omitUndefined({ uid: userId, ...updates, updatedAt: serverTimestamp() }),
+        { merge: true },
+      );
+
+      apiFetch<{
         profile?: Partial<UserProfile>;
         data?: { profile?: Partial<UserProfile> };
       }>('/api/v1/users/me/settings', {
         method: 'PATCH',
         body: JSON.stringify(omitUndefined(updates)),
-      });
-      const savedProfile = response.profile || response.data?.profile;
-      if (savedProfile) {
-        set({ profile: normalizeProfile(userId, savedProfile) });
-      }
+      })
+        .then((response) => {
+          const savedProfile = response.profile || response.data?.profile;
+          if (savedProfile) {
+            set({ profile: normalizeProfile(userId, savedProfile) });
+          }
+        })
+        .catch((error) => {
+          console.warn('Profile API sync failed after Firestore save:', error);
+        });
+
       return true;
     } catch (error: any) {
-      console.error('Error updating profile:', error);
+      console.warn('Error updating profile:', error);
       set({ error: error.message });
       if (profile) set({ profile }); // revert
       return false;

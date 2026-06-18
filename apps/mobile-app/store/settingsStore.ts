@@ -5,12 +5,7 @@
 
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, setDoc } from 'firebase/firestore';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { apiFetch } from '@/lib/api';
 
 // Settings interface
 export interface UserSettings {
@@ -115,8 +110,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       // Then, sync from backend if user is logged in
       if (userId) {
         try {
-          const snap = await getDoc(doc(getDb(), 'users', userId));
-          const data = snap.data()?.settings as Partial<UserSettings> | undefined;
+          const response = await apiFetch<{
+            success: boolean;
+            data?: { profile?: { settings?: Partial<UserSettings> } };
+          }>('/api/v1/users/me');
+          const data = response.data?.profile?.settings;
 
           if (data) {
             const merged = {
@@ -204,7 +202,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     // Appearance settings are local-only, no backend sync needed
   },
 
-  syncToBackend: async (userId: string) => {
+  syncToBackend: async (_userId: string) => {
     const { settings, syncing } = get();
 
     if (syncing) return; // Debounce
@@ -212,11 +210,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ syncing: true });
 
     try {
-      await setDoc(
-        doc(getDb(), 'users', userId),
-        { settings: { ...settings, updatedAt: new Date().toISOString() } },
-        { merge: true },
-      );
+      await apiFetch('/api/v1/users/me/settings', {
+        method: 'PATCH',
+        body: JSON.stringify({ settings: { ...settings, updatedAt: new Date().toISOString() } }),
+      });
       set({ lastSyncedAt: new Date() });
     } catch (error) {
       console.error('Failed to sync settings to backend:', error);

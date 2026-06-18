@@ -3,6 +3,7 @@ import { User, subscribeToAuthState } from '@/lib/firebase';
 import { wsManager } from '@/lib/websocket';
 import { useProfileStore } from './profileStore';
 import { useNotificationsStore } from './notificationsStore';
+import { useTicketsStore } from './ticketsStore';
 
 interface AuthState {
   user: User | null;
@@ -35,42 +36,28 @@ export function initAuthListener() {
   const { setUser, setInitialized } = useAuthStore.getState();
 
   const unsubscribe = subscribeToAuthState((user) => {
-    // Mock User for Dev/Testing to bypass Login
-    const mockUser = {
-      uid: 'dev-test-123',
-      email: 'dev@thec1rcle.com',
-      displayName: 'Dev User',
-      emailVerified: true,
-      isAnonymous: false,
-      metadata: {},
-      providerData: [],
-      refreshToken: 'mock-token',
-      tenantId: null,
-      delete: async () => {},
-      getIdToken: async () => 'mock-token',
-      getIdTokenResult: async () => ({
-        token: 'mock',
-        claims: {},
-        authTime: '0',
-        issuedAtTime: '0',
-        expirationTime: '0',
-        signInProvider: null,
-        signInSecondFactor: null,
-      }),
-      reload: async () => {},
-      toJSON: () => ({}),
-      phoneNumber: null,
-      photoURL: null,
-      providerId: 'firebase',
-    } as unknown as User;
-
-    setUser(mockUser);
+    setUser(user);
     setInitialized(true);
 
-    // Start WS after authentication is initialized.
-    try {
-      wsManager.start();
-    } catch {}
+    if (user) {
+      useTicketsStore.getState().clearOrders();
+      void useProfileStore.getState().loadProfile(user.uid);
+      void useNotificationsStore.getState().fetchNotifications(user.uid);
+      try {
+        void user.getIdToken().then((token) => wsManager.start(token));
+      } catch {
+        console.warn('[AuthStore] Failed to start websocket after auth.');
+      }
+    } else {
+      useProfileStore.getState().clearProfile();
+      useNotificationsStore.getState().clearNotifications();
+      useTicketsStore.getState().clearOrders();
+      try {
+        wsManager.stop();
+      } catch {
+        console.warn('[AuthStore] Failed to stop websocket after sign out.');
+      }
+    }
   });
 
   return unsubscribe;

@@ -8,7 +8,7 @@ import { colors } from '@/lib/design/theme';
 
 export default function LocationPermissionScreen() {
   const handleAllow = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
+    await Location.requestForegroundPermissionsAsync();
     router.push('/notification-permission');
   };
 

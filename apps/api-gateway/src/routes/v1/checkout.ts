@@ -678,6 +678,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/verify',
     {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutVerifyBody })],
     },
     async (request: any, reply) => {
@@ -770,6 +771,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/checkout/initiate',
     {
+      config: { rateLimit: { max: 3, timeWindow: '1 minute' } },
       preHandler: [fastify.requireAuth, fastify.validate({ body: CheckoutInitiateBody })],
     },
     async (request: any, reply) => {
