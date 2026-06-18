@@ -70,11 +70,11 @@ jobs:
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npx cspell --no-progress "**/*.{js,ts,tsx,jsx,md,json}"
+      - run: npx cspell --no-progress --gitignore "**/*.{js,ts,tsx,jsx,md,json}"
         continue-on-error: true
 
-  bundle-size:
-    name: Bundle Size (size-limit)
+  build:
+    name: Build (for size-limit)
     needs: install
     runs-on: ubuntu-latest
     steps:
@@ -91,6 +91,42 @@ jobs:
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
+      - run: npx turbo build --filter=@c1rcle/guest-portal --filter=@c1rcle/partner-dashboard --filter=@c1rcle/admin-console --filter=@c1rcle/api-gateway
+      - uses: actions/cache@v4
+        with:
+          path: |
+            apps/guest-portal/.next
+            apps/partner-dashboard/.next
+            apps/admin-console/.next
+            apps/api-gateway/dist
+          key: build-cq-${{ runner.os }}-${{ github.sha }}
+
+  bundle-size:
+    name: Bundle Size (size-limit)
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: actions/cache@v4
+        id: nm-cache
+        with:
+          path: |
+            node_modules
+            apps/*/node_modules
+            packages/*/node_modules
+          key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+      - uses: actions/cache@v4
+        with:
+          path: |
+            apps/guest-portal/.next
+            apps/partner-dashboard/.next
+            apps/admin-console/.next
+            apps/api-gateway/dist
+          key: build-cq-${{ runner.os }}-${{ github.sha }}
       - run: npx size-limit
         continue-on-error: true
 

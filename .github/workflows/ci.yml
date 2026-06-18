@@ -59,7 +59,7 @@ jobs:
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo lint --filter='...[origin/main]'
       - run: |
-          git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx prettier --check
+          git diff --name-only origin/main...HEAD -- '*.js' '*.jsx' '*.ts' '*.tsx' '*.css' | xargs -r npx --no-install prettier --check
 
     # ── 3. TypeScript across all packages ────────────────────────
   typecheck:
