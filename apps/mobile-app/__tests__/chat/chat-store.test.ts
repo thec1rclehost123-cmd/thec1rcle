@@ -40,7 +40,10 @@ describe('chatStore', () => {
             id: 'event_1',
             eventId: 'evt-1',
             eventTitle: 'Test Event',
+            eventDate: new Date().toISOString(),
+            participants: ['u1', 'u2'],
             participantCount: 5,
+            createdAt: new Date().toISOString(),
             lastMessage: {
               content: 'Hey!',
               senderId: 'u1',
@@ -125,7 +128,10 @@ describe('chatStore', () => {
           id: 'event_1',
           eventId: 'evt-1',
           eventTitle: 'Test',
+          eventDate: new Date().toISOString(),
+          participants: ['u1'],
           participantCount: 3,
+          createdAt: new Date().toISOString(),
           lastMessage: {
             content: 'old',
             senderId: 'u1',

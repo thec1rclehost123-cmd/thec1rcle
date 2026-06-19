@@ -1,8 +1,9 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
 import { subscribeToGroupChat } from '@/lib/social/groupChat';
+import type { GroupMessage } from '@/lib/social';
 import { subscribeToDirectMessages } from '@/lib/social/privateDM';
-import type { EventChat, DirectChat, ChatMessage } from '@/lib/chat';
+import type { EventChat, DirectChat } from '@/lib/chat';
 
 interface NewMatch {
   id: string;
@@ -67,7 +68,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       if (chat.eventId) {
         const unsub = subscribeToGroupChat(
           chat.eventId,
-          (messages: ChatMessage[]) => {
+          (messages: GroupMessage[]) => {
             const updated = messages[messages.length - 1];
             if (updated) {
               set((state) => ({
@@ -105,11 +106,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
                   c.id === chat.id
                     ? {
                         ...c,
-                        lastMessage: {
-                          content: updated.content,
-                          senderId: updated.senderId,
-                          createdAt: updated.createdAt,
-                        },
+                        lastMessage: updated.content,
                       }
                     : c,
                 ),

@@ -337,10 +337,12 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           max: 10,
           timeWindow: '10 seconds',
           keyGenerator: (request: any) => request.user?.uid || request.ip,
-          errorResponse: {
+          errorResponseBuilder: (_req: any, _context: any) => ({
+            statusCode: 429,
             code: 'TOO_MANY_REQUESTS',
+            error: 'Too Many Requests',
             message: 'You are sending messages too fast. Please slow down.',
-          },
+          }),
         }),
       ],
     },

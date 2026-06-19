@@ -50,6 +50,7 @@
     "stylelint": "^17.13.0",
     "stylelint-config-standard": "^40.0.0",
     "turbo": "^2.7.3",
+    "unicorn-magic": "^0.4.0",
     "vitest": "4.1.9"
   },
   "overrides": {

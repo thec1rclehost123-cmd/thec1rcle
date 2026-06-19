@@ -98,9 +98,9 @@ function EventChatCard({ chat, index }: { chat: EventChat; index: number }) {
             {badge}
           </Text>
         </View>
-        {chat.unreadCount > 0 && (
+        {(chat.unreadCount ?? 0) > 0 && (
           <View style={cardStyles.unreadBadge}>
-            <Text style={cardStyles.unreadText}>{chat.unreadCount}</Text>
+            <Text style={cardStyles.unreadText}>{chat.unreadCount ?? ''}</Text>
           </View>
         )}
       </View>
@@ -114,7 +114,7 @@ function EventChatCard({ chat, index }: { chat: EventChat; index: number }) {
           <Text style={cardStyles.memberCount}>{chat.participantCount} people active</Text>
         </View>
         <View style={cardStyles.avatarStack}>
-          {chat.activeAvatars.slice(0, 3).map((img, i) => (
+          {(chat.activeAvatars ?? []).slice(0, 3).map((img, i) => (
             <Image
               key={i}
               source={typeof img === 'string' ? { uri: img } : img}
@@ -158,18 +158,18 @@ function PrivateChatRow({ chat }: { chat: DirectChat }) {
           <Text style={rowStyles.name} numberOfLines={1}>
             {chat.otherUserName}
           </Text>
-          <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime)}</Text>
+          <Text style={rowStyles.time}>{formatChatTime(chat.lastMessageTime ?? '')}</Text>
         </View>
         <View style={rowStyles.msgRow}>
           <Text
-            style={[rowStyles.lastMsg, chat.unreadCount > 0 && rowStyles.lastMsgUnread]}
+            style={[rowStyles.lastMsg, (chat.unreadCount ?? 0) > 0 && rowStyles.lastMsgUnread]}
             numberOfLines={1}
           >
             {chat.lastMessage}
           </Text>
-          {chat.unreadCount > 0 && (
+          {(chat.unreadCount ?? 0) > 0 && (
             <View style={rowStyles.badge}>
-              <Text style={rowStyles.badgeText}>{chat.unreadCount}</Text>
+              <Text style={rowStyles.badgeText}>{chat.unreadCount ?? ''}</Text>
             </View>
           )}
         </View>

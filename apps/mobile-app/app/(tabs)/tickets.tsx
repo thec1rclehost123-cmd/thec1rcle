@@ -1379,7 +1379,7 @@ export default function TicketsScreen() {
         )}
 
         {/* Loading with skeleton */}
-        {loading && displayOrders.length === 0 && <SkeletonList type="ticket" count={3} />}
+        {loading && displayOrders.length === 0 && <SkeletonList count={3} />}
 
         {/* Error - No cached data */}
         {error && !loading && displayOrders.length === 0 && !isOffline && (

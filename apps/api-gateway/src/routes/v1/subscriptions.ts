@@ -270,6 +270,14 @@ export default async function subscriptionRoutes(fastify: FastifyInstance) {
       }
 
       const userData = userDoc.data();
+      if (!userData) {
+        return buildSuccessResponse({
+          isPremium: false,
+          status: 'none',
+          planId: null,
+          expiresAt: null,
+        });
+      }
       const expiresAt = userData.subscriptionExpiresAt;
       const isExpired = expiresAt ? new Date(expiresAt) < new Date() : false;
 

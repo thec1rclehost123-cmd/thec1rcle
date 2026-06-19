@@ -397,7 +397,7 @@ export default function NotificationsScreen() {
         }
       >
         {/* Loading skeleton */}
-        {loading && notifications.length === 0 && <SkeletonList type="notification" count={5} />}
+        {loading && notifications.length === 0 && <SkeletonList count={5} />}
 
         {/* Error state */}
         {error && !loading && notifications.length === 0 && (

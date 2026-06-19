@@ -28,17 +28,21 @@ export interface EventChat {
     createdAt: any;
   };
   createdAt: any;
+  eventCover?: string;
+  unreadCount?: number;
+  activeAvatars?: string[];
 }
 
 export interface DirectChat {
   id: string;
   participants: string[];
   eventId?: string; // Optional - if they met at an event
-  lastMessage?: {
-    content: string;
-    senderId: string;
-    createdAt: any;
-  };
+  otherUserName?: string;
+  otherUserAvatar?: string;
+  isOnline?: boolean;
+  lastMessageTime?: string;
+  unreadCount?: number;
+  lastMessage?: string;
   createdAt: any;
 }
 

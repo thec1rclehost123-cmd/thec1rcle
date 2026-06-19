@@ -102,4 +102,13 @@ export function SkeletonTicketCard() {
   );
 }
 
+export const Shimmer = SkeletonBlock;
+export const EventCardSkeleton = SkeletonEventCard;
+export const HeroCardSkeleton = SkeletonEventCard;
+export const TicketCardSkeleton = SkeletonTicketCard;
+export const ChatSkeleton = SkeletonChatCard;
+export const NotificationSkeleton = SkeletonList;
+export const ProfileHeaderSkeleton = SkeletonList;
+export const SearchResultSkeleton = SkeletonList;
+
 export default SkeletonBlock;

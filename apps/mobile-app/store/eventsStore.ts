@@ -34,6 +34,7 @@ export interface Event {
     latitude: number;
     longitude: number;
   };
+  activeAvatars?: string[];
   poster?: string; // Standard DB field
   image?: string; // Standard DB field
   images?: string[];
