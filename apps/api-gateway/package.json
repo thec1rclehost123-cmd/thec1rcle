@@ -7,7 +7,7 @@
     "dev": "tsx watch --env-file=.env.development src/app.ts",
     "dev:staging": "tsx watch --env-file=.env.staging src/app.ts",
     "dev:prod": "tsx watch --env-file=.env.production src/app.ts",
-    "start": "node --env-file=.env.production dist/app.js",
+    "start": "node dist/app.js",
     "build": "npx tsc && npx fix-esm-import-path dist",
     "test": "vitest run",
     "backfill:public-discovery": "tsx --env-file=.env.development src/scripts/backfill-public-discovery.ts"
