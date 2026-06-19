@@ -3,7 +3,7 @@
  * 4 steps: Name → City → Vibe Tags → Photo
  */
 
-import { useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -11,9 +11,9 @@ import {
   TextInput,
   ScrollView,
   StyleSheet,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,20 +22,39 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
-import { DeviceEventEmitter } from 'react-native';
 import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import { apiFetch } from '@/lib/api';
+import {
+  isBasicUserProfileComplete,
+  saveBasicUserProfile,
+  uploadUserPhoto,
+} from '@/lib/firebase/userProfile';
 import { colors, radii, gradients } from '@/lib/design/theme';
 
 export const PROFILE_SETUP_KEY = 'c1rcle_profile_setup_complete';
 
-export async function hasCompletedProfileSetup(): Promise<boolean> {
-  return true;
+function getProfileSetupKey(userId: string) {
+  return `${PROFILE_SETUP_KEY}:${userId}`;
 }
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+export async function hasCompletedProfileSetup(userId?: string): Promise<boolean> {
+  if (!userId) return false;
+
+  const cacheKey = getProfileSetupKey(userId);
+
+  try {
+    const complete = await isBasicUserProfileComplete(userId);
+    if (complete) {
+      await AsyncStorage.setItem(cacheKey, 'true');
+    } else {
+      await AsyncStorage.removeItem(cacheKey);
+    }
+    return complete;
+  } catch {
+    return (await AsyncStorage.getItem(cacheKey)) === 'true';
+  }
+}
 
 const CITIES = ['Pune', 'Mumbai', 'Bengaluru', 'Goa', 'Delhi', 'Other'];
 
@@ -71,14 +90,22 @@ function ProgressDots({ step }: { step: number }) {
 
 export default function ProfileSetupScreen() {
   const { user, setProfileSetupJustCompleted } = useAuthStore();
-  const { updateProfile } = useProfileStore();
+  const { profile, updateProfile } = useProfileStore();
 
   const [step, setStep] = useState(1);
-  const [name, setName] = useState(user?.displayName ?? '');
-  const [city, setCity] = useState('');
-  const [vibeTags, setVibeTags] = useState<string[]>([]);
+  const [name, setName] = useState(profile?.displayName ?? user?.displayName ?? '');
+  const [city, setCity] = useState(profile?.city ?? '');
+  const [vibeTags, setVibeTags] = useState<string[]>(profile?.vibeTags ?? []);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [photoDimensions, setPhotoDimensions] = useState<{ width?: number; height?: number }>();
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!profile) return;
+    if (!name && profile.displayName) setName(profile.displayName);
+    if (!city && profile.city) setCity(profile.city);
+    if (vibeTags.length === 0 && profile.vibeTags?.length) setVibeTags(profile.vibeTags);
+  }, [city, name, profile, vibeTags.length]);
 
   const toggleVibe = (tag: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -111,7 +138,9 @@ export default function ProfileSetupScreen() {
       quality: 0.8,
     });
     if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
+      const asset = result.assets[0];
+      setPhotoUri(asset.uri);
+      setPhotoDimensions({ width: asset.width, height: asset.height });
     }
   };
 
@@ -123,50 +152,39 @@ export default function ProfileSetupScreen() {
 
       // 1. Upload photo if changed
       if (photoUri && photoUri !== user.photoURL) {
-        const formData = new FormData();
-        const filename = `profile_setup_${user.uid}.jpg`;
-
-        // @ts-ignore
-        formData.append('file', {
-          uri: photoUri,
-          name: filename,
-          type: 'image/jpeg',
-        });
-
-        const uploadResponse = await apiFetch<{ url: string }>('/api/v1/social/upload', {
-          method: 'POST',
-          body: formData,
-          requireAuth: true,
-        });
-        uploadedPhotoUrl = uploadResponse.url;
+        uploadedPhotoUrl = await uploadUserPhoto(user.uid, photoUri, 'profile', photoDimensions);
       }
 
-      // 2. Save profile updates
-      await updateProfile(user.uid, {
+      const profileUpdates = {
+        email: user.email ?? undefined,
         displayName: name.trim() || user.displayName || '',
+        phone: user.phoneNumber ?? undefined,
         city: city || undefined,
         vibeTags: vibeTags.length > 0 ? vibeTags : undefined,
         photoURL: uploadedPhotoUrl,
-      });
+        photos: uploadedPhotoUrl ? [uploadedPhotoUrl] : undefined,
+      };
 
-      await AsyncStorage.setItem(PROFILE_SETUP_KEY, 'true');
+      // 2. Permanently save basic info, photo URL, and vibe tags to users/{uid}
+      await saveBasicUserProfile(user.uid, profileUpdates);
+      await updateProfile(user.uid, profileUpdates);
+
+      await AsyncStorage.setItem(getProfileSetupKey(user.uid), 'true');
       setProfileSetupJustCompleted(true);
       router.replace('/(tabs)/explore');
     } catch (error) {
       console.error('[ProfileSetup] Finalize error:', error);
-      // Still navigate as fallback, or show alert
-      await AsyncStorage.setItem(PROFILE_SETUP_KEY, 'true');
-      setProfileSetupJustCompleted(true);
-      router.replace('/(tabs)/explore');
+      Alert.alert('Could not save profile', 'Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
   const handleSkip = async () => {
-    await AsyncStorage.setItem(PROFILE_SETUP_KEY, 'true');
-    setProfileSetupJustCompleted(true);
-    router.replace('/(tabs)/explore');
+    Alert.alert(
+      'Profile setup required',
+      'Finish the required profile steps once so future logins can go straight to Explore.',
+    );
   };
 
   const canProceed = step === 1 ? name.trim().length > 0 : step === 2 ? city.length > 0 : true; // vibe tags and photo are optional

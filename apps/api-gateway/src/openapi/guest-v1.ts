@@ -80,6 +80,8 @@ export const guestV1OpenApi = {
     '/checkout/calculate': { post: { operationId: 'calculateCheckout', tags: ['checkout'] } },
     '/checkout/promo': { post: { operationId: 'validateCheckoutPromo', tags: ['checkout'] } },
     '/checkout/reserve': { post: { operationId: 'reserveCheckoutInventory', tags: ['checkout'] } },
+    '/checkout/intent': { post: { operationId: 'createCheckoutIntent', tags: ['checkout'] } },
+    '/checkout/verify': { post: { operationId: 'verifyCheckoutPayment', tags: ['checkout'] } },
     '/checkout/initiate': { post: { operationId: 'initiateCheckout', tags: ['checkout'] } },
     '/payments/config': { get: { operationId: 'getPaymentConfig', tags: ['payments'] } },
     '/payments/order': { post: { operationId: 'createPaymentOrder', tags: ['payments'] } },

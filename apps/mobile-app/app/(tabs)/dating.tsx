@@ -1,36 +1,24 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
   useWindowDimensions,
 } from 'react-native';
-import type { ImageSourcePropType } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import {
-  ArrowLeft,
-  BadgeCheck,
-  Heart,
-  MapPin,
-  MessageCircle,
-  Send,
-  Sparkles,
-  X,
-} from 'lucide-react-native';
+import { ArrowLeft, BadgeCheck, Heart, MapPin, MessageCircle, Send, X } from 'lucide-react-native';
 import { colors, radii, spacing } from '@/lib/design/theme';
-import { useAuthStore } from '@/store/authStore';
 import { MOCK_PROFILES } from '@/lib/data/mockDating';
-import type { DatingProfile, Prompt, DatingPhoto } from '@/lib/data/mockDating';
+import type { DatingProfile, Prompt } from '@/lib/data/mockDating';
 
 type ReplyTarget = {
   profile: DatingProfile;
@@ -176,29 +164,16 @@ function ReplySheet({
 
 export default function DatingScreen() {
   const insets = useSafeAreaInsets();
-  const { user } = useAuthStore();
   const { height: screenHeight } = useWindowDimensions();
   const [profileIndex, setProfileIndex] = useState(0);
   const [likesSent, setLikesSent] = useState<string[]>([]);
-  const [superlikesSent, setSuperlikesSent] = useState<string[]>([]);
-  const [chatStarts, setChatStarts] = useState<Array<{ profileId: string; text: string }>>([]);
+  const [, setChatStarts] = useState<Array<{ profileId: string; text: string }>>([]);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
-  const [toast, setToast] = useState('Ready for tonight');
+  const [, setToast] = useState('Ready for tonight');
 
   const profile = MOCK_PROFILES[profileIndex % MOCK_PROFILES.length];
   const alreadyLiked = likesSent.includes(profile.id);
-  const alreadySuperliked = superlikesSent.includes(profile.id);
-
-  const initials = useMemo(() => {
-    if (!user?.displayName) return 'C';
-    return user.displayName
-      .split(' ')
-      .map((name) => name[0])
-      .join('')
-      .slice(0, 2)
-      .toUpperCase();
-  }, [user?.displayName]);
 
   const advanceProfile = (message: string) => {
     setToast(message);
@@ -217,17 +192,6 @@ export default function DatingScreen() {
       [{ profileId: profile.id, text: `Liked ${profile.name}` }, ...current].slice(0, 4),
     );
     advanceProfile(`Like sent to ${profile.name}`);
-  };
-
-  const handleSuperlike = () => {
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setSuperlikesSent((current) =>
-      current.includes(profile.id) ? current : [...current, profile.id],
-    );
-    setChatStarts((current) =>
-      [{ profileId: profile.id, text: `Superliked ${profile.name}` }, ...current].slice(0, 4),
-    );
-    advanceProfile(`Superlike sent to ${profile.name}`);
   };
 
   const handleOpenReply = (prompt: Prompt) => {

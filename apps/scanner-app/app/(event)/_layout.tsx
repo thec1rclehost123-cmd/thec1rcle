@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs, Redirect } from 'expo-router';
 import { View, Text } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+
 import { useEvent } from '@/store/eventContext';
 
 export default function EventLayout() {

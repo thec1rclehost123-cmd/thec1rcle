@@ -30,6 +30,30 @@ const FOR_YOU_CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
+function getDisplayPrice(event: Event): string {
+  const tiers = [
+    ...((event as any).tickets || []),
+    ...((event as any).ticketTiers || []),
+    ...((event as any).tiers || []),
+  ];
+  const availablePrices = tiers
+    .filter((tier: any) => Number(tier?.remaining ?? tier?.available ?? 1) > 0)
+    .map((tier: any) => Number(tier?.price ?? tier?.amount ?? 0))
+    .filter((price: number) => Number.isFinite(price));
+  const allPrices = tiers
+    .map((tier: any) => Number(tier?.price ?? tier?.amount ?? 0))
+    .filter((price: number) => Number.isFinite(price));
+  const lowest =
+    availablePrices.length > 0
+      ? Math.min(...availablePrices)
+      : allPrices.length > 0
+        ? Math.min(...allPrices)
+        : event.minPrice;
+
+  if (lowest === undefined || lowest === null) return 'Tickets';
+  return Number(lowest) <= 0 ? 'Free' : `₹${Math.round(Number(lowest)).toLocaleString('en-IN')}`;
+}
+
 export const MOCK_VENUES = [
   {
     id: '1',
@@ -479,7 +503,7 @@ export function PremiumEventCard({
     event.coverImage ||
     event.images?.[0] ||
     'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=600';
-  const price = event.minPrice ? `₹${event.minPrice}` : 'Free';
+  const price = getDisplayPrice(event);
   const posterTransitionTag = `poster-${event.id}-${variant}-${index}`;
 
   let cardStyle: any = {

@@ -1,3 +1,5 @@
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useState } from 'react';
 import {
   View,
@@ -9,11 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import * as Haptics from 'expo-haptics';
-import { useEvent, EventTier } from '@/store/eventContext';
-import { createDoorEntry } from '@/lib/api/doorEntry';
+
 import DoorEntrySuccess from '@/components/DoorEntry/DoorEntrySuccess';
+import { createDoorEntry } from '@/lib/api/doorEntry';
+import { useEvent, EventTier } from '@/store/eventContext';
 
 type PaymentMethod = 'cash' | 'upi' | 'card';
 

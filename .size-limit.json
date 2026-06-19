@@ -1,26 +1,25 @@
 [
   {
     "name": "guest-portal (critical JS)",
-    "path": "apps/guest-portal/.next/static/chunks/pages/**/*.js",
+    "path": "apps/guest-portal/.next/static/chunks/app/**/*.js",
     "limit": "300 KB",
     "running": false
   },
   {
     "name": "partner-dashboard (critical JS)",
-    "path": "apps/partner-dashboard/.next/static/chunks/pages/**/*.js",
+    "path": "apps/partner-dashboard/.next/static/chunks/app/**/*.js",
     "limit": "350 KB",
     "running": false
   },
   {
     "name": "admin-console (critical JS)",
-    "path": "apps/admin-console/.next/static/chunks/pages/**/*.js",
+    "path": "apps/admin-console/.next/static/chunks/app/**/*.js",
     "limit": "350 KB",
     "running": false
   },
   {
-    "name": "api-gateway (Docker image)",
+    "name": "api-gateway (compiled JS)",
     "path": "apps/api-gateway/dist/**/*.js",
     "limit": "10 MB",
     "running": false
-  }
 ]

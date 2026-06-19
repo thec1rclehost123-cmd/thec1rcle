@@ -1,11 +1,448 @@
-import { inngest, Events } from '../inngest-client.js';
+import { createHmac } from 'node:crypto';
+import { validatePaymentVerification } from 'razorpay/dist/utils/razorpay-utils.js';
+import { inngest, Events, sendEvent } from '../inngest-client.js';
 import { getAdminDb } from '../admin.js';
 import { issueEntitlements } from '../entitlement-engine.js';
 import { ensureEventChatMembership } from '../guest-chat-service.js';
+import { releaseReservation } from '../inventory-engine.js';
+import { getQrSecret } from '../secret-registry.js';
 import { FieldValue } from 'firebase-admin/firestore';
 // NOTE: generateEntitlementQR is intentionally NOT imported here.
 // The rotating QR is generated live by the mobile app at display time.
 // Pre-generating it server-side produces a snapshot that expires in 30s.
+
+const PAYMENT_PENDING_STATUSES = new Set(['payment_pending', 'pending_payment']);
+
+function codedError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function isMockRazorpayPayload(orderId, paymentId, signature) {
+  return (
+    String(orderId || '').startsWith('order_mock_') ||
+    String(paymentId || '').startsWith('pay_mock_') ||
+    String(signature || '').startsWith('sig_mock_')
+  );
+}
+
+export function verifyRazorpayCheckoutSignature({
+  razorpayOrderId,
+  razorpayPaymentId,
+  razorpaySignature,
+  keySecret,
+  allowMockPayment = false,
+}) {
+  const isMockPayload = isMockRazorpayPayload(
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+  );
+
+  if (isMockPayload) {
+    if (!allowMockPayment) throw codedError('Mock payments are disabled', 'BAD_REQUEST');
+    return true;
+  }
+
+  if (!keySecret) {
+    throw codedError('Payment verification is not configured', 'PAYMENT_NOT_CONFIGURED');
+  }
+
+  const verified = validatePaymentVerification(
+    {
+      order_id: razorpayOrderId,
+      payment_id: razorpayPaymentId,
+    },
+    razorpaySignature,
+    keySecret,
+  );
+
+  if (!verified) throw codedError('Invalid signature', 'INVALID_SIGNATURE');
+  return true;
+}
+
+function base64Url(input) {
+  return Buffer.from(input)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+export function signTicketJwt(payload, secret = getQrSecret()) {
+  const header = {
+    alg: 'HS256',
+    typ: 'JWT',
+    kid: 'ticket-v1',
+  };
+  const encodedHeader = base64Url(JSON.stringify(header));
+  const encodedPayload = base64Url(JSON.stringify(payload));
+  const signature = createHmac('sha256', secret)
+    .update(`${encodedHeader}.${encodedPayload}`)
+    .digest('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+  return `${encodedHeader}.${encodedPayload}.${signature}`;
+}
+
+function safeDocSegment(value) {
+  return String(value || 'GEN')
+    .replace(/[^a-zA-Z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 80);
+}
+
+function getTicketJwtExpiry(order, event) {
+  const eventEnd =
+    event?.endDate ||
+    event?.endAt ||
+    event?.endsAt ||
+    event?.startDate ||
+    event?.startAt ||
+    order?.eventStartAt ||
+    null;
+  const fallbackSeconds = Math.floor(Date.now() / 1000) + 90 * 24 * 60 * 60;
+  if (!eventEnd) return fallbackSeconds;
+
+  const eventEndSeconds = Math.floor(new Date(eventEnd).getTime() / 1000);
+  if (!Number.isFinite(eventEndSeconds)) return fallbackSeconds;
+  return eventEndSeconds + 12 * 60 * 60;
+}
+
+function normalizeOrderTickets(order) {
+  return Array.isArray(order?.tickets) ? order.tickets : [];
+}
+
+function buildTicketDocuments(order, event, issuedAt) {
+  const nowSeconds = Math.floor(new Date(issuedAt).getTime() / 1000);
+  const exp = getTicketJwtExpiry(order, event);
+  const ticketDocs = [];
+
+  for (const group of normalizeOrderTickets(order)) {
+    const tierId = group.ticketId || group.tierId || group.id || 'GEN';
+    const safeTierId = safeDocSegment(tierId);
+    const quantity = Math.max(1, Number(group.quantity || 1));
+
+    for (let index = 1; index <= quantity; index += 1) {
+      const ticketId = `${order.id}-${tierId}-${index}`;
+      const ticketDocId = `TKT-${safeDocSegment(order.id)}-${safeTierId}-${index}`.toUpperCase();
+      const jwtPayload = {
+        iss: 'the-c1rcle',
+        aud: 'c1rcle-scanner',
+        typ: 'ticket',
+        ver: 1,
+        sub: ticketId,
+        jti: ticketDocId,
+        orderId: order.id,
+        eventId: order.eventId,
+        userId: order.userId,
+        tierId,
+        ticketName: group.name || group.tierName || tierId,
+        slotIndex: index,
+        iat: nowSeconds,
+        nbf: nowSeconds,
+        exp,
+      };
+
+      const qrPayload = signTicketJwt(jwtPayload);
+      ticketDocs.push({
+        id: ticketDocId,
+        ticketId,
+        orderId: order.id,
+        eventId: order.eventId,
+        userId: order.userId,
+        tierId,
+        tierName: group.name || group.tierName || tierId,
+        slotIndex: index,
+        quantity: 1,
+        originalQuantity: quantity,
+        entryType: group.entryType || 'general',
+        status: 'active',
+        qrMode: 'jwt',
+        qrPayload,
+        qrJwt: qrPayload,
+        jwtPayload,
+        scanCountAllowed: group.entryType === 'couple' ? 2 : 1,
+        scanCountUsed: 0,
+        createdAt: issuedAt,
+        updatedAt: issuedAt,
+      });
+    }
+  }
+
+  return ticketDocs;
+}
+
+function buildOrderQrCodes(order, ticketDocs) {
+  return normalizeOrderTickets(order).map((group) => {
+    const tierId = group.ticketId || group.tierId || group.id || 'GEN';
+    const docs = ticketDocs.filter((ticket) => ticket.tierId === tierId);
+    return {
+      ticketId: tierId,
+      ticketName: group.name || group.tierName || tierId,
+      quantity: Number(group.quantity || docs.length || 1),
+      entryType: group.entryType || 'general',
+      isRSVP: false,
+      qrMode: 'jwt',
+      ticketDocumentIds: docs.map((ticket) => ticket.id),
+      qrPayloads: docs.map((ticket) => ticket.qrPayload),
+      qrPayload: docs.length === 1 ? docs[0].qrPayload : null,
+      qrData: docs.length === 1 ? docs[0].qrPayload : null,
+      shortCode: null,
+    };
+  });
+}
+
+async function findPaymentRecordByRazorpayOrderId(db, transaction, razorpayOrderId) {
+  const snapshot = await transaction.get(
+    db.collection('payments').where('razorpayOrderId', '==', razorpayOrderId).limit(2),
+  );
+
+  if (snapshot.empty) {
+    throw codedError('Payment order not found', 'NOT_FOUND');
+  }
+
+  if (snapshot.docs.length > 1) {
+    throw codedError('Payment order is ambiguous', 'CONFLICT');
+  }
+
+  const doc = snapshot.docs[0];
+  return {
+    ref: doc.ref,
+    data: doc.data(),
+  };
+}
+
+async function getPaidOrderForPayment(db, transaction, payment) {
+  const orderId = payment?.orderId;
+  if (!orderId) throw codedError('Payment record is missing order id', 'CONFLICT');
+
+  const orderRef = db.collection('orders').doc(orderId);
+  const orderDoc = await transaction.get(orderRef);
+  if (orderDoc.exists) {
+    return {
+      ref: orderRef,
+      collection: 'orders',
+      data: { id: orderDoc.id, ...orderDoc.data(), isRSVP: false },
+    };
+  }
+
+  throw codedError('Order not found', 'NOT_FOUND');
+}
+
+async function getEventSnapshot(db, eventId) {
+  if (!eventId) return null;
+  const doc = await db.collection('events').doc(eventId).get();
+  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+}
+
+function buildFulfillmentTickets(order) {
+  return normalizeOrderTickets(order).map((ticket) => ({
+    tierId: ticket.ticketId || ticket.tierId,
+    ticketId: ticket.ticketId || ticket.tierId,
+    tierName: ticket.name || ticket.tierName,
+    name: ticket.name || ticket.tierName,
+    quantity: Number(ticket.quantity || 1),
+    entryType: ticket.entryType || 'general',
+    genderRequirement: ticket.genderRequirement,
+  }));
+}
+
+export async function verifyCheckoutPayment({
+  db = getAdminDb(),
+  userId,
+  razorpay_order_id,
+  razorpay_payment_id,
+  razorpay_signature,
+  paymentGatewayConfig = {},
+}) {
+  const razorpayOrderId = razorpay_order_id;
+  const razorpayPaymentId = razorpay_payment_id;
+  const razorpaySignature = razorpay_signature;
+
+  if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
+
+  verifyRazorpayCheckoutSignature({
+    razorpayOrderId,
+    razorpayPaymentId,
+    razorpaySignature,
+    keySecret: paymentGatewayConfig.keySecret || process.env.RAZORPAY_KEY_SECRET,
+    allowMockPayment: !!paymentGatewayConfig.allowMockPayment,
+  });
+
+  const issuedAt = new Date().toISOString();
+  let transactionResult;
+
+  await db.runTransaction(async (transaction) => {
+    const paymentLookup = await findPaymentRecordByRazorpayOrderId(
+      db,
+      transaction,
+      razorpayOrderId,
+    );
+    const payment = paymentLookup.data;
+
+    if (payment.userId && payment.userId !== userId) {
+      throw codedError('Forbidden', 'FORBIDDEN');
+    }
+
+    if (
+      payment.status === 'verified' &&
+      payment.razorpayPaymentId &&
+      payment.razorpayPaymentId !== razorpayPaymentId
+    ) {
+      throw codedError('Payment order already verified with a different payment id', 'CONFLICT');
+    }
+
+    const orderLookup = await getPaidOrderForPayment(db, transaction, payment);
+    const order = orderLookup.data;
+
+    if (order.userId && order.userId !== userId) {
+      throw codedError('Forbidden', 'FORBIDDEN');
+    }
+
+    if (
+      order.status !== 'confirmed' &&
+      !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))
+    ) {
+      throw codedError(`Order is ${order.status}`, 'CONFLICT');
+    }
+
+    const event = await getEventSnapshot(db, order.eventId);
+    const ticketDocs = buildTicketDocuments(order, event, issuedAt);
+    const ticketRefs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
+    const ticketSnapshots = await Promise.all(ticketRefs.map((ref) => transaction.get(ref)));
+    const missingTicketCount = ticketSnapshots.filter((doc) => !doc.exists).length;
+    const existingTicketDocs = ticketSnapshots
+      .filter((doc) => doc.exists)
+      .map((doc) => ({ id: doc.id, ...doc.data() }));
+
+    ticketSnapshots.forEach((doc, index) => {
+      if (!doc.exists) {
+        transaction.set(ticketRefs[index], ticketDocs[index], { merge: false });
+      }
+    });
+
+    const allTickets = ticketDocs.map((ticket) => {
+      const existing = existingTicketDocs.find((candidate) => candidate.id === ticket.id);
+      return existing || ticket;
+    });
+    const qrCodes = buildOrderQrCodes(order, allTickets);
+    const alreadyVerified = payment.status === 'verified' || order.status === 'confirmed';
+
+    if (!alreadyVerified || missingTicketCount > 0) {
+      transaction.update(orderLookup.ref, {
+        status: 'confirmed',
+        paymentId: razorpayPaymentId,
+        paymentOrderId: razorpayOrderId,
+        paymentSignature: razorpaySignature,
+        ticketIds: allTickets.map((ticket) => ticket.id),
+        qrCodes,
+        ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
+        confirmedAt: order.confirmedAt || issuedAt,
+        updatedAt: issuedAt,
+      });
+    }
+
+    if (payment.status !== 'verified') {
+      transaction.update(paymentLookup.ref, {
+        status: 'verified',
+        razorpayPaymentId,
+        verifiedAt: issuedAt,
+      });
+    }
+
+    transactionResult = {
+      alreadyVerified,
+      order: {
+        ...order,
+        status: 'confirmed',
+        paymentId: razorpayPaymentId,
+        paymentOrderId: razorpayOrderId,
+        ticketIds: allTickets.map((ticket) => ticket.id),
+        qrCodes,
+        confirmedAt: order.confirmedAt || issuedAt,
+        updatedAt: issuedAt,
+      },
+      tickets: allTickets,
+      reservationId: order.reservationId || null,
+    };
+  });
+
+  const order = transactionResult.order;
+  let chat = null;
+  let chatUnlocked = false;
+  let redisReleased = false;
+
+  if (!transactionResult.alreadyVerified) {
+    try {
+      const chatResult = await ensureEventChatMembership(db, {
+        eventId: order.eventId,
+        userId: order.userId,
+        userEmail: order.userEmail || null,
+        source: 'ticket',
+        orderId: order.id,
+      });
+      chat = {
+        id: chatResult.chat.id,
+        memberId: chatResult.member.id,
+      };
+      chatUnlocked = true;
+    } catch (error) {
+      console.warn('[ticketing] Failed to unlock event chat after payment verify:', error.message);
+    }
+  }
+
+  if (!transactionResult.alreadyVerified && transactionResult.reservationId) {
+    try {
+      const release = await releaseReservation(transactionResult.reservationId);
+      redisReleased = !!release?.success;
+    } catch (error) {
+      console.warn('[ticketing] Failed to release paid cart reservation:', error.message);
+    }
+  }
+
+  if (!transactionResult.alreadyVerified) {
+    sendEvent(
+      Events.TICKET_PURCHASED,
+      {
+        orderId: order.id,
+        userId: order.userId,
+        userEmail: order.userEmail,
+        eventId: order.eventId,
+        tickets: buildFulfillmentTickets(order),
+        totalAmount: order.totalAmount,
+        ticketsCount: transactionResult.tickets.length,
+        promoterCode: order.promoterCode || null,
+      },
+      { idempotencyKey: `ticket-purchased-${order.id}` },
+    ).catch((error) =>
+      console.error('[ticketing] Failed to dispatch ticket purchased event:', error),
+    );
+  }
+
+  return {
+    success: true,
+    alreadyVerified: transactionResult.alreadyVerified,
+    order: transactionResult.order,
+    tickets: transactionResult.tickets.map((ticket) => ({
+      id: ticket.id,
+      ticketId: ticket.ticketId,
+      eventId: ticket.eventId,
+      tierId: ticket.tierId,
+      status: ticket.status,
+      qrMode: ticket.qrMode,
+    })),
+    ticketsCount: transactionResult.tickets.length,
+    razorpayOrderId,
+    razorpayPaymentId,
+    chatUnlocked,
+    chat,
+    redisReleased,
+  };
+}
 
 /**
  * Dead-letter handler: called after a ticketing workflow exhausts all retries.

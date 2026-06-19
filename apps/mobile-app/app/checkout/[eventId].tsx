@@ -381,26 +381,7 @@ export default function TicketSelectionScreen() {
     };
   }, [eventId, event, getEventById]);
 
-  const tiers = event?.tickets?.length
-    ? event.tickets
-    : [
-        {
-          id: 'general-entry',
-          name: 'General Entry',
-          price: event?.minPrice ?? 999,
-          quantity: 250,
-          remaining: 96,
-          description: 'Standard entry with mobile QR ticket and event updates.',
-        },
-        {
-          id: 'priority-entry',
-          name: 'Priority Entry',
-          price: Math.max((event?.minPrice ?? 999) + 700, 1499),
-          quantity: 80,
-          remaining: 24,
-          description: 'Faster entry window and preferred check-in support.',
-        },
-      ];
+  const tiers = event?.tickets?.length ? event.tickets : [];
 
   const selectedItems = useMemo(() => {
     return tiers
@@ -545,27 +526,37 @@ export default function TicketSelectionScreen() {
 
           <TicketCharacterStage selectedItems={selectedItems} />
 
-          {tiers.map((tier, index) => (
-            <TicketTierRow
-              key={tier.id}
-              tier={tier}
-              index={index}
-              quantity={quantities[tier.id] || 0}
-              expanded={!!expandedTiers[tier.id]}
-              onToggleDetails={() => {
-                setExpandedTiers((current) => ({
-                  ...current,
-                  [tier.id]: !current[tier.id],
-                }));
-              }}
-              onChange={(nextQuantity) => {
-                setQuantities((current) => ({
-                  ...current,
-                  [tier.id]: nextQuantity,
-                }));
-              }}
-            />
-          ))}
+          {tiers.length > 0 ? (
+            tiers.map((tier, index) => (
+              <TicketTierRow
+                key={tier.id}
+                tier={tier}
+                index={index}
+                quantity={quantities[tier.id] || 0}
+                expanded={!!expandedTiers[tier.id]}
+                onToggleDetails={() => {
+                  setExpandedTiers((current) => ({
+                    ...current,
+                    [tier.id]: !current[tier.id],
+                  }));
+                }}
+                onChange={(nextQuantity) => {
+                  setQuantities((current) => ({
+                    ...current,
+                    [tier.id]: nextQuantity,
+                  }));
+                }}
+              />
+            ))
+          ) : (
+            <View style={styles.emptyTicketState}>
+              <Ionicons name="ticket-outline" size={24} color={colors.goldStone} />
+              <Text style={styles.emptyTicketTitle}>Tickets are not available yet</Text>
+              <Text style={styles.emptyTicketCopy}>
+                This event has no live ticket tiers from the organizer.
+              </Text>
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -634,6 +625,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
     marginBottom: 22,
+  },
+  emptyTicketState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 18,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    marginTop: 12,
+  },
+  emptyTicketTitle: {
+    color: colors.gold,
+    fontFamily: ticketFont.bold,
+    fontSize: 16,
+    marginTop: 10,
+  },
+  emptyTicketCopy: {
+    color: colors.goldStone,
+    fontFamily: ticketFont.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 6,
   },
   secondaryButton: {
     borderRadius: 999,

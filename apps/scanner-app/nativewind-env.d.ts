@@ -30,7 +30,8 @@ declare module 'react-native' {
   interface TextInputProps {
     placeholderClassName?: string;
   }
-  interface FlatListProps<ItemT> {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  interface FlatListProps<ItemT = any> {
     columnWrapperClassName?: string;
   }
 }

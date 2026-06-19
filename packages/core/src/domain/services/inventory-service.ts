@@ -18,6 +18,8 @@ export class InventoryService {
     items: any[];
     workspaceId?: string | null;
     queueId?: string | null;
+    reservationMinutes?: number;
+    strictMode?: boolean;
   }): Promise<any> {
     const { eventId, userId, deviceId, items, workspaceId, queueId } = params;
 
@@ -28,7 +30,10 @@ export class InventoryService {
       throw new Error(this.buildUnavailableMessage((event as any).lifecycle));
     }
 
-    const result = await createReservation(event, userId, deviceId, items);
+    const result = await createReservation(event, userId, deviceId, items, {
+      reservationMinutes: params.reservationMinutes,
+      strictMode: params.strictMode,
+    });
     const resolvedWorkspaceId = workspaceId || (event as any).workspaceId || null;
 
     if (result.success) {

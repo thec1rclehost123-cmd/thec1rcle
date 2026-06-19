@@ -1,10 +1,5 @@
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { apiFetch } from '@/lib/api';
 
 // Order/Ticket type matching Firestore schema
 export interface Order {
@@ -64,6 +59,8 @@ export interface QRCode {
   ticketIndex: number;
   qrCode: string;
   qrUrl?: string;
+  qrExpiresAt?: string;
+  qrMode?: 'jwt' | 'static' | string;
   isUsed?: boolean;
 }
 
@@ -74,6 +71,7 @@ interface TicketsState {
 
   fetchUserOrders: (userId: string) => Promise<void>;
   getOrderById: (orderId: string) => Promise<Order | null>;
+  clearOrders: () => void;
 }
 
 function toIso(value: any): string | null {
@@ -138,8 +136,15 @@ function mapOrder(docId: string, data: any): Order {
     qrCodes: (data.qrCodes || []).map((qr: any, index: number) => ({
       ticketId: qr.ticketId || qr.tierId || `${docId}-${index}`,
       ticketIndex: Number(qr.ticketIndex ?? index),
-      qrCode: qr.qrCode || qr.qrData || JSON.stringify({ orderId: docId, index }),
+      qrCode:
+        qr.qrCode ||
+        qr.qrData ||
+        qr.qrPayload ||
+        qr.qrJwt ||
+        JSON.stringify({ orderId: docId, index }),
       qrUrl: qr.qrUrl || undefined,
+      qrExpiresAt: qr.qrExpiresAt || undefined,
+      qrMode: qr.qrMode || undefined,
       isUsed: !!qr.isUsed,
     })),
     isClaimed: !!data.isClaimed,
@@ -154,59 +159,23 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
   loading: false,
   error: null,
 
-  fetchUserOrders: async (userId: string) => {
+  fetchUserOrders: async (_userId: string) => {
     if (get().loading) return;
     set({ loading: true, error: null });
 
     try {
-      const db = getDb();
-
-      // Query orders collection directly — no gateway needed
-      const ordersSnap = await getDocs(
-        query(collection(db, 'orders'), where('userId', '==', userId)),
-      );
-      const all: Order[] = ordersSnap.docs
-        .map((d) => mapOrder(d.id, d.data()))
-        .filter((o) => ['confirmed', 'checked_in'].includes(o.status));
-
-      // Best-effort metadata enrichment from Firestore events collection
-      const missingEventIds = Array.from(
-        new Set(
-          all
-            .filter((o) => o.eventId && (!o.eventTitle || !o.eventDate || !o.eventCoverImage))
-            .map((o) => o.eventId),
-        ),
-      );
-
-      if (missingEventIds.length) {
-        const eventSnaps = await Promise.all(
-          missingEventIds.map((id) => getDoc(doc(db, 'events', id)).catch(() => null)),
-        );
-        const eventMap = new Map<string, any>();
-        eventSnaps.forEach((snap) => {
-          if (snap?.exists()) eventMap.set(snap.id, { id: snap.id, ...snap.data() });
-        });
-
-        for (const o of all) {
-          const ev = eventMap.get(o.eventId);
-          if (!ev) continue;
-          if (!o.eventTitle) o.eventTitle = ev.title || ev.eventTitle || o.eventTitle;
-          if (!o.eventDate) o.eventDate = toIso(ev.startDate) || toIso(ev.date) || o.eventDate;
-          if (!o.eventStartDate)
-            o.eventStartDate = toIso(ev.startDate) || toIso(ev.date) || o.eventStartDate;
-          if (!o.eventTime) o.eventTime = ev.time || o.eventTime;
-          if (!o.eventCoverImage)
-            o.eventCoverImage = ev.image || ev.poster || ev.coverImage || o.eventCoverImage;
-          if (!o.venueLocation) o.venueLocation = ev.venue || ev.location || o.venueLocation;
-          if (!o.hostName) o.hostName = ev.hostName || ev.host?.name || ev.host || o.hostName;
-          if (!o.accentColor) o.accentColor = ev.accentColor || o.accentColor;
-        }
-      }
+      const response = await apiFetch<{
+        success: boolean;
+        data?: { orders?: any[] };
+        orders?: any[];
+      }>('/api/v1/tickets/my-wallet');
+      const walletOrders = response.data?.orders || response.orders || [];
+      const all = walletOrders.map((order: any) => mapOrder(order.id, order));
 
       set({ orders: all, loading: false });
     } catch (error: any) {
-      console.error('Error fetching orders:', error);
-      set({ error: error.message, loading: false });
+      console.warn('Unable to fetch wallet orders; showing an empty ticket wallet.', error);
+      set({ orders: [], error: null, loading: false });
     }
   },
 
@@ -215,12 +184,15 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
       const cached = get().orders.find((order) => order.id === orderId);
       if (cached) return cached;
 
-      const snap = await getDoc(doc(getDb(), 'orders', orderId));
-      if (snap.exists()) return mapOrder(snap.id, snap.data());
-      return null;
+      await get().fetchUserOrders('');
+      return get().orders.find((order) => order.id === orderId) || null;
     } catch (error: any) {
-      console.error('Error fetching order by ID:', error);
+      console.warn('Unable to fetch order by ID:', error);
       return null;
     }
+  },
+
+  clearOrders: () => {
+    set({ orders: [], loading: false, error: null });
   },
 }));

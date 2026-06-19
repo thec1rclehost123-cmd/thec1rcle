@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { View, Pressable, StyleSheet, ViewStyle, PressableProps } from 'react-native';
+import { View, Pressable, StyleSheet, PressableProps } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
@@ -21,7 +21,7 @@ interface CardProps {
   children: ReactNode;
   variant?: CardVariant;
   onPress?: PressableProps['onPress'];
-  style?: ViewStyle;
+  style?: any;
   animated?: boolean;
   animationDelay?: number;
   animationType?: 'fade' | 'fadeDown' | 'slideRight';

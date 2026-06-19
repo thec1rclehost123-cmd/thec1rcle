@@ -235,9 +235,7 @@ function distanceKm(originLat, originLng, targetLat, targetLng) {
   const dLng = toRadians(targetLng - originLng);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(originLat)) *
-      Math.cos(toRadians(targetLat)) *
-      Math.sin(dLng / 2) ** 2;
+    Math.cos(toRadians(originLat)) * Math.cos(toRadians(targetLat)) * Math.sin(dLng / 2) ** 2;
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -300,7 +298,9 @@ export async function listEventMapPins(
       return {
         ...mapPinFromEvent(event, coordinates),
         distance,
-        startsAt: new Date(event.startAt || event.startDate || event.startDateTime || nowTime).getTime(),
+        startsAt: new Date(
+          event.startAt || event.startDate || event.startDateTime || nowTime,
+        ).getTime(),
       };
     })
     .filter(Boolean)

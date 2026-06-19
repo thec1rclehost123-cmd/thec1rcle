@@ -419,7 +419,7 @@ export function FloatingOrb({
           shadowRadius: 40,
         },
         animatedStyle,
-        style,
+        style as any,
       ]}
     >
       <BlurView intensity={60} style={StyleSheet.absoluteFill} />

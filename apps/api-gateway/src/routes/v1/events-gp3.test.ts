@@ -12,6 +12,10 @@ import {
   trackGuestEventInteraction,
   trackGuestEventView,
 } from '@c1rcle/core/guest-event-conversion';
+import {
+  InventoryUnavailableError,
+  listAvailableTicketTiers,
+} from '@c1rcle/core/inventory-engine';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventQueueStatus: vi.fn(async () => ({
@@ -44,6 +48,61 @@ vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   trackGuestEventInteraction: vi.fn(async () => ({ ok: true })),
   trackGuestEventView: vi.fn(async () => ({ ok: true })),
 }));
+
+vi.mock('@c1rcle/core/inventory-engine', () => {
+  class InventoryReadError extends Error {
+    constructor(message = 'Inventory read failed') {
+      super(message);
+      this.name = 'InventoryReadError';
+    }
+  }
+
+  class InventoryUnavailableError extends Error {
+    constructor(message = 'Inventory unavailable') {
+      super(message);
+      this.name = 'InventoryUnavailableError';
+    }
+  }
+
+  return {
+    InventoryReadError,
+    InventoryUnavailableError,
+    listAvailableTicketTiers: vi.fn(async (db, eventId) => ({
+      eventId,
+      currency: 'INR',
+      tiers: [
+        {
+          id: 'ga',
+          tierId: 'ga',
+          name: 'General Admission',
+          price: 1500,
+          formattedPrice: 'INR 1,500',
+          remaining: 42,
+          availableQuantity: 42,
+          isAvailable: true,
+          isSoldOut: false,
+          saleStatus: 'active',
+        },
+        {
+          id: 'vip',
+          tierId: 'vip',
+          name: 'VIP',
+          price: 5000,
+          formattedPrice: 'INR 5,000',
+          remaining: 8,
+          availableQuantity: 8,
+          isAvailable: true,
+          isSoldOut: false,
+          saleStatus: 'active',
+        },
+      ],
+      availableCount: 2,
+      hasAvailableTickets: true,
+      soldOut: false,
+      generatedAt: '2026-06-17T00:00:00.000Z',
+    })),
+  };
+});
 
 async function buildServer({ authenticated = false } = {}) {
   const server = Fastify({ logger: false });
@@ -279,6 +338,66 @@ describe('event routes GP-3 conversion contracts', () => {
     expect(response.statusCode).toBe(404);
     expect(response.json().error.code).toBe('NOT_FOUND');
     expect((server as any).eventService.getEventByIdOrSlug).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/:id/tickets returns live public ticket tiers from core inventory', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1/tickets',
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['cache-control']).toBe('no-store');
+    expect(response.json()).toMatchObject({
+      success: true,
+      data: {
+        eventId: 'event_1',
+        currency: 'INR',
+        tiers: [
+          { tierId: 'ga', name: 'General Admission', price: 1500, remaining: 42 },
+          { tierId: 'vip', name: 'VIP', price: 5000, remaining: 8 },
+        ],
+        hasAvailableTickets: true,
+      },
+    });
+    expect(listAvailableTicketTiers).toHaveBeenCalledWith((server as any).db, 'event_1');
+    expect((server as any).publicDiscoveryService.getEventDetail).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('GET /events/:id/tickets returns 404 when the core inventory read hides the event', async () => {
+    const server = await buildServer();
+    vi.mocked(listAvailableTicketTiers).mockResolvedValueOnce(null);
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/private_event/tickets',
+    });
+
+    expect(response.statusCode).toBe(404);
+    expect(response.json().error.code).toBe('NOT_FOUND');
+
+    await server.close();
+  });
+
+  it('GET /events/:id/tickets returns 503 when live inventory is unavailable', async () => {
+    const server = await buildServer();
+    vi.mocked(listAvailableTicketTiers).mockRejectedValueOnce(
+      new InventoryUnavailableError('Redis unavailable'),
+    );
+
+    const response = await server.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1/tickets',
+    });
+
+    expect(response.statusCode).toBe(503);
+    expect(response.json().error.code).toBe('INVENTORY_UNAVAILABLE');
 
     await server.close();
   });

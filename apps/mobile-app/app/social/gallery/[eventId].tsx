@@ -27,7 +27,7 @@ import {
   checkEventEntitlement,
 } from '@/lib/social';
 import * as Haptics from 'expo-haptics';
-import Animated, { FadeIn, FadeInDown, ZoomIn, SlideInUp } from 'react-native-reanimated';
+import Animated, { ZoomIn, FadeIn } from 'react-native-reanimated';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_COUNT = 3;
@@ -174,7 +174,15 @@ function UploadProgress({ progress }: { progress: MediaUploadProgress | null }) 
 
   return (
     <View className="absolute inset-0 bg-black/80 items-center justify-center z-50">
-      <Animated.View entering={ZoomIn} className="bg-surface rounded-bubble p-8 items-center">
+      <Animated.View
+        entering={ZoomIn}
+        style={{
+          backgroundColor: 'rgba(255,255,255,0.03)',
+          borderRadius: 32,
+          padding: 32,
+          alignItems: 'center',
+        }}
+      >
         {progress.status === 'error' ? (
           <>
             <Text className="text-4xl mb-4">❌</Text>

@@ -1,13 +1,19 @@
 /**
- * Demo data for all stores.
- * Toggle DEMO_MODE = true to inject this data everywhere in the app.
- * Useful for UI demos and screenshots.
+ * Demo data for public showcase surfaces and optional full-account demos.
+ * Public showcase mode keeps Explore/Event Detail populated for QA.
+ * Full demo mode is explicit only, because it injects fake personal data.
  */
 
 import { DEMO_POSTERS } from './posters';
 
 const explicitDemoMode = process.env.EXPO_PUBLIC_DEMO_MODE;
-export const DEMO_MODE = explicitDemoMode ? explicitDemoMode === 'true' : __DEV__;
+const explicitPublicDemoMode =
+  process.env.EXPO_PUBLIC_PUBLIC_DEMO_MODE ?? process.env.EXPO_PUBLIC_SHOWCASE_EVENTS;
+
+export const DEMO_MODE = explicitDemoMode === 'true';
+export const PUBLIC_DEMO_MODE = explicitPublicDemoMode
+  ? explicitPublicDemoMode === 'true'
+  : __DEV__ || DEMO_MODE;
 
 // ── Events ────────────────────────────────────────────────────────────────────
 

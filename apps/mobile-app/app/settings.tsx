@@ -4,7 +4,8 @@
  */
 
 import { useEffect } from 'react';
-import { View, Text, ScrollView, Pressable, StyleSheet, Linking } from 'react-native';
+import { Alert, View, Text, ScrollView, Pressable, StyleSheet, Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,9 +17,9 @@ import {
   CircleUser,
   ExternalLink,
   Eye,
-  Lock,
   Mail,
   ShieldCheck,
+  Trash2,
   Wallet,
   X,
 } from 'lucide-react-native';
@@ -26,6 +27,9 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { colors, typography } from '@/lib/design/theme';
 import { trackScreen } from '@/lib/analytics';
+import { apiFetch } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 
 type IconTone =
   | 'account'
@@ -148,7 +152,8 @@ function SettingsRow({
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
-  const displayName = user?.displayName || user?.email?.split('@')[0] || 'Aayush';
+  const displayName =
+    user?.displayName || user?.phoneNumber || user?.email?.split('@')[0] || 'Your account';
 
   useEffect(() => {
     trackScreen('Settings');
@@ -162,6 +167,33 @@ export default function SettingsScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     await signOut();
     router.replace('/(auth)/login');
+  };
+
+  const handleDeleteAccount = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert(
+      'Delete My Account',
+      'This permanently deletes your profile, photos, likes, passes, and account access. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiFetch('/api/v1/users/me', { method: 'DELETE' });
+              await AsyncStorage.clear();
+              useProfileStore.getState().clearProfile();
+              useAuthStore.getState().setUser(null);
+              await signOut().catch(() => undefined);
+              router.replace('/(auth)/login');
+            } catch (error: any) {
+              Alert.alert('Could not delete account', error?.message || 'Please try again.');
+            }
+          },
+        },
+      ],
+    );
   };
 
   return (
@@ -334,8 +366,19 @@ export default function SettingsScreen() {
           />
         </Group>
 
-        <SectionLabel title="Logout" delay={400} />
+        <SectionLabel title="Danger Zone" delay={400} />
         <Group delay={420}>
+          <SettingsRow
+            icon={
+              <SettingIcon tone="danger">
+                <Trash2 size={16} color="#F44A22" strokeWidth={2.3} />
+              </SettingIcon>
+            }
+            title="Delete My Account"
+            onPress={handleDeleteAccount}
+            danger
+          />
+          <Divider />
           <SettingsRow title="Logout" onPress={handleLogout} danger />
         </Group>
       </ScrollView>

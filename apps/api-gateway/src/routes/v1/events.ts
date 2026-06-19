@@ -21,6 +21,12 @@ import { getEventAttendees } from '@c1rcle/core/guest-chat-service';
 import { buildEvent } from '@c1rcle/core/event-engine';
 // @ts-ignore - JS module with runtime exports
 import { listEventMapPins, normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
+// @ts-ignore - JS module with runtime exports
+import {
+  InventoryReadError,
+  InventoryUnavailableError,
+  listAvailableTicketTiers,
+} from '@c1rcle/core/inventory-engine';
 
 const ExploreEventListQuery = z
   .object({
@@ -835,12 +841,72 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         });
         return buildSuccessResponse(result);
       } catch (error: any) {
-        request.log.error({ error, userId, eventId: request.params.id }, 'GET event attendees failed');
-        const status = error.message === 'Event not found' ? 404 : error.message?.includes('required') ? 400 : 500;
+        request.log.error(
+          { error, userId, eventId: request.params.id },
+          'GET event attendees failed',
+        );
+        const status =
+          error.message === 'Event not found'
+            ? 404
+            : error.message?.includes('required')
+              ? 400
+              : 500;
         return reply.status(status).send(
           buildErrorResponse({
             code: status === 404 ? 'NOT_FOUND' : status === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
             message: status === 500 ? 'Unable to load attendees' : error.message,
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/events/:id/tickets',
+    {
+      preHandler: [fastify.validate({ params: EventParamId })],
+    },
+    async (request: any, reply) => {
+      try {
+        await enforcePublicRateLimit(fastify, request, 'events:tickets', 240, 60);
+        reply.header('Cache-Control', 'no-store');
+
+        const result = await listAvailableTicketTiers(fastify.db, request.params.id);
+        if (!result) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Event not found',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        if (error.message === 'RATE_LIMITED') {
+          return reply.status(429).send(
+            buildErrorResponse({
+              code: 'RATE_LIMITED',
+              message: 'Too many requests',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        const isInventoryUnavailable =
+          error instanceof InventoryReadError || error instanceof InventoryUnavailableError;
+        request.log.error(
+          { error, eventId: request.params.id },
+          'Failed to load event ticket tiers',
+        );
+        return reply.status(isInventoryUnavailable ? 503 : 500).send(
+          buildErrorResponse({
+            code: isInventoryUnavailable ? 'INVENTORY_UNAVAILABLE' : 'INTERNAL_ERROR',
+            message: isInventoryUnavailable
+              ? 'Ticket inventory is temporarily unavailable'
+              : 'Unable to load ticket tiers',
             requestId: request.id,
           }),
         );

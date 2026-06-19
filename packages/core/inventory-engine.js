@@ -7,6 +7,7 @@
 import { randomUUID } from 'node:crypto';
 import { getRedisClient } from './redis.js';
 import { getAdminDb } from './admin.js';
+import { getEffectivePrice } from './pricing-engine.js';
 
 // ---------------------------------------------------------------------------
 // Typed error classes — callers must catch these and return HTTP 503
@@ -83,6 +84,8 @@ const DEFAULT_RESERVATION_MINUTES = 10;
 
 // Shard configuration for Firestore sharded counters
 const NUM_SHARDS = 10;
+const PUBLIC_TICKET_EVENT_LIFECYCLES = new Set(['active', 'published', 'scheduled', 'live']);
+const HIDDEN_TICKET_STATUSES = new Set(['hidden', 'disabled', 'inactive', 'deleted', 'archived']);
 
 /**
  * REDIS KEYS:
@@ -117,6 +120,123 @@ function getBaseRemaining(tier) {
   }
 
   return Math.max(0, totalCapacity - sold - holdbackQuantity);
+}
+
+function getTicketTiers(event = {}) {
+  const catalogTiers = Array.isArray(event.ticketCatalog?.tiers) ? event.ticketCatalog.tiers : [];
+  const legacyTiers = Array.isArray(event.tickets) ? event.tickets : [];
+  return catalogTiers.length > 0 ? catalogTiers : legacyTiers;
+}
+
+function isPublicTicketEvent(event = {}) {
+  if (event.isPrivate || event.isDeleted) return false;
+  const visibility = String(
+    event.visibility || event.settings?.visibility || 'public',
+  ).toLowerCase();
+  if (visibility && visibility !== 'public') return false;
+
+  const lifecycle = String(event.lifecycle || event.status || '').toLowerCase();
+  if (!lifecycle) return Boolean(event.publishedAt || event.startDate || event.startAt);
+  return PUBLIC_TICKET_EVENT_LIFECYCLES.has(lifecycle);
+}
+
+function toIsoOrNull(value) {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toISOString();
+}
+
+function getSaleStatus(tier = {}, now = new Date()) {
+  const startsAt = toIsoOrNull(tier.salesStart || tier.saleWindow?.startsAt);
+  const endsAt = toIsoOrNull(tier.salesEnd || tier.saleWindow?.endsAt);
+  const nowTime = now.getTime();
+
+  if (startsAt && nowTime < new Date(startsAt).getTime()) return 'not_started';
+  if (endsAt && nowTime > new Date(endsAt).getTime()) return 'ended';
+  return 'active';
+}
+
+function getTierStatus(tier = {}) {
+  return String(tier.status || tier.lifecycle || '').toLowerCase();
+}
+
+function isTierVisible(tier = {}) {
+  const status = getTierStatus(tier);
+  if (HIDDEN_TICKET_STATUSES.has(status)) return false;
+  if (tier.isHidden === true || tier.hidden === true || tier.isDeleted === true) return false;
+  return true;
+}
+
+function getTierCapacity(tier = {}) {
+  const inv = tier.inventory || {};
+  const raw = inv.totalQuantity ?? tier.totalQuantity ?? tier.quantity ?? tier.capacity ?? null;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.max(0, value) : null;
+}
+
+function getTierSoldQuantity(tier = {}) {
+  const inv = tier.inventory || {};
+  const raw = inv.soldQuantity ?? tier.soldQuantity ?? tier.sold ?? tier.soldCount ?? 0;
+  const value = Number(raw);
+  return Number.isFinite(value) ? Math.max(0, value) : 0;
+}
+
+function getMaxPerOrder(tier = {}, event = {}, remaining = 0) {
+  const raw =
+    tier.limits?.maxPerOrder ??
+    tier.maxPerOrder ??
+    event.maxTicketsPerOrder ??
+    (Number(tier.basePrice ?? tier.price ?? 0) <= 0 ? 1 : 10);
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) return 0;
+  return Math.max(0, Math.min(value, remaining));
+}
+
+function formatInr(amount = 0) {
+  return `INR ${Number(amount || 0).toLocaleString('en-IN')}`;
+}
+
+function normalizeTicketTier(tier, event, remaining, timestamp) {
+  const priceInfo = getEffectivePrice(tier, timestamp);
+  const price = Number(priceInfo.price || 0);
+  const saleStatus = getSaleStatus(tier, timestamp);
+  const status = getTierStatus(tier) || null;
+  const isUnlimited = (tier.inventory?.type || tier.type) === 'unlimited';
+  const safeRemaining = isUnlimited ? null : Math.max(0, Number(remaining) || 0);
+  const soldOut = !isUnlimited && safeRemaining <= 0;
+  const salesActive = saleStatus === 'active';
+
+  return {
+    id: String(tier.id || tier.tierId),
+    tierId: String(tier.id || tier.tierId),
+    name: tier.name || tier.label || 'Ticket',
+    description: tier.description || tier.summary || null,
+    entryType: tier.entryType || tier.type || null,
+    currency: tier.currency || event.currency || event.priceRange?.currency || 'INR',
+    price,
+    unitPrice: price,
+    basePrice: Number(tier.basePrice ?? tier.price ?? price),
+    formattedPrice: price <= 0 ? 'Free' : formatInr(price),
+    priceLabel: priceInfo.label || null,
+    isScheduledPrice: Boolean(priceInfo.isScheduled),
+    totalQuantity: isUnlimited ? null : getTierCapacity(tier),
+    soldQuantity: isUnlimited ? null : getTierSoldQuantity(tier),
+    remaining: safeRemaining,
+    availableQuantity: safeRemaining,
+    isUnlimited,
+    isFree: price <= 0,
+    isSoldOut: soldOut,
+    soldOut,
+    isAvailable: salesActive && !soldOut && !HIDDEN_TICKET_STATUSES.has(status || ''),
+    saleStatus,
+    salesStart: toIsoOrNull(tier.salesStart || tier.saleWindow?.startsAt),
+    salesEnd: toIsoOrNull(tier.salesEnd || tier.saleWindow?.endsAt),
+    minPerOrder: Math.max(0, Number(tier.limits?.minPerOrder ?? tier.minPerOrder ?? 0) || 0),
+    maxPerOrder: getMaxPerOrder(tier, event, safeRemaining ?? Number.MAX_SAFE_INTEGER),
+    status,
+  };
 }
 
 function normalizeReservationItems(items = []) {
@@ -280,6 +400,63 @@ export async function calculateEffectiveInventory(
   }
 
   return Math.max(0, remaining);
+}
+
+/**
+ * Public ticket tier read model for mobile event detail screens.
+ * Returns guest-safe tier data with live prices and effective inventory.
+ */
+export async function listAvailableTicketTiers(db, eventId, options = {}) {
+  if (!db?.collection) throw new Error('Firestore db is required');
+  if (!eventId) throw new Error('eventId is required');
+
+  const timestamp =
+    options.timestamp instanceof Date
+      ? options.timestamp
+      : new Date(options.timestamp || Date.now());
+  const eventRef = db.collection('events').doc(String(eventId));
+  const eventDoc = await eventRef.get();
+  if (!eventDoc.exists) return null;
+
+  const event = { id: eventDoc.id || String(eventId), ...(eventDoc.data() || {}) };
+  if (!isPublicTicketEvent(event)) return null;
+
+  const inventoryDb = typeof eventRef.collection === 'function' ? db : null;
+  const tiers = getTicketTiers(event)
+    .map((tier) => ({ ...tier, id: tier?.id || tier?.tierId }))
+    .filter((tier) => tier.id && isTierVisible(tier))
+    .sort((a, b) => {
+      const aOrder = Number(a.displayOrder ?? a.sortOrder ?? a.order ?? 0);
+      const bOrder = Number(b.displayOrder ?? b.sortOrder ?? b.order ?? 0);
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.name || a.id).localeCompare(String(b.name || b.id));
+    });
+
+  const normalizedTiers = await Promise.all(
+    tiers.map(async (tier) => {
+      const remaining = await calculateEffectiveInventory(
+        tier,
+        event,
+        options.excludeReservationId || null,
+        inventoryDb,
+        Boolean(options.strictMode),
+      );
+      return normalizeTicketTier(tier, event, remaining, timestamp);
+    }),
+  );
+
+  const availableTiers = normalizedTiers.filter((tier) => tier.isAvailable);
+  return {
+    eventId: event.id,
+    currency: event.currency || event.priceRange?.currency || 'INR',
+    tiers: normalizedTiers,
+    availableTiers,
+    count: normalizedTiers.length,
+    availableCount: availableTiers.length,
+    hasAvailableTickets: availableTiers.length > 0,
+    soldOut: normalizedTiers.length > 0 && availableTiers.length === 0,
+    generatedAt: timestamp.toISOString(),
+  };
 }
 
 /**
@@ -606,6 +783,7 @@ export default {
   calculateEffectiveInventory,
   validatePurchase,
   createReservation,
+  listAvailableTicketTiers,
   releaseReservation,
   commitInventory,
   deductInventory,

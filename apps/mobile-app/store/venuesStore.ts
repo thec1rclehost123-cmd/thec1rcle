@@ -5,6 +5,7 @@ import { create } from 'zustand';
 import { getFirebaseApp } from '@/lib/firebase/client';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { type Coordinates } from '@/lib/venueDiscovery';
+import { apiFetch } from '@/lib/api';
 
 export interface Venue {
   id: string;
@@ -43,6 +44,8 @@ export interface Venue {
 
 interface VenuesState {
   venues: Venue[];
+  followedVenueIds: Set<string>;
+  followLoadingVenueIds: Set<string>;
   loading: boolean;
   error: string | null;
   fetchVenues: (filters?: {
@@ -50,10 +53,18 @@ interface VenuesState {
     search?: string;
     tablesOnly?: boolean;
   }) => Promise<void>;
+  setFollowedVenueIds: (venueIds: string[]) => void;
+  toggleVenueFollow: (
+    venueId: string,
+    shouldFollow: boolean,
+    venueName?: string,
+  ) => Promise<boolean>;
 }
 
-export const useVenuesStore = create<VenuesState>((set) => ({
+export const useVenuesStore = create<VenuesState>((set, get) => ({
   venues: [],
+  followedVenueIds: new Set(),
+  followLoadingVenueIds: new Set(),
   loading: false,
   error: null,
 
@@ -98,6 +109,54 @@ export const useVenuesStore = create<VenuesState>((set) => ({
       set({ venues, loading: false });
     } catch (e: any) {
       set({ error: e?.message || 'Failed to fetch venues', loading: false });
+    }
+  },
+
+  setFollowedVenueIds: (venueIds) => {
+    set({ followedVenueIds: new Set(venueIds) });
+  },
+
+  toggleVenueFollow: async (venueId, shouldFollow, venueName) => {
+    const { followedVenueIds, followLoadingVenueIds, venues } = get();
+    const previousFollowed = new Set(followedVenueIds);
+    const previousLoading = new Set(followLoadingVenueIds);
+    const nextFollowed = new Set(followedVenueIds);
+    const nextLoading = new Set(followLoadingVenueIds);
+
+    if (shouldFollow) nextFollowed.add(venueId);
+    else nextFollowed.delete(venueId);
+    nextLoading.add(venueId);
+
+    const countDelta = shouldFollow ? 1 : -1;
+    set({
+      followedVenueIds: nextFollowed,
+      followLoadingVenueIds: nextLoading,
+      venues: venues.map((venue) =>
+        venue.id === venueId
+          ? { ...venue, followers: Math.max(0, (venue.followers || 0) + countDelta) }
+          : venue,
+      ),
+    });
+
+    try {
+      await apiFetch(`/api/v1/venues/${encodeURIComponent(venueId)}/follow`, {
+        method: shouldFollow ? 'POST' : 'DELETE',
+        body: shouldFollow ? JSON.stringify({ venueName }) : undefined,
+      });
+      const doneLoading = new Set(get().followLoadingVenueIds);
+      doneLoading.delete(venueId);
+      set({ followLoadingVenueIds: doneLoading });
+      return true;
+    } catch (e: any) {
+      const rollbackLoading = new Set(previousLoading);
+      rollbackLoading.delete(venueId);
+      set({
+        followedVenueIds: previousFollowed,
+        followLoadingVenueIds: rollbackLoading,
+        venues,
+        error: e?.message || 'Failed to update venue follow',
+      });
+      return false;
     }
   },
 }));

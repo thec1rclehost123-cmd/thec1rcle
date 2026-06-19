@@ -9,14 +9,16 @@ import {
   OAuthProvider,
   signInWithCredential,
   GoogleAuthProvider,
+  PhoneAuthProvider,
   User,
   Auth,
 } from 'firebase/auth';
-import { Platform, NativeModules } from 'react-native';
+import { NativeModules } from 'react-native';
 import { firebaseConfig } from './config';
 
 // Initialize Firebase App (singleton)
 let firebaseApp: FirebaseApp;
+let firebaseAuth: Auth;
 
 export function getFirebaseApp(): FirebaseApp {
   if (!firebaseApp) {
@@ -27,7 +29,10 @@ export function getFirebaseApp(): FirebaseApp {
 
 // Firebase Auth
 export function getFirebaseAuth(): Auth {
-  return getAuth(getFirebaseApp());
+  if (!firebaseAuth) {
+    firebaseAuth = getAuth(getFirebaseApp());
+  }
+  return firebaseAuth;
 }
 
 // ─── Auth helper functions ───────────────────────────────────────
@@ -50,6 +55,16 @@ export async function logout() {
 export async function resetPassword(email: string) {
   const auth = getFirebaseAuth();
   return sendPasswordResetEmail(auth, email);
+}
+
+export async function sendPhoneVerificationCode(phoneNumber: string, verifier: any) {
+  const provider = new PhoneAuthProvider(getFirebaseAuth());
+  return provider.verifyPhoneNumber(phoneNumber, verifier);
+}
+
+export async function loginWithPhoneVerificationCode(verificationId: string, code: string) {
+  const credential = PhoneAuthProvider.credential(verificationId, code);
+  return signInWithCredential(getFirebaseAuth(), credential);
 }
 
 export function subscribeToAuthState(callback: (user: User | null) => void) {

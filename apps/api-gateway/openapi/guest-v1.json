@@ -321,6 +321,22 @@
         ]
       }
     },
+    "/checkout/intent": {
+      "post": {
+        "operationId": "createCheckoutIntent",
+        "tags": [
+          "checkout"
+        ]
+      }
+    },
+    "/checkout/verify": {
+      "post": {
+        "operationId": "verifyCheckoutPayment",
+        "tags": [
+          "checkout"
+        ]
+      }
+    },
     "/checkout/initiate": {
       "post": {
         "operationId": "initiateCheckout",

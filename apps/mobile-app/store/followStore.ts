@@ -19,6 +19,7 @@ import {
   collection,
   serverTimestamp,
 } from 'firebase/firestore';
+import { apiFetch } from '@/lib/api';
 
 function getDb() {
   return getFirestore(getFirebaseApp());
@@ -72,18 +73,10 @@ export const useFollowStore = create<FollowState>((set, get) => ({
     set({ followedVenueIds: next });
 
     try {
-      const db = getDb();
-      const userRef = doc(db, 'userFollows', userId, 'venues', venueId);
-      const venueRef = doc(db, 'venueFollowers', venueId, 'followers', userId);
-      if (isFollowing) {
-        await Promise.all([deleteDoc(userRef), deleteDoc(venueRef)]);
-      } else {
-        const ts = { followedAt: serverTimestamp() };
-        await Promise.all([
-          setDoc(userRef, { ...ts, venueId, venueName }),
-          setDoc(venueRef, { ...ts, userId }),
-        ]);
-      }
+      await apiFetch(`/api/v1/venues/${encodeURIComponent(venueId)}/follow`, {
+        method: isFollowing ? 'DELETE' : 'POST',
+        body: isFollowing ? undefined : JSON.stringify({ venueName }),
+      });
     } catch (e) {
       // Rollback
       set({ followedVenueIds });

@@ -89,6 +89,14 @@ export default function TicketDetailScreen() {
     void loadAll(id);
   }, [id]);
 
+  useEffect(() => {
+    if (!showQr || !order?.userId || !id) return;
+    const refreshTimer = setInterval(() => {
+      void refreshWallet();
+    }, 45_000);
+    return () => clearInterval(refreshTimer);
+  }, [id, order?.userId, showQr]);
+
   const loadAll = async (orderId: string) => {
     setLoading(true);
     try {

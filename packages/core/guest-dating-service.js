@@ -51,13 +51,21 @@ function avatarFromProfile(profile = {}) {
 
 async function getUserProfile(db, userId) {
   if (!userId) return {};
-  const doc = await db.collection('users').doc(userId).get().catch(() => null);
+  const doc = await db
+    .collection('users')
+    .doc(userId)
+    .get()
+    .catch(() => null);
   return doc?.exists ? { id: doc.id, ...(doc.data() || {}) } : {};
 }
 
 async function getEventSnapshot(db, eventId) {
   if (!eventId) return {};
-  const doc = await db.collection('events').doc(eventId).get().catch(() => null);
+  const doc = await db
+    .collection('events')
+    .doc(eventId)
+    .get()
+    .catch(() => null);
   return doc?.exists ? { id: doc.id, ...(doc.data() || {}) } : {};
 }
 
@@ -107,7 +115,9 @@ async function enrichLike(db, like) {
   ]);
   const superLike = isSuperLike(like);
   const createdAt =
-    typeof like.createdAt?.toDate === 'function' ? like.createdAt.toDate().toISOString() : like.createdAt || null;
+    typeof like.createdAt?.toDate === 'function'
+      ? like.createdAt.toDate().toISOString()
+      : like.createdAt || null;
 
   return {
     id: like.id,
@@ -136,10 +146,7 @@ export async function listReceivedLikes(db, userId) {
 
   const viewerProfile = await getUserProfile(db, userId);
   const hasPremiumAccess = isPremiumProfile(viewerProfile);
-  const snapshot = await db
-    .collection(USER_LIKES_COLLECTION)
-    .where('toUserId', '==', userId)
-    .get();
+  const snapshot = await db.collection(USER_LIKES_COLLECTION).where('toUserId', '==', userId).get();
 
   const pending = (snapshot.docs || [])
     .map((doc) => serializeDoc(doc))
@@ -202,7 +209,11 @@ export async function respondToLikeRequest(db, userId, likeId, { action } = {}) 
   const deterministicPair = pairKey(like.fromUserId, userId);
   const eventKey = safeIdPart(like.eventId || 'global');
   const matchId = `match_${eventKey}_${deterministicPair}`;
-  const existingConversation = await findExistingConversation(db, participants, like.eventId || null);
+  const existingConversation = await findExistingConversation(
+    db,
+    participants,
+    like.eventId || null,
+  );
   const conversationId = existingConversation?.id || `dm_${eventKey}_${deterministicPair}`;
 
   const match = {
@@ -232,16 +243,20 @@ export async function respondToLikeRequest(db, userId, likeId, { action } = {}) 
   };
 
   const batch = db.batch();
-  batch.set(likeRef, {
-    status: 'accepted',
-    isDeleted: false,
-    acceptedAt: now,
-    respondedAt: now,
-    respondedBy: userId,
-    matchId,
-    conversationId,
-    updatedAt: now,
-  }, { merge: true });
+  batch.set(
+    likeRef,
+    {
+      status: 'accepted',
+      isDeleted: false,
+      acceptedAt: now,
+      respondedAt: now,
+      respondedBy: userId,
+      matchId,
+      conversationId,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
   batch.set(db.collection(USER_MATCHES_COLLECTION).doc(matchId), match, { merge: true });
   batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, {
     merge: true,
@@ -255,4 +270,252 @@ export async function respondToLikeRequest(db, userId, likeId, { action } = {}) 
     match,
     conversation,
   };
+}
+
+export async function getDiscoverProfiles(db, userId) {
+  if (!userId) throw new Error('userId is required');
+
+  const currentUserDoc = await db.collection('users').doc(userId).get();
+  const currentUser = currentUserDoc.exists ? currentUserDoc.data() : {};
+  const myEvents = Array.isArray(currentUser.upcomingEvents) ? currentUser.upcomingEvents : [];
+
+  const swipesSnap = await db.collection('userSwipes').where('fromUserId', '==', userId).get();
+  const swipedUserIds = new Set(swipesSnap.docs.map(doc => doc.data().toUserId));
+  swipedUserIds.add(userId);
+
+  const fourteenDaysAgo = new Date();
+  fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+  const profilesSnap = await db.collection('users')
+    .where('datingActive', '==', true)
+    .limit(100)
+    .get();
+
+  let candidates = [];
+
+  profilesSnap.forEach(doc => {
+    const profileId = doc.id;
+    if (swipedUserIds.has(profileId)) return;
+
+    const data = doc.data();
+
+    const lastActive = data.lastActiveAt ? new Date(data.lastActiveAt) : new Date(0);
+    if (lastActive < fourteenDaysAgo) return;
+
+    const theirEvents = Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [];
+    const overlapCount = theirEvents.filter(e => myEvents.includes(e)).length;
+
+    candidates.push({
+      id: profileId,
+      firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+      age: data.age || null,
+      photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
+      prompts: Array.isArray(data.prompts) ? data.prompts : [],
+      upcomingEvents: theirEvents,
+      _overlapScore: overlapCount
+    });
+  });
+
+  candidates.sort((a, b) => b._overlapScore - a._overlapScore);
+
+  return candidates.slice(0, 15).map(c => {
+    delete c._overlapScore;
+    return c;
+  });
+}
+
+/**
+ * Process a swipe action (like or pass).
+ * Enforces daily like limits for non-premium users, records the swipe, and handles mutual matches.
+ */
+export async function processSwipeAction(db, userId, targetUserId, action) {
+  if (!userId || !targetUserId || !['like', 'pass'].includes(action)) {
+    throw new Error('Invalid arguments');
+  }
+
+  const currentUserDoc = await db.collection('users').doc(userId).get();
+  const currentUser = currentUserDoc.exists ? currentUserDoc.data() : {};
+  const isPremium = isPremiumProfile(currentUser);
+
+  // Spam protection: check if swipe already exists
+  const swipeDocId = `${userId}_${targetUserId}`;
+  const swipeRef = db.collection('userSwipes').doc(swipeDocId);
+  const swipeDoc = await swipeRef.get();
+  if (swipeDoc.exists) {
+    throw new Error('You have already swiped on this user');
+  }
+
+  // Paywall Limit check
+  if (action === 'like' && !isPremium) {
+    const today = new Date().toISOString().split('T')[0];
+    const dailyLimitRef = db.collection('userDailyLimits').doc(`${userId}_${today}`);
+    
+    await db.runTransaction(async (transaction) => {
+      const dailyDoc = await transaction.get(dailyLimitRef);
+      const data = dailyDoc.exists ? dailyDoc.data() : { likes: 0 };
+      
+      if (data.likes >= 50) {
+        throw new Error('Daily like limit exceeded');
+      }
+      
+      transaction.set(dailyLimitRef, { likes: data.likes + 1 }, { merge: true });
+    });
+  }
+
+  const now = new Date().toISOString();
+
+  // Record the swipe
+  await swipeRef.set({
+    fromUserId: userId,
+    toUserId: targetUserId,
+    action,
+    createdAt: now
+  });
+
+  if (action === 'pass') {
+    return { match: false };
+  }
+
+  // Save to USER_LIKES_COLLECTION for compatibility if it's a like
+  const likeRef = db.collection(USER_LIKES_COLLECTION).doc(`${userId}_${targetUserId}`);
+  await likeRef.set({
+    fromUserId: userId,
+    toUserId: targetUserId,
+    status: 'pending',
+    isDeleted: false,
+    createdAt: now,
+    updatedAt: now
+  });
+
+  // Mutual Match Check
+  // Has the target already swiped right on the current user?
+  const mutualSwipeDoc = await db.collection('userSwipes').doc(`${targetUserId}_${userId}`).get();
+  
+  if (mutualSwipeDoc.exists && mutualSwipeDoc.data().action === 'like') {
+    // Create match and DM
+    const deterministicPair = pairKey(userId, targetUserId);
+    const eventKey = 'global'; // Or try to find overlapping event, but 'global' is safe
+    const matchId = `match_${eventKey}_${deterministicPair}`;
+    const conversationId = `dm_${eventKey}_${deterministicPair}`;
+    
+    const participants = [userId, targetUserId];
+
+    const match = {
+      id: matchId,
+      user1Id: userId,
+      user2Id: targetUserId,
+      eventId: null,
+      status: 'active',
+      conversationId,
+      matchedAt: now,
+      updatedAt: now,
+    };
+
+    const conversation = {
+      id: conversationId,
+      eventId: null,
+      participants,
+      status: 'accepted',
+      initiatedBy: targetUserId, // They liked first
+      acceptedAt: now,
+      createdAt: now,
+      updatedAt: now,
+      source: 'dating_like',
+      matchId,
+      isSaved: true,
+    };
+
+    const batch = db.batch();
+    
+    // Update both like documents to accepted
+    batch.set(likeRef, { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
+    batch.set(db.collection(USER_LIKES_COLLECTION).doc(`${targetUserId}_${userId}`), { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
+    
+    // Create match and conversation
+    batch.set(db.collection(USER_MATCHES_COLLECTION).doc(matchId), match, { merge: true });
+    batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, { merge: true });
+    
+    await batch.commit();
+
+    return { match: true, conversationId };
+  }
+
+  return { match: false };
+}
+
+export async function getPublicUserProfile(db, targetUserId) {
+  if (!targetUserId) throw new Error('targetUserId is required');
+
+  const doc = await db.collection('users').doc(targetUserId).get();
+  if (!doc.exists) {
+    throw new Error('User not found');
+  }
+
+  const data = doc.data();
+
+  return {
+    id: doc.id,
+    firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+    age: data.age || null,
+    photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
+    prompts: Array.isArray(data.prompts) ? data.prompts : [],
+    upcomingEvents: Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [],
+    datingActive: Boolean(data.datingActive)
+  };
+}
+
+function firstNameOnly(nameStr) {
+  if (!nameStr) return 'User';
+  return nameStr.trim().split(' ')[0];
+}
+
+export async function getUserMatches(db, userId) {
+  if (!userId) throw new Error('userId is required');
+
+  // Firestore requires a composite index for OR queries or we can run two parallel queries
+  // since userMatches has user1Id and user2Id
+  const [snap1, snap2] = await Promise.all([
+    db.collection('userMatches').where('user1Id', '==', userId).get(),
+    db.collection('userMatches').where('user2Id', '==', userId).get()
+  ]);
+
+  const matchDocs = [...snap1.docs, ...snap2.docs];
+  
+  // Sort by matchedAt descending
+  const matches = matchDocs.map(doc => ({ id: doc.id, ...doc.data() }));
+  matches.sort((a, b) => {
+    const timeA = a.matchedAt ? new Date(a.matchedAt).getTime() : 0;
+    const timeB = b.matchedAt ? new Date(b.matchedAt).getTime() : 0;
+    return timeB - timeA;
+  });
+
+  // Enrich with public profile of the other user
+  const enrichedMatches = await Promise.all(matches.map(async (match) => {
+    const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
+    let otherProfile = null;
+    
+    try {
+      const doc = await db.collection('users').doc(otherUserId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        otherProfile = {
+          id: otherUserId,
+          firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+          age: data.age || null,
+          photo: Array.isArray(data.photos) && data.photos.length > 0 ? data.photos[0] : (data.photoURL || null)
+        };
+      }
+    } catch (e) {
+      console.warn('Failed to fetch profile for match', otherUserId);
+    }
+
+    return {
+      matchId: match.id,
+      conversationId: match.conversationId,
+      matchedAt: match.matchedAt,
+      profile: otherProfile
+    };
+  }));
+
+  return enrichedMatches;
 }

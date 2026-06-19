@@ -40,14 +40,17 @@ function createDb(seed = {}) {
         return query(name, filters, sort, value);
       },
       async get() {
-        let docs = [...getCollection(name).entries()].map(([id, data]) => createDoc(name, id, data));
+        let docs = [...getCollection(name).entries()].map(([id, data]) =>
+          createDoc(name, id, data),
+        );
         docs = docs.filter((doc) =>
           filters.every((filter) => {
             const data = doc.data();
             const actual = filter.field === '__name__' ? doc.id : data?.[filter.field];
             if (filter.op === '==') return actual === filter.value;
             if (filter.op === 'in') return filter.value.includes(actual);
-            if (filter.op === 'array-contains') return Array.isArray(actual) && actual.includes(filter.value);
+            if (filter.op === 'array-contains')
+              return Array.isArray(actual) && actual.includes(filter.value);
             if (filter.op === '<') return actual < filter.value;
             return false;
           }),
@@ -56,7 +59,9 @@ function createDb(seed = {}) {
           docs.sort((a, b) => {
             const left = a.data()?.[sort.field] || '';
             const right = b.data()?.[sort.field] || '';
-            return sort.direction === 'desc' ? right.localeCompare(left) : left.localeCompare(right);
+            return sort.direction === 'desc'
+              ? right.localeCompare(left)
+              : left.localeCompare(right);
           });
         }
         if (limitValue !== null) docs = docs.slice(0, limitValue);
@@ -169,7 +174,11 @@ describe('guest chat service', () => {
           type: 'event',
           eventId: 'event_1',
           title: 'Neon District',
-          lastMessage: { content: 'Message 55', senderId: 'user_1', createdAt: '2099-01-01T00:55:00.000Z' },
+          lastMessage: {
+            content: 'Message 55',
+            senderId: 'user_1',
+            createdAt: '2099-01-01T00:55:00.000Z',
+          },
         },
       },
       chatMembers: {
@@ -197,7 +206,12 @@ describe('guest chat service', () => {
   it('blocks non-members and stores sent messages for active members', async () => {
     const db = createDb({
       chats: {
-        event_event_1: { id: 'event_event_1', type: 'event', eventId: 'event_1', title: 'Neon District' },
+        event_event_1: {
+          id: 'event_event_1',
+          type: 'event',
+          eventId: 'event_1',
+          title: 'Neon District',
+        },
       },
       chatMembers: {
         event_event_1_user_1: {
@@ -212,9 +226,9 @@ describe('guest chat service', () => {
       },
     });
 
-    await expect(
-      getChatMessages(db, 'user_2', 'event_event_1', { limit: 50 }),
-    ).rejects.toThrow('Forbidden');
+    await expect(getChatMessages(db, 'user_2', 'event_event_1', { limit: 50 })).rejects.toThrow(
+      'Forbidden',
+    );
 
     const sent = await sendChatMessage(db, 'user_1', 'event_event_1', { text: 'See you inside' });
 
@@ -286,7 +300,12 @@ describe('guest chat service', () => {
   it('marks reported messages and redacts them for every reader', async () => {
     const db = createDb({
       chats: {
-        event_event_1: { id: 'event_event_1', type: 'event', eventId: 'event_1', title: 'Neon District' },
+        event_event_1: {
+          id: 'event_event_1',
+          type: 'event',
+          eventId: 'event_1',
+          title: 'Neon District',
+        },
       },
       chatMembers: {
         event_event_1_user_1: {

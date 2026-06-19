@@ -132,8 +132,6 @@ export default function SocialSetupPhotos() {
   });
   const [uploading, setUploading] = useState<number | null>(null);
 
-  const filledCount = photos.filter(Boolean).length;
-
   const pickPhoto = useCallback(
     async (index: number) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -145,8 +143,8 @@ export default function SocialSetupPhotos() {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.85,
+        aspect: [1, 1],
+        quality: 1,
       });
 
       if (result.canceled || !result.assets[0]) return;
@@ -181,6 +179,10 @@ export default function SocialSetupPhotos() {
   }, []);
 
   const handleNext = () => {
+    if (!photos[0]) {
+      Alert.alert('Main photo required', 'Please add your main profile photo to continue.');
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push({
       pathname: '/social-setup/preferences',
@@ -263,7 +265,10 @@ export default function SocialSetupPhotos() {
           ))}
         </View>
 
-        <Pressable style={styles.nextBtn} onPress={handleNext}>
+        <Pressable
+          style={[styles.nextBtn, !photos[0] && styles.nextBtnDisabled]}
+          onPress={handleNext}
+        >
           <Text style={styles.nextBtnText}>Continue</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
         </Pressable>

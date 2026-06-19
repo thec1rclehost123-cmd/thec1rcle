@@ -18,11 +18,28 @@ vi.mock('@c1rcle/core/promo-service', () => ({
   })),
 }));
 
+vi.mock('@c1rcle/core/workflows/ticketing', () => ({
+  verifyCheckoutPayment: vi.fn(async () => ({
+    success: true,
+    alreadyVerified: false,
+    order: { id: 'ord_1', status: 'confirmed' },
+    tickets: [{ id: 'TKT-ORD-1', ticketId: 'ord_1-tier_1-1', qrMode: 'jwt' }],
+    ticketsCount: 1,
+    razorpayOrderId: 'order_rzp_1',
+    razorpayPaymentId: 'pay_1',
+    chatUnlocked: true,
+    chat: { id: 'chat_event_1', memberId: 'user_1' },
+    redisReleased: true,
+  })),
+}));
+
 import validatePlugin from '../../plugins/validate';
 import checkoutRoutes from './checkout';
 import paymentRoutes from './payments';
 import orderRoutes from './orders';
 import { validatePromoCode } from '@c1rcle/core/promo-service';
+// @ts-ignore
+import { verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
 
 function buildDbMock() {
   return {
@@ -117,6 +134,17 @@ async function buildServer() {
       order: { id: 'ord_1', eventId: 'event_1', workspaceId: 'ws_1', totalAmount: 1499 },
       pricing: { grandTotal: 1499 },
     })),
+    createCheckoutIntent: vi.fn(async () => ({
+      success: true,
+      orderId: 'ord_1',
+      reservationId: 'res_1',
+      razorpayOrderId: 'order_rzp_1',
+      amount: 1499,
+      amountPaise: 149900,
+      currency: 'INR',
+      key: 'rzp_test_key',
+      expiresAt: '2099-01-01T21:00:00.000Z',
+    })),
     preparePayment: vi.fn(async () => ({
       razorpayOrderId: 'order_rzp_1',
       amount: 1499,
@@ -182,7 +210,12 @@ async function buildServer() {
   server.decorate('orderRepo', orderRepo as any);
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
-      request.user = { uid: 'user_1' };
+      request.user = {
+        uid: 'user_1',
+        email: 'guest@example.com',
+        displayName: 'Guest User',
+        phoneNumber: '+919999999999',
+      };
     }
     request.workspaceId = null;
   });
@@ -204,6 +237,182 @@ describe('GP-4 gateway checkout/payment routes', () => {
     process.env.RAZORPAY_KEY_ID = 'rzp_test_key';
     process.env.RAZORPAY_KEY_SECRET = 'rzp_test_secret';
     process.env.RAZORPAY_WEBHOOK_SECRET = 'rzp_webhook_secret';
+  });
+
+  it('POST /api/v1/checkout/verify delegates Razorpay verification and ticketing to core', async () => {
+    const { server } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/verify',
+      headers: { authorization: 'Bearer test-token' },
+      payload: {
+        razorpay_order_id: 'order_rzp_1',
+        razorpay_payment_id: 'pay_1',
+        razorpay_signature: 'sig_1',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      success: true,
+      alreadyVerified: false,
+      ticketsCount: 1,
+      chatUnlocked: true,
+      redisReleased: true,
+    });
+    expect(verifyCheckoutPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: expect.any(Object),
+        userId: 'user_1',
+        razorpay_order_id: 'order_rzp_1',
+        razorpay_payment_id: 'pay_1',
+        razorpay_signature: 'sig_1',
+        paymentGatewayConfig: {
+          keySecret: 'rzp_test_secret',
+          allowMockPayment: false,
+        },
+      }),
+    );
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/verify rejects client-supplied internal order ids', async () => {
+    const { server } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/verify',
+      headers: { authorization: 'Bearer test-token' },
+      payload: {
+        orderId: 'ord_1',
+        razorpay_order_id: 'order_rzp_1',
+        razorpay_payment_id: 'pay_1',
+        razorpay_signature: 'sig_1',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(verifyCheckoutPayment).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/verify maps invalid signatures to 400', async () => {
+    const { server } = await buildServer();
+    vi.mocked(verifyCheckoutPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Invalid signature'), { code: 'INVALID_SIGNATURE' }),
+    );
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/verify',
+      headers: { authorization: 'Bearer test-token' },
+      payload: {
+        razorpay_order_id: 'order_rzp_1',
+        razorpay_payment_id: 'pay_1',
+        razorpay_signature: 'bad_sig',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ success: false, error: 'Invalid signature' });
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/intent creates a zero-trust Razorpay intent from tier selection only', async () => {
+    const { server, checkoutService } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/intent',
+      headers: { authorization: 'Bearer token', 'user-agent': 'expo-test' },
+      payload: {
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        quantity: 2,
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      success: true,
+      razorpayOrderId: 'order_rzp_1',
+      amount: 1499,
+      amountPaise: 149900,
+      expiresAt: '2099-01-01T21:00:00.000Z',
+      orderId: 'ord_1',
+      reservationId: 'res_1',
+    });
+    expect(checkoutService.createCheckoutIntent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        quantity: 2,
+        deviceId: 'expo-test',
+        user: {
+          id: 'user_1',
+          name: 'Guest User',
+          email: 'guest@example.com',
+          phone: '+919999999999',
+        },
+        paymentGatewayConfig: {
+          keyId: 'rzp_test_key',
+          keySecret: 'rzp_test_secret',
+          allowMockPayment: false,
+        },
+      }),
+    );
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/intent rejects client-supplied price fields', async () => {
+    const { server, checkoutService } = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/intent',
+      headers: { authorization: 'Bearer token' },
+      payload: {
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        quantity: 2,
+        price: 1,
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json().error.code).toBe('VALIDATION_ERROR');
+    expect(checkoutService.createCheckoutIntent).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('POST /api/v1/checkout/intent maps sold-out inventory to 409', async () => {
+    const { server, checkoutService } = await buildServer();
+    checkoutService.createCheckoutIntent.mockRejectedValueOnce(
+      Object.assign(new Error('Sold Out'), { code: 'SOLD_OUT' }),
+    );
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/checkout/intent',
+      headers: { authorization: 'Bearer token' },
+      payload: {
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        quantity: 2,
+      },
+    });
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toEqual({ success: false, error: 'Sold Out' });
+
+    await server.close();
   });
 
   it('POST /api/v1/checkout/initiate returns the legacy payment-initiation contract without requiring x-workspace-id', async () => {

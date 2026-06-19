@@ -1,9 +1,8 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef, type ReactElement } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  FlatList,
   Pressable,
   ActivityIndicator,
   RefreshControl,
@@ -15,6 +14,7 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
@@ -154,6 +154,10 @@ const CATEGORY_FILTERS = [
   { id: 'comedy', label: 'Comedy' },
 ] as const;
 type CategoryFilter = (typeof CATEGORY_FILTERS)[number]['id'];
+type ExploreSection = {
+  key: string;
+  render: () => any;
+};
 
 // ── Category config ────────────────────────────────────────────────────────────
 const CATEGORIES = [
@@ -167,8 +171,19 @@ const CATEGORIES = [
 ] as const;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function getLowestPrice(event: Event): number {
-  return event.minPrice ?? 0;
+function getLowestPrice(event: Event): number | null {
+  const tiers = [
+    ...((event as any).tickets || []),
+    ...((event as any).ticketTiers || []),
+    ...((event as any).tiers || []),
+  ];
+  const availablePrices = tiers
+    .filter((tier: any) => Number(tier?.remaining ?? tier?.available ?? 1) > 0)
+    .map((tier: any) => Number(tier?.price ?? tier?.amount ?? 0))
+    .filter((price: number) => Number.isFinite(price));
+  if (availablePrices.length > 0) return Math.min(...availablePrices);
+  if (event.minPrice !== undefined && event.minPrice !== null) return Number(event.minPrice);
+  return null;
 }
 
 function getGreeting(): string {
@@ -696,7 +711,7 @@ export default function ExploreScreen() {
   const [isOffline, setIsOffline] = useState(false);
   const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const mainScrollRef = useRef<ScrollView>(null);
+  const mainScrollRef = useRef<FlashListRef<ExploreSection>>(null);
   const [allScenesY, setAllScenesY] = useState(0);
   const lastTabBarScrollY = useRef(0);
   const lastTabBarEmitAt = useRef(0);
@@ -849,9 +864,194 @@ export default function ExploreScreen() {
     DeviceEventEmitter.emit('tabBarScroll', y);
   };
 
+  const exploreSections = useMemo<ExploreSection[]>(
+    () => [
+      {
+        key: 'hero-gradient',
+        render: () => (
+          <View
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 400 + insets.top,
+              zIndex: 0,
+              pointerEvents: 'none',
+            }}
+          >
+            <LinearGradient
+              colors={['rgba(244, 74, 34, 0.33)', 'rgba(5,5,6,0)']}
+              locations={[0, 0.85]}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
+        ),
+      },
+      {
+        key: 'header',
+        render: () => (
+          <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
+            <View style={styles.headerRow}>
+              <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
+                <Text style={styles.greetingText}>{greeting}</Text>
+                <View style={styles.cityRow}>
+                  <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.cityName}>{activeCityLabel}</Text>
+                </View>
+              </Pressable>
+
+              <View style={styles.headerRight}>
+                <NotificationBell variant="solid" />
+                <HeaderProfileAvatar />
+              </View>
+            </View>
+
+            <Pressable
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                router.push('/search');
+              }}
+              style={styles.searchBar}
+            >
+              <Search size={18} color="rgba(255,255,255,0.4)" strokeWidth={2.5} />
+              <Text style={styles.searchBarPlaceholder}>Search events...</Text>
+            </Pressable>
+          </View>
+        ),
+      },
+      {
+        key: 'filters',
+        render: () => (
+          <View style={{ marginBottom: 24 }}>
+            <QuickFilterRow active={quickFilter} onChange={setQuickFilter} />
+          </View>
+        ),
+      },
+      {
+        key: 'offline',
+        render: () =>
+          isOffline ? (
+            <Animated.View entering={FadeIn} style={styles.offlineBanner}>
+              <Text style={styles.offlineText}>📡 Offline — showing cached content</Text>
+            </Animated.View>
+          ) : null,
+      },
+      {
+        key: 'loading',
+        render: () =>
+          isInitialLoading ? (
+            <View style={styles.loadingWrap}>
+              <ActivityIndicator size="large" color={colors.iris} />
+              <Text style={styles.loadingText}>Loading events…</Text>
+            </View>
+          ) : null,
+      },
+      {
+        key: 'featured',
+        render: () =>
+          quickFilter === 'all' && !isInitialLoading && heroSlides.length > 0 ? (
+            <FeaturedCarousel events={heroSlides} />
+          ) : null,
+      },
+      {
+        key: 'choose-scene',
+        render: () => (quickFilter === 'all' ? <ChooseYourSceneGrid /> : null),
+      },
+      {
+        key: 'worth-it',
+        render: () =>
+          quickFilter === 'all' && freeEvents.length > 0 ? (
+            <ScenesWorthIt events={freeEvents} />
+          ) : null,
+      },
+      {
+        key: 'top-venues',
+        render: () => (quickFilter === 'all' ? <TopVenues /> : null),
+      },
+      {
+        key: 'editors-picks',
+        render: () =>
+          quickFilter === 'all' && recommendations.length > 0 ? (
+            <EditorsPicks events={recommendations} />
+          ) : null,
+      },
+      {
+        key: 'trending',
+        render: () =>
+          quickFilter === 'all' && trendingThisWeek.length > 0 ? (
+            <TrendingRightNow events={trendingThisWeek} />
+          ) : null,
+      },
+      {
+        key: 'coming-up',
+        render: () =>
+          quickFilter === 'all' && similarEvents.length > 0 ? (
+            <ComingUpThisWeek events={similarEvents} />
+          ) : null,
+      },
+      {
+        key: 'all-scenes',
+        render: () =>
+          filteredEvents.length > 0 ? (
+            <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
+              <AllScenes
+                events={filteredEvents}
+                onPageChange={() => {
+                  mainScrollRef.current?.scrollToOffset({
+                    offset: Math.max(0, allScenesY - 20),
+                    animated: true,
+                  });
+                }}
+              />
+            </View>
+          ) : !loading ? (
+            <View style={styles.emptyState}>
+              <Search size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
+              <Text style={styles.emptyText}>No events found</Text>
+              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
+            </View>
+          ) : null,
+      },
+      {
+        key: 'no-content',
+        render: () =>
+          !loading && allEvents.length === 0 && !isOffline ? (
+            <View style={styles.emptyState}>
+              <Compass size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
+              <Text style={styles.emptyText}>No events yet</Text>
+              <Text style={styles.emptySubtext}>Pull down to refresh</Text>
+            </View>
+          ) : null,
+      },
+      {
+        key: 'map',
+        render: () =>
+          !isInitialLoading && allEvents.length > 0 ? <MapSection events={allEvents} /> : null,
+      },
+    ],
+    [
+      activeCityLabel,
+      allEvents,
+      allScenesY,
+      filteredEvents,
+      freeEvents,
+      greeting,
+      heroSlides,
+      insets.top,
+      isInitialLoading,
+      isOffline,
+      loading,
+      quickFilter,
+      recommendations,
+      similarEvents,
+      trendingThisWeek,
+    ],
+  );
+
   return (
     <View style={styles.container}>
-      <ScrollView
+      <FlashList
         style={styles.scrollLayer}
         ref={mainScrollRef}
         bounces={false}
@@ -860,6 +1060,18 @@ export default function ExploreScreen() {
         onScroll={handleScroll}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
+        data={exploreSections}
+        keyExtractor={(section) => section.key}
+        renderItem={({ item }) => item.render()}
+        extraData={{
+          allScenesY,
+          cityFilter,
+          dateFilter,
+          categoryFilter,
+          quickFilter,
+          refreshing,
+          showCityModal,
+        }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -868,134 +1080,7 @@ export default function ExploreScreen() {
             progressViewOffset={insets.top}
           />
         }
-      >
-        {/* Header background gradient that scrolls with content */}
-        <View
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 400 + insets.top,
-            zIndex: 0,
-            pointerEvents: 'none',
-          }}
-        >
-          <LinearGradient
-            colors={['rgba(244, 74, 34, 0.33)', 'rgba(5,5,6,0)']}
-            locations={[0, 0.85]}
-            style={StyleSheet.absoluteFill}
-          />
-        </View>
-
-        {/* ── Header ── */}
-        <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-          <View style={styles.headerRow}>
-            {/* Left: greeting + location */}
-            <Pressable onPress={() => setShowCityModal(true)} style={styles.locationBlock}>
-              <Text style={styles.greetingText}>{greeting}</Text>
-              <View style={styles.cityRow}>
-                <MapPin size={22} color="#F44A22" strokeWidth={2.5} style={{ marginRight: 6 }} />
-                <Text style={styles.cityName}>{activeCityLabel}</Text>
-              </View>
-            </Pressable>
-
-            {/* Right: bell + profile avatar */}
-            <View style={styles.headerRight}>
-              <NotificationBell variant="solid" />
-              <HeaderProfileAvatar />
-            </View>
-          </View>
-
-          {/* Search bar */}
-          <Pressable
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push('/search');
-            }}
-            style={styles.searchBar}
-          >
-            <Search size={18} color="rgba(255,255,255,0.4)" strokeWidth={2.5} />
-            <Text style={styles.searchBarPlaceholder}>Search events...</Text>
-          </Pressable>
-        </View>
-
-        {/* Filter Pills (Moved outside header to allow edge-to-edge scrolling) */}
-        <View style={{ marginBottom: 24 }}>
-          <QuickFilterRow active={quickFilter} onChange={setQuickFilter} />
-        </View>
-
-        {/* Offline banner */}
-        {isOffline && (
-          <Animated.View entering={FadeIn} style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>📡 Offline — showing cached content</Text>
-          </Animated.View>
-        )}
-
-        {/* Loading */}
-        {isInitialLoading && (
-          <View style={styles.loadingWrap}>
-            <ActivityIndicator size="large" color={colors.iris} />
-            <Text style={styles.loadingText}>Loading events…</Text>
-          </View>
-        )}
-
-        {quickFilter === 'all' ? (
-          <>
-            {/* ── 1. Featured Scene ── */}
-            {!isInitialLoading && heroSlides.length > 0 && <FeaturedCarousel events={heroSlides} />}
-
-            {/* ── 2. Choose Your Scene ── */}
-            <ChooseYourSceneGrid />
-
-            {/* ── 3. Scenes Worth It ── */}
-            {freeEvents.length > 0 && <ScenesWorthIt events={freeEvents} />}
-
-            {/* ── 4. Top Venues ── */}
-            <TopVenues />
-
-            {/* ── 5. Editor's Picks ── */}
-            {recommendations.length > 0 && <EditorsPicks events={recommendations} />}
-
-            {/* ── 6. Trending Right Now ── */}
-            {trendingThisWeek.length > 0 && <TrendingRightNow events={trendingThisWeek} />}
-
-            {/* ── 7. Coming Up This Week ── */}
-            {similarEvents.length > 0 && <ComingUpThisWeek events={similarEvents} />}
-          </>
-        ) : null}
-
-        {/* ── 9. All Scenes ── */}
-        {filteredEvents.length > 0 ? (
-          <View onLayout={(e) => setAllScenesY(e.nativeEvent.layout.y)}>
-            <AllScenes
-              events={filteredEvents}
-              onPageChange={() => {
-                mainScrollRef.current?.scrollTo({ y: allScenesY - 20, animated: true });
-              }}
-            />
-          </View>
-        ) : (
-          !loading && (
-            <View style={styles.emptyState}>
-              <Search size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
-              <Text style={styles.emptyText}>No events found</Text>
-              <Text style={styles.emptySubtext}>Try adjusting your filters</Text>
-            </View>
-          )
-        )}
-
-        {/* No content */}
-        {!loading && allEvents.length === 0 && !isOffline && (
-          <View style={styles.emptyState}>
-            <Compass size={48} color="rgba(255,255,255,0.15)" strokeWidth={2} />
-            <Text style={styles.emptyText}>No events yet</Text>
-            <Text style={styles.emptySubtext}>Pull down to refresh</Text>
-          </View>
-        )}
-
-        {!isInitialLoading && allEvents.length > 0 && <MapSection events={allEvents} />}
-      </ScrollView>
+      />
 
       {/* ── City Picker Modal ── */}
       <Modal

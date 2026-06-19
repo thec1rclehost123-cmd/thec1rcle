@@ -42,40 +42,30 @@ const attendeeAvatarImages = {
 };
 
 // ── Background Glow ────────────────────────────────────────────────────────────
-function BackgroundItem({
-  event,
-  index,
-  scrollY,
-}: {
-  event: Event;
-  index: number;
-  scrollY: SharedValue<number>;
-}) {
-  const img = getEventImage(event);
-  const opacityStyle = useAnimatedStyle(() => {
-    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-    const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
-    return { opacity };
-  });
-  if (!img) return null;
-  return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, opacityStyle]}>
-      <Image
-        source={{ uri: img }}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        blurRadius={60}
-      />
-    </Animated.View>
-  );
-}
-
 function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: SharedValue<number> }) {
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      {events.slice(0, 10).map((event, index) => (
-        <BackgroundItem key={event.id} event={event} index={index} scrollY={scrollY} />
-      ))}
+      {events.slice(0, 10).map((event, index) => {
+        const img = getEventImage(event);
+        if (!img) return null;
+
+        const opacityStyle = useAnimatedStyle(() => {
+          const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
+          const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
+          return { opacity };
+        });
+
+        return (
+          <Animated.View key={event.id} style={[StyleSheet.absoluteFillObject, opacityStyle]}>
+            <Image
+              source={{ uri: img }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              blurRadius={60}
+            />
+          </Animated.View>
+        );
+      })}
       <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
     </View>
   );
@@ -201,12 +191,8 @@ function FeedCard({
 
   const posterTransitionTag = `poster-${event.id}-feed-${index}`;
 
-  // Card scale + opacity transition
   const cardAnimStyle = useAnimatedStyle(() => {
-    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-    const scale = interpolate(scrollY.value, input, [0.85, 1, 0.85], Extrapolate.CLAMP);
-    const opacity = interpolate(scrollY.value, input, [0.3, 1, 0.3], Extrapolate.CLAMP);
-    return { transform: [{ scale }], opacity };
+    return { transform: [{ scale: 1 }], opacity: 1 };
   });
 
   return (
@@ -329,22 +315,27 @@ export default function ImmersiveFeedScreen() {
   }, [type]);
 
   const events = useEventsStore((s) => s.events);
-  const recommendations = useRecommendationsStore((s) => s.recommendations);
+  const scoredEvents = useRecommendationsStore((s) => s.scoredEvents);
 
   const feedEvents = useMemo(() => {
-    let list = [...events];
-    if (type === 'foryou' && recommendations.length > 0) {
-      const recOrder = new Map(recommendations.map((e, i) => [e.id, i]));
+    const list = [...events];
+    if (type === 'foryou') {
+      const sortedIds = Object.keys(scoredEvents).sort(
+        (a, b) => scoredEvents[b].score - scoredEvents[a].score,
+      );
       list.sort((a, b) => {
-        const aIdx = recOrder.get(a.id) ?? Infinity;
-        const bIdx = recOrder.get(b.id) ?? Infinity;
+        const aIdx = sortedIds.indexOf(a.id);
+        const bIdx = sortedIds.indexOf(b.id);
+        if (aIdx === -1 && bIdx === -1) return 0;
+        if (aIdx === -1) return 1;
+        if (bIdx === -1) return -1;
         return aIdx - bIdx;
       });
     } else if (type === 'trending' || type === 'similar') {
       list.sort((a, b) => getHeatScore(b) - getHeatScore(a));
     }
     return list;
-  }, [events, type, recommendations]);
+  }, [events, type, scoredEvents]);
 
   const scrollY = useSharedValue(0);
   const scrollHandler = useAnimatedScrollHandler({
@@ -368,6 +359,13 @@ export default function ImmersiveFeedScreen() {
   const viewabilityConfig = useRef({
     itemVisiblePercentThreshold: 50,
   }).current;
+
+  const renderFeedItem = useCallback(
+    ({ item, index }: { item: Event; index: number }) => (
+      <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
+    ),
+    [insets.top, scrollY],
+  );
 
   if (feedEvents.length === 0) {
     return (
@@ -434,9 +432,7 @@ export default function ImmersiveFeedScreen() {
         overScrollMode="never"
         data={feedEvents}
         keyExtractor={(item: Event) => item.id}
-        renderItem={({ item, index }: { item: Event; index: number }) => (
-          <FeedCard event={item} index={index} scrollY={scrollY} insetsTop={insets.top} />
-        )}
+        renderItem={renderFeedItem}
         showsVerticalScrollIndicator={false}
         snapToInterval={ITEM_HEIGHT}
         snapToAlignment="start"
