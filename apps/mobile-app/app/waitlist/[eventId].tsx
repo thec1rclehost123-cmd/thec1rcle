@@ -6,23 +6,9 @@ import { useLocalSearchParams, router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { apiFetch } from '@/lib/api';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  serverTimestamp,
-} from 'firebase/firestore';
 import { useAuthStore } from '@/store/authStore';
 import { Event, useEventsStore } from '@/store/eventsStore';
 import { colors, radii, gradients } from '@/lib/design/theme';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 
 export default function WaitlistScreen() {
   const { eventId } = useLocalSearchParams<{ eventId: string }>();
@@ -70,45 +56,7 @@ export default function WaitlistScreen() {
       }
       setTotalWaiting(data.totalWaiting || 0);
     } catch (e: any) {
-      // Priority 2: Fallback to direct Firestore if API is unreachable (Network request failed)
-      if (e.message?.includes('Network request failed')) {
-        console.warn('[Waitlist] API Gateway unreachable, falling back to direct Firestore.');
-        try {
-          const db = getDb();
-          const col = collection(db, 'waitlist');
-
-          // Fetch all docs for this eventId (simple query, no composite index needed)
-          const snap = await getDocs(query(col, where('eventId', '==', eventId)));
-          const allEntries = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as any);
-
-          // Filter for "waiting" status in JS
-          const waitingEntries = allEntries
-            .filter((entry: any) => entry.status === 'waiting')
-            .sort((a: any, b: any) => {
-              const timeA = a.createdAt?.toMillis?.() || 0;
-              const timeB = b.createdAt?.toMillis?.() || 0;
-              return timeA - timeB;
-            });
-
-          setTotalWaiting(waitingEntries.length);
-
-          const userEntry = waitingEntries.find((entry: any) => entry.email === user.email);
-
-          if (userEntry) {
-            setAlreadyJoined(true);
-            // Position is the index in the sorted array + 1
-            const userIndex = waitingEntries.findIndex((entry: any) => entry.id === userEntry.id);
-            setPosition(userIndex + 1);
-          } else {
-            setAlreadyJoined(false);
-            setPosition(null);
-          }
-        } catch (fsErr: any) {
-          console.error('[Waitlist] Firestore fallback failed:', fsErr);
-        }
-      } else {
-        console.error('Error checking waitlist status:', e);
-      }
+      console.error('Error checking waitlist status:', e);
     } finally {
       setChecking(false);
     }
@@ -131,24 +79,7 @@ export default function WaitlistScreen() {
       });
       await checkWaitlistStatus();
     } catch (err: any) {
-      if (err.message?.includes('Network request failed')) {
-        // Fallback to direct Firestore join
-        try {
-          await addDoc(collection(getDb(), 'waitlist'), {
-            eventId,
-            userId: user.uid,
-            email: user.email,
-            phone: (user as any).phoneNumber ?? null,
-            status: 'waiting',
-            createdAt: serverTimestamp(),
-          });
-          await checkWaitlistStatus();
-        } catch (fsErr) {
-          console.error('Error joining waitlist via Firestore:', fsErr);
-        }
-      } else {
-        console.error('Error joining waitlist:', err);
-      }
+      console.error('Error joining waitlist:', err);
     } finally {
       setJoining(false);
     }

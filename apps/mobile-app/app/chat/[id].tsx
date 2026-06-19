@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,19 +30,20 @@ import {
   formatChatTime,
   type ChatSurfaceTheme,
 } from '@/components/chat/BrightChatSurface';
-import { DEMO_CHAT_MESSAGES, DEMO_EVENT_CHATS, DEMO_MODE } from '@/lib/demo';
 import {
   createTypingHandler,
   sendGroupMessage,
   setGroupTypingStatus,
   subscribeToGroupChat,
   subscribeToGroupTyping,
+  canSendGroupMessage,
   type GroupMessage,
   type TypingStatus,
 } from '@/lib/social';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
+import { useEventsStore } from '@/store/eventsStore';
 
 const fonts = typography.fontFamily;
 
@@ -176,22 +177,23 @@ export default function ChatRoomScreen() {
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
 
-  const eventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
+  const { events } = useEventsStore();
+  const eventData = events.find((e: any) => e.id === eventId);
   const isSubscribed = profile?.isPremium === true;
   const theme: ChatSurfaceTheme = {
     mode: 'event',
-    title: title || eventChat?.eventTitle || 'Event chat',
-    subtitle: eventChat ? `${eventChat.participantCount} people going` : 'Tap to view attendees',
-    backgroundImage: eventChat?.eventCover,
-    heroImage: eventChat?.eventCover,
-    avatarUrls: eventChat?.activeAvatars || [],
+    title: title || eventData?.title || 'Event chat',
+    subtitle: eventData ? `${eventData.stats?.rsvps || 0} people going` : 'Tap to view attendees',
+    backgroundImage: eventData?.coverImage || eventData?.poster,
+    heroImage: eventData?.coverImage || eventData?.poster,
+    avatarUrls: eventData?.activeAvatars || [],
     accentColor: colors.iris,
   };
 
   const attendees = useMemo<AttendeePreview[]>(() => {
     const unique = new Map<string, AttendeePreview>();
     messages.forEach((message) => {
-      if (message.senderId === 'demo-user-001' || message.type === 'announcement') return;
+      if (message.type === 'announcement') return;
       unique.set(message.senderId, {
         userId: message.senderId,
         name: message.senderName,
@@ -199,52 +201,21 @@ export default function ChatRoomScreen() {
         badge: message.senderBadge ? `${message.senderBadge} attendee` : 'Verified attendee',
       });
     });
-    eventChat?.activeAvatars.forEach((avatar, index) => {
-      const userId = `active-attendee-${index}`;
-      if (!unique.has(userId) && unique.size < 6) {
-        unique.set(userId, {
-          userId,
-          name: `Event guest ${index + 1}`,
-          avatar,
-          badge: 'Verified attendee',
-        });
-      }
-    });
     return Array.from(unique.values()).slice(0, 8);
-  }, [eventChat?.activeAvatars, messages]);
+  }, [messages]);
 
   const typingHandler = useMemo(() => {
-    const senderId = user?.uid ?? (DEMO_MODE ? 'demo-user-001' : undefined);
+    const senderId = user?.uid;
     if (!eventId || !senderId) return { onChangeText: () => {}, onBlur: () => {} };
     return createTypingHandler(async (isTyping) => {
-      if (!DEMO_MODE) {
-        await setGroupTypingStatus(eventId, senderId, user?.displayName || 'Guest', isTyping);
-      }
+      await setGroupTypingStatus(eventId, senderId, user?.displayName || 'Guest', isTyping);
     });
   }, [eventId, user?.displayName, user?.uid]);
 
   useFocusEffect(
     useCallback(() => {
-      if (!eventId) return;
+      if (!eventId || !user?.uid) return;
 
-      if (DEMO_MODE) {
-        const nextMessages = (DEMO_CHAT_MESSAGES[eventId] ?? []) as GroupMessage[];
-        setMessages(nextMessages);
-        const demoTyper = nextMessages.find(
-          (message) => message.senderId !== 'demo-user-001' && message.type === 'text',
-        );
-        if (demoTyper) {
-          setTypingStatus({
-            isTyping: true,
-            users: [{ userId: demoTyper.senderId, userName: demoTyper.senderName }],
-          });
-        }
-        setLoading(false);
-        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: false }), 100);
-        return;
-      }
-
-      if (!user?.uid) return;
       const unsubscribeMessages = subscribeToGroupChat(eventId, (nextMessages) => {
         setMessages(nextMessages);
         setLoading(false);
@@ -270,8 +241,8 @@ export default function ChatRoomScreen() {
   }, [attendees, typingStatus]);
 
   const handleSend = async () => {
-    const senderId = user?.uid ?? (DEMO_MODE ? 'demo-user-001' : undefined);
-    if (!inputText.trim() || !senderId || !eventId) return;
+    const senderId = user?.uid;
+    if (!inputText.trim() || !senderId || !eventId || !canSendGroupMessage()) return;
 
     const content = inputText.trim();
     setInputText('');
@@ -281,33 +252,15 @@ export default function ChatRoomScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
     try {
-      if (DEMO_MODE) {
-        setMessages((current) => [
-          ...current,
-          {
-            id: `demo-group-message-${Date.now()}`,
-            eventId,
-            senderId,
-            senderName: user?.displayName || 'Arjun M.',
-            senderAvatar: user?.photoURL || 'https://i.pravatar.cc/100?img=68',
-            content,
-            type: 'text',
-            createdAt: new Date().toISOString(),
-          },
-        ]);
-        setTypingStatus({ isTyping: false, users: [] });
-        setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 50);
-      } else {
-        const result = await sendGroupMessage(
-          eventId,
-          senderId,
-          user?.displayName || 'Anonymous',
-          content,
-        );
-        if (!result.success) {
-          setError(result.error || 'Failed to send');
-          setInputText(content);
-        }
+      const result = await sendGroupMessage(
+        eventId,
+        senderId,
+        user?.displayName || 'Anonymous',
+        content,
+      );
+      if (!result.success) {
+        setError(result.error || 'Failed to send');
+        setInputText(content);
       }
     } catch (sendError: any) {
       setError(sendError.message);
@@ -325,9 +278,7 @@ export default function ChatRoomScreen() {
         senderName={item.senderName}
         senderAvatar={item.senderAvatar}
         type={item.type === 'announcement' ? 'announcement' : 'text'}
-        isOwnMessage={
-          item.senderId === user?.uid || (DEMO_MODE && item.senderId === 'demo-user-001')
-        }
+        isOwnMessage={item.senderId === user?.uid}
         index={index}
         animate={index >= messages.length - 1}
       />
@@ -416,7 +367,7 @@ export default function ChatRoomScreen() {
         visible={attendeesOpen}
         onClose={() => setAttendeesOpen(false)}
         attendees={attendees}
-        total={eventChat?.participantCount ?? attendees.length}
+        total={eventData?.stats?.rsvps ?? attendees.length}
         subscribed={isSubscribed}
       />
     </BrightChatSurface>

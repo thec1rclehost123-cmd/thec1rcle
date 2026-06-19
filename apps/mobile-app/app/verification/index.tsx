@@ -10,9 +10,8 @@ import {
   Clock,
   AlertCircle,
 } from 'lucide-react-native';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { getFirebaseApp } from '@/lib/firebase/client';
 import { colors } from '@/lib/design/theme';
+import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
 
@@ -83,24 +82,17 @@ export default function VerificationScreen() {
     if (!user?.uid || submitting) return;
     setSubmitting(true);
     try {
-      const db = getFirestore(getFirebaseApp());
-      // Write a pending verification request to Firestore.
-      // In production this would trigger a Cloud Function / KYC provider.
-      await setDoc(
-        doc(db, 'verificationRequests', user.uid),
-        {
-          userId: user.uid,
+      await apiFetch('/api/v1/users/me/verification', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'profile',
+          status: 'pending',
           displayName: profile?.displayName || user.displayName || '',
           email: profile?.email || user.email || '',
           photoURL: profile?.photoURL || user.photoURL || '',
-          status: 'pending',
-          submittedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-
-      // Optimistically mark user's profile as pending
-      await setDoc(doc(db, 'users', user.uid), { verificationStatus: 'pending' }, { merge: true });
+          metadata: { source: 'verification_screen' },
+        }),
+      });
 
       router.back();
     } catch (err) {

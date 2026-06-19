@@ -326,11 +326,23 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   /**
    * POST /api/v1/social/chat
    * Send a message to an event group chat
+   * Rate-limited to 10 messages per 10 seconds per user.
    */
   fastify.post(
     '/social/chat',
     {
-      preHandler: [fastify.validate({ body: ChatMessageBody })],
+      preHandler: [
+        fastify.validate({ body: ChatMessageBody }),
+        fastify.rateLimit({
+          max: 10,
+          timeWindow: '10 seconds',
+          keyGenerator: (request: any) => request.user?.uid || request.ip,
+          errorResponse: {
+            code: 'TOO_MANY_REQUESTS',
+            message: 'You are sending messages too fast. Please slow down.',
+          },
+        }),
+      ],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
@@ -1511,6 +1523,65 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       );
     }
   });
+
+  /**
+   * POST /api/v1/social/chat/join
+   * Join an event group chat. Verifies the user has an active ticket/entitlement.
+   * Replaces the old client-side Firestore write.
+   */
+  fastify.post(
+    '/social/chat/join',
+    {
+      preHandler: [
+        fastify.validate({
+          body: z
+            .object({
+              eventId: z.string(),
+              displayName: z.string().optional(),
+              photoURL: z.string().nullable().optional(),
+            })
+            .strict(),
+        }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId)
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+            requestId: request.id,
+          }),
+        );
+
+      const { eventId, displayName, photoURL } = request.body;
+
+      try {
+        const { ensureEventChatMembership } = await import('@c1rcle/core/guest-chat-service');
+        const result = await ensureEventChatMembership(fastify.db, {
+          eventId,
+          userId,
+          userName: displayName || request.user?.name || 'C1RCLE member',
+          userAvatar: photoURL || request.user?.picture || null,
+          source: 'ticket',
+        });
+        return buildSuccessResponse({ chat: result.chat, member: result.member });
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'POST /social/chat/join failed',
+        );
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: error.message || 'Failed to join chat',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   /**
    * GET /api/v1/social/chat/:eventId

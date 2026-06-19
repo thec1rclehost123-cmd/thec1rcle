@@ -2,10 +2,15 @@
  * THE C1RCLE - Mobile API Client
  * Connects mobile app to the SAME guest-portal backend APIs
  * ensuring full sync with web checkout, payments, and inventory.
+ *
+ * In DEMO_MODE, delegates to apiFetchMock so every screen works without a backend.
+ * Screens no longer need `if (DEMO_MODE)` branches — the mock is transparent.
  */
 
 import Constants from 'expo-constants';
 import { getFirebaseAuth } from './firebase';
+import { DEMO_MODE } from './demo';
+import { apiFetchMock } from './api-mock';
 
 // Fastify API Gateway base URL
 // In development, dynamically derive the gateway URL from the Expo dev server host.
@@ -56,11 +61,16 @@ async function getAuthToken(): Promise<string | null> {
 
 /**
  * Core fetch wrapper with auth, error handling, and retries.
+ * In DEMO_MODE, transparently returns mock data.
  */
 async function apiFetch<T = any>(
   path: string,
   options: RequestInit & { requireAuth?: boolean; _retry?: boolean } = {},
 ): Promise<T> {
+  // In demo mode, delegate to mock API
+  if (DEMO_MODE) {
+    return apiFetchMock<T>(path, options);
+  }
   const { requireAuth = true, _retry = false, ...fetchOptions } = options;
 
   const appVersion = Constants.expoConfig?.version ?? 'unknown';
@@ -379,6 +389,43 @@ export async function fetchEvents(params?: {
   const query = searchParams.toString();
   return apiFetch(`${API_PREFIX}/events${query ? `?${query}` : ''}`, {
     requireAuth: false,
+  });
+}
+
+export async function fetchPublicVenues(params?: {
+  area?: string;
+  search?: string;
+  tablesOnly?: boolean;
+  limit?: number;
+}): Promise<{ venues: any[]; items: any[]; nextCursor?: string | null; hasMore?: boolean }> {
+  const searchParams = new URLSearchParams();
+  if (params?.area) searchParams.set('area', params.area);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.tablesOnly) searchParams.set('tablesOnly', 'true');
+  searchParams.set('limit', String(params?.limit ?? 100));
+
+  const query = searchParams.toString();
+  const response = await apiFetch<{
+    items?: any[];
+    venues?: any[];
+    nextCursor?: string | null;
+    hasMore?: boolean;
+  }>(`${API_PREFIX}/public/venues${query ? `?${query}` : ''}`, {
+    requireAuth: false,
+  });
+  const items = response.items || response.venues || [];
+  return { ...response, items, venues: items };
+}
+
+export async function syncAuthSession(): Promise<{
+  user?: any;
+  profile?: any;
+  claims?: Record<string, any>;
+  requiresTokenRefresh?: boolean;
+}> {
+  return apiFetch(`${API_PREFIX}/auth/sync`, {
+    method: 'POST',
+    requireAuth: true,
   });
 }
 

@@ -2,34 +2,14 @@
  * eventInterestStore.ts
  *
  * Manages:
- *  - Event likes ("interested") — per user, written to Firestore
+ *  - Event likes ("interested") — routed through the API Gateway RSVP contract
  *  - Interested users list per event (shown in "Who's Going")
- *  - Event group chat membership on ticket purchase
+ *  - Event group chat membership on ticket purchase (via API Gateway)
  *
- * Firestore structure:
- *   eventInterest/{eventId}/interestedUsers/{userId}
- *     → { userId, displayName, photoURL, likedAt }
- *
- *   eventGroupChatMembers/{eventId}/members/{userId}
- *     → { userId, displayName, photoURL, joinedAt, source }
+ * Chat membership is handled server-side via POST /api/v1/social/chat/join
  */
 import { create } from 'zustand';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  doc,
-  setDoc,
-  deleteDoc,
-  getDocs,
-  collection,
-  query,
-  where,
-  serverTimestamp,
-} from 'firebase/firestore';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
+import { apiFetch } from '@/lib/api';
 
 export interface InterestedUser {
   userId: string;
@@ -84,12 +64,11 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
 
   loadUserInterests: async (userId: string) => {
     try {
-      const db = getDb();
-      // Query all eventInterest subcollections where this userId has a doc
-      // We store a top-level mirror collection for efficient user-centric queries
-      const snap = await getDocs(collection(db, 'userEventInterests', userId, 'events'));
-      const ids = new Set<string>();
-      snap.forEach((d) => ids.add(d.id));
+      const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
+      const profile = response.profile || response.data?.profile || {};
+      const ids = new Set<string>(
+        Array.isArray(profile.attendedEvents) ? profile.attendedEvents.filter(Boolean) : [],
+      );
       set({ likedEventIds: ids });
     } catch (e) {
       console.warn('[EventInterestStore] loadUserInterests:', e);
@@ -99,7 +78,6 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
   toggleInterest: async (eventId, userId, userInfo) => {
     const { likedEventIds } = get();
     const isLiked = likedEventIds.has(eventId);
-    const db = getDb();
 
     // Optimistic update
     const next = new Set(likedEventIds);
@@ -111,14 +89,13 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     set({ likedEventIds: next });
 
     try {
-      // Write to eventInterest/{eventId}/interestedUsers/{userId}
-      const interestRef = doc(db, 'eventInterest', eventId, 'interestedUsers', userId);
-      // Mirror for user-centric queries
-      const mirrorRef = doc(db, 'userEventInterests', userId, 'events', eventId);
+      await apiFetch(`/api/v1/events/${encodeURIComponent(eventId)}/rsvp`, {
+        method: 'POST',
+        body: JSON.stringify({ shouldInclude: !isLiked }),
+        requireAuth: true,
+      });
 
       if (isLiked) {
-        await Promise.all([deleteDoc(interestRef), deleteDoc(mirrorRef)]);
-        // Remove from local interestedUsers list
         const current = get().interestedUsers[eventId] ?? [];
         set({
           interestedUsers: {
@@ -133,11 +110,6 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
           photoURL: userInfo.photoURL ?? null,
           likedAt: new Date().toISOString(),
         };
-        await Promise.all([
-          setDoc(interestRef, { ...payload, _ts: serverTimestamp() }),
-          setDoc(mirrorRef, { eventId, _ts: serverTimestamp() }),
-        ]);
-        // Add to local interestedUsers list
         const current = get().interestedUsers[eventId] ?? [];
         if (!current.find((u) => u.userId === userId)) {
           set({
@@ -159,18 +131,17 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     if (get().loadingInterested[eventId]) return;
     set({ loadingInterested: { ...get().loadingInterested, [eventId]: true } });
     try {
-      const db = getDb();
-      const snap = await getDocs(collection(db, 'eventInterest', eventId, 'interestedUsers'));
-      const users: InterestedUser[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        users.push({
-          userId: data.userId ?? d.id,
-          displayName: data.displayName ?? 'C1rcle User',
-          photoURL: data.photoURL ?? null,
-          likedAt: data.likedAt ?? '',
-        });
-      });
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/attendees?limit=24`,
+        { requireAuth: true },
+      );
+      const attendees = response.attendees || response.data?.attendees || [];
+      const users: InterestedUser[] = attendees.map((attendee: any) => ({
+        userId: attendee.userId || attendee.id,
+        displayName: attendee.displayName || attendee.name || 'C1rcle User',
+        photoURL: attendee.photoURL || attendee.avatar || null,
+        likedAt: attendee.joinedAt || '',
+      }));
       set({ interestedUsers: { ...get().interestedUsers, [eventId]: users } });
     } catch (e) {
       console.warn('[EventInterestStore] fetchInterestedUsers:', e);
@@ -181,15 +152,14 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
 
   joinEventGroupChat: async (eventId, userId, userInfo) => {
     try {
-      const db = getDb();
-      const memberRef = doc(db, 'eventGroupChatMembers', eventId, 'members', userId);
-      await setDoc(memberRef, {
-        userId,
-        displayName: userInfo.displayName || 'C1rcle User',
-        photoURL: userInfo.photoURL ?? null,
-        joinedAt: new Date().toISOString(),
-        source: 'ticket',
-        _ts: serverTimestamp(),
+      await apiFetch('/api/v1/social/chat/join', {
+        method: 'POST',
+        body: JSON.stringify({
+          eventId,
+          displayName: userInfo.displayName || 'C1rcle User',
+          photoURL: userInfo.photoURL ?? null,
+        }),
+        requireAuth: true,
       });
     } catch (e) {
       console.warn('[EventInterestStore] joinEventGroupChat:', e);
@@ -198,19 +168,18 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
 
   fetchGroupChatMembers: async (eventId: string) => {
     try {
-      const db = getDb();
-      const snap = await getDocs(collection(db, 'eventGroupChatMembers', eventId, 'members'));
-      const members: GroupChatMember[] = [];
-      snap.forEach((d) => {
-        const data = d.data();
-        members.push({
-          userId: data.userId ?? d.id,
-          displayName: data.displayName ?? 'C1rcle User',
-          photoURL: data.photoURL ?? null,
-          joinedAt: data.joinedAt ?? '',
-          source: data.source ?? 'ticket',
-        });
-      });
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/attendees?limit=100`,
+        { requireAuth: true },
+      );
+      const attendees = response.attendees || response.data?.attendees || [];
+      const members: GroupChatMember[] = attendees.map((attendee: any) => ({
+        userId: attendee.userId || attendee.id,
+        displayName: attendee.displayName || attendee.name || 'C1rcle User',
+        photoURL: attendee.photoURL || attendee.avatar || null,
+        joinedAt: attendee.joinedAt || '',
+        source: 'ticket',
+      }));
       set({ groupChatMembers: { ...get().groupChatMembers, [eventId]: members } });
     } catch (e) {
       console.warn('[EventInterestStore] fetchGroupChatMembers:', e);

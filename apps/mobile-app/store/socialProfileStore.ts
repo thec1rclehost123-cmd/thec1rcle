@@ -1,20 +1,9 @@
 import { create } from 'zustand';
 import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  doc,
-  getDoc,
-  setDoc,
-  serverTimestamp,
-  collection,
-  addDoc,
-} from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { apiFetch } from '@/lib/api';
 import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 function getStore() {
   return getStorage(getFirebaseApp());
 }
@@ -156,14 +145,18 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
 
   // ── Load ──────────────────────────────────────────────────────────────────
   loadSocialProfile: async (userId: string) => {
+    if (!userId) return;
     set({ loading: true });
     try {
-      const snap = await getDoc(doc(getDb(), 'users', userId));
-      if (!snap.exists()) {
+      const response = await apiFetch<{
+        data?: { profile?: any };
+        profile?: any;
+      }>('/api/v1/users/me');
+      const data = response.data?.profile ?? response.profile;
+      if (!data) {
         set({ socialState: 'none', socialProfile: null, loading: false });
         return;
       }
-      const data = snap.data();
       const sp = data?.socialProfile as SocialProfile | undefined;
       const state: SocialState = sp?.state ?? 'none';
       set({ socialState: state, socialProfile: sp ?? null, loading: false });
@@ -187,21 +180,21 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
 
   // ── Complete setup ────────────────────────────────────────────────────────
   completeSetup: async (userId, data) => {
+    if (!userId) return;
     const profile: SocialProfile = {
       ...DEFAULT_PROFILE,
       ...data,
       state: 'complete',
+      completedAt: new Date().toISOString(),
     };
-    await setDoc(
-      doc(getDb(), 'users', userId),
-      {
+    await apiFetch('/api/v1/users/me', {
+      method: 'PUT',
+      body: JSON.stringify({
         photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
         photos: profile.photos,
-        socialProfile: { ...profile, completedAt: serverTimestamp() },
-        updatedAt: serverTimestamp(),
-      },
-      { merge: true },
-    );
+        socialProfile: profile,
+      }),
+    });
     set({ socialState: 'complete', socialProfile: profile });
   },
 
@@ -215,32 +208,24 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
       await uploadBytes(storageRef, blob);
       const selfieUrl = await getDownloadURL(storageRef);
 
-      // 2. Write verification attempt
-      await addDoc(collection(getDb(), `verificationAttempts/${userId}/attempts`), {
-        userId,
-        selfieUrl,
-        attemptedAt: serverTimestamp(),
-        result: 'pending', // Cloud Function updates this async
-        matchScore: null,
+      await apiFetch('/api/v1/users/me/verification', {
+        method: 'POST',
+        body: JSON.stringify({
+          type: 'social',
+          status: 'pending',
+          selfieUrl,
+          metadata: { source: 'social_profile_store' },
+        }),
       });
 
-      // 3. For now: mark as verified immediately (replace with CF result later)
       const { socialProfile } = get();
       const updatedProfile: SocialProfile = {
         ...(socialProfile ?? DEFAULT_PROFILE),
-        state: 'verified',
-        verifiedAt: new Date().toISOString(),
+        state: 'complete',
         verificationPhotoHash: selfieUrl.slice(-32), // lightweight placeholder
       };
-
-      await setDoc(
-        doc(getDb(), 'users', userId),
-        { socialProfile: { ...updatedProfile, verifiedAt: serverTimestamp() } },
-        { merge: true },
-      );
-
-      set({ socialState: 'verified', socialProfile: updatedProfile });
-      return { success: true, message: 'Verified!' };
+      set({ socialState: 'complete', socialProfile: updatedProfile });
+      return { success: true, message: 'Verification submitted.' };
     } catch (e: any) {
       console.error('[SocialProfileStore] verification error:', e);
       return { success: false, message: 'Something went wrong. Please try again.' };
@@ -249,6 +234,7 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
 
   // ── Photo change handler ──────────────────────────────────────────────────
   onPhotoChanged: async (userId, newPhotoUrl) => {
+    if (!userId) return;
     const { socialProfile, socialState } = get();
     if (socialState !== 'verified' || !socialProfile) return;
 
@@ -262,11 +248,12 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
       verifiedAt: undefined,
       verificationPhotoHash: undefined,
     };
-    await setDoc(
-      doc(getDb(), 'users', userId),
-      { socialProfile: { ...updated, verifiedAt: null, verificationPhotoHash: null } },
-      { merge: true },
-    );
+    await apiFetch('/api/v1/users/me', {
+      method: 'PUT',
+      body: JSON.stringify({
+        socialProfile: { ...updated, verifiedAt: null, verificationPhotoHash: null },
+      }),
+    });
     set({ socialState: 'complete', socialProfile: updated });
   },
 

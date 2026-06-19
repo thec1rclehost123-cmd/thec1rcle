@@ -1,6 +1,7 @@
 // Push notifications service
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { apiFetch } from './api';
@@ -25,6 +26,15 @@ export async function requestNotificationPermissions(): Promise<boolean> {
     return false;
   }
 
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#6D5DF6',
+    });
+  }
+
   const { status: existingStatus } = await Notifications.getPermissionsAsync();
   let finalStatus = existingStatus;
 
@@ -41,14 +51,27 @@ export async function requestNotificationPermissions(): Promise<boolean> {
   return true;
 }
 
+function getEasProjectId(): string | undefined {
+  return (
+    Constants.expoConfig?.extra?.eas?.projectId ||
+    Constants.easConfig?.projectId ||
+    process.env.EXPO_PUBLIC_PROJECT_ID
+  );
+}
+
 // Get Expo push token
 export async function getExpoPushToken(): Promise<string | null> {
   try {
     const hasPermission = await requestNotificationPermissions();
     if (!hasPermission) return null;
 
+    const projectId = getEasProjectId();
+    if (!projectId) {
+      throw new Error('EAS projectId is required to register Expo push tokens');
+    }
+
     const token = await Notifications.getExpoPushTokenAsync({
-      projectId: process.env.EXPO_PUBLIC_PROJECT_ID,
+      projectId,
     });
 
     return token.data;
@@ -58,24 +81,29 @@ export async function getExpoPushToken(): Promise<string | null> {
   }
 }
 
+async function sendDeviceTokenToGateway(token: string): Promise<void> {
+  await apiFetch('/api/v1/users/me/device-token', {
+    method: 'POST',
+    body: JSON.stringify({
+      token,
+      provider: 'expo',
+      platform: Platform.OS === 'ios' || Platform.OS === 'android' ? Platform.OS : 'unknown',
+      deviceId: `${Platform.OS}-${Device.osBuildId || Device.modelId || 'unknown'}`,
+      projectId: getEasProjectId(),
+      appVersion: Constants.expoConfig?.version || 'unknown',
+    }),
+    requireAuth: true,
+  });
+}
+
 // Register push token with user profile — via API gateway
 export async function registerPushToken(userId: string): Promise<boolean> {
   try {
     const token = await getExpoPushToken();
     if (!token) return false;
 
-    await apiFetch('/api/v1/profiles', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        type: 'user',
-        id: userId,
-        updates: {
-          pushToken: token,
-          lastTokenUpdate: new Date().toISOString(),
-        },
-      }),
-      requireAuth: true,
-    });
+    await sendDeviceTokenToGateway(token);
+    await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
 
     return true;
   } catch (error) {
@@ -182,18 +210,7 @@ export async function refreshPushToken(userId: string): Promise<void> {
     const storedToken = await AsyncStorage.getItem(PUSH_TOKEN_KEY);
     if (storedToken === newToken) return; // token unchanged — skip write
 
-    await apiFetch('/api/v1/profiles', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        type: 'user',
-        id: userId,
-        updates: {
-          pushToken: newToken,
-          lastTokenUpdate: new Date().toISOString(),
-        },
-      }),
-      requireAuth: true,
-    });
+    await sendDeviceTokenToGateway(newToken);
 
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);
   } catch (error) {

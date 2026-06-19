@@ -8,13 +8,7 @@ import { create } from 'zustand';
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
 import { getFirebaseAuth } from '@/lib/firebase';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { apiFetch } from '@/lib/api';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 
 export interface UserProfile {
   uid: string;
@@ -57,6 +51,7 @@ interface ProfileState {
   // Actions
   loadProfile: (userId: string) => Promise<void>;
   updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
+  setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => void;
   subscribeToProfile: (userId: string) => () => void;
   clearProfile: () => void;
 }
@@ -118,19 +113,15 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      const docSnap = await getDoc(doc(getDb(), 'users', userId));
-      const data = docSnap.exists() ? docSnap.data() : undefined;
+      const response = await apiFetch<{
+        profile?: Partial<UserProfile>;
+        data?: { profile?: Partial<UserProfile> };
+      }>('/api/v1/users/me');
+      const data = response.profile || response.data?.profile;
       const profile = normalizeProfile(userId, data);
-
-      if (!docSnap.exists()) {
-        // First-time user: write initial profile to Firestore
-        await setDoc(doc(getDb(), 'users', userId), omitUndefined(profile), { merge: true });
-      }
-
       set({ profile, loading: false });
     } catch (error: any) {
-      console.warn('Unable to load Firestore profile; using auth-derived profile.', error);
-      // Fallback to auth-derived profile so the app stays usable
+      console.warn('Unable to load profile through gateway; using auth-derived profile.', error);
       set({ profile: normalizeProfile(userId), error: error.message, loading: false });
     }
   },
@@ -148,28 +139,17 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     set({ profile: nextProfile, error: null });
 
     try {
-      await setDoc(
-        doc(getDb(), 'users', userId),
-        omitUndefined({ uid: userId, ...updates, updatedAt: serverTimestamp() }),
-        { merge: true },
-      );
-
-      apiFetch<{
+      const response = await apiFetch<{
         profile?: Partial<UserProfile>;
         data?: { profile?: Partial<UserProfile> };
       }>('/api/v1/users/me/settings', {
         method: 'PATCH',
         body: JSON.stringify(omitUndefined(updates)),
-      })
-        .then((response) => {
-          const savedProfile = response.profile || response.data?.profile;
-          if (savedProfile) {
-            set({ profile: normalizeProfile(userId, savedProfile) });
-          }
-        })
-        .catch((error) => {
-          console.warn('Profile API sync failed after Firestore save:', error);
-        });
+      });
+      const savedProfile = response.profile || response.data?.profile;
+      if (savedProfile) {
+        set({ profile: normalizeProfile(userId, savedProfile) });
+      }
 
       return true;
     } catch (error: any) {
@@ -178,6 +158,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       if (profile) set({ profile }); // revert
       return false;
     }
+  },
+
+  setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => {
+    set({ profile: normalizeProfile(userId, profile), loading: false, error: null });
   },
 
   subscribeToProfile: (userId: string) => {

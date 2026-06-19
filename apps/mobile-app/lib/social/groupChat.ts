@@ -1,7 +1,18 @@
 // Event Group Chat Service via API Gateway
+// Uses WebSocket for real-time delivery with polling fallback.
 import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
+import { wsManager, type WSMessage } from '@/lib/websocket';
 import { GroupMessage, EventPhase, getEventPhase } from './types';
+
+// Client-side rate limiting for group chat messages (debounce 500ms)
+let lastGroupMessageTime = 0;
+export function canSendGroupMessage(): boolean {
+  const now = Date.now();
+  if (now - lastGroupMessageTime < 500) return false;
+  lastGroupMessageTime = now;
+  return true;
+}
 
 /**
  * Get or create event group chat status.
@@ -129,7 +140,8 @@ export async function sendAnnouncement(
 }
 
 /**
- * Subscribe to group chat messages via polling.
+ * Subscribe to group chat messages.
+ * Uses WebSocket for real-time delivery, falls back to 5s polling.
  */
 export function subscribeToGroupChat(
   eventId: string,
@@ -137,8 +149,39 @@ export function subscribeToGroupChat(
   messageLimit: number = 100,
 ): () => void {
   let active = true;
+  let unsubscribeWS: (() => void) | null = null;
+  let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  async function poll() {
+  // WebSocket handler
+  const wsHandler = (msg: WSMessage) => {
+    if (!active) return;
+    if (msg.type === 'chat:new_message' && msg.payload?.eventId === eventId) {
+      // Single new message received via WS — fetch latest batch
+      pollOnce();
+    }
+  };
+
+  // Subscribe via WebSocket if connected
+  if (wsManager.isConnected) {
+    unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
+  } else {
+    // Listen for WS connection and subscribe then
+    const connectHandler = () => {
+      if (active) {
+        unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
+      }
+    };
+    // Check periodically for WS connection
+    const connectCheck = setInterval(() => {
+      if (wsManager.isConnected && !unsubscribeWS) {
+        unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
+        clearInterval(connectCheck);
+      }
+    }, 1000);
+    setTimeout(() => clearInterval(connectCheck), 10000);
+  }
+
+  async function pollOnce() {
     if (!active) return;
     if (AppState.currentState !== 'active') return;
     try {
@@ -154,12 +197,16 @@ export function subscribeToGroupChat(
     }
   }
 
-  poll();
-  const intervalId = setInterval(poll, 5000); // 5s polling for messages
+  // Initial fetch
+  pollOnce();
+
+  // Polling fallback (every 5s) — keeps working even without WS
+  pollIntervalId = setInterval(pollOnce, 5000);
 
   return () => {
     active = false;
-    clearInterval(intervalId);
+    if (unsubscribeWS) unsubscribeWS();
+    if (pollIntervalId) clearInterval(pollIntervalId);
   };
 }
 
@@ -170,7 +217,6 @@ export async function deleteGroupMessage(
   messageId: string,
   deletedByUserId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  // Note: Need to implement DELETE route in Gateway if needed
   try {
     await apiFetch(`/api/v1/social/chat/${messageId}`, {
       method: 'DELETE',

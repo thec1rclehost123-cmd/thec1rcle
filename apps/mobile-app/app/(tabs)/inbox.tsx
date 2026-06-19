@@ -3,7 +3,7 @@
  * Segment control: Event Chats | Private Chats
  * Matches the Venues/Hosts tab style.
  */
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -14,24 +14,28 @@ import {
   Image,
   Modal,
   Dimensions,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Search, Plus, MessageCircle, Heart, X, Lock } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
-import {
-  DEMO_MODE,
-  DEMO_EVENT_CHATS,
-  DEMO_PRIVATE_CHATS,
-  DEMO_NEW_MATCHES,
-  type DemoEventChat,
-  type DemoPrivateChat,
-  type DemoNewMatch,
-} from '@/lib/demo';
+import { useAuthStore } from '@/store/authStore';
+import { useChatStore } from '@/store/chatStore';
+import { apiFetch } from '@/lib/api';
+import type { EventChat, DirectChat } from '@/lib/chat';
+
+interface NewMatch {
+  id: string;
+  name: string;
+  photoURL?: string;
+  sharedEventTitle?: string;
+  isNew: boolean;
+}
 
 type Tab = 'events' | 'private';
 
@@ -60,7 +64,7 @@ function getEventTimeBadge(eventDate: string): string {
 
 // ── Event chat card ───────────────────────────────────────────────────────────
 
-function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) {
+function EventChatCard({ chat, index }: { chat: EventChat; index: number }) {
   const isFirst = index === 0;
   const badge = getEventTimeBadge(chat.eventDate);
   const isLive = badge === 'LIVE NOW' || badge === 'STARTS SOON' || badge.startsWith('STARTS IN');
@@ -125,7 +129,7 @@ function EventChatCard({ chat, index }: { chat: DemoEventChat; index: number }) 
 
 // ── Private chat row ──────────────────────────────────────────────────────────
 
-function PrivateChatRow({ chat }: { chat: DemoPrivateChat }) {
+function PrivateChatRow({ chat }: { chat: DirectChat }) {
   return (
     <Pressable
       style={rowStyles.row}
@@ -470,19 +474,49 @@ export default function InboxScreen() {
   const cardWidth = (windowWidth - 32 - 12) / 2;
   const cardHeight = cardWidth * 1.33;
 
+  const { user } = useAuthStore();
+  const {
+    eventChats,
+    privateChats,
+    newMatches,
+    totalUnread,
+    loading,
+    fetchAll,
+    subscribeToUpdates,
+  } = useChatStore();
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!user?.uid) return;
+      fetchAll(user.uid);
+      const unsub = subscribeToUpdates(user.uid);
+      return () => unsub();
+    }, [user?.uid]),
+  );
+
   const switchTab = (tab: Tab) => {
     if (tab === activeTab) return;
     Haptics.selectionAsync();
     setActiveTab(tab);
   };
 
-  const newMatchCount = DEMO_NEW_MATCHES.filter((m) => m.isNew).length;
-  const totalUnread = (DEMO_PRIVATE_CHATS as any).totalUnread ?? 0;
+  const newMatchCount = newMatches.filter((m) => m.isNew).length;
 
   const hasNoChats =
-    DEMO_EVENT_CHATS.length === 0 &&
-    DEMO_PRIVATE_CHATS.length === 0 &&
-    DEMO_NEW_MATCHES.length === 0;
+    !loading && eventChats.length === 0 && privateChats.length === 0 && newMatches.length === 0;
+
+  if (loading) {
+    return (
+      <View
+        style={[
+          styles.container,
+          { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' },
+        ]}
+      >
+        <ActivityIndicator size="large" color="#fff" />
+      </View>
+    );
+  }
 
   if (hasNoChats) {
     return <EmptyChatReplica />;
@@ -563,8 +597,8 @@ export default function InboxScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Animated.View entering={FadeIn.duration(200)}>
-              {DEMO_MODE && DEMO_PRIVATE_CHATS.length > 0 ? (
-                DEMO_PRIVATE_CHATS.map((chat) => <PrivateChatRow key={chat.id} chat={chat} />)
+              {privateChats.length > 0 ? (
+                privateChats.map((chat: DirectChat) => <PrivateChatRow key={chat.id} chat={chat} />)
               ) : (
                 <View style={styles.emptyCard}>
                   <Text style={styles.emptyTitle}>No messages yet</Text>
@@ -583,8 +617,8 @@ export default function InboxScreen() {
             showsVerticalScrollIndicator={false}
           >
             <Animated.View entering={FadeIn.duration(200)}>
-              {DEMO_MODE && DEMO_EVENT_CHATS.length > 0 ? (
-                DEMO_EVENT_CHATS.map((chat, i) => (
+              {eventChats.length > 0 ? (
+                eventChats.map((chat: EventChat, i: number) => (
                   <EventChatCard key={chat.id} chat={chat} index={i} />
                 ))
               ) : (
@@ -638,7 +672,7 @@ export default function InboxScreen() {
               contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16 }}
               showsVerticalScrollIndicator={false}
             >
-              {DEMO_NEW_MATCHES.map((match) => (
+              {newMatches.map((match: NewMatch) => (
                 <Pressable
                   key={match.id}
                   style={{

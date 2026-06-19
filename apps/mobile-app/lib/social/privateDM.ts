@@ -1,6 +1,8 @@
 // Private DM Service via API Gateway
+// Uses WebSocket for real-time delivery with polling fallback.
 import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
+import { wsManager, type WSMessage } from '@/lib/websocket';
 import { PrivateConversation, DirectMessage } from './types';
 import { canInitiateDM } from './entitlements';
 
@@ -121,15 +123,38 @@ export async function sendDirectImageMessage(
   }
 }
 
-// Subscribe to DM messages via Polling
+// Subscribe to DM messages via WebSocket + polling
 export function subscribeToDirectMessages(
   conversationId: string,
   onMessages: (messages: DirectMessage[]) => void,
   messageLimit: number = 100,
 ): () => void {
   let active = true;
+  let unsubscribeWS: (() => void) | null = null;
+  let pollIntervalId: ReturnType<typeof setInterval> | null = null;
 
-  async function poll() {
+  // WebSocket handler
+  const wsHandler = (msg: WSMessage) => {
+    if (!active) return;
+    if (msg.type === 'dm:new_message' && msg.payload?.conversationId === conversationId) {
+      pollOnce();
+    }
+  };
+
+  // Subscribe via WebSocket if connected
+  if (wsManager.isConnected) {
+    unsubscribeWS = wsManager.subscribe(`dm:${conversationId}`, wsHandler);
+  } else {
+    const connectCheck = setInterval(() => {
+      if (wsManager.isConnected && !unsubscribeWS) {
+        unsubscribeWS = wsManager.subscribe(`dm:${conversationId}`, wsHandler);
+        clearInterval(connectCheck);
+      }
+    }, 1000);
+    setTimeout(() => clearInterval(connectCheck), 10000);
+  }
+
+  async function pollOnce() {
     if (!active) return;
     if (AppState.currentState !== 'active') return;
     try {
@@ -138,18 +163,18 @@ export function subscribeToDirectMessages(
         { requireAuth: true },
       );
       if (active && response.messages) {
-        // Return reversed to match UI expectation (oldest first)
         onMessages([...response.messages].reverse());
       }
     } catch (e) {}
   }
 
-  poll();
-  const intervalId = setInterval(poll, 5000); // 5s poll
+  pollOnce();
+  pollIntervalId = setInterval(pollOnce, 5000);
 
   return () => {
     active = false;
-    clearInterval(intervalId);
+    if (unsubscribeWS) unsubscribeWS();
+    if (pollIntervalId) clearInterval(pollIntervalId);
   };
 }
 

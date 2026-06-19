@@ -3,12 +3,6 @@ import * as Location from 'expo-location';
 import { apiFetch } from '@/lib/api';
 import { scheduleLocalNotification } from './notifications';
 import { Linking, Alert } from 'react-native';
-import { getFirebaseApp } from '@/lib/firebase/client';
-import { getFirestore, doc, getDoc, updateDoc } from 'firebase/firestore';
-
-function getDb() {
-  return getFirestore(getFirebaseApp());
-}
 
 export interface EmergencyContact {
   id?: string;
@@ -19,8 +13,9 @@ export interface EmergencyContact {
 
 export async function getEmergencyContacts(uid: string): Promise<EmergencyContact[]> {
   try {
-    const snap = await getDoc(doc(getDb(), 'users', uid));
-    return (snap.data()?.emergencyContacts as EmergencyContact[]) ?? [];
+    const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
+    const profile = response.profile || response.data?.profile || response;
+    return (profile?.emergencyContacts as EmergencyContact[]) ?? [];
   } catch (error) {
     console.error('Error fetching emergency contacts:', error);
     return [];
@@ -32,7 +27,11 @@ export async function saveEmergencyContacts(
   contacts: EmergencyContact[],
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    await updateDoc(doc(getDb(), 'users', uid), { emergencyContacts: contacts });
+    await apiFetch('/api/v1/users/me', {
+      method: 'PUT',
+      body: JSON.stringify({ emergencyContacts: contacts }),
+      requireAuth: true,
+    });
     return { success: true };
   } catch (error: any) {
     console.error('Error saving emergency contacts:', error);
@@ -176,7 +175,7 @@ export function subscribeToFriendLocation(
       } else {
         onUpdate(null);
       }
-    } catch (e) {
+    } catch {
       onUpdate(null);
     }
   }
@@ -209,9 +208,7 @@ export async function triggerSOS(
       requireAuth: true,
     });
 
-    // Get contacts via Gateway API instead of direct Firestore
-    const profile = await apiFetch<any>('/api/v1/profiles', { requireAuth: true });
-    const contacts = profile?.emergencyContacts || [];
+    const contacts = await getEmergencyContacts(userId);
 
     if (contacts.length > 0) {
       const message = encodeURIComponent(
