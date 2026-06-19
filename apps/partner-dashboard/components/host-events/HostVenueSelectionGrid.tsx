@@ -103,7 +103,7 @@ export function HostVenueSelectionGrid() {
             You can configure this in your Partners settings.
           </p>
           <button
-            onClick={() => router.push('/host/network')}
+            onClick={() => router.push('/host/partners')}
             className="h-14 px-10 rounded-2xl bg-[var(--c1rcle-orange)] text-white text-[14px] font-black uppercase tracking-widest hover:bg-[var(--c1rcle-orange-dim)] transition-all"
           >
             Connect with Venues

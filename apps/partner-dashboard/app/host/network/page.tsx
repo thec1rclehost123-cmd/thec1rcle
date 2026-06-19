@@ -1,12 +1,21 @@
-import { Suspense } from 'react';
-import HostNetworkPage from './PageClient';
+import { redirect } from 'next/navigation';
 
-export const metadata = { title: 'Partners — Host' };
-
-export default function NetworkPage() {
-  return (
-    <Suspense>
-      <HostNetworkPage />
-    </Suspense>
-  );
+export default async function NetworkPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const resolvedParams = await searchParams;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(resolvedParams)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        value.forEach((val) => params.append(key, val));
+      } else {
+        params.append(key, value);
+      }
+    }
+  }
+  const queryString = params.toString();
+  redirect(`/host/partners${queryString ? `?${queryString}` : ''}`);
 }

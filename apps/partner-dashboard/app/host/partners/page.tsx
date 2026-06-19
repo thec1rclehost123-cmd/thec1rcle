@@ -1,5 +1,12 @@
-import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
+import HostPartnersPage from './PageClient';
 
-export default function HostPartnersPage() {
-  redirect('/host/network');
+export const metadata = { title: 'Partners — Host' };
+
+export default function PartnersPage() {
+  return (
+    <Suspense>
+      <HostPartnersPage />
+    </Suspense>
+  );
 }

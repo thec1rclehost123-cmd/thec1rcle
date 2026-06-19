@@ -52,7 +52,7 @@ const mp = (delay: number) => ({
   transition: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] as any, delay },
 });
 
-export default function HostNetworkPage() {
+export default function HostPartnersPage() {
   const router = useRouter();
   const { profile, user, getIdToken } = useDashboardAuth();
   const hostId = profile?.activeMembership?.partnerId;
