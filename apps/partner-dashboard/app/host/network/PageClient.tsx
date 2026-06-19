@@ -146,7 +146,12 @@ export default function HostNetworkPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ connectionId, action: 'approve' }),
+        body: JSON.stringify({
+          connectionId,
+          action: 'approve',
+          role: 'host',
+          partnerId: hostId,
+        }),
       });
       await fetchData();
     } catch {
@@ -167,7 +172,12 @@ export default function HostNetworkPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ connectionId, action: 'reject' }),
+        body: JSON.stringify({
+          connectionId,
+          action: 'reject',
+          role: 'host',
+          partnerId: hostId,
+        }),
       });
       await fetchData();
     } catch {
@@ -188,7 +198,12 @@ export default function HostNetworkPage() {
           'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({ connectionId, action }),
+        body: JSON.stringify({
+          connectionId,
+          action,
+          role: 'host',
+          partnerId: hostId,
+        }),
       });
       await fetchData();
     } catch {

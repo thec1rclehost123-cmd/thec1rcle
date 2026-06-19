@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { HostService } from '../../../services/unified/host-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -307,13 +311,54 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const getHostNotifications = async (hostId: string) => {
-    const snap = await fastify.db
-      .collection('notifications')
-      .where('recipientId', '==', hostId)
-      .orderBy('createdAt', 'desc')
-      .limit(50)
-      .get()
-      .catch(() => ({ docs: [] as any[] }));
+    let snap;
+    const fallbackUsed = process.env.NODE_ENV === 'development';
+    if (fallbackUsed) {
+      const fallbackQ = fastify.db
+        .collection('notifications')
+        .where('recipientId', '==', hostId)
+        .limit(100);
+      const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+      const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+        const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+        const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+        return bTime - aTime;
+      });
+      snap = { docs: sortedDocs.slice(0, 50) };
+    } else {
+      try {
+        snap = await fastify.db
+          .collection('notifications')
+          .where('recipientId', '==', hostId)
+          .orderBy('createdAt', 'desc')
+          .limit(50)
+          .get();
+      } catch (err: any) {
+        if (
+          err.code === 9 ||
+          String(err).includes('requires an index') ||
+          String(err).includes('FAILED_PRECONDITION')
+        ) {
+          fastify.log.warn(
+            'Firestore index missing for host notifications query. Falling back to in-memory sort.',
+          );
+          const fallbackQ = fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', hostId)
+            .limit(100);
+          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+            return bTime - aTime;
+          });
+          snap = { docs: sortedDocs.slice(0, 50) };
+        } else {
+          snap = { docs: [] as any[] };
+        }
+      }
+    }
+
     return {
       notifications: (snap as any).docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
     };
@@ -1693,6 +1738,27 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         const body = asRecord(request.body);
         const query = asRecord(request.query);
 
+        if (rest.startsWith('partners/') && request.method === 'GET') {
+          const partnerId = rest.slice('partners/'.length);
+          const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+          if (!profile) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Partner profile not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const connection = await getConnectionForViewer(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
+            partnerId,
+            partnerType: profile.type,
+          });
+          return reply.send({ profile, connection });
+        }
+
         if (rest === 'profile' && request.method === 'GET')
           return reply.send(await getHostProfile(ctx.partnerId));
         if (rest === 'profile' && request.method === 'PATCH')
@@ -2312,14 +2378,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             .limit(1)
             .get()
             .catch(() => ({ empty: true }));
-          if (!(existing as any).empty)
-            return reply.status(409).send(
-              buildErrorResponse({
-                code: 'CONFLICT',
-                message: 'Partnership request already exists',
-                requestId: request.id,
-              }),
-            );
+          if (!(existing as any).empty) {
+            const doc = (existing as any).docs[0];
+            return reply
+              .status(200)
+              .send({ success: true, partnershipId: doc.id, alreadyExists: true });
+          }
           const now = new Date().toISOString();
           const ref = await fastify.db.collection('partnerships').add({
             hostId: ctx.partnerId,

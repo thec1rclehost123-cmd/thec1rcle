@@ -2,6 +2,10 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { VenueService } from '../../../services/unified/venue-service.js';
 import { SchedulingService } from '../../../services/unified/scheduling-service.js';
@@ -4711,6 +4715,27 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             hasMore: false,
             nextCursor: null,
           });
+        }
+
+        if (rest.startsWith('partners/') && request.method === 'GET') {
+          const partnerId = rest.slice('partners/'.length);
+          const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+          if (!profile) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Partner profile not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const connection = await getConnectionForViewer(fastify.db, {
+            viewerRole: ctx.type,
+            viewerId: ctx.partnerId,
+            partnerId,
+            partnerType: profile.type,
+          });
+          return reply.send({ profile, connection });
         }
 
         return reply.status(404).send(

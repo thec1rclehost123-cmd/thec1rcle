@@ -84,6 +84,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 initiatedBy: data.initiatedBy || 'host',
                 otherId: data.venueId,
                 otherName: data.venueName || '',
+                otherType: 'venue',
                 city: data.venueCity || data.city || '',
                 photoURL: data.venuePhotoURL || null,
                 createdAt: data.createdAt,
@@ -98,18 +99,26 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 initiatedBy: data.initiatedBy || 'promoter',
                 otherId: data.promoterId,
                 otherName: data.promoterName || '',
+                otherType: 'promoter',
                 city: data.city || '',
                 photoURL: data.promoterPhotoURL || null,
                 createdAt: data.createdAt,
               });
             }
           } else if (role === 'venue') {
-            const snap = await fastify.db
-              .collection(PARTNERSHIPS_COL)
-              .where('venueId', '==', partnerId)
-              .get()
-              .catch(() => ({ docs: [] as any[] }));
-            for (const doc of (snap as any).docs) {
+            const [partnerSnap, promoterSnap] = await Promise.all([
+              fastify.db
+                .collection(PARTNERSHIPS_COL)
+                .where('venueId', '==', partnerId)
+                .get()
+                .catch(() => ({ docs: [] as any[] })),
+              fastify.db
+                .collection(PROMOTER_CONNECTIONS_COL)
+                .where('venueId', '==', partnerId)
+                .get()
+                .catch(() => ({ docs: [] as any[] })),
+            ]);
+            for (const doc of (partnerSnap as any).docs) {
               const data = doc.data();
               connections.push({
                 id: doc.id,
@@ -118,8 +127,24 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 initiatedBy: data.initiatedBy || 'host',
                 otherId: data.hostId,
                 otherName: data.hostName || '',
+                otherType: 'host',
                 city: data.hostCity || data.city || '',
                 photoURL: data.hostPhotoURL || null,
+                createdAt: data.createdAt,
+              });
+            }
+            for (const doc of (promoterSnap as any).docs) {
+              const data = doc.data();
+              connections.push({
+                id: doc.id,
+                type: 'promoter_connection',
+                status: data.status,
+                initiatedBy: data.initiatedBy || 'promoter',
+                otherId: data.promoterId,
+                otherName: data.promoterName || '',
+                otherType: 'promoter',
+                city: data.city || '',
+                photoURL: data.promoterPhotoURL || null,
                 createdAt: data.createdAt,
               });
             }
@@ -131,15 +156,17 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
               .catch(() => ({ docs: [] as any[] }));
             for (const doc of (snap as any).docs) {
               const data = doc.data();
+              const isVenue = !!data.venueId;
               connections.push({
                 id: doc.id,
                 type: 'promoter_connection',
                 status: data.status,
-                initiatedBy: data.initiatedBy || 'host',
-                otherId: data.hostId,
-                otherName: data.hostName || '',
+                initiatedBy: data.initiatedBy || (isVenue ? 'venue' : 'host'),
+                otherId: isVenue ? data.venueId : data.hostId,
+                otherName: isVenue ? data.venueName || '' : data.hostName || '',
+                otherType: isVenue ? 'venue' : 'host',
                 city: data.city || '',
-                photoURL: data.hostPhotoURL || null,
+                photoURL: isVenue ? data.venuePhotoURL || null : data.hostPhotoURL || null,
                 createdAt: data.createdAt,
               });
             }
@@ -213,7 +240,76 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             );
           }
 
-          const paginatedResults = results.slice(offset, offset + limit);
+          const paginatedResults = results
+            .slice(offset, offset + limit)
+            .map((p: any) => ({ ...p }));
+
+          // Populate connectionStatus dynamically for the paginated page based on the current caller's partnerId & role
+          if (partnerId && role) {
+            const userConns = new Map<string, { status: string; id: string }>();
+            if (role === 'host') {
+              const [partnerSnap, promoterSnap] = await Promise.all([
+                fastify.db
+                  .collection(PARTNERSHIPS_COL)
+                  .where('hostId', '==', partnerId)
+                  .get()
+                  .catch(() => ({ docs: [] })),
+                fastify.db
+                  .collection(PROMOTER_CONNECTIONS_COL)
+                  .where('hostId', '==', partnerId)
+                  .get()
+                  .catch(() => ({ docs: [] })),
+              ]);
+              for (const doc of partnerSnap.docs) {
+                const data = doc.data();
+                userConns.set(data.venueId, { status: data.status, id: doc.id });
+              }
+              for (const doc of promoterSnap.docs) {
+                const data = doc.data();
+                userConns.set(data.promoterId, { status: data.status, id: doc.id });
+              }
+            } else if (role === 'venue') {
+              const [partnerSnap, promoterSnap] = await Promise.all([
+                fastify.db
+                  .collection(PARTNERSHIPS_COL)
+                  .where('venueId', '==', partnerId)
+                  .get()
+                  .catch(() => ({ docs: [] })),
+                fastify.db
+                  .collection(PROMOTER_CONNECTIONS_COL)
+                  .where('venueId', '==', partnerId)
+                  .get()
+                  .catch(() => ({ docs: [] })),
+              ]);
+              for (const doc of partnerSnap.docs) {
+                const data = doc.data();
+                userConns.set(data.hostId, { status: data.status, id: doc.id });
+              }
+              for (const doc of promoterSnap.docs) {
+                const data = doc.data();
+                userConns.set(data.promoterId, { status: data.status, id: doc.id });
+              }
+            } else if (role === 'promoter') {
+              const snap = await fastify.db
+                .collection(PROMOTER_CONNECTIONS_COL)
+                .where('promoterId', '==', partnerId)
+                .get()
+                .catch(() => ({ docs: [] }));
+              for (const doc of snap.docs) {
+                const data = doc.data();
+                const targetId = data.venueId || data.hostId || data.targetId;
+                if (targetId) {
+                  userConns.set(targetId, { status: data.status, id: doc.id });
+                }
+              }
+            }
+
+            for (const partner of paginatedResults) {
+              const conn = userConns.get(partner.id);
+              partner.connectionStatus = conn ? conn.status : null;
+              partner.connectionId = conn ? conn.id : null;
+            }
+          }
 
           return { partners: paginatedResults, total: results.length, offset, limit };
         }
@@ -245,7 +341,13 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
       try {
         // Read the connection document first and verify the caller owns one side of it.
-        const connDoc = await fastify.db.collection(PARTNERSHIPS_COL).doc(connectionId).get();
+        let connDoc = await fastify.db.collection(PARTNERSHIPS_COL).doc(connectionId).get();
+        let collectionName = PARTNERSHIPS_COL;
+        if (!connDoc.exists) {
+          connDoc = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).doc(connectionId).get();
+          collectionName = PROMOTER_CONNECTIONS_COL;
+        }
+
         if (!connDoc.exists) {
           return reply.status(404).send(
             buildErrorResponse({
@@ -281,12 +383,12 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
         }
 
         const statusMap: Record<string, string> = {
-          approve: 'active',
+          approve: collectionName === PROMOTER_CONNECTIONS_COL ? 'approved' : 'active',
           reject: 'rejected',
-          remove: 'deleted',
+          remove: collectionName === PROMOTER_CONNECTIONS_COL ? 'removed' : 'deleted',
         };
 
-        await fastify.db.collection(PARTNERSHIPS_COL).doc(connectionId).update({
+        await fastify.db.collection(collectionName).doc(connectionId).update({
           status: statusMap[action],
           updatedAt: new Date().toISOString(),
         });
@@ -330,15 +432,116 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           );
         }
 
-        const ref = await fastify.db.collection(PARTNERSHIPS_COL).add({
-          ...data,
-          status: 'pending',
-          initiatedBy: data.requesterType,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        });
+        const isPromoterConnection =
+          data.requesterType === 'promoter' || data.targetType === 'promoter';
 
-        return { success: true, id: ref.id };
+        if (isPromoterConnection) {
+          // Check for existing pending or active connection request
+          const promoterId = data.requesterType === 'promoter' ? data.requesterId : data.targetId;
+          const targetPartnerId =
+            data.requesterType === 'promoter' ? data.targetId : data.requesterId;
+          const targetField =
+            data.targetType === 'host' || data.requesterType === 'host' ? 'hostId' : 'venueId';
+
+          const existingConn = await fastify.db
+            .collection(PROMOTER_CONNECTIONS_COL)
+            .where('promoterId', '==', promoterId)
+            .where(targetField, '==', targetPartnerId)
+            .get();
+
+          const hasActiveOrPending = existingConn.docs.some((doc: any) => {
+            const status = doc.data().status;
+            return ['pending', 'approved', 'active'].includes(status);
+          });
+
+          if (hasActiveOrPending) {
+            const doc = existingConn.docs.find((d: any) =>
+              ['pending', 'approved', 'active'].includes(d.data().status),
+            );
+            return { success: true, id: doc?.id, alreadyExists: true };
+          }
+
+          const doc: any = {
+            ...data,
+            status: 'pending',
+            initiatedBy: data.requesterType,
+            fromPartnerId: data.requesterId,
+            toPartnerId: data.targetId,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          if (data.requesterType === 'promoter') {
+            doc.promoterId = data.requesterId;
+            doc.promoterName = data.requesterName;
+            if (data.targetType === 'host') {
+              doc.hostId = data.targetId;
+              doc.hostName = data.targetName;
+            } else if (data.targetType === 'venue') {
+              doc.venueId = data.targetId;
+              doc.venueName = data.targetName;
+            }
+          } else {
+            doc.promoterId = data.targetId;
+            doc.promoterName = data.targetName;
+            if (data.requesterType === 'host') {
+              doc.hostId = data.requesterId;
+              doc.hostName = data.requesterName;
+            } else if (data.requesterType === 'venue') {
+              doc.venueId = data.requesterId;
+              doc.venueName = data.requesterName;
+            }
+          }
+
+          const ref = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).add(doc);
+          return { success: true, id: ref.id };
+        } else {
+          // Check for existing pending or active partnership request
+          const hostId = data.requesterType === 'host' ? data.requesterId : data.targetId;
+          const venueId = data.requesterType === 'venue' ? data.requesterId : data.targetId;
+
+          const existingPartnership = await fastify.db
+            .collection(PARTNERSHIPS_COL)
+            .where('hostId', '==', hostId)
+            .where('venueId', '==', venueId)
+            .get();
+
+          const hasActiveOrPending = existingPartnership.docs.some((doc: any) => {
+            const status = doc.data().status;
+            return ['pending', 'active', 'approved'].includes(status);
+          });
+
+          if (hasActiveOrPending) {
+            const doc = existingPartnership.docs.find((d: any) =>
+              ['pending', 'active', 'approved'].includes(d.data().status),
+            );
+            return { success: true, id: doc?.id, alreadyExists: true };
+          }
+
+          // Direct host-venue partnership
+          const partnershipDoc: any = {
+            ...data,
+            status: 'pending',
+            initiatedBy: data.requesterType,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          };
+
+          if (data.requesterType === 'host') {
+            partnershipDoc.hostId = data.requesterId;
+            partnershipDoc.hostName = data.requesterName;
+            partnershipDoc.venueId = data.targetId;
+            partnershipDoc.venueName = data.targetName;
+          } else if (data.requesterType === 'venue') {
+            partnershipDoc.venueId = data.requesterId;
+            partnershipDoc.venueName = data.requesterName;
+            partnershipDoc.hostId = data.targetId;
+            partnershipDoc.hostName = data.targetName;
+          }
+
+          const ref = await fastify.db.collection(PARTNERSHIPS_COL).add(partnershipDoc);
+          return { success: true, id: ref.id };
+        }
       } catch (error: any) {
         if ((error as any).statusCode) throw error;
         return reply.status(500).send(

@@ -1152,17 +1152,30 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
 
       const id = randomUUID();
       const now = new Date().toISOString();
-      const connection = {
+      const targetType = pickString(body.targetType, 'venue');
+      const targetId = String(body.targetId || '');
+      const connection: any = {
         id,
         promoterId,
-        targetId: String(body.targetId || ''),
-        targetType: pickString(body.targetType, 'venue'),
+        targetId,
+        targetType,
         targetName: pickString(body.targetName),
         status: 'pending',
         message: pickString(body.message),
+        initiatedBy: 'promoter',
+        fromPartnerId: promoterId,
+        toPartnerId: targetId,
         createdAt: now,
         updatedAt: now,
       };
+
+      if (targetType === 'host') {
+        connection.hostId = targetId;
+        connection.hostName = connection.targetName;
+      } else if (targetType === 'venue') {
+        connection.venueId = targetId;
+        connection.venueName = connection.targetName;
+      }
 
       await fastify.db.collection('promoter_connections').doc(id).set(connection);
       return reply.status(201).send({ connection });

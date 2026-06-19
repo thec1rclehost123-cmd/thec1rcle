@@ -315,6 +315,7 @@ export interface PromoterConnection {
   eventId: string | null;
   createdAt: string | null;
   updatedAt: string | null;
+  initiatedBy?: string | null;
 }
 
 // ─── Activity ─────────────────────────────────────────────────────────────────

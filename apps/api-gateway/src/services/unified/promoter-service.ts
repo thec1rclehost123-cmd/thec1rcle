@@ -17,6 +17,7 @@ import { toIso, toNum, safeStr } from './types.js';
 import type { ServiceContext, ServiceLogger } from './service-context.js';
 import { consoleLogger } from './service-context.js';
 import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
+import { resolvePartnerDocument } from '../../utils/partner-profiles.js';
 
 // ─── PromoterService ──────────────────────────────────────────────────────────
 //
@@ -593,6 +594,7 @@ export class PromoterService {
         eventId: d.eventId ?? null,
         createdAt: toIso(d.createdAt),
         updatedAt: toIso(d.updatedAt),
+        initiatedBy: d.initiatedBy ? safeStr(d.initiatedBy) : null,
       };
     };
 
@@ -614,14 +616,45 @@ export class PromoterService {
     eventId?: string,
   ): Promise<PromoterConnection> {
     const now = new Date();
-    const ref = await this.db.collection('promoter_connections').add({
+
+    // Resolve target partner profile details
+    const targetDoc = await resolvePartnerDocument(this.db, targetPartnerId).catch(() => null);
+    const targetType = targetDoc?.type || 'venue';
+    const targetName = targetDoc?.doc?.displayName || targetDoc?.doc?.name || '';
+
+    // Fetch promoter info
+    let promoterName = '';
+    try {
+      const promoterDoc = await this.db.collection('promoters').doc(ctx.partnerId).get();
+      if (promoterDoc.exists) {
+        promoterName = promoterDoc.data()?.displayName || promoterDoc.data()?.name || '';
+      }
+    } catch {}
+
+    const connectionData: any = {
       fromPartnerId: ctx.partnerId,
       toPartnerId: targetPartnerId,
+      promoterId: ctx.partnerId,
+      promoterName,
+      targetId: targetPartnerId,
+      targetType,
+      targetName,
       status: 'pending',
       eventId: eventId ?? null,
       createdAt: now,
       updatedAt: now,
-    });
+      initiatedBy: 'promoter',
+    };
+
+    if (targetType === 'host') {
+      connectionData.hostId = targetPartnerId;
+      connectionData.hostName = targetName;
+    } else if (targetType === 'venue') {
+      connectionData.venueId = targetPartnerId;
+      connectionData.venueName = targetName;
+    }
+
+    const ref = await this.db.collection('promoter_connections').add(connectionData);
 
     this.log.info(
       {
@@ -644,6 +677,7 @@ export class PromoterService {
       eventId: d.eventId ?? null,
       createdAt: toIso(d.createdAt),
       updatedAt: toIso(d.updatedAt),
+      initiatedBy: d.initiatedBy ? safeStr(d.initiatedBy) : null,
     };
   }
 
@@ -683,6 +717,7 @@ export class PromoterService {
       eventId: d.eventId ?? null,
       createdAt: toIso(d.createdAt),
       updatedAt: toIso(d.updatedAt),
+      initiatedBy: d.initiatedBy ? safeStr(d.initiatedBy) : null,
     };
   }
 

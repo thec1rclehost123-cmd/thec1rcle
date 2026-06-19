@@ -39,6 +39,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
+    "@esbuild/win32-x64": "^0.28.1",
     "@lhci/cli": "^0.15.1",
     "@size-limit/file": "^12.1.0",
     "@vitest/coverage-v8": "4.1.9",

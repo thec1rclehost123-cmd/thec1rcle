@@ -4,6 +4,10 @@ import { randomUUID } from 'node:crypto';
 import { getPromoterStats, listConnections, manageConnection } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import {
+  getPartnerProfileSummary,
+  getConnectionForViewer,
+} from '../../../utils/partner-profiles.js';
 import { FinanceService } from '../../../services/unified/finance-service.js';
 import { PromoterService } from '../../../services/unified/promoter-service.js';
 import { buildErrorResponse } from '../../../lib/api-contracts.js';
@@ -305,6 +309,18 @@ function normalizePromoterConnection(
     updatedAt:
       legacyConnection.updatedAt ?? unifiedConnection.updatedAt ?? toIso(rawConnection.updatedAt),
     message: legacyConnection.message ?? rawConnection.message ?? '',
+    otherIsVerified:
+      legacyConnection.otherIsVerified ??
+      rawConnection.otherIsVerified ??
+      unifiedConnection.otherIsVerified ??
+      false,
+    photoURL:
+      legacyConnection.photoURL ?? rawConnection.photoURL ?? unifiedConnection.photoURL ?? null,
+    initiatedBy:
+      legacyConnection.initiatedBy ??
+      rawConnection.initiatedBy ??
+      unifiedConnection.initiatedBy ??
+      null,
   };
 }
 
@@ -937,17 +953,46 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
   const createLegacyConnection = async (promoterId: string, body: Record<string, any>) => {
     const id = randomUUID();
     const now = new Date().toISOString();
-    const connection = {
+    const targetType = pickString(body.targetType, 'venue');
+    const targetId = String(body.targetId || body.targetPartnerId || '');
+
+    let promoterName = '';
+    let promoterEmail = '';
+    try {
+      const promoterDoc = await fastify.db.collection('promoters').doc(promoterId).get();
+      if (promoterDoc.exists) {
+        promoterName = promoterDoc.data()?.displayName || promoterDoc.data()?.name || '';
+        promoterEmail = promoterDoc.data()?.email || '';
+      }
+    } catch (err) {
+      fastify.log.error(`Failed to fetch promoter info: ${err}`);
+    }
+
+    const connection: any = {
       id,
       promoterId,
-      targetId: String(body.targetId || body.targetPartnerId || ''),
-      targetType: pickString(body.targetType, 'venue'),
+      promoterName: promoterName || pickString(body.promoterName),
+      promoterEmail: promoterEmail || pickString(body.promoterEmail),
+      targetId,
+      targetType,
       targetName: pickString(body.targetName),
       status: 'pending',
+      initiatedBy: 'promoter',
       message: pickString(body.message),
+      fromPartnerId: promoterId,
+      toPartnerId: targetId,
       createdAt: now,
       updatedAt: now,
     };
+
+    if (targetType === 'host') {
+      connection.hostId = targetId;
+      connection.hostName = connection.targetName;
+    } else if (targetType === 'venue') {
+      connection.venueId = targetId;
+      connection.venueName = connection.targetName;
+    }
+
     await fastify.db.collection('promoter_connections').doc(id).set(connection);
     return { connection };
   };
@@ -1952,19 +1997,54 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         requireType(ctx, 'promoter');
         const connections = await promoterService.getConnections(ctx, request.query.status as any);
         const unifiedById = mapByAnyId(asArray(connections), ['connectionId', 'id']);
+
+        const uniqueTargetIds = Array.from(
+          new Set(
+            asArray(connections)
+              .map((conn: any) => {
+                const isSender = conn.fromPartnerId === ctx.partnerId;
+                return isSender ? conn.toPartnerId : conn.fromPartnerId;
+              })
+              .filter(Boolean),
+          ),
+        );
+
+        const profilesMap = new Map();
+        await Promise.all(
+          uniqueTargetIds.map(async (tid: any) => {
+            try {
+              const profile = await getPartnerProfileSummary(fastify.db, tid);
+              if (profile) {
+                profilesMap.set(tid, profile);
+              }
+            } catch (err) {
+              fastify.log.error(
+                err,
+                `Failed to fetch partner profile for connection target ${tid}`,
+              );
+            }
+          }),
+        );
+
         const mergedConnections = asArray(connections).map((conn: any) => {
           const isSender = conn.fromPartnerId === ctx.partnerId;
           const targetId = isSender ? conn.toPartnerId : conn.fromPartnerId;
+          const targetProfile = profilesMap.get(targetId);
+
           const legacyFormat = {
             id: conn.connectionId,
             promoterId: ctx.partnerId,
             status: conn.status,
             targetId: targetId,
             otherId: targetId,
-            targetName: 'Partner',
-            otherName: 'Partner',
-            targetType: 'venue',
-            otherType: 'venue',
+            targetName: targetProfile?.name || 'Partner',
+            otherName: targetProfile?.name || 'Partner',
+            targetType: targetProfile?.type || 'venue',
+            otherType: targetProfile?.type || 'venue',
+            otherIsVerified: targetProfile?.isVerified ?? false,
+            photoURL: targetProfile?.avatarUrl || null,
+            initiatedBy:
+              conn.initiatedBy || (isSender ? 'promoter' : targetProfile?.type || 'venue'),
             createdAt: conn.createdAt || null,
             updatedAt: conn.updatedAt || null,
             message: '',
@@ -2017,10 +2097,26 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const rawConnection = await loadRawConnection(
           String(asRecord(legacyBody.connection).id || ''),
         );
+
+        // Resolve profile for the target partner
+        const targetId = rawConnection.toPartnerId || rawConnection.targetId;
+        const targetProfile = targetId
+          ? await getPartnerProfileSummary(fastify.db, targetId).catch(() => null)
+          : null;
+
+        const extraLegacy = {
+          targetName: targetProfile?.name || 'Partner',
+          otherName: targetProfile?.name || 'Partner',
+          targetType: targetProfile?.type || 'venue',
+          otherType: targetProfile?.type || 'venue',
+          otherIsVerified: targetProfile?.isVerified ?? false,
+          photoURL: targetProfile?.avatarUrl || null,
+        };
+
         return reply.status(201).send({
           ...legacyBody,
           connection: normalizePromoterConnection(
-            asRecord(legacyBody.connection),
+            { ...asRecord(legacyBody.connection), ...extraLegacy },
             {},
             rawConnection,
           ),
@@ -2067,9 +2163,26 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           asRecord(request.body),
         );
         const rawConnection = await loadRawConnection(request.params.connectionId);
+
+        // Resolve profile for the other partner
+        const isSender = rawConnection.fromPartnerId === ctx.partnerId;
+        const targetId = isSender ? rawConnection.toPartnerId : rawConnection.fromPartnerId;
+        const targetProfile = targetId
+          ? await getPartnerProfileSummary(fastify.db, targetId).catch(() => null)
+          : null;
+
+        const extraLegacy = {
+          targetName: targetProfile?.name || 'Partner',
+          otherName: targetProfile?.name || 'Partner',
+          targetType: targetProfile?.type || 'venue',
+          otherType: targetProfile?.type || 'venue',
+          otherIsVerified: targetProfile?.isVerified ?? false,
+          photoURL: targetProfile?.avatarUrl || null,
+        };
+
         return reply.send({
           ...legacyBody,
-          connection: normalizePromoterConnection({}, {}, rawConnection),
+          connection: normalizePromoterConnection(extraLegacy, {}, rawConnection),
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -2393,10 +2506,66 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           if (cursorDoc.exists) q = q.startAfter(cursorDoc);
         }
 
-        const snap = await q.get().catch(() => ({ docs: [] as any[] }));
+        let snap;
+        let fallbackUsed = process.env.NODE_ENV === 'development';
+        if (fallbackUsed) {
+          const fallbackQ = fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', ctx.partnerId)
+            .limit(200);
+          const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+          const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+            const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+            const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+            return bTime - aTime;
+          });
+          snap = { docs: sortedDocs };
+        } else {
+          try {
+            snap = await q.get();
+          } catch (err: any) {
+            if (
+              err.code === 9 ||
+              String(err).includes('requires an index') ||
+              String(err).includes('FAILED_PRECONDITION')
+            ) {
+              fastify.log.warn(
+                'Firestore index missing for promoter notifications query. Falling back to in-memory sort.',
+              );
+              fallbackUsed = true;
+              const fallbackQ = fastify.db
+                .collection('notifications')
+                .where('recipientId', '==', ctx.partnerId)
+                .limit(200);
+              const tempSnap = await fallbackQ.get().catch(() => ({ docs: [] as any[] }));
+              const sortedDocs = [...(tempSnap.docs || [])].sort((a: any, b: any) => {
+                const aTime = new Date(a.data()?.createdAt || a.data()?.timestamp || 0).getTime();
+                const bTime = new Date(b.data()?.createdAt || b.data()?.timestamp || 0).getTime();
+                return bTime - aTime;
+              });
+              snap = { docs: sortedDocs };
+            } else {
+              throw err;
+            }
+          }
+        }
+
         const allDocs = snap.docs || [];
-        const hasMore = allDocs.length > limit;
-        const docsToReturn = allDocs.slice(0, limit);
+        let docsToReturn;
+        let hasMore = false;
+
+        if (fallbackUsed) {
+          let startIndex = 0;
+          if (query.cursor) {
+            const idx = allDocs.findIndex((doc: any) => doc.id === query.cursor);
+            if (idx !== -1) startIndex = idx + 1;
+          }
+          docsToReturn = allDocs.slice(startIndex, startIndex + limit);
+          hasMore = allDocs.length > startIndex + limit;
+        } else {
+          hasMore = allDocs.length > limit;
+          docsToReturn = allDocs.slice(0, limit);
+        }
 
         const notifications = docsToReturn.map((doc: any) => ({
           id: doc.id,
@@ -2978,33 +3147,23 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
         const partnerId = String(request.params.id || '');
-        const [venueDoc, hostDoc] = await Promise.all([
-          fastify.db
-            .collection('venues')
-            .doc(partnerId)
-            .get()
-            .catch(() => null),
-          fastify.db
-            .collection('hosts')
-            .doc(partnerId)
-            .get()
-            .catch(() => null),
-        ]);
-        if (venueDoc && venueDoc.exists)
-          return reply.send({
-            partner: { id: venueDoc.id, type: 'venue', ...(venueDoc.data() || {}) },
-          });
-        if (hostDoc && hostDoc.exists)
-          return reply.send({
-            partner: { id: hostDoc.id, type: 'host', ...(hostDoc.data() || {}) },
-          });
-        return reply.status(404).send(
-          buildErrorResponse({
-            code: 'NOT_FOUND',
-            message: 'Partner not found',
-            requestId: request.id,
-          }),
-        );
+        const profile = await getPartnerProfileSummary(fastify.db, partnerId);
+        if (!profile) {
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Partner not found',
+              requestId: request.id,
+            }),
+          );
+        }
+        const connection = await getConnectionForViewer(fastify.db, {
+          viewerRole: ctx.type,
+          viewerId: ctx.partnerId,
+          partnerId,
+          partnerType: profile.type,
+        });
+        return reply.send({ profile, connection });
       } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(

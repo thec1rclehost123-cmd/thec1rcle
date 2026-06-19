@@ -78,11 +78,13 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         .where('status', '==', 'pending')
         .limit(1)
         .get();
-      if (!existing.empty) return reply.status(409).send({ error: 'Request already pending' });
+      if (!existing.empty) {
+        return { success: true, id: existing.docs[0].id, alreadyExists: true };
+      }
 
       const now = new Date().toISOString();
       const id = randomUUID();
-      const conn = {
+      const conn: any = {
         id,
         promoterId,
         promoterName,
@@ -92,9 +94,21 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         targetName,
         message,
         status: 'pending',
+        initiatedBy: 'promoter',
+        fromPartnerId: promoterId,
+        toPartnerId: targetId,
         createdAt: now,
         updatedAt: now,
       };
+
+      if (targetType === 'host') {
+        conn.hostId = targetId;
+        conn.hostName = targetName || '';
+      } else if (targetType === 'venue') {
+        conn.venueId = targetId;
+        conn.venueName = targetName || '';
+      }
+
       await fastify.db.collection(COL).doc(id).set(conn);
       return conn;
     },

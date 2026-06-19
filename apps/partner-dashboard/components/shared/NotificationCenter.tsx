@@ -252,6 +252,9 @@ export function NotificationCenter() {
       const url = getNotificationFetchUrl(partnerType, partnerId);
       if (!url) return;
       const res = await authedFetch(url);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${res.statusText || 'Fetch failed'}`);
+      }
       const data = await res.json();
       const incoming: Notification[] = (data.notifications || []).map((n: any) =>
         normalizeNotification(n, partnerType),
@@ -269,8 +272,15 @@ export function NotificationCenter() {
         incoming.forEach((n) => seenIdsRef.current!.add(n.id));
       }
       setNotifications(incoming);
+      setError(null);
     } catch (err: any) {
-      console.error('[NotificationCenter] fetch error:', err);
+      if (err?.name === 'TypeError' && err?.message === 'Failed to fetch') {
+        console.warn(
+          '[NotificationCenter] Network offline or server unreachable (Failed to fetch)',
+        );
+      } else {
+        console.error('[NotificationCenter] fetch error:', err);
+      }
       if (isMountedRef.current) setError('Failed to load notifications');
     } finally {
       if (isMountedRef.current) setLoading(false);
@@ -319,7 +329,13 @@ export function NotificationCenter() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(request.body),
       });
-      if (res.ok) fetchNotifications();
+      if (res.ok) {
+        fetchNotifications();
+      } else {
+        console.warn('[NotificationCenter] Quick action failed with status:', res.status);
+      }
+    } catch (err) {
+      console.error('[NotificationCenter] Quick action error:', err);
     } finally {
       setActionLoading(null);
     }
