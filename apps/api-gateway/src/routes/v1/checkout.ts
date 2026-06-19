@@ -589,87 +589,93 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
    * Razorpay server-to-server success webhook.
    * POST /checkout/webhook
    */
-  fastify.post('/checkout/webhook', async (request: any, reply) => {
-    const rawBody = buildWebhookRawBody(request);
-    const signature = request.headers['x-razorpay-signature'] as string | undefined;
+  fastify.post(
+    '/checkout/webhook',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply) => {
+      const rawBody = buildWebhookRawBody(request);
+      const signature = request.headers['x-razorpay-signature'] as string | undefined;
 
-    try {
-      verifyRazorpayWebhookSignature({
-        rawBody,
-        signature,
-        webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
-      });
-
-      const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
-      const eventType = payload?.event || payload?.type;
-      const paymentEntity = payload?.payload?.payment?.entity || payload?.payment || payload;
-      const razorpayPaymentId = paymentEntity?.id || payload?.razorpay_payment_id || null;
-      const razorpayOrderId = paymentEntity?.order_id || payload?.razorpay_order_id || null;
-
-      if (eventType !== 'payment.captured' && eventType !== 'payment_success') {
-        return { success: true, ignored: true, eventType };
-      }
-
-      if (!razorpayOrderId || !razorpayPaymentId) {
-        return reply.status(400).send({
-          success: false,
-          error: 'Webhook missing Razorpay order or payment id',
+      try {
+        verifyRazorpayWebhookSignature({
+          rawBody,
+          signature,
+          webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET,
         });
-      }
 
-      const result = await finalizeRazorpayTicketPurchase({
-        db: fastify.db,
-        checkoutService: fastify.checkoutService,
-        razorpayOrderId,
-        razorpayPaymentId,
-        paymentGatewayConfig: {
-          keyId: process.env.RAZORPAY_KEY_ID,
-          keySecret: process.env.RAZORPAY_KEY_SECRET,
-          allowMockPayment: allowMockRazorpay(),
-        },
-      });
+        const payload = typeof request.body === 'string' ? JSON.parse(request.body) : request.body;
+        const eventType = payload?.event || payload?.type;
+        const paymentEntity = payload?.payload?.payment?.entity || payload?.payment || payload;
+        const razorpayPaymentId = paymentEntity?.id || payload?.razorpay_payment_id || null;
+        const razorpayOrderId = paymentEntity?.order_id || payload?.razorpay_order_id || null;
 
-      request.log.info(
-        {
+        if (eventType !== 'payment.captured' && eventType !== 'payment_success') {
+          return { success: true, ignored: true, eventType };
+        }
+
+        if (!razorpayOrderId || !razorpayPaymentId) {
+          return reply.status(400).send({
+            success: false,
+            error: 'Webhook missing Razorpay order or payment id',
+          });
+        }
+
+        const result = await finalizeRazorpayTicketPurchase({
+          db: fastify.db,
+          checkoutService: fastify.checkoutService,
           razorpayOrderId,
           razorpayPaymentId,
-          orderId: result?.order?.id,
-          ticketsCount: result?.ticketsCount,
-          alreadyConfirmed: result?.alreadyConfirmed,
-        },
-        'Checkout webhook finalized tickets',
-      );
+          paymentGatewayConfig: {
+            keyId: process.env.RAZORPAY_KEY_ID,
+            keySecret: process.env.RAZORPAY_KEY_SECRET,
+            allowMockPayment: allowMockRazorpay(),
+          },
+        });
 
-      return {
-        success: true,
-        alreadyConfirmed: Boolean(result?.alreadyConfirmed),
-        orderId: result?.order?.id || null,
-        ticketsCount: result?.ticketsCount || 0,
-      };
-    } catch (error: any) {
-      const status =
-        error.code === 'INVALID_SIGNATURE'
-          ? 401
-          : error.code === 'NOT_FOUND'
-            ? 404
-            : error.code === 'CONFLICT'
-              ? 409
-              : error.code === 'PAYMENT_NOT_CONFIGURED'
-                ? 500
-                : 500;
+        request.log.info(
+          {
+            razorpayOrderId,
+            razorpayPaymentId,
+            orderId: result?.order?.id,
+            ticketsCount: result?.ticketsCount,
+            alreadyConfirmed: result?.alreadyConfirmed,
+          },
+          'Checkout webhook finalized tickets',
+        );
 
-      if (status >= 500) {
-        fastify.log.error(`Checkout webhook failed: ${error.message}`);
-      } else {
-        fastify.log.warn(`Checkout webhook rejected: ${error.message}`);
+        return {
+          success: true,
+          alreadyConfirmed: Boolean(result?.alreadyConfirmed),
+          orderId: result?.order?.id || null,
+          ticketsCount: result?.ticketsCount || 0,
+        };
+      } catch (error: any) {
+        const status =
+          error.code === 'INVALID_SIGNATURE'
+            ? 401
+            : error.code === 'NOT_FOUND'
+              ? 404
+              : error.code === 'CONFLICT'
+                ? 409
+                : error.code === 'PAYMENT_NOT_CONFIGURED'
+                  ? 500
+                  : 500;
+
+        if (status >= 500) {
+          fastify.log.error(`Checkout webhook failed: ${error.message}`);
+        } else {
+          fastify.log.warn(`Checkout webhook rejected: ${error.message}`);
+        }
+
+        return reply.status(status).send({
+          success: false,
+          error: status >= 500 ? 'Internal server error' : error.message,
+        });
       }
-
-      return reply.status(status).send({
-        success: false,
-        error: status >= 500 ? 'Internal server error' : error.message,
-      });
-    }
-  });
+    },
+  );
 
   /**
    * Verify Razorpay checkout and issue tickets

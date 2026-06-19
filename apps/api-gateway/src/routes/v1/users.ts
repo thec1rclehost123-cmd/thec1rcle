@@ -48,36 +48,42 @@ const TargetUserParam = z
   .strict();
 
 export default async function userRoutes(fastify: FastifyInstance) {
-  fastify.post('/auth/sync', async (request: any, reply: any) => {
-    const userId = request.user?.uid;
-    if (!userId) {
-      return reply.status(401).send(
-        buildErrorResponse({
-          code: 'UNAUTHORIZED',
-          message: 'Authentication required',
-          requestId: request.id,
-        }),
-      );
-    }
+  fastify.post(
+    '/auth/sync',
+    {
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
 
-    try {
-      const { syncAuthUser } = await import('@c1rcle/core/user-service');
-      const profile = await syncAuthUser(fastify.db, userId, request.user);
-      return buildSuccessResponse({ profile });
-    } catch (error: any) {
-      fastify.log.error(
-        { requestId: request.id, userId, error: error.message },
-        'POST /auth/sync failed',
-      );
-      return reply.status(500).send(
-        buildErrorResponse({
-          code: 'INTERNAL_ERROR',
-          message: 'Internal server error',
-          requestId: request.id,
-        }),
-      );
-    }
-  });
+      try {
+        const { syncAuthUser } = await import('@c1rcle/core/user-service');
+        const profile = await syncAuthUser(fastify.db, userId, request.user);
+        return buildSuccessResponse({ profile });
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'POST /auth/sync failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
 
   fastify.get(
     '/users/me',
