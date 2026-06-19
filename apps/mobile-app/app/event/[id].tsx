@@ -1260,7 +1260,7 @@ export default function EventDetailScreen() {
               }}
             >
               <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 6).map((userInfo, index) => {
+                {guestlistUsers.slice(0, 6).map((userInfo: any, index: number) => {
                   const initial = (userInfo.displayName?.[0] ?? '?').toUpperCase();
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
