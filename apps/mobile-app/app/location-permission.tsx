@@ -9,7 +9,7 @@ import { colors } from '@/lib/design/theme';
 export default function LocationPermissionScreen() {
   const handleAllow = async () => {
     await Location.requestForegroundPermissionsAsync();
-    router.push('/notification-permission');
+    router.push('/notification-permission' as any);
   };
 
   return (
@@ -35,7 +35,7 @@ export default function LocationPermissionScreen() {
           </LinearGradient>
         </Pressable>
         <Pressable
-          onPress={() => router.push('/notification-permission')}
+          onPress={() => router.push('/notification-permission' as any)}
           style={styles.skipButton}
         >
           <Text style={styles.skipText}>Not Now</Text>
