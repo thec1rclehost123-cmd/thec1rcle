@@ -331,9 +331,8 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/chat',
     {
-      preHandler: [
-        fastify.validate({ body: ChatMessageBody }),
-        fastify.rateLimit({
+      config: {
+        rateLimit: {
           max: 10,
           timeWindow: '10 seconds',
           keyGenerator: (request: any) => request.user?.uid || request.ip,
@@ -343,8 +342,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
             error: 'Too Many Requests',
             message: 'You are sending messages too fast. Please slow down.',
           }),
-        }),
-      ],
+        },
+      },
+      preHandler: [fastify.validate({ body: ChatMessageBody })],
     },
     async (request: any, reply) => {
       const userId = request.user?.uid;
