@@ -26,17 +26,22 @@ jobs:
 
   deploy-gateway:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
     outputs:
       gateway_url: ${{ steps.gateway-url.outputs.url }}
     steps:
       - uses: actions/checkout@v4
       - name: Validate GCP secrets
         env:
-          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_WIF_PROVIDER: ${{ secrets.GCP_WIF_PROVIDER }}
+          GCP_SA_EMAIL: ${{ secrets.GCP_SA_EMAIL }}
           GCP_PROJECT_ID_STAGING: ${{ secrets.GCP_PROJECT_ID_STAGING }}
         run: |
           missing=()
-          [ -z "$GCP_SA_KEY" ] && missing+=("GCP_SA_KEY")
+          [ -z "$GCP_WIF_PROVIDER" ] && missing+=("GCP_WIF_PROVIDER")
+          [ -z "$GCP_SA_EMAIL" ] && missing+=("GCP_SA_EMAIL")
           [ -z "$GCP_PROJECT_ID_STAGING" ] && missing+=("GCP_PROJECT_ID_STAGING")
           if [ ${#missing[@]} -gt 0 ]; then
             echo "::error::Missing required secrets: ${missing[*]}. Add them in repository Settings → Secrets and variables → Actions."
@@ -44,7 +49,8 @@ jobs:
           fi
       - uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SA_EMAIL }}
       - name: Build & push to GCR
         run: |
           gcloud builds submit apps/api-gateway \
