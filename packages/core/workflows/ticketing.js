@@ -303,7 +303,10 @@ export async function verifyCheckoutPayment({
       throw codedError('Forbidden', 'FORBIDDEN');
     }
 
-    if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
+    if (
+      order.status !== 'confirmed' &&
+      !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))
+    ) {
       throw codedError(`Order is ${order.status}`, 'CONFLICT');
     }
 

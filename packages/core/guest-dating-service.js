@@ -280,21 +280,20 @@ export async function getDiscoverProfiles(db, userId) {
   const myEvents = Array.isArray(currentUser.upcomingEvents) ? currentUser.upcomingEvents : [];
 
   const swipesSnap = await db.collection('userSwipes').where('fromUserId', '==', userId).get();
-  const swipedUserIds = new Set(swipesSnap.docs.map((doc) => doc.data().toUserId));
+  const swipedUserIds = new Set(swipesSnap.docs.map(doc => doc.data().toUserId));
   swipedUserIds.add(userId);
 
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
 
-  const profilesSnap = await db
-    .collection('users')
+  const profilesSnap = await db.collection('users')
     .where('datingActive', '==', true)
     .limit(100)
     .get();
 
   let candidates = [];
 
-  profilesSnap.forEach((doc) => {
+  profilesSnap.forEach(doc => {
     const profileId = doc.id;
     if (swipedUserIds.has(profileId)) return;
 
@@ -304,22 +303,22 @@ export async function getDiscoverProfiles(db, userId) {
     if (lastActive < fourteenDaysAgo) return;
 
     const theirEvents = Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [];
-    const overlapCount = theirEvents.filter((e) => myEvents.includes(e)).length;
+    const overlapCount = theirEvents.filter(e => myEvents.includes(e)).length;
 
     candidates.push({
       id: profileId,
       firstName: firstNameOnly(data.name || data.displayName || data.fullName),
       age: data.age || null,
-      photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
+      photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
       prompts: Array.isArray(data.prompts) ? data.prompts : [],
       upcomingEvents: theirEvents,
-      _overlapScore: overlapCount,
+      _overlapScore: overlapCount
     });
   });
 
   candidates.sort((a, b) => b._overlapScore - a._overlapScore);
 
-  return candidates.slice(0, 15).map((c) => {
+  return candidates.slice(0, 15).map(c => {
     delete c._overlapScore;
     return c;
   });
@@ -350,15 +349,15 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
   if (action === 'like' && !isPremium) {
     const today = new Date().toISOString().split('T')[0];
     const dailyLimitRef = db.collection('userDailyLimits').doc(`${userId}_${today}`);
-
+    
     await db.runTransaction(async (transaction) => {
       const dailyDoc = await transaction.get(dailyLimitRef);
       const data = dailyDoc.exists ? dailyDoc.data() : { likes: 0 };
-
+      
       if (data.likes >= 50) {
         throw new Error('Daily like limit exceeded');
       }
-
+      
       transaction.set(dailyLimitRef, { likes: data.likes + 1 }, { merge: true });
     });
   }
@@ -370,7 +369,7 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     fromUserId: userId,
     toUserId: targetUserId,
     action,
-    createdAt: now,
+    createdAt: now
   });
 
   if (action === 'pass') {
@@ -385,20 +384,20 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     status: 'pending',
     isDeleted: false,
     createdAt: now,
-    updatedAt: now,
+    updatedAt: now
   });
 
   // Mutual Match Check
   // Has the target already swiped right on the current user?
   const mutualSwipeDoc = await db.collection('userSwipes').doc(`${targetUserId}_${userId}`).get();
-
+  
   if (mutualSwipeDoc.exists && mutualSwipeDoc.data().action === 'like') {
     // Create match and DM
     const deterministicPair = pairKey(userId, targetUserId);
     const eventKey = 'global'; // Or try to find overlapping event, but 'global' is safe
     const matchId = `match_${eventKey}_${deterministicPair}`;
     const conversationId = `dm_${eventKey}_${deterministicPair}`;
-
+    
     const participants = [userId, targetUserId];
 
     const match = {
@@ -427,25 +426,15 @@ export async function processSwipeAction(db, userId, targetUserId, action) {
     };
 
     const batch = db.batch();
-
+    
     // Update both like documents to accepted
-    batch.set(
-      likeRef,
-      { status: 'accepted', matchId, conversationId, updatedAt: now },
-      { merge: true },
-    );
-    batch.set(
-      db.collection(USER_LIKES_COLLECTION).doc(`${targetUserId}_${userId}`),
-      { status: 'accepted', matchId, conversationId, updatedAt: now },
-      { merge: true },
-    );
-
+    batch.set(likeRef, { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
+    batch.set(db.collection(USER_LIKES_COLLECTION).doc(`${targetUserId}_${userId}`), { status: 'accepted', matchId, conversationId, updatedAt: now }, { merge: true });
+    
     // Create match and conversation
     batch.set(db.collection(USER_MATCHES_COLLECTION).doc(matchId), match, { merge: true });
-    batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, {
-      merge: true,
-    });
-
+    batch.set(db.collection(PRIVATE_CONVERSATIONS_COLLECTION).doc(conversationId), conversation, { merge: true });
+    
     await batch.commit();
 
     return { match: true, conversationId };
@@ -468,10 +457,10 @@ export async function getPublicUserProfile(db, targetUserId) {
     id: doc.id,
     firstName: firstNameOnly(data.name || data.displayName || data.fullName),
     age: data.age || null,
-    photos: Array.isArray(data.photos) ? data.photos : data.photoURL ? [data.photoURL] : [],
+    photos: Array.isArray(data.photos) ? data.photos : (data.photoURL ? [data.photoURL] : []),
     prompts: Array.isArray(data.prompts) ? data.prompts : [],
     upcomingEvents: Array.isArray(data.upcomingEvents) ? data.upcomingEvents : [],
-    datingActive: Boolean(data.datingActive),
+    datingActive: Boolean(data.datingActive)
   };
 }
 
@@ -487,13 +476,13 @@ export async function getUserMatches(db, userId) {
   // since userMatches has user1Id and user2Id
   const [snap1, snap2] = await Promise.all([
     db.collection('userMatches').where('user1Id', '==', userId).get(),
-    db.collection('userMatches').where('user2Id', '==', userId).get(),
+    db.collection('userMatches').where('user2Id', '==', userId).get()
   ]);
 
   const matchDocs = [...snap1.docs, ...snap2.docs];
-
+  
   // Sort by matchedAt descending
-  const matches = matchDocs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  const matches = matchDocs.map(doc => ({ id: doc.id, ...doc.data() }));
   matches.sort((a, b) => {
     const timeA = a.matchedAt ? new Date(a.matchedAt).getTime() : 0;
     const timeB = b.matchedAt ? new Date(b.matchedAt).getTime() : 0;
@@ -501,37 +490,32 @@ export async function getUserMatches(db, userId) {
   });
 
   // Enrich with public profile of the other user
-  const enrichedMatches = await Promise.all(
-    matches.map(async (match) => {
-      const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
-      let otherProfile = null;
-
-      try {
-        const doc = await db.collection('users').doc(otherUserId).get();
-        if (doc.exists) {
-          const data = doc.data();
-          otherProfile = {
-            id: otherUserId,
-            firstName: firstNameOnly(data.name || data.displayName || data.fullName),
-            age: data.age || null,
-            photo:
-              Array.isArray(data.photos) && data.photos.length > 0
-                ? data.photos[0]
-                : data.photoURL || null,
-          };
-        }
-      } catch (e) {
-        console.warn('Failed to fetch profile for match', otherUserId);
+  const enrichedMatches = await Promise.all(matches.map(async (match) => {
+    const otherUserId = match.user1Id === userId ? match.user2Id : match.user1Id;
+    let otherProfile = null;
+    
+    try {
+      const doc = await db.collection('users').doc(otherUserId).get();
+      if (doc.exists) {
+        const data = doc.data();
+        otherProfile = {
+          id: otherUserId,
+          firstName: firstNameOnly(data.name || data.displayName || data.fullName),
+          age: data.age || null,
+          photo: Array.isArray(data.photos) && data.photos.length > 0 ? data.photos[0] : (data.photoURL || null)
+        };
       }
+    } catch (e) {
+      console.warn('Failed to fetch profile for match', otherUserId);
+    }
 
-      return {
-        matchId: match.id,
-        conversationId: match.conversationId,
-        matchedAt: match.matchedAt,
-        profile: otherProfile,
-      };
-    }),
-  );
+    return {
+      matchId: match.id,
+      conversationId: match.conversationId,
+      matchedAt: match.matchedAt,
+      profile: otherProfile
+    };
+  }));
 
   return enrichedMatches;
 }

@@ -12,7 +12,10 @@ import {
   trackGuestEventInteraction,
   trackGuestEventView,
 } from '@c1rcle/core/guest-event-conversion';
-import { InventoryUnavailableError, listAvailableTicketTiers } from '@c1rcle/core/inventory-engine';
+import {
+  InventoryUnavailableError,
+  listAvailableTicketTiers,
+} from '@c1rcle/core/inventory-engine';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventQueueStatus: vi.fn(async () => ({

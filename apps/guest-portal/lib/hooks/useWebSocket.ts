@@ -80,7 +80,7 @@ export function useWebSocket({
       wsRef.current = null;
       const delay = Math.min(1000 * 2 ** retriesRef.current, 30_000);
       retriesRef.current += 1;
-
+       
       reconnectRef.current = setTimeout(connect, delay);
     };
 
