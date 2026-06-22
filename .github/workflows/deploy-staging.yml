@@ -30,6 +30,18 @@ jobs:
       gateway_url: ${{ steps.gateway-url.outputs.url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Validate GCP secrets
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+          GCP_PROJECT_ID_STAGING: ${{ secrets.GCP_PROJECT_ID_STAGING }}
+        run: |
+          missing=()
+          [ -z "$GCP_SA_KEY" ] && missing+=("GCP_SA_KEY")
+          [ -z "$GCP_PROJECT_ID_STAGING" ] && missing+=("GCP_PROJECT_ID_STAGING")
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing required secrets: ${missing[*]}. Add them in repository Settings → Secrets and variables → Actions."
+            exit 1
+          fi
       - uses: google-github-actions/auth@v2
         with:
           credentials_json: ${{ secrets.GCP_SA_KEY }}
@@ -76,9 +88,9 @@ jobs:
         id: vars
         run: |
           case "${{ matrix.app }}" in
-            admin-console)      echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN_CONSOLE }}" >> "$GITHUB_OUTPUT" ;;
-            guest-portal)       echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST_PORTAL }}" >> "$GITHUB_OUTPUT" ;;
-            partner-dashboard)  echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER_DASHBOARD }}" >> "$GITHUB_OUTPUT" ;;
+            admin-console)      echo "pid=${{ secrets.VERCEL_PROJECT_ID_ADMIN }}" >> "$GITHUB_OUTPUT" ;;
+            guest-portal)       echo "pid=${{ secrets.VERCEL_PROJECT_ID_GUEST }}" >> "$GITHUB_OUTPUT" ;;
+            partner-dashboard)  echo "pid=${{ secrets.VERCEL_PROJECT_ID_PARTNER }}" >> "$GITHUB_OUTPUT" ;;
           esac
 
       - name: Set Gateway URL

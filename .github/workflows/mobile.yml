@@ -3,6 +3,9 @@ name: Mobile EAS Build
 on:
   push:
     branches: [main, staging]
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     paths:
       - apps/mobile-app/**
       - apps/scanner-app/**
