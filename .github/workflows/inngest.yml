@@ -15,15 +15,24 @@ jobs:
       matrix:
         include:
           - app: guest-portal
-            url: ${{ vars.GUEST_URL }}/api/inngest
+            url_var: GUEST_URL
           - app: api-gateway
-            url: ${{ vars.BACKEND_URL }}/api/inngest
+            url_var: BACKEND_URL
     steps:
+      - name: Resolve app URL
+        id: url
+        run: |
+          if [ "${{ matrix.app }}" = "guest-portal" ]; then
+            echo "endpoint=${{ vars.GUEST_URL }}/api/inngest" >> "$GITHUB_OUTPUT"
+          else
+            echo "endpoint=${{ vars.BACKEND_URL }}/api/inngest" >> "$GITHUB_OUTPUT"
+          fi
       - name: Ping Inngest deploy hook
         run: |
-          curl -f -X PUT "${{ matrix.url }}" \
+          curl -f --max-time 30 -X PUT "${{ steps.url.outputs.endpoint }}" \
             -H "x-inngest-sync-kind: trust" \
-            -H "Authorization: Bearer ${{ secrets.INNGEST_SIGNING_KEY }}"
+            -H "Authorization: Bearer ${{ secrets.INNGEST_SIGNING_KEY }}" \
+            || { echo "Failed to ping Inngest for ${{ matrix.app }}"; exit 1; }
 
   verify:
     name: Verify sync
@@ -32,6 +41,6 @@ jobs:
     steps:
       - name: Check function list via Inngest API
         run: |
-          curl -f "https://api.inngest.com/v1/apps" \
+          curl -f --max-time 30 "https://api.inngest.com/v1/apps" \
             -H "Authorization: Bearer ${{ secrets.INNGEST_API_KEY }}" \
             | jq '.data[] | {name, sync_id, status}'
