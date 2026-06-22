@@ -195,5 +195,5 @@ jobs:
       - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npm audit --audit-level=critical
-      - uses: trufflesecurity/trufflehog@v3
+      - uses: trufflesecurity/trufflehog@main
         with: { extra_args: --only-verified }
