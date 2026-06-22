@@ -1,7 +1,0 @@
-{
-    "extends": "universe/native",
-    "root": true,
-    "rules": {
-        "prettier/prettier": "off"
-    }
-}

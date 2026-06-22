@@ -40,7 +40,9 @@ export function useVenueEvents(venueId: string) {
   return useQuery({
     queryKey: ['venues', venueId, 'events'],
     queryFn: async () => {
-      const res = await apiFetch<{ success: boolean; data: any[] }>(`/api/v1/venues/${venueId}/events`);
+      const res = await apiFetch<{ success: boolean; data: any[] }>(
+        `/api/v1/venues/${venueId}/events`,
+      );
       if (!res.success) throw new Error('Failed to fetch venue events');
       return res.data;
     },
@@ -50,12 +52,12 @@ export function useVenueEvents(venueId: string) {
 
 export function useToggleVenueFollow() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (venueId: string) => {
       const res = await apiFetch<{ success: boolean; data: { followed: boolean } }>(
         `/api/v1/venues/${venueId}/follow`,
-        { method: 'POST' }
+        { method: 'POST' },
       );
       if (!res.success) throw new Error('Failed to toggle follow');
       return res.data;

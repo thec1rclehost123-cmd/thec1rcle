@@ -11,20 +11,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@v4
 
       - name: Setup Node
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 
       - name: Run Smoke Tests
-        run: |
-          node scripts/smoke-test.js
+        run: node scripts/smoke-test.js
         env:
-          STAGING_GUEST_URL: "https://thec1rcle-guest-portal-git-staging-thec1rcles-projects.vercel.app/"
-          STAGING_ADMIN_URL: "https://thec1rcle-admin-panel-git-staging-thec1rcles-projects.vercel.app/"
-          STAGING_API_URL: "https://thec1rcle-partner-dashboard-git-staging-thec1rcles-projects.vercel.app/api/health"
+          STAGING_GUEST_URL: ${{ vars.STAGING_GUEST_URL }}
+          STAGING_ADMIN_URL: ${{ vars.STAGING_ADMIN_URL }}
+          STAGING_API_URL: ${{ vars.STAGING_API_URL }}
 
       - name: Notify on Failure
         if: failure()
