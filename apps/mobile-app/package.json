@@ -16,7 +16,7 @@
     "prebuild": "expo prebuild",
     "lint": "eslint app components hooks lib store __tests__",
     "doctor": "npx expo-doctor",
-    "type-check": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit --pretty false",
+    "type-check": "npx tsc -p tsconfig.json --noEmit --pretty false",
     "test": "npx jest --verbose",
     "test:watch": "npx jest --watch"
   },

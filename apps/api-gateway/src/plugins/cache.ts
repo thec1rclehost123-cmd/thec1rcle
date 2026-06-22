@@ -75,6 +75,45 @@ class HybridCache {
       }
     }
   }
+
+  async flushAll() {
+    if (this.fastify.redis && this.fastify.redis.status === 'ready') {
+      try {
+        await this.fastify.redis.flushdb();
+      } catch (err) {
+        this.fastify.log.warn(`Cache Flush Error (Redis): ${err}`);
+      }
+    }
+  }
+
+  async getStats(): Promise<{
+    namespaces: Record<string, number>;
+    totalKeys: number;
+    usedMemory: string;
+  }> {
+    const stats = { namespaces: {} as Record<string, number>, totalKeys: 0, usedMemory: '0' };
+    if (this.fastify.redis && this.fastify.redis.status === 'ready') {
+      try {
+        let cursor = '0';
+        do {
+          const [newCursor, keys] = await this.fastify.redis.scan(cursor, 'COUNT', 500);
+          cursor = newCursor;
+          for (const key of keys) {
+            const ns = key.includes(':') ? key.split(':')[0] : '__root';
+            stats.namespaces[ns] = (stats.namespaces[ns] || 0) + 1;
+          }
+        } while (cursor !== '0');
+        stats.totalKeys = Object.values(stats.namespaces).reduce((a, b) => a + b, 0);
+
+        const info = await this.fastify.redis.info('memory');
+        const match = info.match(/used_memory_human:([^\r\n]+)/);
+        if (match) stats.usedMemory = match[1].trim();
+      } catch (err) {
+        this.fastify.log.warn(`Cache Stats Error (Redis): ${err}`);
+      }
+    }
+    return stats;
+  }
 }
 
 export default fp(async (fastify: FastifyInstance) => {

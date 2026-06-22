@@ -49,11 +49,13 @@ const _clientEnv = clientEnvSchema.safeParse({
   NEXT_PUBLIC_DASHBOARD_URL: process.env.NEXT_PUBLIC_DASHBOARD_URL,
 });
 
-if (!_serverEnv.success || !_clientEnv.success) {
-  console.error('❌ Invalid environment variables');
-  if (!_serverEnv.success) console.error(_serverEnv.error.format());
-  if (!_clientEnv.success) console.error(_clientEnv.error.format());
-  process.exit(1);
+if (!process.env.SKIP_ENV_VALIDATION) {
+  if (!_serverEnv.success || !_clientEnv.success) {
+    console.error('❌ Invalid environment variables');
+    if (!_serverEnv.success) console.error(_serverEnv.error.format());
+    if (!_clientEnv.success) console.error(_clientEnv.error.format());
+    process.exit(1);
+  }
 }
 
-export const env = { ..._serverEnv.data, ..._clientEnv.data };
+export const env = { ...(_serverEnv.data ?? {}), ...(_clientEnv.data ?? {}) };
