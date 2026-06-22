@@ -12,8 +12,7 @@ import { Alert, Linking, Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
-
-const API_BASE = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://thec1rcle.com';
+import { API_BASE } from '@/lib/api';
 
 export interface PassData {
   orderId: string;
@@ -46,7 +45,7 @@ export async function downloadTicketPDF(orderId: string): Promise<string | null>
     }
 
     const downloadResult = await FileSystem.downloadAsync(
-      `${API_BASE}/api/tickets/download?orderId=${orderId}`,
+      `${API_BASE}/api/v1/tickets/download?orderId=${encodeURIComponent(orderId)}`,
       fileUri,
     );
 
@@ -150,7 +149,7 @@ export async function generateAppleWalletPass(passData: PassData): Promise<strin
     const fileUri = `${FileSystem.cacheDirectory}pass-${passData.orderId.substring(0, 8)}.pkpass`;
 
     const downloadResult = await FileSystem.downloadAsync(
-      `${API_BASE}/api/passes/apple?orderId=${passData.orderId}`,
+      `${API_BASE}/api/v1/passes/apple?orderId=${encodeURIComponent(passData.orderId)}`,
       fileUri,
     );
 
@@ -174,7 +173,9 @@ export async function generateGoogleWalletPass(passData: PassData): Promise<stri
   if (Platform.OS !== 'android') return null;
 
   try {
-    const response = await fetch(`${API_BASE}/api/passes/google?orderId=${passData.orderId}`);
+    const response = await fetch(
+      `${API_BASE}/api/v1/passes/google?orderId=${encodeURIComponent(passData.orderId)}`,
+    );
 
     if (response.ok) {
       const { saveUrl } = await response.json();

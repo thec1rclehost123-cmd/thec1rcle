@@ -25,7 +25,8 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm cache clean --force
+      - run: npm ci
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
@@ -52,26 +53,20 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - name: Lint guest-portal
-        run: npm run lint --workspace=apps/guest-portal 2>&1 || true
-        timeout-minutes: 3
+        run: npm run lint --workspace=apps/guest-portal
       - name: Lint partner-dashboard
-        run: npm run lint --workspace=apps/partner-dashboard 2>&1 || true
-        timeout-minutes: 3
+        run: npm run lint --workspace=apps/partner-dashboard
       - name: Lint admin-console
-        run: npm run lint --workspace=apps/admin-console 2>&1 || true
-        timeout-minutes: 3
+        run: npm run lint --workspace=apps/admin-console
       - name: Lint mobile-app
-        run: npm run lint --workspace=apps/mobile-app 2>&1 || true
-        timeout-minutes: 3
+        run: npm run lint --workspace=apps/mobile-app
       - name: Lint scanner-app
-        run: npm run lint --workspace=apps/scanner-app 2>&1 || true
-        timeout-minutes: 3
+        run: npm run lint --workspace=apps/scanner-app
       - name: Format check
-        run: npx --no-install prettier --check "apps/*/{app,components,lib,hooks}/**/*.{ts,tsx,js,jsx,css}" 2>&1 || true
-        timeout-minutes: 3
+        run: npx --no-install prettier --check "apps/*/{app,components,lib,hooks}/**/*.{ts,tsx,js,jsx,css}"
 
     # ── 3. TypeScript across all packages ────────────────────────
   typecheck:
@@ -90,7 +85,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo type-check
 
@@ -134,7 +129,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - name: Build core (api-gateway tests need the compiled dist exports)
         if: matrix.workspace == 'apps/api-gateway'
@@ -146,6 +141,7 @@ jobs:
       - uses: codecov/codecov-action@v4
         if: always()
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           flags: ${{ matrix.workspace }}
           fail_ci_if_error: false
 
@@ -169,7 +165,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter='...[origin/main]'
         env:
@@ -196,8 +192,8 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npm audit --audit-level=critical
-      - uses: trufflesecurity/trufflehog@main
+      - uses: trufflesecurity/trufflehog@v3
         with: { extra_args: --only-verified }

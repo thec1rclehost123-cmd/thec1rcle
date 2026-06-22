@@ -43,6 +43,7 @@
         "./event-engine": "./event-engine.js",
         "./scan-engine": "./scan-engine.js",
         "./ticket-engine": "./ticket-engine.js",
+        "./ticket-checkout-wallet-service": "./ticket-checkout-wallet-service.js",
         "./staff-engine": "./staff-engine.js",
         "./profile-engine": "./profile-engine.js",
         "./finance-engine": "./finance-engine.js",
@@ -56,6 +57,9 @@
         "./auth-infra": "./dist/infrastructure/auth/firebase-auth-service.js",
         "./profile-repo": "./dist/infrastructure/repositories/firebase/profile-repository.js",
         "./profile-service": "./dist/domain/services/profile-service.js",
+        "./profile-settings-service": "./dist/domain/services/profile-settings-service.js",
+        "./account-deletion-service": "./dist/domain/services/account-deletion-service.js",
+        "./venues-service": "./dist/domain/services/venues-service.js",
         "./event-repo": "./dist/infrastructure/repositories/firebase/event-repository.js",
         "./telemetry": "./telemetry.js",
         "./event-service": "./dist/domain/services/event-service.js",
@@ -92,10 +96,11 @@
         "firebase-admin": "^13.6.0",
         "inngest": "^3.52.0",
         "ioredis": "^5.9.2",
-        "meilisearch": "^0.55.0"
+        "meilisearch": "^0.55.0",
+        "razorpay": "^2.9.6"
     },
     "devDependencies": {
-        "typescript": "^5.3.3",
-        "@types/node": "^20.11.0"
+        "@types/node": "^20.11.0",
+        "typescript": "^5.3.3"
     }
 }

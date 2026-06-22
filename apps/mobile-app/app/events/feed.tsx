@@ -42,43 +42,31 @@ const attendeeAvatarImages = {
 };
 
 // ── Background Glow ────────────────────────────────────────────────────────────
-function BackgroundItem({
-  event,
-  index,
-  scrollY,
-}: {
-  event: Event;
-  index: number;
-  scrollY: SharedValue<number>;
-}) {
-  const img = getEventImage(event);
-
-  const opacityStyle = useAnimatedStyle(() => {
-    const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
-    const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
-    return { opacity };
-  });
-
-  if (!img) return null;
-
-  return (
-    <Animated.View style={[StyleSheet.absoluteFillObject, opacityStyle]}>
-      <Image
-        source={{ uri: img }}
-        style={StyleSheet.absoluteFillObject}
-        contentFit="cover"
-        blurRadius={60}
-      />
-    </Animated.View>
-  );
-}
-
 function DynamicBackground({ events, scrollY }: { events: Event[]; scrollY: SharedValue<number> }) {
   return (
     <View style={StyleSheet.absoluteFillObject}>
-      {events.slice(0, 10).map((event, index) => (
-        <BackgroundItem key={event.id} event={event} index={index} scrollY={scrollY} />
-      ))}
+      {events.slice(0, 10).map((event, index) => {
+        const img = getEventImage(event);
+        if (!img) return null;
+
+        const opacityStyle = useAnimatedStyle(() => {
+          const input = [(index - 1) * ITEM_HEIGHT, index * ITEM_HEIGHT, (index + 1) * ITEM_HEIGHT];
+          const opacity = interpolate(scrollY.value, input, [0, 1, 0], Extrapolate.CLAMP);
+          return { opacity };
+        });
+
+        return (
+          <Animated.View key={event.id} style={[StyleSheet.absoluteFillObject, opacityStyle]}>
+            <Image
+              source={{ uri: img }}
+              style={StyleSheet.absoluteFillObject}
+              contentFit="cover"
+              blurRadius={60}
+            />
+          </Animated.View>
+        );
+      })}
+      <View style={[StyleSheet.absoluteFillObject, { backgroundColor: 'rgba(0,0,0,0.6)' }]} />
     </View>
   );
 }
@@ -330,7 +318,7 @@ export default function ImmersiveFeedScreen() {
   const scoredEvents = useRecommendationsStore((s) => s.scoredEvents);
 
   const feedEvents = useMemo(() => {
-    let list = [...events];
+    const list = [...events];
     if (type === 'foryou') {
       const sortedIds = Object.keys(scoredEvents).sort(
         (a, b) => scoredEvents[b].score - scoredEvents[a].score,

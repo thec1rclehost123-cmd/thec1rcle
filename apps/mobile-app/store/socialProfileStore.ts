@@ -10,6 +10,7 @@ import {
   addDoc,
 } from 'firebase/firestore';
 import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { uploadUserPhoto } from '@/lib/firebase/userProfile';
 
 function getDb() {
   return getFirestore(getFirebaseApp());
@@ -193,7 +194,12 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
     };
     await setDoc(
       doc(getDb(), 'users', userId),
-      { socialProfile: { ...profile, completedAt: serverTimestamp() } },
+      {
+        photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
+        photos: profile.photos,
+        socialProfile: { ...profile, completedAt: serverTimestamp() },
+        updatedAt: serverTimestamp(),
+      },
       { merge: true },
     );
     set({ socialState: 'complete', socialProfile: profile });
@@ -266,11 +272,7 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
 
   // ── Photo upload ──────────────────────────────────────────────────────────
   uploadPhoto: async (userId, localUri, index) => {
-    const resp = await fetch(localUri);
-    const blob = await resp.blob();
-    const storageRef = ref(getStore(), `social_photos/${userId}/photo_${index}_${Date.now()}.jpg`);
-    await uploadBytes(storageRef, blob);
-    return getDownloadURL(storageRef);
+    return uploadUserPhoto(userId, localUri, `social_${index}_${Date.now()}`);
   },
 }));
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import {
   View,
   Text,
@@ -99,8 +99,9 @@ export default function SignupScreen() {
         const user = auth.currentUser;
         if (user) {
           await updateProfile(user.uid, {
+            email: user.email ?? email.trim(),
             displayName: fullName.trim(),
-            phone: phone.trim(),
+            phone: phone.trim() || undefined,
             city,
             gender: gender as any,
             dateOfBirth,
@@ -109,7 +110,7 @@ export default function SignupScreen() {
       } catch (err) {
         console.error('Failed to save profile during signup:', err);
       }
-      router.replace('/(tabs)/explore');
+      router.replace('/');
     }
   };
 
@@ -419,7 +420,7 @@ export default function SignupScreen() {
 }
 
 // ── Reusable field wrapper with Heavy Glassmorphism ─────────────────────────────
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={s.fieldLabel}>{label}</Text>

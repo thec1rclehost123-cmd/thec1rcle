@@ -21,23 +21,27 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - name: EAS Build (preview)
+        id: build-preview
         if: github.ref != 'refs/heads/main'
-        continue-on-error: true
         run: |
           cd apps/${{ matrix.app }}
           eas build --platform all --profile preview --non-interactive
       - name: EAS Build (production)
+        id: build-production
         if: github.ref == 'refs/heads/main'
-        continue-on-error: true
         run: |
           cd apps/${{ matrix.app }}
           eas build --platform all --profile production --non-interactive
+      - name: EAS Submit (production)
+        if: github.ref == 'refs/heads/main' && steps.build-production.outcome == 'success'
+        run: |
+          cd apps/${{ matrix.app }}
           eas submit --platform all --non-interactive
 
   expo-updates:
@@ -54,6 +58,5 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
       - run: |
+          COMMIT_MSG="${{ github.event.head_commit.message || github.sha }}"
           cd apps/mobile-app && eas update --branch production --message "$COMMIT_MSG"
-        env:
-          COMMIT_MSG: ${{ github.event.head_commit.message }}

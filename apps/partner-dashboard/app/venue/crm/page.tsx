@@ -1437,7 +1437,7 @@ export default function MarketingPage() {
         selectedCount={selectedIds.length === 0 ? 1 : selectedIds.length}
       />
 
-      {/* eslint-disable-next-line react/no-unknown-property */}
+      {}
       <style jsx global>{`
         .venue-page-content {
           background-color: #0d0d0e !important;

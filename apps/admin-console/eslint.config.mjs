@@ -2,7 +2,16 @@ import nextConfig from 'eslint-config-next';
 
 export default [
   {
-    ignores: ['.next/**', 'dist/**', 'node_modules/**', 'coverage/**', '.turbo/**'],
+    ignores: [
+      '**/node_modules/**',
+      '**/.next/**',
+      '**/dist/**',
+      '**/.turbo/**',
+      '**/build/**',
+      '**/public/**',
+      '**/coverage/**',
+      '**/*.log',
+    ],
   },
   ...nextConfig,
   {

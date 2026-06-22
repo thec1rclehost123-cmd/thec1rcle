@@ -68,17 +68,6 @@ const eventFont = {
   black: typography.fontFamily.brandAccent,
 };
 
-const attendeeAvatarImages = {
-  arya: require('../../assets/images/attendees/arya.png'),
-  riya: require('../../assets/images/attendees/riya.png'),
-  anaya: require('../../assets/images/attendees/anaya.png'),
-  isha: require('../../assets/images/attendees/isha.png'),
-  hira: require('../../assets/images/attendees/hira.png'),
-  yash: require('../../assets/images/attendees/yash.png'),
-  neil: require('../../assets/images/attendees/neil.png'),
-  sam: require('../../assets/images/attendees/sam.png'),
-};
-
 function HeartBurst({
   accent,
   ringStyle,
@@ -954,67 +943,22 @@ export default function EventDetailScreen() {
   const venueOrHostLabel = event.hostName || event.venue || 'Host TBA';
   const addressLabel = (event as any).address || event.location || event.city || 'Address TBA';
   const timeLabel = `${formattedDate} at ${formattedTime}`;
-  const interestedFallbackUsers = [
-    {
-      userId: 'fallback-arya',
-      displayName: 'Arya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.arya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-riya',
-      displayName: 'Riya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.riya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-anaya',
-      displayName: 'Anaya',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.anaya,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-isha',
-      displayName: 'Isha',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.isha,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-hira',
-      displayName: 'Hira',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.hira,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-yash',
-      displayName: 'Yash',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.yash,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-neil',
-      displayName: 'Neil',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.neil,
-      likedAt: '',
-    },
-    {
-      userId: 'fallback-sam',
-      displayName: 'Sam',
-      photoURL: null,
-      photoSource: attendeeAvatarImages.sam,
-      likedAt: '',
-    },
-  ];
-  const guestlistUsers = eventInterested.length > 0 ? eventInterested : interestedFallbackUsers;
-  const interestedLeadName = 'Arya';
-  const interestedOthersCount = 60;
+  const detailInterestedUsers = Array.isArray((event as any).interestedData?.users)
+    ? (event as any).interestedData.users
+    : [];
+  const guestlistUsers = eventInterested.length > 0 ? eventInterested : detailInterestedUsers;
+  const interestedCount = Math.max(
+    Number((event as any).interestedData?.count || 0),
+    guestlistUsers.length,
+  );
+  const interestedLeadName = guestlistUsers[0]?.displayName?.split(' ')[0] || '';
+  const interestedOthersCount = Math.max(interestedCount - 1, 0);
+  const interestedSummary =
+    interestedCount <= 0
+      ? 'Be the first to show interest'
+      : interestedOthersCount === 0
+        ? `${interestedLeadName || '1 guest'} is interested`
+        : `${interestedLeadName} and ${interestedOthersCount} others interested`;
   const instagramHandle =
     (event as any).venueInstagram ||
     (event as any).hostInstagram ||
@@ -1316,7 +1260,7 @@ export default function EventDetailScreen() {
               }}
             >
               <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 6).map((userInfo, index) => {
+                {guestlistUsers.slice(0, 6).map((userInfo: any, index: number) => {
                   const initial = (userInfo.displayName?.[0] ?? '?').toUpperCase();
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
@@ -1350,7 +1294,7 @@ export default function EventDetailScreen() {
               </View>
               <View style={styles.interestedCopyRow}>
                 <Text style={styles.interestedText} numberOfLines={1}>
-                  {interestedLeadName} and {interestedOthersCount} others interested
+                  {interestedSummary}
                 </Text>
               </View>
             </Pressable>

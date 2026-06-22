@@ -13,6 +13,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+
 jobs:
   # ── Shared setup ─────────────────────────────────────────────────
   install:
@@ -22,7 +26,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20, cache: npm }
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm cache clean --force
+      - run: npm ci
       - uses: actions/cache@v4
         with:
           path: |
@@ -47,7 +52,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx knip
         continue-on-error: true
@@ -68,7 +73,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx cspell --no-progress --gitignore "**/*.{js,ts,tsx,jsx,md,json}"
         continue-on-error: true
@@ -89,7 +94,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - run: npx turbo build --filter=@c1rcle/guest-portal --filter=@c1rcle/partner-dashboard --filter=@c1rcle/admin-console --filter=@c1rcle/api-gateway
         env:
@@ -122,7 +127,7 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
       - uses: actions/cache@v4
         with:
@@ -151,12 +156,19 @@ jobs:
             apps/*/node_modules
             packages/*/node_modules
           key: nm-cq-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npm install --no-audit --no-fund --legacy-peer-deps
+      - run: npm ci
         if: steps.nm-cache.outputs.cache-hit != 'true'
-      - run: npm run guardrails:check
-      - run: npm run test:guardrails
-      - run: npm run architecture:guest
-      - run: npm --workspace=apps/guest-portal run type-check
-      - run: npm --workspace=apps/guest-portal test
-      - run: npm --workspace=packages/core run build
-      - run: npm --workspace=apps/api-gateway test
+      - name: Check backend boundaries
+        run: npm run guardrails:check
+      - name: Guardrails unit tests
+        run: npm run test:guardrails
+      - name: Guest portal architecture tests
+        run: npm run architecture:guest
+      - name: Guest portal type-check
+        run: npm --workspace=apps/guest-portal run type-check
+      - name: Guest portal tests
+        run: npm --workspace=apps/guest-portal test
+      - name: Build core
+        run: npm --workspace=packages/core run build
+      - name: API gateway tests
+        run: npm --workspace=apps/api-gateway test

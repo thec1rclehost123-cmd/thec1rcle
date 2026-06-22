@@ -1,5 +1,5 @@
 import '../global.css';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -11,6 +11,7 @@ import { colors } from '@/lib/design/theme';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { DemoDataProvider } from '@/components/DemoDataProvider';
 import { initSentry } from '@/lib/sentry';
+import { initAuthListener } from '@/store/authStore';
 
 initSentry();
 
@@ -20,6 +21,8 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const RootGestureHandlerView = GestureHandlerRootView as any;
+
+  useEffect(() => initAuthListener(), []);
 
   const onLayoutRootView = useCallback(async () => {
     await SplashScreen.hideAsync();
@@ -41,6 +44,9 @@ export default function RootLayout() {
                   }}
                 >
                   <Stack.Screen name="index" />
+                  <Stack.Screen name="(auth)" />
+                  <Stack.Screen name="profile-setup" />
+                  <Stack.Screen name="social-setup" />
                   <Stack.Screen name="(tabs)" />
                 </Stack>
               </View>

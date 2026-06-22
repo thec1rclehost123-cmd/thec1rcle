@@ -39,8 +39,8 @@ const config = {
 };
 
 // Provider-specific initializations
-let mixpanelClient: any = null;
-let amplitudeClient: any = null;
+const mixpanelClient: any = null;
+const amplitudeClient: any = null;
 let autoFlushInterval: ReturnType<typeof setInterval> | null = null;
 let autoFlushSubscription: { remove: () => void } | null = null;
 

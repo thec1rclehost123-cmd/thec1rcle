@@ -7,13 +7,7 @@ import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
 import { colors, typography } from '@/lib/design/theme';
-import {
-  DittoSettingsScreen,
-  Divider,
-  SectionLabel,
-  SettingsGroup,
-  SettingsRow,
-} from '@/components/settings/DittoSettings';
+import { DittoSettingsScreen, Divider, SettingsGroup } from '@/components/settings/DittoSettings';
 
 const font = {
   regular: typography.fontFamily.body,
@@ -35,8 +29,9 @@ export default function AlertPreferencesScreen() {
   const { notifications, setNotificationSetting } = useSettings();
   const [expanded, setExpanded] = useState(true);
 
-  const displayName = user?.displayName || 'Aayush Divase';
-  const phoneNumber = user?.phoneNumber || '+1 602-349-2605';
+  const displayName =
+    user?.displayName || user?.phoneNumber || user?.email?.split('@')[0] || 'Your account';
+  const phoneNumber = user?.phoneNumber || 'No phone number';
 
   const handleToggleCheck = (key: 'smsTransactional' | 'marketingPromotions') => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);

@@ -1,3 +1,5 @@
+ 
+
 const fs = require('fs');
 const path = require('path');
 
@@ -27,7 +29,7 @@ function walk(dir) {
 const files = [...walk('app'), ...walk('components')];
 
 files.forEach((file) => {
-  let content = fs.readFileSync(file, 'utf8');
+  const content = fs.readFileSync(file, 'utf8');
   let newContent = content;
 
   const tags = [

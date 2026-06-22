@@ -28,6 +28,7 @@ import scanRoutes from './routes/v1/scan';
 import coverChargeRoutes from './routes/v1/cover-charge';
 import ticketRoutes from './routes/v1/tickets';
 import staffRoutes from './routes/v1/staff';
+import userRoutes from './routes/v1/users';
 import profileRoutes from './routes/v1/profiles';
 import financeRoutes from './routes/v1/finance';
 import promoterRoutes from './routes/v1/promoters';
@@ -305,6 +306,7 @@ async function main() {
   await server.register(scanRoutes, { prefix: '/api/v1/scan' });
   await server.register(coverChargeRoutes, { prefix: '/api/v1/cover-charge' });
   await server.register(ticketRoutes, { prefix: '/api/v1' });
+  await server.register(userRoutes, { prefix: '/api/v1' });
   await server.register(profileRoutes, { prefix: '/api/v1' });
   await server.register(financeRoutes, { prefix: '/api/v1' });
   await server.register(promoterRoutes, { prefix: '/api/v1' });

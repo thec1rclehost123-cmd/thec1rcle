@@ -7,18 +7,8 @@
 
 import { create } from 'zustand';
 import { getFirebaseApp } from '@/lib/firebase/client';
-import {
-  getFirestore,
-  collection,
-  query,
-  where,
-  orderBy,
-  getDocs,
-  doc,
-  updateDoc,
-  writeBatch,
-  onSnapshot,
-} from 'firebase/firestore';
+import { getFirestore, collection, query, where, orderBy, onSnapshot } from 'firebase/firestore';
+import { apiFetch } from '@/lib/api';
 
 function getDb() {
   return getFirestore(getFirebaseApp());
@@ -81,35 +71,35 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   error: null,
   _unsubscribe: null,
 
-  fetchNotifications: async (userId: string) => {
+  fetchNotifications: async (_userId: string) => {
     if (get().loading) return;
     set({ loading: true, error: null });
 
     try {
-      const snap = await getDocs(
-        query(
-          collection(getDb(), 'notifications'),
-          where('targetId', '==', userId),
-          orderBy('createdAt', 'desc'),
-        ),
-      );
-      const notifications: Notification[] = snap.docs.map((d) => {
-        const data = d.data();
-        return {
-          ...data,
-          id: d.id,
-          createdAt: data.createdAt?.toDate?.() ?? new Date(data.createdAt),
-        } as Notification;
-      });
+      const response = await apiFetch<{
+        success: boolean;
+        data?: { notifications?: any[]; unreadCount?: number };
+        notifications?: any[];
+        unreadCount?: number;
+      }>('/api/v1/guest-notifications');
+      const rawNotifications = response.data?.notifications || response.notifications || [];
+      const notifications: Notification[] = rawNotifications.map((data: any) => ({
+        ...data,
+        id: data.id,
+        createdAt: data.createdAt?.toDate?.() ?? new Date(data.createdAt || Date.now()),
+      }));
 
       set({
         notifications,
-        unreadCount: notifications.filter((n) => !n.read).length,
+        unreadCount:
+          response.data?.unreadCount ??
+          response.unreadCount ??
+          notifications.filter((n) => !n.read).length,
         loading: false,
       });
     } catch (error: any) {
-      console.error('Failed to fetch notifications:', error);
-      set({ notifications: [], unreadCount: 0, error: error.message, loading: false });
+      console.warn('Unable to fetch notifications; showing an empty notification center.', error);
+      set({ notifications: [], unreadCount: 0, error: null, loading: false });
     }
   },
 
@@ -123,24 +113,26 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
     });
 
     try {
-      await updateDoc(doc(getDb(), 'notifications', notificationId), { read: true });
+      await apiFetch(`/api/v1/guest-notifications/${encodeURIComponent(notificationId)}`, {
+        method: 'PATCH',
+      });
     } catch (error) {
       console.error('Failed to mark notification as read:', error);
     }
   },
 
-  markAllAsRead: async (userId: string) => {
+  markAllAsRead: async (_userId: string) => {
     const { notifications } = get();
 
     // Optimistic update
     set({ notifications: notifications.map((n) => ({ ...n, read: true })), unreadCount: 0 });
 
     try {
-      const unread = notifications.filter((n) => !n.read);
-      if (unread.length === 0) return;
-      const batch = writeBatch(getDb());
-      unread.forEach((n) => batch.update(doc(getDb(), 'notifications', n.id), { read: true }));
-      await batch.commit();
+      if (notifications.every((n) => n.read)) return;
+      await apiFetch('/api/v1/guest-notifications', {
+        method: 'PATCH',
+        body: JSON.stringify({ markAll: true }),
+      });
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
     }
@@ -170,7 +162,10 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
           loading: false,
         });
       },
-      (error) => console.error('Notifications listener error:', error),
+      (error) => {
+        console.warn('Notifications listener error:', error);
+        set({ notifications: [], unreadCount: 0, error: null, loading: false });
+      },
     );
 
     set({ _unsubscribe: unsubscribe });

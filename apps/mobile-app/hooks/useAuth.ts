@@ -8,6 +8,8 @@ import {
   resetPassword,
   loginWithApple as firebaseLoginWithApple,
   loginWithGoogle as firebaseLoginWithGoogle,
+  loginWithPhoneVerificationCode,
+  sendPhoneVerificationCode,
 } from '@/lib/firebase';
 
 export function useAuth() {
@@ -120,6 +122,36 @@ export function useAuth() {
     }
   }, []);
 
+  const sendPhoneCode = useCallback(async (phoneNumber: string, verifier: any) => {
+    setAuthLoading(true);
+    setError(null);
+    try {
+      const verificationId = await sendPhoneVerificationCode(phoneNumber, verifier);
+      return { success: true, verificationId };
+    } catch (err: any) {
+      const message = err.message || getErrorMessage(err.code);
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
+  const confirmPhoneCode = useCallback(async (verificationId: string, code: string) => {
+    setAuthLoading(true);
+    setError(null);
+    try {
+      await loginWithPhoneVerificationCode(verificationId, code);
+      return { success: true };
+    } catch (err: any) {
+      const message = err.message || getErrorMessage(err.code);
+      setError(message);
+      return { success: false, error: message };
+    } finally {
+      setAuthLoading(false);
+    }
+  }, []);
+
   return {
     user,
     loading: loading || authLoading,
@@ -131,6 +163,8 @@ export function useAuth() {
     sendResetEmail,
     loginApple,
     loginGoogle,
+    sendPhoneCode,
+    confirmPhoneCode,
     clearError: () => setError(null),
   };
 }
@@ -156,6 +190,12 @@ function getErrorMessage(code: string): string {
       return 'Network error. Please check your connection';
     case 'auth/account-exists-with-different-credential':
       return 'An account with this email already exists. Try a different login method.';
+    case 'auth/invalid-phone-number':
+      return 'Please enter a valid phone number with country code';
+    case 'auth/invalid-verification-code':
+      return 'The OTP code is incorrect';
+    case 'auth/missing-verification-code':
+      return 'Please enter the OTP code';
     default:
       return 'Something went wrong. Please try again';
   }
