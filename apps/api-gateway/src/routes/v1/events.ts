@@ -30,7 +30,7 @@ import {
 
 const ExploreEventListQuery = z
   .object({
-    limit: z.coerce.number().int().min(1).max(24).optional(),
+    limit: z.coerce.number().int().min(1).max(100).optional(),
     cursor: z.string().min(1).max(500).optional(),
     lastId: z.string().min(1).max(500).optional(),
     sort: z.string().trim().max(64).optional(),
@@ -58,6 +58,8 @@ const ExploreEventListQuery = z
     venue: z.string().trim().max(120).optional(),
     venueId: z.string().trim().max(120).optional(),
     venueSlug: z.string().trim().max(120).optional(),
+    lifecycle: z.string().trim().max(120).optional(),
+    creatorId: z.string().trim().max(120).optional(),
   })
   .strict();
 
@@ -366,6 +368,54 @@ export default async function eventRoutes(fastify: FastifyInstance) {
     { preHandler: [fastify.validate({ querystring: ExploreEventListQuery })] },
     async (request: any, reply) => {
       try {
+        const { lifecycle, creatorId, venueId } = request.query || {};
+
+        // If query is for partner/draft list (e.g. from partner dashboard)
+        if (lifecycle || creatorId) {
+          const userId = request.user?.uid;
+          if (!userId) {
+            return reply.status(401).send(
+              buildErrorResponse({
+                code: 'UNAUTHORIZED',
+                message: 'Unauthorized',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          let q: any = fastify.db.collection('events');
+          if (creatorId) {
+            q = q.where('creatorId', '==', creatorId);
+          } else if (venueId) {
+            q = q.where('venueId', '==', venueId);
+          }
+
+          if (lifecycle) {
+            const lifecycles = lifecycle
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+            if (lifecycles.length > 0) {
+              q = q.where('lifecycle', 'in', lifecycles);
+            }
+          }
+
+          const limit = Math.min(Number(request.query.limit) || 20, 100);
+          q = q.orderBy('startDate', 'desc').limit(limit);
+
+          const snap = await q.get();
+          const events = snap.docs.map((doc: any) => {
+            const data = doc.data();
+            return {
+              ...data,
+              id: doc.id,
+              eventId: doc.id,
+            };
+          });
+
+          return { events, success: true };
+        }
+
         await enforcePublicRateLimit(fastify, request, 'events:explore', 120, 60);
         applyPublicCacheHeaders(reply, 60);
 
@@ -930,7 +980,56 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         const cached = await fastify.cache.get('public-discovery', cacheKey);
         if (cached) return cached;
 
-        const detail = await fastify.publicDiscoveryService.getEventDetail(id);
+        let detail = await fastify.publicDiscoveryService.getEventDetail(id);
+        let isPrivateOrDraft = false;
+
+        if (!detail) {
+          // Check if this is a draft or private event that the user owns/has access to
+          const eventSnap = await fastify.db.collection('events').doc(id).get();
+          if (eventSnap.exists) {
+            const eventData = eventSnap.data() as any;
+            const uid = request.user?.uid;
+            let hasAccess = false;
+
+            if (uid) {
+              const activePartnerId = request.user?.activeMembership?.partnerId;
+              if (
+                eventData.creatorId === uid ||
+                eventData.hostId === uid ||
+                (activePartnerId &&
+                  (eventData.hostId === activePartnerId || eventData.venueId === activePartnerId))
+              ) {
+                hasAccess = true;
+              } else {
+                if (eventData.hostId) {
+                  hasAccess = await fastify
+                    .verifyPartnerAccess(request, eventData.hostId)
+                    .catch(() => false);
+                }
+                if (!hasAccess && eventData.venueId) {
+                  hasAccess = await fastify
+                    .verifyPartnerAccess(request, eventData.venueId)
+                    .catch(() => false);
+                }
+              }
+            }
+
+            if (hasAccess) {
+              isPrivateOrDraft = true;
+              detail = {
+                event: {
+                  ...eventData,
+                  id: eventSnap.id,
+                },
+                interestedData: {
+                  count: 0,
+                  users: [],
+                },
+              };
+            }
+          }
+        }
+
         if (!detail)
           return reply.status(404).send(
             buildErrorResponse({
@@ -940,7 +1039,9 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }),
           );
 
-        await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        if (!isPrivateOrDraft) {
+          await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        }
         return detail;
       } catch (error: any) {
         if (error.message === 'RATE_LIMITED')

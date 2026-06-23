@@ -55,16 +55,33 @@ export function buildPartnerAuthError(
 
 function extractPartnerId(req: NextRequest, claims: any, type: PartnerType): string | null {
   const { searchParams } = new URL(req.url);
-  const fromRequest =
-    req.headers.get('x-partner-id') ||
-    req.headers.get('x-venue-id') ||
-    req.headers.get('x-host-id') ||
-    req.headers.get('x-workspace-id') ||
-    searchParams.get('venueId') ||
-    searchParams.get('hostId') ||
-    searchParams.get('promoterId') ||
-    searchParams.get('partnerId') ||
-    null;
+
+  let fromRequest: string | null = null;
+  if (type === 'host') {
+    fromRequest =
+      req.headers.get('x-host-id') ||
+      req.headers.get('x-partner-id') ||
+      req.headers.get('x-workspace-id') ||
+      searchParams.get('hostId') ||
+      searchParams.get('partnerId') ||
+      null;
+  } else if (type === 'venue') {
+    fromRequest =
+      req.headers.get('x-venue-id') ||
+      req.headers.get('x-partner-id') ||
+      req.headers.get('x-workspace-id') ||
+      searchParams.get('venueId') ||
+      searchParams.get('partnerId') ||
+      null;
+  } else if (type === 'promoter') {
+    fromRequest =
+      req.headers.get('x-promoter-id') ||
+      req.headers.get('x-partner-id') ||
+      req.headers.get('x-workspace-id') ||
+      searchParams.get('promoterId') ||
+      searchParams.get('partnerId') ||
+      null;
+  }
 
   const fromClaims =
     claims.partnerType === type || claims.partnerRole === type ? claims.partnerId || null : null;

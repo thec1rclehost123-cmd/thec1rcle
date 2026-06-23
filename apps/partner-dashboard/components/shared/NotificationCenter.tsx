@@ -55,6 +55,7 @@ const TYPE_TO_TAB: Record<string, NotifTab> = {
   promoter_request: 'partners',
   connection_request: 'partners',
   event_submitted: 'events',
+  event_resubmitted: 'events',
   event: 'events',
   event_review: 'events',
   revenue: 'finance',
@@ -161,6 +162,10 @@ const TYPE_CONFIG: Record<string, { icon: React.ReactNode; bg: string }> = {
     bg: 'bg-emerald-500/10',
   },
   event_submitted: {
+    icon: <Sparkles className="w-4 h-4 text-purple-500" />,
+    bg: 'bg-purple-500/10',
+  },
+  event_resubmitted: {
     icon: <Sparkles className="w-4 h-4 text-purple-500" />,
     bg: 'bg-purple-500/10',
   },
@@ -348,7 +353,8 @@ export function NotificationCenter() {
       host_request: `/${rolePrefix}/partners`,
       connection_request: `/${rolePrefix}/partners`,
       promoter_request: `/${rolePrefix}/partners`,
-      event_submitted: `/${rolePrefix}/events`,
+      event_submitted: `/${rolePrefix}/events/requests`,
+      event_resubmitted: `/${rolePrefix}/events/requests`,
       event: `/${rolePrefix}/events`,
       event_review: `/${rolePrefix}/events`,
       revenue: `/${rolePrefix}/finance`,
