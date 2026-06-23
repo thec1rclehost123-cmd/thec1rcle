@@ -155,6 +155,7 @@ export function buildQuickActionRequest(
 
 const TYPE_CONFIG: Record<string, { icon: React.ReactNode; bg: string }> = {
   host_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
+  venue_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
   connection_request: { icon: <UserPlus className="w-4 h-4 text-iris" />, bg: 'bg-iris/10' },
   promoter_request: {
     icon: <Handshake className="w-4 h-4 text-emerald-500" />,

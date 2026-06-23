@@ -955,6 +955,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     const now = new Date().toISOString();
     const targetType = pickString(body.targetType, 'venue');
     const targetId = String(body.targetId || body.targetPartnerId || '');
+    const initiatedBy = String(body.initiatedBy || 'promoter');
 
     let promoterName = '';
     let promoterEmail = '';
@@ -977,7 +978,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       targetType,
       targetName: pickString(body.targetName),
       status: 'pending',
-      initiatedBy: 'promoter',
+      initiatedBy,
       message: pickString(body.message),
       fromPartnerId: promoterId,
       toPartnerId: targetId,
@@ -994,6 +995,33 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     }
 
     await fastify.db.collection('promoter_connections').doc(id).set(connection);
+
+    // Write notification for the recipient partner
+    const isPromoterInitiated = initiatedBy === 'promoter';
+    const recipientId = isPromoterInitiated ? targetId : promoterId;
+    const recipientType = isPromoterInitiated ? targetType : 'promoter';
+    const senderName = isPromoterInitiated
+      ? connection.promoterName || 'A promoter'
+      : connection.targetName || 'A partner';
+    const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
+
+    await fastify.db.collection('notifications').add({
+      recipientId,
+      recipientType,
+      type: notifType,
+      title: 'New Connection Request',
+      message: `${senderName} wants to connect with you.`,
+      read: false,
+      createdAt: now,
+      data: {
+        connectionId: id,
+        promoterId,
+        targetId,
+        targetType,
+        initiatedBy,
+      },
+    });
+
     return { connection };
   };
 

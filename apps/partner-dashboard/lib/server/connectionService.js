@@ -113,7 +113,7 @@ export async function createRequest(
       venueId,
       hostName,
       venueName,
-      token,
+      requesterType,
     );
     appendPartnershipAuditLog(
       result?.id || result?.partnershipId || '',
@@ -137,6 +137,7 @@ export async function createRequest(
         targetType,
         targetName,
         message,
+        initiatedBy: 'promoter',
       },
       token,
     );
@@ -151,6 +152,7 @@ export async function createRequest(
         targetType: requesterType,
         targetName: requesterName,
         message,
+        initiatedBy: requesterType,
       },
       token,
     );
