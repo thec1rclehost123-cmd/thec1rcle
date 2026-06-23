@@ -494,6 +494,33 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           }
 
           const ref = await fastify.db.collection(PROMOTER_CONNECTIONS_COL).add(doc);
+
+          // Write notification for the recipient partner
+          const isPromoterInitiated = doc.initiatedBy === 'promoter';
+          const recipientId = isPromoterInitiated ? doc.targetId : doc.promoterId;
+          const recipientType = isPromoterInitiated ? doc.targetType : 'promoter';
+          const senderName = isPromoterInitiated
+            ? doc.promoterName || 'A promoter'
+            : doc.targetName || 'A partner';
+          const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
+
+          await fastify.db.collection('notifications').add({
+            recipientId,
+            recipientType,
+            type: notifType,
+            title: 'New Connection Request',
+            message: `${senderName} wants to connect with you.`,
+            read: false,
+            createdAt: doc.createdAt,
+            data: {
+              connectionId: ref.id,
+              promoterId: doc.promoterId,
+              targetId: doc.targetId,
+              targetType: doc.targetType,
+              initiatedBy: doc.initiatedBy,
+            },
+          });
+
           return { success: true, id: ref.id };
         } else {
           // Check for existing pending or active partnership request
@@ -540,6 +567,36 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           }
 
           const ref = await fastify.db.collection(PARTNERSHIPS_COL).add(partnershipDoc);
+
+          // Write notification for the recipient partner
+          const initiatedBy = partnershipDoc.initiatedBy || 'host';
+          const recipientId =
+            initiatedBy === 'host' ? partnershipDoc.venueId : partnershipDoc.hostId;
+          const recipientType = initiatedBy === 'host' ? 'venue' : 'host';
+          const senderName =
+            initiatedBy === 'host'
+              ? partnershipDoc.hostName || 'A host'
+              : partnershipDoc.venueName || 'A venue';
+          const notifType = initiatedBy === 'host' ? 'host_request' : 'venue_request';
+
+          await fastify.db.collection('notifications').add({
+            recipientId,
+            recipientType,
+            type: notifType,
+            title: 'New Connection Request',
+            message: `${senderName} wants to connect with you.`,
+            read: false,
+            createdAt: partnershipDoc.createdAt,
+            data: {
+              partnershipId: ref.id,
+              hostId: partnershipDoc.hostId,
+              venueId: partnershipDoc.venueId,
+              hostName: partnershipDoc.hostName,
+              venueName: partnershipDoc.venueName,
+              initiatedBy,
+            },
+          });
+
           return { success: true, id: ref.id };
         }
       } catch (error: any) {

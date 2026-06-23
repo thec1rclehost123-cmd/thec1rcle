@@ -23,7 +23,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
 
 // Step Components
-import { IdentityStep, SchedulingStep, ExperienceStep } from './steps';
+import { IdentityStep, ExperienceStep } from './steps';
 import { TicketTierStep } from './TicketTierStep';
 import { TableBookingStep } from './TableBookingStep';
 import { MediaStep } from './MediaStep';
@@ -47,13 +47,6 @@ const STEPS: StepConfig[] = [
     shortLabel: 'Identity',
     icon: Sparkles,
     description: 'Event name, category, host and venue',
-  },
-  {
-    id: 'scheduling',
-    label: 'Dates & Times',
-    shortLabel: 'Schedule',
-    icon: Calendar,
-    description: 'When the event takes place',
   },
   {
     id: 'experience',
@@ -412,7 +405,6 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       { isValid: boolean; issues: string[]; fieldErrors: Record<string, string> }
     > = {
       identity: { isValid: true, issues: [], fieldErrors: {} },
-      scheduling: { isValid: true, issues: [], fieldErrors: {} },
       experience: { isValid: true, issues: [], fieldErrors: {} },
       ticketing: { isValid: true, issues: [], fieldErrors: {} },
       tables: { isValid: true, issues: [], fieldErrors: {} },
@@ -432,25 +424,23 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       validation.identity.fieldErrors.venueId = 'Required';
       validation.identity.isValid = false;
     }
-
-    // Scheduling validation
     if (!formData.startDate) {
-      validation.scheduling.issues.push('Event date is required');
-      validation.scheduling.fieldErrors.startDate = 'Required';
-      validation.scheduling.isValid = false;
+      validation.identity.issues.push('Event date is required');
+      validation.identity.fieldErrors.startDate = 'Required';
+      validation.identity.isValid = false;
     }
     if (formData.venueId && formData.startDate && formData.startTime && formData.endTime) {
       if (scheduleAvailability.checking) {
-        validation.scheduling.issues.push('Checking venue availability...');
-        validation.scheduling.fieldErrors.scheduleAvailability = 'Checking';
-        validation.scheduling.isValid = false;
+        validation.identity.issues.push('Checking venue availability...');
+        validation.identity.fieldErrors.scheduleAvailability = 'Checking';
+        validation.identity.isValid = false;
       } else if (!scheduleAvailability.available) {
-        validation.scheduling.issues.push(
+        validation.identity.issues.push(
           scheduleAvailability.reason || 'Selected slot is unavailable',
         );
-        validation.scheduling.fieldErrors.scheduleAvailability =
+        validation.identity.fieldErrors.scheduleAvailability =
           scheduleAvailability.reason || 'Unavailable';
-        validation.scheduling.isValid = false;
+        validation.identity.isValid = false;
       }
     }
 
@@ -463,6 +453,10 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       validation.media.issues.push('Adding a poster is recommended for better engagement');
     }
 
+    if (!formData.startDate || !formData.startTime || !formData.endTime) {
+      validation.review.issues.push('Event date and time must be selected before publishing');
+      validation.review.isValid = false;
+    }
     if (!scheduleAvailability.checking && !scheduleAvailability.available) {
       validation.review.issues.push(scheduleAvailability.reason || 'Selected slot is unavailable');
       validation.review.fieldErrors.scheduleAvailability =
@@ -558,6 +552,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     const date = searchParams.get('date');
     const startTime = searchParams.get('startTime');
     const endTime = searchParams.get('endTime');
+    const doorsOpen = searchParams.get('doorsOpen') || '';
+    const lastEntry = searchParams.get('lastEntry') || '';
 
     if (venueId && date && startTime && endTime) {
       setPrefilledSlot({
@@ -576,9 +572,33 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         startDate: date,
         startTime,
         endTime,
+        doorsOpen,
+        lastEntry,
       }));
     }
   }, [searchParams]);
+
+  // Redirect to calendar if no date/time is provided and we are not loading a draft
+  useEffect(() => {
+    const isDraft = searchParams.get('id') && searchParams.get('id') !== 'new';
+    const hasDateParams =
+      searchParams.get('date') && searchParams.get('startTime') && searchParams.get('endTime');
+    if (!isDraft && !hasDateParams) {
+      if (role === 'venue') {
+        const preferredId = profile?.activeMembership?.partnerId;
+        const preferredName = profile?.activeMembership?.partnerName || 'Your Venue';
+        if (preferredId) {
+          router.replace(
+            `/venue/create/select-venue/calendar?venueId=${preferredId}&venueName=${preferredName}`,
+          );
+        } else {
+          router.replace('/venue/create/select-venue');
+        }
+      } else {
+        router.replace('/host/create/select-venue');
+      }
+    }
+  }, [searchParams, role, profile, router]);
 
   // 1. Load Local Recovery Snapshot (Crash recovery)
   useEffect(() => {
@@ -637,7 +657,8 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
               // Restore progress if saved
               if (remote.draftMeta?.lastStep) {
-                setCurrentStep(remote.draftMeta.lastStep as WizardStep);
+                const stepExists = STEPS.some((s) => s.id === remote.draftMeta.lastStep);
+                setCurrentStep(stepExists ? (remote.draftMeta.lastStep as WizardStep) : 'identity');
               }
             }
           }
@@ -831,7 +852,6 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         settings: { ...(formData.settings || {}), showGuestlist },
       };
       const draftPayload = { ...payload, lifecycle: 'draft' };
-
       let res: Response;
       if (role === 'host' && !isDraft) {
         let draftId = effectiveDraftId;
@@ -1103,17 +1123,6 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                       partnerships={partnerships}
                       profile={profile}
                       prefilledSlot={prefilledSlot}
-                    />
-                  )}
-
-                  {currentStep === 'scheduling' && (
-                    <SchedulingStep
-                      formData={formData}
-                      updateFormData={updateFormData}
-                      validationErrors={validationErrors}
-                      role={role}
-                      profile={profile}
-                      scheduleAvailability={scheduleAvailability}
                     />
                   )}
 

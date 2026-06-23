@@ -10,6 +10,7 @@ const RequestBody = z.object({
   targetType: z.string(),
   targetName: z.string().optional(),
   message: z.string().optional(),
+  initiatedBy: z.enum(['promoter', 'host', 'venue']).optional(),
 });
 
 const PromoterIdParam = z.object({ promoterId: z.string() }).strict();
@@ -69,6 +70,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         targetType,
         targetName,
         message = '',
+        initiatedBy = 'promoter',
       } = request.body;
 
       const existing = await fastify.db
@@ -94,7 +96,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         targetName,
         message,
         status: 'pending',
-        initiatedBy: 'promoter',
+        initiatedBy,
         fromPartnerId: promoterId,
         toPartnerId: targetId,
         createdAt: now,
@@ -110,6 +112,33 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
       }
 
       await fastify.db.collection(COL).doc(id).set(conn);
+
+      // Write notification for the recipient partner
+      const isPromoterInitiated = initiatedBy === 'promoter';
+      const recipientId = isPromoterInitiated ? targetId : promoterId;
+      const recipientType = isPromoterInitiated ? targetType : 'promoter';
+      const senderName = isPromoterInitiated
+        ? promoterName || 'A promoter'
+        : targetName || 'A partner';
+      const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
+
+      await fastify.db.collection('notifications').add({
+        recipientId,
+        recipientType,
+        type: notifType,
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          connectionId: id,
+          promoterId,
+          targetId,
+          targetType,
+          initiatedBy,
+        },
+      });
+
       return conn;
     },
   );

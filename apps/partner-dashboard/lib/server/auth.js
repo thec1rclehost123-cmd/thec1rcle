@@ -69,6 +69,13 @@ export async function verifyElevatedRole(request) {
       .get();
     if (!clubSnap.empty) return true;
 
+    const clubSnapUid = await db
+      .collection('venues')
+      .where('ownerUid', '==', decodedToken.uid)
+      .limit(1)
+      .get();
+    if (!clubSnapUid.empty) return true;
+
     const adminDoc = await db.collection('admins').doc(decodedToken.uid).get();
     if (adminDoc.exists) return true;
 
@@ -99,11 +106,24 @@ export async function verifyPartnerAccess(request, partnerId) {
 
     // 1. Direct ownership — venue
     const venueDoc = await db.collection('venues').doc(partnerId).get();
-    if (venueDoc.exists && venueDoc.data()?.ownerId === uid) return true;
+    if (venueDoc.exists) {
+      const data = venueDoc.data();
+      if (data?.ownerId === uid || data?.ownerUid === uid) return true;
+    }
 
     // 2. Direct ownership — host
     const hostDoc = await db.collection('hosts').doc(partnerId).get();
-    if (hostDoc.exists && hostDoc.data()?.ownerId === uid) return true;
+    if (hostDoc.exists) {
+      const data = hostDoc.data();
+      if (
+        data?.ownerUid === uid ||
+        data?.userId === uid ||
+        data?.identityUid === uid ||
+        data?.ownerId === uid
+      ) {
+        return true;
+      }
+    }
 
     // 3. Active staff membership with management role
     const membershipSnap = await db
@@ -117,7 +137,7 @@ export async function verifyPartnerAccess(request, partnerId) {
       const m = membershipSnap.docs[0].data();
       const isActive = m.isActive === true || m.status === 'active';
       const role = (m.role || '').toLowerCase();
-      const managementRoles = ['manager', 'ops', 'owner'];
+      const managementRoles = ['manager', 'ops', 'owner', 'promoter'];
       if (isActive && managementRoles.includes(role)) return true;
     }
 

@@ -7,6 +7,7 @@ const RequestBody = z
     venueId: z.string(),
     hostName: z.string().optional(),
     venueName: z.string().optional(),
+    initiatedBy: z.enum(['host', 'venue']).optional(),
   })
   .strict();
 
@@ -48,7 +49,7 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: RequestBody })],
     },
     async (request: any, reply) => {
-      const { hostId, venueId, hostName, venueName } = request.body;
+      const { hostId, venueId, hostName, venueName, initiatedBy = 'host' } = request.body;
       const db = fastify.db;
       const existing = await db
         .collection('partnerships')
@@ -59,15 +60,42 @@ export default async function partnershipRoutes(fastify: FastifyInstance) {
       if (!existing.empty) {
         return reply.status(409).send({ error: 'Partnership already requested or active' });
       }
+      const now = new Date().toISOString();
       const ref = await db.collection('partnerships').add({
         hostId,
         venueId,
         hostName,
         venueName,
         status: 'pending',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        initiatedBy,
+        createdAt: now,
+        updatedAt: now,
       });
+
+      // Write notification for the target partner
+      const recipientId = initiatedBy === 'host' ? venueId : hostId;
+      const recipientType = initiatedBy === 'host' ? 'venue' : 'host';
+      const senderName = initiatedBy === 'host' ? hostName || 'A host' : venueName || 'A venue';
+      const notifType = initiatedBy === 'host' ? 'host_request' : 'venue_request';
+
+      await db.collection('notifications').add({
+        recipientId,
+        recipientType,
+        type: notifType,
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          partnershipId: ref.id,
+          hostId,
+          venueId,
+          hostName,
+          venueName,
+          initiatedBy,
+        },
+      });
+
       return { success: true, id: ref.id };
     },
   );

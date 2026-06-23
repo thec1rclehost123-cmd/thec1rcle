@@ -141,10 +141,17 @@ export function VenueEventCalendar() {
   const venueId = searchParams.get('venueId') || '';
   const venueName = searchParams.get('venueName') || 'Your Venue';
 
-  const [currentMonth, setCurrentMonth] = useState(() => new Date());
+  const initialDate = searchParams.get('date');
+  const [currentMonth, setCurrentMonth] = useState(() => {
+    if (initialDate) {
+      const parsed = new Date(initialDate);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+    return new Date();
+  });
   const [calendarData, setCalendarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(initialDate || null);
   const [confirmChecking, setConfirmChecking] = useState(false);
   const [confirmError, setConfirmError] = useState('');
 
@@ -234,7 +241,12 @@ export function VenueEventCalendar() {
     setSelectedDate(null);
   };
 
-  const handleConfirm = async (startTime: string, endTime: string) => {
+  const handleConfirm = async (
+    startTime: string,
+    endTime: string,
+    doorsOpen: string,
+    lastEntry: string,
+  ) => {
     if (!selectedDate) return;
 
     setConfirmChecking(true);
@@ -263,6 +275,8 @@ export function VenueEventCalendar() {
         date: selectedDate,
         startTime,
         endTime,
+        doorsOpen,
+        lastEntry,
       });
       router.push(`/venue/create?${params.toString()}`);
     } catch (err) {
@@ -661,7 +675,7 @@ function RightPanel({
   confirmChecking: boolean;
   confirmError: string;
   onClose: () => void;
-  onConfirm: (startTime: string, endTime: string) => void;
+  onConfirm: (startTime: string, endTime: string, doorsOpen: string, lastEntry: string) => void;
 }) {
   const isBlocked = data?.state === 'BLOCKED';
   const events = filterVisible(data?.events);
@@ -669,6 +683,8 @@ function RightPanel({
 
   const [startTime, setStartTime] = useState('21:00');
   const [endTime, setEndTime] = useState('04:00');
+  const [doorsOpen, setDoorsOpen] = useState('21:00');
+  const [lastEntry, setLastEntry] = useState('04:00');
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [timeConfirmed, setTimeConfirmed] = useState(false);
 
@@ -703,6 +719,7 @@ function RightPanel({
 
   const handleStartChange = (t: string) => {
     setStartTime(t);
+    setDoorsOpen(t);
     const newUntilDisabled = new Set<string>();
     BLOCK_TIMES.forEach((u) => {
       if (events.some((e: any) => timeOverlaps(t, u, e.startTime || '21:00', e.endTime || '04:00')))
@@ -712,8 +729,16 @@ function RightPanel({
       const next = BLOCK_TIMES.find(
         (u) => !newUntilDisabled.has(u) && timeToMins(u) > timeToMins(t),
       );
-      if (next) setEndTime(next);
+      if (next) {
+        setEndTime(next);
+        setLastEntry(next);
+      }
     }
+  };
+
+  const handleEndChange = (t: string) => {
+    setEndTime(t);
+    setLastEntry(t);
   };
 
   const hasOverlap = events.some((e: any) =>
@@ -928,7 +953,9 @@ function RightPanel({
                       color: timeConfirmed ? 'rgba(52,211,153,0.6)' : 'rgba(255,255,255,0.3)',
                     }}
                   >
-                    {timeConfirmed ? 'Tap to change' : 'Tap to choose slot'}
+                    {timeConfirmed
+                      ? `Doors: ${fmt12(doorsOpen)} · Last Entry: ${fmt12(lastEntry)}`
+                      : 'Tap to choose slot'}
                   </p>
                 </div>
               </div>
@@ -961,7 +988,9 @@ function RightPanel({
       >
         {!isBlocked && (
           <button
-            onClick={() => timeConfirmed && !hasOverlap && onConfirm(startTime, endTime)}
+            onClick={() =>
+              timeConfirmed && !hasOverlap && onConfirm(startTime, endTime, doorsOpen, lastEntry)
+            }
             disabled={!timeConfirmed || hasOverlap || confirmChecking}
             className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
             style={{
@@ -1096,9 +1125,48 @@ function RightPanel({
               <TimePicker
                 label="UNTIL"
                 value={endTime}
-                onChange={setEndTime}
+                onChange={handleEndChange}
                 disabledTimes={untilDisabled}
               />
+
+              <div className="grid grid-cols-2 gap-5 pt-3 border-t border-white/5">
+                <div>
+                  <label
+                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                  >
+                    Doors Open
+                  </label>
+                  <input
+                    type="time"
+                    value={doorsOpen}
+                    onChange={(e) => setDoorsOpen(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500"
+                    style={{
+                      background: '#0f0f14',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <label
+                    className="block text-[9px] font-black uppercase tracking-widest mb-1.5"
+                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                  >
+                    Last Entry
+                  </label>
+                  <input
+                    type="time"
+                    value={lastEntry}
+                    onChange={(e) => setLastEntry(e.target.value)}
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500"
+                    style={{
+                      background: '#0f0f14',
+                      borderColor: 'rgba(255,255,255,0.08)',
+                    }}
+                  />
+                </div>
+              </div>
 
               {hasOverlap && (
                 <div

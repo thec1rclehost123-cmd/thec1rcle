@@ -602,7 +602,7 @@ function Inspector({
 
         {!isBlocked && venueId !== HOST_SCOPE_ID && (
           <Link
-            href={`/host/create?venueId=${venueId}&date=${date}`}
+            href={`/host/create/select-venue/calendar?venueId=${venueId}&date=${date}`}
             className="w-full h-12 rounded-xl flex items-center justify-center gap-2 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-orange-950/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <Plus className="w-4 h-4" />

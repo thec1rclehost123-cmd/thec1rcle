@@ -1178,6 +1178,26 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
       }
 
       await fastify.db.collection('promoter_connections').doc(id).set(connection);
+
+      // Write notification for the target partner
+      const senderName = connection.promoterName || 'A promoter';
+      await fastify.db.collection('notifications').add({
+        recipientId: targetId,
+        recipientType: targetType,
+        type: 'promoter_request',
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          connectionId: id,
+          promoterId,
+          targetId,
+          targetType,
+          initiatedBy: 'promoter',
+        },
+      });
+
       return reply.status(201).send({ connection });
     },
   );

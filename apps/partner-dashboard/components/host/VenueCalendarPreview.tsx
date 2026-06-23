@@ -20,7 +20,13 @@ interface VenueCalendarPreviewProps {
   venueId: string;
   venueName: string;
   hostId: string;
-  onSelectSlot: (date: string, startTime: string, endTime: string) => void;
+  onSelectSlot: (
+    date: string,
+    startTime: string,
+    endTime: string,
+    doorsOpen: string,
+    lastEntry: string,
+  ) => void;
   onClose: () => void;
 }
 
@@ -95,6 +101,8 @@ export function VenueCalendarPreview({
     startTime: string;
     endTime: string;
   } | null>(null);
+  const [doorsOpen, setDoorsOpen] = useState('21:00');
+  const [lastEntry, setLastEntry] = useState('04:00');
   const [dateAvailability, setDateAvailability] = useState<any>(null);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
 
@@ -211,7 +219,13 @@ export function VenueCalendarPreview({
 
   const handleConfirm = () => {
     if (selectedDate && selectedTimeSlot) {
-      onSelectSlot(selectedDate, selectedTimeSlot.startTime, selectedTimeSlot.endTime);
+      onSelectSlot(
+        selectedDate,
+        selectedTimeSlot.startTime,
+        selectedTimeSlot.endTime,
+        doorsOpen,
+        lastEntry,
+      );
     }
   };
 
@@ -427,7 +441,13 @@ export function VenueCalendarPreview({
                         return (
                           <button
                             key={slot.label}
-                            onClick={() => !isUnavailable && setSelectedTimeSlot(slot)}
+                            onClick={() => {
+                              if (!isUnavailable) {
+                                setSelectedTimeSlot(slot);
+                                setDoorsOpen(slot.startTime);
+                                setLastEntry(slot.endTime);
+                              }
+                            }}
                             disabled={isUnavailable}
                             className={`
                                                             w-full p-4 rounded-xl text-left transition-all
@@ -455,6 +475,39 @@ export function VenueCalendarPreview({
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Doors Open and Close Selection */}
+                  {selectedTimeSlot && (
+                    <div className="space-y-4 border-t border-gray-100 pt-4">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                        Doors Open & Close
+                      </p>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-gray-500">
+                            Doors Open
+                          </label>
+                          <input
+                            type="time"
+                            value={doorsOpen}
+                            onChange={(e) => setDoorsOpen(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[11px] font-semibold text-gray-500">
+                            Last Entry
+                          </label>
+                          <input
+                            type="time"
+                            value={lastEntry}
+                            onChange={(e) => setLastEntry(e.target.value)}
+                            className="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700"
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 

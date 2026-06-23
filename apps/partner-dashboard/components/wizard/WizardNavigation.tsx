@@ -5,7 +5,6 @@ import { Check, AlertCircle } from 'lucide-react';
 
 export type WizardStep =
   | 'identity'
-  | 'scheduling'
   | 'experience'
   | 'ticketing'
   | 'tables'
