@@ -1,6 +1,5 @@
 // Step Components - New 8-Step Flow
 export { IdentityStep } from './IdentityStep';
-export { SchedulingStep } from './SchedulingStep';
 export { ExperienceStep } from './ExperienceStep';
 
 // Re-export existing steps (unchanged)
