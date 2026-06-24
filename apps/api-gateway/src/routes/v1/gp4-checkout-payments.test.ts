@@ -223,6 +223,7 @@ async function buildServer() {
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
+  server.decorate('broadcast', vi.fn());
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = {
@@ -268,6 +269,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -352,6 +354,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -443,6 +446,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -479,6 +483,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       reservationId: 'res_1',
@@ -510,6 +515,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -548,6 +554,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -589,6 +596,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -625,6 +633,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -675,6 +684,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -870,6 +880,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       payload,
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(checkoutService.recordPaymentFailure).toHaveBeenCalledWith(
       'ord_1',
@@ -890,6 +901,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       headers: { authorization: 'Bearer test-token' },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -909,6 +921,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       headers: { authorization: 'Bearer test-token' },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
@@ -928,6 +941,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       headers: { authorization: 'Bearer test-token' },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       canCancel: true,
@@ -952,6 +966,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
       payload: { reason: 'Can no longer attend' },
     });
 
+    console.log(response.body);
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       success: true,
