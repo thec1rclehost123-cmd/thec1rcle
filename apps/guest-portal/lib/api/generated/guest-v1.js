@@ -67,6 +67,7 @@ export const guestV1Operations = Object.freeze({
   setEventRsvp: { method: 'POST', path: '/events/:eventId/rsvp' },
   getEventQueue: { method: 'GET', path: '/events/:eventId/queue' },
   joinEventQueue: { method: 'POST', path: '/events/:eventId/queue' },
+  getEventInterestedProfiles: { method: 'GET', path: '/events/:eventId/interested' },
   getFollowStatus: { method: 'GET', path: '/follow' },
   followEntity: { method: 'POST', path: '/follow' },
   unfollowEntity: { method: 'DELETE', path: '/follow' },

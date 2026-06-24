@@ -413,7 +413,9 @@ export default function ProfileCreationScreen() {
         <Pressable onPress={() => router.back()} style={styles.headerButton} hitSlop={8}>
           <Text style={styles.headerButtonText}>Cancel</Text>
         </Pressable>
-        <Text style={styles.headerTitle}>{profile?.name || user?.displayName || 'Profile'}</Text>
+        <Text style={styles.headerTitle}>
+          {profile?.displayName || user?.displayName || 'Profile'}
+        </Text>
         <Pressable onPress={handlePublish} style={styles.headerButton} disabled={publishing}>
           {publishing ? (
             <ActivityIndicator color="#000" size="small" />
@@ -586,7 +588,7 @@ export default function ProfileCreationScreen() {
               />
               <View style={styles.viewHeroOverlay}>
                 <Text style={styles.viewHeroName}>
-                  {profile?.name || user?.displayName || 'Jane'}
+                  {profile?.displayName || user?.displayName || 'Jane'}
                 </Text>
               </View>
             </View>
@@ -739,10 +741,13 @@ export default function ProfileCreationScreen() {
                   </View>
                 )}
                 <View style={styles.songInfo}>
-                  <Text style={styles.songTitle} numberOfLines={1}>
+                  <Text
+                    style={{ color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 2 }}
+                    numberOfLines={1}
+                  >
                     {song.trackName}
                   </Text>
-                  <Text style={styles.songArtist} numberOfLines={1}>
+                  <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 14 }} numberOfLines={1}>
                     {song.artistName}
                   </Text>
                 </View>
