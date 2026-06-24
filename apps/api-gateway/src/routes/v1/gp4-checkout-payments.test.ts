@@ -223,7 +223,7 @@ async function buildServer() {
   server.decorate('requireRoles', vi.fn(() => async () => undefined) as any);
   server.decorate('checkoutService', checkoutService as any);
   server.decorate('orderRepo', orderRepo as any);
-  server.decorate('broadcast', vi.fn());
+  server.decorate('broadcast', vi.fn() as any);
   server.addHook('onRequest', async (request: any) => {
     if (request.headers.authorization) {
       request.user = {
