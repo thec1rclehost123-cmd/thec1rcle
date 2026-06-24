@@ -62,19 +62,12 @@ export async function verifyElevatedRole(request) {
     const { getAdminDb } = await import('../firebase/admin');
     const db = getAdminDb();
 
-    const clubSnap = await db
-      .collection('venues')
-      .where('ownerId', '==', decodedToken.uid)
-      .limit(1)
-      .get();
-    if (!clubSnap.empty) return true;
-
-    const clubSnapUid = await db
-      .collection('venues')
-      .where('ownerUid', '==', decodedToken.uid)
-      .limit(1)
-      .get();
-    if (!clubSnapUid.empty) return true;
+    // QA-3 fix: run both ownership queries in parallel
+    const [clubSnap, clubSnapUid] = await Promise.all([
+      db.collection('venues').where('ownerId', '==', decodedToken.uid).limit(1).get(),
+      db.collection('venues').where('ownerUid', '==', decodedToken.uid).limit(1).get(),
+    ]);
+    if (!clubSnap.empty || !clubSnapUid.empty) return true;
 
     const adminDoc = await db.collection('admins').doc(decodedToken.uid).get();
     if (adminDoc.exists) return true;
@@ -137,7 +130,8 @@ export async function verifyPartnerAccess(request, partnerId) {
       const m = membershipSnap.docs[0].data();
       const isActive = m.isActive === true || m.status === 'active';
       const role = (m.role || '').toLowerCase();
-      const managementRoles = ['manager', 'ops', 'owner', 'promoter'];
+      // SEC-6 fix: 'promoter' removed — promoters are third-party collaborators, not managers
+      const managementRoles = ['manager', 'ops', 'owner'];
       if (isActive && managementRoles.includes(role)) return true;
     }
 

@@ -21,7 +21,7 @@ const IncomingQuery = z
   .strict();
 const DiscoverQuery = z
   .object({
-    type: z.string().optional(),
+    type: z.enum(['host', 'venue', 'promoter']).optional(),
     city: z.string().optional(),
     search: z.string().optional(),
     limit: z.string().optional(),
@@ -55,11 +55,12 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
   /**
    * POST /api/v1/promoter-connections/request
+   * SEC-4 fix: requireAuth + verify caller is the promoter they claim to be
    */
   fastify.post(
     '/request',
     {
-      preHandler: [fastify.validate({ body: RequestBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: RequestBody })],
     },
     async (request: any, reply) => {
       const {
@@ -72,16 +73,23 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         message = '',
         initiatedBy = 'promoter',
       } = request.body;
+      const uid = request.user.uid;
 
+      // Caller must be the promoter they are sending as
+      if (uid !== promoterId) {
+        return reply.status(403).send({ error: 'Forbidden: you can only request as yourself' });
+      }
+
+      // BUG-2 fix: block on pending OR active, not just pending
       const existing = await fastify.db
         .collection(COL)
         .where('promoterId', '==', promoterId)
         .where('targetId', '==', targetId)
-        .where('status', '==', 'pending')
+        .where('status', 'in', ['pending', 'active'])
         .limit(1)
         .get();
       if (!existing.empty) {
-        return { success: true, id: existing.docs[0].id, alreadyExists: true };
+        return reply.status(409).send({ error: 'Connection already exists or is pending' });
       }
 
       const now = new Date().toISOString();
@@ -113,7 +121,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
       await fastify.db.collection(COL).doc(id).set(conn);
 
-      // Write notification for the recipient partner
+      // Write notification — non-critical, never block the request
       const isPromoterInitiated = initiatedBy === 'promoter';
       const recipientId = isPromoterInitiated ? targetId : promoterId;
       const recipientType = isPromoterInitiated ? targetType : 'promoter';
@@ -122,22 +130,27 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         : targetName || 'A partner';
       const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
 
-      await fastify.db.collection('notifications').add({
-        recipientId,
-        recipientType,
-        type: notifType,
-        title: 'New Connection Request',
-        message: `${senderName} wants to connect with you.`,
-        read: false,
-        createdAt: now,
-        data: {
-          connectionId: id,
-          promoterId,
-          targetId,
-          targetType,
-          initiatedBy,
-        },
-      });
+      fastify.db
+        .collection('notifications')
+        .add({
+          recipientId,
+          recipientType,
+          type: notifType,
+          title: 'New Connection Request',
+          message: `${senderName} wants to connect with you.`,
+          read: false,
+          createdAt: now,
+          data: {
+            connectionId: id,
+            promoterId,
+            targetId,
+            targetType,
+            initiatedBy,
+          },
+        })
+        .catch((err: any) =>
+          fastify.log.warn({ connectionId: id, err: err.message }, 'notification write failed'),
+        );
 
       return conn;
     },
@@ -145,37 +158,68 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
   /**
    * GET /api/v1/promoter-connections/promoter/:promoterId
+   * Fix: requireAuth + caller must be the promoter they are querying
    */
   fastify.get(
     '/promoter/:promoterId',
     {
-      preHandler: [fastify.validate({ params: PromoterIdParam, querystring: StatusQuery })],
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: PromoterIdParam, querystring: StatusQuery }),
+      ],
     },
     async (request: any, reply) => {
       const { promoterId } = request.params;
+      const uid = request.user.uid;
+      if (uid !== promoterId) {
+        return reply
+          .status(403)
+          .send({ error: 'Forbidden: you can only view your own connections' });
+      }
       const { status } = request.query;
       let q: any = fastify.db.collection(COL).where('promoterId', '==', promoterId);
       if (status) q = q.where('status', '==', status);
       const snap = await q.limit(100).get();
-      return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      return snap.docs.map((d: any) => {
+        const { promoterEmail: _e, ...safe } = d.data();
+        return { id: d.id, ...safe };
+      });
     },
   );
 
   /**
    * GET /api/v1/promoter-connections/incoming
+   * Fix: requireAuth + verify caller owns the targetId they are querying
    */
   fastify.get(
     '/incoming',
     {
-      preHandler: [fastify.validate({ querystring: IncomingQuery })],
+      preHandler: [fastify.requireAuth, fastify.validate({ querystring: IncomingQuery })],
     },
     async (request: any, reply) => {
       const { targetId, role, status } = request.query;
+      const uid = request.user.uid;
+      // Verify caller owns this targetId (host or venue)
+      const col = role === 'venue' ? 'venues' : 'hosts';
+      const entityDoc = await fastify.db
+        .collection(col)
+        .doc(targetId)
+        .get()
+        .catch(() => null);
+      const edata = entityDoc?.exists ? (entityDoc.data() as any) : null;
+      const isOwner =
+        edata && (edata.ownerId === uid || edata.ownerUid === uid || edata.userId === uid);
+      if (!isOwner) {
+        return reply.status(403).send({ error: 'Forbidden: you do not own this entity' });
+      }
       let q: any = fastify.db.collection(COL).where('targetId', '==', targetId);
       if (role) q = q.where('targetType', '==', role);
       if (status) q = q.where('status', '==', status);
       const snap = await q.limit(100).get();
-      return snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+      return snap.docs.map((d: any) => {
+        const { promoterEmail: _e, ...safe } = d.data();
+        return { id: d.id, ...safe };
+      });
     },
   );
 
@@ -195,7 +239,8 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         venue: 'venues',
         promoter: 'promoters',
       };
-      const col = collectionMap[type] || type;
+      // SEC-7 fix: type is enum-validated above — no raw-string fallback
+      const col = collectionMap[type as string];
 
       let snapshot = await fastify.db
         .collection(col)
@@ -242,19 +287,44 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
   /**
    * PATCH /api/v1/promoter-connections/:id
+   * SEC-5 fix: requireAuth + verify caller is a party to this connection
    */
   fastify.patch(
     '/:id',
     {
-      preHandler: [fastify.validate({ params: ConnectionIdParam, body: ActionBody })],
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: ConnectionIdParam, body: ActionBody }),
+      ],
     },
     async (request: any, reply) => {
       const { id } = request.params;
       const { action, reason } = request.body;
+      const uid = request.user.uid;
+
+      const connDoc = await fastify.db.collection(COL).doc(id).get();
+      if (!connDoc.exists) return reply.status(404).send({ error: 'Connection not found' });
+      const cdata = connDoc.data() as any;
+
+      // Only the target (recipient) can approve/reject/block; the promoter can revoke
+      const isPromoter = uid === cdata.promoterId;
+      const isTarget = uid === cdata.targetId;
+      if (!isPromoter && !isTarget) {
+        return reply
+          .status(403)
+          .send({ error: 'Forbidden: you are not a party to this connection' });
+      }
+      if (action !== 'revoke' && isPromoter && !isTarget) {
+        return reply
+          .status(403)
+          .send({ error: 'Forbidden: only the recipient can approve or reject' });
+      }
+
       const statusMap: Record<string, string> = {
         approve: 'active',
         reject: 'rejected',
         block: 'blocked',
+        revoke: 'revoked',
       };
       const newStatus = statusMap[action];
       if (!newStatus) return reply.status(400).send({ error: 'Invalid action' });
@@ -272,18 +342,32 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
   /**
    * POST /api/v1/promoter-connections/invites
-   * Create a promoter invite link (called by partner-dashboard host/invite route)
+   * Fix: requireAuth + caller must own the hostId they are creating an invite for
    */
   fastify.post(
     '/invites',
     {
-      preHandler: [fastify.validate({ body: InvitesBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: InvitesBody })],
     },
     async (request: any, reply) => {
-      const { id, hostId, email, name, type, status, expiresAt } = request.body as any;
+      const { id, hostId, email, name, type, expiresAt } = request.body as any;
+      const uid = request.user.uid;
 
       if (!id || !hostId || !email) {
         return reply.status(400).send({ error: 'id, hostId, and email are required' });
+      }
+
+      // Verify caller owns the host they are creating an invite for
+      const hostDoc = await fastify.db
+        .collection('hosts')
+        .doc(hostId)
+        .get()
+        .catch(() => null);
+      const hdata = hostDoc?.exists ? (hostDoc.data() as any) : null;
+      const isOwner =
+        hdata && (hdata.ownerId === uid || hdata.ownerUid === uid || hdata.userId === uid);
+      if (!isOwner) {
+        return reply.status(403).send({ error: 'Forbidden: you do not own this host' });
       }
 
       const now = new Date().toISOString();
@@ -293,7 +377,7 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
         email,
         name: name || '',
         type: type || 'promoter',
-        status: status || 'pending',
+        status: 'pending',
         createdAt: now,
         updatedAt: now,
         expiresAt: expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -306,17 +390,19 @@ export default async function promoterConnectionsRoutes(fastify: FastifyInstance
 
   /**
    * POST /api/v1/promoter-connections/links/click
-   * Increment click count for a promoter link
+   * Fix: requireAuth + doc-exists guard before update
    */
   fastify.post(
     '/links/click',
     {
-      preHandler: [fastify.validate({ body: LinkClickBody })],
+      preHandler: [fastify.requireAuth, fastify.validate({ body: LinkClickBody })],
     },
     async (request: any, reply) => {
-      const { linkId, promoterId } = request.body as any;
+      const { linkId } = request.body as any;
       if (!linkId) return reply.status(400).send({ error: 'linkId is required' });
       const linkRef = fastify.db.collection('promoter_links').doc(linkId);
+      const linkSnap = await linkRef.get().catch(() => null);
+      if (!linkSnap?.exists) return reply.status(404).send({ error: 'Link not found' });
       const { FieldValue } = await import('firebase-admin/firestore');
       await linkRef.update({
         clicks: FieldValue.increment(1),

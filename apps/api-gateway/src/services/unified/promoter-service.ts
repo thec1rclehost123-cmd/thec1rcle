@@ -656,6 +656,29 @@ export class PromoterService {
 
     const ref = await this.db.collection('promoter_connections').add(connectionData);
 
+    // BUG-5 fix: write notification to target partner (non-critical — never block the request)
+    this.db
+      .collection('notifications')
+      .add({
+        recipientId: targetPartnerId,
+        recipientType: targetType,
+        type: 'promoter_request',
+        title: 'New Connection Request',
+        message: `${promoterName || 'A promoter'} wants to connect with you.`,
+        read: false,
+        createdAt: now.toISOString(),
+        data: {
+          connectionId: ref.id,
+          promoterId: ctx.partnerId,
+          targetId: targetPartnerId,
+          targetType,
+          initiatedBy: 'promoter',
+        },
+      })
+      .catch((err: any) =>
+        this.log.warn({ connectionId: ref.id, err: err.message }, 'notification write failed'),
+      );
+
     this.log.info(
       {
         service: 'PromoterService',

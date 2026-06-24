@@ -1,9 +1,4 @@
-type PlainRecord = Record<string, any>;
 export type PartnerEntityType = 'venue' | 'host' | 'promoter';
-
-function asRecord(value: unknown): PlainRecord {
-  return value && typeof value === 'object' && !Array.isArray(value) ? (value as PlainRecord) : {};
-}
 
 function toIso(value: any): string | null {
   if (!value) return null;
@@ -437,13 +432,8 @@ export async function getPartnerProfileSummary(db: any, id: string) {
       pickString(doc.city, onboardingData.city),
       pickString(doc.area, onboardingData.area),
     ),
-    phone: pickString(
-      doc.phone,
-      doc.contactPhone,
-      onboardingData.phone,
-      resolvedUserData.phoneNumber,
-    ),
-    email: pickString(doc.email, resolvedUserData.email, onboardingData.email),
+    // SEC-8 fix: phone and email are PII — omitted from the public profile response.
+    // Expose them only after verifying an active mutual connection at the call site.
     avatarUrl: pickString(
       doc.profileImage,
       doc.avatar,

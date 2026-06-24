@@ -19,10 +19,12 @@ export async function requestPartnership(
   }
   try {
     const db = getAdminDb();
+    // BUG-7 fix: only block on active/pending — rejected partnerships can be re-requested
     const existing = await db
       .collection('partnerships')
       .where('hostId', '==', hostId)
       .where('venueId', '==', venueId)
+      .where('status', 'in', ['pending', 'active'])
       .limit(1)
       .get();
     if (!existing.empty) {
@@ -40,29 +42,33 @@ export async function requestPartnership(
       updatedAt: now,
     });
 
-    // Write notification
+    // BUG-1 fix: notification write is non-critical — never let it roll back the partnership
     const recipientId = initiatedBy === 'host' ? venueId : hostId;
     const recipientType = initiatedBy === 'host' ? 'venue' : 'host';
     const senderName = initiatedBy === 'host' ? hostName || 'A host' : venueName || 'A venue';
     const notifType = initiatedBy === 'host' ? 'host_request' : 'venue_request';
 
-    await db.collection('notifications').add({
-      recipientId,
-      recipientType,
-      type: notifType,
-      title: 'New Connection Request',
-      message: `${senderName} wants to connect with you.`,
-      read: false,
-      createdAt: now,
-      data: {
-        partnershipId: ref.id,
-        hostId,
-        venueId,
-        hostName,
-        venueName,
-        initiatedBy,
-      },
-    });
+    db.collection('notifications')
+      .add({
+        recipientId,
+        recipientType,
+        type: notifType,
+        title: 'New Connection Request',
+        message: `${senderName} wants to connect with you.`,
+        read: false,
+        createdAt: now,
+        data: {
+          partnershipId: ref.id,
+          hostId,
+          venueId,
+          hostName,
+          venueName,
+          initiatedBy,
+        },
+      })
+      .catch((err) =>
+        console.error('[PartnershipStore] notification write failed (non-critical):', err.message),
+      );
 
     return { success: true, id: ref.id };
   } catch (error) {

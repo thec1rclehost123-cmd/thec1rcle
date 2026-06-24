@@ -115,12 +115,13 @@ export async function createRequest(
       venueName,
       requesterType,
     );
+    // BUG-3 fix: record the actual initiator (requesterId) not the target entity
     appendPartnershipAuditLog(
       result?.id || result?.partnershipId || '',
       'partnership',
       'requested',
-      hostId,
-      'host',
+      requesterId,
+      requesterType,
     ).catch(() => {});
     return result;
   }
