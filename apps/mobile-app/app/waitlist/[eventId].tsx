@@ -67,15 +67,19 @@ export default function WaitlistScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setJoining(true);
     try {
+      const phone = (user as any).phoneNumber;
+      const payload: { eventId: string; email: string; phone?: string } = {
+        eventId,
+        email: user.email,
+      };
+      if (typeof phone === 'string' && phone.trim()) {
+        payload.phone = phone.trim();
+      }
+
       // Try API first
       await apiFetch(`/api/v1/waitlist/join`, {
         method: 'POST',
-        body: JSON.stringify({
-          eventId,
-          userId: user.uid,
-          email: user.email,
-          phone: (user as any).phoneNumber ?? null,
-        }),
+        body: JSON.stringify(payload),
       });
       await checkWaitlistStatus();
     } catch (err: any) {

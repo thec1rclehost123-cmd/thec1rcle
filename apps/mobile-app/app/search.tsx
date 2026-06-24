@@ -4,16 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  TextInput,
-  StyleSheet,
-  Keyboard,
-  ActivityIndicator,
-} from 'react-native';
+import { View, Text, ScrollView, Pressable, TextInput, StyleSheet, Keyboard } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -30,7 +21,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { useEventsStore, Event } from '@/store/eventsStore';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { SkeletonList } from '@/components/ui/Skeleton';
+import { SearchResultSkeleton } from '@/components/ui/Skeleton';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import { trackScreen, trackSearch } from '@/lib/analytics';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -466,7 +457,7 @@ export default function SearchScreen() {
         {/* Loading */}
         {loading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={colors.iris} />
+            <SearchResultSkeleton count={4} />
           </View>
         )}
 
@@ -683,8 +674,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   loadingContainer: {
-    paddingVertical: 60,
-    alignItems: 'center',
+    paddingVertical: 18,
   },
   sectionHeader: {
     flexDirection: 'row',

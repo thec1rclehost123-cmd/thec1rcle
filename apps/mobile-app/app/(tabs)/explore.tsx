@@ -4,7 +4,6 @@ import {
   Text,
   ScrollView,
   Pressable,
-  ActivityIndicator,
   RefreshControl,
   StyleSheet,
   Dimensions,
@@ -52,6 +51,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { colors, spacing, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import { EventCardSkeletonList } from '@/components/ui/Skeleton';
 import { trackScreen } from '@/lib/analytics';
 import { formatEventDate, safeDate } from '@/lib/utils/date';
 import { Search, MapPin, Compass } from 'lucide-react-native';
@@ -74,6 +74,13 @@ const DEFAULT_MAP_REGION = {
   latitudeDelta: 0.15,
   longitudeDelta: 0.15,
 };
+
+function hasFiniteCoordinates(event: Event) {
+  return (
+    Number.isFinite(Number(event.coordinates?.latitude)) &&
+    Number.isFinite(Number(event.coordinates?.longitude))
+  );
+}
 
 const darkMapStyle = [
   { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
@@ -547,7 +554,7 @@ function SectionHeader({
 // ── Map preview section ────────────────────────────────────────────────────────
 function MapSection({ events }: { events: Event[] }) {
   const eventsWithCoords = useMemo(() => {
-    return events.filter((e) => e.coordinates?.latitude && e.coordinates?.longitude);
+    return events.filter(hasFiniteCoordinates);
   }, [events]);
 
   const initialRegion = useMemo(() => {
@@ -941,10 +948,7 @@ export default function ExploreScreen() {
         key: 'loading',
         render: () =>
           isInitialLoading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={colors.iris} />
-              <Text style={styles.loadingText}>Loading events…</Text>
-            </View>
+            <EventCardSkeletonList count={3} style={styles.loadingSkeletons} />
           ) : null,
       },
       {
@@ -1220,8 +1224,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,170,0,0.25)',
   },
   offlineText: { color: '#FFAA00', fontSize: typography.fontSize.sm, fontWeight: '500' },
-  loadingWrap: { paddingTop: 60, alignItems: 'center', gap: 12 },
-  loadingText: { color: 'rgba(255,255,255,0.4)', fontSize: typography.fontSize.base },
+  loadingSkeletons: { paddingTop: 8, paddingBottom: 18 },
 
   // ── Load more ─────────────────────────────────────────────────────────────────
   loadMoreBtn: {

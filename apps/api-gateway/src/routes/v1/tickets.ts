@@ -1051,10 +1051,8 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
 
   /**
    * POST /tickets/:ticketId/refresh-qr
-   * Generate a fresh QR code JWT for a ticket.
-   * Used after transfer to invalidate the old QR.
-   * The QR encodes: { orderId, ticketId, eventId, userId, iat, exp }
-   * and is signed so door scanners can validate it.
+   * Return the canonical raw ticket ID QR payload.
+   * Scanner verification is online and resolves this ID against Firestore.
    */
   fastify.post(
     '/tickets/:ticketId/refresh-qr',
@@ -1077,34 +1075,17 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
-
-        // Generate fresh QR data as a signed JWT
-        const { sign } = await import('jsonwebtoken');
-        const QR_SECRET = process.env.QR_SECRET || process.env.JWT_SECRET;
-        if (!QR_SECRET) {
-          return reply.status(500).send(
-            buildErrorResponse({
-              code: 'INTERNAL_ERROR',
-              message: 'QR signing key not configured',
-              requestId: request.id,
-            }),
-          );
-        }
-
-        const qrPayload = {
-          orderId: ticket.orderId,
-          ticketId: ticket.id || ticketId,
-          eventId: ticket.eventId,
-          userId,
-          iat: Math.floor(Date.now() / 1000),
-          exp: Math.floor(Date.now() / 1000) + 300, // 5-minute TTL
-        };
-
-        const qrData = sign(qrPayload, QR_SECRET, { algorithm: 'HS256' });
+        const qrData = ticket.id || ticket.ticketId || ticketId;
 
         fastify.log.info({ requestId: request.id, userId, ticketId }, 'QR code refreshed');
 
-        return buildSuccessResponse({ qrData, qrTtlSeconds: 300 });
+        return buildSuccessResponse({
+          qrData,
+          qrPayload: qrData,
+          bookingCode: ticket.bookingCode || null,
+          qrMode: 'raw_id',
+          qrTtlSeconds: null,
+        });
       } catch (error: any) {
         fastify.log.error(
           { requestId: request.id, userId, error: error.message },

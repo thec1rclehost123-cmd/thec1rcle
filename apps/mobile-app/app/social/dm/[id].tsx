@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -40,6 +41,7 @@ import {
   setDMTypingStatus,
   subscribeToDirectMessages,
   subscribeToDMTyping,
+  reportMessage,
 } from '@/lib/social';
 import { useAuthStore } from '@/store/authStore';
 
@@ -93,8 +95,13 @@ export default function DirectMessageScreen() {
   const [otherIsTyping, setOtherIsTyping] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [sharedEvent, setSharedEvent] = useState<string | undefined>(undefined);
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !hiddenMessageIds.has(message.id)),
+    [hiddenMessageIds, messages],
+  );
 
   const typingHandler = useMemo(() => {
     if (conversationId && user?.uid) {
@@ -200,6 +207,75 @@ export default function DirectMessageScreen() {
     accentColor: colors.iris,
   };
 
+  const hideMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const restoreMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleReportMessage = useCallback(
+    async (message: DirectMessage) => {
+      if (!conversationId || !message.id || !message.senderId) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hideMessageLocally(message.id);
+
+      const result = await reportMessage({
+        messageId: message.id,
+        conversationId,
+        eventId: conversation?.eventId,
+        senderId: message.senderId,
+      });
+
+      if (!result.success) {
+        restoreMessageLocally(message.id);
+        Alert.alert('Unable to report', result.error || 'Please try again.');
+      }
+    },
+    [conversation?.eventId, conversationId, hideMessageLocally, restoreMessageLocally],
+  );
+
+  const handleMessageOptions = useCallback(
+    (message: DirectMessage) => {
+      if (message.senderId === user?.uid) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      const actions = [
+        {
+          text: 'Report Message',
+          style: 'destructive' as const,
+          onPress: () => handleReportMessage(message),
+        },
+      ];
+
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: ['Report Message', 'Cancel'],
+            cancelButtonIndex: 1,
+            destructiveButtonIndex: 0,
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) actions[0].onPress();
+          },
+        );
+        return;
+      }
+
+      Alert.alert('Message', undefined, [{ text: 'Cancel', style: 'cancel' }, ...actions]);
+    },
+    [handleReportMessage, user?.uid],
+  );
+
   const renderMessage = useCallback(
     ({ item, index }: { item: DirectMessage; index: number }) => (
       <BrightMessage
@@ -209,10 +285,11 @@ export default function DirectMessageScreen() {
         type={item.type === 'image' ? 'image' : 'text'}
         isOwnMessage={item.senderId === user?.uid}
         index={index}
-        animate={index >= messages.length - 1}
+        animate={index >= visibleMessages.length - 1}
+        onLongPress={() => handleMessageOptions(item)}
       />
     ),
-    [avatarUrl, messages.length, user?.uid],
+    [avatarUrl, handleMessageOptions, user?.uid, visibleMessages.length],
   );
 
   const messageListEmpty = useMemo(
@@ -274,7 +351,7 @@ export default function DirectMessageScreen() {
 
         <FlashList
           ref={messagesListRef}
-          data={messages}
+          data={visibleMessages}
           renderItem={renderMessage}
           keyExtractor={(message) => message.id}
           drawDistance={440}
@@ -298,7 +375,7 @@ export default function DirectMessageScreen() {
             otherUserName,
             avatarUrl,
             userId: user?.uid,
-            messageCount: messages.length,
+            messageCount: visibleMessages.length,
           }}
         />
       </SafeAreaView>

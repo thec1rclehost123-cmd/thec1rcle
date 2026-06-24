@@ -5,11 +5,23 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Location from 'expo-location';
 import { colors } from '@/lib/design/theme';
+import { markPermissionsRequested } from '@/lib/onboardingFlow';
+import { useAuthStore } from '@/store/authStore';
 
 export default function LocationPermissionScreen() {
+  const { user } = useAuthStore();
+
+  const continueToSocialSetup = async () => {
+    await markPermissionsRequested(user?.uid);
+    router.replace('/social-setup');
+  };
+
   const handleAllow = async () => {
-    await Location.requestForegroundPermissionsAsync();
-    router.push('/notification-permission');
+    try {
+      await Location.requestForegroundPermissionsAsync();
+    } finally {
+      await continueToSocialSetup();
+    }
   };
 
   return (
@@ -34,10 +46,7 @@ export default function LocationPermissionScreen() {
             <Text style={styles.buttonText}>Allow Location</Text>
           </LinearGradient>
         </Pressable>
-        <Pressable
-          onPress={() => router.push('/notification-permission')}
-          style={styles.skipButton}
-        >
+        <Pressable onPress={continueToSocialSetup} style={styles.skipButton}>
           <Text style={styles.skipText}>Not Now</Text>
         </Pressable>
       </View>

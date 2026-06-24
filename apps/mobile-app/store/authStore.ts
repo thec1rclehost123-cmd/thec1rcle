@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { AppState } from 'react-native';
 import { User, subscribeToAuthState } from '@/lib/firebase';
-import { syncAuthSession } from '@/lib/api';
+import { clearAuthSessionSync, markAuthSessionPending, syncAuthSession } from '@/lib/api';
 import { refreshPushToken } from '@/lib/notifications';
 import { wsManager } from '@/lib/websocket';
 import { useProfileStore } from './profileStore';
@@ -12,6 +12,9 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   initialized: boolean;
+  serverSynced: boolean;
+  authSyncInProgress: boolean;
+  authSyncError: string | null;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setInitialized: (initialized: boolean) => void;
@@ -25,7 +28,16 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
   loading: true,
   initialized: false,
-  setUser: (user) => set({ user }),
+  serverSynced: false,
+  authSyncInProgress: false,
+  authSyncError: null,
+  setUser: (user) => {
+    if (user) {
+      console.warn('[AuthStore] Ignored direct authenticated user set before server sync.');
+      return;
+    }
+    set({ user: null, serverSynced: false });
+  },
   setLoading: (loading) => set({ loading }),
   setInitialized: (initialized) => set({ initialized, loading: false }),
   profileSetupJustCompleted: false,
@@ -36,27 +48,89 @@ export const useAuthStore = create<AuthState>((set) => ({
 
 // Initialize auth listener (call this once in root layout)
 export function initAuthListener() {
-  const { setUser, setInitialized } = useAuthStore.getState();
   let currentUserId: string | null = null;
+  let authSequence = 0;
+  let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
-  async function syncAfterFirebaseAuth(user: User) {
-    try {
-      const result = await syncAuthSession();
-      if (result.requiresTokenRefresh !== false) {
-        await user.getIdToken(true);
-      }
-      const canonicalProfile = result.profile || result.user;
-      if (canonicalProfile) {
-        useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
-      }
-    } catch (error) {
-      console.warn('[AuthStore] Server auth sync failed after Firebase sign-in.', error);
+  function clearSyncRetry() {
+    if (syncRetryTimer) {
+      clearTimeout(syncRetryTimer);
+      syncRetryTimer = null;
     }
   }
 
-  async function hydrateAuthenticatedUser(user: User) {
+  function setAwaitingServerSync() {
+    useAuthStore.setState({
+      user: null,
+      loading: true,
+      initialized: false,
+      serverSynced: false,
+      authSyncInProgress: true,
+      authSyncError: null,
+    });
+  }
+
+  function setServerSyncFailed(error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unable to sync auth session.';
+    useAuthStore.setState({
+      user: null,
+      loading: true,
+      initialized: false,
+      serverSynced: false,
+      authSyncInProgress: false,
+      authSyncError: message,
+    });
+  }
+
+  function setAuthenticatedUser(user: User) {
+    useAuthStore.setState({
+      user,
+      loading: false,
+      initialized: true,
+      serverSynced: true,
+      authSyncInProgress: false,
+      authSyncError: null,
+    });
+  }
+
+  async function syncAfterFirebaseAuth(user: User) {
+    const result = await syncAuthSession();
+    if (result.requiresTokenRefresh !== false) {
+      await user.getIdToken(true);
+    }
+    const canonicalProfile =
+      result.profile || result.user || result.data?.profile || result.data?.user;
+    if (canonicalProfile) {
+      useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
+    }
+  }
+
+  function scheduleServerSyncRetry(user: User, sequence: number) {
+    clearSyncRetry();
+    syncRetryTimer = setTimeout(() => {
+      if (sequence === authSequence) {
+        void hydrateAuthenticatedUser(user, sequence);
+      }
+    }, 3000);
+  }
+
+  async function hydrateAuthenticatedUser(user: User, sequence: number) {
+    setAwaitingServerSync();
+    try {
+      await syncAfterFirebaseAuth(user);
+    } catch (error) {
+      if (sequence !== authSequence) return;
+      console.warn('[AuthStore] Server auth sync failed after Firebase sign-in.', error);
+      setServerSyncFailed(error);
+      scheduleServerSyncRetry(user, sequence);
+      return;
+    }
+
+    if (sequence !== authSequence) return;
+
+    clearSyncRetry();
     currentUserId = user.uid;
-    await syncAfterFirebaseAuth(user);
+    setAuthenticatedUser(user);
     useTicketsStore.getState().clearOrders();
     void useProfileStore.getState().loadProfile(user.uid);
     void useNotificationsStore.getState().fetchNotifications(user.uid);
@@ -69,13 +143,24 @@ export function initAuthListener() {
   }
 
   const unsubscribe = subscribeToAuthState((user) => {
-    setUser(user);
-    setInitialized(true);
+    authSequence += 1;
+    const sequence = authSequence;
+    clearSyncRetry();
 
     if (user) {
-      void hydrateAuthenticatedUser(user);
+      markAuthSessionPending(user.uid);
+      void hydrateAuthenticatedUser(user, sequence);
     } else {
       currentUserId = null;
+      clearAuthSessionSync();
+      useAuthStore.setState({
+        user: null,
+        loading: false,
+        initialized: true,
+        serverSynced: false,
+        authSyncInProgress: false,
+        authSyncError: null,
+      });
       useProfileStore.getState().clearProfile();
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
@@ -94,6 +179,7 @@ export function initAuthListener() {
   });
 
   return () => {
+    clearSyncRetry();
     unsubscribe();
     appStateSubscription.remove();
   };

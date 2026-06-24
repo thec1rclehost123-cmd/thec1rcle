@@ -4,7 +4,6 @@
  * Never import directly — use `apiFetch` from `./api` which delegates here in DEMO_MODE.
  */
 import {
-  DEMO_MODE,
   DEMO_EVENTS,
   DEMO_EVENT_CHATS,
   DEMO_PRIVATE_CHATS,
@@ -55,13 +54,22 @@ const routes: Record<string, (params: Record<string, string>, body?: any) => any
     data: { orders: [], tickets: [] },
     orders: [],
     tickets: [],
-    qrTtlSeconds: 300,
+    qrTtlSeconds: null,
   }),
   'GET /api/v1/tickets/transfer/pending': () => ({
     transfers: [],
   }),
 
   // ── Profile ──
+  'GET /api/v1/users/me/settings': () => ({
+    success: true,
+    settings: {
+      notifications: {},
+      privacy: {},
+      appearance: {},
+      updatedAt: new Date().toISOString(),
+    },
+  }),
   'GET /api/v1/profiles/': () => ({
     displayName: 'Demo User',
     photoURL: null,

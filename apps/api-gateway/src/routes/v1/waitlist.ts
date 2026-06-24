@@ -7,7 +7,8 @@ const JoinBody = z
     eventId: z.string(),
     tierId: z.string().optional(),
     email: z.string().email().optional(),
-    phone: z.string().optional(),
+    phone: z.string().optional().nullable(),
+    userId: z.string().optional(),
   })
   .strict();
 const ProcessBody = z
@@ -44,11 +45,15 @@ export default async function waitlistRoutes(fastify: FastifyInstance) {
           eventId: body.eventId,
           tierId: body.tierId,
           email: resolvedEmail,
-          phone: body.phone || null,
+          phone: typeof body.phone === 'string' && body.phone.trim() ? body.phone.trim() : null,
           userId: request.user?.uid || null,
         });
       } catch (error: any) {
-        reply.status(400).send({ error: 'Request failed' });
+        fastify.log.warn(
+          { requestId: request.id, eventId: body.eventId, error: error.message },
+          'POST /waitlist/join failed',
+        );
+        return reply.status(400).send({ error: error.message || 'Request failed' });
       }
     },
   );

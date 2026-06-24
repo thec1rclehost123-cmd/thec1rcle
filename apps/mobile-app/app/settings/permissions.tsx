@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { Alert } from 'react-native';
 import { Camera } from 'lucide-react-native';
 import { useSettings } from '@/hooks/useSettings';
@@ -15,16 +14,14 @@ import {
 
 export default function PermissionsSettingsScreen() {
   const { privacy, setPrivacySetting } = useSettings();
-  const [contactsSyncing, setContactsSyncing] = useState(false);
-  const [locationAccess, setLocationAccess] = useState(false);
 
   return (
     <DittoSettingsScreen title="Permissions">
       <SettingsGroup>
         <SettingsSwitchRow
           title="Contacts Syncing"
-          value={contactsSyncing}
-          onValueChange={setContactsSyncing}
+          value={privacy.contactsSyncing}
+          onValueChange={(val) => setPrivacySetting('contactsSyncing', val)}
         />
       </SettingsGroup>
       <HelperText>
@@ -34,8 +31,8 @@ export default function PermissionsSettingsScreen() {
       <SettingsGroup>
         <SettingsSwitchRow
           title="Location Access"
-          value={locationAccess}
-          onValueChange={setLocationAccess}
+          value={privacy.locationAccess}
+          onValueChange={(val) => setPrivacySetting('locationAccess', val)}
         />
       </SettingsGroup>
       <HelperText>

@@ -67,6 +67,25 @@ export function determineStatus(start, end) {
   return 'past';
 }
 
+function toFiniteNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeCoordinates(value) {
+  if (!value || typeof value !== 'object') return null;
+  const latitude =
+    toFiniteNumber(value.latitude) ?? toFiniteNumber(value.lat) ?? toFiniteNumber(value._latitude);
+  const longitude =
+    toFiniteNumber(value.longitude) ??
+    toFiniteNumber(value.lng) ??
+    toFiniteNumber(value.lon) ??
+    toFiniteNumber(value._longitude);
+  if (latitude === null || longitude === null) return null;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  return { latitude, longitude };
+}
+
 /**
  * Pure transformation logic for building a complete Event object.
  * Moved from eventStore.js for universal use.
@@ -97,6 +116,7 @@ export function buildEvent(payload = {}) {
   const poster = resolvePoster(payload);
   const cityKey = normalizeCity(payload.city, payload.location);
   const cityLabel = getCityLabel(cityKey);
+  const coordinates = normalizeCoordinates(payload.coordinates);
 
   const event = {
     id: payload.id || randomUUID(),
@@ -122,6 +142,9 @@ export function buildEvent(payload = {}) {
     country: payload.country || 'India',
     startDate,
     endDate,
+    coordinates,
+    latitude: coordinates?.latitude ?? payload.latitude ?? null,
+    longitude: coordinates?.longitude ?? payload.longitude ?? null,
     timezone: payload.timezone || 'Asia/Kolkata',
     poster,
     image: poster,

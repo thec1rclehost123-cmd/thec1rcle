@@ -55,6 +55,37 @@ describe('waitlist routes', () => {
     await server.close();
   });
 
+  it('POST /api/v1/waitlist/join accepts null phone and ignores legacy body userId', async () => {
+    const server = await buildServer();
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/waitlist/join',
+      headers: { authorization: 'Bearer token' },
+      payload: {
+        eventId: 'event_1',
+        tierId: 'tier_1',
+        email: 'client@example.com',
+        phone: null,
+        userId: 'client_user',
+      },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(joinWaitlist).toHaveBeenCalledWith({
+      eventId: 'event_1',
+      tierId: 'tier_1',
+      email: 'guest@example.com',
+      phone: null,
+      userId: 'user_1',
+    });
+    expect(joinWaitlist).not.toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'client_user' }),
+    );
+
+    await server.close();
+  });
+
   it('POST /api/v1/waitlist/join rejects anonymous requests without an email', async () => {
     const server = await buildServer();
 

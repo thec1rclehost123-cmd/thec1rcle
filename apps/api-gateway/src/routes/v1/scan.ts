@@ -4,7 +4,7 @@ import {
   validateScannerDevice,
   recordScanAttempt,
 } from '@c1rcle/core/scan-engine';
-import { randomBytes, createHmac } from 'node:crypto';
+import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
 import {
@@ -23,6 +23,7 @@ import {
 const ScanBody = z
   .object({
     qrData: z.any().optional(),
+    ticketId: z.string().optional(),
     ticketPayload: z.any().optional(), // Legacy web proxy compat
     scannerId: z.string().optional(), // Legacy web proxy compat
     eventId: z.string().optional(),
@@ -253,8 +254,670 @@ function getOperatorDetails(scannedBy: any) {
   };
 }
 
+function base64UrlToBuffer(value: string): Buffer {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padding = (4 - (normalized.length % 4)) % 4;
+  return Buffer.from(`${normalized}${'='.repeat(padding)}`, 'base64');
+}
+
+function decodeJwtPart(value: string): any {
+  return JSON.parse(base64UrlToBuffer(value).toString('utf8'));
+}
+
+function isJwtLike(value: unknown): value is string {
+  return typeof value === 'string' && value.split('.').length === 3;
+}
+
+function getJwtCandidate(value: any): string | null {
+  if (isJwtLike(value)) return value;
+  if (value && isJwtLike(value.qrJwt)) return value.qrJwt;
+  if (value && isJwtLike(value.qrPayload)) return value.qrPayload;
+  if (value && isJwtLike(value.qrData)) return value.qrData;
+  return null;
+}
+
+function safeScanDocSegment(value: unknown): string {
+  return String(value || 'ticket')
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 220);
+}
+
+function verifyWalletTicketJwt(qrData: string) {
+  const parts = qrData.split('.');
+  if (parts.length !== 3) {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  let header: any;
+  let claims: any;
+  try {
+    header = decodeJwtPart(parts[0]);
+    claims = decodeJwtPart(parts[1]);
+  } catch {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  if (header?.alg !== 'HS256') {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  const expected = createHmac('sha256', QR_SECRET).update(`${parts[0]}.${parts[1]}`).digest();
+  const actual = base64UrlToBuffer(parts[2]);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    claims?.iss !== 'the-c1rcle' ||
+    claims?.aud !== 'c1rcle-scanner' ||
+    claims?.typ !== 'ticket'
+  ) {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+  if (Number(claims.nbf || 0) > now + 30) {
+    const error = new Error('Ticket is not valid yet');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+  if (Number(claims.exp || 0) <= now) {
+    const error = new Error('Ticket QR has expired');
+    (error as any).result = 'expired';
+    throw error;
+  }
+  if (
+    !claims.orderId ||
+    !claims.eventId ||
+    !claims.userId ||
+    !(claims.jti || claims.ticketId || claims.sub)
+  ) {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  return claims;
+}
+
+async function resolveTicketForJwt(fastify: FastifyInstance, claims: any) {
+  const candidateIds = [claims.jti, claims.ticketId, claims.sub].filter(Boolean);
+  for (const candidate of candidateIds) {
+    const ref = fastify.db.collection('tickets').doc(String(candidate));
+    const doc = await ref.get();
+    if (doc.exists) {
+      return { ref, id: doc.id, data: { id: doc.id, ...doc.data() } };
+    }
+  }
+
+  const ticketId = claims.ticketId || claims.sub;
+  if (!ticketId) return null;
+  const snapshot = await fastify.db
+    .collection('tickets')
+    .where('ticketId', '==', ticketId)
+    .limit(2)
+    .get();
+  if (snapshot.empty || snapshot.docs.length !== 1) return null;
+
+  const doc = snapshot.docs[0];
+  return { ref: doc.ref, id: doc.id, data: { id: doc.id, ...doc.data() } };
+}
+
+function rawTicketIdCandidate(value: any): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed.split('.').length === 3) return trimmed;
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return null;
+  return trimmed;
+}
+
+function getTicketQrCandidate(value: any): string | null {
+  const direct = rawTicketIdCandidate(value);
+  if (direct) return direct;
+  if (!value || typeof value !== 'object') return null;
+  return (
+    rawTicketIdCandidate(value.ticketId) ||
+    rawTicketIdCandidate(value.bookingCode) ||
+    rawTicketIdCandidate(value.qrData) ||
+    rawTicketIdCandidate(value.qrCode) ||
+    rawTicketIdCandidate(value.qrPayload) ||
+    rawTicketIdCandidate(value.qrJwt)
+  );
+}
+
+async function resolveUniqueTicketQuery(fastify: FastifyInstance, field: string, value: string) {
+  const snapshot = await fastify.db.collection('tickets').where(field, '==', value).limit(2).get();
+  if (snapshot.empty || snapshot.docs.length !== 1) return null;
+  const doc = snapshot.docs[0];
+  return { ref: doc.ref, id: doc.id, data: { id: doc.id, ...doc.data() } };
+}
+
+async function resolveTicketForRawId(fastify: FastifyInstance, scannedTicketId: string) {
+  const value = scannedTicketId.trim();
+  const directRef = fastify.db.collection('tickets').doc(value);
+  const directDoc = await directRef.get();
+  if (directDoc.exists) {
+    return { ref: directRef, id: directDoc.id, data: { id: directDoc.id, ...directDoc.data() } };
+  }
+
+  return (
+    (await resolveUniqueTicketQuery(fastify, 'bookingCode', value)) ||
+    (await resolveUniqueTicketQuery(fastify, 'ticketId', value))
+  );
+}
+
+async function resolveTicketForQrValue(fastify: FastifyInstance, qrValue: string) {
+  if (isJwtLike(qrValue)) {
+    const claims = verifyWalletTicketJwt(qrValue);
+    return {
+      ticketLookup: await resolveTicketForJwt(fastify, claims),
+      legacyClaims: claims,
+      qrMode: 'legacy_jwt',
+    };
+  }
+
+  return {
+    ticketLookup: await resolveTicketForRawId(fastify, qrValue),
+    legacyClaims: null,
+    qrMode: 'raw_id',
+  };
+}
+
+async function resolveOrderForTicket(fastify: FastifyInstance, ticket: any) {
+  const preferredCollections =
+    ticket.source === 'rsvp' || ticket.isRSVP
+      ? ['rsvp_orders', 'orders']
+      : ['orders', 'rsvp_orders'];
+
+  for (const collection of preferredCollections) {
+    const ref = fastify.db.collection(collection).doc(ticket.orderId);
+    const doc = await ref.get();
+    if (!doc.exists) continue;
+    return {
+      ref,
+      collection,
+      data: {
+        id: doc.id,
+        ...doc.data(),
+        isRSVP: collection === 'rsvp_orders' || Boolean(doc.data()?.isRSVP),
+      },
+    };
+  }
+
+  return null;
+}
+
+async function getEventMetadata(fastify: FastifyInstance, eventId: string) {
+  if (!eventId) return null;
+  const doc = await fastify.db.collection('events').doc(eventId).get();
+  if (!doc.exists) return null;
+  const event = doc.data() || {};
+  return {
+    id: doc.id,
+    title: event.title || event.eventTitle || event.name || null,
+    venueId: event.venueId || null,
+    venueName: event.venueName || event.venue || event.location || null,
+    startDate: event.startDate || event.eventDate || event.date || null,
+  };
+}
+
+function isTicketLifecycleValid(ticket: any) {
+  return String(ticket?.status || '').toLowerCase() === 'active';
+}
+
+function isOrderLifecycleValid(order: any) {
+  return ['confirmed', 'checked_in'].includes(String(order?.status || '').toLowerCase());
+}
+
+function buildRichTicketScanResponse({
+  scanId,
+  ticket,
+  order,
+  event,
+  scannedAt,
+}: {
+  scanId: string;
+  ticket: any;
+  order: any;
+  event: any;
+  scannedAt: string;
+}) {
+  const userName = order.userName || ticket.userName || ticket.claimedBy?.name || 'Guest';
+  return {
+    success: true,
+    result: 'valid',
+    scanId,
+    ticket: {
+      id: ticket.id,
+      ticketId: ticket.ticketId || ticket.id,
+      ticketDocumentId: ticket.id,
+      bookingCode: ticket.bookingCode || null,
+      orderId: ticket.orderId,
+      eventId: ticket.eventId,
+      eventTitle: order.eventTitle || event?.title || '',
+      eventDate: order.eventDate || order.eventStartDate || event?.startDate || null,
+      venueName: order.venueName || order.venueLocation || event?.venueName || null,
+      ticketName: ticket.tierName || ticket.tierId || 'Ticket',
+      tierId: ticket.tierId || null,
+      tierName: ticket.tierName || ticket.tierId || 'Ticket',
+      status: 'used',
+      source: ticket.source || order.source || null,
+      userId: ticket.userId || order.userId || null,
+      userName,
+      userEmail: order.userEmail || ticket.userEmail || '',
+      userPhone: order.userPhone || ticket.userPhone || null,
+      quantity: 1,
+      entryType: ticket.entryType || 'general',
+      scanCountAllowed: Number(ticket.scanCountAllowed || 1),
+      scanCountUsed: Number(ticket.scanCountUsed || 0) + 1,
+      checkedInAt: scannedAt,
+    },
+    user: {
+      id: ticket.userId || order.userId || null,
+      name: userName,
+      email: order.userEmail || ticket.userEmail || '',
+      phone: order.userPhone || ticket.userPhone || null,
+    },
+    order: {
+      id: order.id,
+      status: order.status,
+      source: order.source || ticket.source || null,
+      totalAmount: order.totalAmount ?? order.total ?? null,
+      currency: order.currency || 'INR',
+      isRSVP: Boolean(order.isRSVP),
+    },
+    event,
+    message: `Entry approved — ${userName}`,
+  };
+}
+
+async function processWalletTicketScan(
+  fastify: FastifyInstance,
+  request: any,
+  reply: any,
+  auth: ScannerAuthResult,
+  qrValue: string,
+) {
+  const { eventId, eventCode, deviceId, venueId } = request.body;
+  const scannedBy =
+    request.body.scannedBy ||
+    (request.body.scannerId ? { uid: request.body.scannerId, role: 'door_staff' } : undefined);
+  const gate = request.body.gate || null;
+  const operator = getOperatorDetails(scannedBy);
+  const authorizedVenueId = venueId || auth.codeData?.venueId || null;
+
+  let resolved: any;
+  try {
+    resolved = await resolveTicketForQrValue(fastify, qrValue);
+  } catch (error: any) {
+    const result = error.result || 'invalid';
+    return reply.status(400).send({ error: error.message || 'Invalid ticket QR', result });
+  }
+
+  const ticketLookup = resolved.ticketLookup;
+  if (!ticketLookup) {
+    const fallbackEventId = eventId || auth.codeData?.eventId || null;
+    if (fallbackEventId) {
+      await recordScannerLiveEvent(
+        fastify.db,
+        {
+          eventId: fallbackEventId,
+          venueId: authorizedVenueId,
+          orderId: null,
+          ticketId: qrValue,
+          guestDisplayName: 'Unknown Guest',
+          result: 'not_found',
+          source: 'scanner',
+          deviceId: deviceId || null,
+          operatorUid: operator.operatorUid,
+          operatorName: operator.operatorName,
+          operatorRole: operator.operatorRole,
+          gate,
+        },
+        { totalScans: 1, invalidScans: 1 },
+      );
+    }
+    return reply.status(404).send({ error: 'Ticket not found', result: 'not_found' });
+  }
+
+  const ticket: any = ticketLookup.data;
+  const legacyClaims = resolved.legacyClaims;
+  const claims = {
+    orderId: ticket.orderId,
+    eventId: ticket.eventId,
+    userId: ticket.userId,
+    ticketId: ticket.ticketId || ticket.id,
+    jti: ticket.id,
+    sub: ticket.id,
+    tierId: ticket.tierId || null,
+  };
+
+  if (
+    legacyClaims &&
+    (ticket.orderId !== legacyClaims.orderId ||
+      ticket.eventId !== legacyClaims.eventId ||
+      ticket.userId !== legacyClaims.userId ||
+      (legacyClaims.jti && ticket.id !== legacyClaims.jti) ||
+      (legacyClaims.ticketId &&
+        ticket.id !== legacyClaims.ticketId &&
+        ticket.ticketId !== legacyClaims.ticketId))
+  ) {
+    return reply
+      .status(400)
+      .send({ error: 'Ticket QR does not match ticket record', result: 'invalid' });
+  }
+
+  const authorizedEventId = eventId || auth.codeData?.eventId || null;
+  if (!authorizedEventId) {
+    return reply.status(400).send({ error: 'eventId is required', result: 'invalid' });
+  }
+
+  if (authorizedEventId && claims.eventId !== authorizedEventId) {
+    await recordScannerLiveEvent(
+      fastify.db,
+      {
+        eventId: authorizedEventId,
+        venueId: authorizedVenueId,
+        orderId: claims.orderId || null,
+        ticketId: claims.ticketId || claims.sub || claims.jti || null,
+        guestDisplayName: 'Wrong Event',
+        result: 'invalid',
+        source: 'scanner',
+        deviceId: deviceId || null,
+        operatorUid: operator.operatorUid,
+        operatorName: operator.operatorName,
+        operatorRole: operator.operatorRole,
+        gate,
+      },
+      { totalScans: 1, invalidScans: 1 },
+    );
+    return reply
+      .status(400)
+      .send({ error: 'Ticket is for a different event', result: 'wrong_event' });
+  }
+
+  let boundDeviceName: string | null = null;
+  if (deviceId && authorizedVenueId) {
+    const deviceCheck = await validateScannerDevice(fastify.db, deviceId, authorizedVenueId);
+    if (!deviceCheck.valid) {
+      await recordScannerLiveEvent(
+        fastify.db,
+        {
+          eventId: claims.eventId,
+          venueId: authorizedVenueId,
+          orderId: claims.orderId || null,
+          ticketId: claims.ticketId || claims.sub || claims.jti || null,
+          guestDisplayName: 'Unauthorized Device',
+          result: 'invalid',
+          source: 'scanner',
+          deviceId,
+          operatorUid: operator.operatorUid,
+          operatorName: operator.operatorName,
+          operatorRole: operator.operatorRole,
+          gate,
+        },
+        { totalScans: 1, invalidScans: 1 },
+      );
+      return reply.status(403).send({ error: deviceCheck.error, result: 'device_invalid' });
+    }
+    boundDeviceName = deviceCheck.device?.deviceName || null;
+    await deviceCheck.ref.update({ lastActiveAt: new Date().toISOString() });
+  }
+
+  const orderLookup = await resolveOrderForTicket(fastify, ticket);
+  if (!orderLookup) {
+    return reply.status(404).send({ error: 'Order not found', result: 'not_found' });
+  }
+  const orderRef = orderLookup.ref;
+  const order: any = orderLookup.data;
+
+  if (
+    order.eventId !== claims.eventId ||
+    order.userId !== claims.userId ||
+    !isOrderLifecycleValid(order)
+  ) {
+    return reply
+      .status(400)
+      .send({ error: 'Ticket is not valid for entry', result: 'invalid_state' });
+  }
+
+  const event = await getEventMetadata(fastify, claims.eventId);
+  const scanDocId = `ticket_${safeScanDocSegment(ticket.id)}`;
+  const scanRef = fastify.db.collection('ticket_scans').doc(scanDocId);
+  let alreadyScanned = false;
+  let lifecycleRejected = false;
+  let existingScanData: any = null;
+  let scannedAt = new Date().toISOString();
+
+  await fastify.db.runTransaction(async (tx: any) => {
+    const [freshTicketDoc, existingScanDoc] = await Promise.all([
+      tx.get(ticketLookup.ref),
+      tx.get(scanRef),
+    ]);
+
+    if (existingScanDoc.exists && existingScanDoc.data()?.result === 'valid') {
+      alreadyScanned = true;
+      existingScanData = existingScanDoc.data();
+      return;
+    }
+
+    const freshTicket: any = freshTicketDoc.exists
+      ? { id: freshTicketDoc.id, ...freshTicketDoc.data() }
+      : ticket;
+    const scanCountAllowed = Math.max(1, Number(freshTicket.scanCountAllowed || 1));
+    const scanCountUsed = Number(freshTicket.scanCountUsed || 0);
+    if (scanCountUsed >= scanCountAllowed) {
+      alreadyScanned = true;
+      existingScanData = {
+        scannedAt: freshTicket.scannedAt || freshTicket.updatedAt || null,
+        scannedBy: null,
+      };
+      return;
+    }
+    if (!isTicketLifecycleValid(freshTicket)) {
+      lifecycleRejected = true;
+      existingScanData = { scannedAt: freshTicket.updatedAt || null, scannedBy: null };
+      return;
+    }
+
+    const now = new Date().toISOString();
+    scannedAt = now;
+    const nextScanCount = scanCountUsed + 1;
+    tx.set(scanRef, {
+      orderId: claims.orderId,
+      eventId: claims.eventId,
+      ticketId: ticket.id,
+      ticketDocumentId: ticket.id,
+      userId: claims.userId,
+      tierId: ticket.tierId || claims.tierId || null,
+      result: 'valid',
+      qrMode: resolved.qrMode,
+      scannedBy,
+      deviceId: deviceId || null,
+      device: deviceId ? { id: deviceId, bound: true } : { id: null, bound: false },
+      gate,
+      scannedAt: now,
+      createdAt: now,
+    });
+    tx.update(ticketLookup.ref, {
+      status: nextScanCount >= scanCountAllowed ? 'used' : 'active',
+      scanCountUsed: FieldValue.increment(1),
+      scannedAt: now,
+      lastScanId: scanDocId,
+      updatedAt: now,
+    });
+    tx.update(orderRef, {
+      lastTicketScanId: scanDocId,
+      lastTicketScannedAt: now,
+      updatedAt: now,
+    });
+  });
+
+  if (lifecycleRejected) {
+    return reply
+      .status(400)
+      .send({ error: 'Ticket is not valid for entry', result: 'invalid_state' });
+  }
+
+  if (alreadyScanned) {
+    const liveWhen = new Date().toISOString();
+    await Promise.allSettled([
+      recordScannerLiveEvent(
+        fastify.db,
+        {
+          eventId: claims.eventId,
+          venueId: authorizedVenueId,
+          orderId: claims.orderId,
+          ticketId: ticket.id,
+          guestDisplayName: order.userName || ticket.userName || 'Guest',
+          result: 'already_scanned',
+          source: 'scanner',
+          scannedAt: liveWhen,
+          deviceId: deviceId || null,
+          deviceName: boundDeviceName,
+          operatorUid: operator.operatorUid,
+          operatorName: operator.operatorName,
+          operatorRole: operator.operatorRole,
+          gate,
+          ticketTierName: ticket.tierName || null,
+        },
+        { totalScans: 1, duplicateScans: 1 },
+      ),
+      auth.sessionRef ? touchScannerSession(auth.sessionRef, liveWhen) : Promise.resolve(),
+    ]);
+    return reply.status(400).send({
+      error: 'Ticket already scanned',
+      result: 'already_scanned',
+      previousScan: {
+        scannedAt: existingScanData?.scannedAt || null,
+        scannedBy: existingScanData?.scannedBy || null,
+      },
+    });
+  }
+
+  const liveWhen = new Date().toISOString();
+  await Promise.allSettled([
+    recordScannerLiveEvent(
+      fastify.db,
+      {
+        eventId: claims.eventId,
+        venueId: authorizedVenueId,
+        orderId: claims.orderId,
+        ticketId: ticket.id,
+        guestDisplayName: order.userName || ticket.userName || 'Guest',
+        result: 'valid',
+        source: 'scanner',
+        scannedAt: liveWhen,
+        deviceId: deviceId || null,
+        deviceName: boundDeviceName,
+        operatorUid: operator.operatorUid,
+        operatorName: operator.operatorName,
+        operatorRole: operator.operatorRole,
+        gate,
+        ticketTierId: ticket.tierId || claims.tierId || null,
+        ticketTierName: ticket.tierName || null,
+      },
+      { totalScans: 1, checkedIn: 1 },
+      {
+        checkedInIncrement: 1,
+        entryType: ticket.entryType || 'general',
+        entryTypeQuantity: 1,
+      },
+    ),
+    deviceId && authorizedVenueId
+      ? upsertScannerDeviceState(
+          fastify.db,
+          {
+            eventId: claims.eventId,
+            venueId: authorizedVenueId,
+            deviceId,
+            deviceName: boundDeviceName,
+            operatorUid: operator.operatorUid,
+            operatorName: operator.operatorName,
+            operatorRole: operator.operatorRole,
+            gate,
+            lastScanAt: liveWhen,
+            lastScanResult: 'valid',
+            validScans: 1,
+          },
+          liveWhen,
+        )
+      : Promise.resolve(),
+    auth.sessionRef ? touchScannerSession(auth.sessionRef, liveWhen) : Promise.resolve(),
+  ]);
+
+  fastify.db
+    .collection('events')
+    .doc(claims.eventId)
+    .update({
+      'stats.checkIns': FieldValue.increment(1),
+    })
+    .catch(() => {});
+
+  fastify.broadcast(
+    {
+      type: 'TICKET_CHECKED_IN',
+      payload: {
+        eventId: claims.eventId,
+        guestName: order.userName || ticket.userName || 'Guest',
+        ticketType: ticket.entryType || 'general',
+        scanId: scanDocId,
+        scannedAt: liveWhen,
+      },
+    },
+    `event:${claims.eventId}`,
+  );
+
+  return buildRichTicketScanResponse({
+    scanId: scanDocId,
+    ticket,
+    order,
+    event,
+    scannedAt,
+  });
+}
+
 export default async function scanRoutes(fastify: FastifyInstance) {
   // ── Core QR Scan Processing ───────────────────────────────────────────────
+
+  /**
+   * POST /api/v1/scan/verify
+   * Online scanner verification for raw ticket ID QR codes.
+   */
+  fastify.post(
+    '/verify',
+    {
+      preHandler: [fastify.validate({ body: ScanBody })],
+    },
+    async (request: any, reply) => {
+      const { eventId, eventCode, venueId } = request.body;
+      const qrValue = getTicketQrCandidate(
+        request.body.ticketId || request.body.qrData || request.body.ticketPayload,
+      );
+
+      if (!qrValue) {
+        return reply.status(400).send({ error: 'ticketId is required', result: 'invalid' });
+      }
+
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized) return scannerSessionError(reply);
+      if (!matchesScannerContext(auth, { eventId, eventCode, venueId })) {
+        return scannerSessionError(reply);
+      }
+
+      return processWalletTicketScan(fastify, request, reply, auth, qrValue);
+    },
+  );
 
   /**
    * POST /api/v1/scan
@@ -267,7 +930,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
     },
     async (request: any, reply) => {
       const { eventId, eventCode, deviceId, venueId } = request.body;
-      const qrData = request.body.qrData || request.body.ticketPayload;
+      const qrData = request.body.ticketId || request.body.qrData || request.body.ticketPayload;
       const scannedBy =
         request.body.scannedBy ||
         (request.body.scannerId ? { uid: request.body.scannerId, role: 'door_staff' } : undefined);
@@ -280,11 +943,26 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         return scannerSessionError(reply);
       }
 
+      const directTicketCandidate = getTicketQrCandidate(qrData);
+      if (directTicketCandidate) {
+        return processWalletTicketScan(fastify, request, reply, auth, directTicketCandidate);
+      }
+
       let payload: any;
       try {
         payload = typeof qrData === 'string' ? JSON.parse(qrData) : qrData;
       } catch (e) {
         return reply.status(400).send({ error: 'Invalid QR format', result: 'invalid' });
+      }
+
+      const payloadJwtCandidate = getJwtCandidate(payload);
+      if (payloadJwtCandidate) {
+        return processWalletTicketScan(fastify, request, reply, auth, payloadJwtCandidate);
+      }
+
+      const payloadTicketCandidate = getTicketQrCandidate(payload);
+      if (payloadTicketCandidate) {
+        return processWalletTicketScan(fastify, request, reply, auth, payloadTicketCandidate);
       }
 
       // ── Entitlement QR format (eid, ts, sig) ─────────────────────────────

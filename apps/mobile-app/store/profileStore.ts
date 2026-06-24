@@ -4,11 +4,29 @@
  */
 
 import { create } from 'zustand';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // @c1rcle/types provides the canonical Profile shape. The local UserProfile interface below
 // extends it with mobile-specific fields (gender, vibeTags, isPremium, etc.).
 // When harmonizing: import type { Profile as BaseProfile } from '@c1rcle/types';
-import { getFirebaseAuth } from '@/lib/firebase';
 import { apiFetch } from '@/lib/api';
+
+const NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY = 'c1rcle_nightlife_profile_prompt_dismissed';
+
+export interface DatingVitals {
+  height?: string | null;
+  gender?: string | null;
+  location?: string | null;
+}
+
+export interface ProfileAnthem {
+  trackId?: string;
+  trackName: string;
+  artistName: string;
+  artworkUrl?: string | null;
+  previewUrl?: string | null;
+  source?: 'itunes' | 'spotify';
+  externalUrl?: string | null;
+}
 
 export interface UserProfile {
   uid: string;
@@ -28,14 +46,25 @@ export interface UserProfile {
   connections?: number;
   instagram?: string;
   spotify?: string;
+  datingActive?: boolean;
   datingPhotos?: string[];
+  datingVitals?: DatingVitals;
+  anthem?: ProfileAnthem | null;
   photos?: string[];
+  socialProfile?: { state?: string } & Record<string, unknown>;
   notificationPreferences?: Record<string, boolean>;
   pushNewMatches?: boolean;
   pushEventUpdates?: boolean;
 
   // Personalisation
   vibeTags?: string[];
+
+  // Onboarding funnel
+  basicSetupComplete?: boolean;
+  profileSetupComplete?: boolean;
+  profileComplete?: boolean;
+  onboardingComplete?: boolean;
+  socialSetupComplete?: boolean;
 
   // Status
   isVerified?: boolean;
@@ -47,10 +76,13 @@ interface ProfileState {
   loading: boolean;
   error: string | null;
   _unsubscribe: (() => void) | null;
+  nightlifePromptDismissed: boolean;
 
   // Actions
   loadProfile: (userId: string) => Promise<void>;
   updateProfile: (userId: string, updates: Partial<UserProfile>) => Promise<boolean>;
+  hydrateNightlifePromptDismissed: () => Promise<void>;
+  dismissNightlifePrompt: () => Promise<void>;
   setProfileFromGateway: (userId: string, profile: Partial<UserProfile>) => void;
   subscribeToProfile: (userId: string) => () => void;
   clearProfile: () => void;
@@ -60,22 +92,63 @@ function omitUndefined<T extends Record<string, any>>(value: T): T {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 }
 
+function normalizeDatingVitals(value: unknown): DatingVitals | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const raw = value as Record<string, unknown>;
+  return {
+    height: typeof raw.height === 'string' || raw.height === null ? raw.height : undefined,
+    gender: typeof raw.gender === 'string' || raw.gender === null ? raw.gender : undefined,
+    location: typeof raw.location === 'string' || raw.location === null ? raw.location : undefined,
+  };
+}
+
+function normalizeAnthem(value: unknown): ProfileAnthem | null | undefined {
+  if (value === null) return null;
+  if (!value || typeof value !== 'object') return undefined;
+
+  const raw = value as Record<string, unknown>;
+  const trackName = typeof raw.trackName === 'string' ? raw.trackName : '';
+  const artistName = typeof raw.artistName === 'string' ? raw.artistName : '';
+  if (!trackName || !artistName) return undefined;
+
+  return {
+    trackId: typeof raw.trackId === 'string' ? raw.trackId : undefined,
+    trackName,
+    artistName,
+    artworkUrl:
+      typeof raw.artworkUrl === 'string' || raw.artworkUrl === null ? raw.artworkUrl : undefined,
+    previewUrl:
+      typeof raw.previewUrl === 'string' || raw.previewUrl === null ? raw.previewUrl : undefined,
+    source: raw.source === 'spotify' || raw.source === 'itunes' ? raw.source : undefined,
+    externalUrl:
+      typeof raw.externalUrl === 'string' || raw.externalUrl === null ? raw.externalUrl : undefined,
+  };
+}
+
 function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProfile {
-  const authUser = getFirebaseAuth().currentUser;
   const now = new Date().toISOString();
   const rawData = (data ?? {}) as Record<string, any>;
+  const socialState = rawData.socialProfile?.state;
+  const socialSetupComplete =
+    rawData.socialSetupComplete === true ||
+    socialState === 'complete' ||
+    socialState === 'verified';
+  const basicSetupComplete =
+    rawData.basicSetupComplete === true ||
+    rawData.profileSetupComplete === true ||
+    rawData.profileComplete === true;
 
   return {
     uid: userId,
-    email: rawData.email ?? authUser?.email ?? '',
-    displayName: rawData.displayName ?? rawData.name ?? authUser?.displayName ?? '',
-    photoURL: rawData.photoURL ?? rawData.avatar ?? authUser?.photoURL ?? '',
+    email: rawData.email ?? '',
+    displayName: rawData.displayName ?? rawData.name ?? '',
+    photoURL: rawData.photoURL ?? rawData.avatar ?? '',
     bio: rawData.bio ?? '',
     city: rawData.city ?? '',
-    phone: rawData.phone ?? rawData.phoneNumber ?? authUser?.phoneNumber ?? '',
+    phone: rawData.phone ?? rawData.phoneNumber ?? '',
     gender: data?.gender,
     dateOfBirth: data?.dateOfBirth,
-    createdAt: rawData.createdAt ?? authUser?.metadata.creationTime ?? now,
+    createdAt: rawData.createdAt ?? now,
     updatedAt: rawData.updatedAt ?? now,
     eventsAttended: data?.eventsAttended,
     connections: data?.connections,
@@ -84,6 +157,9 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     isPremium: data?.isPremium,
     instagram: data?.instagram ?? '',
     spotify: data?.spotify ?? '',
+    datingActive: rawData.datingActive === true,
+    datingVitals: normalizeDatingVitals(rawData.datingVitals),
+    anthem: normalizeAnthem(rawData.anthem),
     datingPhotos: Array.isArray(rawData.datingPhotos)
       ? rawData.datingPhotos
       : Array.isArray(rawData.photos)
@@ -100,6 +176,15 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
         : {},
     pushNewMatches: rawData.pushNewMatches,
     pushEventUpdates: rawData.pushEventUpdates,
+    socialProfile:
+      typeof rawData.socialProfile === 'object' && rawData.socialProfile
+        ? rawData.socialProfile
+        : undefined,
+    basicSetupComplete,
+    profileSetupComplete: rawData.profileSetupComplete === true || basicSetupComplete,
+    profileComplete: rawData.profileComplete === true,
+    onboardingComplete: rawData.onboardingComplete === true,
+    socialSetupComplete,
   };
 }
 
@@ -108,6 +193,7 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   loading: false,
   error: null,
   _unsubscribe: null,
+  nightlifePromptDismissed: false,
 
   loadProfile: async (userId: string) => {
     set({ loading: true, error: null });
@@ -121,8 +207,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       const profile = normalizeProfile(userId, data);
       set({ profile, loading: false });
     } catch (error: any) {
-      console.warn('Unable to load profile through gateway; using auth-derived profile.', error);
-      set({ profile: normalizeProfile(userId), error: error.message, loading: false });
+      console.warn('Unable to load profile through gateway.', error);
+      set({ profile: get().profile, error: error.message, loading: false });
     }
   },
 
@@ -157,6 +243,24 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
       set({ error: error.message });
       if (profile) set({ profile }); // revert
       return false;
+    }
+  },
+
+  hydrateNightlifePromptDismissed: async () => {
+    try {
+      const dismissed = await AsyncStorage.getItem(NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY);
+      set({ nightlifePromptDismissed: dismissed === 'true' });
+    } catch {
+      set({ nightlifePromptDismissed: false });
+    }
+  },
+
+  dismissNightlifePrompt: async () => {
+    set({ nightlifePromptDismissed: true });
+    try {
+      await AsyncStorage.setItem(NIGHTLIFE_PROFILE_PROMPT_DISMISSED_KEY, 'true');
+    } catch {
+      // Keep the in-memory dismissal for this session even if local storage is unavailable.
     }
   },
 

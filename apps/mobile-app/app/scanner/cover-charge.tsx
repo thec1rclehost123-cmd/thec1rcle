@@ -41,6 +41,8 @@ type ChargeState =
   | 'SUCCESS'
   | 'DEBIT_ERROR';
 
+type NoInfer<T> = [T][T extends any ? 0 : never];
+
 function formatPaiseCurrency(paise: number): string {
   return `₹${Math.round(paise / 100)}`;
 }

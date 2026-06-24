@@ -34,7 +34,7 @@ export default function AlertPreferencesScreen() {
   const phoneNumber = user?.phoneNumber || 'No phone number';
 
   const handleToggleCheck = (key: 'smsTransactional' | 'marketingPromotions') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.selectionAsync();
     setNotificationSetting(key, !notifications[key]);
   };
 
@@ -42,7 +42,13 @@ export default function AlertPreferencesScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          style={styles.backButton}
+        >
           <ArrowLeft size={25} color="#F8F8F8" strokeWidth={2.4} />
         </Pressable>
         <Text style={styles.headerTitle}>Alert Preferences</Text>
@@ -68,7 +74,10 @@ export default function AlertPreferencesScreen() {
             <Switch
               style={styles.switch}
               value={notifications.allowAlerts}
-              onValueChange={(val) => setNotificationSetting('allowAlerts', val)}
+              onValueChange={(val) => {
+                Haptics.selectionAsync();
+                setNotificationSetting('allowAlerts', val);
+              }}
               trackColor={{ false: '#6A6A6F', true: '#5E6B5F' }}
               thumbColor="#fff"
             />
@@ -88,7 +97,7 @@ export default function AlertPreferencesScreen() {
             onPress={() => handleToggleCheck('marketingPromotions')}
             style={styles.checkRow}
           >
-            <Text style={styles.rowTitle}>Marketing Promotions</Text>
+            <Text style={styles.rowTitle}>Allow Marketing Emails</Text>
             {notifications.marketingPromotions ? (
               <Check size={18} color="#fff" strokeWidth={2.5} />
             ) : null}
@@ -99,7 +108,7 @@ export default function AlertPreferencesScreen() {
         <View style={styles.accordionContainer}>
           <Pressable
             onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              Haptics.selectionAsync();
               setExpanded(!expanded);
             }}
             style={styles.accordionHeader}

@@ -34,7 +34,10 @@ export default function OtpScreen() {
     }
 
     const result = await confirmPhoneCode(params.verificationId, otp);
-    if (result.success) router.replace('/');
+    if (result.success) {
+      if (router.canDismiss()) router.dismissAll();
+      router.replace('/');
+    }
   };
 
   return (

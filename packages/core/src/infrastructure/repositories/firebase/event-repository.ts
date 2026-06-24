@@ -2,6 +2,10 @@ import { Firestore } from 'firebase-admin/firestore';
 import { IEventRepository, Event } from '../../../domain/repositories/event-repository.js';
 import { encodeGeohash, getGeohashRange, getNeighbors } from '../../utils/geohash.js';
 
+function hasFiniteCoordinates(coords: any): coords is { latitude: number; longitude: number } {
+  return Number.isFinite(Number(coords?.latitude)) && Number.isFinite(Number(coords?.longitude));
+}
+
 export class FirebaseEventRepository implements IEventRepository {
   constructor(private db: Firestore) {}
 
@@ -150,8 +154,8 @@ export class FirebaseEventRepository implements IEventRepository {
 
     // Embed geohash snapshot
     const coords = event.coordinates as any;
-    if (coords?.latitude && coords?.longitude) {
-      enriched.geohash = encodeGeohash(coords.latitude, coords.longitude, 9);
+    if (hasFiniteCoordinates(coords)) {
+      enriched.geohash = encodeGeohash(Number(coords.latitude), Number(coords.longitude), 9);
     }
 
     return enriched;

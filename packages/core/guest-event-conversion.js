@@ -100,6 +100,12 @@ export async function getEventInterested(db, eventId, limit = 20) {
   );
   if (userIds.length === 0) return { count, users: [] };
 
+  const likedAtByUserId = new Map(
+    likesSnapshot.docs.map((doc) => {
+      const data = doc.data() || {};
+      return [data.userId, data.createdAt || null];
+    }),
+  );
   const userDocs = await Promise.all(
     userIds.map((uid) => db.collection(USER_COLLECTION).doc(uid).get()),
   );
@@ -110,7 +116,9 @@ export async function getEventInterested(db, eventId, limit = 20) {
       const displayName = data.displayName || 'C1RCLE Member';
       return {
         id: doc.id,
+        userId: doc.id,
         name: displayName,
+        displayName,
         handle: data.handle || `@${displayName.toLowerCase().replace(/\s/g, '')}`,
         photoURL: data.photoURL || null,
         initials: displayName
@@ -120,6 +128,7 @@ export async function getEventInterested(db, eventId, limit = 20) {
           .toUpperCase()
           .slice(0, 2),
         gender: normalizeInterestedUserGender(data.gender),
+        likedAt: likedAtByUserId.get(doc.id) || null,
       };
     });
 

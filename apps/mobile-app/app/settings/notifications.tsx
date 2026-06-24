@@ -1,6 +1,7 @@
-import { Alert, View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Bell } from 'lucide-react-native';
 import { router } from 'expo-router';
+import * as Haptics from 'expo-haptics';
 import { useSettings } from '@/hooks/useSettings';
 import {
   DittoSettingsScreen,
@@ -18,11 +19,14 @@ const font = {
 };
 
 export default function NotificationSettingsScreen() {
-  const { notifications } = useSettings();
+  const { notifications, setNotificationSetting } = useSettings();
 
-  const choose = (title: string) => {
-    Alert.alert(title, 'Channel controls will be available soon.', [{ text: 'OK' }]);
+  const toggleNotification = (key: keyof typeof notifications) => {
+    setNotificationSetting(key, !notifications[key]);
   };
+
+  const channelValue = (enabled: boolean, channels = 'Email, SMS, Push') =>
+    enabled ? channels : 'Off';
 
   return (
     <DittoSettingsScreen title="Notifications">
@@ -33,7 +37,15 @@ export default function NotificationSettingsScreen() {
           <Text style={styles.heroBody}>
             Turn on push notification to keep up with event updates and chats.
           </Text>
-          <Text style={styles.heroAction}>Enable Notifications</Text>
+          <Text
+            style={styles.heroAction}
+            onPress={() => {
+              Haptics.selectionAsync();
+              setNotificationSetting('allowAlerts', true);
+            }}
+          >
+            {notifications.allowAlerts ? 'Notifications Enabled' : 'Enable Notifications'}
+          </Text>
         </View>
       </View>
 
@@ -48,32 +60,32 @@ export default function NotificationSettingsScreen() {
       <SettingsGroup>
         <SettingsRow
           title="Event Invites"
-          value={notifications.events ? 'Email, SMS, Push' : 'Off'}
-          onPress={() => choose('Event Invites')}
+          value={channelValue(notifications.eventInvites)}
+          onPress={() => toggleNotification('eventInvites')}
         />
         <Divider />
         <SettingsRow
           title="Event Reminders"
-          value={notifications.events ? 'Email, SMS, Push' : 'Off'}
-          onPress={() => choose('Event Reminders')}
+          value={channelValue(notifications.eventReminders)}
+          onPress={() => toggleNotification('eventReminders')}
         />
         <Divider />
         <SettingsRow
           title="Event Blasts"
-          value={notifications.promo ? 'Email, SMS, Push' : 'Off'}
-          onPress={() => choose('Event Blasts')}
+          value={channelValue(notifications.eventBlasts)}
+          onPress={() => toggleNotification('eventBlasts')}
         />
         <Divider />
         <SettingsRow
           title="Event Updates"
-          value={notifications.events ? 'Email, Push' : 'Off'}
-          onPress={() => choose('Event Updates')}
+          value={channelValue(notifications.eventUpdates, 'Email, Push')}
+          onPress={() => toggleNotification('eventUpdates')}
         />
         <Divider />
         <SettingsRow
           title="Feedback Requests"
-          value="Email"
-          onPress={() => choose('Feedback Requests')}
+          value={channelValue(notifications.feedbackRequests, 'Email')}
+          onPress={() => toggleNotification('feedbackRequests')}
         />
       </SettingsGroup>
 
@@ -81,14 +93,14 @@ export default function NotificationSettingsScreen() {
       <SettingsGroup>
         <SettingsRow
           title="Guest Registrations"
-          value="Email, Push"
-          onPress={() => choose('Guest Registrations')}
+          value={channelValue(notifications.guestRegistrations, 'Email, Push')}
+          onPress={() => toggleNotification('guestRegistrations')}
         />
         <Divider />
         <SettingsRow
           title="Feedback Responses"
-          value="Email"
-          onPress={() => choose('Feedback Responses')}
+          value={channelValue(notifications.feedbackResponses, 'Email')}
+          onPress={() => toggleNotification('feedbackResponses')}
         />
       </SettingsGroup>
 
@@ -96,14 +108,14 @@ export default function NotificationSettingsScreen() {
       <SettingsGroup>
         <SettingsRow
           title="New Members"
-          value="Email, Push"
-          onPress={() => choose('New Members')}
+          value={channelValue(notifications.newMembers, 'Email, Push')}
+          onPress={() => toggleNotification('newMembers')}
         />
         <Divider />
         <SettingsRow
           title="Event Submissions"
-          value="Email"
-          onPress={() => choose('Event Submissions')}
+          value={channelValue(notifications.eventSubmissions, 'Email')}
+          onPress={() => toggleNotification('eventSubmissions')}
         />
       </SettingsGroup>
     </DittoSettingsScreen>

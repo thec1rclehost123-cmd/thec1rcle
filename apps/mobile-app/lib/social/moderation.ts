@@ -33,6 +33,52 @@ export async function reportUser(
   }
 }
 
+export type ReportMessageInput = {
+  messageId: string;
+  senderId: string;
+  eventId?: string | null;
+  conversationId?: string | null;
+  chatId?: string | null;
+  reason?: string;
+};
+
+/**
+ * Report a specific chat message and let the backend apply community moderation.
+ */
+export async function reportMessage({
+  messageId,
+  senderId,
+  eventId,
+  conversationId,
+  chatId,
+  reason = 'message_report',
+}: ReportMessageInput): Promise<{ success: boolean; reportId?: string; error?: string }> {
+  try {
+    const response = await apiFetch<any>('/api/v1/social/report', {
+      method: 'POST',
+      body: JSON.stringify({
+        targetType: 'message',
+        targetId: messageId,
+        messageId,
+        senderId,
+        eventId: eventId || undefined,
+        conversationId: conversationId || undefined,
+        chatId: chatId || undefined,
+        reason,
+      }),
+      requireAuth: true,
+    });
+
+    return {
+      success: true,
+      reportId: response.report?.id || response.data?.report?.id,
+    };
+  } catch (error: any) {
+    console.error('Error reporting message:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 /**
  * Check if user is blocked (client-side check against cached block list).
  */

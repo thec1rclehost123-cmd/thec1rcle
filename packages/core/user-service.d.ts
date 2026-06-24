@@ -1,4 +1,9 @@
-export function syncAuthUser(db: any, userId: string, authRecord?: any): Promise<any>;
+export function syncAuthUser(
+  db: any,
+  userId: string,
+  authRecord?: any,
+  options?: { auth?: any } | Record<string, any>,
+): Promise<any>;
 export function registerDeviceToken(
   db: any,
   userId: string,

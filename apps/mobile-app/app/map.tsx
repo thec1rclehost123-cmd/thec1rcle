@@ -1,17 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-  StyleSheet,
-  Platform,
-  Linking,
-} from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Platform, Linking } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, PROVIDER_DEFAULT, type Region } from 'react-native-maps';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -19,6 +11,7 @@ import { Image } from 'expo-image';
 import Animated, { SlideInUp } from 'react-native-reanimated';
 import { useEventsStore, type Event } from '@/store/eventsStore';
 import { useVenuesStore, type Venue } from '@/store/venuesStore';
+import { apiFetch } from '@/lib/api';
 import { colors, radii, gradients } from '@/lib/design/theme';
 import {
   calculateDistanceKm,
@@ -28,8 +21,8 @@ import {
   formatDistance,
   getVenueDisplayName,
   getVenueLocationLabel,
-  normalizeVenueKey,
 } from '@/lib/venueDiscovery';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 const DEFAULT_REGION = {
   latitude: 19.076,
@@ -38,13 +31,31 @@ const DEFAULT_REGION = {
   longitudeDelta: 0.15,
 };
 
+const MAP_PIN_LIMIT = 100;
+const MAP_REGION_DEBOUNCE_MS = 500;
+
 type MapMode = 'events' | 'venues';
 
-interface EventWithCoords extends Event {
+interface EventWithCoords extends Partial<Event> {
+  id: string;
   venueId?: string;
   venueSlug?: string;
   resolvedCoords?: Coordinates;
 }
+
+type EventMapPin = {
+  id: string;
+  latitude: number;
+  longitude: number;
+  heatScore?: number;
+};
+
+type MapBounds = {
+  northEastLat: number;
+  northEastLng: number;
+  southWestLat: number;
+  southWestLng: number;
+};
 
 interface VenueWithCoords extends Venue {
   resolvedCoords: Coordinates;
@@ -58,6 +69,70 @@ interface EventCluster {
   venueId?: string;
   venueSlug?: string;
   venueName: string;
+}
+
+function debounce<T extends (...args: any[]) => void>(fn: T, delayMs: number) {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const debounced = (...args: Parameters<T>) => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => {
+      timeoutId = null;
+      fn(...args);
+    }, delayMs);
+  };
+  debounced.cancel = () => {
+    if (timeoutId) clearTimeout(timeoutId);
+    timeoutId = null;
+  };
+  return debounced;
+}
+
+function normalizeLongitude(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value === 180 || value === -180) return value;
+  return ((((value + 180) % 360) + 360) % 360) - 180;
+}
+
+function boundsFromRegion(region: Region): MapBounds {
+  const halfLat = Math.max(region.latitudeDelta, 0.001) / 2;
+  const halfLng = Math.max(region.longitudeDelta, 0.001) / 2;
+  const spansWorld = region.longitudeDelta >= 360;
+
+  return {
+    northEastLat: Math.min(90, region.latitude + halfLat),
+    northEastLng: spansWorld ? 180 : normalizeLongitude(region.longitude + halfLng),
+    southWestLat: Math.max(-90, region.latitude - halfLat),
+    southWestLng: spansWorld ? -180 : normalizeLongitude(region.longitude - halfLng),
+  };
+}
+
+function buildQuery(params: Record<string, string | number>): string {
+  return Object.entries(params)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`)
+    .join('&');
+}
+
+async function fetchEventMapPins(region: Region): Promise<EventMapPin[]> {
+  const bounds = boundsFromRegion(region);
+  const response = await apiFetch<{ pins?: EventMapPin[]; data?: { pins?: EventMapPin[] } }>(
+    `/api/v1/events/map?${buildQuery({ ...bounds, limit: MAP_PIN_LIMIT })}`,
+    { requireAuth: false },
+  );
+  return response.pins || response.data?.pins || [];
+}
+
+function eventFromPin(pin: EventMapPin): EventWithCoords {
+  return {
+    id: pin.id,
+    title: 'Event nearby',
+    startDate: '',
+    venue: 'Nearby',
+    heatScore: pin.heatScore,
+    resolvedCoords: {
+      latitude: pin.latitude,
+      longitude: pin.longitude,
+    },
+  };
 }
 
 function normalizeParam(value?: string | string[]): string | undefined {
@@ -95,12 +170,15 @@ async function geocodeVenue(
   }
 }
 
-function getEventPriceLabel(event: Event): string {
+function getEventPriceLabel(event: Partial<Event>): string {
+  const tickets = Array.isArray(event.tickets) ? event.tickets : [];
   const price =
-    event.tickets?.reduce(
-      (min, tier) => (tier.price < min ? tier.price : min),
-      event.tickets[0]?.price || 0,
-    ) || 0;
+    tickets.reduce((min, tier) => (tier.price < min ? tier.price : min), tickets[0]?.price || 0) ||
+    event.minPrice;
+
+  if (price === undefined || price === null) {
+    return 'Details';
+  }
 
   return price === 0 ? 'Free' : `₹${price}`;
 }
@@ -125,13 +203,16 @@ async function openDirections(coords: Coordinates, label: string) {
 
 function MapEventCard({ cluster, onPress }: { cluster: EventCluster; onPress: () => void }) {
   const event = cluster.events[0];
-  const formattedDate = new Date(event.startDate).toLocaleDateString('en-IN', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-  });
-  const imageUrl = event.coverImage;
+  const formattedDate = event.startDate
+    ? new Date(event.startDate).toLocaleDateString('en-IN', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+      })
+    : 'Tap for details';
+  const imageUrl = event.coverImage || event.poster || event.image;
   const posterTransitionTag = `poster-${event.id}-map`;
+  const venueName = cluster.venueName || event.venue || event.location || 'Nearby';
 
   return (
     <Pressable onPress={onPress} style={mapStyles.eventCard}>
@@ -154,11 +235,11 @@ function MapEventCard({ cluster, onPress }: { cluster: EventCluster; onPress: ()
       <View style={mapStyles.eventCardContent}>
         <Text style={mapStyles.eventCardEyebrow} numberOfLines={1}>
           {cluster.events.length > 1
-            ? `${cluster.events.length} events at ${cluster.venueName}`
-            : cluster.venueName}
+            ? `${cluster.events.length} events at ${venueName}`
+            : venueName}
         </Text>
         <Text style={mapStyles.eventCardTitle} numberOfLines={1}>
-          {event.title}
+          {event.title || 'Event nearby'}
         </Text>
         <View style={mapStyles.eventCardFooter}>
           <Text style={mapStyles.eventCardDate}>{formattedDate}</Text>
@@ -215,10 +296,12 @@ export default function MapScreen() {
   const requestedVenueId = normalizeParam(params.venueId);
   const requestedMode = normalizeParam(params.mode) === 'venues' ? 'venues' : 'events';
 
-  const { fetchEvents } = useEventsStore();
   const { fetchVenues } = useVenuesStore();
   const insets = useSafeAreaInsets();
   const mapRef = useRef<MapView>(null);
+  const eventDetailCacheRef = useRef(new Map<string, EventWithCoords>());
+  const currentRegionRef = useRef<Region>(DEFAULT_REGION);
+  const hasInitializedMapRef = useRef(false);
 
   const [mapMode, setMapMode] = useState<MapMode>(requestedMode);
   const [userLocation, setUserLocation] = useState<Coordinates | null>(null);
@@ -233,178 +316,175 @@ export default function MapScreen() {
     setMapMode(requestedMode);
   }, [requestedMode]);
 
+  const loadEventPinsForRegion = useCallback(async (region: Region, showLoading = false) => {
+    if (showLoading) setLoading(true);
+    try {
+      const pins = await fetchEventMapPins(region);
+      const nextEvents = pins.map((pin) => {
+        const base = eventFromPin(pin);
+        const cached = eventDetailCacheRef.current.get(pin.id);
+        return {
+          ...base,
+          ...cached,
+          heatScore: pin.heatScore ?? cached?.heatScore,
+          resolvedCoords: base.resolvedCoords,
+        };
+      });
+      setEventsWithCoords(nextEvents);
+    } catch (error) {
+      console.warn('[Map] Failed to fetch bounded event pins:', error);
+    } finally {
+      if (showLoading) setLoading(false);
+    }
+  }, []);
+
+  const loadVenuesForMap = useCallback(
+    async (resolvedUserLocation: Coordinates | null) => {
+      if (useVenuesStore.getState().venues.length === 0) {
+        await fetchVenues();
+      }
+
+      const venueItems = useVenuesStore.getState().venues;
+      const resolvedVenues = venueItems
+        .map((venue) => {
+          const coords =
+            venue.coordinates ||
+            findKnownVenueCoordinates(
+              venue.displayName,
+              venue.name,
+              venue.neighborhood,
+              venue.area,
+              venue.city,
+              venue.address,
+            );
+
+          if (!coords) {
+            return null;
+          }
+
+          return {
+            ...venue,
+            resolvedCoords: coords,
+            distanceKm: resolvedUserLocation
+              ? calculateDistanceKm(resolvedUserLocation, coords)
+              : null,
+          } as VenueWithCoords;
+        })
+        .filter((venue): venue is VenueWithCoords => Boolean(venue))
+        .sort((left, right) => {
+          const leftDistance = left.distanceKm ?? null;
+          const rightDistance = right.distanceKm ?? null;
+
+          if (leftDistance !== null && rightDistance !== null) {
+            return leftDistance - rightDistance;
+          }
+          return (right.popularityScore || 0) - (left.popularityScore || 0);
+        });
+
+      setVenuesWithCoords(resolvedVenues);
+      return resolvedVenues;
+    },
+    [fetchVenues],
+  );
+
+  const resolveEventDetail = useCallback(async (event: EventWithCoords) => {
+    const cached = eventDetailCacheRef.current.get(event.id);
+    if (cached && cached.title && cached.title !== 'Event nearby') return cached;
+
+    const detail = await useEventsStore.getState().getEventById(event.id);
+    if (!detail) return event;
+
+    const resolvedCoords =
+      detail.coordinates ||
+      event.resolvedCoords ||
+      findKnownVenueCoordinates(detail.venue, detail.location, detail.city) ||
+      (await geocodeVenue(detail.venue, detail.location, detail.city));
+
+    const hydrated = {
+      ...event,
+      ...detail,
+      venueId: detail.venueId || event.venueId,
+      resolvedCoords: resolvedCoords || event.resolvedCoords,
+    } as EventWithCoords;
+    eventDetailCacheRef.current.set(event.id, hydrated);
+    return hydrated;
+  }, []);
+
+  const hydrateClusterDetails = useCallback(
+    async (cluster: EventCluster) => {
+      const hydratedEvents = await Promise.all(cluster.events.slice(0, 3).map(resolveEventDetail));
+      const hydratedById = new Map(hydratedEvents.map((event) => [event.id, event]));
+
+      setEventsWithCoords((current) => current.map((event) => hydratedById.get(event.id) || event));
+      setSelectedCluster((current) =>
+        current?.key === cluster.key
+          ? {
+              ...current,
+              events: current.events.map((event) => hydratedById.get(event.id) || event),
+            }
+          : current,
+      );
+    },
+    [resolveEventDetail],
+  );
+
   useEffect(() => {
     let cancelled = false;
 
-    async function loadMapData() {
+    async function initializeMap() {
       setLoading(true);
+      let resolvedUserLocation: Coordinates | null = null;
+      let initialRegion: Region = DEFAULT_REGION;
 
       try {
-        let resolvedUserLocation = userLocation;
-        const latestEvents = useEventsStore.getState().events;
-        const latestVenues = useVenuesStore.getState().venues;
-
-        await Promise.all([
-          latestEvents.length === 0 ? fetchEvents() : Promise.resolve(),
-          latestVenues.length === 0 ? fetchVenues() : Promise.resolve(),
-        ]);
-
-        try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          if (status === 'granted') {
-            const location = await Location.getCurrentPositionAsync({
-              accuracy: Location.Accuracy.Balanced,
-            });
-
-            resolvedUserLocation = {
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            };
-
-            if (!cancelled) {
-              setUserLocation(resolvedUserLocation);
-            }
-          }
-        } catch (error) {
-          console.warn('[Map] Location permission error:', error);
-        }
-
-        const venueItems = useVenuesStore.getState().venues;
-        const venueById = new Map<string, Venue>(venueItems.map((venue) => [venue.id, venue]));
-        const venueByKey = new Map<string, Venue>();
-
-        venueItems.forEach((venue) => {
-          [
-            venue.id,
-            venue.slug,
-            normalizeVenueKey(venue.displayName),
-            normalizeVenueKey(venue.name),
-          ]
-            .filter((value): value is string => Boolean(value))
-            .forEach((key) => venueByKey.set(key, venue));
-        });
-
-        const resolvedEvents = (
-          await Promise.all(
-            useEventsStore.getState().events.map(async (event) => {
-              const rawEvent = event as EventWithCoords & Record<string, unknown>;
-              const matchedVenue =
-                (rawEvent.venueId && venueById.get(rawEvent.venueId)) ||
-                (rawEvent.venueSlug && venueByKey.get(rawEvent.venueSlug)) ||
-                venueByKey.get(normalizeVenueKey(event.venue));
-
-              let resolvedCoords =
-                event.coordinates ||
-                matchedVenue?.coordinates ||
-                findKnownVenueCoordinates(
-                  event.venue,
-                  event.location,
-                  event.city,
-                  matchedVenue?.displayName,
-                  matchedVenue?.name,
-                );
-
-              if (!resolvedCoords) {
-                resolvedCoords = await geocodeVenue(event.venue, event.location, event.city);
-              }
-
-              if (!resolvedCoords) {
-                return null;
-              }
-
-              return {
-                ...event,
-                venueId: rawEvent.venueId || matchedVenue?.id,
-                venueSlug: rawEvent.venueSlug || matchedVenue?.slug,
-                resolvedCoords,
-              } as EventWithCoords;
-            }),
-          )
-        ).filter((event): event is EventWithCoords => Boolean(event));
-
-        const resolvedVenues = venueItems
-          .map((venue) => {
-            const coords =
-              venue.coordinates ||
-              findKnownVenueCoordinates(
-                venue.displayName,
-                venue.name,
-                venue.neighborhood,
-                venue.area,
-                venue.city,
-                venue.address,
-              );
-
-            if (!coords) {
-              return null;
-            }
-
-            return {
-              ...venue,
-              resolvedCoords: coords,
-              distanceKm: resolvedUserLocation
-                ? calculateDistanceKm(resolvedUserLocation, coords)
-                : null,
-            } as VenueWithCoords;
-          })
-          .filter((venue): venue is VenueWithCoords => Boolean(venue))
-          .sort((left, right) => {
-            const leftDistance = left.distanceKm ?? null;
-            const rightDistance = right.distanceKm ?? null;
-
-            if (leftDistance !== null && rightDistance !== null) {
-              return leftDistance - rightDistance;
-            }
-            return (right.popularityScore || 0) - (left.popularityScore || 0);
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          const location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
           });
 
-        if (cancelled) {
-          return;
+          resolvedUserLocation = {
+            latitude: location.coords.latitude,
+            longitude: location.coords.longitude,
+          };
+          initialRegion = {
+            ...resolvedUserLocation,
+            latitudeDelta: 0.1,
+            longitudeDelta: 0.1,
+          };
         }
+      } catch (error) {
+        console.warn('[Map] Location permission error:', error);
+      }
 
-        setEventsWithCoords(resolvedEvents);
-        setVenuesWithCoords(resolvedVenues);
+      if (cancelled) return;
+      currentRegionRef.current = initialRegion;
+      setUserLocation(resolvedUserLocation);
+      if (resolvedUserLocation) {
+        setTimeout(() => {
+          mapRef.current?.animateToRegion(initialRegion, 600);
+        }, 450);
+      }
 
-        const focusEvent = requestedEventId
-          ? resolvedEvents.find((event) => event.id === requestedEventId)
-          : null;
-        const focusVenue = requestedVenueId
-          ? resolvedVenues.find(
-              (venue) => venue.id === requestedVenueId || venue.slug === requestedVenueId,
-            )
-          : null;
-
-        if (focusEvent?.resolvedCoords) {
-          setMapMode('events');
-          setSelectedVenue(null);
-        } else if (focusVenue) {
-          setMapMode('venues');
-          setSelectedCluster(null);
-          setSelectedVenue(focusVenue);
-          setTimeout(() => {
-            mapRef.current?.animateToRegion(
-              {
-                ...focusVenue.resolvedCoords,
-                latitudeDelta: 0.015,
-                longitudeDelta: 0.015,
-              },
-              800,
-            );
-          }, 450);
-        }
+      try {
+        await Promise.all([
+          loadEventPinsForRegion(initialRegion),
+          requestedMode === 'venues' || requestedVenueId
+            ? loadVenuesForMap(resolvedUserLocation)
+            : Promise.resolve(),
+        ]);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        hasInitializedMapRef.current = true;
+        if (!cancelled) setLoading(false);
       }
     }
 
-    void loadMapData();
+    void initializeMap();
 
     return () => {
       cancelled = true;
     };
-  }, [fetchEvents, fetchVenues, requestedEventId, requestedVenueId]);
+  }, [loadEventPinsForRegion, loadVenuesForMap, requestedMode, requestedVenueId]);
 
   const eventClusters = useMemo(() => {
     const grouped = new Map<string, EventCluster>();
@@ -431,7 +511,7 @@ export default function MapScreen() {
         events: [event],
         venueId: event.venueId,
         venueSlug: event.venueSlug,
-        venueName: event.venue || event.location || event.title,
+        venueName: event.venue || event.location || event.title || 'Nearby',
       });
     });
 
@@ -444,6 +524,100 @@ export default function MapScreen() {
       }))
       .sort((left, right) => right.events.length - left.events.length);
   }, [eventsWithCoords]);
+
+  const debouncedLoadEventPins = useMemo(
+    () =>
+      debounce((region: Region) => {
+        void loadEventPinsForRegion(region);
+      }, MAP_REGION_DEBOUNCE_MS),
+    [loadEventPinsForRegion],
+  );
+
+  useEffect(() => {
+    return () => debouncedLoadEventPins.cancel();
+  }, [debouncedLoadEventPins]);
+
+  const handleRegionChangeComplete = useCallback(
+    (region: Region) => {
+      currentRegionRef.current = region;
+      if (mapMode === 'events') {
+        setSelectedCluster(null);
+        debouncedLoadEventPins(region);
+      }
+    },
+    [debouncedLoadEventPins, mapMode],
+  );
+
+  const handleSelectCluster = useCallback(
+    (cluster: EventCluster) => {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedCluster(cluster);
+      setSelectedVenue(null);
+      void hydrateClusterDetails(cluster);
+    },
+    [hydrateClusterDetails],
+  );
+
+  useEffect(() => {
+    if (!hasInitializedMapRef.current) return;
+    if (mapMode === 'events') {
+      void loadEventPinsForRegion(currentRegionRef.current);
+    } else if (venuesWithCoords.length === 0) {
+      void loadVenuesForMap(userLocation);
+    }
+  }, [loadEventPinsForRegion, loadVenuesForMap, mapMode, userLocation, venuesWithCoords.length]);
+
+  useEffect(() => {
+    if (!requestedEventId) return;
+    let active = true;
+
+    async function focusRequestedEvent() {
+      const hydrated = await resolveEventDetail({
+        id: requestedEventId!,
+        title: 'Event nearby',
+        startDate: '',
+        venue: 'Nearby',
+      });
+      if (!active || !hydrated.resolvedCoords) return;
+      setMapMode('events');
+      setSelectedVenue(null);
+      setEventsWithCoords((current) => {
+        const exists = current.some((event) => event.id === hydrated.id);
+        if (exists) {
+          return current.map((event) => (event.id === hydrated.id ? hydrated : event));
+        }
+        return [hydrated, ...current];
+      });
+    }
+
+    void focusRequestedEvent();
+    return () => {
+      active = false;
+    };
+  }, [requestedEventId, resolveEventDetail]);
+
+  useEffect(() => {
+    if (!requestedVenueId || venuesWithCoords.length === 0) return;
+
+    const focusVenue = venuesWithCoords.find(
+      (venue) => venue.id === requestedVenueId || venue.slug === requestedVenueId,
+    );
+    if (!focusVenue) return;
+
+    setMapMode('venues');
+    setSelectedCluster(null);
+    setSelectedVenue(focusVenue);
+    setTimeout(() => {
+      mapRef.current?.animateToRegion(
+        {
+          ...focusVenue.resolvedCoords,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
+        },
+        800,
+      );
+    }, 450);
+  }, [requestedVenueId, venuesWithCoords]);
 
   useEffect(() => {
     if (!requestedEventId || !eventClusters.length) {
@@ -517,6 +691,7 @@ export default function MapScreen() {
         mapType="standard"
         customMapStyle={darkMapStyle}
         onMapReady={() => setMapReady(true)}
+        onRegionChangeComplete={handleRegionChangeComplete}
       >
         {mapReady && mapMode === 'events'
           ? eventClusters.map((cluster) => {
@@ -527,11 +702,7 @@ export default function MapScreen() {
                 <Marker
                   key={cluster.key}
                   coordinate={cluster.coordinate}
-                  onPress={() => {
-                    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setSelectedCluster(cluster);
-                    setSelectedVenue(null);
-                  }}
+                  onPress={() => handleSelectCluster(cluster)}
                 >
                   <View style={mapStyles.markerContainer}>
                     <LinearGradient
@@ -596,7 +767,13 @@ export default function MapScreen() {
       {loading ? (
         <View style={mapStyles.loadingOverlay}>
           <BlurView intensity={60} tint="dark" style={mapStyles.loadingBlur}>
-            <ActivityIndicator size="large" color={colors.iris} />
+            <View style={mapStyles.mapSkeletonCard}>
+              <Skeleton width={54} height={54} borderRadius={27} />
+              <View style={mapStyles.mapSkeletonCopy}>
+                <Skeleton width={160} height={14} borderRadius={7} />
+                <Skeleton width={220} height={12} borderRadius={6} />
+              </View>
+            </View>
             <Text style={mapStyles.loadingText}>Building the city map...</Text>
           </BlurView>
         </View>
@@ -904,6 +1081,16 @@ const mapStyles = StyleSheet.create({
     borderRadius: radii.xl,
     alignItems: 'center',
     overflow: 'hidden',
+  },
+  mapSkeletonCard: {
+    width: 260,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  mapSkeletonCopy: {
+    flex: 1,
+    gap: 10,
   },
   loadingText: {
     color: colors.gold,

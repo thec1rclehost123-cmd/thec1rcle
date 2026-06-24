@@ -17,10 +17,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
-import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { ShieldCheck, Eye, EyeOff, Sparkles } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useAuth } from '@/hooks/useAuth';
+import { clearSocialSetupSkipped, markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useProfileStore } from '@/store/profileStore';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 import { colors } from '@/lib/design/theme';
@@ -40,8 +41,8 @@ type Params = {
 export default function SocialSetupReview() {
   const params = useLocalSearchParams<Params>();
   const { user } = useAuth();
-  const { profile } = useProfileStore();
-  const { completeSetup, loading } = useSocialProfileStore();
+  const { profile, updateProfile } = useProfileStore();
+  const { completeSetup } = useSocialProfileStore();
 
   const [isVisible, setIsVisible] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,16 +74,21 @@ export default function SocialSetupReview() {
         isVisible,
       });
 
+      await clearSocialSetupSkipped(user.uid);
+      await updateProfile(user.uid, { socialSetupComplete: true });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-      // Navigate to social tab
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      router.replace('/(tabs)/social' as any);
+      router.replace('/(tabs)/explore');
     } catch {
       Alert.alert('Something went wrong', "Couldn't save your profile. Please try again.");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
   };
 
   const lookingForLabel = lookingFor.join(' · ');
@@ -102,7 +108,13 @@ export default function SocialSetupReview() {
     <SafeAreaView style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backText}>‹</Text>
         </Pressable>
         <View style={styles.stepIndicator}>
@@ -228,6 +240,9 @@ export default function SocialSetupReview() {
               <Text style={styles.goLiveBtnText}>Go Live</Text>
             </>
           )}
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
         <Text style={styles.disclaimer}>
           You can edit or delete your Social Profile at any time from Settings.
@@ -463,5 +478,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

@@ -4,8 +4,9 @@
  * Location: packages/core/order-engine.js
  */
 
-import { randomUUID, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import { getAdminDb } from './admin.js';
+import { issueTicketsForOrderInTransaction } from './ticket-checkout-wallet-service.js';
 
 export const PAYMENT_PENDING_ORDER_STATUS = 'payment_pending';
 
@@ -149,12 +150,18 @@ export function buildOrderPayload(params) {
     id: orderId,
     eventId: event.id,
     eventName: event.title,
+    eventDate: event.startDate || event.date || null,
+    startDate: event.startDate || event.date || null,
+    eventTime: event.time || event.startTime || null,
+    eventCoverImage: event.coverImage || event.posterUrl || event.image || null,
+    venueLocation: event.venue || event.venueName || event.location || null,
+    hostName: event.host || event.hostName || null,
     workspaceId: workspaceId || event.workspaceId || null,
     queueId: reservation.queueId || null,
-    userId: user.id,
-    userName: user.name,
-    userEmail: user.email,
-    userPhone: user.phone,
+    userId: user.id || null,
+    userName: user.name || null,
+    userEmail: user.email || null,
+    userPhone: user.phone || null,
     tickets: pricing.items.map((item) => ({
       ticketId: item.tierId,
       name: item.tierName,
@@ -182,13 +189,33 @@ export async function executeOrderCreation(
   transaction,
   { db, event, orderData, reservationId = null, inventoryEngine },
 ) {
-  const eventRef = db.collection('events').doc(event.id);
   const orderId = orderData.id;
-  const orderRef = db.collection(orderData.isRSVP ? 'rsvp_orders' : 'orders').doc(orderId);
+  const orderCollection = orderData.isRSVP ? 'rsvp_orders' : 'orders';
+  const orderRef = db.collection(orderCollection).doc(orderId);
 
   // 1. Transaction-level Idempotency
   const existingOrderDoc = await transaction.get(orderRef);
-  if (existingOrderDoc.exists) return existingOrderDoc.data();
+  if (existingOrderDoc.exists) {
+    const existingOrder = {
+      id: existingOrderDoc.id,
+      ...existingOrderDoc.data(),
+      isRSVP: orderCollection === 'rsvp_orders' || Boolean(existingOrderDoc.data()?.isRSVP),
+    };
+    if (existingOrder.status === 'confirmed') {
+      const ticketResult = await issueTicketsForOrderInTransaction({
+        db,
+        transaction,
+        orderLookup: {
+          ref: orderRef,
+          collection: orderCollection,
+          data: existingOrder,
+        },
+        updateOrder: true,
+      });
+      return ticketResult.order;
+    }
+    return existingOrder;
+  }
 
   const orderSequence =
     orderData.orderIndex && orderData.orderNumber
@@ -233,6 +260,17 @@ export async function executeOrderCreation(
 
   if (status === 'confirmed') {
     finalOrder.confirmedAt = finalOrder.updatedAt;
+    const ticketResult = await issueTicketsForOrderInTransaction({
+      db,
+      transaction,
+      orderLookup: {
+        ref: orderRef,
+        collection: orderCollection,
+        data: finalOrder,
+      },
+      updateOrder: false,
+    });
+    Object.assign(finalOrder, ticketResult.orderUpdates);
   }
 
   // 4. Persistence

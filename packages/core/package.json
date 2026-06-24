@@ -89,7 +89,8 @@
         "./guest-discovery-engine": "./guest-discovery-engine.js",
         "./guest-pass-engine": "./guest-pass-engine.js",
         "./guest-chat-service": "./guest-chat-service.js",
-        "./guest-dating-service": "./guest-dating-service.js"
+        "./guest-dating-service": "./guest-dating-service.js",
+        "./user-service": "./user-service.js"
     },
     "dependencies": {
         "firebase": "^12.14.0",

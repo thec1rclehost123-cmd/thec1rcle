@@ -190,7 +190,7 @@ export default function CheckoutSuccessScreen() {
             <View className="flex-row justify-between mb-2">
               <Text className="text-gold-stone">Venue</Text>
               <Text className="text-gold" numberOfLines={1}>
-                {order.venueLocation}
+                {order.venueLocation || 'TBA'}
               </Text>
             </View>
             <View className="flex-row justify-between mb-2">

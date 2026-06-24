@@ -16,13 +16,21 @@ export interface Order {
   venueLocation?: string;
   hostName?: string;
   accentColor?: string;
-  status: 'pending_payment' | 'confirmed' | 'checked_in' | 'cancelled' | 'refunded';
+  status:
+    | 'payment_pending'
+    | 'pending_payment'
+    | 'confirmed'
+    | 'checked_in'
+    | 'cancelled'
+    | 'refunded';
   tickets: OrderTicket[];
   totalAmount: number;
   currency?: string;
   createdAt: string;
   updatedAt?: string;
   confirmedAt?: string;
+  bookingCode?: string;
+  bookingCodes?: BookingCode[];
   qrData?: string;
   qrCodes?: QRCode[];
   isClaimed?: boolean;
@@ -39,6 +47,7 @@ export interface OrderTicket {
   subtotal?: number;
   entryType?: string;
   ticketId?: string;
+  bookingCode?: string;
   isClaimed?: boolean;
   claimedBy?: {
     uid?: string;
@@ -54,13 +63,22 @@ export interface OrderTicket {
   receivedFrom?: string;
 }
 
+export interface BookingCode {
+  ticketId?: string;
+  ticketDocumentId?: string;
+  bookingCode: string;
+  tierId?: string | null;
+  tierName?: string | null;
+}
+
 export interface QRCode {
   ticketId: string;
   ticketIndex: number;
   qrCode: string;
+  bookingCode?: string;
   qrUrl?: string;
   qrExpiresAt?: string;
-  qrMode?: 'jwt' | 'static' | string;
+  qrMode?: 'raw_id' | 'jwt' | 'static' | string;
   isUsed?: boolean;
 }
 
@@ -87,6 +105,53 @@ function toIso(value: any): string | null {
   return null;
 }
 
+function normalizeOrderStatus(value: any): Order['status'] {
+  const status = String(value || 'confirmed');
+  if (status === 'pending_payment') return 'payment_pending';
+  if (
+    status === 'payment_pending' ||
+    status === 'confirmed' ||
+    status === 'checked_in' ||
+    status === 'cancelled' ||
+    status === 'refunded'
+  ) {
+    return status;
+  }
+  return 'confirmed';
+}
+
+function looksLikeTicketDocumentId(value: any): boolean {
+  return typeof value === 'string' && /^TKT[-_]/i.test(value.trim());
+}
+
+function normalizeBookingCode(value: any): string | undefined {
+  const code = String(value || '')
+    .replace(/^#/, '')
+    .trim()
+    .toUpperCase();
+  return code.length >= 6 ? code.slice(0, 6) : undefined;
+}
+
+function normalizeQrCode(docId: string, qr: any, index: number): QRCode {
+  const ticketId = qr.ticketId || qr.ticketDocumentId || qr.id || qr.tierId || `${docId}-${index}`;
+  const rawCandidate =
+    qr.qrMode === 'raw_id'
+      ? qr.qrData || qr.qrPayload || qr.qrCode || ticketId
+      : qr.bookingCode || (looksLikeTicketDocumentId(ticketId) ? ticketId : null);
+  const legacyCandidate = qr.qrCode || qr.qrData || qr.qrPayload || qr.qrJwt;
+
+  return {
+    ticketId,
+    ticketIndex: Number(qr.ticketIndex ?? index),
+    qrCode: String(rawCandidate || legacyCandidate || ticketId),
+    bookingCode: normalizeBookingCode(qr.bookingCode),
+    qrUrl: qr.qrUrl || undefined,
+    qrExpiresAt: qr.qrExpiresAt || undefined,
+    qrMode: qr.qrMode || (rawCandidate ? 'raw_id' : undefined),
+    isUsed: !!qr.isUsed,
+  };
+}
+
 function mapOrder(docId: string, data: any): Order {
   const eventDate =
     toIso(data.eventDate) ||
@@ -109,9 +174,10 @@ function mapOrder(docId: string, data: any): Order {
     venueLocation: data.venueLocation || data.eventLocation || data.location || data.venue,
     hostName: data.hostName || data.host?.name || data.host || undefined,
     accentColor: data.accentColor || undefined,
-    status: (data.status || 'confirmed') as any,
+    status: normalizeOrderStatus(data.status),
     tickets: (data.tickets || []).map((t: any) => ({
       ticketId: t.ticketId || t.id,
+      bookingCode: normalizeBookingCode(t.bookingCode),
       tierId: t.tierId || t.ticketId || t.id,
       tierName: t.tierName || t.name || 'General Entry',
       quantity: Number(t.quantity) || 1,
@@ -132,21 +198,22 @@ function mapOrder(docId: string, data: any): Order {
     createdAt: toIso(data.createdAt) || new Date().toISOString(),
     updatedAt: toIso(data.updatedAt) || undefined,
     confirmedAt: toIso(data.confirmedAt) || undefined,
+    bookingCode: normalizeBookingCode(data.bookingCode),
+    bookingCodes: Array.isArray(data.bookingCodes)
+      ? data.bookingCodes
+          .map((entry: any) => ({
+            ticketId: entry.ticketId || undefined,
+            ticketDocumentId: entry.ticketDocumentId || undefined,
+            bookingCode: normalizeBookingCode(entry.bookingCode || entry.code),
+            tierId: entry.tierId || null,
+            tierName: entry.tierName || null,
+          }))
+          .filter((entry: BookingCode): entry is BookingCode => Boolean(entry.bookingCode))
+      : undefined,
     qrData: data.qrData,
-    qrCodes: (data.qrCodes || []).map((qr: any, index: number) => ({
-      ticketId: qr.ticketId || qr.tierId || `${docId}-${index}`,
-      ticketIndex: Number(qr.ticketIndex ?? index),
-      qrCode:
-        qr.qrCode ||
-        qr.qrData ||
-        qr.qrPayload ||
-        qr.qrJwt ||
-        JSON.stringify({ orderId: docId, index }),
-      qrUrl: qr.qrUrl || undefined,
-      qrExpiresAt: qr.qrExpiresAt || undefined,
-      qrMode: qr.qrMode || undefined,
-      isUsed: !!qr.isUsed,
-    })),
+    qrCodes: (data.qrCodes || []).map((qr: any, index: number) =>
+      normalizeQrCode(docId, qr, index),
+    ),
     isClaimed: !!data.isClaimed,
     bundleId: data.bundleId || undefined,
     isRSVP: !!data.isRSVP || data.source === 'rsvp',
@@ -172,10 +239,13 @@ export const useTicketsStore = create<TicketsState>((set, get) => ({
       const walletOrders = response.data?.orders || response.orders || [];
       const all = walletOrders.map((order: any) => mapOrder(order.id, order));
 
-      set({ orders: all, loading: false });
+      set({ orders: all, loading: false, error: null });
     } catch (error: any) {
-      console.warn('Unable to fetch wallet orders; showing an empty ticket wallet.', error);
-      set({ orders: [], error: null, loading: false });
+      console.warn('Unable to fetch wallet orders; keeping existing ticket wallet.', error);
+      set({
+        error: error?.message || 'Unable to sync ticket wallet. Pull to retry.',
+        loading: false,
+      });
     }
   },
 

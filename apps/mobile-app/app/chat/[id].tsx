@@ -2,6 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -39,6 +40,7 @@ import {
   canSendGroupMessage,
   type GroupMessage,
   type TypingStatus,
+  reportMessage,
 } from '@/lib/social';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
@@ -176,10 +178,15 @@ export default function ChatRoomScreen() {
   const [error, setError] = useState<string | null>(null);
   const [attendeesOpen, setAttendeesOpen] = useState(false);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
 
   const { events } = useEventsStore();
   const eventData = events.find((e: any) => e.id === eventId);
   const isSubscribed = profile?.isPremium === true;
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !hiddenMessageIds.has(message.id)),
+    [hiddenMessageIds, messages],
+  );
   const theme: ChatSurfaceTheme = {
     mode: 'event',
     title: title || eventData?.title || 'Event chat',
@@ -192,7 +199,7 @@ export default function ChatRoomScreen() {
 
   const attendees = useMemo<AttendeePreview[]>(() => {
     const unique = new Map<string, AttendeePreview>();
-    messages.forEach((message) => {
+    visibleMessages.forEach((message) => {
       if (message.type === 'announcement') return;
       unique.set(message.senderId, {
         userId: message.senderId,
@@ -202,7 +209,7 @@ export default function ChatRoomScreen() {
       });
     });
     return Array.from(unique.values()).slice(0, 8);
-  }, [messages]);
+  }, [visibleMessages]);
 
   const typingHandler = useMemo(() => {
     const senderId = user?.uid;
@@ -270,6 +277,73 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const hideMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const restoreMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleReportMessage = useCallback(
+    async (message: GroupMessage) => {
+      if (!eventId || !message.id || !message.senderId) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hideMessageLocally(message.id);
+
+      const result = await reportMessage({
+        messageId: message.id,
+        eventId,
+        senderId: message.senderId,
+      });
+
+      if (!result.success) {
+        restoreMessageLocally(message.id);
+        Alert.alert('Unable to report', result.error || 'Please try again.');
+      }
+    },
+    [eventId, hideMessageLocally, restoreMessageLocally],
+  );
+
+  const handleMessageOptions = useCallback(
+    (message: GroupMessage) => {
+      if (message.senderId === user?.uid) return;
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+      if (Platform.OS === 'ios') {
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: ['Report Message', 'Cancel'],
+            cancelButtonIndex: 1,
+            destructiveButtonIndex: 0,
+          },
+          (buttonIndex) => {
+            if (buttonIndex === 0) handleReportMessage(message);
+          },
+        );
+        return;
+      }
+
+      Alert.alert('Message', undefined, [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Report Message',
+          style: 'destructive',
+          onPress: () => handleReportMessage(message),
+        },
+      ]);
+    },
+    [handleReportMessage, user?.uid],
+  );
+
   const renderMessage = useCallback(
     ({ item, index }: { item: GroupMessage; index: number }) => (
       <BrightMessage
@@ -280,10 +354,11 @@ export default function ChatRoomScreen() {
         type={item.type === 'announcement' ? 'announcement' : 'text'}
         isOwnMessage={item.senderId === user?.uid}
         index={index}
-        animate={index >= messages.length - 1}
+        animate={index >= visibleMessages.length - 1}
+        onLongPress={() => handleMessageOptions(item)}
       />
     ),
-    [messages.length, user?.uid],
+    [handleMessageOptions, user?.uid, visibleMessages.length],
   );
 
   const messageListEmpty = useMemo(() => {
@@ -323,7 +398,7 @@ export default function ChatRoomScreen() {
 
         <FlashList
           ref={messagesListRef}
-          data={loading ? [] : messages}
+          data={loading ? [] : visibleMessages}
           renderItem={renderMessage}
           keyExtractor={(message) => message.id}
           drawDistance={480}
@@ -336,7 +411,7 @@ export default function ChatRoomScreen() {
               <BrightTypingIndicator name={activeTyper.name} avatarUrl={activeTyper.avatar} />
             ) : null
           }
-          extraData={{ activeTyper, userId: user?.uid, messageCount: messages.length }}
+          extraData={{ activeTyper, userId: user?.uid, messageCount: visibleMessages.length }}
         />
       </SafeAreaView>
 

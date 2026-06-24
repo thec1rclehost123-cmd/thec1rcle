@@ -537,8 +537,13 @@ export default function EventDetailScreen() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const profile = useProfileStore((s) => s.profile);
-  const { likedEventIds, toggleInterest, fetchInterestedUsers, interestedUsers } =
-    useEventInterestStore();
+  const {
+    likedEventIds,
+    toggleInterest,
+    fetchInterestedUsers,
+    fetchEventInterestState,
+    interestedUsers,
+  } = useEventInterestStore();
   const { followedVenueIds, followedHostIds, fetchFollows, toggleVenueFollow, toggleHostFollow } =
     useFollowStore();
   const { orders, fetchUserOrders } = useTicketsStore();
@@ -621,7 +626,10 @@ export default function EventDetailScreen() {
       const eventData = await getEventById(id);
       setEvent(eventData);
       setLoading(false);
-      void fetchInterestedUsers(id);
+      if (user?.uid) {
+        void fetchInterestedUsers(id);
+        void fetchEventInterestState(id);
+      }
 
       // Geocode venue
       if (eventData) {
@@ -648,7 +656,7 @@ export default function EventDetailScreen() {
       }
     }
     loadEvent();
-  }, [id]);
+  }, [fetchEventInterestState, fetchInterestedUsers, id, user?.uid]);
 
   const scrollHandler = useAnimatedScrollHandler({
     onScroll: (event) => {
@@ -946,12 +954,13 @@ export default function EventDetailScreen() {
   const detailInterestedUsers = Array.isArray((event as any).interestedData?.users)
     ? (event as any).interestedData.users
     : [];
-  const guestlistUsers = eventInterested.length > 0 ? eventInterested : detailInterestedUsers;
+  const interestedListUsers = eventInterested.length > 0 ? eventInterested : detailInterestedUsers;
   const interestedCount = Math.max(
     Number((event as any).interestedData?.count || 0),
-    guestlistUsers.length,
+    interestedListUsers.length,
   );
-  const interestedLeadName = guestlistUsers[0]?.displayName?.split(' ')[0] || '';
+  const interestedLeadName =
+    (interestedListUsers[0]?.displayName || interestedListUsers[0]?.name || '').split(' ')[0] || '';
   const interestedOthersCount = Math.max(interestedCount - 1, 0);
   const interestedSummary =
     interestedCount <= 0
@@ -1041,8 +1050,9 @@ export default function EventDetailScreen() {
       <GuestlistSheet
         visible={showGuestlistSheet}
         onClose={() => setShowGuestlistSheet(false)}
-        users={guestlistUsers}
+        users={interestedListUsers}
         eventId={event.id}
+        title="Interested List"
       />
 
       <Animated.View
@@ -1164,7 +1174,7 @@ export default function EventDetailScreen() {
             style={StyleSheet.absoluteFill}
           />
           <Animated.View
-            entering={FadeInDown.delay(80).springify()}
+            entering={posterTransitionTag ? undefined : FadeInDown.delay(80).springify()}
             style={[styles.posterFrame, { borderColor: hexToRgba(accent, 0.42) }]}
           >
             {posterUri ? (
@@ -1260,8 +1270,10 @@ export default function EventDetailScreen() {
               }}
             >
               <View style={styles.interestedAvatars}>
-                {guestlistUsers.slice(0, 6).map((userInfo: any, index: number) => {
-                  const initial = (userInfo.displayName?.[0] ?? '?').toUpperCase();
+                {interestedListUsers.slice(0, 6).map((userInfo: any, index: number) => {
+                  const initial = (
+                    (userInfo.displayName || userInfo.name)?.[0] ?? '?'
+                  ).toUpperCase();
                   const avatarSource = (userInfo as any).photoSource
                     ? (userInfo as any).photoSource
                     : typeof userInfo?.photoURL === 'string' &&

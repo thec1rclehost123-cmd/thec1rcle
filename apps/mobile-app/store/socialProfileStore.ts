@@ -193,6 +193,7 @@ export const useSocialProfileStore = create<SocialProfileState>((set, get) => ({
         photoURL: profile.photos[profile.primaryPhotoIndex] ?? profile.photos[0],
         photos: profile.photos,
         socialProfile: profile,
+        socialSetupComplete: true,
       }),
     });
     set({ socialState: 'complete', socialProfile: profile });

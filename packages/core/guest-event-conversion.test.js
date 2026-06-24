@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  getEventInterested,
   getEventWaitlistStatus,
   joinEventWaitlist,
   selectInterestedUsersForDisplay,
@@ -101,6 +102,91 @@ describe('guest event conversion service', () => {
     );
 
     expect(selected.map((user) => user.id)).toEqual(['f1', 'f2', 'm1']);
+  });
+
+  it('getEventInterested returns profile-openable users from likes', async () => {
+    const db = {
+      collection(name) {
+        if (name === 'events') {
+          return {
+            doc(id) {
+              return {
+                async get() {
+                  return {
+                    id,
+                    exists: true,
+                    data: () => ({ stats: { saves: 9 } }),
+                  };
+                },
+              };
+            },
+          };
+        }
+        if (name === 'likes') {
+          return {
+            where() {
+              return this;
+            },
+            orderBy() {
+              return this;
+            },
+            limit() {
+              return this;
+            },
+            async get() {
+              return {
+                docs: [
+                  {
+                    data: () => ({
+                      userId: 'user_1',
+                      eventId: 'event_1',
+                      createdAt: '2026-06-23T00:00:00.000Z',
+                    }),
+                  },
+                ],
+              };
+            },
+          };
+        }
+        if (name === 'users') {
+          return {
+            doc(id) {
+              return {
+                id,
+                async get() {
+                  return {
+                    id,
+                    exists: true,
+                    data: () => ({
+                      displayName: 'Ava Heart',
+                      photoURL: 'https://example.com/ava.jpg',
+                      gender: 'female',
+                    }),
+                  };
+                },
+              };
+            },
+          };
+        }
+        throw new Error(`Unexpected collection ${name}`);
+      },
+    };
+
+    const result = await getEventInterested(db, 'event_1', 12);
+
+    expect(result).toEqual({
+      count: 9,
+      users: [
+        expect.objectContaining({
+          id: 'user_1',
+          userId: 'user_1',
+          name: 'Ava Heart',
+          displayName: 'Ava Heart',
+          photoURL: 'https://example.com/ava.jpg',
+          likedAt: '2026-06-23T00:00:00.000Z',
+        }),
+      ],
+    });
   });
 
   it('joinEventWaitlist accepts ticketId/tierId aliases and returns existing waiting entries', async () => {

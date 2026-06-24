@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Platform } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
+import { syncAuthSession } from '@/lib/api';
 import {
   loginWithEmail,
   signupWithEmail,
@@ -10,7 +11,18 @@ import {
   loginWithGoogle as firebaseLoginWithGoogle,
   loginWithPhoneVerificationCode,
   sendPhoneVerificationCode,
+  getPendingProviderLink,
 } from '@/lib/firebase';
+
+async function completeServerHandshake() {
+  await syncAuthSession();
+}
+
+function getActionErrorMessage(err: any): string {
+  if (err?.code === 'auth/link-with-password-required' && err?.message) return err.message;
+  if (err?.code) return getErrorMessage(err.code);
+  return err?.message || 'Something went wrong. Please try again';
+}
 
 export function useAuth() {
   const { user, loading, initialized } = useAuthStore();
@@ -22,9 +34,10 @@ export function useAuth() {
     setError(null);
     try {
       await loginWithEmail(email, password);
+      await completeServerHandshake();
       return { success: true };
     } catch (err: any) {
-      const message = getErrorMessage(err.code);
+      const message = getActionErrorMessage(err);
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -37,9 +50,10 @@ export function useAuth() {
     setError(null);
     try {
       await signupWithEmail(email, password);
+      await completeServerHandshake();
       return { success: true };
     } catch (err: any) {
-      const message = getErrorMessage(err.code);
+      const message = getActionErrorMessage(err);
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -87,6 +101,7 @@ export function useAuth() {
     setError(null);
     try {
       await firebaseLoginWithApple();
+      await completeServerHandshake();
       return { success: true };
     } catch (err: any) {
       // User cancelled Apple Sign-In — not an error
@@ -94,9 +109,16 @@ export function useAuth() {
         setAuthLoading(false);
         return { success: false, error: null };
       }
-      const message = err.message || 'Apple Sign-In failed';
+
+      const pendingLink = getPendingProviderLink();
+      const message = getActionErrorMessage(err) || 'Apple Sign-In failed';
       setError(message);
-      return { success: false, error: message };
+      return {
+        success: false,
+        error: message,
+        requiresPasswordLink: err.code === 'auth/link-with-password-required',
+        email: err.email || pendingLink?.email,
+      };
     } finally {
       setAuthLoading(false);
     }
@@ -107,6 +129,7 @@ export function useAuth() {
     setError(null);
     try {
       await firebaseLoginWithGoogle();
+      await completeServerHandshake();
       return { success: true };
     } catch (err: any) {
       // User cancelled Google Sign-In — not an error
@@ -114,9 +137,15 @@ export function useAuth() {
         setAuthLoading(false);
         return { success: false, error: null };
       }
-      const message = err.message || 'Google Sign-In failed';
+      const pendingLink = getPendingProviderLink();
+      const message = getActionErrorMessage(err) || 'Google Sign-In failed';
       setError(message);
-      return { success: false, error: message };
+      return {
+        success: false,
+        error: message,
+        requiresPasswordLink: err.code === 'auth/link-with-password-required',
+        email: err.email || pendingLink?.email,
+      };
     } finally {
       setAuthLoading(false);
     }
@@ -142,9 +171,10 @@ export function useAuth() {
     setError(null);
     try {
       await loginWithPhoneVerificationCode(verificationId, code);
+      await completeServerHandshake();
       return { success: true };
     } catch (err: any) {
-      const message = err.message || getErrorMessage(err.code);
+      const message = getActionErrorMessage(err);
       setError(message);
       return { success: false, error: message };
     } finally {
@@ -154,7 +184,7 @@ export function useAuth() {
 
   return {
     user,
-    loading: loading || authLoading,
+    loading: authLoading,
     initialized,
     error,
     login,
@@ -190,6 +220,8 @@ function getErrorMessage(code: string): string {
       return 'Network error. Please check your connection';
     case 'auth/account-exists-with-different-credential':
       return 'An account with this email already exists. Try a different login method.';
+    case 'auth/link-with-password-required':
+      return 'Enter your password to link this sign-in method and continue.';
     case 'auth/invalid-phone-number':
       return 'Please enter a valid phone number with country code';
     case 'auth/invalid-verification-code':

@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 // @ts-ignore
-import { buildGuestPassPreview } from '@c1rcle/core/guest-pass-engine';
+import { buildGuestPass } from '@c1rcle/core/guest-pass-engine';
 
 const PassQuery = z
   .object({
@@ -41,7 +41,7 @@ async function resolveEvent(fastify: FastifyInstance, eventId: string) {
 export default async function guestPassRoutes(fastify: FastifyInstance) {
   /**
    * GET /api/v1/passes/:platform?orderId=xxx
-   * Generate a wallet pass preview (Apple or Google) for the given order.
+   * Generate or redirect to a native wallet pass (Apple or Google) for the given order.
    */
   fastify.get(
     '/passes/:platform',
@@ -53,13 +53,16 @@ export default async function guestPassRoutes(fastify: FastifyInstance) {
       const { orderId } = request.query;
 
       try {
-        const result = await buildGuestPassPreview({
+        const result = await buildGuestPass({
           orderId,
           platform,
           resolveEvent: (eventId: string) => resolveEvent(fastify, eventId),
           env: process.env,
         });
 
+        for (const [key, value] of Object.entries(result.headers || {})) {
+          reply.header(key, value as string);
+        }
         return reply.status(result.statusCode).send(result.body);
       } catch (error: any) {
         request.log.error(

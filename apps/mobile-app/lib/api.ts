@@ -49,6 +49,34 @@ const API_BASE = getApiBase();
 // All mobile HTTP calls go through the versioned gateway prefix
 const API_PREFIX = '/api/v1';
 
+type AuthSyncResponse = {
+  user?: any;
+  profile?: any;
+  data?: {
+    user?: any;
+    profile?: any;
+  };
+  claims?: Record<string, any>;
+  requiresTokenRefresh?: boolean;
+};
+
+let syncedAuthUserId: string | null = null;
+let authSyncInFlight: { uid: string; promise: Promise<AuthSyncResponse> } | null = null;
+
+export function markAuthSessionPending(userId?: string | null) {
+  if (!userId || syncedAuthUserId !== userId) {
+    syncedAuthUserId = null;
+  }
+  if (authSyncInFlight && authSyncInFlight.uid !== userId) {
+    authSyncInFlight = null;
+  }
+}
+
+export function clearAuthSessionSync() {
+  syncedAuthUserId = null;
+  authSyncInFlight = null;
+}
+
 /**
  * Get the current user's Firebase ID token for authenticated requests.
  */
@@ -88,6 +116,9 @@ async function apiFetch<T = any>(
     if (!user) {
       throw new Error('Authentication required. Please sign in.');
     }
+    if (path !== `${API_PREFIX}/auth/sync` && syncedAuthUserId !== user.uid) {
+      throw new Error('Completing secure sign-in. Please wait.');
+    }
 
     const token = await user.getIdToken(_retry);
     headers['Authorization'] = `Bearer ${token}`;
@@ -118,7 +149,11 @@ async function apiFetch<T = any>(
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || data.message || `Request failed (${response.status})`);
+      const errorMsg =
+        typeof data.error === 'string'
+          ? data.error
+          : data.error?.message || data.message || `Request failed (${response.status})`;
+      throw new Error(errorMsg);
     }
 
     return data as T;
@@ -271,7 +306,7 @@ export async function initiateCheckout(
 }
 
 export interface VerifyPaymentRequest {
-  orderId: string;
+  orderId?: string;
   razorpay_order_id: string;
   razorpay_payment_id: string;
   razorpay_signature: string;
@@ -285,16 +320,17 @@ export interface VerifyPaymentResponse {
 
 /**
  * Step 4: Verify payment signature with backend
- * Uses: PATCH /api/payments
+ * Uses: POST /api/v1/checkout/verify
  */
 export async function verifyPayment(
   payload: VerifyPaymentRequest,
   options: ApiRequestOptions = {},
 ): Promise<VerifyPaymentResponse> {
-  return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/payments/verify`, {
-    method: 'PATCH',
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = payload;
+  return apiFetch<VerifyPaymentResponse>(`${API_PREFIX}/checkout/verify`, {
+    method: 'POST',
     headers: options.headers,
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ razorpay_order_id, razorpay_payment_id, razorpay_signature }),
   });
 }
 
@@ -417,16 +453,33 @@ export async function fetchPublicVenues(params?: {
   return { ...response, items, venues: items };
 }
 
-export async function syncAuthSession(): Promise<{
-  user?: any;
-  profile?: any;
-  claims?: Record<string, any>;
-  requiresTokenRefresh?: boolean;
-}> {
-  return apiFetch(`${API_PREFIX}/auth/sync`, {
+export async function syncAuthSession(): Promise<AuthSyncResponse> {
+  const uid = getFirebaseAuth().currentUser?.uid;
+  if (!uid) {
+    throw new Error('Authentication required. Please sign in.');
+  }
+  if (authSyncInFlight?.uid === uid) {
+    return authSyncInFlight.promise;
+  }
+
+  markAuthSessionPending(uid);
+  const promise = apiFetch<AuthSyncResponse>(`${API_PREFIX}/auth/sync`, {
     method: 'POST',
     requireAuth: true,
-  });
+    body: JSON.stringify({}),
+  })
+    .then((response) => {
+      syncedAuthUserId = uid;
+      return response;
+    })
+    .finally(() => {
+      if (authSyncInFlight?.uid === uid) {
+        authSyncInFlight = null;
+      }
+    });
+
+  authSyncInFlight = { uid, promise };
+  return promise;
 }
 
 /**

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  ActionSheetIOS,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -46,6 +47,7 @@ import {
   createTypingHandler,
   type TypingStatus,
   initiateDMRequest,
+  reportMessage,
 } from '@/lib/social';
 import { DEMO_EVENT_CHATS } from '@/lib/demo';
 import { colors, radii, spacing, typography } from '@/lib/design/theme';
@@ -130,6 +132,7 @@ export default function EventGroupChatScreen() {
   const [attendeeCount, setAttendeeCount] = useState(0);
   const [mediaCount, setMediaCount] = useState(0);
   const [typingStatus, setTypingStatus] = useState<TypingStatus>({ isTyping: false, users: [] });
+  const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
   const { uploading: imageUploading, pickAndUpload } = useChatImagePicker(
@@ -139,6 +142,10 @@ export default function EventGroupChatScreen() {
 
   const demoEventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
   const phaseInfo = getPhaseInfo(phase);
+  const visibleMessages = useMemo(
+    () => messages.filter((message) => !hiddenMessageIds.has(message.id)),
+    [hiddenMessageIds, messages],
+  );
   const theme: ChatSurfaceTheme = {
     mode: 'event',
     title: eventTitle || demoEventChat?.eventTitle || 'Event group',
@@ -253,12 +260,46 @@ export default function EventGroupChatScreen() {
     setSending(false);
   };
 
-  const handleMessageOptions = (message: GroupMessage) => {
-    Alert.alert(
-      'Message',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
+  const hideMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const restoreMessageLocally = useCallback((messageId: string) => {
+    setHiddenMessageIds((current) => {
+      const next = new Set(current);
+      next.delete(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleReportMessage = useCallback(
+    async (message: GroupMessage) => {
+      if (!eventId || !message.id || !message.senderId) return;
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      hideMessageLocally(message.id);
+
+      const result = await reportMessage({
+        messageId: message.id,
+        eventId,
+        senderId: message.senderId,
+      });
+
+      if (!result.success) {
+        restoreMessageLocally(message.id);
+        Alert.alert('Unable to report', result.error || 'Please try again.');
+      }
+    },
+    [eventId, hideMessageLocally, restoreMessageLocally],
+  );
+
+  const handleMessageOptions = useCallback(
+    (message: GroupMessage) => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      const actions = [
         {
           text: 'View Profile',
           onPress: () =>
@@ -286,17 +327,36 @@ export default function EventGroupChatScreen() {
           },
         },
         message.senderId !== user?.uid && {
-          text: 'Report',
-          style: 'destructive',
-          onPress: () =>
-            router.push({
-              pathname: '/social/report',
-              params: { userId: message.senderId, eventId, messageId: message.id },
-            }),
+          text: 'Report Message',
+          style: 'destructive' as const,
+          onPress: () => handleReportMessage(message),
         },
-      ].filter(Boolean) as any,
-    );
-  };
+      ].filter(Boolean) as Array<{
+        text: string;
+        style?: 'default' | 'destructive';
+        onPress: () => void;
+      }>;
+
+      if (Platform.OS === 'ios') {
+        const cancelIndex = actions.length;
+        const destructiveIndex = actions.findIndex((action) => action.style === 'destructive');
+        ActionSheetIOS.showActionSheetWithOptions(
+          {
+            options: [...actions.map((action) => action.text), 'Cancel'],
+            cancelButtonIndex: cancelIndex,
+            destructiveButtonIndex: destructiveIndex >= 0 ? destructiveIndex : undefined,
+          },
+          (buttonIndex) => {
+            if (buttonIndex < actions.length) actions[buttonIndex].onPress();
+          },
+        );
+        return;
+      }
+
+      Alert.alert('Message', undefined, [{ text: 'Cancel', style: 'cancel' }, ...actions]);
+    },
+    [eventId, handleReportMessage, user?.uid],
+  );
 
   const activeTyper = typingStatus.isTyping ? typingStatus.users[0] : null;
 
@@ -318,11 +378,11 @@ export default function EventGroupChatScreen() {
         }
         isOwnMessage={item.senderId === user?.uid}
         index={index}
-        animate={index >= messages.length - 1}
+        animate={index >= visibleMessages.length - 1}
         onLongPress={() => handleMessageOptions(item)}
       />
     ),
-    [eventId, messages.length, user?.uid],
+    [handleMessageOptions, user?.uid, visibleMessages.length],
   );
 
   const messageListEmpty = useMemo(() => {
@@ -406,7 +466,7 @@ export default function EventGroupChatScreen() {
 
         <FlashList
           ref={messagesListRef}
-          data={loading ? [] : messages}
+          data={loading ? [] : visibleMessages}
           renderItem={renderMessage}
           keyExtractor={(message) => message.id}
           drawDistance={500}
@@ -417,7 +477,7 @@ export default function EventGroupChatScreen() {
           ListFooterComponent={
             activeTyper ? <BrightTypingIndicator name={activeTyper.userName} /> : null
           }
-          extraData={{ activeTyper, userId: user?.uid, messageCount: messages.length }}
+          extraData={{ activeTyper, userId: user?.uid, messageCount: visibleMessages.length }}
         />
       </SafeAreaView>
 

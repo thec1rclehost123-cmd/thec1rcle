@@ -187,6 +187,24 @@ function calculateMinPrice(source: any, tickets: TicketTier[]): number | undefin
   return undefined;
 }
 
+function toFiniteNumber(value: any): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeCoordinates(source: any): Event['coordinates'] | undefined {
+  const raw = source?.coordinates || source?.geo || source?._geoloc || source?.locationCoordinates;
+  const latitude =
+    toFiniteNumber(raw?.latitude) ?? toFiniteNumber(raw?.lat) ?? toFiniteNumber(source?.latitude);
+  const longitude =
+    toFiniteNumber(raw?.longitude) ??
+    toFiniteNumber(raw?.lng) ??
+    toFiniteNumber(raw?.lon) ??
+    toFiniteNumber(source?.longitude);
+  if (latitude === null || longitude === null) return undefined;
+  return { latitude, longitude };
+}
+
 function normalizeEvent(raw: any): Event {
   const tickets = extractTicketTiers(raw);
   const startDate =
@@ -225,6 +243,7 @@ function normalizeEvent(raw: any): Event {
     ticketTiers: tickets,
     tiers: tickets,
     minPrice: calculateMinPrice(raw, tickets),
+    coordinates: normalizeCoordinates(raw),
   };
 }
 
@@ -232,6 +251,72 @@ function extractEvents(response: EventListResponse | any): Event[] {
   const rawItems =
     response?.items || response?.events || response?.data?.items || response?.data?.events || [];
   return Array.isArray(rawItems) ? rawItems.map(normalizeEvent).filter((event) => event.id) : [];
+}
+
+function getDemoEvents(): Event[] {
+  return (DEMO_EVENTS as any).map(normalizeEvent).filter((event: Event) => event.id);
+}
+
+function appendPublicDemoEvents(events: Event[]): Event[] {
+  if (!PUBLIC_DEMO_MODE) return events;
+
+  const seenIds = new Set(events.map((event) => event.id));
+  const demoEvents = getDemoEvents().filter((event) => {
+    if (seenIds.has(event.id)) return false;
+    seenIds.add(event.id);
+    return true;
+  });
+
+  return [...events, ...demoEvents];
+}
+
+function filterByCity(events: Event[], city?: string): Event[] {
+  if (!city || city === 'All Cities') return events;
+  const cityKey = city.toLowerCase();
+  return events.filter((event) => (event.city ?? '').toLowerCase() === cityKey);
+}
+
+function filterByCategory(events: Event[], category?: string): Event[] {
+  if (!category || category === 'all') return events;
+  const categoryKey = category.toLowerCase();
+  return events.filter(
+    (event) =>
+      event.category?.toLowerCase() === categoryKey || event.type?.toLowerCase() === categoryKey,
+  );
+}
+
+function applySearchFilters(events: Event[], filters: SearchFilters): Event[] {
+  let results = filterByCity(events, filters.city);
+  results = filterByCategory(results, filters.category);
+
+  if (filters.dateFrom) {
+    results = results.filter((event) => new Date(event.startDate) >= filters.dateFrom!);
+  }
+  if (filters.dateTo) {
+    results = results.filter((event) => new Date(event.startDate) <= filters.dateTo!);
+  }
+  if (filters.query) {
+    const query = filters.query.toLowerCase();
+    results = results.filter(
+      (event) =>
+        event.title.toLowerCase().includes(query) ||
+        event.venue?.toLowerCase().includes(query) ||
+        event.location?.toLowerCase().includes(query) ||
+        event.hostName?.toLowerCase().includes(query) ||
+        event.description?.toLowerCase().includes(query),
+    );
+  }
+  if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
+    results = results.filter((event) => {
+      const prices = event.tickets?.map((tier: TicketTier) => tier.price) || [];
+      const minPrice = prices.length > 0 ? Math.min(...prices) : Infinity;
+      if (filters.priceMin !== undefined && minPrice < filters.priceMin) return false;
+      if (filters.priceMax !== undefined && minPrice > filters.priceMax) return false;
+      return true;
+    });
+  }
+
+  return results;
 }
 
 function buildQuery(params: Record<string, string | number | undefined>): string {
@@ -269,28 +354,24 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      let events: Event[] = [];
-      if (PUBLIC_DEMO_MODE) {
-        // Simulate network delay
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        events = (DEMO_EVENTS as any).map(normalizeEvent);
-      } else {
-        const response = await apiFetch<EventListResponse>(
-          `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest' })}`,
-          { requireAuth: false },
-        );
-        events = extractEvents(response);
-      }
-
-      if (PUBLIC_DEMO_MODE && city) {
-        events = events.filter((e) => (e.city ?? '').toLowerCase() === city.toLowerCase());
-      }
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest' })}`,
+        { requireAuth: false },
+      );
+      const events = filterByCity(appendPublicDemoEvents(extractEvents(response)), city);
 
       events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
       set({ events, loading: false, lastId: null, hasMore: false });
     } catch (error: any) {
       console.error('Error fetching events:', error);
+      if (PUBLIC_DEMO_MODE) {
+        const events = filterByCity(getDemoEvents(), city).sort(
+          (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime(),
+        );
+        set({ events, loading: false, lastId: null, hasMore: false, error: null });
+        return;
+      }
       set({ error: error.message, loading: false });
       throw error;
     }
@@ -301,21 +382,11 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     set({ featuredLoading: true });
 
     try {
-      // Reuse already-fetched events from store if available; else plain scan.
-      const existing = get().events;
-      let all = existing;
-
-      if (all.length === 0) {
-        if (PUBLIC_DEMO_MODE) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-          all = (DEMO_EVENTS as any).map(normalizeEvent);
-        } else {
-          const response = await apiFetch<EventListResponse>('/api/v1/events/featured?limit=6', {
-            requireAuth: false,
-          });
-          all = extractEvents(response);
-        }
-      }
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({ limit: 24, sort: 'featured' })}`,
+        { requireAuth: false },
+      );
+      const all = appendPublicDemoEvents(extractEvents(response));
 
       const featured = all
         .filter((e) => e.isFeatured)
@@ -327,6 +398,18 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       set({ featuredEvents, featuredLoading: false });
     } catch (error: any) {
       console.error('Error fetching featured events:', error);
+      if (PUBLIC_DEMO_MODE) {
+        const all = getDemoEvents();
+        const featured = all
+          .filter((event) => event.isFeatured)
+          .sort((a, b) => getHeatScore(b) - getHeatScore(a));
+        const byHeat = [...all].sort((a, b) => getHeatScore(b) - getHeatScore(a));
+        set({
+          featuredEvents: (featured.length >= 3 ? featured : byHeat).slice(0, 6),
+          featuredLoading: false,
+        });
+        return;
+      }
       set({ featuredLoading: false });
     }
   },
@@ -336,21 +419,19 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     set({ loading: true, error: null });
 
     try {
-      let events: Event[] = [];
       const limitVal = Math.min(options?.limit || 24, 24);
-
-      if (PUBLIC_DEMO_MODE) {
-        events = (DEMO_EVENTS as any).slice(0, limitVal).map(normalizeEvent);
-      } else {
-        const response = await apiFetch<EventListResponse>(
-          `/api/v1/events${buildQuery({ limit: limitVal, sort: 'soonest' })}`,
-          { requireAuth: false },
-        );
-        events = extractEvents(response);
-      }
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({ limit: limitVal, sort: 'soonest' })}`,
+        { requireAuth: false },
+      );
+      const events = appendPublicDemoEvents(extractEvents(response));
       set({ events, loading: false });
     } catch (error: any) {
       console.error('Error fetching public events:', error);
+      if (PUBLIC_DEMO_MODE) {
+        set({ events: getDemoEvents(), error: null, loading: false });
+        return;
+      }
       set({ error: error.message, loading: false });
     }
   },
@@ -360,71 +441,25 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     set({ searching: true, error: null });
 
     try {
-      // Use in-memory events if already loaded, else do a fresh Firestore scan
-      let base = get().events;
-
-      if (base.length === 0) {
-        if (PUBLIC_DEMO_MODE) {
-          base = (DEMO_EVENTS as any).map(normalizeEvent);
-        } else {
-          const response = await apiFetch<EventListResponse>(
-            `/api/v1/events${buildQuery({
-              city: filters.city && filters.city !== 'All Cities' ? filters.city : undefined,
-              category:
-                filters.category && filters.category !== 'all' ? filters.category : undefined,
-              search: filters.query,
-              limit: 24,
-              sort: 'soonest',
-            })}`,
-            { requireAuth: false },
-          );
-          base = extractEvents(response);
-        }
-      }
-
-      let results = base;
-
-      if (filters.city && filters.city !== 'All Cities') {
-        results = results.filter(
-          (e: Event) => (e.city ?? '').toLowerCase() === filters.city!.toLowerCase(),
-        );
-      }
-      if (filters.category && filters.category !== 'all') {
-        const category = filters.category.toLowerCase();
-        results = results.filter(
-          (e: Event) =>
-            e.category?.toLowerCase() === category || e.type?.toLowerCase() === category,
-        );
-      }
-      if (filters.dateFrom) {
-        results = results.filter((e: Event) => new Date(e.startDate) >= filters.dateFrom!);
-      }
-      if (filters.dateTo) {
-        results = results.filter((e: Event) => new Date(e.startDate) <= filters.dateTo!);
-      }
-      if (filters.query) {
-        const q = filters.query.toLowerCase();
-        results = results.filter(
-          (e: Event) =>
-            e.title.toLowerCase().includes(q) ||
-            e.venue?.toLowerCase().includes(q) ||
-            e.location?.toLowerCase().includes(q) ||
-            e.hostName?.toLowerCase().includes(q) ||
-            e.description?.toLowerCase().includes(q),
-        );
-      }
-      if (filters.priceMin !== undefined || filters.priceMax !== undefined) {
-        results = results.filter((e: Event) => {
-          const minPrice = Math.min(...(e.tickets?.map((t: TicketTier) => t.price) || [Infinity]));
-          if (filters.priceMin && minPrice < filters.priceMin) return false;
-          if (filters.priceMax && minPrice > filters.priceMax) return false;
-          return true;
-        });
-      }
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({
+          city: filters.city && filters.city !== 'All Cities' ? filters.city : undefined,
+          category: filters.category && filters.category !== 'all' ? filters.category : undefined,
+          search: filters.query,
+          limit: 24,
+          sort: 'soonest',
+        })}`,
+        { requireAuth: false },
+      );
+      const results = applySearchFilters(appendPublicDemoEvents(extractEvents(response)), filters);
 
       set({ searchResults: results, searching: false });
     } catch (error: any) {
       console.error('Error searching events:', error);
+      if (PUBLIC_DEMO_MODE) {
+        set({ searchResults: applySearchFilters(getDemoEvents(), filters), searching: false });
+        return;
+      }
       set({ error: error.message, searching: false });
     }
   },
@@ -436,11 +471,6 @@ export const useEventsStore = create<EventsState>((set, get) => ({
   getEventById: async (id: string): Promise<Event | null> => {
     if (!id || typeof id !== 'string') return null;
     try {
-      if (PUBLIC_DEMO_MODE) {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        const event = (DEMO_EVENTS as any).find((e: any) => e.id === id);
-        return event ? normalizeEvent(event) : null;
-      }
       const detail = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(id)}`, {
         requireAuth: false,
       });
@@ -455,7 +485,11 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         interestedData: detail?.interestedData || detail?.data?.interestedData,
       };
     } catch (error: any) {
-      console.error('Error fetching event by id:', error);
+      console.warn('Error fetching event by id:', error);
+      if (PUBLIC_DEMO_MODE) {
+        const event = getDemoEvents().find((demoEvent) => demoEvent.id === id);
+        return event || null;
+      }
       return null;
     }
   },
@@ -471,27 +505,14 @@ export const useEventsStore = create<EventsState>((set, get) => ({
     set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: true } }));
 
     try {
-      let base = get().events;
-
-      if (base.length === 0) {
-        if (PUBLIC_DEMO_MODE) {
-          base = (DEMO_EVENTS as any).map(normalizeEvent);
-        } else {
-          const response = await apiFetch<EventListResponse>(
-            `/api/v1/events${buildQuery({ category, city, limit: 24, sort: 'soonest' })}`,
-            { requireAuth: false },
-          );
-          base = extractEvents(response);
-        }
-      }
-
-      const categoryKey = category.toLowerCase();
-      let events = base.filter(
-        (e: Event) =>
-          e.category?.toLowerCase() === categoryKey || e.type?.toLowerCase() === categoryKey,
+      const response = await apiFetch<EventListResponse>(
+        `/api/v1/events${buildQuery({ category, city, limit: 24, sort: 'soonest' })}`,
+        { requireAuth: false },
       );
-      if (PUBLIC_DEMO_MODE && city)
-        events = events.filter((e: Event) => (e.city ?? '').toLowerCase() === city.toLowerCase());
+      const events = filterByCity(
+        filterByCategory(appendPublicDemoEvents(extractEvents(response)), category),
+        city,
+      );
 
       set((s) => ({
         categoryEvents: { ...s.categoryEvents, [category]: events },
@@ -500,6 +521,15 @@ export const useEventsStore = create<EventsState>((set, get) => ({
       }));
     } catch (error: any) {
       if (!error.isAbort) console.error(`Error fetching category ${category}:`, error);
+      if (PUBLIC_DEMO_MODE) {
+        const events = filterByCity(filterByCategory(getDemoEvents(), category), city);
+        set((s) => ({
+          categoryEvents: { ...s.categoryEvents, [category]: events },
+          categoryHasMore: { ...s.categoryHasMore, [category]: false },
+          categoryLoading: { ...s.categoryLoading, [category]: false },
+        }));
+        return;
+      }
       set((s) => ({ categoryLoading: { ...s.categoryLoading, [category]: false } }));
     }
   },

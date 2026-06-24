@@ -16,6 +16,8 @@ import {
   PAYMENT_PENDING_ORDER_STATUS,
 } from '@c1rcle/core/order-engine';
 // @ts-ignore
+import { commitInventory } from '@c1rcle/core/inventory-engine';
+// @ts-ignore
 import { telemetry } from '@c1rcle/core/telemetry';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
@@ -33,6 +35,7 @@ export class CheckoutService {
   private payment: PaymentService;
   private fulfillment: FulfillmentService;
   private cancellation: CancellationService;
+  private inventoryCommitter = { commitInventory };
 
   constructor(
     private orderRepo: IOrderRepository,
@@ -117,6 +120,23 @@ export class CheckoutService {
       const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
       if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
 
+      const maxTickets = (event as any).isRSVP
+        ? 1
+        : Number((event as any).maxTicketsPerOrder || 10);
+      if (quantity > maxTickets) {
+        throw this.withCode(
+          new Error(`Maximum ${maxTickets} ticket(s) per order allowed.`),
+          'BAD_REQUEST',
+        );
+      }
+
+      if ((event as any).isRSVP) {
+        const hasExisting = await this.orderRepo.checkExistingRSVP(eventId, { userId: user.id });
+        if (hasExisting) {
+          throw this.withCode(new Error('Already registered. One RSVP per person.'), 'BAD_REQUEST');
+        }
+      }
+
       const pricingResult = await calculatePricing({
         event,
         items: [item],
@@ -183,6 +203,11 @@ export class CheckoutService {
           return;
         }
 
+        await this.inventoryCommitter.commitInventory(transaction, {
+          event,
+          items: orderPayload.tickets,
+          reservationId,
+        });
         await Promise.all([
           this.orderRepo.createOrder(orderPayload, transaction),
           this.orderRepo.updateReservation(
@@ -288,6 +313,17 @@ export class CheckoutService {
       );
       if (!event) throw new Error('Event not found');
 
+      const totalQuantity = reservation.items.reduce(
+        (sum: number, item: any) => sum + (Number(item.quantity) || 0),
+        0,
+      );
+      const maxTickets = (event as any).isRSVP
+        ? 1
+        : Number((event as any).maxTicketsPerOrder || 10);
+      if (totalQuantity > maxTickets) {
+        throw new Error(`Maximum ${maxTickets} ticket(s) per order allowed.`);
+      }
+
       const pricingResult = await calculatePricing({
         event,
         items: reservation.items.map((i: any) => ({ ...i, tierId: i.tierId || i.ticketId })),
@@ -321,6 +357,7 @@ export class CheckoutService {
       // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
       // so concurrent requests cannot both pass the check before either writes.
       const db = await getAdminDb();
+      let createdOrder: any = null;
       await db.runTransaction(async (transaction: any) => {
         if ((event as any).isRSVP) {
           const hasExistingRSVP = await this.orderRepo.checkExistingRSVP(
@@ -330,30 +367,32 @@ export class CheckoutService {
           );
           if (hasExistingRSVP) throw new Error('Already registered. One RSVP per person.');
         }
-        await executeOrderCreation(transaction, {
+        createdOrder = await executeOrderCreation(transaction, {
           db,
           event,
           orderData: orderPayload,
           reservationId: reservationId,
+          inventoryEngine: this.inventoryCommitter,
         });
       });
+      const finalOrder = (createdOrder || orderPayload) as Order;
 
       telemetry.track('CHECKOUT_INITIATED', {
-        orderId: orderPayload.id,
+        orderId: finalOrder.id,
         userId,
         eventId: event.id,
         duration: Date.now() - startTime,
       });
 
       // Phase 2: Fulfillment or Payment Readiness
-      if (orderPayload.status === 'confirmed') {
-        await this.fulfillment.processFulfillment(orderPayload, reservation.queueId);
+      if (finalOrder.status === 'confirmed') {
+        await this.fulfillment.processFulfillment(finalOrder, reservation.queueId);
       }
 
       return {
         success: true,
-        requiresPayment: isPaymentPendingOrderStatus(orderPayload.status),
-        order: orderPayload,
+        requiresPayment: isPaymentPendingOrderStatus(finalOrder.status),
+        order: finalOrder,
         pricing,
       };
     } catch (error: any) {

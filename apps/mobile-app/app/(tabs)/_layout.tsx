@@ -59,16 +59,21 @@ function CustomTabBar({ state, navigation }: any) {
 
   const activeIndex = visibleRoutes.findIndex((r: any) => r.name === activeRouteName);
   const highlightOffset = useSharedValue(activeIndex > -1 ? activeIndex : 0);
+  const highlightOpacity = useSharedValue(activeIndex > -1 ? 1 : 0);
 
   useEffect(() => {
     if (activeIndex > -1) {
       highlightOffset.value = withTiming(activeIndex, { duration: 200 });
+      highlightOpacity.value = withTiming(1, { duration: 200 });
+    } else {
+      highlightOpacity.value = withTiming(0, { duration: 200 });
     }
   }, [activeIndex]);
 
   const highlightStyle = useAnimatedStyle(() => {
     return {
       transform: [{ translateX: highlightOffset.value * TAB_ITEM_WIDTH }],
+      opacity: highlightOpacity.value,
     };
   });
 

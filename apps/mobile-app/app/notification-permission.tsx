@@ -1,13 +1,12 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Dimensions } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import Animated, {
   FadeInDown,
   FadeInUp,
-  withSpring,
   withRepeat,
   withSequence,
   withTiming,
@@ -16,6 +15,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/lib/design/theme';
+import { markPermissionsRequested } from '@/lib/onboardingFlow';
+import { useAuthStore } from '@/store/authStore';
 
 const { width } = Dimensions.get('window');
 
@@ -66,16 +67,25 @@ function FloatingAvatar({ emoji, bg, size, top, left, delay = 0, duration = 3000
 
 export default function NotificationPermissionScreen() {
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+
+  const continueToSocialSetup = async () => {
+    await markPermissionsRequested(user?.uid);
+    router.replace('/social-setup');
+  };
 
   const handleAllow = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const { status } = await Notifications.requestPermissionsAsync();
-    router.replace('/(tabs)/explore');
+    try {
+      await Notifications.requestPermissionsAsync();
+    } finally {
+      await continueToSocialSetup();
+    }
   };
 
-  const handleSkip = () => {
+  const handleSkip = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.replace('/(tabs)/explore');
+    await continueToSocialSetup();
   };
 
   return (

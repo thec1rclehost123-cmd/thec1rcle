@@ -6,16 +6,14 @@ import {
   getEventQueueStatus,
   getEventSurgeStatus,
   getEventWaitlistStatus,
+  getEventInterested,
   joinEventQueue,
   joinEventWaitlist,
   toggleEventRsvp,
   trackGuestEventInteraction,
   trackGuestEventView,
 } from '@c1rcle/core/guest-event-conversion';
-import {
-  InventoryUnavailableError,
-  listAvailableTicketTiers,
-} from '@c1rcle/core/inventory-engine';
+import { InventoryUnavailableError, listAvailableTicketTiers } from '@c1rcle/core/inventory-engine';
 
 vi.mock('@c1rcle/core/guest-event-conversion', () => ({
   getEventQueueStatus: vi.fn(async () => ({
@@ -30,6 +28,17 @@ vi.mock('@c1rcle/core/guest-event-conversion', () => ({
     position: 3,
     totalWaiting: 10,
     entry: { id: 'wl_1', eventId: 'event_1', email: 'guest@example.com' },
+  })),
+  getEventInterested: vi.fn(async () => ({
+    count: 1,
+    users: [
+      {
+        userId: 'user_2',
+        displayName: 'Interested Guest',
+        photoURL: 'https://example.com/avatar.jpg',
+        likedAt: '2026-06-23T00:00:00.000Z',
+      },
+    ],
   })),
   joinEventQueue: vi.fn(async () => ({
     id: 'queue_1',
@@ -170,6 +179,23 @@ async function buildServer({ authenticated = false } = {}) {
     listEvents: vi.fn(),
     listNearby: vi.fn(),
     getEventByIdOrSlug: vi.fn(),
+    createEvent: vi.fn(async (payload: any) => {
+      if (
+        (payload.status === 'published' || payload.lifecycle === 'scheduled') &&
+        !payload.startDate
+      ) {
+        const error: any = new Error('startDate is required for public or submitted events');
+        error.code = 'BAD_REQUEST';
+        throw error;
+      }
+      return {
+        id: 'event_created',
+        title: payload.title,
+        status: payload.status || 'draft',
+        lifecycle: payload.lifecycle || (payload.status === 'published' ? 'scheduled' : 'draft'),
+        slug: 'event-created',
+      };
+    }),
   } as any);
   server.decorate('publicDiscoveryService', {
     listEvents: vi.fn(async (query) => ({
@@ -198,6 +224,9 @@ async function buildServer({ authenticated = false } = {}) {
     syncEventReadModels: vi.fn(async () => undefined),
   } as any);
   server.decorate('invalidatePublicDiscovery', vi.fn(async () => undefined) as any);
+  server.decorate('sendInngestEvent', vi.fn(async () => undefined) as any);
+  server.decorate('InngestEvents', { PUBLIC_DISCOVERY_SYNC: 'public/discovery.sync' } as any);
+  server.decorate('broadcast', vi.fn(() => undefined) as any);
   server.decorate('requireAuth', async (request: any, reply: any) => {
     if (!request.user?.uid) {
       return reply
@@ -208,6 +237,7 @@ async function buildServer({ authenticated = false } = {}) {
   server.decorateRequest('user', null);
   server.addHook('onRequest', async (request: any) => {
     request.user = authenticated ? { uid: 'user_1', email: 'guest@example.com' } : null;
+    request.workspaceId = authenticated ? 'workspace_1' : null;
   });
   await server.register(validatePlugin);
   await server.register(eventRoutes, { prefix: '/api/v1' });
@@ -255,6 +285,67 @@ describe('event routes GP-3 conversion contracts', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe('VALIDATION_ERROR');
     expect((server as any).publicDiscoveryService.listEvents).not.toHaveBeenCalled();
+
+    await server.close();
+  });
+
+  it('POST /events rejects published events without startDate', async () => {
+    const server = await buildServer({ authenticated: true });
+
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/events',
+      payload: {
+        title: 'No Date Launch',
+        status: 'published',
+      },
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({
+      success: false,
+      error: {
+        code: 'BAD_REQUEST',
+        message: 'startDate is required for public or submitted events',
+      },
+    });
+
+    await server.close();
+  });
+
+  it('POST /events allows draft without startDate and passes finite coordinates', async () => {
+    const server = await buildServer({ authenticated: true });
+
+    const draft = await server.inject({
+      method: 'POST',
+      url: '/api/v1/events',
+      payload: {
+        title: 'Draft Event',
+        status: 'draft',
+      },
+    });
+
+    const scheduled = await server.inject({
+      method: 'POST',
+      url: '/api/v1/events',
+      payload: {
+        title: 'Equator Launch',
+        status: 'published',
+        startDate: '2099-01-01T20:00:00.000Z',
+        coordinates: { latitude: 0, longitude: 0 },
+      },
+    });
+
+    expect(draft.statusCode).toBe(200);
+    expect(scheduled.statusCode).toBe(200);
+    expect((server as any).eventService.createEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Equator Launch',
+        coordinates: { latitude: 0, longitude: 0 },
+      }),
+      'user_1',
+      'workspace_1',
+    );
 
     await server.close();
   });
@@ -456,6 +547,39 @@ describe('event routes GP-3 conversion contracts', () => {
       userId: 'user_1',
       shouldInclude: true,
     });
+
+    await authenticated.close();
+  });
+
+  it('GET /events/:id/interested returns hearted user profiles without using attendees', async () => {
+    const unauthenticated = await buildServer();
+    const rejected = await unauthenticated.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1/interested?limit=24',
+    });
+    expect(rejected.statusCode).toBe(401);
+    await unauthenticated.close();
+
+    const authenticated = await buildServer({ authenticated: true });
+    const accepted = await authenticated.inject({
+      method: 'GET',
+      url: '/api/v1/events/event_1/interested?limit=24',
+    });
+
+    expect(accepted.statusCode).toBe(200);
+    expect(accepted.json()).toMatchObject({
+      success: true,
+      data: {
+        count: 1,
+        users: [
+          {
+            userId: 'user_2',
+            displayName: 'Interested Guest',
+          },
+        ],
+      },
+    });
+    expect(getEventInterested).toHaveBeenCalledWith(expect.anything(), 'event_1', 24);
 
     await authenticated.close();
   });

@@ -122,4 +122,48 @@ describe('eventInterestStore', () => {
       expect(useEventInterestStore.getState().likedEventIds.has('event-1')).toBe(false);
     });
   });
+
+  describe('fetchEventInterestState', () => {
+    it('hydrates the lit heart from event viewer state', async () => {
+      mockApiFetch.mockResolvedValueOnce({ data: { hasRsvped: true } });
+
+      await useEventInterestStore.getState().fetchEventInterestState('event-1');
+
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/events/event-1/viewer-state', {
+        requireAuth: true,
+      });
+      expect(useEventInterestStore.getState().likedEventIds.has('event-1')).toBe(true);
+    });
+  });
+
+  describe('fetchInterestedUsers', () => {
+    it('loads hearted profiles from the interested list endpoint instead of attendees', async () => {
+      mockApiFetch.mockResolvedValueOnce({
+        data: {
+          users: [
+            {
+              userId: 'user-2',
+              displayName: 'Interested Guest',
+              photoURL: 'https://example.com/avatar.jpg',
+              likedAt: '2026-06-23T00:00:00.000Z',
+            },
+          ],
+        },
+      });
+
+      await useEventInterestStore.getState().fetchInterestedUsers('event-1');
+
+      expect(mockApiFetch).toHaveBeenCalledWith('/api/v1/events/event-1/interested?limit=24', {
+        requireAuth: true,
+      });
+      expect(useEventInterestStore.getState().interestedUsers['event-1']).toEqual([
+        {
+          userId: 'user-2',
+          displayName: 'Interested Guest',
+          photoURL: 'https://example.com/avatar.jpg',
+          likedAt: '2026-06-23T00:00:00.000Z',
+        },
+      ]);
+    });
+  });
 });

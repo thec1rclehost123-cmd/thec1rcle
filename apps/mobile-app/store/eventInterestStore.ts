@@ -3,7 +3,7 @@
  *
  * Manages:
  *  - Event likes ("interested") — routed through the API Gateway RSVP contract
- *  - Interested users list per event (shown in "Who's Going")
+ *  - Interested users list per event (shown in the public Interested List)
  *  - Event group chat membership on ticket purchase (via API Gateway)
  *
  * Chat membership is handled server-side via POST /api/v1/social/chat/join
@@ -38,6 +38,8 @@ interface EventInterestState {
 
   /** Load all events the current user has liked */
   loadUserInterests: (userId: string) => Promise<void>;
+  /** Load current viewer's interested state for a single event */
+  fetchEventInterestState: (eventId: string) => Promise<void>;
   /** Toggle like on an event */
   toggleInterest: (
     eventId: string,
@@ -67,11 +69,32 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
       const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
       const profile = response.profile || response.data?.profile || {};
       const ids = new Set<string>(
-        Array.isArray(profile.attendedEvents) ? profile.attendedEvents.filter(Boolean) : [],
+        [
+          ...(Array.isArray(profile.attendedEvents) ? profile.attendedEvents : []),
+          ...(Array.isArray(profile.interestedEvents) ? profile.interestedEvents : []),
+          ...(Array.isArray(profile.interestedEventIds) ? profile.interestedEventIds : []),
+        ].filter(Boolean),
       );
       set({ likedEventIds: ids });
     } catch (e) {
       console.warn('[EventInterestStore] loadUserInterests:', e);
+    }
+  },
+
+  fetchEventInterestState: async (eventId: string) => {
+    try {
+      const response = await apiFetch<any>(
+        `/api/v1/events/${encodeURIComponent(eventId)}/viewer-state`,
+        { requireAuth: true },
+      );
+      const viewerState = response.data || response;
+      const isInterested = Boolean(viewerState.hasRsvped || viewerState.isInterested);
+      const next = new Set(get().likedEventIds);
+      if (isInterested) next.add(eventId);
+      else next.delete(eventId);
+      set({ likedEventIds: next });
+    } catch (e) {
+      console.warn('[EventInterestStore] fetchEventInterestState:', e);
     }
   },
 
@@ -132,15 +155,15 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     set({ loadingInterested: { ...get().loadingInterested, [eventId]: true } });
     try {
       const response = await apiFetch<any>(
-        `/api/v1/events/${encodeURIComponent(eventId)}/attendees?limit=24`,
+        `/api/v1/events/${encodeURIComponent(eventId)}/interested?limit=24`,
         { requireAuth: true },
       );
-      const attendees = response.attendees || response.data?.attendees || [];
-      const users: InterestedUser[] = attendees.map((attendee: any) => ({
-        userId: attendee.userId || attendee.id,
-        displayName: attendee.displayName || attendee.name || 'C1rcle User',
-        photoURL: attendee.photoURL || attendee.avatar || null,
-        likedAt: attendee.joinedAt || '',
+      const interested = response.users || response.data?.users || [];
+      const users: InterestedUser[] = interested.map((user: any) => ({
+        userId: user.userId || user.id,
+        displayName: user.displayName || user.name || 'C1rcle User',
+        photoURL: user.photoURL || user.avatar || null,
+        likedAt: user.likedAt || user.createdAt || '',
       }));
       set({ interestedUsers: { ...get().interestedUsers, [eventId]: users } });
     } catch (e) {

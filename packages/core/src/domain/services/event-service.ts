@@ -1,5 +1,66 @@
 import { IEventRepository, Event } from '../repositories/event-repository.js';
 import { buildEvent } from '@c1rcle/core/event-engine';
+import { EVENT_LIFECYCLE } from '@c1rcle/core/events';
+import { getAdminDb } from '@c1rcle/core/admin';
+
+const START_DATE_REQUIRED_LIFECYCLES = new Set([
+  EVENT_LIFECYCLE.SUBMITTED,
+  EVENT_LIFECYCLE.APPROVED,
+  EVENT_LIFECYCLE.SCHEDULED,
+  EVENT_LIFECYCLE.LIVE,
+  EVENT_LIFECYCLE.PAUSED,
+  EVENT_LIFECYCLE.COMPLETED,
+]);
+
+function withCode<T extends Error>(error: T, code: string, statusCode = 400): T {
+  return Object.assign(error, { code, statusCode });
+}
+
+function toFiniteNumber(value: any): number | null {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeCoordinates(value: any): { latitude: number; longitude: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const latitude =
+    toFiniteNumber(value.latitude) ?? toFiniteNumber(value.lat) ?? toFiniteNumber(value._latitude);
+  const longitude =
+    toFiniteNumber(value.longitude) ??
+    toFiniteNumber(value.lng) ??
+    toFiniteNumber(value.lon) ??
+    toFiniteNumber(value._longitude);
+  if (latitude === null || longitude === null) return null;
+  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) return null;
+  return { latitude, longitude };
+}
+
+function normalizeLifecycle(payload: any): string | undefined {
+  const lifecycle = String(payload.lifecycle || '').toLowerCase();
+  const status = String(payload.status || '').toLowerCase();
+  if (lifecycle === 'active') return EVENT_LIFECYCLE.SCHEDULED;
+  if (lifecycle) return lifecycle;
+  if (status === 'published') return EVENT_LIFECYCLE.SCHEDULED;
+  if (status === 'draft') return EVENT_LIFECYCLE.DRAFT;
+  if (status === 'cancelled' || status === 'canceled') return EVENT_LIFECYCLE.CANCELLED;
+  if (status === 'completed') return EVENT_LIFECYCLE.COMPLETED;
+  return undefined;
+}
+
+async function resolveVenueCoordinates(venueId?: string | null) {
+  if (!venueId) return null;
+  try {
+    const db = getAdminDb();
+    const doc = await db.collection('venues').doc(String(venueId)).get();
+    if (!doc.exists) return null;
+    const venue = doc.data() || {};
+    return normalizeCoordinates(
+      venue.coordinates || venue.locationCoordinates || venue.geo || venue._geoloc,
+    );
+  } catch {
+    return null;
+  }
+}
 
 export class EventService {
   constructor(private eventRepo: IEventRepository) {}
@@ -31,8 +92,9 @@ export class EventService {
   }
 
   async createEvent(payload: any, actorId: string, workspaceId: string): Promise<Event> {
+    const normalizedPayload = await this.normalizeEventPayload(payload);
     const event = buildEvent({
-      ...payload,
+      ...normalizedPayload,
       creatorId: actorId,
       workspaceId, // 🏢 SaaS: Tag event with workspace
     });
@@ -50,9 +112,10 @@ export class EventService {
     const existing = await this.getEventByIdOrSlug(id, workspaceId);
     if (!existing) return null;
 
+    const normalizedUpdates = await this.normalizeEventPayload({ ...existing, ...updates });
     const updatedEvent = buildEvent({
       ...existing,
-      ...updates,
+      ...normalizedUpdates,
       id,
       updatedAt: new Date().toISOString(),
     });
@@ -60,6 +123,34 @@ export class EventService {
 
     await this.eventRepo.update(id, updatedEvent as Partial<Event>, workspaceId);
     return updatedEvent as Event;
+  }
+
+  private async normalizeEventPayload(payload: any): Promise<any> {
+    const normalized = { ...payload };
+    const lifecycle = normalizeLifecycle(normalized);
+    if (lifecycle) {
+      normalized.lifecycle = lifecycle;
+    }
+
+    if (START_DATE_REQUIRED_LIFECYCLES.has(normalized.lifecycle) && !normalized.startDate) {
+      throw withCode(
+        new Error('startDate is required for public or submitted events'),
+        'BAD_REQUEST',
+      );
+    }
+
+    const explicitCoordinates = normalizeCoordinates(normalized.coordinates);
+    const venueCoordinates = explicitCoordinates
+      ? null
+      : await resolveVenueCoordinates(normalized.venueId || null);
+    const coordinates = explicitCoordinates || venueCoordinates;
+    if (coordinates) {
+      normalized.coordinates = coordinates;
+      normalized.latitude = coordinates.latitude;
+      normalized.longitude = coordinates.longitude;
+    }
+
+    return normalized;
   }
 
   async deleteEvent(id: string, actorId: string, workspaceId: string): Promise<void> {
@@ -86,8 +177,10 @@ export class EventService {
     return events
       .map((data: any) => {
         const coords = data.coordinates;
-        if (!coords?.latitude || !coords?.longitude) return null;
-        const distance = haversine(lat, lng, coords.latitude, coords.longitude);
+        const latitude = toFiniteNumber(coords?.latitude);
+        const longitude = toFiniteNumber(coords?.longitude);
+        if (latitude === null || longitude === null) return null;
+        const distance = haversine(lat, lng, latitude, longitude);
         return { ...data, distance };
       })
       .filter((e: any) => e !== null && e.distance <= radius)

@@ -27,25 +27,21 @@ export function useSettings() {
 
   // Wrapper functions that include userId
   const setNotificationSetting = (key: keyof UserSettings['notifications'], value: boolean) => {
-    if (user?.uid) {
-      updateNotificationSetting(user.uid, key, value);
-    }
+    updateNotificationSetting(user?.uid, key, value);
   };
 
   const setPrivacySetting = <K extends keyof UserSettings['privacy']>(
     key: K,
     value: UserSettings['privacy'][K],
   ) => {
-    if (user?.uid) {
-      updatePrivacySetting(user.uid, key, value);
-    }
+    updatePrivacySetting(user?.uid, key, value);
   };
 
   const setAppearanceSetting = <K extends keyof UserSettings['appearance']>(
     key: K,
     value: UserSettings['appearance'][K],
   ) => {
-    updateAppearanceSetting(key, value);
+    updateAppearanceSetting(user?.uid, key, value);
   };
 
   return {

@@ -1,36 +1,18 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, randomInt } from 'node:crypto';
 import { getAdminDb } from './admin.js';
-import { getQrSecret } from './secret-registry.js';
 import { releaseReservation } from './inventory-engine.js';
 
 const PAYMENT_PENDING_STATUSES = new Set(['payment_pending', 'pending_payment']);
-const WALLET_QR_TTL_SECONDS = 60;
+const WALLET_QR_MODE = 'raw_id';
+const WALLET_QR_TTL_SECONDS = null;
+const ORDER_COLLECTIONS = ['orders', 'rsvp_orders'];
+const BOOKING_CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const BOOKING_CODE_LENGTH = 6;
 
 function codedError(message, code) {
   const error = new Error(message);
   error.code = code;
   return error;
-}
-
-function base64Url(input) {
-  return Buffer.from(input)
-    .toString('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-}
-
-function signJwt(payload, secret = getQrSecret()) {
-  const header = { alg: 'HS256', typ: 'JWT', kid: 'ticket-wallet-v1' };
-  const encodedHeader = base64Url(JSON.stringify(header));
-  const encodedPayload = base64Url(JSON.stringify(payload));
-  const signature = createHmac('sha256', secret)
-    .update(`${encodedHeader}.${encodedPayload}`)
-    .digest('base64')
-    .replace(/=/g, '')
-    .replace(/\+/g, '-')
-    .replace(/\//g, '_');
-  return `${encodedHeader}.${encodedPayload}.${signature}`;
 }
 
 function safeDocSegment(value) {
@@ -54,6 +36,53 @@ function normalizeOrderTickets(order) {
   return Array.isArray(order?.tickets) ? order.tickets : [];
 }
 
+function normalizeBookingCode(value) {
+  const code = String(value || '')
+    .replace(/^#/, '')
+    .trim()
+    .toUpperCase();
+  return code.length === BOOKING_CODE_LENGTH &&
+    [...code].every((character) => BOOKING_CODE_ALPHABET.includes(character))
+    ? code
+    : null;
+}
+
+function generateBookingCode(excluded = new Set()) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    let code = '';
+    for (let index = 0; index < BOOKING_CODE_LENGTH; index += 1) {
+      code += BOOKING_CODE_ALPHABET[randomInt(BOOKING_CODE_ALPHABET.length)];
+    }
+    if (!excluded.has(code)) {
+      excluded.add(code);
+      return code;
+    }
+  }
+
+  let code = '';
+  for (let index = 0; index < BOOKING_CODE_LENGTH; index += 1) {
+    code += BOOKING_CODE_ALPHABET[randomInt(BOOKING_CODE_ALPHABET.length)];
+  }
+  excluded.add(code);
+  return code;
+}
+
+function getExistingOrderBookingCodeMap(order) {
+  const byTicket = new Map();
+  const bookingCodes = Array.isArray(order?.bookingCodes) ? order.bookingCodes : [];
+
+  bookingCodes.forEach((entry) => {
+    if (!entry || typeof entry !== 'object') return;
+    const code = normalizeBookingCode(entry.bookingCode || entry.code);
+    if (!code) return;
+    [entry.ticketId, entry.ticketDocumentId, entry.id].filter(Boolean).forEach((id) => {
+      byTicket.set(String(id), code);
+    });
+  });
+
+  return byTicket;
+}
+
 export function verifyRazorpayWebhookSignature({ rawBody, signature, webhookSecret }) {
   if (!webhookSecret) throw codedError('Webhook not configured', 'PAYMENT_NOT_CONFIGURED');
   const expected = createHmac('sha256', webhookSecret)
@@ -65,35 +94,12 @@ export function verifyRazorpayWebhookSignature({ rawBody, signature, webhookSecr
   return true;
 }
 
-export function createTicketQrJwt(ticket, options = {}) {
-  const nowSeconds = Math.floor(Date.now() / 1000);
-  const expiresInSeconds = Number(options.expiresInSeconds || WALLET_QR_TTL_SECONDS);
-  const exp = nowSeconds + expiresInSeconds;
-  const ticketId = ticket.id || ticket.ticketId;
-
-  return {
-    qrPayload: signJwt({
-      iss: 'the-c1rcle',
-      aud: 'c1rcle-scanner',
-      typ: 'ticket',
-      ver: 1,
-      sub: ticketId,
-      ticketId,
-      orderId: ticket.orderId,
-      eventId: ticket.eventId,
-      userId: ticket.userId,
-      tierId: ticket.tierId || null,
-      iat: nowSeconds,
-      nbf: nowSeconds,
-      exp,
-    }),
-    qrExpiresAt: new Date(exp * 1000).toISOString(),
-    qrExpiresInSeconds: expiresInSeconds,
-  };
-}
-
 function buildTicketDocuments(order, issuedAt) {
   const tickets = [];
+  const usedBookingCodes = new Set();
+  const existingBookingCodes = getExistingOrderBookingCodeMap(order);
+  const existingPrimaryBookingCode = normalizeBookingCode(order.bookingCode);
+  if (existingPrimaryBookingCode) usedBookingCodes.add(existingPrimaryBookingCode);
 
   for (const group of normalizeOrderTickets(order)) {
     const tierId = group.ticketId || group.tierId || group.id || 'GEN';
@@ -103,17 +109,16 @@ function buildTicketDocuments(order, issuedAt) {
     for (let index = 1; index <= quantity; index += 1) {
       const ticketId = `${order.id}-${tierId}-${index}`;
       const docId = `TKT-${safeDocSegment(order.id)}-${safeTierId}-${index}`.toUpperCase();
-      const qr = createTicketQrJwt({
-        id: docId,
-        ticketId,
-        orderId: order.id,
-        eventId: order.eventId,
-        userId: order.userId,
-        tierId,
-      });
+      const existingCode =
+        existingBookingCodes.get(docId) ||
+        existingBookingCodes.get(ticketId) ||
+        (tickets.length === 0 ? existingPrimaryBookingCode : null);
+      const bookingCode = existingCode || generateBookingCode(usedBookingCodes);
+      usedBookingCodes.add(bookingCode);
 
       tickets.push({
         id: docId,
+        bookingCode,
         ticketId,
         orderId: order.id,
         eventId: order.eventId,
@@ -127,12 +132,15 @@ function buildTicketDocuments(order, issuedAt) {
         entryType: group.entryType || 'general',
         requiredGender: group.requiredGender || group.genderRequirement || null,
         status: 'active',
-        qrMode: 'jwt',
-        qrPayload: qr.qrPayload,
-        qrJwt: qr.qrPayload,
-        qrExpiresAt: qr.qrExpiresAt,
+        qrMode: WALLET_QR_MODE,
+        qrData: docId,
+        qrCode: docId,
+        qrPayload: docId,
+        qrJwt: null,
+        qrExpiresAt: null,
         scanCountAllowed: group.entryType === 'couple' ? 2 : 1,
         scanCountUsed: 0,
+        source: order.isRSVP || order.source === 'rsvp' ? 'rsvp' : 'order',
         createdAt: issuedAt,
         updatedAt: issuedAt,
       });
@@ -144,17 +152,18 @@ function buildTicketDocuments(order, issuedAt) {
 
 function buildOrderQrCodes(ticketDocs) {
   return ticketDocs.map((ticket, index) => {
-    const qr = createTicketQrJwt(ticket);
+    const qrValue = ticket.id;
     return {
       ticketId: ticket.id,
       tierId: ticket.tierId,
       tierName: ticket.tierName,
+      bookingCode: ticket.bookingCode || null,
       ticketIndex: index,
-      qrMode: 'jwt',
-      qrCode: qr.qrPayload,
-      qrData: qr.qrPayload,
-      qrPayload: qr.qrPayload,
-      qrExpiresAt: qr.qrExpiresAt,
+      qrMode: WALLET_QR_MODE,
+      qrCode: qrValue,
+      qrData: qrValue,
+      qrPayload: qrValue,
+      qrExpiresAt: null,
       isUsed: ticket.status === 'used',
     };
   });
@@ -173,93 +182,177 @@ async function findPaymentByRazorpayOrderId(db, razorpayOrderId) {
   return snapshot.docs[0].data();
 }
 
-async function getOrderDocument(db, transaction, orderId) {
-  const ref = db.collection('orders').doc(orderId);
-  const doc = transaction ? await transaction.get(ref) : await ref.get();
-  if (!doc.exists) throw codedError('Order not found', 'NOT_FOUND');
-  return { ref, data: { id: doc.id, ...doc.data(), isRSVP: false } };
+async function getOrderDocument(db, transaction, orderId, orderCollection = null) {
+  const collections = orderCollection ? [orderCollection] : ORDER_COLLECTIONS;
+
+  for (const collection of collections) {
+    const ref = db.collection(collection).doc(orderId);
+    const doc = transaction ? await transaction.get(ref) : await ref.get();
+    if (!doc.exists) continue;
+
+    return {
+      ref,
+      collection,
+      data: {
+        id: doc.id,
+        ...doc.data(),
+        isRSVP: collection === 'rsvp_orders' || Boolean(doc.data()?.isRSVP),
+        source: collection === 'rsvp_orders' ? 'rsvp' : doc.data()?.source,
+      },
+    };
+  }
+
+  throw codedError('Order not found', 'NOT_FOUND');
 }
 
-export async function generateTicketsForOrder({ db = getAdminDb(), orderId }) {
-  const issuedAt = new Date().toISOString();
+export async function issueTicketsForOrderInTransaction({
+  db,
+  transaction,
+  orderId,
+  orderCollection = null,
+  orderLookup = null,
+  orderUpdates = {},
+  issuedAt = new Date().toISOString(),
+  updateOrder = true,
+  forceOrderUpdate = false,
+}) {
+  const lookup = orderLookup || (await getOrderDocument(db, transaction, orderId, orderCollection));
+  const order = lookup.data;
+
+  if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
+    throw codedError(`Order is ${order.status}`, 'CONFLICT');
+  }
+
+  const ticketDocs = buildTicketDocuments(order, issuedAt);
+  const refs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
+  const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
+  const missingTicketCount = snapshots.filter((doc) => !doc.exists).length;
+
+  const finalTickets = ticketDocs.map((ticket, index) => {
+    const existing = snapshots[index].exists
+      ? { id: snapshots[index].id, ...snapshots[index].data() }
+      : null;
+    const merged = existing
+      ? {
+          ...existing,
+          bookingCode: normalizeBookingCode(existing.bookingCode) || ticket.bookingCode,
+          userId: existing.userId || order.userId,
+          orderId: existing.orderId || order.id,
+          eventId: existing.eventId || order.eventId,
+          tierId: existing.tierId || ticket.tierId,
+          tierName: existing.tierName || ticket.tierName,
+          status: existing.status || 'active',
+          source: existing.source || ticket.source,
+          updatedAt: issuedAt,
+        }
+      : ticket;
+    const qrValue = merged.id || ticket.id;
+    return {
+      ...merged,
+      qrMode: WALLET_QR_MODE,
+      qrData: qrValue,
+      qrCode: qrValue,
+      qrPayload: qrValue,
+      qrJwt: null,
+      qrExpiresAt: null,
+    };
+  });
+
+  finalTickets.forEach((ticket, index) => {
+    if (snapshots[index].exists) {
+      transaction.update(refs[index], {
+        userId: ticket.userId,
+        bookingCode: ticket.bookingCode,
+        orderId: ticket.orderId,
+        eventId: ticket.eventId,
+        tierId: ticket.tierId,
+        tierName: ticket.tierName,
+        status: ticket.status,
+        source: ticket.source || null,
+        qrMode: WALLET_QR_MODE,
+        qrData: ticket.id,
+        qrCode: ticket.id,
+        qrPayload: ticket.qrPayload,
+        qrJwt: null,
+        qrExpiresAt: null,
+        updatedAt: issuedAt,
+      });
+    } else {
+      transaction.set(refs[index], ticket);
+    }
+  });
+
+  const ticketIds = finalTickets.map((ticket) => ticket.id);
+  const bookingCodes = finalTickets.map((ticket) => ({
+    ticketId: ticket.id,
+    ticketDocumentId: ticket.id,
+    bookingCode: ticket.bookingCode,
+    tierId: ticket.tierId || null,
+    tierName: ticket.tierName || null,
+  }));
+  const qrCodes = buildOrderQrCodes(finalTickets);
+  const nextOrderUpdates = {
+    status: 'confirmed',
+    ...orderUpdates,
+    bookingCode: normalizeBookingCode(order.bookingCode) || bookingCodes[0]?.bookingCode || null,
+    bookingCodes,
+    ticketIds,
+    qrCodes,
+    ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
+    confirmedAt: order.confirmedAt || issuedAt,
+    updatedAt: issuedAt,
+  };
+
+  const existingTicketIds = Array.isArray(order.ticketIds) ? order.ticketIds : [];
+  const existingOrderBookingCodes = Array.isArray(order.bookingCodes) ? order.bookingCodes : [];
+  const missingBookingCodeCount = snapshots.filter(
+    (doc) => !doc.exists || !normalizeBookingCode(doc.data()?.bookingCode),
+  ).length;
+  const needsOrderUpdate =
+    forceOrderUpdate ||
+    missingTicketCount > 0 ||
+    missingBookingCodeCount > 0 ||
+    order.status !== 'confirmed' ||
+    !normalizeBookingCode(order.bookingCode) ||
+    existingOrderBookingCodes.length !== bookingCodes.length ||
+    existingTicketIds.length !== ticketIds.length ||
+    !order.ticketsIssuedAt ||
+    Object.keys(orderUpdates || {}).length > 0;
+
+  if (updateOrder && needsOrderUpdate) {
+    transaction.update(lookup.ref, nextOrderUpdates);
+  }
+
+  return {
+    order: {
+      ...order,
+      ...nextOrderUpdates,
+      isRSVP: lookup.collection === 'rsvp_orders' || Boolean(order.isRSVP),
+      source: lookup.collection === 'rsvp_orders' ? 'rsvp' : order.source,
+    },
+    tickets: finalTickets,
+    orderUpdates: nextOrderUpdates,
+    missingTicketCount,
+    createdTicketCount: missingTicketCount,
+    collection: lookup.collection,
+  };
+}
+
+export async function generateTicketsForOrder({
+  db = getAdminDb(),
+  orderId,
+  orderCollection = null,
+}) {
   let result = null;
 
   await db.runTransaction(async (transaction) => {
-    const orderLookup = await getOrderDocument(db, transaction, orderId);
-    const order = orderLookup.data;
-
-    if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
-      throw codedError(`Order is ${order.status}`, 'CONFLICT');
-    }
-
-    const ticketDocs = buildTicketDocuments(order, issuedAt);
-    const refs = ticketDocs.map((ticket) => db.collection('tickets').doc(ticket.id));
-    const snapshots = await Promise.all(refs.map((ref) => transaction.get(ref)));
-
-    const finalTickets = ticketDocs.map((ticket, index) => {
-      const existing = snapshots[index].exists
-        ? { id: snapshots[index].id, ...snapshots[index].data() }
-        : null;
-      const merged = existing
-        ? {
-            ...existing,
-            userId: existing.userId || order.userId,
-            orderId: existing.orderId || order.id,
-            eventId: existing.eventId || order.eventId,
-            tierId: existing.tierId || ticket.tierId,
-            tierName: existing.tierName || ticket.tierName,
-            status: existing.status || 'active',
-            updatedAt: issuedAt,
-          }
-        : ticket;
-      const qr = createTicketQrJwt(merged);
-      return {
-        ...merged,
-        qrMode: 'jwt',
-        qrPayload: qr.qrPayload,
-        qrJwt: qr.qrPayload,
-        qrExpiresAt: qr.qrExpiresAt,
-      };
+    result = await issueTicketsForOrderInTransaction({
+      db,
+      transaction,
+      orderId,
+      orderCollection,
+      updateOrder: true,
     });
-
-    finalTickets.forEach((ticket, index) => {
-      if (snapshots[index].exists) {
-        transaction.update(refs[index], {
-          userId: ticket.userId,
-          status: ticket.status,
-          qrMode: 'jwt',
-          qrPayload: ticket.qrPayload,
-          qrJwt: ticket.qrPayload,
-          qrExpiresAt: ticket.qrExpiresAt,
-          updatedAt: issuedAt,
-        });
-      } else {
-        transaction.set(refs[index], ticket);
-      }
-    });
-
-    const qrCodes = buildOrderQrCodes(finalTickets);
-    transaction.update(orderLookup.ref, {
-      status: 'confirmed',
-      ticketIds: finalTickets.map((ticket) => ticket.id),
-      qrCodes,
-      ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
-      confirmedAt: order.confirmedAt || issuedAt,
-      updatedAt: issuedAt,
-    });
-
-    result = {
-      order: {
-        ...order,
-        status: 'confirmed',
-        ticketIds: finalTickets.map((ticket) => ticket.id),
-        qrCodes,
-        ticketsIssuedAt: order.ticketsIssuedAt || issuedAt,
-        confirmedAt: order.confirmedAt || issuedAt,
-        updatedAt: issuedAt,
-      },
-      tickets: finalTickets,
-    };
   });
 
   return result;
@@ -304,8 +397,11 @@ export async function finalizeRazorpayTicketPurchase({
       eventId: ticket.eventId,
       tierId: ticket.tierId,
       status: ticket.status,
+      bookingCode: ticket.bookingCode || null,
       qrMode: ticket.qrMode,
-      qrExpiresAt: ticket.qrExpiresAt,
+      qrData: ticket.qrData || ticket.id,
+      qrPayload: ticket.qrPayload || ticket.id,
+      qrExpiresAt: null,
     })),
     ticketsCount: ticketResult.tickets.length,
     razorpayOrderId,
@@ -330,6 +426,19 @@ function eventFromDoc(doc) {
 
 function mapOrderForWallet(order, tickets, event) {
   const qrCodes = buildOrderQrCodes(tickets);
+  const ticketBookingCodes = tickets
+    .map((ticket) => ({
+      ticketId: ticket.id,
+      ticketDocumentId: ticket.id,
+      bookingCode: ticket.bookingCode || null,
+      tierId: ticket.tierId || null,
+      tierName: ticket.tierName || null,
+    }))
+    .filter((entry) => entry.bookingCode);
+  const orderBookingCodes = Array.isArray(order.bookingCodes) ? order.bookingCodes : [];
+  const bookingCodes = orderBookingCodes.length ? orderBookingCodes : ticketBookingCodes;
+  const bookingCode =
+    order.bookingCode || bookingCodes[0]?.bookingCode || tickets[0]?.bookingCode || null;
   const ticketGroups = normalizeOrderTickets(order).map((ticket) => ({
     ticketId: ticket.ticketId || ticket.tierId || ticket.id,
     tierId: ticket.tierId || ticket.ticketId || ticket.id,
@@ -370,6 +479,8 @@ function mapOrderForWallet(order, tickets, event) {
     hostName: order.hostName || event?.hostName || undefined,
     accentColor: order.accentColor || event?.accentColor || undefined,
     status: order.status,
+    bookingCode,
+    bookingCodes,
     tickets: ticketGroups.length
       ? ticketGroups
       : tickets.map((ticket) => ({
@@ -410,11 +521,19 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
 
   const orderIds = [...new Set(tickets.map((ticket) => ticket.orderId).filter(Boolean))];
   const orderDocs = await Promise.all(
-    orderIds.map((orderId) => db.collection('orders').doc(orderId).get()),
+    orderIds.map(async (orderId) => {
+      const [orderDoc, rsvpDoc] = await Promise.all([
+        db.collection('orders').doc(orderId).get(),
+        db.collection('rsvp_orders').doc(orderId).get(),
+      ]);
+      if (orderDoc.exists) return { id: orderDoc.id, ...orderDoc.data(), isRSVP: false };
+      if (rsvpDoc.exists)
+        return { id: rsvpDoc.id, ...rsvpDoc.data(), isRSVP: true, source: 'rsvp' };
+      return null;
+    }),
   );
   const orders = orderDocs
-    .filter((doc) => doc.exists)
-    .map((doc) => ({ id: doc.id, ...doc.data() }))
+    .filter(Boolean)
     .filter((order) => order.userId === userId && order.status === 'confirmed');
 
   const eventIds = [...new Set(orders.map((order) => order.eventId).filter(Boolean))];
@@ -442,12 +561,16 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
   const walletTickets = tickets
     .filter((ticket) => ordersById.has(ticket.orderId))
     .map((ticket) => {
-      const qr = createTicketQrJwt(ticket);
+      const qrValue = ticket.id;
       return {
         ...ticket,
-        qrPayload: qr.qrPayload,
-        qrJwt: qr.qrPayload,
-        qrExpiresAt: qr.qrExpiresAt,
+        qrMode: WALLET_QR_MODE,
+        qrData: qrValue,
+        qrCode: qrValue,
+        qrPayload: qrValue,
+        bookingCode: ticket.bookingCode || null,
+        qrJwt: null,
+        qrExpiresAt: null,
       };
     });
 

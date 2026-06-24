@@ -34,6 +34,8 @@ function canonicalUserContract(userId, data, { isNewUser = false, claims = {} } 
     isDeleted: data.isDeleted === true,
     createdAt: data.createdAt || null,
     updatedAt: data.updatedAt || null,
+    lastLoginAt: data.lastLoginAt || null,
+    lastAuthSyncAt: data.lastAuthSyncAt || null,
     isNewUser,
   };
 }
@@ -85,6 +87,8 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
       profileComplete: false,
       createdAt: now,
       updatedAt: now,
+      lastLoginAt: now,
+      lastAuthSyncAt: now,
     };
 
     await userRef.set(baseline);
@@ -105,6 +109,8 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
     isActive: existing.isActive !== false,
     isDeleted: existing.isDeleted === true,
     updatedAt: now,
+    lastLoginAt: now,
+    lastAuthSyncAt: now,
   };
 
   await userRef.set(patch, { merge: true });

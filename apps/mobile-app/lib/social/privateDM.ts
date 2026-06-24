@@ -4,7 +4,49 @@ import { AppState } from 'react-native';
 import { apiFetch } from '@/lib/api';
 import { wsManager, type WSMessage } from '@/lib/websocket';
 import { PrivateConversation, DirectMessage } from './types';
-import { canInitiateDM } from './entitlements';
+
+const MESSAGE_LIMIT_MAX = 50;
+const FALLBACK_POLL_INTERVAL_MS = 30_000;
+
+function clampMessageLimit(limit: number): number {
+  return Math.max(1, Math.min(Number(limit) || MESSAGE_LIMIT_MAX, MESSAGE_LIMIT_MAX));
+}
+
+function toTime(value: any): number {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function normalizeDirectMessage(raw: any, conversationId: string): DirectMessage | null {
+  const id = raw?.id || raw?.messageId;
+  if (!id) return null;
+  const rawType = String(raw?.type || '').toLowerCase();
+  return {
+    id: String(id),
+    conversationId: String(raw?.conversationId || conversationId),
+    senderId: String(raw?.senderId || raw?.userId || ''),
+    content: String(raw?.content || raw?.text || raw?.imageUrl || ''),
+    type: rawType === 'image' || raw?.imageUrl ? 'image' : 'text',
+    createdAt: raw?.createdAt || new Date().toISOString(),
+    readAt: raw?.readAt,
+    isDeleted: raw?.isDeleted === true,
+  };
+}
+
+function mergeMessages(
+  currentMessages: DirectMessage[],
+  incomingMessages: DirectMessage[],
+  limit: number,
+): DirectMessage[] {
+  const byId = new Map<string, DirectMessage>();
+  [...currentMessages, ...incomingMessages].forEach((message) => byId.set(message.id, message));
+  return [...byId.values()]
+    .sort((left, right) => toTime(left.createdAt) - toTime(right.createdAt))
+    .slice(-limit);
+}
 
 // Get or check existing conversation
 export async function getExistingConversation(
@@ -127,17 +169,30 @@ export async function sendDirectImageMessage(
 export function subscribeToDirectMessages(
   conversationId: string,
   onMessages: (messages: DirectMessage[]) => void,
-  messageLimit: number = 100,
+  messageLimit: number = 50,
 ): () => void {
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+  const safeMessageLimit = clampMessageLimit(messageLimit);
+  let latestMessages: DirectMessage[] = [];
+
+  function publishMessages(nextMessages: DirectMessage[]) {
+    latestMessages = nextMessages.slice(-safeMessageLimit);
+    onMessages(latestMessages);
+  }
 
   // WebSocket handler
   const wsHandler = (msg: WSMessage) => {
     if (!active) return;
     if (msg.type === 'dm:new_message' && msg.payload?.conversationId === conversationId) {
-      pollOnce();
+      const nextMessage = normalizeDirectMessage(
+        msg.payload.message || msg.payload,
+        conversationId,
+      );
+      if (nextMessage) {
+        publishMessages(mergeMessages(latestMessages, [nextMessage], safeMessageLimit));
+      }
     }
   };
 
@@ -159,17 +214,27 @@ export function subscribeToDirectMessages(
     if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ messages: DirectMessage[] }>(
-        `/api/v1/social/dm/${conversationId}/messages?limit=${messageLimit}`,
+        `/api/v1/social/dm/${conversationId}/messages?limit=${safeMessageLimit}`,
         { requireAuth: true },
       );
       if (active && response.messages) {
-        onMessages([...response.messages].reverse());
+        publishMessages(
+          mergeMessages(
+            [],
+            response.messages
+              .map((message) => normalizeDirectMessage(message, conversationId))
+              .filter((message): message is DirectMessage => Boolean(message)),
+            safeMessageLimit,
+          ),
+        );
       }
-    } catch (e) {}
+    } catch {
+      // Polling error, ignore
+    }
   }
 
   pollOnce();
-  pollIntervalId = setInterval(pollOnce, 5000);
+  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS);
 
   return () => {
     active = false;

@@ -28,7 +28,13 @@ export function DittoSettingsScreen({ title, children }: { title: string; childr
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+          style={styles.backButton}
+        >
           <ArrowLeft size={25} color="#F8F8F8" strokeWidth={2.4} />
         </Pressable>
         <Text style={styles.headerTitle}>{title}</Text>

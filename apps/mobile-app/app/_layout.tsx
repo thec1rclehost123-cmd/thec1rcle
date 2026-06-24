@@ -46,6 +46,7 @@ export default function RootLayout() {
                   <Stack.Screen name="index" />
                   <Stack.Screen name="(auth)" />
                   <Stack.Screen name="profile-setup" />
+                  <Stack.Screen name="profile-creation" />
                   <Stack.Screen name="social-setup" />
                   <Stack.Screen name="(tabs)" />
                 </Stack>

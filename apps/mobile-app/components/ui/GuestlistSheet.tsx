@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import Animated from 'react-native-reanimated';
 import { typography } from '@/lib/design/theme';
 
 const eventFont = {
@@ -18,6 +19,7 @@ const eventFont = {
 interface GuestlistUser {
   userId?: string;
   displayName?: string;
+  name?: string;
   photoURL?: string | null;
   photoSource?: ImageSourcePropType;
 }
@@ -27,20 +29,32 @@ interface GuestlistSheetProps {
   onClose: () => void;
   users: GuestlistUser[];
   eventId?: string;
+  title?: string;
 }
 
 const { width } = Dimensions.get('window');
 const AVATAR_SIZE = (width - 64) / 3;
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 
-export function GuestlistSheet({ visible, onClose, users, eventId }: GuestlistSheetProps) {
+export function GuestlistSheet({
+  visible,
+  onClose,
+  users,
+  eventId,
+  title = 'Interested List',
+}: GuestlistSheetProps) {
   const insets = useSafeAreaInsets();
 
   const canOpenProfile = (user: GuestlistUser) => Boolean(user.userId);
 
-  const handleProfilePress = (user: GuestlistUser) => {
-    if (!canOpenProfile(user)) return;
+  const handleClose = () => {
     Haptics.selectionAsync();
     onClose();
+  };
+
+  const handleProfilePress = (user: GuestlistUser) => {
+    if (!canOpenProfile(user)) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push({
       pathname: '/social/profile/[id]',
       params: {
@@ -48,6 +62,7 @@ export function GuestlistSheet({ visible, onClose, users, eventId }: GuestlistSh
         ...(eventId ? { eventId } : {}),
       },
     } as any);
+    setTimeout(onClose, 120);
   };
 
   return (
@@ -56,17 +71,17 @@ export function GuestlistSheet({ visible, onClose, users, eventId }: GuestlistSh
       animationType="slide"
       transparent
       statusBarTranslucent
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.overlay}>
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={styles.backdrop} onPress={handleClose} />
         <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 18) }]}>
           <View style={styles.handleContainer}>
             <View style={styles.handle} />
           </View>
           <View style={styles.header}>
-            <Text style={styles.title}>Guestlist</Text>
-            <Pressable onPress={onClose} hitSlop={16}>
+            <Text style={styles.title}>{title}</Text>
+            <Pressable onPress={handleClose} hitSlop={16}>
               <Ionicons name="close" size={24} color="#fff" />
             </Pressable>
           </View>
@@ -78,16 +93,18 @@ export function GuestlistSheet({ visible, onClose, users, eventId }: GuestlistSh
           >
             {users.map((user, i) => {
               const profileEnabled = canOpenProfile(user);
+              const displayName = user.displayName || user.name || 'Member';
 
               return (
                 <Pressable
-                  key={user.userId || `${user.displayName || 'guest'}-${i}`}
+                  key={user.userId || `${displayName}-${i}`}
                   style={styles.avatarContainer}
                   onPress={() => handleProfilePress(user)}
                   disabled={!profileEnabled}
                 >
                   {user.photoSource || user.photoURL ? (
-                    <Image
+                    <AnimatedExpoImage
+                      {...(user.userId ? { sharedTransitionTag: `avatar-${user.userId}` } : {})}
                       source={user.photoSource || { uri: user.photoURL || '' }}
                       style={styles.avatar}
                       contentFit="cover"
@@ -99,7 +116,7 @@ export function GuestlistSheet({ visible, onClose, users, eventId }: GuestlistSh
                       style={styles.avatar}
                     >
                       <Text style={styles.avatarFallback}>
-                        {(user.displayName?.[0] ?? '?').toUpperCase()}
+                        {(displayName[0] ?? '?').toUpperCase()}
                       </Text>
                     </LinearGradient>
                   )}

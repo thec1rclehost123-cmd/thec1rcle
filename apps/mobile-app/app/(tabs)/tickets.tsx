@@ -33,6 +33,7 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSpring,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
@@ -56,6 +57,7 @@ import {
 } from 'lucide-react-native';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const TICKET_FILTER_WIDTH = 204;
 const TICKET_FILTER_HEIGHT = 43;
 const TICKET_FILTER_PADDING = 4;
@@ -102,6 +104,59 @@ function hexWithAlpha(color: string | undefined, alpha: string, fallback: string
   return `${color}${alpha}`;
 }
 
+function looksLikeLegacyJwt(value: unknown): boolean {
+  return typeof value === 'string' && value.split('.').length === 3;
+}
+
+function looksLikeTicketDocumentId(value: unknown): boolean {
+  return typeof value === 'string' && /^TKT[-_]/i.test(value.trim());
+}
+
+function resolveWalletQrData(order: Order): string {
+  const activeQr = order.qrCodes?.find((qr) => !qr.isUsed) || order.qrCodes?.[0];
+  if (activeQr) {
+    if (activeQr.qrMode === 'raw_id' && activeQr.qrCode) return String(activeQr.qrCode);
+    if (looksLikeTicketDocumentId(activeQr.ticketId)) return String(activeQr.ticketId);
+    if (activeQr.qrCode && !looksLikeLegacyJwt(activeQr.qrCode)) return String(activeQr.qrCode);
+    if (activeQr.qrCode) return String(activeQr.qrCode);
+  }
+
+  const orderQrData = (order as any).qrData;
+  if (typeof orderQrData === 'string' && orderQrData.trim()) return orderQrData.trim();
+  return order.id;
+}
+
+function normalizeBookingCodeLabel(value: unknown): string | null {
+  const code = String(value || '')
+    .replace(/^#/, '')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .trim()
+    .toUpperCase();
+  return code.length >= 6 ? code.slice(0, 6) : null;
+}
+
+function resolveBookingCode(order: Order): string {
+  const activeQr = order.qrCodes?.find((qr) => !qr.isUsed) || order.qrCodes?.[0];
+  const realCode =
+    normalizeBookingCodeLabel(order.bookingCode) ||
+    normalizeBookingCodeLabel(activeQr?.bookingCode) ||
+    normalizeBookingCodeLabel(order.bookingCodes?.[0]?.bookingCode) ||
+    normalizeBookingCodeLabel(order.tickets?.find((ticket) => ticket.bookingCode)?.bookingCode);
+
+  if (realCode) return realCode;
+
+  return (
+    normalizeBookingCodeLabel(activeQr?.ticketId) ||
+    normalizeBookingCodeLabel(activeQr?.qrCode) ||
+    normalizeBookingCodeLabel(order.id) ||
+    'TICKET'
+  );
+}
+
+function formatBookingCode(order: Order): string {
+  return `#${resolveBookingCode(order)}`;
+}
+
 // Ticket Detail Sheet — Posh-style with poster flip + QR
 function QRModal({
   visible,
@@ -139,9 +194,12 @@ function QRModal({
 
   if (!order) return null;
 
-  const activeQr = order.qrCodes?.[0];
-  const qrData = activeQr?.qrCode || (order as any).qrData || order.id;
-  const totalGuests = (order as any).totalGuests ?? 0;
+  const qrData = resolveWalletQrData(order);
+  const bookingLabel = formatBookingCode(order);
+  const totalGuests =
+    (order as any).totalGuests ??
+    order.tickets?.reduce((acc, t) => acc + (Number(t.quantity) || 1), 0) ??
+    1;
   const totalRevenue = (order as any).totalRevenue ?? 0;
   const ticketType = order.tickets?.[0]?.tierName || 'General Entry';
   const rawHostName = String((order as any).promoterName || (order as any).hostName || 'C1RCLE');
@@ -191,7 +249,13 @@ function QRModal({
   const posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
   const miniQrSize = Math.max(126, Math.min(162, posterSize * 0.38));
   const miniQrPadding = 12;
-  const fullQrSize = Math.max(220, Math.min(280, posterSize * 0.64));
+  const fullQrSize = Math.min(220, posterSize - 96);
+  const posterTransitionTag = `ticket-poster-${order.id}`;
+
+  const handleCloseSheet = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onClose();
+  };
 
   const handleFlip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -214,15 +278,21 @@ function QRModal({
       venue: order.venueLocation || 'TBA',
       ticketType,
       ticketCount: totalGuests,
-      qrCodeData: order.id,
+      qrCodeData: qrData,
     };
     await addToWallet(passData);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={handleCloseSheet}
+    >
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.6)' }}>
-        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseSheet} />
         <View
           style={[
             ms.container,
@@ -247,12 +317,15 @@ function QRModal({
           <SafeAreaView style={ms.safeArea} edges={['left', 'right', 'bottom']}>
             {/* Header */}
             <View style={ms.header}>
-              <Pressable onPress={onClose} style={ms.headerBtn}>
+              <Pressable onPress={handleCloseSheet} style={ms.headerBtn}>
                 <Text style={ms.headerCancelText}>Cancel</Text>
               </Pressable>
               <Text style={ms.headerTitle}>Your Order</Text>
 
-              <Pressable onPress={onClose} style={[ms.headerBtn, { alignItems: 'flex-end' }]}>
+              <Pressable
+                onPress={handleCloseSheet}
+                style={[ms.headerBtn, { alignItems: 'flex-end' }]}
+              >
                 <Text style={ms.headerDoneText}>Done</Text>
               </Pressable>
             </View>
@@ -269,7 +342,8 @@ function QRModal({
                 <Animated.View style={[ms.cardFace, frontStyle]}>
                   {order.eventCoverImage ? (
                     <>
-                      <Image
+                      <AnimatedExpoImage
+                        sharedTransitionTag={posterTransitionTag}
                         source={{ uri: order.eventCoverImage }}
                         style={StyleSheet.absoluteFill}
                         contentFit="cover"
@@ -284,6 +358,10 @@ function QRModal({
                   ) : (
                     <View style={[StyleSheet.absoluteFill, { backgroundColor: accentColor }]} />
                   )}
+
+                  <View style={ms.posterBookingBadge}>
+                    <Text style={ms.posterBookingText}>{bookingLabel}</Text>
+                  </View>
 
                   {/* Clean Event Name & Ticket Quantity overlay */}
 
@@ -341,9 +419,7 @@ function QRModal({
                     </View>
                   </View>
 
-                  {/* Side notches */}
-                  <View style={ms.notchLeft} />
-                  <View style={ms.notchRight} />
+                  {/* Side notches removed */}
                 </Animated.View>
 
                 {/* BACK: Full QR code */}
@@ -363,10 +439,10 @@ function QRModal({
                       backgroundColor="transparent"
                     />
                   </View>
+                  <Text style={ms.fullQrLabel}>Booking Code</Text>
+                  <Text style={ms.fullQrId}>{bookingLabel}</Text>
 
-                  {/* Side notches */}
-                  <View style={ms.notchLeft} />
-                  <View style={ms.notchRight} />
+                  {/* Side notches removed */}
                 </Animated.View>
               </View>
 
@@ -602,6 +678,25 @@ const ms = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 6,
   },
+  posterBookingBadge: {
+    position: 'absolute',
+    bottom: 24,
+    left: 24,
+    backgroundColor: 'rgba(0,0,0,0.58)',
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  posterBookingText: {
+    color: '#FFFFFF',
+    fontFamily: ticketFont.black,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    fontVariant: ['tabular-nums'],
+  },
 
   // Mini QR centered on poster
   miniQrWrap: {
@@ -699,7 +794,7 @@ const ms = StyleSheet.create({
 
   // Full QR back
   fullQrWrap: {
-    padding: 22,
+    padding: 16,
     borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
@@ -851,6 +946,7 @@ function TicketCard({
 
   const totalGuests = (order as any).totalGuests ?? 0;
   const hostName = (order as any).hostName || (order as any).promoterName || '';
+  const bookingLabel = formatBookingCode(order);
 
   const [cardWidth, setCardWidth] = useState(350);
   const shimmerProgress = useSharedValue(0);
@@ -910,10 +1006,10 @@ function TicketCard({
     <AnimatedPressable
       entering={FadeInDown.delay(index * 70).duration(220)}
       onPressIn={() => {
-        scale.value = withTiming(0.97, { duration: 150 });
+        scale.value = withSpring(0.96, { damping: 18, stiffness: 520, mass: 0.65 });
       }}
       onPressOut={() => {
-        scale.value = withTiming(1, { duration: 150 });
+        scale.value = withSpring(1, { damping: 18, stiffness: 520, mass: 0.65 });
       }}
       onPress={() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -927,7 +1023,8 @@ function TicketCard({
       <View style={styles.ticketCardInner}>
         {/* Full-bleed event poster */}
         {order.eventCoverImage ? (
-          <Image
+          <AnimatedExpoImage
+            sharedTransitionTag={`ticket-poster-${order.id}`}
             source={{ uri: order.eventCoverImage }}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
@@ -979,9 +1076,7 @@ function TicketCard({
           />
         </Animated.View>
 
-        {/* Side notches */}
-        <View style={styles.notchLeft} />
-        <View style={styles.notchRight} />
+        {/* Side notches removed */}
 
         {/* content container */}
         <View style={styles.ticketContent}>
@@ -999,6 +1094,7 @@ function TicketCard({
             <Text style={styles.ticketLeftTitle} numberOfLines={2}>
               {order.eventTitle}
             </Text>
+            <Text style={styles.ticketBookingCode}>{bookingLabel}</Text>
             <Text style={styles.ticketLeftDate}>{dateStr}</Text>
           </View>
 
@@ -1077,7 +1173,13 @@ function CountdownHero({ order, onViewTicket }: { order: Order; onViewTicket: ()
             </View>
           ))}
         </View>
-        <Pressable onPress={onViewTicket} style={styles.countdownButton}>
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            onViewTicket();
+          }}
+          style={styles.countdownButton}
+        >
           <LinearGradient
             colors={gradients.primary as [string, string]}
             start={{ x: 0, y: 0 }}
@@ -1111,7 +1213,7 @@ function SegmentedHeader({
   const avatarInitial = (profile?.displayName || user?.displayName || 'A').charAt(0).toUpperCase();
 
   const handleTabPress = (tab: 'upcoming' | 'past') => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Haptics.selectionAsync();
     setActiveTab(tab);
     slideAnim.value = withTiming(tab === 'upcoming' ? 0 : 1, { duration: 250 });
   };
@@ -1123,7 +1225,10 @@ function SegmentedHeader({
   return (
     <View style={styles.headerRow}>
       <Pressable
-        onPress={() => router.push('/(tabs)/explore')}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push('/(tabs)/explore');
+        }}
         style={[
           styles.headerIconBtn,
           { borderWidth: 0, backgroundColor: 'transparent', shadowOpacity: 0, elevation: 0 },
@@ -1155,7 +1260,10 @@ function SegmentedHeader({
       </View>
 
       <Pressable
-        onPress={() => router.push('/profile')}
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          router.push('/profile');
+        }}
         style={[styles.avatarCircle, { width: 36, height: 36, borderRadius: 18 }]}
       >
         {avatarPhoto ? (
@@ -1238,17 +1346,6 @@ export default function TicketsScreen() {
   const displayOrders = orders.length > 0 ? orders : cachedOrders;
   const nowMs = Date.now();
 
-  // Find the soonest upcoming event within 7 days for CountdownHero
-  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-  const nextEvent =
-    displayOrders
-      .filter((o) => {
-        const t = safeDate(o.eventDate)?.getTime() ?? 0;
-        return t > nowMs && t <= nowMs + sevenDaysMs;
-      })
-      .sort(
-        (a, b) => (safeDate(a.eventDate)?.getTime() ?? 0) - (safeDate(b.eventDate)?.getTime() ?? 0),
-      )[0] ?? null;
   const upcomingOrders = displayOrders.filter((o) => {
     if (!o.eventDate) return true;
     return (safeDate(o.eventDate)?.getTime() ?? 0) >= nowMs;
@@ -1258,6 +1355,7 @@ export default function TicketsScreen() {
     return (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs;
   });
   const displayedOrders = activeTab === 'upcoming' ? upcomingOrders : pastOrders;
+  const walletIsEmpty = upcomingOrders.length === 0 && pastOrders.length === 0;
   const showPendingReservationBanner =
     Boolean(pendingReservation) &&
     Boolean(pendingPaymentOrderId) &&
@@ -1353,11 +1451,19 @@ export default function TicketsScreen() {
                 </Text>
               </View>
               <View style={styles.pendingReservationActions}>
-                <Pressable onPress={clearPendingReservation}>
+                <Pressable
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    clearPendingReservation();
+                  }}
+                >
                   <Text style={styles.pendingReservationDismiss}>Dismiss</Text>
                 </Pressable>
                 <Pressable
-                  onPress={() => router.push('/checkout')}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    router.push('/checkout');
+                  }}
                   style={styles.pendingReservationButton}
                 >
                   <Text style={styles.pendingReservationButtonText}>Resume</Text>
@@ -1367,15 +1473,16 @@ export default function TicketsScreen() {
           ) : null}
         </View>
 
-        {/* Countdown Hero — next event ≤ 7 days away */}
-        {nextEvent && (
-          <CountdownHero
-            order={nextEvent}
-            onViewTicket={() => {
-              setSelectedOrder(nextEvent);
-              setShowQRModal(true);
-            }}
-          />
+        {/* Wallet sync warning with cached/current tickets still visible */}
+        {error && !loading && displayOrders.length > 0 && (
+          <View style={styles.walletSyncBanner}>
+            <Text style={styles.walletSyncText} numberOfLines={2}>
+              Wallet sync failed. Showing saved tickets.
+            </Text>
+            <Pressable onPress={onRefresh} style={styles.walletSyncRetry}>
+              <Text style={styles.walletSyncRetryText}>Retry</Text>
+            </Pressable>
+          </View>
         )}
 
         {/* Loading with skeleton */}
@@ -1429,15 +1536,27 @@ export default function TicketsScreen() {
           <Animated.View entering={FadeIn.delay(200)} style={styles.emptyContainer}>
             <Text style={styles.emptyEmoji}>🎟️</Text>
             <Text style={styles.emptyTitle}>
-              {activeTab === 'upcoming' ? 'No Upcoming Tickets' : 'No Past Tickets'}
+              {walletIsEmpty
+                ? 'Your wallet is empty.'
+                : activeTab === 'upcoming'
+                  ? 'No Upcoming Tickets'
+                  : 'No Past Tickets'}
             </Text>
             <Text style={styles.emptyText}>
-              {activeTab === 'upcoming'
-                ? 'Your purchased tickets will appear here'
-                : 'Your attended events will appear here'}
+              {walletIsEmpty
+                ? 'Find your next party and grab a ticket.'
+                : activeTab === 'upcoming'
+                  ? 'Your purchased tickets will appear here'
+                  : 'Your attended events will appear here'}
             </Text>
-            {activeTab === 'upcoming' && (
-              <Pressable onPress={() => router.push('/(tabs)/explore')} style={styles.emptyButton}>
+            {(walletIsEmpty || activeTab === 'upcoming') && (
+              <Pressable
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  router.push('/(tabs)/explore');
+                }}
+                style={styles.emptyButton}
+              >
                 <LinearGradient
                   colors={gradients.primary as [string, string]}
                   style={styles.emptyButtonGradient}
@@ -1729,6 +1848,21 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
+  },
+  ticketBookingCode: {
+    alignSelf: 'flex-start',
+    overflow: 'hidden',
+    color: '#161616',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    fontFamily: ticketFont.black,
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    borderRadius: 10,
+    marginBottom: 7,
+    fontVariant: ['tabular-nums'],
   },
   ticketLeftDate: {
     color: 'rgba(255,255,255,0.85)',
@@ -2071,6 +2205,38 @@ const styles = StyleSheet.create({
     color: colors.error,
     textAlign: 'center',
   },
+  walletSyncBanner: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255, 61, 113, 0.13)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 61, 113, 0.28)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  walletSyncText: {
+    flex: 1,
+    color: colors.gold,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  walletSyncRetry: {
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  walletSyncRetryText: {
+    color: colors.goldLight,
+    fontSize: 13,
+    fontWeight: '800',
+  },
   emptyContainer: {
     alignItems: 'center',
     paddingVertical: 60,
@@ -2082,14 +2248,18 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     color: colors.gold,
-    fontSize: 22,
-    fontWeight: '700',
+    fontFamily: ticketFont.black,
+    fontSize: 28,
+    fontWeight: '900',
     marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 0,
   },
   emptyText: {
     color: colors.goldMetallic,
     fontSize: 15,
     textAlign: 'center',
+    lineHeight: 22,
     marginBottom: 24,
   },
   emptyButton: {},

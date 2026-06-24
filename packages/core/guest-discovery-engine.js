@@ -228,17 +228,6 @@ function extractEventCoordinates(event = {}) {
   return null;
 }
 
-function distanceKm(originLat, originLng, targetLat, targetLng) {
-  const toRadians = (degrees) => degrees * (Math.PI / 180);
-  const earthRadiusKm = 6371;
-  const dLat = toRadians(targetLat - originLat);
-  const dLng = toRadians(targetLng - originLng);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRadians(originLat)) * Math.cos(toRadians(targetLat)) * Math.sin(dLng / 2) ** 2;
-  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
 function mapPinFromEvent(event = {}, coordinates) {
   return {
     id: event.id,
@@ -248,26 +237,59 @@ function mapPinFromEvent(event = {}, coordinates) {
   };
 }
 
-export async function listEventMapPins(
-  db,
-  { lat, lng, radius = 15, limit = 500, now = new Date() } = {},
-) {
-  const latitude = toFiniteNumber(lat);
-  const longitude = toFiniteNumber(lng);
-  if (latitude === null || longitude === null) throw new Error('lat and lng are required');
-  if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-    throw new Error('Invalid coordinates');
+function normalizeMapBounds({
+  northEast,
+  southWest,
+  northEastLat,
+  northEastLng,
+  southWestLat,
+  southWestLng,
+} = {}) {
+  const neLat = toFiniteNumber(northEastLat ?? northEast?.lat ?? northEast?.latitude);
+  const neLng = toFiniteNumber(northEastLng ?? northEast?.lng ?? northEast?.longitude);
+  const swLat = toFiniteNumber(southWestLat ?? southWest?.lat ?? southWest?.latitude);
+  const swLng = toFiniteNumber(southWestLng ?? southWest?.lng ?? southWest?.longitude);
+
+  if (neLat === null || neLng === null || swLat === null || swLng === null) {
+    throw new Error('northEast and southWest bounds are required');
+  }
+  if (neLat < -90 || neLat > 90 || swLat < -90 || swLat > 90) {
+    throw new Error('Invalid latitude bounds');
+  }
+  if (neLng < -180 || neLng > 180 || swLng < -180 || swLng > 180) {
+    throw new Error('Invalid longitude bounds');
+  }
+  if (swLat >= neLat) {
+    throw new Error('southWest latitude must be below northEast latitude');
+  }
+  if (swLng === neLng) {
+    throw new Error('longitude bounds must span a viewport');
   }
 
-  const safeRadius = Math.max(0.5, Math.min(Number(radius) || 15, 50));
-  const safeLimit = Math.max(1, Math.min(Number(limit) || 500, 500));
-  const latDelta = safeRadius / 111.12;
-  const lngDelta = safeRadius / (111.12 * Math.max(Math.cos(latitude * (Math.PI / 180)), 0.1));
-  const minLat = latitude - latDelta;
-  const maxLat = latitude + latDelta;
+  return {
+    northEast: { latitude: neLat, longitude: neLng },
+    southWest: { latitude: swLat, longitude: swLng },
+  };
+}
+
+function isLongitudeWithinBounds(longitude, bounds) {
+  const west = bounds.southWest.longitude;
+  const east = bounds.northEast.longitude;
+  if (west <= east) return longitude >= west && longitude <= east;
+  return longitude >= west || longitude <= east;
+}
+
+export async function listEventMapPins(
+  db,
+  { limit = 100, now = new Date(), ...boundsOptions } = {},
+) {
+  const bounds = normalizeMapBounds(boundsOptions);
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 100, 100));
+  const minLat = bounds.southWest.latitude;
+  const maxLat = bounds.northEast.latitude;
   const nowTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
 
-  const queryLimit = Math.min(Math.max(safeLimit * 3, 100), 1000);
+  const queryLimit = safeLimit;
   const snapshots = await Promise.all(
     ['coordinates.latitude', 'latitude'].map((field) =>
       db
@@ -292,12 +314,9 @@ export async function listEventMapPins(
     .map((event) => {
       const coordinates = extractEventCoordinates(event);
       if (!coordinates) return null;
-      if (Math.abs(coordinates.longitude - longitude) > lngDelta) return null;
-      const distance = distanceKm(latitude, longitude, coordinates.latitude, coordinates.longitude);
-      if (distance > safeRadius) return null;
+      if (!isLongitudeWithinBounds(coordinates.longitude, bounds)) return null;
       return {
         ...mapPinFromEvent(event, coordinates),
-        distance,
         startsAt: new Date(
           event.startAt || event.startDate || event.startDateTime || nowTime,
         ).getTime(),
@@ -310,13 +329,13 @@ export async function listEventMapPins(
       return Number(a.startsAt || 0) - Number(b.startsAt || 0);
     })
     .slice(0, safeLimit)
-    .map(({ distance, startsAt, ...pin }) => pin);
+    .map(({ startsAt, ...pin }) => pin);
 
   return {
     pins,
     count: pins.length,
-    center: { lat: latitude, lng: longitude },
-    radiusKm: safeRadius,
+    bounds,
+    limit: safeLimit,
   };
 }
 

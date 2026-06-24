@@ -19,6 +19,15 @@ export interface UserSettings {
     allowAlerts: boolean;
     smsTransactional: boolean;
     marketingPromotions: boolean;
+    eventInvites: boolean;
+    eventReminders: boolean;
+    eventBlasts: boolean;
+    eventUpdates: boolean;
+    feedbackRequests: boolean;
+    guestRegistrations: boolean;
+    feedbackResponses: boolean;
+    newMembers: boolean;
+    eventSubmissions: boolean;
   };
 
   // Privacy settings
@@ -29,6 +38,8 @@ export interface UserSettings {
     publicProfile: boolean;
     showOnGuestlists: boolean;
     showEventsAttending: boolean;
+    contactsSyncing: boolean;
+    locationAccess: boolean;
   };
 
   // Appearance
@@ -49,6 +60,15 @@ const DEFAULT_SETTINGS: UserSettings = {
     allowAlerts: true,
     smsTransactional: true,
     marketingPromotions: true,
+    eventInvites: true,
+    eventReminders: true,
+    eventBlasts: false,
+    eventUpdates: true,
+    feedbackRequests: true,
+    guestRegistrations: true,
+    feedbackResponses: true,
+    newMembers: true,
+    eventSubmissions: true,
   },
   privacy: {
     dmPrivacy: 'event',
@@ -57,6 +77,8 @@ const DEFAULT_SETTINGS: UserSettings = {
     publicProfile: true,
     showOnGuestlists: true,
     showEventsAttending: true,
+    contactsSyncing: false,
+    locationAccess: false,
   },
   appearance: {
     theme: 'dark',
@@ -67,6 +89,67 @@ const DEFAULT_SETTINGS: UserSettings = {
 
 const LOCAL_STORAGE_KEY = '@user_settings';
 
+type SettingsPatch = {
+  notifications?: Partial<UserSettings['notifications']>;
+  privacy?: Partial<UserSettings['privacy']>;
+  appearance?: Partial<UserSettings['appearance']>;
+};
+
+type SettingsApiPayload = SettingsPatch & { updatedAt?: string | null };
+
+type SettingsApiResponse = {
+  settings?: SettingsApiPayload;
+  profile?: { settings?: SettingsApiPayload };
+  data?: {
+    settings?: SettingsApiPayload;
+    profile?: { settings?: SettingsApiPayload };
+  };
+};
+
+function mergeSettings(base: UserSettings, patch?: SettingsApiPayload | null): UserSettings {
+  if (!patch) {
+    return {
+      ...base,
+      notifications: { ...base.notifications },
+      privacy: { ...base.privacy },
+      appearance: { ...base.appearance },
+    };
+  }
+
+  return {
+    ...base,
+    notifications: {
+      ...base.notifications,
+      ...(patch.notifications || {}),
+    },
+    privacy: {
+      ...base.privacy,
+      ...(patch.privacy || {}),
+    },
+    appearance: {
+      ...base.appearance,
+      ...(patch.appearance || {}),
+    },
+  };
+}
+
+function normalizeSettings(payload?: SettingsApiPayload | null): UserSettings {
+  return mergeSettings(DEFAULT_SETTINGS, payload);
+}
+
+function extractSettings(response: SettingsApiResponse): SettingsApiPayload | undefined {
+  return (
+    response.settings ||
+    response.data?.settings ||
+    response.profile?.settings ||
+    response.data?.profile?.settings
+  );
+}
+
+async function cacheSettings(settings: UserSettings) {
+  await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(settings));
+}
+
 interface SettingsState {
   settings: UserSettings;
   loading: boolean;
@@ -75,19 +158,23 @@ interface SettingsState {
 
   // Actions
   loadSettings: (userId?: string) => Promise<void>;
-  updateSettings: (userId: string, partial: Partial<UserSettings>) => Promise<void>;
+  updateSettings: (userId: string | undefined, partial: SettingsPatch) => Promise<void>;
   updateNotificationSetting: (
-    userId: string,
+    userId: string | undefined,
     key: keyof UserSettings['notifications'],
     value: boolean,
   ) => Promise<void>;
-  updatePrivacySetting: (
-    userId: string,
-    key: keyof UserSettings['privacy'],
-    value: any,
+  updatePrivacySetting: <K extends keyof UserSettings['privacy']>(
+    userId: string | undefined,
+    key: K,
+    value: UserSettings['privacy'][K],
   ) => Promise<void>;
-  updateAppearanceSetting: (key: keyof UserSettings['appearance'], value: any) => Promise<void>;
-  syncToBackend: (userId: string) => Promise<void>;
+  updateAppearanceSetting: <K extends keyof UserSettings['appearance']>(
+    userId: string | undefined,
+    key: K,
+    value: UserSettings['appearance'][K],
+  ) => Promise<void>;
+  syncToBackend: (userId?: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set, get) => ({
@@ -104,29 +191,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       const localData = await AsyncStorage.getItem(LOCAL_STORAGE_KEY);
       if (localData) {
         const parsed = JSON.parse(localData);
-        set({ settings: { ...DEFAULT_SETTINGS, ...parsed } });
+        set({ settings: normalizeSettings(parsed) });
       }
 
       // Then, sync from backend if user is logged in
       if (userId) {
         try {
-          const response = await apiFetch<{
-            success: boolean;
-            data?: { profile?: { settings?: Partial<UserSettings> } };
-          }>('/api/v1/users/me');
-          const data = response.data?.profile?.settings;
+          const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings');
+          const data = extractSettings(response);
 
           if (data) {
-            const merged = {
-              ...DEFAULT_SETTINGS,
-              ...data,
-              notifications: { ...DEFAULT_SETTINGS.notifications, ...data.notifications },
-              privacy: { ...DEFAULT_SETTINGS.privacy, ...data.privacy },
-              appearance: { ...DEFAULT_SETTINGS.appearance, ...data.appearance },
-            };
+            const merged = normalizeSettings(data);
 
             set({ settings: merged, lastSyncedAt: new Date() });
-            await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(merged));
+            await cacheSettings(merged);
           }
         } catch {
           // Ignore errors — local settings remain in effect
@@ -139,70 +217,61 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  updateSettings: async (userId: string, partial: Partial<UserSettings>) => {
-    const { settings } = get();
-    const newSettings = { ...settings, ...partial };
+  updateSettings: async (userId: string | undefined, partial: SettingsPatch) => {
+    const previousSettings = get().settings;
+    const newSettings = mergeSettings(previousSettings, partial);
 
     // Optimistic update
-    set({ settings: newSettings });
+    set({ settings: newSettings, syncing: Boolean(userId) });
 
     // Save locally
-    await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newSettings));
+    await cacheSettings(newSettings);
 
-    // Sync to backend
-    get().syncToBackend(userId);
+    if (!userId) return;
+
+    try {
+      const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
+        method: 'PATCH',
+        body: JSON.stringify(partial),
+      });
+      const savedSettings = extractSettings(response);
+      const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : newSettings;
+      set({ settings: confirmedSettings, lastSyncedAt: new Date() });
+      await cacheSettings(confirmedSettings);
+    } catch (error) {
+      console.error('Failed to sync settings to backend:', error);
+      set({ settings: previousSettings });
+      await cacheSettings(previousSettings);
+    } finally {
+      set({ syncing: false });
+    }
   },
 
   updateNotificationSetting: async (
-    userId: string,
+    userId: string | undefined,
     key: keyof UserSettings['notifications'],
     value: boolean,
   ) => {
-    const { settings } = get();
-    const newSettings = {
-      ...settings,
-      notifications: {
-        ...settings.notifications,
-        [key]: value,
-      },
-    };
-
-    set({ settings: newSettings });
-    await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newSettings));
-    get().syncToBackend(userId);
+    await get().updateSettings(userId, { notifications: { [key]: value } });
   },
 
-  updatePrivacySetting: async (userId: string, key: keyof UserSettings['privacy'], value: any) => {
-    const { settings } = get();
-    const newSettings = {
-      ...settings,
-      privacy: {
-        ...settings.privacy,
-        [key]: value,
-      },
-    };
-
-    set({ settings: newSettings });
-    await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newSettings));
-    get().syncToBackend(userId);
+  updatePrivacySetting: async <K extends keyof UserSettings['privacy']>(
+    userId: string | undefined,
+    key: K,
+    value: UserSettings['privacy'][K],
+  ) => {
+    await get().updateSettings(userId, { privacy: { [key]: value } });
   },
 
-  updateAppearanceSetting: async (key: keyof UserSettings['appearance'], value: any) => {
-    const { settings } = get();
-    const newSettings = {
-      ...settings,
-      appearance: {
-        ...settings.appearance,
-        [key]: value,
-      },
-    };
-
-    set({ settings: newSettings });
-    await AsyncStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(newSettings));
-    // Appearance settings are local-only, no backend sync needed
+  updateAppearanceSetting: async <K extends keyof UserSettings['appearance']>(
+    userId: string | undefined,
+    key: K,
+    value: UserSettings['appearance'][K],
+  ) => {
+    await get().updateSettings(userId, { appearance: { [key]: value } });
   },
 
-  syncToBackend: async (_userId: string) => {
+  syncToBackend: async (userId?: string) => {
     const { settings, syncing } = get();
 
     if (syncing) return; // Debounce
@@ -210,11 +279,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     set({ syncing: true });
 
     try {
-      await apiFetch('/api/v1/users/me/settings', {
+      if (!userId) return;
+      const response = await apiFetch<SettingsApiResponse>('/api/v1/users/me/settings', {
         method: 'PATCH',
-        body: JSON.stringify({ settings: { ...settings, updatedAt: new Date().toISOString() } }),
+        body: JSON.stringify(settings),
       });
-      set({ lastSyncedAt: new Date() });
+      const savedSettings = extractSettings(response);
+      const confirmedSettings = savedSettings ? normalizeSettings(savedSettings) : settings;
+      set({ settings: confirmedSettings, lastSyncedAt: new Date() });
+      await cacheSettings(confirmedSettings);
     } catch (error) {
       console.error('Failed to sync settings to backend:', error);
     } finally {

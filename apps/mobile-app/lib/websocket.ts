@@ -94,11 +94,20 @@ class WebSocketManager {
         const msg = JSON.parse(event.data as string) as WSMessage;
         if (msg.type === 'welcome') return;
 
-        // Dispatch to topic-specific handlers
-        const topicHandlers = msg.payload?.eventId
-          ? this.subscriptions.get(`event:${msg.payload.eventId}`)
-          : undefined;
-        topicHandlers?.forEach((h) => h(msg));
+        // Dispatch to topic-specific handlers.
+        const topics = new Set<string>();
+        if (typeof msg.payload?.eventId === 'string') {
+          topics.add(`event:${msg.payload.eventId}`);
+        }
+        if (typeof msg.payload?.conversationId === 'string') {
+          topics.add(`dm:${msg.payload.conversationId}`);
+        }
+        if (typeof msg.payload?.topic === 'string') {
+          topics.add(msg.payload.topic);
+        }
+        topics.forEach((topic) => {
+          this.subscriptions.get(topic)?.forEach((h) => h(msg));
+        });
 
         // Also dispatch to wildcard (empty topic = all messages)
         this.subscriptions.get('*')?.forEach((h) => h(msg));

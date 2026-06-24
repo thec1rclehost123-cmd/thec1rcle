@@ -278,10 +278,7 @@ export default function EditProfileScreen() {
         spotify: spotify.trim(),
       };
 
-      const success = await updateProfile(user.uid, {
-        email: user.email ?? profile?.email ?? '',
-        ...updates,
-      });
+      const success = await updateProfile(user.uid, updates);
 
       if (!success) {
         throw new Error('Profile update failed');

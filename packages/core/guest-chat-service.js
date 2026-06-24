@@ -11,6 +11,8 @@ const EVENT_GROUP_MESSAGES_COLLECTION = 'eventGroupMessages';
 const ACTIVE_ORDER_STATUSES = ['confirmed', 'checked_in', 'paid'];
 const MAX_EVENT_CHAT_ROOM_MEMBERS = 250;
 const REPORTED_MESSAGE_PLACEHOLDER = 'This message is under review';
+const MESSAGE_REPORT_HIDE_THRESHOLD = 3;
+const CHAT_STRIKE_BAN_THRESHOLD = 3;
 
 function nowIso() {
   return new Date().toISOString();
@@ -77,6 +79,37 @@ async function getUserProfile(db, userId) {
   } catch {
     return {};
   }
+}
+
+function normalizeReportedBy(message = {}) {
+  if (Array.isArray(message.reportedBy)) {
+    return [...new Set(message.reportedBy.filter(Boolean).map(String))];
+  }
+  if (message.reportedBy) return [String(message.reportedBy)];
+  return [];
+}
+
+function messageSenderId(message = {}, fallbackSenderId = null) {
+  return message.senderId || message.userId || fallbackSenderId || null;
+}
+
+function sanitizeReportReason(reason) {
+  if (!reason) return null;
+  const cleaned = String(reason).trim();
+  return cleaned ? cleaned.slice(0, 300) : null;
+}
+
+function isMessageVisibleToUser(message = {}, userId) {
+  if (message.isHidden === true) return false;
+  return !normalizeReportedBy(message).includes(String(userId));
+}
+
+export async function assertUserCanSendChatMessage(db, userId) {
+  const profile = await getUserProfile(db, userId);
+  if (profile.isChatBanned === true) {
+    throw new Error('Chat banned');
+  }
+  return profile;
 }
 
 async function getEvent(db, eventId) {
@@ -523,8 +556,10 @@ async function assertChatAccess(db, resolved, userId, { forSend = false } = {}) 
 function normalizeMessage(doc, chat) {
   const data = typeof doc.data === 'function' ? doc.data() || {} : doc || {};
   const rawType = data.type || (data.imageUrl ? 'image' : 'text');
-  const isReported = Boolean(data.isReported);
-  const content = isReported
+  const isHidden = Boolean(data.isHidden);
+  const reportCount = Number(data.reportCount || normalizeReportedBy(data).length || 0);
+  const isReported = Boolean(data.isReported || reportCount > 0);
+  const content = isHidden
     ? REPORTED_MESSAGE_PLACEHOLDER
     : data.content || data.text || data.imageUrl || '';
 
@@ -538,11 +573,13 @@ function normalizeMessage(doc, chat) {
     senderAvatar: data.senderAvatar || data.senderPhoto || data.userAvatar || undefined,
     senderBadge: data.senderBadge || data.userBadge || undefined,
     content,
-    imageUrl: isReported ? null : data.imageUrl || (rawType === 'image' ? data.content : undefined),
-    type: isReported ? 'text' : rawType,
+    imageUrl: isHidden ? null : data.imageUrl || (rawType === 'image' ? data.content : undefined),
+    type: isHidden ? 'text' : rawType,
     createdAt: data.createdAt,
     isDeleted: Boolean(data.isDeleted),
     isReported,
+    isHidden,
+    reportCount,
     replyTo: data.replyTo || data.replyToId || undefined,
   };
 }
@@ -574,7 +611,9 @@ export async function getChatMessages(db, userId, chatId, { limit = 50, before =
   const snapshot = await query.limit(safeLimit + 1).get();
   const docs = snapshot.docs || [];
   const hasMore = docs.length > safeLimit;
-  const pageDocs = docs.slice(0, safeLimit);
+  const pageDocs = docs
+    .filter((doc) => isMessageVisibleToUser(doc.data?.() || {}, userId))
+    .slice(0, safeLimit);
   const messages = pageDocs.map((doc) => normalizeMessage(doc, access.chat)).reverse();
   const nextCursor =
     hasMore && pageDocs.length ? pageDocs[pageDocs.length - 1].data().createdAt : null;
@@ -635,13 +674,13 @@ export async function sendChatMessage(
   const resolved = await resolveChat(db, chatId);
   if (!resolved) throw new Error('Chat not found');
   const access = await assertChatAccess(db, resolved, userId, { forSend: true });
+  const profile = await assertUserCanSendChatMessage(db, userId);
   const { content, type: messageType } = validatePayload({ text, imageUrl, type });
 
   if (access.chat.type === 'event') {
     await assertCanSendEventMessage(db, access.chat, userId);
   }
 
-  const profile = await getUserProfile(db, userId);
   const createdAt = nowIso();
   const id = `msg_${randomUUID().slice(0, 12)}`;
   const senderName = displayNameFromProfile(profile, 'Attendee');
@@ -731,6 +770,141 @@ export async function sendChatMessage(
   };
 }
 
+async function applyMessageReport(
+  db,
+  {
+    messageRef,
+    messageDoc,
+    reporterId,
+    reportId,
+    chatId = null,
+    eventId = null,
+    conversationId = null,
+    fallbackSenderId = null,
+    reason = null,
+    details = null,
+    mirrorRefs = [],
+    chat = {},
+  } = {},
+) {
+  if (!messageRef || !messageDoc?.exists) throw new Error('Message not found');
+
+  const message = messageDoc.data() || {};
+  const reportedBy = normalizeReportedBy(message);
+  const messageId = messageDoc.id || message.id;
+  const reportedUserId = messageSenderId(message, fallbackSenderId);
+  const alreadyReported = reportedBy.includes(String(reporterId));
+  const now = nowIso();
+  const safeReportId = reportId || `${messageId}_${reporterId}`;
+  const currentReportCount = Number(message.reportCount || reportedBy.length || 0);
+
+  if (alreadyReported) {
+    return {
+      report: {
+        id: safeReportId,
+        chatId,
+        eventId,
+        conversationId,
+        messageId,
+        status: 'already_reported',
+        reportCount: currentReportCount,
+        createdAt: now,
+      },
+      moderation: {
+        reportCount: currentReportCount,
+        hidden: message.isHidden === true,
+        strikeApplied: false,
+        chatStrikes: null,
+        chatBanned: false,
+      },
+      message: normalizeMessage({ id: messageId, data: () => message }, chat),
+    };
+  }
+
+  const nextReportedBy = [...reportedBy, String(reporterId)];
+  const reportCount = nextReportedBy.length;
+  const shouldHide = reportCount >= MESSAGE_REPORT_HIDE_THRESHOLD && message.isHidden !== true;
+  const update = {
+    isReported: true,
+    moderationStatus: shouldHide ? 'hidden_by_community_reports' : 'pending_review',
+    reportedAt: now,
+    reportedBy: nextReportedBy,
+    reportCount,
+    updatedAt: now,
+  };
+
+  if (shouldHide) {
+    update.isHidden = true;
+    update.hiddenAt = now;
+    update.hiddenReason = 'community_reports';
+  }
+
+  const batch = db.batch();
+  batch.set(messageRef, update, { merge: true });
+  mirrorRefs.forEach((ref) => batch.set(ref, update, { merge: true }));
+  batch.set(
+    db.collection(CHAT_MESSAGE_REPORTS_COLLECTION).doc(safeReportId),
+    {
+      id: safeReportId,
+      chatId,
+      eventId,
+      conversationId,
+      messageId,
+      reporterId,
+      reportedUserId,
+      reason: sanitizeReportReason(reason),
+      details: details ? String(details).trim().slice(0, 1000) : null,
+      status: 'pending',
+      createdAt: now,
+      updatedAt: now,
+    },
+    { merge: true },
+  );
+
+  let strikeUpdate = null;
+  if (shouldHide && reportedUserId) {
+    const senderRef = db.collection('users').doc(reportedUserId);
+    const senderDoc = await senderRef.get().catch(() => null);
+    const senderProfile = senderDoc?.exists ? senderDoc.data() || {} : {};
+    const nextStrikes = Number(senderProfile.chatStrikes || 0) + 1;
+    strikeUpdate = {
+      chatStrikes: nextStrikes,
+      lastChatStrikeAt: now,
+      updatedAt: now,
+    };
+
+    if (nextStrikes >= CHAT_STRIKE_BAN_THRESHOLD) {
+      strikeUpdate.isChatBanned = true;
+      strikeUpdate.chatBannedAt = senderProfile.chatBannedAt || now;
+    }
+
+    batch.set(senderRef, strikeUpdate, { merge: true });
+  }
+
+  await batch.commit();
+
+  return {
+    report: {
+      id: safeReportId,
+      chatId,
+      eventId,
+      conversationId,
+      messageId,
+      status: 'pending',
+      reportCount,
+      createdAt: now,
+    },
+    moderation: {
+      reportCount,
+      hidden: Boolean(shouldHide || message.isHidden === true),
+      strikeApplied: Boolean(strikeUpdate),
+      chatStrikes: strikeUpdate?.chatStrikes ?? null,
+      chatBanned: strikeUpdate?.isChatBanned === true,
+    },
+    message: normalizeMessage({ id: messageId, data: () => ({ ...message, ...update }) }, chat),
+  };
+}
+
 export async function reportChatMessage(db, userId, chatId, messageId, { reason = null } = {}) {
   if (!userId || !chatId || !messageId)
     throw new Error('userId, chatId and messageId are required');
@@ -746,56 +920,98 @@ export async function reportChatMessage(db, userId, chatId, messageId, { reason 
   const message = messageDoc.data() || {};
   if (message.chatId !== access.chatId) throw new Error('Message not found');
 
-  const now = nowIso();
-  const reportId = `${messageId}_${userId}`;
-  const update = {
-    isReported: true,
-    moderationStatus: 'pending_review',
-    reportedAt: now,
-    reportedBy: userId,
-  };
-  const batch = db.batch();
-  batch.set(messageRef, update, { merge: true });
-  batch.set(
-    db.collection(CHAT_MESSAGE_REPORTS_COLLECTION).doc(reportId),
-    {
-      id: reportId,
-      chatId: access.chatId,
-      eventId: access.chat.eventId || message.eventId || null,
-      messageId,
-      reporterId: userId,
-      reportedUserId: message.senderId || message.userId || null,
-      reason: reason ? String(reason).trim().slice(0, 300) : null,
-      status: 'pending',
-      createdAt: now,
-      updatedAt: now,
-    },
-    { merge: true },
-  );
-
+  const mirrorRefs = [];
   if (access.source === 'legacy-direct') {
-    batch.set(db.collection(DIRECT_MESSAGES_COLLECTION).doc(messageId), update, { merge: true });
+    mirrorRefs.push(db.collection(DIRECT_MESSAGES_COLLECTION).doc(messageId));
   }
   if (access.chat.type === 'event') {
-    batch.set(db.collection(EVENT_GROUP_MESSAGES_COLLECTION).doc(messageId), update, {
-      merge: true,
-    });
+    mirrorRefs.push(db.collection(EVENT_GROUP_MESSAGES_COLLECTION).doc(messageId));
   }
 
-  await batch.commit();
-  return {
-    report: {
-      id: reportId,
-      chatId: access.chatId,
-      messageId,
-      status: 'pending',
-      createdAt: now,
-    },
-    message: normalizeMessage(
-      { id: messageId, data: () => ({ ...message, ...update }) },
-      access.chat,
-    ),
-  };
+  return applyMessageReport(db, {
+    messageRef,
+    messageDoc,
+    reporterId: userId,
+    reportId: `${messageId}_${userId}`,
+    chatId: access.chatId,
+    eventId: access.chat.eventId || message.eventId || null,
+    conversationId: access.chat.type === 'direct' ? access.chatId : message.conversationId || null,
+    reason,
+    mirrorRefs,
+    chat: access.chat,
+  });
+}
+
+export async function reportSocialMessage(
+  db,
+  userId,
+  {
+    messageId,
+    senderId = null,
+    eventId = null,
+    conversationId = null,
+    chatId = null,
+    reason = null,
+    details = null,
+  } = {},
+) {
+  if (!userId || !messageId) throw new Error('userId and messageId are required');
+  if (chatId) {
+    return reportChatMessage(db, userId, chatId, messageId, { reason });
+  }
+
+  let collectionName = null;
+  let chat = {};
+
+  if (eventId) {
+    collectionName = EVENT_GROUP_MESSAGES_COLLECTION;
+    chat = { id: eventChatId(eventId), type: 'event', eventId };
+  } else if (conversationId) {
+    const conversationDoc = await db
+      .collection(PRIVATE_CONVERSATIONS_COLLECTION)
+      .doc(conversationId)
+      .get();
+    if (!conversationDoc.exists) throw new Error('Message not found');
+    const conversation = conversationDoc.data() || {};
+    if (!Array.isArray(conversation.participants) || !conversation.participants.includes(userId)) {
+      throw new Error('Forbidden');
+    }
+    collectionName = DIRECT_MESSAGES_COLLECTION;
+    chat = { id: conversationId, type: 'direct', conversationId };
+  } else {
+    throw new Error('eventId, conversationId or chatId is required');
+  }
+
+  const messageRef = db.collection(collectionName).doc(messageId);
+  const messageDoc = await messageRef.get();
+  if (!messageDoc.exists) throw new Error('Message not found');
+
+  const message = messageDoc.data() || {};
+  if (eventId && message.eventId !== eventId) throw new Error('Message not found');
+  if (conversationId && message.conversationId !== conversationId)
+    throw new Error('Message not found');
+
+  const mirrorRefs = [];
+  const canonicalMessageRef = db.collection(CHAT_MESSAGES_COLLECTION).doc(messageId);
+  const canonicalMessageDoc = await canonicalMessageRef.get().catch(() => ({ exists: false }));
+  if (canonicalMessageDoc.exists) {
+    mirrorRefs.push(canonicalMessageRef);
+  }
+
+  return applyMessageReport(db, {
+    messageRef,
+    messageDoc,
+    reporterId: userId,
+    reportId: `${collectionName}_${messageId}_${userId}`,
+    chatId: chat.id || null,
+    eventId: eventId || message.eventId || null,
+    conversationId: conversationId || message.conversationId || null,
+    fallbackSenderId: senderId,
+    reason,
+    details,
+    mirrorRefs,
+    chat,
+  });
 }
 
 async function fetchUsersByIds(db, userIds) {

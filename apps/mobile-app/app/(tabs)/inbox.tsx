@@ -14,7 +14,6 @@ import {
   Image,
   Modal,
   Dimensions,
-  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -28,6 +27,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useChatStore } from '@/store/chatStore';
 import { apiFetch } from '@/lib/api';
 import type { EventChat, DirectChat } from '@/lib/chat';
+import { DiscoLoader } from '@/components/ui/DiscoLoader';
 
 interface NewMatch {
   id: string;
@@ -431,8 +431,8 @@ function EmptyChatReplica() {
           </View>
         </View>
 
-        <Text style={{ color: '#FFF', fontSize: 22, fontWeight: '700', marginBottom: 12 }}>
-          It's Quiet Here
+        <Text style={{ color: '#FFF', fontSize: 26, fontWeight: '800', marginBottom: 12 }}>
+          It's quiet in here.
         </Text>
         <Text
           style={{
@@ -443,21 +443,8 @@ function EmptyChatReplica() {
             marginBottom: 32,
           }}
         >
-          Start a chat with your friends or others in{'\n'}your event.
+          RSVP to events or start swiping to make connections.
         </Text>
-
-        <Pressable
-          style={({ pressed }) => ({
-            backgroundColor: '#FFF',
-            paddingHorizontal: 28,
-            paddingVertical: 14,
-            borderRadius: 30,
-            opacity: pressed ? 0.8 : 1,
-          })}
-          onPress={() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)}
-        >
-          <Text style={{ color: '#000', fontSize: 16, fontWeight: '700' }}>Start Chat</Text>
-        </Pressable>
       </View>
     </View>
   );
@@ -513,7 +500,7 @@ export default function InboxScreen() {
           { paddingTop: insets.top, alignItems: 'center', justifyContent: 'center' },
         ]}
       >
-        <ActivityIndicator size="large" color="#fff" />
+        <DiscoLoader label="Loading chats" />
       </View>
     );
   }

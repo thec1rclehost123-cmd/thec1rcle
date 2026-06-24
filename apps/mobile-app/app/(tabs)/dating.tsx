@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -17,8 +18,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, BadgeCheck, Heart, MapPin, MessageCircle, Send, X } from 'lucide-react-native';
 import { colors, radii, spacing } from '@/lib/design/theme';
-import { MOCK_PROFILES } from '@/lib/data/mockDating';
-import type { DatingProfile, Prompt } from '@/lib/data/mockDating';
+import { useAuthStore } from '@/store/authStore';
+import { useDatingStore, type DatingProfile, type Prompt } from '@/store/datingStore';
 
 type ReplyTarget = {
   profile: DatingProfile;
@@ -165,6 +166,9 @@ function ReplySheet({
 export default function DatingScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
+  const { user } = useAuthStore();
+  const { profiles, loading, prefetching, hasMore, fetchProfiles, likeUser, passUser } =
+    useDatingStore();
   const [profileIndex, setProfileIndex] = useState(0);
   const [likesSent, setLikesSent] = useState<string[]>([]);
   const [, setChatStarts] = useState<Array<{ profileId: string; text: string }>>([]);
@@ -172,8 +176,24 @@ export default function DatingScreen() {
   const [replyText, setReplyText] = useState('');
   const [, setToast] = useState('Ready for tonight');
 
-  const profile = MOCK_PROFILES[profileIndex % MOCK_PROFILES.length];
-  const alreadyLiked = likesSent.includes(profile.id);
+  useEffect(() => {
+    if (!user?.uid) return;
+    setProfileIndex(0);
+    void fetchProfiles(user.uid, { append: false });
+  }, [fetchProfiles, user?.uid]);
+
+  const remainingProfiles = Math.max(profiles.length - profileIndex, 0);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    if (profiles.length === 0) return;
+    if (remainingProfiles > 5) return;
+    if (loading || prefetching || !hasMore) return;
+    void fetchProfiles(user.uid, { append: true });
+  }, [fetchProfiles, hasMore, loading, prefetching, profiles.length, remainingProfiles, user?.uid]);
+
+  const profile = profiles.length > 0 ? profiles[profileIndex] : null;
+  const alreadyLiked = profile ? likesSent.includes(profile.id) : false;
 
   const advanceProfile = (message: string) => {
     setToast(message);
@@ -181,13 +201,21 @@ export default function DatingScreen() {
   };
 
   const handlePass = () => {
+    if (!profile) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (user?.uid) {
+      void passUser(user.uid, profile.userId);
+    }
     advanceProfile(`${profile.name} dismissed`);
   };
 
   const handleLike = () => {
+    if (!profile) return;
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLikesSent((current) => (current.includes(profile.id) ? current : [...current, profile.id]));
+    if (user?.uid) {
+      void likeUser(user.uid, profile);
+    }
     setChatStarts((current) =>
       [{ profileId: profile.id, text: `Liked ${profile.name}` }, ...current].slice(0, 4),
     );
@@ -195,6 +223,7 @@ export default function DatingScreen() {
   };
 
   const handleOpenReply = (prompt: Prompt) => {
+    if (!profile) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
     setReplyText('');
@@ -217,6 +246,12 @@ export default function DatingScreen() {
     setReplyText('');
   };
 
+  const firstPrompt = profile?.prompts[0] || {
+    id: 'fallback-prompt',
+    title: 'My night out vibe is',
+    answer: profile?.headline || '',
+  };
+
   return (
     <View style={styles.container}>
       <LinearGradient
@@ -226,7 +261,7 @@ export default function DatingScreen() {
         style={StyleSheet.absoluteFill}
       />
       <View
-        key={profile.id}
+        key={profile?.id || 'empty-dating-profile'}
         style={[
           styles.content,
           { flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 116 },
@@ -246,14 +281,27 @@ export default function DatingScreen() {
           <View style={{ width: 44 }} />
         </View>
 
-        <ProfileHeader
-          profile={profile}
-          liked={alreadyLiked}
-          onPass={handlePass}
-          onLike={handleLike}
-          onReply={() => handleOpenReply(profile.prompts[0])}
-          stageHeight={screenHeight * 0.64}
-        />
+        {profile ? (
+          <ProfileHeader
+            profile={profile}
+            liked={alreadyLiked}
+            onPass={handlePass}
+            onLike={handleLike}
+            onReply={() => handleOpenReply(firstPrompt)}
+            stageHeight={screenHeight * 0.64}
+          />
+        ) : (
+          <View style={[styles.heroStage, styles.emptyState, { height: screenHeight * 0.64 }]}>
+            <ActivityIndicator color="#fff" />
+            <Text style={styles.emptyTitle}>
+              {loading || prefetching
+                ? 'Finding people near your events'
+                : hasMore
+                  ? 'Loading the next people'
+                  : 'No profiles yet'}
+            </Text>
+          </View>
+        )}
       </View>
 
       <ReplySheet
@@ -357,6 +405,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     marginTop: 14,
     marginBottom: spacing.sm,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    borderRadius: 34,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(0,0,0,0.22)',
+  },
+  emptyTitle: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   backCardFar: {
     position: 'absolute',

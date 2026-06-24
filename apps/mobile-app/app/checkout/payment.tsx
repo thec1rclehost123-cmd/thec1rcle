@@ -1,7 +1,8 @@
 import { useEffect } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { router } from 'expo-router';
 import { colors } from '@/lib/design/theme';
+import { DiscoLoader } from '@/components/ui/DiscoLoader';
 
 export default function CheckoutPaymentRedirect() {
   useEffect(() => {
@@ -10,7 +11,7 @@ export default function CheckoutPaymentRedirect() {
 
   return (
     <View style={styles.container}>
-      <ActivityIndicator color={colors.iris} />
+      <DiscoLoader />
     </View>
   );
 }

@@ -912,6 +912,7 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
         }
 
         fastify.log.error(`Initiate checkout failed: ${error.message}`);
+        console.error('FULL ERROR STACK:', error.stack);
         return reply.status(500).send({ success: false, error: 'Internal server error' });
       }
     },

@@ -90,7 +90,7 @@ function ProgressDots({ step }: { step: number }) {
 
 export default function ProfileSetupScreen() {
   const { user, setProfileSetupJustCompleted } = useAuthStore();
-  const { profile, updateProfile } = useProfileStore();
+  const { profile } = useProfileStore();
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile?.displayName ?? user?.displayName ?? '');
@@ -129,6 +129,7 @@ export default function ProfileSetupScreen() {
   };
 
   const handlePickPhoto = async () => {
+    Haptics.selectionAsync();
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') return;
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -141,6 +142,7 @@ export default function ProfileSetupScreen() {
       const asset = result.assets[0];
       setPhotoUri(asset.uri);
       setPhotoDimensions({ width: asset.width, height: asset.height });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
   };
 
@@ -167,11 +169,12 @@ export default function ProfileSetupScreen() {
 
       // 2. Permanently save basic info, photo URL, and vibe tags to users/{uid}
       await saveBasicUserProfile(user.uid, profileUpdates);
-      await updateProfile(user.uid, profileUpdates);
+      await useProfileStore.getState().loadProfile(user.uid);
 
       await AsyncStorage.setItem(getProfileSetupKey(user.uid), 'true');
       setProfileSetupJustCompleted(true);
-      router.replace('/(tabs)/explore');
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      router.replace('/onboarding');
     } catch (error) {
       console.error('[ProfileSetup] Finalize error:', error);
       Alert.alert('Could not save profile', 'Please try again.');
@@ -181,6 +184,7 @@ export default function ProfileSetupScreen() {
   };
 
   const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     Alert.alert(
       'Profile setup required',
       'Finish the required profile steps once so future logins can go straight to Explore.',

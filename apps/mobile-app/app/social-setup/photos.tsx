@@ -22,6 +22,7 @@ import * as Haptics from 'expo-haptics';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { Plus, X, ChevronRight } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
+import { markSocialSetupSkipped } from '@/lib/onboardingFlow';
 import { useSocialProfileStore } from '@/store/socialProfileStore';
 import { colors } from '@/lib/design/theme';
 
@@ -66,7 +67,10 @@ function PhotoSlot({
   return (
     <Pressable
       style={[styles.slot, { width, height }, isMain && styles.slotMain]}
-      onPress={() => onPick(index)}
+      onPress={() => {
+        Haptics.selectionAsync();
+        onPick(index);
+      }}
     >
       {uploading ? (
         <View style={styles.uploadingOverlay}>
@@ -190,6 +194,12 @@ export default function SocialSetupPhotos() {
     });
   };
 
+  const handleSkip = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await markSocialSetupSkipped(user?.uid);
+    router.replace('/(tabs)/explore');
+  };
+
   const slotProps = (index: number) => ({
     index,
     uri: photos[index],
@@ -203,7 +213,13 @@ export default function SocialSetupPhotos() {
     <SafeAreaView style={styles.container}>
       {/* Progress header */}
       <View style={styles.header}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable
+          style={styles.backBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
+        >
           <Text style={styles.backArrow}>‹</Text>
         </Pressable>
         <View style={styles.progressTrack}>
@@ -271,6 +287,9 @@ export default function SocialSetupPhotos() {
         >
           <Text style={styles.nextBtnText}>Continue</Text>
           <ChevronRight size={18} color="#fff" strokeWidth={2.5} />
+        </Pressable>
+        <Pressable onPress={handleSkip} style={styles.skipBtn}>
+          <Text style={styles.skipText}>Skip for now</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -507,5 +526,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.1,
+  },
+  skipBtn: {
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '600',
   },
 });

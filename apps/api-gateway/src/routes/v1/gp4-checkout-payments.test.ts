@@ -23,7 +23,7 @@ vi.mock('@c1rcle/core/workflows/ticketing', () => ({
     success: true,
     alreadyVerified: false,
     order: { id: 'ord_1', status: 'confirmed' },
-    tickets: [{ id: 'TKT-ORD-1', ticketId: 'ord_1-tier_1-1', qrMode: 'jwt' }],
+    tickets: [{ id: 'TKT-ORD-1', ticketId: 'ord_1-tier_1-1', qrMode: 'raw_id' }],
     ticketsCount: 1,
     razorpayOrderId: 'order_rzp_1',
     razorpayPaymentId: 'pay_1',
@@ -33,6 +33,19 @@ vi.mock('@c1rcle/core/workflows/ticketing', () => ({
   })),
 }));
 
+vi.mock('@c1rcle/core/ticket-checkout-wallet-service', () => ({
+  finalizeRazorpayTicketPurchase: vi.fn(async () => ({
+    success: true,
+    alreadyConfirmed: false,
+    order: { id: 'ord_1', eventId: 'event_1', status: 'confirmed' },
+    tickets: [{ id: 'TKT-ORD-1', ticketId: 'ord_1-tier_1-1', qrMode: 'raw_id' }],
+    ticketsCount: 1,
+    razorpayOrderId: 'order_rzp_1',
+    razorpayPaymentId: 'pay_1',
+  })),
+  verifyRazorpayWebhookSignature: vi.fn(() => true),
+}));
+
 import validatePlugin from '../../plugins/validate';
 import checkoutRoutes from './checkout';
 import paymentRoutes from './payments';
@@ -40,6 +53,8 @@ import orderRoutes from './orders';
 import { validatePromoCode } from '@c1rcle/core/promo-service';
 // @ts-ignore
 import { verifyCheckoutPayment } from '@c1rcle/core/workflows/ticketing';
+// @ts-ignore
+import { finalizeRazorpayTicketPurchase } from '@c1rcle/core/ticket-checkout-wallet-service';
 
 function buildDbMock() {
   return {
@@ -630,13 +645,19 @@ describe('GP-4 gateway checkout/payment routes', () => {
     await server.close();
   });
 
-  it('PATCH /api/v1/payments/verify returns alreadyConfirmed for idempotent duplicate confirmation', async () => {
+  it('PATCH /api/v1/payments/verify delegates to canonical checkout verification as a deprecated wrapper', async () => {
     const { server, checkoutService } = await buildServer();
-    checkoutService.verifyPayment.mockResolvedValueOnce({
+    vi.mocked(verifyCheckoutPayment).mockResolvedValueOnce({
       success: true,
-      alreadyConfirmed: true,
+      alreadyVerified: true,
       order: { id: 'ord_1', status: 'confirmed' },
-    });
+      tickets: [{ id: 'TKT-ORD-1' }],
+      ticketsCount: 1,
+      razorpayOrderId: 'order_rzp_1',
+      razorpayPaymentId: 'pay_1',
+      chatUnlocked: true,
+      redisReleased: true,
+    } as any);
     const signature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET as string)
       .update('order_rzp_1|pay_1')
@@ -658,25 +679,32 @@ describe('GP-4 gateway checkout/payment routes', () => {
     expect(response.json()).toMatchObject({
       success: true,
       alreadyConfirmed: true,
+      alreadyVerified: true,
       message: 'Order already confirmed',
     });
-    expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
-      orderId: 'ord_1',
-      razorpayOrderId: 'order_rzp_1',
-      razorpayPaymentId: 'pay_1',
-      userId: 'user_1',
-      paymentGatewayConfig: expect.any(Object),
-    });
+    expect(response.headers.deprecation).toBe('true');
+    expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+    expect(verifyCheckoutPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        db: expect.any(Object),
+        userId: 'user_1',
+        razorpay_order_id: 'order_rzp_1',
+        razorpay_payment_id: 'pay_1',
+        razorpay_signature: signature,
+        paymentGatewayConfig: {
+          keySecret: 'rzp_test_secret',
+          allowMockPayment: false,
+        },
+      }),
+    );
     await server.close();
   });
 
-  it('PATCH /api/v1/payments/verify returns 409 when the shared checkout service rejects finalization', async () => {
-    const { server, checkoutService } = await buildServer();
-    checkoutService.verifyPayment.mockResolvedValueOnce({
-      success: false,
-      error: 'Payment is not successful',
-      order: { id: 'ord_1', status: 'payment_pending' },
-    } as any);
+  it('PATCH /api/v1/payments/verify returns 409 when canonical verification rejects finalization', async () => {
+    const { server } = await buildServer();
+    vi.mocked(verifyCheckoutPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Payment is not successful'), { code: 'CONFLICT' }),
+    );
     const signature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET as string)
       .update('order_rzp_1|pay_1')
@@ -696,9 +724,7 @@ describe('GP-4 gateway checkout/payment routes', () => {
 
     expect(response.statusCode).toBe(409);
     expect(response.json()).toMatchObject({
-      success: false,
-      error: 'Payment is not successful',
-      order: { id: 'ord_1', status: 'payment_pending' },
+      error: expect.objectContaining({ message: 'Payment is not successful' }),
     });
 
     await server.close();
@@ -707,6 +733,9 @@ describe('GP-4 gateway checkout/payment routes', () => {
   it('PATCH /api/v1/payments/verify rejects mock payment payloads in production', async () => {
     const { server, checkoutService } = await buildServer();
     process.env.NODE_ENV = 'production';
+    vi.mocked(verifyCheckoutPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Mock payments are disabled'), { code: 'BAD_REQUEST' }),
+    );
 
     const response = await server.inject({
       method: 'PATCH',
@@ -725,6 +754,11 @@ describe('GP-4 gateway checkout/payment routes', () => {
       error: expect.objectContaining({ message: 'Mock payments are disabled' }),
     });
     expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+    expect(verifyCheckoutPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentGatewayConfig: expect.objectContaining({ allowMockPayment: false }),
+      }),
+    );
 
     await server.close();
   });
@@ -732,6 +766,11 @@ describe('GP-4 gateway checkout/payment routes', () => {
   it('PATCH /api/v1/payments/verify fails closed when Razorpay signing secret is missing', async () => {
     const { server, checkoutService } = await buildServer();
     delete process.env.RAZORPAY_KEY_SECRET;
+    vi.mocked(verifyCheckoutPayment).mockRejectedValueOnce(
+      Object.assign(new Error('Payment verification is not configured'), {
+        code: 'PAYMENT_NOT_CONFIGURED',
+      }),
+    );
 
     const response = await server.inject({
       method: 'PATCH',
@@ -750,11 +789,16 @@ describe('GP-4 gateway checkout/payment routes', () => {
       error: expect.objectContaining({ message: 'Payment verification is not configured' }),
     });
     expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
+    expect(verifyCheckoutPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        paymentGatewayConfig: expect.objectContaining({ keySecret: undefined }),
+      }),
+    );
 
     await server.close();
   });
 
-  it('POST /api/v1/payments/webhook verifies the signature and confirms the order via the gateway service', async () => {
+  it('POST /api/v1/payments/webhook verifies the signature and finalizes wallet tickets', async () => {
     const { server, checkoutService, orderRepo } = await buildServer();
     const payload = JSON.stringify({
       event: 'payment.captured',
@@ -784,13 +828,14 @@ describe('GP-4 gateway checkout/payment routes', () => {
     });
 
     expect(response.statusCode).toBe(200);
-    expect(checkoutService.verifyPayment).toHaveBeenCalledWith({
-      orderId: 'ord_1',
+    expect(finalizeRazorpayTicketPurchase).toHaveBeenCalledWith({
+      db: expect.any(Object),
+      checkoutService,
       razorpayOrderId: 'order_rzp_1',
       razorpayPaymentId: 'pay_1',
-      userId: null,
       paymentGatewayConfig: expect.any(Object),
     });
+    expect(checkoutService.verifyPayment).not.toHaveBeenCalled();
     expect(orderRepo.getOrderById).not.toHaveBeenCalled();
 
     await server.close();

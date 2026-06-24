@@ -304,6 +304,7 @@ async function main() {
   await server.register(paymentRoutes, { prefix: '/api/v1' });
   await server.register(hostRoutes, { prefix: '/api/v1' });
   await server.register(scanRoutes, { prefix: '/api/v1/scan' });
+  await server.register(scanRoutes, { prefix: '/api/v1/scanner' });
   await server.register(coverChargeRoutes, { prefix: '/api/v1/cover-charge' });
   await server.register(ticketRoutes, { prefix: '/api/v1' });
   await server.register(userRoutes, { prefix: '/api/v1' });

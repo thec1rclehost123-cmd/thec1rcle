@@ -7,11 +7,69 @@ import { GroupMessage, EventPhase, getEventPhase } from './types';
 
 // Client-side rate limiting for group chat messages (debounce 500ms)
 let lastGroupMessageTime = 0;
+const MESSAGE_LIMIT_MAX = 50;
+const FALLBACK_POLL_INTERVAL_MS = 30_000;
+
 export function canSendGroupMessage(): boolean {
   const now = Date.now();
   if (now - lastGroupMessageTime < 500) return false;
   lastGroupMessageTime = now;
   return true;
+}
+
+function clampMessageLimit(limit: number): number {
+  return Math.max(1, Math.min(Number(limit) || MESSAGE_LIMIT_MAX, MESSAGE_LIMIT_MAX));
+}
+
+function toTime(value: any): number {
+  if (!value) return 0;
+  if (typeof value?.toDate === 'function') return value.toDate().getTime();
+  if (typeof value?.seconds === 'number') return value.seconds * 1000;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function normalizeGroupMessage(raw: any, eventId: string): GroupMessage | null {
+  const id = raw?.id || raw?.messageId;
+  if (!id) return null;
+  const metadata =
+    raw?.metadata && typeof raw.metadata === 'object' ? (raw.metadata as Record<string, any>) : {};
+  const rawType = String(raw?.type || '').toLowerCase();
+  const type: GroupMessage['type'] =
+    rawType === 'announcement' || metadata.isAnnouncement
+      ? 'announcement'
+      : rawType === 'system'
+        ? 'system'
+        : rawType === 'image' || raw?.imageUrl
+          ? 'image'
+          : 'text';
+
+  return {
+    id: String(id),
+    eventId: String(raw?.eventId || eventId),
+    senderId: String(raw?.senderId || raw?.userId || ''),
+    senderName: String(raw?.senderName || raw?.userName || 'Attendee'),
+    senderAvatar: raw?.senderAvatar || raw?.senderPhoto || metadata.senderAvatar,
+    senderBadge: raw?.senderBadge || metadata.senderBadge,
+    content: String(raw?.content || raw?.text || raw?.imageUrl || raw?.videoUrl || ''),
+    type,
+    createdAt: raw?.createdAt || new Date().toISOString(),
+    isDeleted: raw?.isDeleted === true,
+    deletedBy: raw?.deletedBy,
+    replyTo: raw?.replyTo || raw?.replyToId,
+  };
+}
+
+function mergeMessages(
+  currentMessages: GroupMessage[],
+  incomingMessages: GroupMessage[],
+  limit: number,
+): GroupMessage[] {
+  const byId = new Map<string, GroupMessage>();
+  [...currentMessages, ...incomingMessages].forEach((message) => byId.set(message.id, message));
+  return [...byId.values()]
+    .sort((left, right) => toTime(left.createdAt) - toTime(right.createdAt))
+    .slice(-limit);
 }
 
 /**
@@ -141,23 +199,32 @@ export async function sendAnnouncement(
 
 /**
  * Subscribe to group chat messages.
- * Uses WebSocket for real-time delivery, falls back to 5s polling.
+ * Uses WebSocket for real-time delivery, falls back to slow polling.
  */
 export function subscribeToGroupChat(
   eventId: string,
   onMessages: (messages: GroupMessage[]) => void,
-  messageLimit: number = 100,
+  messageLimit: number = 50,
 ): () => void {
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+  const safeMessageLimit = clampMessageLimit(messageLimit);
+  let latestMessages: GroupMessage[] = [];
+
+  function publishMessages(nextMessages: GroupMessage[]) {
+    latestMessages = nextMessages.slice(-safeMessageLimit);
+    onMessages(latestMessages);
+  }
 
   // WebSocket handler
   const wsHandler = (msg: WSMessage) => {
     if (!active) return;
     if (msg.type === 'chat:new_message' && msg.payload?.eventId === eventId) {
-      // Single new message received via WS — fetch latest batch
-      pollOnce();
+      const nextMessage = normalizeGroupMessage(msg.payload.message || msg.payload, eventId);
+      if (nextMessage) {
+        publishMessages(mergeMessages(latestMessages, [nextMessage], safeMessageLimit));
+      }
     }
   };
 
@@ -165,12 +232,6 @@ export function subscribeToGroupChat(
   if (wsManager.isConnected) {
     unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
   } else {
-    // Listen for WS connection and subscribe then
-    const connectHandler = () => {
-      if (active) {
-        unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
-      }
-    };
     // Check periodically for WS connection
     const connectCheck = setInterval(() => {
       if (wsManager.isConnected && !unsubscribeWS) {
@@ -186,13 +247,21 @@ export function subscribeToGroupChat(
     if (AppState.currentState !== 'active') return;
     try {
       const response = await apiFetch<{ messages: GroupMessage[] }>(
-        `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,
-        { requireAuth: false },
+        `/api/v1/social/chat/${eventId}?limit=${safeMessageLimit}`,
+        { requireAuth: true },
       );
       if (active && response.messages) {
-        onMessages(response.messages);
+        publishMessages(
+          mergeMessages(
+            [],
+            response.messages
+              .map((message) => normalizeGroupMessage(message, eventId))
+              .filter((message): message is GroupMessage => Boolean(message)),
+            safeMessageLimit,
+          ),
+        );
       }
-    } catch (e) {
+    } catch {
       // Polling error, ignore
     }
   }
@@ -200,8 +269,8 @@ export function subscribeToGroupChat(
   // Initial fetch
   pollOnce();
 
-  // Polling fallback (every 5s) — keeps working even without WS
-  pollIntervalId = setInterval(pollOnce, 5000);
+  // Slow polling fallback heals dropped WebSocket messages without hammering reads.
+  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS);
 
   return () => {
     active = false;
@@ -236,11 +305,18 @@ export async function getRecentGroupMessages(
   messageLimit: number = 50,
 ): Promise<GroupMessage[]> {
   try {
+    const safeMessageLimit = clampMessageLimit(messageLimit);
     const response = await apiFetch<{ messages: GroupMessage[] }>(
-      `/api/v1/social/chat/${eventId}?limit=${messageLimit}`,
-      { requireAuth: false },
+      `/api/v1/social/chat/${eventId}?limit=${safeMessageLimit}`,
+      { requireAuth: true },
     );
-    return response.messages || [];
+    return mergeMessages(
+      [],
+      (response.messages || [])
+        .map((message) => normalizeGroupMessage(message, eventId))
+        .filter((message): message is GroupMessage => Boolean(message)),
+      safeMessageLimit,
+    );
   } catch (error) {
     console.error('Error fetching group messages:', error);
     return [];

@@ -24,15 +24,22 @@ declare module '@c1rcle/core/ticket-checkout-wallet-service' {
     signature?: string;
     webhookSecret?: string;
   }): boolean;
-  export function createTicketQrJwt(
-    ticket: any,
-    options?: { expiresInSeconds?: number },
-  ): {
-    qrPayload: string;
-    qrExpiresAt: string;
-    qrExpiresInSeconds: number;
-  };
-  export function generateTicketsForOrder(params: { db?: any; orderId: string }): Promise<any>;
+  export function issueTicketsForOrderInTransaction(params: {
+    db: any;
+    transaction: any;
+    orderId?: string;
+    orderCollection?: 'orders' | 'rsvp_orders' | null;
+    orderLookup?: any;
+    orderUpdates?: any;
+    issuedAt?: string;
+    updateOrder?: boolean;
+    forceOrderUpdate?: boolean;
+  }): Promise<any>;
+  export function generateTicketsForOrder(params: {
+    db?: any;
+    orderId: string;
+    orderCollection?: 'orders' | 'rsvp_orders' | null;
+  }): Promise<any>;
   export function finalizeRazorpayTicketPurchase(params: {
     db?: any;
     checkoutService: any;
@@ -257,12 +264,26 @@ declare module '@c1rcle/core/guest-chat-service' {
       metadata?: Record<string, unknown>;
     },
   ): Promise<any>;
+  export function assertUserCanSendChatMessage(db: any, userId: string): Promise<any>;
   export function reportChatMessage(
     db: any,
     userId: string,
     chatId: string,
     messageId: string,
     payload?: { reason?: string | null },
+  ): Promise<any>;
+  export function reportSocialMessage(
+    db: any,
+    userId: string,
+    payload: {
+      messageId: string;
+      senderId?: string | null;
+      eventId?: string | null;
+      conversationId?: string | null;
+      chatId?: string | null;
+      reason?: string | null;
+      details?: string | null;
+    },
   ): Promise<any>;
   export function getEventAttendees(
     db: any,
@@ -337,7 +358,13 @@ declare module '@c1rcle/core/guest-pass-engine' {
     platform?: 'apple' | 'google' | string;
     resolveEvent?: (eventId: string) => Promise<any>;
     env?: any;
-  }): Promise<{ statusCode: number; body: any }>;
+  }): Promise<{ statusCode: number; body: any; headers?: Record<string, string> }>;
+  export function buildGuestPass(options?: {
+    orderId?: string | null;
+    platform?: 'apple' | 'google' | string;
+    resolveEvent?: (eventId: string) => Promise<any>;
+    env?: any;
+  }): Promise<{ statusCode: number; body: any; headers?: Record<string, string> }>;
 }
 
 declare module '@c1rcle/core/guest-discovery-engine' {

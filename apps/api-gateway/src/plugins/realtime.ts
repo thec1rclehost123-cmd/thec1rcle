@@ -63,13 +63,13 @@ export default fp(async (fastify: FastifyInstance) => {
     }
 
     const client: WSClient = {
-      socket: connection.socket,
+      socket: connection,
       subscriptions: new Set<string>(),
       userId,
     };
     clients.add(client);
 
-    connection.socket.on('message', (message: string) => {
+    connection.on('message', (message: string) => {
       try {
         const data = JSON.parse(message.toString());
         if (data.type === 'SUBSCRIBE' && data.topic) {
@@ -80,13 +80,11 @@ export default fp(async (fastify: FastifyInstance) => {
       } catch {}
     });
 
-    connection.socket.on('close', () => {
+    connection.on('close', () => {
       clients.delete(client);
     });
 
-    connection.socket.send(
-      JSON.stringify({ type: 'welcome', message: 'Connected to C1RCLE Real-time' }),
-    );
+    connection.send(JSON.stringify({ type: 'welcome', message: 'Connected to C1RCLE Real-time' }));
   });
 
   // Publishes to Redis so all gateway instances forward to their local clients.

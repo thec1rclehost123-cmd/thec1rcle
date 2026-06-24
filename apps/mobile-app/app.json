@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.c1rcle.app",
+      "usesAppleSignIn": true,
       "backgroundColor": "#161616",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "THE C1RCLE needs your location for safety features like SOS alerts and sharing your location with friends.",
@@ -72,6 +73,14 @@
         "expo-camera",
         {
           "cameraPermission": "Allow THE C1RCLE to access your camera for scanning ticket QR codes."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],

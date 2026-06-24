@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { getStorage, getDownloadURL, ref, uploadBytes } from 'firebase/storage';
 import { apiFetch } from '@/lib/api';
@@ -98,9 +98,9 @@ export async function saveBasicUserProfile(
         vibeTags: data.vibeTags,
         photoURL: data.photoURL,
         photos: data.photos,
+        basicSetupComplete: true,
         profileSetupComplete: true,
         profileComplete: true,
-        onboardingComplete: true,
       }),
     ),
   });
@@ -114,5 +114,9 @@ export async function isBasicUserProfileComplete(userId: string): Promise<boolea
   }>('/api/v1/users/me');
   const data = response.data?.profile ?? response.profile;
   if (!data) return false;
-  return data.profileSetupComplete === true;
+  return (
+    data.basicSetupComplete === true ||
+    data.profileSetupComplete === true ||
+    data.profileComplete === true
+  );
 }

@@ -92,6 +92,7 @@ export default function SignupScreen() {
     const result = await signup(email.trim(), password);
 
     if (result.success) {
+      if (router.canDismiss()) router.dismissAll();
       try {
         const birthYear = new Date().getFullYear() - parseInt(age);
         const dateOfBirth = `${birthYear}-01-01`;

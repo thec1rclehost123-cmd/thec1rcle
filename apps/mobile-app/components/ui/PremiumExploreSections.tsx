@@ -277,7 +277,7 @@ export function TrendingRightNow({ events }: { events: Event[] }) {
         contentContainerStyle={{ paddingHorizontal: 16, gap: 24 }}
       >
         {events.slice(0, 6).map((item, index) => (
-          <View key={item.id} style={{ width: SCREEN_WIDTH * 0.65 }}>
+          <View key={item.id} style={{ width: FOR_YOU_CARD_WIDTH }}>
             <Text style={styles.rankNumber}>{index + 1}</Text>
             <PremiumEventCard event={item} index={index} variant="standard" hideGradient />
           </View>

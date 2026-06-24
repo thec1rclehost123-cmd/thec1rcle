@@ -177,6 +177,7 @@ const fallbackProfiles: Record<string, UserProfile> = {
 };
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const AnimatedExpoImage = Animated.createAnimatedComponent(Image);
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 const PROFILE_AVATAR_SIZE = 136;
 const PROFILE_AVATAR_TOP = Math.max(160, SCREEN_HEIGHT * 0.3 - PROFILE_AVATAR_SIZE / 2);
@@ -383,7 +384,10 @@ export default function ProfileViewScreen() {
     return (
       <View style={[styles.container, styles.centerContent]}>
         <Pressable
-          onPress={() => router.back()}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.back();
+          }}
           style={[styles.backButton, { top: insets.top - 2, left: 20 }]}
         >
           <Ionicons name="chevron-back" size={26} color="#fff" />
@@ -394,6 +398,7 @@ export default function ProfileViewScreen() {
   }
 
   const imageSource = getProfileImageSource(profile);
+  const avatarTransitionTag = id ? `avatar-${id}` : undefined;
   const instagramHandle = profile.instagram?.trim().replace(/^@+/, '') || '';
   const attendedCount = profile.pastEvents?.length || 0;
   const joinedDateText = formatJoinedDate(profile.createdAt);
@@ -454,7 +459,8 @@ export default function ProfileViewScreen() {
               colors={gradients.primary as [string, string]}
               style={styles.avatarGradient}
             >
-              <Image
+              <AnimatedExpoImage
+                {...(avatarTransitionTag ? { sharedTransitionTag: avatarTransitionTag } : {})}
                 source={imageSource}
                 style={styles.avatarPhoto}
                 contentFit="cover"
@@ -474,7 +480,10 @@ export default function ProfileViewScreen() {
 
           {instagramHandle ? (
             <Pressable
-              onPress={() => openInstagramProfile(instagramHandle)}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                openInstagramProfile(instagramHandle);
+              }}
               style={styles.instagramProfileButton}
               hitSlop={10}
             >
@@ -488,6 +497,7 @@ export default function ProfileViewScreen() {
             <AnimatedPressable
               entering={FadeInDown.delay(140).springify()}
               onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 if (profile.upcomingEvent?.eventId) {
                   router.push({
                     pathname: '/event/[id]',

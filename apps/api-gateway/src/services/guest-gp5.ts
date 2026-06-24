@@ -119,14 +119,13 @@ export async function getGuestWalletTicket(db: any, auth: any, userId: string, t
 
   if (!ticket) return null;
 
-  // Enforce On-Demand Signing
-  // We only sign the ID when the user specifically requests the detail
   if (ticket.status === 'active' && !ticket.genderMismatch && !ticket.isTransferPending) {
     if (ticket.entitlementId) {
       ticket.qrPayload = ticket.entitlementId;
     } else {
-      const { signTicketId } = await import('@c1rcle/core/ticket-engine');
-      ticket.qrPayload = signTicketId(ticket.ticketId);
+      ticket.qrMode = 'raw_id';
+      ticket.qrPayload = ticket.id || ticket.ticketId;
+      ticket.qrData = ticket.qrPayload;
     }
   }
 

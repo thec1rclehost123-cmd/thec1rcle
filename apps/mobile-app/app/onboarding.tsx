@@ -5,57 +5,45 @@
  */
 
 import { useState, useRef, useCallback } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  FlatList,
-  type NativeSyntheticEvent,
-  type NativeScrollEvent,
-  type ListRenderItemInfo,
-  type ViewToken,
-} from 'react-native';
+import type { ComponentType } from 'react';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Animated, {
   useAnimatedStyle,
-  withSpring,
   interpolate,
   useSharedValue,
-  withTiming,
   FadeIn,
   useAnimatedScrollHandler,
 } from 'react-native-reanimated';
 import { Compass, Ticket, Shield } from 'lucide-react-native';
 import { colors } from '@/lib/design/theme';
+import {
+  hasViewedOnboarding,
+  markOnboardingViewed,
+  ONBOARDING_COMPLETE_KEY,
+} from '@/lib/onboardingFlow';
 import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-const ONBOARDING_KEY = 'c1rcle_onboarding_complete';
+export const ONBOARDING_KEY = ONBOARDING_COMPLETE_KEY;
 
-export async function hasCompletedOnboarding(): Promise<boolean> {
-  return true;
+export async function hasCompletedOnboarding(userId?: string): Promise<boolean> {
+  return hasViewedOnboarding(userId);
 }
 
-export async function markOnboardingComplete(): Promise<void> {
-  try {
-    await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
-  } catch {
-    // Ignore
-  }
+export async function markOnboardingComplete(userId?: string): Promise<void> {
+  await markOnboardingViewed(userId);
 }
 
 // ────────────────────────────────────────────────────────────────
 
 interface OnboardingSlide {
   id: string;
-  icon: React.ComponentType<any>;
+  icon: ComponentType<any>;
   iconColor: string;
   title: string;
   subtitle: string;
@@ -150,7 +138,7 @@ function SlideItem({
 // ────────────────────────────────────────────────────────────────
 
 export default function OnboardingScreen() {
-  const { setOnboardingJustCompleted } = useAuthStore();
+  const { user, setOnboardingJustCompleted } = useAuthStore();
   const [currentIndex, setCurrentIndex] = useState(0);
   const scrollViewRef = useRef<any>(null);
   const scrollX = useSharedValue(0);
@@ -165,9 +153,12 @@ export default function OnboardingScreen() {
 
   const handleNext = useCallback(async () => {
     if (isLastSlide) {
-      await markOnboardingComplete();
+      await markOnboardingComplete(user?.uid);
+      if (user?.uid) {
+        await useProfileStore.getState().updateProfile(user.uid, { onboardingComplete: true });
+      }
       setOnboardingJustCompleted(true);
-      router.replace('/(auth)/login');
+      router.replace('/notification-permission');
     } else {
       const nextIndex = currentIndex + 1;
       const ref = scrollViewRef.current as any;
@@ -180,13 +171,16 @@ export default function OnboardingScreen() {
       }
       setCurrentIndex(nextIndex);
     }
-  }, [currentIndex, isLastSlide]);
+  }, [currentIndex, isLastSlide, setOnboardingJustCompleted, user?.uid]);
 
   const handleSkip = useCallback(async () => {
-    await markOnboardingComplete();
+    await markOnboardingComplete(user?.uid);
+    if (user?.uid) {
+      await useProfileStore.getState().updateProfile(user.uid, { onboardingComplete: true });
+    }
     setOnboardingJustCompleted(true);
-    router.replace('/(auth)/login');
-  }, []);
+    router.replace('/notification-permission');
+  }, [setOnboardingJustCompleted, user?.uid]);
 
   return (
     <SafeAreaView style={styles.container}>

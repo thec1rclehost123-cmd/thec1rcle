@@ -8,6 +8,7 @@ import {
   getEventQueueStatus,
   getEventSurgeStatus,
   getEventWaitlistStatus,
+  getEventInterested,
   joinEventQueue,
   joinEventWaitlist,
   toggleEventRsvp,
@@ -19,6 +20,8 @@ import {
 import { getEventAttendees } from '@c1rcle/core/guest-chat-service';
 // @ts-ignore - JS module with runtime exports
 import { buildEvent } from '@c1rcle/core/event-engine';
+// @ts-ignore - JS module with runtime exports
+import { EVENT_LIFECYCLE } from '@c1rcle/core/events';
 // @ts-ignore - JS module with runtime exports
 import { listEventMapPins, normalizeCityKey } from '@c1rcle/core/guest-discovery-engine';
 // @ts-ignore - JS module with runtime exports
@@ -67,16 +70,33 @@ const ExploreFeaturedEventListQuery = ExploreEventListQuery.extend({
 
 const EventMapQuery = z
   .object({
-    lat: z.coerce.number().min(-90).max(90),
-    lng: z.coerce.number().min(-180).max(180),
-    radius: z.coerce.number().positive().max(50).optional().default(15),
-    limit: z.coerce.number().int().min(1).max(500).optional().default(500),
+    northEastLat: z.coerce.number().min(-90).max(90),
+    northEastLng: z.coerce.number().min(-180).max(180),
+    southWestLat: z.coerce.number().min(-90).max(90),
+    southWestLng: z.coerce.number().min(-180).max(180),
+    limit: z.coerce.number().int().min(1).max(100).optional().default(100),
   })
-  .strict();
+  .strict()
+  .superRefine((query, ctx) => {
+    if (query.southWestLat >= query.northEastLat) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['southWestLat'],
+        message: 'southWestLat must be less than northEastLat',
+      });
+    }
+    if (query.southWestLng === query.northEastLng) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['southWestLng'],
+        message: 'southWestLng must differ from northEastLng',
+      });
+    }
+  });
 
 const EXPLORE_EVENTS_CACHE_SCHEMA_VERSION = 1;
 const EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION = 1;
-const EXPLORE_MAP_EVENTS_CACHE_SCHEMA_VERSION = 1;
+const EXPLORE_MAP_EVENTS_CACHE_SCHEMA_VERSION = 2;
 
 const EventNearbyQuery = z
   .object({
@@ -93,6 +113,27 @@ const EventParamId = z
   })
   .strict();
 
+const EventCoordinates = z
+  .object({
+    latitude: z.coerce.number().min(-90).max(90),
+    longitude: z.coerce.number().min(-180).max(180),
+  })
+  .strict();
+
+const EventLifecycle = z.enum([
+  EVENT_LIFECYCLE.DRAFT,
+  EVENT_LIFECYCLE.SUBMITTED,
+  EVENT_LIFECYCLE.NEEDS_CHANGES,
+  EVENT_LIFECYCLE.APPROVED,
+  EVENT_LIFECYCLE.SCHEDULED,
+  EVENT_LIFECYCLE.LIVE,
+  EVENT_LIFECYCLE.COMPLETED,
+  EVENT_LIFECYCLE.CANCELLED,
+  EVENT_LIFECYCLE.PAUSED,
+  EVENT_LIFECYCLE.DENIED,
+  EVENT_LIFECYCLE.DELETED,
+]);
+
 const EventCreateBody = z
   .object({
     title: z.string().min(1).max(200),
@@ -104,7 +145,8 @@ const EventCreateBody = z
     image: z.string().optional(),
     poster: z.string().optional(),
     status: z.enum(['draft', 'published', 'cancelled', 'completed']).optional(),
-    lifecycle: z.enum(['active', 'archived', 'deleted']).optional(),
+    lifecycle: EventLifecycle.optional(),
+    coordinates: EventCoordinates.optional().nullable(),
     category: z.string().optional(),
     tags: z.array(z.string()).max(10).optional(),
     isPrivate: z.boolean().optional(),
@@ -148,6 +190,7 @@ const PartnerEventCreateBody = z
         'changes_requested',
       ])
       .optional(),
+    coordinates: EventCoordinates.optional().nullable(),
   })
   .passthrough();
 const EventTrackBody = z
@@ -178,6 +221,11 @@ const EventWaitlistBody = z
 const EventAttendeesQuery = z
   .object({
     limit: z.coerce.number().int().min(1).max(100).optional().default(100),
+  })
+  .strict();
+const EventInterestedQuery = z
+  .object({
+    limit: z.coerce.number().int().min(1).max(100).optional().default(24),
   })
   .strict();
 
@@ -458,9 +506,10 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         applyPublicCacheHeaders(reply, 30);
 
         const normalizedQuery = {
-          lat: Number(request.query.lat.toFixed(3)),
-          lng: Number(request.query.lng.toFixed(3)),
-          radius: Number(request.query.radius),
+          northEastLat: Number(request.query.northEastLat.toFixed(3)),
+          northEastLng: Number(request.query.northEastLng.toFixed(3)),
+          southWestLat: Number(request.query.southWestLat.toFixed(3)),
+          southWestLng: Number(request.query.southWestLng.toFixed(3)),
           limit: Number(request.query.limit),
         };
         const rawCacheKey = `map:v${EXPLORE_MAP_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
@@ -613,6 +662,46 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           buildErrorResponse({
             code: status === 404 ? 'NOT_FOUND' : 'INTERNAL_ERROR',
             message: error.message || 'Unable to update RSVP',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
+    '/events/:id/interested',
+    {
+      preHandler: [
+        fastify.requireAuth,
+        fastify.validate({ params: EventParamId, querystring: EventInterestedQuery }),
+      ],
+    },
+    async (request: any, reply) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Unauthorized',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        reply.header('Cache-Control', 'private, no-store');
+        const result = await getEventInterested(fastify.db, request.params.id, request.query.limit);
+        return buildSuccessResponse(result);
+      } catch (error: any) {
+        request.log.error(
+          { error, userId, eventId: request.params.id },
+          'GET event interested list failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Unable to load interested list',
             requestId: request.id,
           }),
         );
@@ -1035,10 +1124,11 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in POST /events: ${error.message}`);
-        return reply.status(500).send(
+        const statusCode = error?.code === 'BAD_REQUEST' ? 400 : 500;
+        return reply.status(statusCode).send(
           buildErrorResponse({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal Server Error',
+            code: statusCode === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
+            message: statusCode === 400 ? error.message : 'Internal Server Error',
             requestId: request.id,
           }),
         );
@@ -1155,10 +1245,11 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
-        return reply.status(500).send(
+        const statusCode = error?.code === 'BAD_REQUEST' ? 400 : 500;
+        return reply.status(statusCode).send(
           buildErrorResponse({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal Server Error',
+            code: statusCode === 400 ? 'BAD_REQUEST' : 'INTERNAL_ERROR',
+            message: statusCode === 400 ? error.message : 'Internal Server Error',
             requestId: request.id,
           }),
         );
@@ -1391,6 +1482,16 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           body.lifecycle = 'scheduled';
           body.visibility = 'public'; // Venue events self-approve — stamp public immediately
         }
+      }
+
+      if (!isDraft && !body.startDate) {
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: 'startDate is required for public or submitted events',
+            requestId: request.id,
+          }),
+        );
       }
 
       try {
