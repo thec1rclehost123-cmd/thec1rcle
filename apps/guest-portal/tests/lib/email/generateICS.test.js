@@ -37,5 +37,7 @@ test('generateICSBuffer returns a utf-8 buffer for the generated content', () =>
   const buffer = generateICSBuffer(sampleInvite);
 
   assert.ok(Buffer.isBuffer(buffer));
-  assert.equal(buffer.toString('utf8'), generateICSContent(sampleInvite));
+
+  const stripStamp = (str) => str.replace(/DTSTAMP:.*?\r\n/, '');
+  assert.equal(stripStamp(buffer.toString('utf8')), stripStamp(generateICSContent(sampleInvite)));
 });
