@@ -9,6 +9,7 @@ import {
 } from '@c1rcle/core/promoter-engine';
 import { z } from 'zod';
 import { normalizePromoterCommissionRate } from '../../lib/partner-hardening.js';
+import { decrypt } from '../../lib/encryption.js';
 
 const ConnectionsQuery = z
   .object({
@@ -971,11 +972,11 @@ export default async function promoterRoutes(fastify: FastifyInstance) {
           name: pickString(
             event.title,
             event.name,
-            assignment.eventName,
-            assignment.eventTitle,
+            decrypt(assignment.eventName),
+            decrypt(assignment.eventTitle),
             'Event',
           ),
-          venue: pickString(event.venueName, event.venue, assignment.venueName),
+          venue: pickString(event.venueName, event.venue, decrypt(assignment.venueName)),
           date: toIso(
             event.startDate ||
               event.date ||

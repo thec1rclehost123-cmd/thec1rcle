@@ -58,6 +58,7 @@ const TYPE_TO_TAB: Record<string, NotifTab> = {
   event_resubmitted: 'events',
   event: 'events',
   event_review: 'events',
+  promoter_assignment: 'events',
   revenue: 'finance',
   new_order: 'finance',
   payment: 'finance',
@@ -113,25 +114,24 @@ export function normalizeNotification(
 
 export function getNotificationFetchUrl(partnerType: NotificationPartnerType, partnerId?: string) {
   if (!partnerId) return null;
-  if (partnerType === 'host') return '/api/partners/hosts/notifications?limit=20';
-  if (partnerType === 'promoter') return '/api/partners/promoters/notifications?limit=20';
-  if (partnerType === 'venue')
-    return `/api/partners/venues/notifications?venueId=${partnerId}&limit=20`;
+  if (partnerType === 'host') return '/api/host/notifications?limit=20';
+  if (partnerType === 'promoter') return '/api/promoter/notifications?limit=20';
+  if (partnerType === 'venue') return `/api/venue/notifications?venueId=${partnerId}&limit=20`;
   return null;
 }
 
 export function buildMarkAllReadRequest(partnerType: NotificationPartnerType, partnerId?: string) {
   if (partnerType === 'host') {
-    return { url: '/api/partners/hosts/notifications', body: { markAllRead: true } };
+    return { url: '/api/host/notifications', body: { markAllRead: true } };
   }
   if (partnerType === 'venue' && partnerId) {
     return {
-      url: '/api/partners/venues/notifications',
+      url: '/api/venue/notifications',
       body: { venueId: partnerId, markAllRead: true },
     };
   }
   if (partnerType === 'promoter') {
-    return { url: '/api/partners/promoters/notifications', body: { markAllRead: true } };
+    return { url: '/api/promoter/notifications', body: { markAllRead: true } };
   }
   return null;
 }
@@ -144,7 +144,7 @@ export function buildQuickActionRequest(
 ) {
   if (partnerType !== 'venue' || !partnerId) return null;
   return {
-    url: '/api/partners/venues/notifications',
+    url: '/api/venue/notifications',
     body: {
       venueId: partnerId,
       notificationId: notif.id,
@@ -172,6 +172,10 @@ const TYPE_CONFIG: Record<string, { icon: React.ReactNode; bg: string }> = {
   },
   event: { icon: <Sparkles className="w-4 h-4 text-purple-500" />, bg: 'bg-purple-500/10' },
   event_review: { icon: <Sparkles className="w-4 h-4 text-purple-500" />, bg: 'bg-purple-500/10' },
+  promoter_assignment: {
+    icon: <Sparkles className="w-4 h-4 text-purple-500" />,
+    bg: 'bg-purple-500/10',
+  },
   reservation: { icon: <Calendar className="w-4 h-4 text-indigo-500" />, bg: 'bg-indigo-500/10' },
   table_reservation: {
     icon: <Calendar className="w-4 h-4 text-indigo-500" />,
@@ -356,6 +360,7 @@ export function NotificationCenter() {
       promoter_request: `/${rolePrefix}/partners`,
       event_submitted: `/${rolePrefix}/events/requests`,
       event_resubmitted: `/${rolePrefix}/events/requests`,
+      promoter_assignment: `/${rolePrefix}/events`,
       event: `/${rolePrefix}/events`,
       event_review: `/${rolePrefix}/events`,
       revenue: `/${rolePrefix}/finance`,

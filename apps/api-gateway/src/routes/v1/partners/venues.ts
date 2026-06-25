@@ -78,9 +78,45 @@ function asArray<T = PlainRecord>(value: unknown): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+import { encrypt, decrypt } from '../../../lib/encryption.js';
+
 function toNumber(value: any): number {
   const amount = Number(value ?? 0);
   return Number.isFinite(amount) ? amount : 0;
+}
+
+async function sendPushToUsers(
+  db: any,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  if (!userIds.length) return;
+  const tokens: string[] = [];
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    const snap = await db
+      .collection('users')
+      .where('__name__', 'in', batch)
+      .get()
+      .catch(() => ({ docs: [] as any[] }));
+    (snap as any).docs.forEach((d: any) => {
+      const ud = (d.data() as Record<string, any>) || {};
+      if (Array.isArray(ud.pushTokens)) tokens.push(...ud.pushTokens);
+    });
+  }
+  if (!tokens.length) return;
+  const messages = tokens.map((token) => ({ to: token, sound: 'default', title, body, data }));
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    }).catch(() => {
+      /* fire-and-forget — never fail the request */
+    });
+  }
 }
 
 function mapByAnyId(items: PlainRecord[], candidates: string[]) {
@@ -1279,10 +1315,15 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             .limit(100)
             .get()
             .catch(() => ({ docs: [] as any[] }));
-          const notifications = ((snap as any).docs || []).map((doc: any) => ({
-            id: doc.id,
-            ...(doc.data() || {}),
-          }));
+          const notifications = ((snap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              id: doc.id,
+              ...data,
+              title: decrypt(data.title),
+              message: decrypt(data.message),
+            };
+          });
           notifications.sort(
             (a: any, b: any) =>
               new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
@@ -2505,7 +2546,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          const [assignmentsSnap, settingsDoc] = await Promise.all([
+          const [assignmentsSnap, settingsDoc, connectionsSnap] = await Promise.all([
             fastify.db
               .collection('promoter_assignments')
               .where('eventId', '==', evtId)
@@ -2516,12 +2557,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .doc(evtId)
               .get()
               .catch(() => null),
+            fastify.db
+              .collection('promoter_connections')
+              .where('venueId', '==', ctx.partnerId)
+              .where('status', 'in', ['approved', 'active'])
+              .get()
+              .catch(() => ({ docs: [] as any[] })),
           ]);
-          const promoters = ((assignmentsSnap as any).docs || []).map((doc: any) => ({
-            assignmentId: doc.id,
-            ...(doc.data() || {}),
-            id: doc.id,
-          }));
           const settingsData =
             settingsDoc && (settingsDoc as any).exists ? (settingsDoc as any).data() || {} : {};
           const promoterSettings = {
@@ -2529,8 +2571,44 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             commissionRate: settingsData.commissionRate || 10,
             ...settingsData,
           };
+          const assignedPromoters = ((assignmentsSnap as any).docs || []).map((doc: any) => {
+            const data = doc.data() || {};
+            return {
+              assignmentId: doc.id,
+              ...data,
+              id: doc.id,
+              promoterId: data.promoterId || '',
+            };
+          });
+          const assignedIds = new Set(
+            assignedPromoters.map((p: any) => p.promoterId).filter(Boolean),
+          );
+          const unassignedPromoters = ((connectionsSnap as any).docs || [])
+            .map((doc: any) => {
+              const conn = doc.data() || {};
+              const promoterId = conn.promoterId;
+              if (!promoterId || assignedIds.has(promoterId)) return null;
+              return {
+                assignmentId: null,
+                id: promoterId,
+                promoterId,
+                promoterName: conn.promoterName || 'Promoter',
+                avatar: conn.promoterAvatar || conn.avatarUrl || null,
+                status: 'disabled',
+                isActive: false,
+                shortCode: null,
+                sales: 0,
+                revenue: 0,
+                clicks: 0,
+                commissionRate: promoterSettings.commissionRate || 10,
+              };
+            })
+            .filter(Boolean);
+          const promoters = [...assignedPromoters, ...unassignedPromoters];
           const totalPromoters = promoters.length;
-          const activePromoters = promoters.filter((p: any) => p.isActive !== false).length;
+          const activePromoters = promoters.filter(
+            (p: any) => p.isActive !== false && p.status === 'active',
+          ).length;
           const disabledPromoters = totalPromoters - activePromoters;
           const ticketsSold = promoters.reduce(
             (s: number, p: any) => s + toNumber(p.ticketsSold || 0),
@@ -2552,6 +2630,88 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             },
           });
         }
+
+        async function ensurePromoterLink(
+          db: any,
+          promoterId: string,
+          eventId: string,
+          eventTitle: string,
+          commissionRate: number,
+        ): Promise<string> {
+          try {
+            const promoterRef = db.collection('promoters').doc(promoterId);
+            const promoterDoc = await promoterRef.get();
+            let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+            if (!trackingCode) {
+              const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+              let base = (
+                promoterDoc.exists
+                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || 'promo'
+                  : 'promo'
+              )
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, '');
+              if (base.length > 10) base = base.substring(0, 10);
+              if (base.length < 3) base = 'promo';
+
+              let isUnique = false;
+              let newCode = '';
+              while (!isUnique) {
+                const suffix = Array.from(
+                  { length: 3 },
+                  () => chars[Math.floor(Math.random() * chars.length)],
+                ).join('');
+                newCode = `${base}${suffix}`;
+                const existingGlobal = await db
+                  .collection('promoters')
+                  .where('trackingCode', '==', newCode)
+                  .limit(1)
+                  .get();
+                if (existingGlobal.empty) {
+                  isUnique = true;
+                }
+              }
+              trackingCode = newCode;
+              await promoterRef.set({ trackingCode }, { merge: true });
+            }
+
+            const linkId = `${promoterId}_${eventId}`;
+            const linkRef = db.collection('promoter_links').doc(linkId);
+            const linkDoc = await linkRef.get();
+
+            if (!linkDoc.exists) {
+              const now = new Date().toISOString();
+              await linkRef.set({
+                id: linkId,
+                promoterId,
+                promoterName: promoterDoc.exists
+                  ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || ''
+                  : '',
+                eventId,
+                eventTitle,
+                campaignLabel: 'assigned',
+                ticketTierIds: [],
+                commissionRate,
+                commissionType: 'percentage',
+                code: trackingCode,
+                clicks: 0,
+                conversions: 0,
+                revenue: 0,
+                commission: 0,
+                isActive: true,
+                createdAt: now,
+                updatedAt: now,
+              });
+            }
+
+            return trackingCode || '';
+          } catch (err: any) {
+            console.error(`[ensurePromoterLink] Error: ${err.message}`);
+            return '';
+          }
+        }
+
         if (eventPromotersMatch && request.method === 'PATCH') {
           const evtId = eventPromotersMatch[1];
           const eventDoc = await fastify.db.collection('events').doc(evtId).get();
@@ -2572,6 +2732,16 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+
+          // Read previous state so we can diff newly added promoters
+          const prevDoc = await fastify.db
+            .collection('event_promoter_settings')
+            .doc(evtId)
+            .get()
+            .catch(() => null);
+          const prevIds: string[] =
+            (prevDoc?.exists ? (prevDoc.data() as any)?.allowedPromoterIds : null) ?? [];
+
           await fastify.db
             .collection('event_promoter_settings')
             .doc(evtId)
@@ -2584,6 +2754,126 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               },
               { merge: true },
             );
+
+          // Diff newly added / removed promoters
+          const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
+            ? body.allowedPromoterIds
+            : [];
+          const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+          const removed = prevIds.filter((id: string) => !nextIds.includes(id));
+          const isEnabled: boolean = body?.enabled !== false;
+
+          // Create / update promoter_assignments and notifications (fire-and-forget)
+          (async () => {
+            try {
+              const eventName: string = event.title ?? 'Untitled Event';
+              const venueName: string = event.venueName ?? '';
+              const commissionRate: number =
+                body?.defaultCommission ?? event.promoterSettings?.commissionRate ?? 10;
+              const now = new Date().toISOString();
+
+              // Encrypt event data to be stored securely
+              const encryptedEventName = encrypt(eventName);
+              const encryptedVenueName = encrypt(venueName);
+
+              // Create assignment docs for newly added promoters
+              await Promise.all(
+                newlyAdded.map(async (promoterId: string) => {
+                  const trackingCode = await ensurePromoterLink(
+                    fastify.db,
+                    promoterId,
+                    evtId,
+                    eventName,
+                    commissionRate,
+                  );
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db
+                    .collection('promoter_assignments')
+                    .doc(assignId)
+                    .set(
+                      {
+                        id: assignId,
+                        promoterId,
+                        eventId: evtId,
+                        eventName: encryptedEventName,
+                        venueName: encryptedVenueName,
+                        status: 'active',
+                        commissionRate,
+                        linkCode: trackingCode || null,
+                        totalSales: 0,
+                        totalRevenue: 0,
+                        totalCommission: 0,
+                        guestlistAllowance: 0,
+                        guestlistUsed: 0,
+                        guests: [],
+                        assignedAt: now,
+                        createdAt: now,
+                        updatedAt: now,
+                      },
+                      { merge: true },
+                    );
+                }),
+              );
+
+              // Mark removed promoters as inactive
+              await Promise.all(
+                removed.map(async (promoterId: string) => {
+                  const assignId = `${promoterId}_${evtId}`;
+                  await fastify.db
+                    .collection('promoter_assignments')
+                    .doc(assignId)
+                    .set({ status: 'inactive', updatedAt: now }, { merge: true });
+                }),
+              );
+
+              // If all disabled, mark all as inactive
+              if (!isEnabled && nextIds.length === 0 && prevIds.length > 0) {
+                await Promise.all(
+                  prevIds.map(async (promoterId: string) => {
+                    const assignId = `${promoterId}_${evtId}`;
+                    await fastify.db
+                      .collection('promoter_assignments')
+                      .doc(assignId)
+                      .set({ status: 'inactive', updatedAt: now }, { merge: true });
+                  }),
+                );
+              }
+
+              // Send notifications to newly added promoters
+              if (newlyAdded.length > 0) {
+                // Encrypt notification title and message
+                const rawTitle = "You've been added to an event!";
+                const rawMessage = `${eventName} is live — start sharing your link`;
+                const encryptedTitle = encrypt(rawTitle);
+                const encryptedMessage = encrypt(rawMessage);
+
+                await Promise.all([
+                  ...newlyAdded.map((promoterId: string) =>
+                    fastify.db.collection('notifications').add({
+                      recipientId: promoterId,
+                      recipientType: 'promoter',
+                      type: 'promoter_assignment',
+                      title: encryptedTitle,
+                      message: encryptedMessage,
+                      read: false,
+                      createdAt: now,
+                      data: {
+                        eventId: evtId,
+                        type: 'promoter_assignment',
+                      },
+                    }),
+                  ),
+                  sendPushToUsers(fastify.db, newlyAdded, rawTitle, rawMessage, {
+                    eventId: evtId,
+                    type: 'promoter_assignment',
+                  }),
+                ]);
+              }
+            } catch (err: any) {
+              fastify.log.error(`[Promoter] Assignment sync error: ${err.message}`);
+            }
+          })();
+
           return reply.send({ success: true });
         }
 

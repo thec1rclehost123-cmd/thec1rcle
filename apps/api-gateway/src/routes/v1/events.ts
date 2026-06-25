@@ -1,7 +1,9 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
+import { encrypt } from '../../lib/encryption.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
 import {
@@ -356,6 +358,257 @@ async function enrichPartnerSnapshots(db: any, event: Record<string, any>) {
   }
 
   return enriched;
+}
+
+async function sendPushToUsers(
+  db: any,
+  userIds: string[],
+  title: string,
+  body: string,
+  data: Record<string, unknown>,
+): Promise<void> {
+  if (!userIds.length) return;
+  const tokens: string[] = [];
+  for (let i = 0; i < userIds.length; i += 30) {
+    const batch = userIds.slice(i, i + 30);
+    const snap = await db
+      .collection('users')
+      .where('__name__', 'in', batch)
+      .get()
+      .catch(() => ({ docs: [] as any[] }));
+    (snap as any).docs.forEach((d: any) => {
+      const ud = (d.data() as Record<string, any>) || {};
+      if (Array.isArray(ud.pushTokens)) tokens.push(...ud.pushTokens);
+    });
+  }
+  if (!tokens.length) return;
+  const messages = tokens.map((token) => ({ to: token, sound: 'default', title, body, data }));
+  for (let i = 0; i < messages.length; i += 100) {
+    await fetch('https://exp.host/--/api/v2/push/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(messages.slice(i, i + 100)),
+    }).catch(() => {
+      /* fire-and-forget — never fail the request */
+    });
+  }
+}
+
+async function ensurePromoterLink(
+  db: any,
+  promoterId: string,
+  eventId: string,
+  eventTitle: string,
+  commissionRate: number,
+): Promise<string> {
+  try {
+    const promoterRef = db.collection('promoters').doc(promoterId);
+    const promoterDoc = await promoterRef.get();
+    let trackingCode = promoterDoc.exists ? promoterDoc.data()?.trackingCode : null;
+
+    if (!trackingCode) {
+      const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
+      let base = (
+        promoterDoc.exists
+          ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || 'promo'
+          : 'promo'
+      )
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, '');
+      if (base.length > 10) base = base.substring(0, 10);
+      if (base.length < 3) base = 'promo';
+
+      let isUnique = false;
+      let newCode = '';
+      while (!isUnique) {
+        const suffix = Array.from(
+          { length: 3 },
+          () => chars[Math.floor(Math.random() * chars.length)],
+        ).join('');
+        newCode = `${base}${suffix}`;
+        const existingGlobal = await db
+          .collection('promoters')
+          .where('trackingCode', '==', newCode)
+          .limit(1)
+          .get();
+        if (existingGlobal.empty) {
+          isUnique = true;
+        }
+      }
+      trackingCode = newCode;
+      await promoterRef.set({ trackingCode }, { merge: true });
+    }
+
+    const linkId = `${promoterId}_${eventId}`;
+    const linkRef = db.collection('promoter_links').doc(linkId);
+    const linkDoc = await linkRef.get();
+
+    if (!linkDoc.exists) {
+      const now = new Date().toISOString();
+      await linkRef.set({
+        id: linkId,
+        promoterId,
+        promoterName: promoterDoc.exists
+          ? promoterDoc.data()?.displayName || promoterDoc.data()?.name || ''
+          : '',
+        eventId,
+        eventTitle,
+        campaignLabel: 'assigned',
+        ticketTierIds: [],
+        commissionRate,
+        commissionType: 'percentage',
+        code: trackingCode,
+        clicks: 0,
+        conversions: 0,
+        revenue: 0,
+        commission: 0,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    return trackingCode || '';
+  } catch (err: any) {
+    console.error(`[ensurePromoterLink] Error: ${err.message}`);
+    return '';
+  }
+}
+
+async function syncEventPromoters(
+  db: any,
+  eventId: string,
+  eventName: string,
+  venueName: string,
+  promoterIds: string[],
+  promotersEnabled: boolean,
+  commissionRate: number,
+  creatorRole: string,
+): Promise<void> {
+  try {
+    const settingsRef = db.collection('event_promoter_settings').doc(eventId);
+    const settingsDoc = await settingsRef.get().catch(() => null);
+    const prevIds: string[] =
+      (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
+
+    const isEnabled = promotersEnabled !== false;
+    const nextIds = isEnabled ? (Array.isArray(promoterIds) ? promoterIds : []) : [];
+
+    // 1. Update event_promoter_settings
+    await settingsRef.set(
+      {
+        eventId,
+        enabled: isEnabled,
+        allowedPromoterIds: nextIds,
+        defaultCommission: commissionRate,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true },
+    );
+
+    // 2. Diff newly added / removed promoters
+    const newlyAdded = nextIds.filter((id) => !prevIds.includes(id));
+    const removed = prevIds.filter((id) => !nextIds.includes(id));
+    const now = new Date().toISOString();
+
+    const encryptedEventName = encrypt(eventName);
+    const encryptedVenueName = encrypt(venueName);
+
+    // 3. Create assignments for newly added promoters
+    await Promise.all(
+      newlyAdded.map(async (promoterId) => {
+        const trackingCode = await ensurePromoterLink(
+          db,
+          promoterId,
+          eventId,
+          eventName,
+          commissionRate,
+        );
+        const assignId = `${promoterId}_${eventId}`;
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set(
+            {
+              id: assignId,
+              promoterId,
+              eventId,
+              eventName: encryptedEventName,
+              venueName: encryptedVenueName,
+              status: 'active',
+              commissionRate,
+              linkCode: trackingCode || null,
+              totalSales: 0,
+              totalRevenue: 0,
+              totalCommission: 0,
+              guestlistAllowance: 0,
+              guestlistUsed: 0,
+              guests: [],
+              assignedAt: now,
+              createdAt: now,
+              updatedAt: now,
+            },
+            { merge: true },
+          );
+      }),
+    );
+
+    // 4. Mark removed promoters as inactive
+    await Promise.all(
+      removed.map(async (promoterId) => {
+        const assignId = `${promoterId}_${eventId}`;
+        await db
+          .collection('promoter_assignments')
+          .doc(assignId)
+          .set({ status: 'inactive', updatedAt: now }, { merge: true });
+      }),
+    );
+
+    // 5. If overall disabled, deactivate any existing ones
+    if (!isEnabled && prevIds.length > 0) {
+      await Promise.all(
+        prevIds.map(async (promoterId) => {
+          const assignId = `${promoterId}_${eventId}`;
+          await db
+            .collection('promoter_assignments')
+            .doc(assignId)
+            .set({ status: 'inactive', updatedAt: now }, { merge: true });
+        }),
+      );
+    }
+
+    // 6. Send notifications to newly added promoters
+    if (newlyAdded.length > 0) {
+      const rawTitle = "You've been added to an event!";
+      const rawMessage = `${eventName} is live — start sharing your link`;
+      const encryptedTitle = encrypt(rawTitle);
+      const encryptedMessage = encrypt(rawMessage);
+
+      await Promise.all([
+        ...newlyAdded.map((promoterId) =>
+          db.collection('notifications').add({
+            recipientId: promoterId,
+            recipientType: 'promoter',
+            type: 'promoter_assignment',
+            title: encryptedTitle,
+            message: encryptedMessage,
+            read: false,
+            createdAt: now,
+            data: {
+              eventId,
+              initiatedBy: creatorRole === 'host' ? 'host' : 'venue',
+            },
+          }),
+        ),
+        sendPushToUsers(db, newlyAdded, rawTitle, rawMessage, {
+          type: 'promoter_assignment',
+          eventId,
+        }),
+      ]);
+    }
+  } catch (err: any) {
+    console.error(`[syncEventPromoters] Error: ${err.message}`);
+  }
 }
 
 export default async function eventRoutes(fastify: FastifyInstance) {
@@ -1133,6 +1386,23 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        // Sync promoters (fire-and-forget)
+        const bodyPromoters = Array.isArray(request.body.promoters) ? request.body.promoters : [];
+        const bodyPromotersEnabled = request.body.promotersEnabled ?? false;
+        const commissionRate = request.body.commission ?? 10;
+
+        syncEventPromoters(
+          fastify.db,
+          event.id,
+          event.title || 'Untitled Event',
+          event.venueName || event.venue || '',
+          bodyPromoters,
+          bodyPromotersEnabled,
+          commissionRate,
+          request.body.creatorRole || 'venue',
+        );
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in POST /events: ${error.message}`);
@@ -1253,6 +1523,43 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         await fastify.invalidatePublicDiscovery('all');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id).catch(() => undefined);
+
+        const isPublishing =
+          patchFields.lifecycle === 'scheduled' || patchFields.lifecycle === 'submitted';
+        if (
+          patchFields.promoters !== undefined ||
+          patchFields.promotersEnabled !== undefined ||
+          patchFields.commission !== undefined ||
+          isPublishing
+        ) {
+          const settingsDoc = await fastify.db
+            .collection('event_promoter_settings')
+            .doc(id)
+            .get()
+            .catch(() => null);
+          const prevIds: string[] =
+            (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
+
+          const bodyPromoters = Array.isArray(patchFields.promoters)
+            ? patchFields.promoters
+            : prevIds;
+          const bodyPromotersEnabled =
+            patchFields.promotersEnabled ?? event.promotersEnabled ?? false;
+          const commissionRate =
+            patchFields.commission ?? event.promoterSettings?.commissionRate ?? 10;
+
+          syncEventPromoters(
+            fastify.db,
+            id,
+            event.title || 'Untitled Event',
+            event.venueName || event.venue || '',
+            bodyPromoters,
+            bodyPromotersEnabled,
+            commissionRate,
+            event.creatorRole || 'venue',
+          );
+        }
+
         return { success: true, id: event.id };
       } catch (error: any) {
         fastify.log.error(`Error in PATCH /events/:id: ${error.message}`);
@@ -1564,6 +1871,22 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.cache.invalidateNamespace('events:nearby');
         await fastify.publicDiscoveryService.syncEventReadModels(event.id);
         await fastify.invalidatePublicDiscovery('all');
+
+        // Sync promoters (fire-and-forget)
+        const bodyPromoters = Array.isArray(body.promoters) ? body.promoters : [];
+        const bodyPromotersEnabled = body.promotersEnabled ?? false;
+        const commissionRate = body.commission ?? 10;
+
+        syncEventPromoters(
+          fastify.db,
+          event.id,
+          eventRecord.title || 'Untitled Event',
+          eventRecord.venueName || eventRecord.venue || '',
+          bodyPromoters,
+          bodyPromotersEnabled,
+          commissionRate,
+          body.creatorRole || 'venue',
+        );
 
         return reply.status(201).send({ success: true, event: { id: event.id } });
       } catch (error: any) {

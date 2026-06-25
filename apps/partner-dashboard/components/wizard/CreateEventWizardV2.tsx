@@ -637,7 +637,11 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           const data = await res.json();
 
           if (data.event) {
-            const remote = data.event;
+            const remote = {
+              ...data.event,
+              startTime: data.event.startTime || '21:00',
+              endTime: data.event.endTime || '03:00',
+            };
             const remoteUpdated = remote.updatedAt ? new Date(remote.updatedAt).getTime() : 0;
 
             // Compare with local recovery data if available

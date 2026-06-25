@@ -15,6 +15,7 @@ import {
   buildPayoutAccountRecord,
   normalizePromoterCommissionRate,
 } from '../../../lib/partner-hardening.js';
+import { encrypt, decrypt } from '../../../lib/encryption.js';
 
 const AnalyticsQuerySchema = z
   .object({
@@ -556,6 +557,8 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         id: assignmentRef.id,
         promoterId,
         eventId,
+        eventName: encrypt(event.title || event.name || 'Event'),
+        venueName: encrypt(event.venueName || event.venue || ''),
         status: 'active',
         commissionRate: event.promoterSettings?.commissionRate || event.commissionRate || 0,
         createdAt: new Date().toISOString(),
@@ -863,11 +866,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           name: pickString(
             event.title,
             event.name,
-            assignment.eventName,
-            assignment.eventTitle,
+            decrypt(assignment.eventName),
+            decrypt(assignment.eventTitle),
             'Event',
           ),
-          venue: pickString(event.venueName, event.venue, assignment.venueName),
+          venue: pickString(event.venueName, event.venue, decrypt(assignment.venueName)),
           date: toIso(
             event.startDate ||
               event.date ||
@@ -1170,8 +1173,55 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const snap = await query.get();
-    const allDocs = snap.docs;
+    let snap;
+    let fallbackUsed = false;
+    try {
+      snap = await query.get();
+    } catch (err: any) {
+      const errMsg = String(err.message || err.details || '');
+      if (err.code === 9 || errMsg.includes('index') || errMsg.includes('FAILED_PRECONDITION')) {
+        const url =
+          errMsg.match(/https:\/\/console\.firebase\.google\.com\S+/)?.[0] ||
+          'Check Firebase Console';
+        fastify.log.warn(
+          `[resolvePromoterGuests] Missing Firestore composite index. You can create it here: ${url}`,
+        );
+
+        let fallbackQuery = fastify.db.collection('orders').where('promoterCode', 'in', codes);
+        if (eventId) {
+          fallbackQuery = fallbackQuery.where('eventId', '==', eventId);
+        }
+        if (status === 'checked_in') {
+          fallbackQuery = fallbackQuery.where('status', '==', 'checked_in');
+        } else if (status === 'pending') {
+          fallbackQuery = fallbackQuery.where('status', '==', 'confirmed');
+        }
+
+        snap = await fallbackQuery.limit(500).get();
+        fallbackUsed = true;
+      } else {
+        throw err;
+      }
+    }
+
+    let allDocs = snap.docs;
+    if (fallbackUsed) {
+      // Sort in-memory by createdAt desc
+      allDocs.sort((a: any, b: any) => {
+        const dateA = a.data().createdAt ? new Date(a.data().createdAt).getTime() : 0;
+        const dateB = b.data().createdAt ? new Date(b.data().createdAt).getTime() : 0;
+        return dateB - dateA;
+      });
+
+      // Handle cursor pagination in-memory
+      if (cursor) {
+        const cursorIndex = allDocs.findIndex((d: any) => d.id === cursor);
+        if (cursorIndex !== -1) {
+          allDocs = allDocs.slice(cursorIndex + 1);
+        }
+      }
+    }
+
     const hasMore = allDocs.length > limit;
     const orderDocs = allDocs.slice(0, limit);
 
@@ -2595,10 +2645,15 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           docsToReturn = allDocs.slice(0, limit);
         }
 
-        const notifications = docsToReturn.map((doc: any) => ({
-          id: doc.id,
-          ...(doc.data() || {}),
-        }));
+        const notifications = docsToReturn.map((doc: any) => {
+          const data = doc.data() || {};
+          return {
+            id: doc.id,
+            ...data,
+            title: decrypt(data.title),
+            message: decrypt(data.message),
+          };
+        });
         const nextCursor = hasMore ? (notifications[notifications.length - 1]?.id ?? null) : null;
 
         return reply.send({ notifications, nextCursor, hasMore });
@@ -2611,6 +2666,62 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
               requestId: request.id,
             }),
           );
+        if (err.statusCode)
+          return reply.status(err.statusCode).send(
+            buildErrorResponse({
+              code: err.code || 'FORBIDDEN',
+              message: err.message,
+              requestId: request.id,
+            }),
+          );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.patch(
+    '/partners/promoters/notifications',
+    { preHandler: [fastify.requireAuth] },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await requirePromoterContext(request, reply);
+        if (!ctx) return;
+
+        const body = asRecord(request.body);
+        const notificationId = String(body.notificationId || '');
+        const markAllRead = body.markAllRead === true;
+
+        if (markAllRead) {
+          const snap = await fastify.db
+            .collection('notifications')
+            .where('recipientId', '==', ctx.partnerId)
+            .where('read', '==', false)
+            .get();
+          const batch = fastify.db.batch();
+          snap.docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
+          await batch.commit();
+          return reply.send({ success: true, markedCount: snap.size });
+        }
+
+        if (!notificationId) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'notificationId or markAllRead required',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        await fastify.db.collection('notifications').doc(notificationId).update({ read: true });
+        return reply.send({ success: true, markedCount: 1 });
+      } catch (err: any) {
         if (err.statusCode)
           return reply.status(err.statusCode).send(
             buildErrorResponse({

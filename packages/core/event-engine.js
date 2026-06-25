@@ -122,6 +122,8 @@ export function buildEvent(payload = {}) {
     country: payload.country || 'India',
     startDate,
     endDate,
+    startTime: payload.startTime || '',
+    endTime: payload.endTime || '',
     timezone: payload.timezone || 'Asia/Kolkata',
     poster,
     image: poster,
