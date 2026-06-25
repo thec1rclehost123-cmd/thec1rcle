@@ -171,65 +171,30 @@ const DashboardEventCard = ({
 
         {/* — Secondary Actions (top-right) — */}
         {secondaryActions.length > 0 && (
-          <div className="absolute right-4 top-4 z-30" ref={menuRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/8 bg-black/40 text-white/60 backdrop-blur-xl transition-all hover:bg-white/10 hover:text-white"
-            >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="1" />
-                <circle cx="19" cy="12" r="1" />
-                <circle cx="5" cy="12" r="1" />
-              </svg>
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 mt-2 w-52 overflow-hidden rounded-2xl border border-white/8 bg-[#111114]/95 p-1 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.5)]">
-                {secondaryActions.map((action, i) =>
-                  action.href ? (
-                    <Link
-                      key={i}
-                      href={action.href}
-                      className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white/60 transition-all hover:bg-white/5 hover:text-white"
-                      onClick={() => setShowMenu(false)}
-                    >
-                      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/5">
-                        {action.icon}
-                      </span>
-                      {action.label}
-                    </Link>
-                  ) : (
-                    <button
-                      key={i}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        action.onClick?.();
-                        setShowMenu(false);
-                      }}
-                      className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.14em] transition-all hover:bg-white/5 ${action.color === 'red' ? 'text-rose-400 hover:text-rose-300' : 'text-white/60 hover:text-white'}`}
-                    >
-                      <span
-                        className={`flex h-7 w-7 items-center justify-center rounded-lg ${action.color === 'red' ? 'bg-rose-500/10' : 'bg-white/5'}`}
-                      >
-                        {action.icon}
-                      </span>
-                      {action.label}
-                    </button>
-                  ),
-                )}
-              </div>
+          <div className="absolute right-4 top-4 z-30 flex flex-wrap justify-end gap-2">
+            {secondaryActions.map((action, i) =>
+              action.href ? (
+                <Link
+                  key={i}
+                  href={action.href}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-black/50 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-white/80 backdrop-blur-xl transition-all hover:bg-white/10 hover:text-white"
+                >
+                  {action.icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{action.icon}</span>}
+                  {action.label}
+                </Link>
+              ) : (
+                <button
+                  key={i}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    action.onClick?.();
+                  }}
+                  className={`inline-flex items-center gap-1.5 rounded-full border border-white/8 bg-black/50 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.16em] text-white/80 backdrop-blur-xl transition-all hover:bg-white/10 ${action.color === 'red' ? 'text-rose-300 hover:text-rose-200' : 'hover:text-white'}`}
+                >
+                  {action.icon && <span className="[&>svg]:h-3 [&>svg]:w-3">{action.icon}</span>}
+                  {action.label}
+                </button>
+              ),
             )}
           </div>
         )}

@@ -185,18 +185,24 @@ export default function EventsManagementPage() {
     () =>
       events.filter((e) => {
         const s = getStatus(e);
-        let match = filter === 'all';
-        if (filter === 'draft') match = s === EVENT_LIFECYCLE.DRAFT;
-        if (filter === 'pending')
+        let match = false;
+        if (filter === 'all') {
           match = [
-            EVENT_LIFECYCLE.SUBMITTED,
-            EVENT_LIFECYCLE.NEEDS_CHANGES,
-            EVENT_LIFECYCLE.DENIED,
+            EVENT_LIFECYCLE.APPROVED,
+            EVENT_LIFECYCLE.SCHEDULED,
+            EVENT_LIFECYCLE.LIVE,
+            EVENT_LIFECYCLE.DRAFT,
+            EVENT_LIFECYCLE.COMPLETED,
           ].includes(s as string);
-        if (filter === 'live') match = s === EVENT_LIFECYCLE.LIVE;
-        if (filter === 'approved')
-          match = s === EVENT_LIFECYCLE.APPROVED || s === EVENT_LIFECYCLE.SCHEDULED;
-        if (filter === 'completed') match = s === EVENT_LIFECYCLE.COMPLETED;
+        }
+        if (filter === 'draft') match = s === EVENT_LIFECYCLE.DRAFT;
+        if (filter === 'live')
+          match = [
+            EVENT_LIFECYCLE.APPROVED,
+            EVENT_LIFECYCLE.SCHEDULED,
+            EVENT_LIFECYCLE.LIVE,
+          ].includes(s as string);
+        if (filter === 'approved') match = s === EVENT_LIFECYCLE.SUBMITTED;
         return (
           match &&
           (e.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -206,38 +212,45 @@ export default function EventsManagementPage() {
     [events, filter, searchQuery],
   );
 
-  const liveCount = useMemo(
-    () => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.LIVE).length,
-    [events],
-  );
-  const pendingCount = useMemo(
+  const allCount = useMemo(
     () =>
       events.filter((e) =>
-        [EVENT_LIFECYCLE.SUBMITTED, EVENT_LIFECYCLE.NEEDS_CHANGES, EVENT_LIFECYCLE.DENIED].includes(
+        [
+          EVENT_LIFECYCLE.APPROVED,
+          EVENT_LIFECYCLE.SCHEDULED,
+          EVENT_LIFECYCLE.LIVE,
+          EVENT_LIFECYCLE.DRAFT,
+          EVENT_LIFECYCLE.COMPLETED,
+        ].includes(getStatus(e) as string),
+      ).length,
+    [events],
+  );
+
+  const liveCount = useMemo(
+    () =>
+      events.filter((e) =>
+        [EVENT_LIFECYCLE.APPROVED, EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.LIVE].includes(
           getStatus(e) as string,
         ),
       ).length,
     [events],
   );
+
   const draftCount = useMemo(
     () => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.DRAFT).length,
     [events],
   );
+
   const publishedCount = useMemo(
-    () =>
-      events.filter((e) =>
-        [EVENT_LIFECYCLE.SCHEDULED, EVENT_LIFECYCLE.APPROVED].includes(getStatus(e) as string),
-      ).length,
+    () => events.filter((e) => getStatus(e) === EVENT_LIFECYCLE.SUBMITTED).length,
     [events],
   );
 
   const filterTabs = [
-    { label: 'All', value: 'all', count: events.length },
+    { label: 'All', value: 'all', count: allCount },
     { label: 'Live', value: 'live', count: liveCount },
     { label: 'Published', value: 'approved', count: publishedCount },
     { label: 'Drafts', value: 'draft', count: draftCount },
-    { label: 'Requests', value: 'pending', count: pendingCount },
-    { label: 'Completed', value: 'completed' },
   ];
 
   return (
@@ -248,7 +261,7 @@ export default function EventsManagementPage() {
           <div className="flex items-center gap-3">
             {[
               { label: 'Live Now', value: loading ? '—' : liveCount, color: '#34d399' },
-              { label: 'Deciding', value: loading ? '—' : pendingCount, color: '#f59e0b' },
+              { label: 'Deciding', value: loading ? '—' : publishedCount, color: '#f59e0b' },
             ].map((metric, i) => (
               <div
                 key={i}

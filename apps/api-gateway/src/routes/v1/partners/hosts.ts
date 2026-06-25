@@ -572,22 +572,28 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         .collection('events')
         .where('creatorId', '==', hostId)
         .where('lifecycle', 'in', ['submitted', 'scheduled', 'live', 'approved'])
-        .orderBy('startDate', 'asc')
-        .limit(5)
+        // No orderBy here — avoids composite index requirement (FAILED_PRECONDITION).
+        // Sorted in-memory below instead.
+        .limit(50)
         .get()
         .catch(() => ({ docs: [] as any[] })),
       financeService.getFinanceSummary(ctx),
     ]);
     const partnerships = (partnerSnap as any).docs || [];
+    const upcomingEvents = ((eventsSnap as any).docs || [])
+      .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }))
+      .sort((a: any, b: any) => {
+        const aTime = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bTime = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return aTime - bTime; // ascending
+      })
+      .slice(0, 5);
     return {
       pendingPartnerships: partnerships.filter(
         (doc: any) => (doc.data() || {}).status === 'pending',
       ).length,
       activePromoters: (promoterSnap as any).size || 0,
-      upcomingEvents: ((eventsSnap as any).docs || []).map((doc: any) => ({
-        id: doc.id,
-        ...(doc.data() || {}),
-      })),
+      upcomingEvents,
       stats: {
         revenue: finance.netRevenue || 0,
         ticketsSold: finance.totalTicketsSold || 0,
@@ -1486,6 +1492,125 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         const calendar = await getHostVenueCalendar(ctx.partnerId, request.query);
         return reply.header('Cache-Control', 'private, max-age=60').send(calendar);
       } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  // ── List slot requests (host) ──────────────────────────────────────────────
+  // The page shows events submitted to venues for review.
+  // Tabs filter by event lifecycle: submitted=pending, approved=approved,
+  // needs_changes=needs action, denied=denied.
+
+  fastify.get(
+    '/partners/hosts/slot-requests',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx)
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        requireType(ctx, 'host');
+        const hostId = ctx.partnerId;
+
+        // Fetch events in review-relevant lifecycle states, by both owner fields.
+        // No orderBy — avoids composite index requirement (FAILED_PRECONDITION).
+        const reviewLifecycles = ['submitted', 'approved', 'needs_changes', 'denied'];
+
+        const [creatorSnap, hostSnap] = await Promise.all([
+          fastify.db
+            .collection('events')
+            .where('creatorId', '==', hostId)
+            .where('lifecycle', 'in', reviewLifecycles)
+            .limit(200)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+          fastify.db
+            .collection('events')
+            .where('hostId', '==', hostId)
+            .where('lifecycle', 'in', reviewLifecycles)
+            .limit(200)
+            .get()
+            .catch(() => ({ docs: [] as any[] })),
+        ]);
+
+        // Merge, deduplicate by doc id
+        const docsById = new Map<string, any>();
+        for (const doc of [...(creatorSnap as any).docs, ...(hostSnap as any).docs]) {
+          docsById.set(doc.id, doc);
+        }
+
+        const requests = [...docsById.values()]
+          .map((doc: any) => {
+            const d = doc.data() as Record<string, any>;
+            const startDate = d.startDate
+              ? typeof d.startDate === 'string'
+                ? d.startDate
+                : (d.startDate?.toDate?.()?.toISOString?.() ?? '')
+              : '';
+            const createdAt = d.createdAt?.toDate?.()?.toISOString?.() ?? String(d.createdAt ?? '');
+            const updatedAt = d.updatedAt?.toDate?.()?.toISOString?.() ?? null;
+            return {
+              id: doc.id,
+              eventId: doc.id,
+              venueId: String(d.venueId || ''),
+              venueName: String(d.venueName || d.venue?.name || ''),
+              // Use the event's start date/time as the requested slot
+              requestedDate: startDate.split('T')[0] ?? '',
+              requestedStartTime: d.startTime || startDate.split('T')[1]?.slice(0, 5) || '',
+              requestedEndTime:
+                d.endTime ||
+                (d.endDate
+                  ? ((typeof d.endDate === 'string'
+                      ? d.endDate
+                      : (d.endDate?.toDate?.()?.toISOString?.() ?? '')
+                    )
+                      .split('T')[1]
+                      ?.slice(0, 5) ?? '')
+                  : ''),
+              status: String(d.lifecycle || d.status || 'pending'),
+              notes: d.notes ?? d.description ?? null,
+              clubResponse: d.clubResponse ?? d.venueNote ?? d.adminNote ?? null,
+              alternativeDate: d.alternativeDate ?? null,
+              alternativeStartTime: d.alternativeStartTime ?? null,
+              alternativeEndTime: d.alternativeEndTime ?? null,
+              createdAt,
+              respondedAt: updatedAt,
+            };
+          })
+          // Sort newest first in memory (avoids composite index requirement)
+          .sort((a: any, b: any) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+          });
+
+        return reply
+          .header('Cache-Control', 'private, max-age=60')
+          .send({ success: true, requests });
+      } catch (err: any) {
+        fastify.log.error({ err: (err as any).message }, 'partners/hosts/slot-requests error');
         if (err.statusCode)
           return reply
             .status(err.statusCode)

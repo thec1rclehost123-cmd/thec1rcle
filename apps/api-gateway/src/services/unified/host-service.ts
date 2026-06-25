@@ -104,17 +104,12 @@ export class HostService {
     const cap = Math.min(limit, 100);
     const partnerId = ctx.partnerId;
 
-    let q: any = this.db
-      .collection('events')
-      .where('creatorId', '==', partnerId)
-      .orderBy('startDate', 'desc')
-      .limit(cap + 1);
+    // NOTE: We intentionally avoid orderBy() on a different field than the where() clause
+    // to prevent Firestore FAILED_PRECONDITION errors caused by missing composite indexes.
+    // Sorting is done in-memory instead, which is safe for the page sizes involved.
+    let q: any = this.db.collection('events').where('creatorId', '==', partnerId).limit(500); // overfetch so in-memory sort + slice is accurate
 
     if (status) q = q.where('lifecycle', '==', status);
-    if (cursor) {
-      const cursorDoc = await this.db.collection('events').doc(cursor).get();
-      if (cursorDoc.exists) q = q.startAfter(cursorDoc);
-    }
 
     let snap = await q.get().catch((err: any) => {
       this.log.error(
@@ -132,11 +127,7 @@ export class HostService {
 
     // Fallback: try hostId field if creatorId returned nothing
     if (!snap || snap.empty) {
-      let q2: any = this.db
-        .collection('events')
-        .where('hostId', '==', partnerId)
-        .orderBy('startDate', 'desc')
-        .limit(cap + 1);
+      let q2: any = this.db.collection('events').where('hostId', '==', partnerId).limit(500);
       if (status) q2 = q2.where('lifecycle', '==', status);
       snap = await q2.get().catch((err: any) => {
         this.log.error(
@@ -153,9 +144,23 @@ export class HostService {
       });
     }
 
-    const docs = snap?.docs ?? [];
-    const hasMore = docs.length > cap;
-    const items = docs.slice(0, cap).map((doc: any) => this.docToEventSummary(doc));
+    // Sort by startDate descending in memory (avoids composite index requirement)
+    const allDocs: any[] = (snap?.docs ?? []).slice().sort((a: any, b: any) => {
+      const aTime = this.toDateValue(a.data()?.startDate)?.getTime() ?? 0;
+      const bTime = this.toDateValue(b.data()?.startDate)?.getTime() ?? 0;
+      return bTime - aTime; // descending
+    });
+
+    // Apply cursor-based pagination after sort
+    let startIdx = 0;
+    if (cursor) {
+      const cursorIdx = allDocs.findIndex((d: any) => d.id === cursor);
+      if (cursorIdx !== -1) startIdx = cursorIdx + 1;
+    }
+
+    const page = allDocs.slice(startIdx, startIdx + cap + 1);
+    const hasMore = page.length > cap;
+    const items = page.slice(0, cap).map((doc: any) => this.docToEventSummary(doc));
     const nextCursor = hasMore ? (items[items.length - 1]?.eventId ?? null) : null;
 
     return { data: items, hasMore, nextCursor };
@@ -311,7 +316,13 @@ export class HostService {
         }))
       : [];
 
-    return {
+    const venueName = safeStr(
+      d.venueName || (typeof d.venue === 'string' ? d.venue : d.venue?.name) || '',
+    );
+
+    // Use an any-typed intermediate to carry the extended workspace fields
+    // without widening the exported EventDetail type in types.ts.
+    const result: any = {
       ...summary,
       description: safeStr(d.description),
       ticketTiers: tiers,
@@ -319,15 +330,33 @@ export class HostService {
       ownerPartnerId: safeStr(d.creatorId || d.hostId || d.ownerPartnerId),
       createdAt: toIso(d.createdAt),
       updatedAt: toIso(d.updatedAt),
+      // Fields expected by the host event workspace PageClient
+      id: doc.id,
+      lifecycle: safeStr(d.lifecycle || d.status || 'draft'),
+      venue: venueName,
+      slug: d.slug ?? null,
+      hostId: safeStr(d.hostId || d.creatorId),
+      hostName: safeStr(d.hostName),
+      venueAddress: safeStr(d.venueAddress),
+      city: safeStr(d.city),
+      eventUrl: safeStr(d.eventUrl || d.url),
+      shortDescription: safeStr(d.shortDescription),
+      tags: Array.isArray(d.tags) ? d.tags : [],
+      settings: d.settings ?? {},
+      promoterSettings: d.promoterSettings ?? { enabled: false, allowedPromoterIds: [] },
+      image: d.image ?? null,
+      stats: d.stats ?? {},
     };
+    return result as EventDetail;
   }
 
   private async getRecentActivity(partnerId: string): Promise<ActivityItem[]> {
+    // Avoid orderBy('createdAt') alongside where('actorId') — requires a composite index.
+    // Fetch without ordering and sort in memory instead.
     const snap = await this.db
       .collection('activity_logs')
       .where('actorId', '==', partnerId)
-      .orderBy('createdAt', 'desc')
-      .limit(10)
+      .limit(50)
       .get()
       .catch((err) => {
         this.log.error(
@@ -341,16 +370,23 @@ export class HostService {
         return { docs: [] };
       });
 
-    return (snap as any).docs.map((doc: any) => {
-      const d = doc.data() as Record<string, any>;
-      return {
-        id: doc.id,
-        type: safeStr(d.type),
-        title: safeStr(d.title),
-        detail: d.detail ?? null,
-        timestamp: toIso(d.createdAt),
-      } satisfies ActivityItem;
-    });
+    return ((snap as any).docs as any[])
+      .sort((a, b) => {
+        const aTime = this.toDateValue(a.data()?.createdAt)?.getTime() ?? 0;
+        const bTime = this.toDateValue(b.data()?.createdAt)?.getTime() ?? 0;
+        return bTime - aTime; // descending
+      })
+      .slice(0, 10)
+      .map((doc: any) => {
+        const d = doc.data() as Record<string, any>;
+        return {
+          id: doc.id,
+          type: safeStr(d.type),
+          title: safeStr(d.title),
+          detail: d.detail ?? null,
+          timestamp: toIso(d.createdAt),
+        } satisfies ActivityItem;
+      });
   }
 
   private async getUpcomingEvents(partnerId: string): Promise<EventSummary[]> {
@@ -380,12 +416,12 @@ export class HostService {
     ownerField: 'creatorId' | 'hostId',
     partnerId: string,
   ): Promise<FirebaseFirestore.QueryDocumentSnapshot[]> {
+    // Avoid orderBy('startDate') alongside where(ownerField) — requires a composite index.
+    // Instead, fetch without orderBy and filter/sort in memory.
     const snap = await this.db
       .collection('events')
       .where(ownerField, '==', partnerId)
-      .where('startDate', '>=', new Date())
-      .orderBy('startDate', 'asc')
-      .limit(12)
+      .limit(100)
       .get()
       .catch((err) => {
         this.log.error(
@@ -399,7 +435,11 @@ export class HostService {
         return { docs: [] as FirebaseFirestore.QueryDocumentSnapshot[] };
       });
 
-    return (snap as any).docs ?? [];
+    const now = new Date();
+    return ((snap as any).docs ?? []).filter((doc: any) => {
+      const startDate = this.toDateValue(doc.data()?.startDate);
+      return startDate !== null && startDate >= now;
+    });
   }
 
   private async getLatestOrders(partnerId: string): Promise<HostOrderSummary[]> {

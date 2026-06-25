@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo } from 'react';
+import { motion } from 'framer-motion';
 import {
   Calendar,
   Clock,
@@ -9,17 +9,20 @@ import {
   XCircle,
   AlertCircle,
   MessageSquare,
-  ChevronRight,
   Building2,
   RefreshCw,
   Eye,
   Edit3,
   Loader2,
   ArrowLeft,
+  BarChart3,
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 import Link from 'next/link';
 import { ErrorState } from '@/components/ui/ErrorState';
+import { EVENT_LIFECYCLE } from '@c1rcle/core/events';
+import { DashboardEventCard } from '@c1rcle/ui';
+import { parseAsIST } from '@c1rcle/core/time';
 
 interface SlotRequest {
   id: string;
@@ -50,9 +53,9 @@ export default function HostSlotRequestsPage() {
   const [requests, setRequests] = useState<SlotRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [isError, setIsError] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected' | 'all'>(
-    'pending',
-  );
+  const [activeTab, setActiveTab] = useState<
+    'pending' | 'approved' | 'needs_action' | 'denied' | 'all'
+  >('pending');
   const [selectedRequest, setSelectedRequest] = useState<SlotRequest | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -62,21 +65,16 @@ export default function HostSlotRequestsPage() {
     if (hostId) {
       fetchRequests();
     }
-  }, [hostId, activeTab]);
+  }, [hostId]);
 
   const fetchRequests = async () => {
     setLoading(true);
     setIsError(false);
     try {
-      const params = new URLSearchParams();
-      if (activeTab !== 'all') params.set('status', activeTab);
       const token = user ? await user.getIdToken() : '';
-      const res = await fetch(
-        `/api/partners/hosts/slot-requests${params.toString() ? `?${params.toString()}` : ''}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        },
-      );
+      const res = await fetch(`/api/partners/hosts/slot-requests`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
 
       // Enrich with event details — deduplicate by eventId to avoid N+1 fetches
@@ -125,7 +123,7 @@ export default function HostSlotRequestsPage() {
 
   const getStatusConfig = (status: string) => {
     const configs: Record<string, { bg: string; text: string; icon: any; label: string }> = {
-      pending: {
+      submitted: {
         bg: 'bg-amber-50',
         text: 'text-amber-600',
         icon: Clock,
@@ -136,6 +134,30 @@ export default function HostSlotRequestsPage() {
         text: 'text-emerald-600',
         icon: CheckCircle2,
         label: 'Approved',
+      },
+      scheduled: {
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-600',
+        icon: CheckCircle2,
+        label: 'Approved',
+      },
+      needs_changes: {
+        bg: 'bg-orange-50',
+        text: 'text-orange-600',
+        icon: Edit3,
+        label: 'Changes Requested',
+      },
+      denied: {
+        bg: 'bg-rose-50',
+        text: 'text-rose-600',
+        icon: XCircle,
+        label: 'Denied',
+      },
+      pending: {
+        bg: 'bg-amber-50',
+        text: 'text-amber-600',
+        icon: Clock,
+        label: 'Pending Review',
       },
       rejected: {
         bg: 'bg-rose-50',
@@ -149,21 +171,69 @@ export default function HostSlotRequestsPage() {
         icon: MessageSquare,
         label: 'Counter Proposal',
       },
-      needs_changes: {
-        bg: 'bg-orange-50',
-        text: 'text-orange-600',
-        icon: Edit3,
-        label: 'Changes Requested',
-      },
     };
+    if (status === 'approved') return configs.approved;
+    if (status === 'needs_changes') return configs.needs_changes;
+    if (status === 'rejected') return configs.rejected;
     return configs[status] || configs.pending;
   };
 
-  const pendingCount = requests.filter((r) => r.status === 'pending').length;
-  const approvedCount = requests.filter((r) => r.status === 'approved').length;
-  const rejectedCount = requests.filter((r) =>
-    ['rejected', 'needs_changes'].includes(r.status),
+  const pendingCount = requests.filter(
+    (r) => r.event?.lifecycle === EVENT_LIFECYCLE.SUBMITTED,
   ).length;
+  const approvedCount = requests.filter(
+    (r) => r.event?.lifecycle === EVENT_LIFECYCLE.APPROVED,
+  ).length;
+  const needsActionCount = requests.filter(
+    (r) => r.event?.lifecycle === EVENT_LIFECYCLE.NEEDS_CHANGES,
+  ).length;
+  const deniedCount = requests.filter((r) => r.event?.lifecycle === EVENT_LIFECYCLE.DENIED).length;
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      const lc = r.event?.lifecycle;
+      if (activeTab === 'pending')
+        return lc === EVENT_LIFECYCLE.SUBMITTED || (!lc && r.status === 'pending');
+      if (activeTab === 'approved')
+        return lc === EVENT_LIFECYCLE.APPROVED || (!lc && r.status === 'approved');
+      if (activeTab === 'needs_action')
+        return lc === EVENT_LIFECYCLE.NEEDS_CHANGES || (!lc && r.status === 'needs_changes');
+      if (activeTab === 'denied')
+        return lc === EVENT_LIFECYCLE.DENIED || (!lc && r.status === 'rejected');
+      return true; // 'all'
+    });
+  }, [requests, activeTab]);
+
+  // Static color class maps — Tailwind purges dynamic interpolations like `text-${color}-600`
+  const colorMap = {
+    amber: {
+      text: 'text-amber-600',
+      bg: 'bg-amber-50',
+      icon: 'text-amber-500',
+      ring: 'ring-amber-400',
+    },
+    emerald: {
+      text: 'text-emerald-600',
+      bg: 'bg-emerald-50',
+      icon: 'text-emerald-500',
+      ring: 'ring-emerald-400',
+    },
+    orange: {
+      text: 'text-orange-600',
+      bg: 'bg-orange-50',
+      icon: 'text-orange-500',
+      ring: 'ring-orange-400',
+    },
+    rose: { text: 'text-rose-600', bg: 'bg-rose-50', icon: 'text-rose-500', ring: 'ring-rose-400' },
+  } as const;
+
+  const tabLabels: Record<string, string> = {
+    pending: 'pending',
+    approved: 'approved',
+    needs_action: 'needs action',
+    denied: 'denied',
+    all: '',
+  };
 
   return (
     <div className="space-y-8 pb-20 animate-in fade-in duration-500">
@@ -194,67 +264,64 @@ export default function HostSlotRequestsPage() {
         </button>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">
-                Pending
-              </p>
-              <p className="text-3xl font-black text-amber-600 mt-1">{pendingCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center">
-              <Clock className="w-6 h-6 text-amber-500" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">
-                Approved
-              </p>
-              <p className="text-3xl font-black text-emerald-600 mt-1">{approvedCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-            </div>
-          </div>
-        </div>
-        <div className="bg-surface-elevated border border-border-default rounded-2xl p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">
-                Needs Action
-              </p>
-              <p className="text-3xl font-black text-rose-600 mt-1">{rejectedCount}</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center">
-              <AlertCircle className="w-6 h-6 text-rose-500" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex items-center gap-2 p-1 bg-surface-secondary rounded-xl w-fit overflow-x-auto max-w-full scrollbar-hide">
+      {/* Stats Cards — click to filter */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { id: 'pending', label: 'Pending' },
-          { id: 'approved', label: 'Approved' },
-          { id: 'rejected', label: 'Rejected' },
-          { id: 'all', label: 'All' },
-        ].map((tab) => (
+          {
+            id: 'pending',
+            label: 'Pending',
+            count: pendingCount,
+            color: 'amber' as const,
+            Icon: Clock,
+            ring: 'ring-amber-400',
+          },
+          {
+            id: 'approved',
+            label: 'Approval',
+            count: approvedCount,
+            color: 'emerald' as const,
+            Icon: CheckCircle2,
+            ring: 'ring-emerald-400',
+          },
+          {
+            id: 'needs_action',
+            label: 'Needs Action',
+            count: needsActionCount,
+            color: 'orange' as const,
+            Icon: AlertCircle,
+            ring: 'ring-orange-400',
+          },
+          {
+            id: 'denied',
+            label: 'Denied',
+            count: deniedCount,
+            color: 'rose' as const,
+            Icon: XCircle,
+            ring: 'ring-rose-400',
+          },
+        ].map(({ id, label, count, color, Icon, ring }) => (
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-all ${
-              activeTab === tab.id
-                ? 'bg-surface-elevated text-text-primary shadow-sm'
-                : 'text-text-tertiary hover:text-text-secondary'
+            key={id}
+            onClick={() => setActiveTab(activeTab === id ? 'all' : (id as any))}
+            className={`w-full text-left bg-surface-elevated border rounded-2xl p-6 transition-all cursor-pointer ${
+              activeTab === id
+                ? `${ring} ring-2 border-transparent`
+                : 'border-border-default hover:border-border-strong'
             }`}
           >
-            {tab.label}
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-text-tertiary uppercase tracking-widest">
+                  {label}
+                </p>
+                <p className={`text-3xl font-black mt-1 ${colorMap[color].text}`}>{count}</p>
+              </div>
+              <div
+                className={`w-12 h-12 rounded-xl ${colorMap[color].bg} flex items-center justify-center`}
+              >
+                <Icon className={`w-6 h-6 ${colorMap[color].icon}`} />
+              </div>
+            </div>
           </button>
         ))}
       </div>
@@ -270,22 +337,24 @@ export default function HostSlotRequestsPage() {
           message="We couldn't fetch your slot requests. Check your connection and try again."
           onRetry={fetchRequests}
         />
-      ) : requests.length === 0 ? (
+      ) : filteredRequests.length === 0 ? (
         <div className="bg-surface-elevated border border-border-default rounded-3xl p-12 text-center">
           <div className="w-16 h-16 rounded-full bg-surface-secondary flex items-center justify-center mx-auto mb-4">
             <Calendar className="w-8 h-8 text-text-tertiary" />
           </div>
           <h3 className="text-lg font-bold text-text-primary mb-2">
-            No {activeTab !== 'all' ? activeTab : ''} requests
+            No {tabLabels[activeTab] || ''} requests
           </h3>
           <p className="text-text-tertiary text-sm max-w-xs mx-auto">
             {activeTab === 'pending'
               ? "You don't have any pending slot requests."
               : activeTab === 'approved'
                 ? 'No approved requests yet. Keep submitting!'
-                : activeTab === 'rejected'
-                  ? 'No rejected requests. Great news!'
-                  : 'Start by requesting a slot at one of your partner venues.'}
+                : activeTab === 'needs_action'
+                  ? 'No action required on any requests.'
+                  : activeTab === 'denied'
+                    ? 'No denied requests.'
+                    : 'Start by requesting a slot at one of your partner venues.'}
           </p>
           <Link
             href="/host/partnerships"
@@ -296,154 +365,82 @@ export default function HostSlotRequestsPage() {
           </Link>
         </div>
       ) : (
-        <div className="space-y-4">
-          {requests.map((request) => {
-            const statusConfig = getStatusConfig(request.status);
-            const StatusIcon = statusConfig.icon;
+        <motion.div
+          key="grid"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8"
+        >
+          {filteredRequests.map((request, index) => {
+            const lc = request.event?.lifecycle || request.status;
+            const canEdit =
+              lc === EVENT_LIFECYCLE.NEEDS_CHANGES ||
+              lc === EVENT_LIFECYCLE.DENIED ||
+              request.status === 'rejected' ||
+              request.status === 'needs_changes';
+
+            // Map SlotRequest → event shape DashboardEventCard expects
+            const cardEvent = {
+              id: request.eventId,
+              title: request.event?.title || 'Untitled Event',
+              venueName: request.venueName || 'Venue pending',
+              venueId: request.venueId,
+              startDate: request.requestedDate || '',
+              startTime: request.requestedStartTime || '',
+              date: request.requestedDate ? parseAsIST(request.requestedDate) : new Date(),
+              hostName: (profile as any)?.displayName || 'Host',
+              lifecycle: lc,
+              status: lc,
+              coverImage: request.event?.poster || null,
+              poster: request.event?.poster || null,
+              ticketsSold: 0,
+              ticketsTotal: 0,
+              stats: null,
+            };
+
+            const primaryAction = canEdit
+              ? {
+                  label: 'Edit & Resubmit',
+                  href: `/host/create?id=${request.eventId}`,
+                  icon: <Edit3 size={13} />,
+                }
+              : {
+                  label: 'More Info',
+                  href: `/host/events/${request.eventId}`,
+                  icon: <BarChart3 size={13} />,
+                };
+
+            const secondaryActions = [
+              {
+                label: 'View Event',
+                icon: <Eye size={16} />,
+                href: `/host/events/${request.eventId}`,
+              },
+              ...(canEdit
+                ? [
+                    {
+                      label: 'Edit & Resubmit',
+                      icon: <Edit3 size={16} />,
+                      href: `/host/create?id=${request.eventId}`,
+                    },
+                  ]
+                : []),
+            ];
 
             return (
-              <motion.div
-                key={request.id}
-                layout
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="bg-surface-elevated border border-border-default rounded-2xl p-6 hover:shadow-lg hover:shadow-slate-100 transition-all"
-              >
-                <div className="flex items-start gap-4">
-                  {/* Event Poster */}
-                  <div className="w-20 h-20 rounded-xl bg-surface-secondary overflow-hidden flex-shrink-0">
-                    {request.event?.poster ? (
-                      <img
-                        src={request.event.poster}
-                        alt={request.event?.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center">
-                        <Calendar className="w-8 h-8 text-text-placeholder" />
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Request Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="text-lg font-bold text-text-primary">
-                          {request.event?.title || 'Untitled Event'}
-                        </h3>
-                        <p className="text-sm text-text-tertiary flex items-center gap-2">
-                          <Building2 className="w-3.5 h-3.5" />
-                          {request.venueName}
-                        </p>
-                      </div>
-                      <span
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 ${statusConfig.bg} ${statusConfig.text}`}
-                      >
-                        <StatusIcon className="w-3.5 h-3.5" />
-                        {statusConfig.label}
-                      </span>
-                    </div>
-
-                    {/* Date/Time */}
-                    <div className="flex items-center gap-6 mt-3 text-sm text-text-secondary">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-text-tertiary" />
-                        {formatIndianDate(request.requestedDate, {
-                          weekday: 'short',
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-text-tertiary" />
-                        {request.requestedStartTime} - {request.requestedEndTime}
-                      </div>
-                    </div>
-
-                    {/* Venue Response */}
-                    {request.clubResponse && (
-                      <div className="mt-4 p-3 rounded-xl bg-surface-tertiary border-l-4 border-border-strong">
-                        <p className="text-xs font-bold text-text-tertiary uppercase tracking-wide mb-1">
-                          Venue Response
-                        </p>
-                        <p className="text-sm text-text-secondary">{request.clubResponse}</p>
-                      </div>
-                    )}
-
-                    {/* Counter Proposal */}
-                    {request.status === 'counter_proposed' && request.alternativeDate && (
-                      <div className="mt-4 p-4 rounded-xl bg-blue-50 border border-blue-100">
-                        <p className="text-xs font-bold text-blue-600 uppercase tracking-wide mb-2">
-                          Alternative Slot Proposed
-                        </p>
-                        <div className="flex items-center gap-4 text-sm text-blue-700">
-                          <span>{request.alternativeDate}</span>
-                          <span>
-                            {request.alternativeStartTime} - {request.alternativeEndTime}
-                          </span>
-                        </div>
-                        <div className="flex gap-2 mt-3">
-                          <button className="px-4 py-2 bg-blue-600 text-text-primary rounded-lg text-xs font-bold hover:bg-blue-700 transition-colors">
-                            Accept Alternative
-                          </button>
-                          <button className="px-4 py-2 bg-surface-elevated border border-blue-200 text-blue-600 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors">
-                            Decline
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex flex-col gap-2">
-                    <Link
-                      href={`/host/events/${request.eventId}`}
-                      className="px-4 py-2 bg-surface-secondary hover:bg-surface-tertiary text-text-secondary rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View Event
-                    </Link>
-                    {(request.status === 'rejected' || request.status === 'needs_changes') && (
-                      <Link
-                        href={`/host/create?id=${request.eventId}`}
-                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-text-primary rounded-lg text-xs font-bold flex items-center gap-2 transition-colors"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Edit & Resubmit
-                      </Link>
-                    )}
-                  </div>
-                </div>
-
-                {/* Timeline Footer */}
-                <div className="mt-4 pt-4 border-t border-border-subtle flex items-center justify-between text-xs text-text-tertiary">
-                  <span>
-                    Submitted{' '}
-                    {formatIndianDate(request.createdAt, {
-                      day: 'numeric',
-                      month: 'short',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </span>
-                  {request.respondedAt && (
-                    <span>
-                      Responded{' '}
-                      {formatIndianDate(request.respondedAt, {
-                        day: 'numeric',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </span>
-                  )}
-                </div>
-              </motion.div>
+              <div key={request.id} className="h-full w-full">
+                <DashboardEventCard
+                  event={cardEvent}
+                  index={index}
+                  role="host"
+                  primaryAction={primaryAction}
+                  secondaryActions={secondaryActions}
+                  showStats={false}
+                />
+              </div>
             );
           })}
-        </div>
+        </motion.div>
       )}
     </div>
   );

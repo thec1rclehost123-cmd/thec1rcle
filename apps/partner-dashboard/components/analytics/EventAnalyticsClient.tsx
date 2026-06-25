@@ -150,7 +150,7 @@ export default function EventAnalyticsClient({
     refetch: refetchEventDetails,
     isFetching: isFetchingEventDetails,
   } = useQuery({
-    queryKey: [role, 'events', entityId, 'all'],
+    queryKey: [role, 'events', entityId, eventId, 'details'],
     queryFn: async () => {
       const token = await user?.getIdToken();
       const res = await fetch(`/api/${role}/events?${idParam}=${entityId}`, {
@@ -171,10 +171,15 @@ export default function EventAnalyticsClient({
         eventUrl: mapped.eventUrl || rawEvent.eventUrl || '',
         coverImage:
           mapped.coverImage || mapped.image || rawEvent.coverImage || rawEvent.image || null,
+        creatorRole: mapped.creatorRole || rawEvent.creatorRole || null,
+        eventType: mapped.eventType || rawEvent.eventType || null,
       };
     },
     enabled: !!entityId && !!user,
   });
+
+  const isHostManagedEvent =
+    String(eventDetails?.creatorRole || eventDetails?.eventType || '').toLowerCase() === 'host';
 
   // 2. Fetch analytics strictly scoped to this event
   const {
@@ -347,13 +352,15 @@ export default function EventAnalyticsClient({
             </div>
 
             <div className="flex flex-wrap items-center gap-3 xl:max-w-[320px] xl:justify-end">
-              <Link
-                href={`/${role}/create?id=${eventId}`}
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.02] px-5 py-3 text-[14px] font-semibold text-[var(--v-text-primary)] transition-all hover:border-white/18 hover:bg-white/[0.05]"
-              >
-                <Edit3 className="h-4 w-4" />
-                Edit
-              </Link>
+              {role === 'venue' && isHostManagedEvent ? null : (
+                <Link
+                  href={`/${role}/create?id=${eventId}`}
+                  className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-[16px] border border-white/12 bg-white/[0.02] px-5 py-3 text-[14px] font-semibold text-[var(--v-text-primary)] transition-all hover:border-white/18 hover:bg-white/[0.05]"
+                >
+                  <Edit3 className="h-4 w-4" />
+                  Edit
+                </Link>
+              )}
               {eventDetails?.eventUrl && (
                 <a
                   href={eventDetails.eventUrl}
