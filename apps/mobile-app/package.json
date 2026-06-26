@@ -17,7 +17,7 @@
     "lint": "eslint app components hooks lib store __tests__",
     "doctor": "npx expo-doctor",
     "launch:readiness": "node scripts/launch-readiness-check.cjs",
-    "type-check": "node ./node_modules/typescript/bin/tsc -p tsconfig.json --noEmit --pretty false",
+    "type-check": "tsc -p tsconfig.json --noEmit --pretty false",
     "test": "npx jest --verbose",
     "test:watch": "npx jest --watch"
   },
