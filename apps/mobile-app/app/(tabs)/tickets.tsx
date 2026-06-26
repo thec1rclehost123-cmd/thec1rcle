@@ -34,6 +34,7 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withSpring,
+  runOnJS,
 } from 'react-native-reanimated';
 import { Image } from 'expo-image';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
@@ -194,63 +195,97 @@ function QRModal({
 
   if (!order) return null;
 
-  const qrData = resolveWalletQrData(order);
-  const bookingLabel = formatBookingCode(order);
-  const totalGuests =
-    (order as any).totalGuests ??
-    order.tickets?.reduce((acc, t) => acc + (Number(t.quantity) || 1), 0) ??
-    1;
-  const totalRevenue = (order as any).totalRevenue ?? 0;
-  const ticketType = order.tickets?.[0]?.tierName || 'General Entry';
-  const rawHostName = String((order as any).promoterName || (order as any).hostName || 'C1RCLE');
-  const posterHostName = rawHostName.length > 14 ? 'C1RCLE' : rawHostName;
-  const dateStr = (() => {
-    const d = safeDate(order.eventDate);
-    if (!d) return '';
-    const month = d.toLocaleDateString('en-US', { month: 'short' });
-    const day = d.getDate();
-    const suffix = (day: number) => {
-      if (day > 3 && day < 21) return 'th';
-      switch (day % 10) {
-        case 1:
-          return 'st';
-        case 2:
-          return 'nd';
-        case 3:
-          return 'rd';
-        default:
-          return 'th';
-      }
-    };
-    const hours = d.getHours();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    const displayHours = hours % 12 || 12;
-    const minutes = d.getMinutes();
-    const displayMinutes = minutes > 0 ? `:${String(minutes).padStart(2, '0')}` : '';
-    return `${month} ${day}${suffix(day)} at ${displayHours}${displayMinutes}${ampm}`;
-  })();
-  const shortId = order.id.replace(/-/g, '').substring(0, 8).toUpperCase();
-  const calendarUrl = buildCalendarEventUrl({
-    title: order.eventTitle || 'THE C1RCLE Event',
-    startDate: order.eventStartDate || order.eventDate,
-    location: order.venueLocation,
-    description: `${ticketType} · ${totalGuests} ticket${totalGuests > 1 ? 's' : ''}`,
-  });
+  const {
+    qrData,
+    bookingLabel,
+    totalGuests,
+    totalRevenue,
+    ticketType,
+    posterHostName,
+    dateStr,
+    shortId,
+    calendarUrl,
+    accentColor,
+    posterSize,
+    miniQrSize,
+    miniQrPadding,
+    fullQrSize,
+    posterTransitionTag,
+  } = useMemo(() => {
+    const _qrData = resolveWalletQrData(order);
+    const _bookingLabel = formatBookingCode(order);
+    const _totalGuests =
+      (order as any).totalGuests ??
+      order.tickets?.reduce((acc, t) => acc + (Number(t.quantity) || 1), 0) ??
+      1;
+    const _totalRevenue = (order as any).totalRevenue ?? 0;
+    const _ticketType = order.tickets?.[0]?.tierName || 'General Entry';
+    const _rawHostName = String((order as any).promoterName || (order as any).hostName || 'C1RCLE');
+    const _posterHostName = _rawHostName.length > 14 ? 'C1RCLE' : _rawHostName;
+    const _dateStr = (() => {
+      const d = safeDate(order.eventDate);
+      if (!d) return '';
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      const day = d.getDate();
+      const suffix = (day: number) => {
+        if (day > 3 && day < 21) return 'th';
+        switch (day % 10) {
+          case 1:
+            return 'st';
+          case 2:
+            return 'nd';
+          case 3:
+            return 'rd';
+          default:
+            return 'th';
+        }
+      };
+      const hours = d.getHours();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const displayHours = hours % 12 || 12;
+      const minutes = d.getMinutes();
+      const displayMinutes = minutes > 0 ? `:${String(minutes).padStart(2, '0')}` : '';
+      return `${month} ${day}${suffix(day)} at ${displayHours}${displayMinutes}${ampm}`;
+    })();
+    const _shortId = order.id.replace(/-/g, '').substring(0, 8).toUpperCase();
+    const _calendarUrl = buildCalendarEventUrl({
+      title: order.eventTitle || 'THE C1RCLE Event',
+      startDate: order.eventStartDate || order.eventDate,
+      location: order.venueLocation,
+      description: `${_ticketType} · ${_totalGuests} ticket${_totalGuests > 1 ? 's' : ''}`,
+    });
+    const _accentColor =
+      (order as any).posterAccentColor ||
+      (order as any).dominantColor ||
+      (order as any).eventAccentColor ||
+      (order.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
+        ? order.accentColor
+        : undefined) ||
+      '#D915A8';
+    const _posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
+    const _miniQrSize = Math.max(126, Math.min(162, _posterSize * 0.38));
+    const _miniQrPadding = 12;
+    const _fullQrSize = Math.min(220, _posterSize - 96);
+    const _posterTransitionTag = `ticket-poster-${order.id}`;
 
-  // Prefer poster-specific colors; brand orange is a weak fallback for this shelf.
-  const accentColor =
-    (order as any).posterAccentColor ||
-    (order as any).dominantColor ||
-    (order as any).eventAccentColor ||
-    (order.accentColor && order.accentColor.toUpperCase() !== colors.iris.toUpperCase()
-      ? order.accentColor
-      : undefined) ||
-    '#D915A8';
-  const posterSize = Math.min(width - 48, 300, Math.max(260, height * 0.32));
-  const miniQrSize = Math.max(126, Math.min(162, posterSize * 0.38));
-  const miniQrPadding = 12;
-  const fullQrSize = Math.min(220, posterSize - 96);
-  const posterTransitionTag = `ticket-poster-${order.id}`;
+    return {
+      qrData: _qrData,
+      bookingLabel: _bookingLabel,
+      totalGuests: _totalGuests,
+      totalRevenue: _totalRevenue,
+      ticketType: _ticketType,
+      posterHostName: _posterHostName,
+      dateStr: _dateStr,
+      shortId: _shortId,
+      calendarUrl: _calendarUrl,
+      accentColor: _accentColor,
+      posterSize: _posterSize,
+      miniQrSize: _miniQrSize,
+      miniQrPadding: _miniQrPadding,
+      fullQrSize: _fullQrSize,
+      posterTransitionTag: _posterTransitionTag,
+    };
+  }, [order.id, width, height]);
 
   const handleCloseSheet = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -259,9 +294,14 @@ function QRModal({
 
   const handleFlip = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const next = !showQR;
-    setShowQR(next);
-    flipProgress.value = withTiming(next ? 1 : 0, { duration: 500 });
+    const next = flipProgress.value < 0.5;
+    flipProgress.value = withSpring(
+      next ? 1 : 0,
+      { damping: 20, stiffness: 90, mass: 0.8 },
+      (finished) => {
+        if (finished) runOnJS(setShowQR)(next);
+      },
+    );
   };
 
   const handleTransfer = () => {
@@ -405,7 +445,12 @@ function QRModal({
                         },
                       ]}
                     >
-                      <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+                      <BlurView
+                        experimentalBlurMethod="dimezisBlurView"
+                        intensity={50}
+                        tint="light"
+                        style={StyleSheet.absoluteFill}
+                      />
                       <LinearGradient
                         colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
                         style={StyleSheet.absoluteFill}
@@ -427,7 +472,12 @@ function QRModal({
                   <View
                     style={[ms.fullQrWrap, { elevation: 0, shadowOpacity: 0, overflow: 'hidden' }]}
                   >
-                    <BlurView intensity={50} tint="light" style={StyleSheet.absoluteFill} />
+                    <BlurView
+                      experimentalBlurMethod="dimezisBlurView"
+                      intensity={50}
+                      tint="light"
+                      style={StyleSheet.absoluteFill}
+                    />
                     <LinearGradient
                       colors={['rgba(255,255,255,0.6)', 'rgba(255,255,255,0.15)']}
                       style={StyleSheet.absoluteFill}
@@ -1238,7 +1288,12 @@ function SegmentedHeader({
       </Pressable>
 
       <View style={styles.segmentedContainer}>
-        <BlurView intensity={24} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView
+          experimentalBlurMethod="dimezisBlurView"
+          intensity={24}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
         <Animated.View style={[styles.segmentedActiveBg, animatedBgStyle]} />
         <Pressable onPress={() => handleTabPress('upcoming')} style={styles.segmentedTab}>
           <Text

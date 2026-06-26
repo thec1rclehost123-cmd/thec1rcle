@@ -52,6 +52,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { useProfileStore } from '@/store/profileStore';
 import { shareEventLink } from '@/lib/deeplinks';
 import { useTicketsStore } from '@/store/ticketsStore';
+import { useAuthStore } from '@/store/authStore';
+import AuthSheet from '@/components/ui/AuthSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const HEADER_HEIGHT = 400;
@@ -504,7 +506,12 @@ function HeaderButton({
 }) {
   return (
     <Pressable onPress={onPress} style={styles.headerButton}>
-      <BlurView intensity={28} tint="dark" style={styles.headerButtonBlur}>
+      <BlurView
+        experimentalBlurMethod="dimezisBlurView"
+        intensity={28}
+        tint="dark"
+        style={styles.headerButtonBlur}
+      >
         {icon}
       </BlurView>
       {badge !== undefined && badge > 0 && (
@@ -562,6 +569,7 @@ export default function EventDetailScreen() {
   const [showHostSheet, setShowHostSheet] = useState(false);
   const [showGuestlistSheet, setShowGuestlistSheet] = useState(false);
   const [showTicketSheet, setShowTicketSheet] = useState(false);
+  const [showAuthSheet, setShowAuthSheet] = useState(false);
   const [heartBurstTarget, setHeartBurstTarget] = useState<'top' | 'title'>('title');
   const [localLikedEventIds, setLocalLikedEventIds] = useState<Set<string>>(new Set());
   const miniMapRef = useRef<MapView>(null);
@@ -770,13 +778,8 @@ export default function EventDetailScreen() {
       withSpring(1, { damping: 8, stiffness: 360 }),
     );
     heartBurst.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
-    if (!user?.uid) {
-      setLocalLikedEventIds((current) => {
-        const next = new Set(current);
-        if (next.has(id)) next.delete(id);
-        else next.add(id);
-        return next;
-      });
+    if (!user?.uid || useAuthStore.getState().isGuest) {
+      setShowAuthSheet(true);
       return;
     }
     toggleInterest(id, user.uid, {
@@ -843,8 +846,15 @@ export default function EventDetailScreen() {
     }
   };
 
+  const isSoldOut = !event?.tickets?.some((tier) => tier.remaining > 0);
+
   const handleGetTickets = () => {
-    if (ticketTransitionLocked.current) return;
+    const { user: authUser, isGuest } = useAuthStore.getState();
+    if (!authUser || isGuest) {
+      setShowAuthSheet(true);
+      return;
+    }
+    if (ticketTransitionLocked.current || loading || isSoldOut) return;
     ticketTransitionLocked.current = true;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     ticketTransition.value = 0;
@@ -1158,7 +1168,6 @@ export default function EventDetailScreen() {
               source={{ uri: posterUri }}
               style={styles.posterBlurBackdrop}
               contentFit="cover"
-              blurRadius={16}
               transition={250}
               cachePolicy="memory-disk"
             />
@@ -1430,6 +1439,36 @@ export default function EventDetailScreen() {
               <Ionicons name="logo-instagram" size={30} color="#fff" />
             </Pressable>
           </Animated.View>
+
+          {event.tickets && event.tickets.length > 0 && (
+            <Animated.View
+              entering={FadeInDown.delay(300).springify()}
+              style={styles.buyTicketsSection}
+            >
+              <Pressable
+                onPress={() => {
+                  const { user: authUser, isGuest } = useAuthStore.getState();
+                  if (!authUser || isGuest) {
+                    setShowAuthSheet(true);
+                    return;
+                  }
+                  setShowTicketSheet(true);
+                }}
+                style={styles.buyTicketsButton}
+              >
+                <LinearGradient
+                  colors={gradients.primary as [string, string]}
+                  style={styles.buyTicketsGradient}
+                >
+                  <Text style={styles.buyTicketsText}>
+                    {floatingTicketLabel === 'Sold Out'
+                      ? 'Sold Out — Join Waitlist'
+                      : 'Get Tickets'}
+                  </Text>
+                </LinearGradient>
+              </Pressable>
+            </Animated.View>
+          )}
         </View>
       </Animated.ScrollView>
 
@@ -1449,16 +1488,22 @@ export default function EventDetailScreen() {
               </Pressable>
             </View>
             <ScrollView showsVerticalScrollIndicator={false} style={styles.ticketSheetList}>
-              {event.tickets?.map((tier, index) => (
-                <TicketTierCard
-                  key={tier.id}
-                  tier={tier}
-                  event={event}
-                  promoterCode={typeof ref === 'string' ? ref : undefined}
-                  isPopular={index === 0}
-                  index={index}
-                />
-              ))}
+              {event.tickets?.length ? (
+                event.tickets.map((tier, index) => (
+                  <TicketTierCard
+                    key={tier.id}
+                    tier={tier}
+                    event={event}
+                    promoterCode={typeof ref === 'string' ? ref : undefined}
+                    isPopular={index === 0}
+                    index={index}
+                  />
+                ))
+              ) : (
+                <View style={styles.ticketSheetEmpty}>
+                  <Text style={styles.ticketSheetEmptyText}>No tickets available</Text>
+                </View>
+              )}
             </ScrollView>
             {cartCount > 0 && (
               <Pressable
@@ -1478,7 +1523,13 @@ export default function EventDetailScreen() {
       >
         <AnimatedPressable
           onPress={handleGetTickets}
-          style={[styles.floatingPill, { backgroundColor: accent }, ticketButtonAnimatedStyle]}
+          style={[
+            styles.floatingPill,
+            { backgroundColor: accent },
+            ticketButtonAnimatedStyle,
+            (loading || isSoldOut) && { opacity: 0.5 },
+          ]}
+          pointerEvents={loading || isSoldOut ? 'none' : 'auto'}
         >
           <Animated.Text style={[styles.floatingPillText, ticketButtonTextStyle]}>
             {floatingTicketLabel}
@@ -1490,6 +1541,8 @@ export default function EventDetailScreen() {
         pointerEvents="none"
         style={[styles.ticketTransitionOverlay, { backgroundColor: accent }, ticketTransitionStyle]}
       />
+
+      <AuthSheet visible={showAuthSheet} onDismiss={() => setShowAuthSheet(false)} />
     </View>
   );
 }
@@ -2975,6 +3028,15 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '900',
   },
+  ticketSheetEmpty: {
+    paddingVertical: 48,
+    alignItems: 'center',
+  },
+  ticketSheetEmptyText: {
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: eventFont.medium,
+    fontSize: 15,
+  },
   // Modern Redesign Styles
   heroHostRow: {
     marginBottom: 8,
@@ -3102,6 +3164,25 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: eventFont.bold,
     fontSize: 16,
+  },
+  buyTicketsSection: {
+    paddingTop: 16,
+    paddingBottom: 8,
+  },
+  buyTicketsButton: {
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  buyTicketsGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  buyTicketsText: {
+    color: '#fff',
+    fontFamily: eventFont.black,
+    fontSize: 17,
+    fontWeight: '900',
   },
   shareSheetActionRow: {
     flexDirection: 'row',

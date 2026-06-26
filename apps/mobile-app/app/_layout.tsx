@@ -1,17 +1,24 @@
 import '../global.css';
 import { useCallback, useEffect } from 'react';
-import { Stack } from 'expo-router';
+import { Alert, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Purchases from 'react-native-purchases';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { colors } from '@/lib/design/theme';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 import { DemoDataProvider } from '@/components/DemoDataProvider';
+import { PremiumPaywallModal } from '@/components/subscription/PremiumPaywallModal';
 import { initSentry } from '@/lib/sentry';
 import { initAuthListener } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
+import { OfflineBanner } from '@/components/ui/OfflineBanner';
+import { subscribeToDeepLinks, handleDeepLink } from '@/lib/deeplinks';
+import { addNotificationResponseListener } from '@/lib/notifications';
 
 initSentry();
 
@@ -22,7 +29,97 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 export default function RootLayout() {
   const RootGestureHandlerView = GestureHandlerRootView as any;
 
+  useEffect(() => {
+    Purchases.configure({
+      apiKey:
+        Platform.OS === 'ios'
+          ? process.env.EXPO_PUBLIC_RC_IOS!
+          : process.env.EXPO_PUBLIC_RC_ANDROID!,
+    });
+  }, []);
+
   useEffect(() => initAuthListener(), []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToDeepLinks((url) => {
+      handleDeepLink(url);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const sub = addNotificationResponseListener((response) => {
+      const data = response.notification.request.content.data;
+      if (!data) return;
+      const { type, eventId, conversationId, matchId, profileId } = data as Record<string, string>;
+      switch (type) {
+        case 'event_reminder':
+        case 'event_update':
+          if (eventId) router.push(`/event/${eventId}`);
+          break;
+        case 'new_message':
+          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          break;
+        case 'match':
+          if (matchId) router.push(`/social/matches/${matchId}`);
+          break;
+        case 'dm_request':
+          if (conversationId) router.push(`/social/dm/${conversationId}`);
+          break;
+        case 'ticket_update':
+          if (eventId) router.push(`/event/${eventId}`);
+          break;
+        default:
+          router.push('/(tabs)/notifications');
+          break;
+      }
+    });
+    return () => sub.remove();
+  }, []);
+
+  useEffect(() => {
+    const checkPendingPayment = () => {
+      const { pendingPaymentOrderId, pendingReservation, items } = useCartStore.getState();
+      if (!pendingPaymentOrderId) return;
+
+      const hasValidReservation =
+        pendingReservation && new Date(pendingReservation.expiresAt).getTime() > Date.now();
+
+      if (hasValidReservation) return;
+
+      const timer = setTimeout(() => {
+        Alert.alert('Resume Payment?', 'You have an incomplete payment from a previous session.', [
+          {
+            text: 'Cancel Payment',
+            style: 'destructive',
+            onPress: () => useCartStore.getState().setPendingPaymentOrderId(null),
+          },
+          {
+            text: 'Resume Payment',
+            onPress: () => {
+              const eventId = items[0]?.eventId;
+              if (eventId) {
+                router.replace(`/checkout/${eventId}`);
+              } else {
+                router.replace('/checkout');
+              }
+            },
+          },
+        ]);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    };
+
+    if (useCartStore.persist.hasHydrated()) {
+      checkPendingPayment();
+    } else {
+      const unsub = useCartStore.persist.onFinishHydration(() => {
+        checkPendingPayment();
+      });
+      return () => unsub();
+    }
+  }, []);
 
   const onLayoutRootView = useCallback(async () => {
     await SplashScreen.hideAsync();
@@ -34,23 +131,27 @@ export default function RootLayout() {
         <ErrorBoundary>
           <SafeAreaProvider>
             <RootGestureHandlerView style={{ flex: 1 }} onLayout={onLayoutRootView}>
-              <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
-                <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: colors.base.DEFAULT },
-                    animation: 'slide_from_right',
-                  }}
-                >
-                  <Stack.Screen name="index" />
-                  <Stack.Screen name="(auth)" />
-                  <Stack.Screen name="profile-setup" />
-                  <Stack.Screen name="profile-creation" />
-                  <Stack.Screen name="social-setup" />
-                  <Stack.Screen name="(tabs)" />
-                </Stack>
-              </View>
+              <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+                <View style={{ flex: 1, backgroundColor: colors.base.DEFAULT }}>
+                  <StatusBar style="light" backgroundColor={colors.base.DEFAULT} />
+                  <OfflineBanner />
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      contentStyle: { backgroundColor: colors.base.DEFAULT },
+                      animation: 'slide_from_right',
+                    }}
+                  >
+                    <Stack.Screen name="index" />
+                    <Stack.Screen name="(auth)" />
+                    <Stack.Screen name="profile-setup" />
+                    <Stack.Screen name="profile-creation" />
+                    <Stack.Screen name="social-setup" />
+                    <Stack.Screen name="(tabs)" />
+                  </Stack>
+                  <PremiumPaywallModal />
+                </View>
+              </TouchableWithoutFeedback>
             </RootGestureHandlerView>
           </SafeAreaProvider>
         </ErrorBoundary>

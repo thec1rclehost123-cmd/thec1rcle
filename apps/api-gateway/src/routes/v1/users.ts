@@ -123,7 +123,7 @@ const SettingsAppearanceBody = z
 
 const UserSettingsBody = z
   .object({
-    bio: z.string().max(500).nullable().optional(),
+    bio: z.string().max(150).nullable().optional(),
     datingPhotos: z.array(z.string()).max(6).optional(),
     datingVitals: DatingVitalsBody.optional(),
     anthem: ProfileAnthemBody.optional(),
@@ -132,14 +132,14 @@ const UserSettingsBody = z
     notificationPreferences: z.record(z.string(), z.boolean()).optional(),
     pushNewMatches: z.boolean().optional(),
     pushEventUpdates: z.boolean().optional(),
-    displayName: z.string().nullable().optional(),
-    name: z.string().nullable().optional(),
-    firstName: z.string().nullable().optional(),
-    city: z.string().nullable().optional(),
+    displayName: z.string().max(100).nullable().optional(),
+    name: z.string().max(100).nullable().optional(),
+    firstName: z.string().max(100).nullable().optional(),
+    city: z.string().max(100).nullable().optional(),
     photoURL: z.string().nullable().optional(),
     avatar: z.string().nullable().optional(),
-    instagram: z.string().nullable().optional(),
-    spotify: z.string().nullable().optional(),
+    instagram: z.string().max(100).nullable().optional(),
+    spotify: z.string().max(100).nullable().optional(),
     datingActive: z.boolean().optional(),
     basicSetupComplete: z.boolean().optional(),
     profileSetupComplete: z.boolean().optional(),
@@ -305,6 +305,44 @@ export default async function userRoutes(fastify: FastifyInstance) {
   );
 
   fastify.get(
+    '/users/me/subscription',
+    {
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const userId = request.user?.uid;
+      if (!userId) {
+        return reply.status(401).send(
+          buildErrorResponse({
+            code: 'UNAUTHORIZED',
+            message: 'Authentication required',
+            requestId: request.id,
+          }),
+        );
+      }
+
+      try {
+        const { getUserSubscriptionSummary } = await import('@c1rcle/core/subscription-service');
+        const summary = await getUserSubscriptionSummary(fastify.db, userId);
+        return buildSuccessResponse(summary);
+      } catch (error: any) {
+        fastify.log.error(
+          { requestId: request.id, userId, error: error.message },
+          'GET /users/me/subscription failed',
+        );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.get(
     '/users/me/follows',
     {
       config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
@@ -459,6 +497,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
     '/users/me/settings',
     {
       preHandler: [fastify.requireAuth, fastify.validate({ body: UserSettingsBody })],
+      config: { rateLimit: { max: 20, timeWindow: '1 minute' } },
     },
     async (request: any, reply: any) => {
       const userId = request.user?.uid;
@@ -473,11 +512,9 @@ export default async function userRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const { getUserSettings, updateUserProfileSettings } =
-          await import('@c1rcle/core/profile-settings-service');
+        const { updateUserProfileSettings } = await import('@c1rcle/core/profile-settings-service');
         const profile = await updateUserProfileSettings(fastify.db, userId, request.body);
-        const settings = await getUserSettings(fastify.db, userId);
-        return buildSuccessResponse({ profile, settings });
+        return buildSuccessResponse({ profile });
       } catch (error: any) {
         fastify.log.error(
           { requestId: request.id, userId, error: error.message },
@@ -497,7 +534,7 @@ export default async function userRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/users/me/block/:targetUserId',
     {
-      preHandler: [fastify.validate({ params: TargetUserParam })],
+      preHandler: [fastify.requireAuth, fastify.validate({ params: TargetUserParam })],
     },
     async (request: any, reply: any) => {
       const userId = request.user?.uid;

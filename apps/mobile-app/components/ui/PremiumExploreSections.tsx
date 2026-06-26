@@ -6,9 +6,9 @@ import {
   StyleSheet,
   Pressable,
   Dimensions,
-  FlatList,
   Image as RNImage,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -165,7 +165,7 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
         onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'free' } })}
       />
       <HypeCashPill />
-      <FlatList
+      <FlashList
         bounces={false}
         data={events.slice(0, 5)}
         keyExtractor={(e) => e.id}
@@ -173,9 +173,11 @@ export function ScenesWorthIt({ events }: { events: Event[] }) {
         showsHorizontalScrollIndicator={false}
         snapToInterval={FOR_YOU_CARD_WIDTH + 12}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-        renderItem={({ item, index }) => (
-          <PremiumEventCard event={item} index={index} variant="compact" />
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        renderItem={({ item, index }: any) => (
+          <View style={{ marginRight: 12 }}>
+            <PremiumEventCard event={item} index={index} variant="compact" />
+          </View>
         )}
       />
     </View>
@@ -245,17 +247,19 @@ export function EditorsPicks({ events }: { events: Event[] }) {
   return (
     <View style={styles.section}>
       <SectionHeader title="Handpicked Curations" />
-      <FlatList
+      <FlashList
         bounces={false}
-        data={events.slice(0, 4)}
+        data={events.slice(0, 5)}
         keyExtractor={(e) => e.id}
         horizontal
         showsHorizontalScrollIndicator={false}
-        snapToInterval={SCREEN_WIDTH * 0.75 + 16}
+        snapToInterval={FOR_YOU_CARD_WIDTH + 12}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 16 }}
-        renderItem={({ item, index }) => (
-          <PremiumEventCard event={item} index={index} variant="large" />
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        renderItem={({ item, index }: any) => (
+          <View style={{ marginRight: 12 }}>
+            <PremiumEventCard event={item} index={index} variant="compact" />
+          </View>
         )}
       />
     </View>
@@ -296,7 +300,7 @@ export function ComingUpThisWeek({ events }: { events: Event[] }) {
         title="The Weekly Lineup"
         onViewAll={() => router.push({ pathname: '/events/feed', params: { type: 'this-week' } })}
       />
-      <FlatList
+      <FlashList
         bounces={false}
         data={events.slice(0, 5)}
         keyExtractor={(e) => e.id}
@@ -304,9 +308,11 @@ export function ComingUpThisWeek({ events }: { events: Event[] }) {
         showsHorizontalScrollIndicator={false}
         snapToInterval={FOR_YOU_CARD_WIDTH + 12}
         decelerationRate="fast"
-        contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
-        renderItem={({ item, index }) => (
-          <PremiumEventCard event={item} index={index} variant="compact" />
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        renderItem={({ item, index }: any) => (
+          <View style={{ marginRight: 12 }}>
+            <PremiumEventCard event={item} index={index} variant="compact" />
+          </View>
         )}
       />
     </View>

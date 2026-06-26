@@ -1,14 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dimensions,
   Pressable,
   RefreshControl,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -51,27 +51,6 @@ import { useFollowStore } from '@/store/followStore';
 import { useVenuesStore, type Venue } from '@/store/venuesStore';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
-
-const PUNE_CITY = 'Pune';
-const PUNE_SIGNAL_WORDS = [
-  'pune',
-  'koregaon park',
-  'kalyani nagar',
-  'viman nagar',
-  'kharadi',
-  'baner',
-  'aundh',
-  'wakad',
-  'balewadi',
-  'mundhwa',
-  'hadapsar',
-  'shivaji nagar',
-  'fc road',
-  'camp',
-  'yerwada',
-  'magarpatta',
-  'hinjewadi',
-];
 
 type Tab = 'venues' | 'hosts';
 type VenueFilter = 'all' | 'bookable' | 'events' | 'tonight';
@@ -116,25 +95,6 @@ function uniqueCompact(values: (string | undefined | null)[], limit = 3): string
 }
 function normalizeKey(value?: string | null): string {
   return (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-function hasPuneSignal(values: (string | undefined | null)[]): boolean {
-  const haystack = values.filter(Boolean).join(' ').toLowerCase();
-  if (!haystack) return false;
-  return PUNE_SIGNAL_WORDS.some((word) => haystack.includes(word));
-}
-function isPuneVenue(venue: Venue): boolean {
-  return hasPuneSignal([
-    venue.city,
-    venue.area,
-    venue.neighborhood,
-    venue.address,
-    venue.addressLine1,
-    venue.displayName,
-    venue.name,
-  ]);
-}
-function isPuneEvent(event: Event): boolean {
-  return hasPuneSignal([event.city, event.location, event.venue, event.title, event.description]);
 }
 function getEventVenueCandidates(event: Event): string[] {
   const loose = event as Event & { venueId?: string; venueName?: string };
@@ -184,6 +144,7 @@ function isVenueBookable(venue: Venue): boolean {
 function ZomatoHeader({ search, setSearch, activeFilter, setFilter, insetsTop }: any) {
   return (
     <BlurView
+      experimentalBlurMethod="dimezisBlurView"
       intensity={85}
       tint="dark"
       style={[styles.headerBlur, { paddingTop: Math.max(insetsTop, 16) }]}
@@ -261,7 +222,13 @@ function EditorialHeroCard({ venue }: { venue: Venue }) {
         }}
       >
         {image ? (
-          <Image source={{ uri: image }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          <Image
+            source={{ uri: image }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={300}
+          />
         ) : (
           <LinearGradient colors={['#2A1A12', '#111']} style={StyleSheet.absoluteFill} />
         )}
@@ -332,6 +299,8 @@ function CuratedRail({ title, venues }: { title: string; venues: Venue[] }) {
                 source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
                 style={styles.railImage}
                 contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={300}
               />
               <LinearGradient
                 colors={['transparent', 'rgba(0,0,0,0.8)']}
@@ -370,6 +339,8 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
             source={{ uri: image || 'https://thec1rcle.com/placeholder.png' }}
             style={styles.zImage}
             contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={300}
           />
           <LinearGradient
             colors={['rgba(0,0,0,0.4)', 'transparent']}
@@ -377,19 +348,34 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
           />
 
           {venue.isVerified && (
-            <BlurView intensity={40} tint="dark" style={styles.zBadgeVerified}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={styles.zBadgeVerified}
+            >
               <Text style={styles.zBadgeText}>✓ Verified</Text>
             </BlurView>
           )}
 
           <View style={styles.zBadgesBottom}>
             {venue.upcomingEventsCount ? (
-              <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
+              <BlurView
+                experimentalBlurMethod="dimezisBlurView"
+                intensity={40}
+                tint="dark"
+                style={styles.zBadgePill}
+              >
                 <Ticket size={10} color="#fff" style={{ marginRight: 4 }} />
                 <Text style={styles.zBadgeText}>{venue.upcomingEventsCount} Events</Text>
               </BlurView>
             ) : null}
-            <BlurView intensity={40} tint="dark" style={styles.zBadgePill}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={styles.zBadgePill}
+            >
               <Heart size={10} color="#F44A22" style={{ marginRight: 4 }} />
               <Text style={styles.zBadgeText}>{formatCompactCount(venue.followers)}</Text>
             </BlurView>
@@ -408,13 +394,10 @@ function ZomatoVenueCard({ venue }: { venue: Venue }) {
             )}
           </View>
 
-          <View style={styles.zSubRow}>
-            <Text style={styles.zSubText} numberOfLines={1}>
-              {venue.venueType ? `${venue.venueType} • ` : ''}
-              {getVenueLocationLabel(venue)}
-            </Text>
-            <Text style={styles.zDistance}>2.4 km</Text>
-          </View>
+          <Text style={styles.zSubText} numberOfLines={1}>
+            {venue.venueType ? `${venue.venueType} • ` : ''}
+            {getVenueLocationLabel(venue)}
+          </Text>
         </View>
       </Pressable>
     </Animated.View>
@@ -433,25 +416,24 @@ export default function VenuesTab() {
   const { fetchFollows } = useFollowStore();
 
   useEffect(() => {
+    if (venues.length > 0) return;
     fetchVenues();
     fetchEvents();
     if (user?.uid) fetchFollows(user.uid);
-  }, [fetchVenues, fetchEvents, user?.uid, fetchFollows]);
+  }, [venues.length, fetchVenues, fetchEvents, user?.uid, fetchFollows]);
 
-  // Filtering Logic
-  const puneVenues = useMemo(() => {
-    const list = venues.filter(isPuneVenue).map((v) => {
+  const enrichedVenues = useMemo(() => {
+    const list = venues.map((v) => {
       const vEvents = getEventsForVenue(v, events);
       const upcoming = vEvents.filter(isUpcomingEvent);
       return { ...v, upcomingEventsCount: upcoming.length };
     });
 
-    // Zomato style: Shuffle slightly to make feed feel fresh, but keep highest followers up top
     return list.sort((a, b) => (b.followers || 0) - (a.followers || 0));
   }, [venues, events]);
 
   const filteredVenues = useMemo(() => {
-    let result = puneVenues;
+    let result = enrichedVenues;
 
     if (activeFilter === 'bookable') {
       result = result.filter(isVenueBookable);
@@ -474,13 +456,18 @@ export default function VenuesTab() {
     }
 
     return result;
-  }, [puneVenues, activeFilter, search, events]);
+  }, [enrichedVenues, activeFilter, search, events]);
 
-  const spotlightVenue = puneVenues.find((v) => v.coverImage || v.image) || puneVenues[0];
-  const bookableVenues = puneVenues.filter(isVenueBookable).slice(0, 6);
+  const spotlightVenue = enrichedVenues.find((v) => v.coverImage || v.image) || enrichedVenues[0];
+  const bookableVenues = enrichedVenues.filter(isVenueBookable).slice(0, 6);
 
   // Remove spotlight and curated from main feed to avoid duplication
   const feedVenues = filteredVenues.filter((v) => v.id !== spotlightVenue?.id);
+
+  const renderVenueCard = useCallback(
+    ({ item }: { item: Venue }) => <ZomatoVenueCard venue={item} />,
+    [],
+  );
 
   return (
     <View style={styles.container}>
@@ -492,7 +479,11 @@ export default function VenuesTab() {
         insetsTop={insets.top}
       />
 
-      <ScrollView
+      <FlashList
+        data={feedVenues}
+        renderItem={renderVenueCard}
+        keyExtractor={(item: Venue) => item.id}
+        estimatedItemSize={340}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -505,30 +496,26 @@ export default function VenuesTab() {
             tintColor="#F44A22"
           />
         }
-      >
-        {search === '' && activeFilter === 'all' && (
-          <>
-            {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
-            {bookableVenues.length > 0 && (
-              <CuratedRail title="Reserve a Table" venues={bookableVenues} />
-            )}
-          </>
-        )}
-
-        <View style={styles.feedGrid}>
-          {feedVenues.map((v) => (
-            <ZomatoVenueCard key={v.id} venue={v} />
-          ))}
-        </View>
-
-        {filteredVenues.length === 0 && !loading && (
-          <View style={styles.emptyWrap}>
-            <Text style={styles.emptyIcon}>🍽️</Text>
-            <Text style={styles.emptyTitle}>No venues found</Text>
-            <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
-          </View>
-        )}
-      </ScrollView>
+        ListHeaderComponent={
+          search === '' && activeFilter === 'all' ? (
+            <>
+              {spotlightVenue && <EditorialHeroCard venue={spotlightVenue} />}
+              {bookableVenues.length > 0 && (
+                <CuratedRail title="Reserve a Table" venues={bookableVenues} />
+              )}
+            </>
+          ) : null
+        }
+        ListEmptyComponent={
+          !loading ? (
+            <View style={styles.emptyWrap}>
+              <Text style={styles.emptyIcon}>🍽️</Text>
+              <Text style={styles.emptyTitle}>No venues found</Text>
+              <Text style={styles.emptySub}>Try adjusting your search or filters.</Text>
+            </View>
+          ) : null
+        }
+      />
     </View>
   );
 }
@@ -760,10 +747,6 @@ const styles = StyleSheet.create({
   },
 
   // Main Feed Zomato Card
-  feedGrid: {
-    paddingHorizontal: 20,
-    gap: 24,
-  },
   zCard: {
     width: '100%',
     backgroundColor: 'rgba(255,255,255,0.03)',
@@ -835,23 +818,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  zSubRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
   zSubText: {
     color: 'rgba(255,255,255,0.6)',
     fontSize: 13,
     fontWeight: '500',
     flex: 1,
   },
-  zDistance: {
-    color: 'rgba(255,255,255,0.4)',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-
   // Empty State
   emptyWrap: {
     alignItems: 'center',

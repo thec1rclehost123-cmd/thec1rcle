@@ -24,6 +24,7 @@ import { formatEventDate, formatEventTime } from '@/lib/utils/date';
 import { useAuthStore } from '@/store/authStore';
 import { useCartStore, type CartItem } from '@/store/cartStore';
 import { useProfileStore } from '@/store/profileStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 
 const checkoutFont = {
   regular: typography.fontFamily.body,
@@ -56,6 +57,12 @@ function getCheckoutStatusLabel(status: CheckoutStatus | null) {
     default:
       return 'Secure checkout';
   }
+}
+
+function premiumFeatureFromError(error: any): PremiumFeature {
+  const feature = error?.details?.feature;
+  if (feature === 'premiumOnlyEvent' || feature === 'earlyAccessDrop') return feature;
+  return 'premiumOnlyEvent';
 }
 
 function CheckoutItemRow({
@@ -132,6 +139,7 @@ export default function CheckoutScreen() {
   const profile = useProfileStore((state) => state.profile);
   const { items, promo, removeItem, updateQuantity, clearCart, applyPromoCode, clearPromoCode } =
     useCartStore();
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [promoInput, setPromoInput] = useState('');
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -184,6 +192,9 @@ export default function CheckoutScreen() {
       })
       .catch((error: any) => {
         if (cancelled) return;
+        if (error.code === 'PREMIUM_REQUIRED') {
+          openPaywall(premiumFeatureFromError(error), error.message);
+        }
         setPricing(null);
         setQuoteError(error.message || 'We could not refresh live pricing.');
       })
@@ -194,7 +205,7 @@ export default function CheckoutScreen() {
     return () => {
       cancelled = true;
     };
-  }, [checkoutItems, eventId, promo?.code, promoterCode]);
+  }, [checkoutItems, eventId, openPaywall, promo?.code, promoterCode]);
 
   const subtotal = Number(pricing?.subtotal ?? localSubtotal);
   const discount = Number(
@@ -209,6 +220,7 @@ export default function CheckoutScreen() {
     pricing?.grandTotal ?? Math.max(0, subtotal - discount + platformFee + paymentFee + taxes),
   );
   const isFreeOrder = Boolean(pricing?.isFree ?? total === 0);
+  const bookingFeesWaived = pricing?.subscription?.bookingFeesWaived === true;
   const paymentMethodLabel = isFreeOrder ? 'Free checkout' : 'Razorpay';
   const paymentMethodDetail = isFreeOrder
     ? 'No payment required'
@@ -286,6 +298,7 @@ export default function CheckoutScreen() {
       trackPurchaseFailed(eventId, result.error || 'Checkout failed');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setProcessing(false);
+      if (result.premiumRequired) return;
       Alert.alert(
         'Checkout failed',
         result.error || 'We could not complete checkout. Please try again.',
@@ -338,7 +351,12 @@ export default function CheckoutScreen() {
         style={styles.topGradient}
       />
       <View style={styles.headerShell}>
-        <BlurView intensity={42} tint="dark" style={StyleSheet.absoluteFill} />
+        <BlurView
+          experimentalBlurMethod="dimezisBlurView"
+          intensity={42}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
         <View style={styles.header}>
           <Pressable
             onPress={() => {
@@ -574,7 +592,9 @@ export default function CheckoutScreen() {
           </Text>
         </Pressable>
 
-        <Text style={styles.feesText}>Includes fees ⓘ</Text>
+        <Text style={styles.feesText}>
+          {bookingFeesWaived ? 'Premium booking fees waived' : 'Includes fees ⓘ'}
+        </Text>
 
         <Pressable
           onPress={handlePay}

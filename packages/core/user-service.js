@@ -1,3 +1,5 @@
+import { buildDefaultSubscription, normalizeSubscription } from './subscription-service.js';
+
 const DEFAULT_USER_ROLE = 'guest';
 
 function nowIso() {
@@ -15,6 +17,7 @@ function canonicalClaims(existing = {}, role = DEFAULT_USER_ROLE) {
 
 function canonicalUserContract(userId, data, { isNewUser = false, claims = {} } = {}) {
   const role = claims.role || data.role || DEFAULT_USER_ROLE;
+  const subscription = normalizeSubscription(data);
   return {
     id: userId,
     uid: userId,
@@ -30,6 +33,9 @@ function canonicalUserContract(userId, data, { isNewUser = false, claims = {} } 
     onboardingComplete: data.onboardingComplete === true,
     profileComplete: data.profileComplete === true,
     datingActive: data.datingActive === true,
+    subscription: data.subscription || buildDefaultSubscription(data.updatedAt || nowIso()),
+    isPremium: subscription.isPremium,
+    supportQueue: subscription.supportQueue,
     isActive: data.isActive !== false,
     isDeleted: data.isDeleted === true,
     createdAt: data.createdAt || null,
@@ -81,6 +87,7 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
       role: claims.role || DEFAULT_USER_ROLE,
       roles: claims.roles || [DEFAULT_USER_ROLE],
       datingActive: false,
+      subscription: buildDefaultSubscription(now),
       isActive: true,
       isDeleted: false,
       onboardingComplete: false,
@@ -106,6 +113,7 @@ export async function syncAuthUser(db, userId, authRecord, options = {}) {
     role: existing.role || claims.role || DEFAULT_USER_ROLE,
     roles:
       Array.isArray(existing.roles) && existing.roles.length > 0 ? existing.roles : claims.roles,
+    subscription: existing.subscription || buildDefaultSubscription(now),
     isActive: existing.isActive !== false,
     isDeleted: existing.isDeleted === true,
     updatedAt: now,

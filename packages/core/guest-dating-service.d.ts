@@ -16,7 +16,15 @@ export function processSwipeAction(
   db: any,
   userId: string,
   targetUserId: string,
-  action: 'like' | 'pass',
-): Promise<{ match: boolean; conversationId?: string }>;
+  action: 'like' | 'pass' | 'askOut',
+  options?: { eventId?: string | null; message?: string | null },
+): Promise<{
+  match: boolean;
+  conversationId?: string;
+  subscription?: any;
+  usage?: any;
+  limits?: any;
+  askOut?: boolean;
+}>;
 export function getPublicUserProfile(db: any, targetUserId: string): Promise<any>;
 export function getUserMatches(db: any, userId: string): Promise<any>;

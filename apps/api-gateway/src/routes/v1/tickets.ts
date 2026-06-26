@@ -8,6 +8,8 @@ import {
 } from '@c1rcle/core/guest-wallet-profile-notification-service';
 // @ts-ignore
 import { getUserTicketWallet } from '@c1rcle/core/ticket-checkout-wallet-service';
+// @ts-ignore - JS module with runtime exports
+import { isPremiumRequiredError } from '@c1rcle/core/subscription-service';
 import {
   acceptGuestTransfer,
   assignGuestPartner,
@@ -360,6 +362,16 @@ export default async function ticketRoutes(fastify: FastifyInstance) {
         );
         return { success: true, transfer };
       } catch (error: any) {
+        if (isPremiumRequiredError(error)) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'PREMIUM_REQUIRED',
+              message: error.message || 'C1RCLE Premium required',
+              details: error.details || null,
+              requestId: request.id,
+            }),
+          );
+        }
         const status = error.message?.includes('Unauthorized') ? 403 : 400;
         fastify.log.warn(
           { requestId: request.id, userId, error: error.message },

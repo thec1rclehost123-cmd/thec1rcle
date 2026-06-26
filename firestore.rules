@@ -242,9 +242,7 @@ service cloud.firestore {
       allow read: if isAdmin() || (isSignedIn() && (
         resource.data.uid == request.auth.uid ||
         resource.data.userId == request.auth.uid ||
-        resource.data.customerId == request.auth.uid ||
-        resource.data.venueId == request.auth.token.partnerId ||
-        resource.data.promoterId == request.auth.uid
+        resource.data.customerId == request.auth.uid
       ));
       allow create: if isSignedIn() && (
         request.resource.data.userId == request.auth.uid ||
@@ -391,11 +389,10 @@ service cloud.firestore {
     }
     
     // Direct Messages
+    // Client-side reads/writes are disabled. All DM access goes through
+    // the API Gateway (Admin SDK) via /api/v1/social/dm/* endpoints.
     match /directMessages/{messageId} {
-      // Allow read if user is part of the conversation
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if false; // Messages are immutable
+      allow read, write: if false;
     }
     
     // Saved Contacts (persist after events)
@@ -422,11 +419,11 @@ service cloud.firestore {
     // User Blocks
     match /userBlocks/{blockId} {
       allow read: if isSignedIn() && (
-        resource.data.blockerId == request.auth.uid ||
-        resource.data.blockedId == request.auth.uid
+        resource.data.blockerUid == request.auth.uid ||
+        resource.data.blockedUid == request.auth.uid
       );
-      allow create: if isSignedIn() && request.resource.data.blockerId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.blockerId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.blockerUid == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.blockerUid == request.auth.uid;
       allow update: if false; // Blocks are immutable
     }
     

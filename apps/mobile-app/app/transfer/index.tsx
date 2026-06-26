@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { initiateTransfer, acceptTransfer } from '@/lib/transfers';
 import * as Haptics from 'expo-haptics';
 
@@ -20,6 +21,7 @@ export default function TransferScreen() {
   const { orderId, ticketName } = useLocalSearchParams<{ orderId?: string; ticketName?: string }>();
   const { user } = useAuthStore();
   const { fetchUserOrders } = useTicketsStore();
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [mode, setMode] = useState<'send' | 'receive'>('send');
   const [recipientEmail, setRecipientEmail] = useState('');
@@ -48,6 +50,10 @@ export default function TransferScreen() {
     if (result.success && result.transferCode) {
       setTransferResult({ code: result.transferCode });
     } else {
+      if (result.premiumRequired) {
+        openPaywall('ticketTransfers', result.error);
+        return;
+      }
       Alert.alert('Error', result.error || 'Failed to initiate transfer');
     }
   };

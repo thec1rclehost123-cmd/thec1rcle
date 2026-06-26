@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { getMutualBlockedUserIds } from '../../lib/blocked-users';
 import { resolvePartnerContext } from '../../lib/partner-context.js';
 import { applyPublicCacheHeaders, buildVersionedPublicCacheKey } from '../../utils/public-cache';
 import { enforcePublicRateLimit } from '../../utils/public-rate-limit';
@@ -418,25 +419,37 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         applyPublicCacheHeaders(reply, 60);
 
         const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
-        const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
-          normalizedQuery,
-        )}`;
-        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
-        const cached = await fastify.cache.get('public-discovery', cacheKey);
-        if (cached) return cached;
+        const userId = request.user?.uid || null;
+        const blockedIds = userId ? await getMutualBlockedUserIds(fastify, userId) : [];
 
-        const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        if (blockedIds.length === 0) {
+          const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+            normalizedQuery,
+          )}`;
+          const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+          const cached = await fastify.cache.get('public-discovery', cacheKey);
+          if (cached) return cached;
+        }
+
+        const result = await fastify.publicDiscoveryService.listEvents(normalizedQuery, blockedIds);
+
+        if (blockedIds.length === 0) {
+          const rawCacheKey = `explore:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+            normalizedQuery,
+          )}`;
+          const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+          await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        }
+
         return result;
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED')
-          return reply.status(429).send(
-            buildErrorResponse({
-              code: 'RATE_LIMITED',
-              message: 'Too many requests',
-              requestId: request.id,
-            }),
-          );
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
         request.log.error({ error }, 'Failed to list explore events');
         return reply.status(500).send(
           buildErrorResponse({
@@ -462,25 +475,40 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         applyPublicCacheHeaders(reply, 60);
 
         const normalizedQuery = normalizeExploreEventsQuery(request.query || {});
-        const rawCacheKey = `featured:v${EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
-          normalizedQuery,
-        )}`;
-        const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
-        const cached = await fastify.cache.get('public-discovery', cacheKey);
-        if (cached) return cached;
+        const userId = request.user?.uid || null;
+        const blockedIds = userId ? await getMutualBlockedUserIds(fastify, userId) : [];
 
-        const result = await fastify.publicDiscoveryService.listFeaturedEvents(normalizedQuery);
-        await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        if (blockedIds.length === 0) {
+          const rawCacheKey = `featured:v${EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+            normalizedQuery,
+          )}`;
+          const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+          const cached = await fastify.cache.get('public-discovery', cacheKey);
+          if (cached) return cached;
+        }
+
+        const result = await fastify.publicDiscoveryService.listFeaturedEvents(
+          normalizedQuery,
+          blockedIds,
+        );
+
+        if (blockedIds.length === 0) {
+          const rawCacheKey = `featured:v${EXPLORE_FEATURED_EVENTS_CACHE_SCHEMA_VERSION}:${JSON.stringify(
+            normalizedQuery,
+          )}`;
+          const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
+          await fastify.cache.set('public-discovery', cacheKey, result, 60);
+        }
+
         return result;
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED')
-          return reply.status(429).send(
-            buildErrorResponse({
-              code: 'RATE_LIMITED',
-              message: 'Too many requests',
-              requestId: request.id,
-            }),
-          );
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
         request.log.error({ error }, 'Failed to list featured explore events');
         return reply.status(500).send(
           buildErrorResponse({
@@ -523,14 +551,13 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await fastify.cache.set('public-discovery', cacheKey, result, 30);
         return result;
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED')
-          return reply.status(429).send(
-            buildErrorResponse({
-              code: 'RATE_LIMITED',
-              message: 'Too many requests',
-              requestId: request.id,
-            }),
-          );
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
         request.log.error({ error }, 'Failed to list event map pins');
         return reply.status(500).send(
           buildErrorResponse({
@@ -738,7 +765,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         return reply.status(500).send(
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
-            message: error.message || 'Unable to load event viewer state',
+            message: 'Unable to load event viewer state',
             requestId: request.id,
           }),
         );
@@ -974,14 +1001,12 @@ export default async function eventRoutes(fastify: FastifyInstance) {
 
         return buildSuccessResponse(result);
       } catch (error: any) {
-        if (error.message === 'RATE_LIMITED') {
-          return reply.status(429).send(
-            buildErrorResponse({
-              code: 'RATE_LIMITED',
-              message: 'Too many requests',
-              requestId: request.id,
-            }),
-          );
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
         }
 
         const isInventoryUnavailable =
@@ -1014,10 +1039,24 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         await enforcePublicRateLimit(fastify, request, 'events:detail', 120, 60);
         applyPublicCacheHeaders(reply, 60);
 
+        const uid = request.user?.uid || null;
+        const blockedIds = uid ? await getMutualBlockedUserIds(fastify, uid) : [];
+
         const rawCacheKey = `detail:v${EXPLORE_EVENTS_CACHE_SCHEMA_VERSION}:${id}`;
         const cacheKey = await buildVersionedPublicCacheKey(fastify, 'events', rawCacheKey);
         const cached = await fastify.cache.get('public-discovery', cacheKey);
-        if (cached) return cached;
+        if (cached) {
+          if (blockedIds.includes((cached as any)?.event?.hostId)) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Event not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          return cached;
+        }
 
         const detail = await fastify.publicDiscoveryService.getEventDetail(id);
         if (!detail)
@@ -1029,17 +1068,26 @@ export default async function eventRoutes(fastify: FastifyInstance) {
             }),
           );
 
-        await fastify.cache.set('public-discovery', cacheKey, detail, 60);
-        return detail;
-      } catch (error: any) {
-        if (error.message === 'RATE_LIMITED')
-          return reply.status(429).send(
+        if (blockedIds.includes(detail.event?.hostId)) {
+          return reply.status(404).send(
             buildErrorResponse({
-              code: 'RATE_LIMITED',
-              message: 'Too many requests',
+              code: 'NOT_FOUND',
+              message: 'Event not found',
               requestId: request.id,
             }),
           );
+        }
+
+        await fastify.cache.set('public-discovery', cacheKey, detail, 60);
+        return detail;
+      } catch (error: any) {
+        if (error.code === 'RATE_LIMITED') {
+          reply.header('Retry-After', String(error.retryAfter));
+          return reply.status(429).send({
+            success: false,
+            error: { code: 'RATE_LIMITED', message: 'Too many requests, please try again later.' },
+          });
+        }
         request.log.error({ error }, 'Failed to load event detail');
         return reply.status(500).send(
           buildErrorResponse({

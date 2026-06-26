@@ -1,4 +1,4 @@
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -54,6 +54,12 @@ export default function SignupScreen() {
     player.muted = true;
     player.play();
   });
+
+  useEffect(() => {
+    return () => {
+      player.pause();
+    };
+  }, [player]);
 
   const clearErrors = () => {
     setLocalError(null);
@@ -231,7 +237,12 @@ export default function SignupScreen() {
                     setShowCityPicker(true);
                   }}
                 >
-                  <BlurView intensity={40} tint="dark" style={s.fieldBox}>
+                  <BlurView
+                    experimentalBlurMethod="dimezisBlurView"
+                    intensity={40}
+                    tint="dark"
+                    style={s.fieldBox}
+                  >
                     <View style={s.pickerRow}>
                       <Text style={s.pickerValue}>{city}</Text>
                       <ChevronDown size={16} color="rgba(255,255,255,0.6)" strokeWidth={2.5} />
@@ -255,6 +266,7 @@ export default function SignupScreen() {
                       }}
                     >
                       <BlurView
+                        experimentalBlurMethod="dimezisBlurView"
                         intensity={gender === key ? 80 : 40}
                         tint={gender === key ? 'light' : 'dark'}
                         style={[s.genderChip, gender === key && s.genderChipActive]}
@@ -382,7 +394,12 @@ export default function SignupScreen() {
           onRequestClose={() => setShowCityPicker(false)}
         >
           <Pressable style={s.modalOverlay} onPress={() => setShowCityPicker(false)}>
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFillObject} />
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={20}
+              tint="dark"
+              style={StyleSheet.absoluteFillObject}
+            />
           </Pressable>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />
@@ -425,7 +442,12 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={s.fieldWrap}>
       <Text style={s.fieldLabel}>{label}</Text>
-      <BlurView intensity={40} tint="dark" style={s.fieldBox}>
+      <BlurView
+        experimentalBlurMethod="dimezisBlurView"
+        intensity={40}
+        tint="dark"
+        style={s.fieldBox}
+      >
         {children}
       </BlurView>
     </View>

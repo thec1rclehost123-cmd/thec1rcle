@@ -18,6 +18,7 @@ import { Eye, EyeOff, Mail, Phone } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useAuth } from '@/hooks/useAuth';
+import { useAuthStore } from '@/store/authStore';
 import Svg, { Path } from 'react-native-svg';
 
 function GoogleSvg({ size = 18 }: { size?: number }) {
@@ -78,6 +79,12 @@ export default function LoginScreen() {
     player.muted = true;
     player.play();
   });
+
+  useEffect(() => {
+    return () => {
+      player.pause();
+    };
+  }, [player]);
 
   useEffect(() => {
     // Continuous subtle pulsing glow behind logo
@@ -189,6 +196,16 @@ export default function LoginScreen() {
       />
 
       <SafeAreaView style={s.safeArea}>
+        <View style={s.skipRow}>
+          <Pressable
+            onPress={() => {
+              useAuthStore.getState().setGuestMode(true);
+              router.replace('/(tabs)/explore');
+            }}
+          >
+            <Text style={s.skipText}>Skip</Text>
+          </Pressable>
+        </View>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={s.kav}>
           <View style={s.content}>
             {/* Header Section */}
@@ -375,6 +392,23 @@ const s = StyleSheet.create({
   },
   safeArea: {
     flex: 1,
+  },
+  skipRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  skipText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '600',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   kav: {
     flex: 1,

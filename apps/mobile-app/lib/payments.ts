@@ -10,6 +10,7 @@
 import { Alert } from 'react-native';
 import { useCartStore } from '@/store/cartStore';
 import { useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import { reserveTickets, initiateCheckout, verifyPayment } from './api';
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
@@ -52,6 +53,13 @@ export interface CheckoutResult {
   orderId?: string;
   error?: string;
   requiresPayment?: boolean;
+  premiumRequired?: boolean;
+}
+
+function premiumFeatureFromError(error: any): PremiumFeature {
+  const feature = error?.details?.feature;
+  if (feature === 'premiumOnlyEvent' || feature === 'earlyAccessDrop') return feature;
+  return 'premiumOnlyEvent';
 }
 
 function matchesReservationSelection(
@@ -84,7 +92,7 @@ async function refreshTicketWallet(): Promise<void> {
   try {
     await useTicketsStore.getState().fetchUserOrders('');
   } catch (error) {
-    console.warn('[Checkout] Wallet refresh after checkout failed:', error);
+    if (__DEV__) console.warn('[Checkout] Wallet refresh after checkout failed:', error);
   }
 }
 
@@ -263,7 +271,17 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     };
   } catch (error: any) {
     onStatusChange?.('failed');
-    console.error('[Checkout] Error:', error);
+    if (__DEV__) console.error('[Checkout] Error:', error);
+    if (error.code === 'PREMIUM_REQUIRED') {
+      useSubscriptionStore
+        .getState()
+        .openPaywall(premiumFeatureFromError(error), error.message || undefined);
+      return {
+        success: false,
+        premiumRequired: true,
+        error: error.message || 'C1RCLE Premium is required.',
+      };
+    }
     return {
       success: false,
       error: error.message || 'Something went wrong with the checkout',
@@ -369,7 +387,7 @@ async function importRazorpaySDK(): Promise<any | null> {
     const mod = await import('react-native-razorpay');
     return mod.default || mod;
   } catch {
-    console.warn('[Payments] react-native-razorpay not available');
+    if (__DEV__) console.warn('[Payments] react-native-razorpay not available');
     return null;
   }
 }

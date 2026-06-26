@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { apiFetch } from '@/lib/api';
-import { MOCK_PROFILES, type DatingProfile as MockDatingProfile } from '@/lib/data/mockDating';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 
 export type Prompt = {
   id: string;
@@ -26,12 +26,12 @@ export interface DatingProfile {
   city?: string;
   vibeTags?: string[];
   isVerified?: boolean;
+  isPremium?: boolean;
   // Shared event context — why this person is shown
   sharedEventId: string;
   sharedEventTitle: string;
   sharedEventDate: string;
   sharedEventCover?: string;
-  sharedEvent: string;
   venue: string;
   distance: string;
   profileRouteId: string;
@@ -49,6 +49,7 @@ export interface Match {
   sharedEventTitle: string;
   matchedAt: string;
   conversationId?: string;
+  isPremium?: boolean;
 }
 
 interface DatingState {
@@ -66,7 +67,12 @@ interface DatingState {
   likeUser: (
     fromUserId: string,
     profile: DatingProfile,
-  ) => Promise<{ isMatch: boolean; match?: Match }>;
+  ) => Promise<{ isMatch: boolean; match?: Match; paywalled?: boolean }>;
+  sendAskOut: (
+    fromUserId: string,
+    profile: DatingProfile,
+    message?: string,
+  ) => Promise<{ sent: boolean; isMatch: boolean; match?: Match; paywalled?: boolean }>;
   passUser: (fromUserId: string, targetUserId: string) => Promise<void>;
   removeTopProfile: () => void;
 }
@@ -90,7 +96,7 @@ function firstNonEmptyString(...values: any[]): string | undefined {
   return value?.trim();
 }
 
-function normalizePhotos(profile: any, fallback: MockDatingProfile): DatingPhoto[] {
+function normalizePhotos(profile: any): DatingPhoto[] {
   const rawPhotos = Array.isArray(profile.photos)
     ? profile.photos
     : Array.isArray(profile.datingPhotos)
@@ -115,10 +121,10 @@ function normalizePhotos(profile: any, fallback: MockDatingProfile): DatingPhoto
     ];
   }
 
-  return photos.length > 0 ? photos : fallback.photos;
+  return photos;
 }
 
-function normalizePrompts(profile: any, fallback: MockDatingProfile): Prompt[] {
+function normalizePrompts(profile: any): Prompt[] {
   const rawPrompts = Array.isArray(profile.prompts) ? profile.prompts : [];
   const prompts = rawPrompts
     .map((prompt: any, index: number) => ({
@@ -141,30 +147,28 @@ function normalizePrompts(profile: any, fallback: MockDatingProfile): Prompt[] {
     ];
   }
 
-  return fallback.prompts;
+  return [];
 }
 
-function normalizeApiDatingProfile(profile: any, index: number): DatingProfile | null {
-  const fallback = MOCK_PROFILES[index % MOCK_PROFILES.length];
+function normalizeApiDatingProfile(profile: any, _index: number): DatingProfile | null {
   const userId = firstNonEmptyString(profile.userId, profile.uid, profile.id);
   if (!userId) return null;
 
   const displayName =
     firstNonEmptyString(profile.displayName, profile.name, profile.firstName) || 'C1rcle User';
-  const age = Number(profile.age) || getAgeFromDate(profile.dateOfBirth) || fallback.age;
+  const age = Number(profile.age) || getAgeFromDate(profile.dateOfBirth) || 25;
   const sharedEventTitle =
     firstNonEmptyString(
       profile.sharedEventTitle,
       profile.eventTitle,
       profile.upcomingEvents?.[0]?.title,
     ) || 'Shared Event';
-  const city = firstNonEmptyString(profile.city, profile.location);
+  const city = firstNonEmptyString(profile.city, profile.location) || '';
   const vibeTags = Array.isArray(profile.vibeTags)
     ? profile.vibeTags
     : Array.isArray(profile.tags)
       ? profile.tags
       : [];
-  const tags = vibeTags.length > 0 ? vibeTags : fallback.tags;
 
   return {
     ...profile,
@@ -174,75 +178,28 @@ function normalizeApiDatingProfile(profile: any, index: number): DatingProfile |
     name: displayName.split(' ')[0] || displayName,
     age,
     headline:
-      firstNonEmptyString(profile.headline, profile.bio, profile.prompts?.[0]?.answer) ||
-      fallback.headline,
+      firstNonEmptyString(profile.headline, profile.bio, profile.prompts?.[0]?.answer) || '',
     photoURL: firstNonEmptyString(profile.photoURL, profile.photo, profile.avatar),
-    bio: profile.bio || profile.headline,
+    bio: profile.bio || profile.headline || '',
     city,
     vibeTags,
     isVerified: profile.isVerified === true,
+    isPremium: profile.isPremium === true || profile.subscription?.tier === 'premium',
     sharedEventId:
       firstNonEmptyString(profile.sharedEventId, profile.upcomingEvents?.[0]?.id) || 'global',
     sharedEventTitle,
     sharedEventDate: firstNonEmptyString(profile.sharedEventDate, profile.eventDate) || '',
     sharedEventCover: firstNonEmptyString(profile.sharedEventCover, profile.eventCover),
-    sharedEvent: sharedEventTitle,
     venue: firstNonEmptyString(profile.venue, profile.venueName, city) || sharedEventTitle,
     distance:
       profile.distanceKm !== undefined
         ? `${Number(profile.distanceKm).toFixed(1)} km away`
-        : firstNonEmptyString(profile.distance) || fallback.distance,
+        : firstNonEmptyString(profile.distance) || '',
     profileRouteId: userId,
-    tags,
-    photos: normalizePhotos(profile, fallback),
-    prompts: normalizePrompts(profile, fallback),
+    tags: vibeTags,
+    photos: normalizePhotos(profile),
+    prompts: normalizePrompts(profile),
   };
-}
-
-function normalizeMockDatingProfile(profile: MockDatingProfile): DatingProfile {
-  return {
-    userId: profile.id,
-    id: profile.id,
-    displayName: profile.name,
-    name: profile.name,
-    age: profile.age,
-    headline: profile.headline,
-    photoURL: undefined,
-    bio: profile.headline,
-    city: undefined,
-    vibeTags: profile.tags,
-    isVerified: profile.tags.includes('Verified'),
-    sharedEventId: profile.sharedEvent,
-    sharedEventTitle: profile.sharedEvent,
-    sharedEventDate: '',
-    sharedEventCover: undefined,
-    sharedEvent: profile.sharedEvent,
-    venue: profile.venue,
-    distance: profile.distance,
-    profileRouteId: profile.profileRouteId,
-    tags: profile.tags,
-    photos: profile.photos,
-    prompts: profile.prompts,
-    isDemo: true,
-  };
-}
-
-function appendMockProfiles(profiles: DatingProfile[]): DatingProfile[] {
-  const seenIds = new Set<string>();
-  const uniqueProfiles = profiles.filter((profile) => {
-    const id = profile.userId || profile.id;
-    if (!id || seenIds.has(id)) return false;
-    seenIds.add(id);
-    return true;
-  });
-  const mockProfiles = MOCK_PROFILES.map(normalizeMockDatingProfile).filter((profile) => {
-    const id = profile.userId || profile.id;
-    if (seenIds.has(id)) return false;
-    seenIds.add(id);
-    return true;
-  });
-
-  return [...uniqueProfiles, ...mockProfiles];
 }
 
 function dedupeProfiles(profiles: DatingProfile[]): DatingProfile[] {
@@ -297,7 +254,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
           ? dedupeProfiles([...state.profiles, ...apiProfiles])
           : apiProfiles;
         return {
-          profiles: realProfiles.length > 0 || append ? realProfiles : appendMockProfiles([]),
+          profiles: realProfiles.length > 0 || append ? realProfiles : [],
           nextCursor: responseNextCursor,
           hasMore: responseHasMore,
           loading: false,
@@ -307,7 +264,7 @@ export const useDatingStore = create<DatingState>((set, get) => ({
     } catch (error: any) {
       console.error('[DatingStore] fetchProfiles:', error);
       set((state) => ({
-        profiles: append ? state.profiles : appendMockProfiles([]),
+        profiles: append ? state.profiles : [],
         error: error.message,
         loading: false,
         prefetching: false,
@@ -330,6 +287,10 @@ export const useDatingStore = create<DatingState>((set, get) => ({
           sharedEventTitle: match.sharedEventTitle || match.eventTitle || 'Shared Event',
           matchedAt: match.matchedAt || new Date().toISOString(),
           conversationId: match.conversationId,
+          isPremium:
+            match.isPremium === true ||
+            match.profile?.isPremium === true ||
+            match.profile?.subscription?.tier === 'premium',
         }),
       );
 
@@ -342,15 +303,84 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   },
 
   likeUser: async (fromUserId: string, profile: DatingProfile) => {
+    get().removeTopProfile();
+
+    let lastError: any;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await apiFetch<{
+          match?: boolean;
+          conversationId?: string;
+          data?: {
+            match?: boolean;
+            conversationId?: string;
+            subscription?: any;
+            usage?: any;
+            limits?: any;
+          };
+        }>('/api/v1/social/swipe', {
+          method: 'POST',
+          body: JSON.stringify({ targetUserId: profile.userId, action: 'like' }),
+        });
+        useSubscriptionStore.getState().applyServerContext(response.data || response);
+
+        const isMatch = response.match === true || response.data?.match === true;
+        const conversationId = response.conversationId || response.data?.conversationId;
+        if (isMatch) {
+          const match: Match = {
+            id: `match_${profile.userId}`,
+            otherUserId: profile.userId,
+            displayName: profile.displayName,
+            photoURL: profile.photoURL,
+            sharedEventTitle: profile.sharedEventTitle,
+            matchedAt: new Date().toISOString(),
+            conversationId,
+            isPremium: profile.isPremium,
+          };
+
+          set((s) => ({ matches: [match, ...s.matches] }));
+          return { isMatch: true, match };
+        }
+
+        return { isMatch: false };
+      } catch (error: any) {
+        if (error.code === 'PREMIUM_REQUIRED') {
+          set((s) => ({ profiles: [profile, ...s.profiles] }));
+          useSubscriptionStore.getState().openPaywall('dailyLikes', error.message);
+          return { isMatch: false, paywalled: true };
+        }
+        lastError = error;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
+    }
+
+    set((s) => ({ profiles: [profile, ...s.profiles] }));
+    console.error('[DatingStore] likeUser failed after 3 retries:', lastError);
+    return { isMatch: false };
+  },
+
+  sendAskOut: async (fromUserId: string, profile: DatingProfile, message?: string) => {
     try {
       const response = await apiFetch<{
         match?: boolean;
         conversationId?: string;
-        data?: { match?: boolean; conversationId?: string };
+        data?: {
+          match?: boolean;
+          conversationId?: string;
+          subscription?: any;
+          usage?: any;
+          limits?: any;
+        };
       }>('/api/v1/social/swipe', {
         method: 'POST',
-        body: JSON.stringify({ targetUserId: profile.userId, action: 'like' }),
+        body: JSON.stringify({
+          targetUserId: profile.userId,
+          action: 'askOut',
+          message,
+          eventId: profile.sharedEventId,
+        }),
       });
+      useSubscriptionStore.getState().applyServerContext(response.data || response);
 
       const isMatch = response.match === true || response.data?.match === true;
       const conversationId = response.conversationId || response.data?.conversationId;
@@ -363,28 +393,47 @@ export const useDatingStore = create<DatingState>((set, get) => ({
           sharedEventTitle: profile.sharedEventTitle,
           matchedAt: new Date().toISOString(),
           conversationId,
+          isPremium: profile.isPremium,
         };
 
         set((s) => ({ matches: [match, ...s.matches] }));
-        return { isMatch: true, match };
+        return { sent: true, isMatch: true, match };
       }
 
-      return { isMatch: false };
+      return { sent: true, isMatch: false };
     } catch (error: any) {
-      console.error('[DatingStore] likeUser:', error);
-      return { isMatch: false };
+      if (error.code === 'PREMIUM_REQUIRED') {
+        useSubscriptionStore.getState().openPaywall('askOuts', error.message);
+        return { sent: false, isMatch: false, paywalled: true };
+      }
+      console.error('[DatingStore] sendAskOut:', error);
+      return { sent: false, isMatch: false };
     }
   },
 
   passUser: async (fromUserId: string, targetUserId: string) => {
-    try {
-      await apiFetch('/api/v1/social/swipe', {
-        method: 'POST',
-        body: JSON.stringify({ targetUserId, action: 'pass' }),
-      });
-    } catch (error: any) {
-      console.error('[DatingStore] passUser:', error);
+    const removedProfile = get().profiles[0];
+    get().removeTopProfile();
+
+    let lastError: any;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const response = await apiFetch('/api/v1/social/swipe', {
+          method: 'POST',
+          body: JSON.stringify({ targetUserId, action: 'pass' }),
+        });
+        useSubscriptionStore.getState().applyServerContext((response as any).data || response);
+        return;
+      } catch (error: any) {
+        lastError = error;
+        if (attempt < 2) await new Promise((r) => setTimeout(r, 1000 * (attempt + 1)));
+      }
     }
+
+    if (removedProfile) {
+      set((s) => ({ profiles: [removedProfile, ...s.profiles] }));
+    }
+    console.error('[DatingStore] passUser failed after 3 retries:', lastError);
   },
 
   removeTopProfile: () => {

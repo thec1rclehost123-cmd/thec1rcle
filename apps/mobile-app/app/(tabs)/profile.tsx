@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   Linking,
   Share,
   Dimensions,
+  Platform,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -30,6 +33,7 @@ import Animated, {
 import { colors, gradients } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
+import { PremiumBadge } from '@/components/ui/PremiumBadge';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -103,10 +107,14 @@ function HistoryTimelineItem({
               source={{ uri: order.eventCoverImage }}
               style={styles.historyPoster}
               contentFit="cover"
+              contentPosition="top center"
               cachePolicy="memory-disk"
             />
           ) : (
-            <LinearGradient colors={['#2a1a0e', '#161616']} style={styles.historyPoster} />
+            <LinearGradient
+              colors={order.accentColor ? [order.accentColor, '#161616'] : ['#2a1a0e', '#161616']}
+              style={styles.historyPoster}
+            />
           )}
 
           <View style={styles.historyDetailsColumn}>
@@ -160,10 +168,11 @@ function openInstagramProfile(handle: string) {
 }
 
 export default function ProfileScreen() {
-  const { user } = useAuthStore();
-  const { orders, fetchUserOrders } = useTicketsStore();
+  const { user, isGuest } = useAuthStore();
+  const { orders, fetchUserOrders, loading: ticketsLoading } = useTicketsStore();
   const profile = useProfileStore((state) => state.profile);
   const loadProfile = useProfileStore((state) => state.loadProfile);
+  const profileLoading = useProfileStore((state) => state.loading);
   const nightlifePromptDismissed = useProfileStore((state) => state.nightlifePromptDismissed);
   const hydrateNightlifePromptDismissed = useProfileStore(
     (state) => state.hydrateNightlifePromptDismissed,
@@ -171,6 +180,7 @@ export default function ProfileScreen() {
   const dismissNightlifePrompt = useProfileStore((state) => state.dismissNightlifePrompt);
   const insets = useSafeAreaInsets();
   const userId = user?.uid;
+  const [refreshing, setRefreshing] = useState(false);
 
   // Avatar animation
   const avatarScale = useSharedValue(1);
@@ -185,12 +195,25 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!userId) return;
+    if (orders.length > 0 && profile) return;
 
     const syncScreenState = async () => {
-      await Promise.allSettled([fetchUserOrders(userId), loadProfile(userId)]);
+      await Promise.allSettled(
+        (orders.length === 0 ? [fetchUserOrders(userId)] : []).concat(
+          !profile ? [loadProfile(userId)] : [],
+        ),
+      );
     };
 
     void syncScreenState();
+  }, [userId, fetchUserOrders, loadProfile, orders.length, profile]);
+
+  const onRefresh = useCallback(() => {
+    if (!userId) return;
+    setRefreshing(true);
+    Promise.allSettled([fetchUserOrders(userId), loadProfile(userId)]).finally(() => {
+      setRefreshing(false);
+    });
   }, [userId, fetchUserOrders, loadProfile]);
 
   const avatarAnimatedStyle = useAnimatedStyle(() => ({
@@ -199,7 +222,12 @@ export default function ProfileScreen() {
 
   const nowMs = Date.now();
   const pastOrders = [...orders]
-    .filter((o) => o.eventDate && (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs)
+    .filter(
+      (o) =>
+        o.eventDate &&
+        (safeDate(o.eventDate)?.getTime() ?? 0) < nowMs &&
+        (o.status === 'confirmed' || o.status === 'checked_in'),
+    )
     .sort(
       (a, b) => (safeDate(b.eventDate)?.getTime() ?? 0) - (safeDate(a.eventDate)?.getTime() ?? 0),
     );
@@ -231,6 +259,18 @@ export default function ProfileScreen() {
       message: `Check out ${displayName} on THE C1RCLE.`,
     });
   };
+
+  if (isGuest) {
+    return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  }
+
+  if (profileLoading && ticketsLoading && !profile && orders.length === 0) {
+    return (
+      <View style={[styles.container, { alignItems: 'center', justifyContent: 'center' }]}>
+        <ActivityIndicator color="#fff" size="large" />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -268,11 +308,12 @@ export default function ProfileScreen() {
       </Animated.View>
 
       <ScrollView
-        bounces={false}
-        overScrollMode="never"
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 148 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.iris} />
+        }
       >
         <Animated.View entering={FadeInDown.delay(100).springify()} style={styles.profileHeader}>
           <Image
@@ -306,7 +347,10 @@ export default function ProfileScreen() {
             </Pressable>
           </Animated.View>
 
-          <Text style={styles.userName}>{displayName}</Text>
+          <View style={styles.userNameRow}>
+            <Text style={styles.userName}>{displayName}</Text>
+            <PremiumBadge visible={profile?.isPremium === true} compact />
+          </View>
 
           <View style={styles.profileStatsRow}>
             <Text style={styles.profileStatText}>
@@ -406,11 +450,24 @@ export default function ProfileScreen() {
               }}
               style={styles.upcomingCard}
             >
-              <BlurView
-                intensity={28}
-                tint="dark"
-                style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]}
-              />
+              {Platform.select({
+                android: (
+                  <View
+                    style={[
+                      StyleSheet.absoluteFill,
+                      { backgroundColor: 'rgba(15, 15, 15, 0.85)', borderRadius: 12 },
+                    ]}
+                  />
+                ),
+                default: (
+                  <BlurView
+                    experimentalBlurMethod="dimezisBlurView"
+                    intensity={28}
+                    tint="dark"
+                    style={[StyleSheet.absoluteFill, { borderRadius: 12, overflow: 'hidden' }]}
+                  />
+                ),
+              })}
               <View
                 style={[
                   StyleSheet.absoluteFill,
@@ -461,6 +518,118 @@ export default function ProfileScreen() {
     </View>
   );
 }
+
+// ── Guest auth prompt ──────────────────────────────────────────────────────────
+
+function GuestAuthPrompt({ onDismiss }: { onDismiss: () => void }) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={guestStyles.root}>
+        <View style={guestStyles.iconWrap}>
+          <Ionicons name="sparkles" size={36} color="#fff" />
+        </View>
+        <Text style={guestStyles.title}>Join THE C1RCLE</Text>
+        <Text style={guestStyles.subtitle}>
+          Create an account to buy tickets, chat with attendees, and RSVP.
+        </Text>
+        <Pressable
+          style={guestStyles.primaryBtn}
+          onPress={() => {
+            useAuthStore.getState().setGuestMode(false);
+            router.push('/(auth)/login');
+          }}
+        >
+          <Text style={guestStyles.primaryBtnText}>Log In</Text>
+        </Pressable>
+        <Pressable
+          style={guestStyles.secondaryBtn}
+          onPress={() => {
+            useAuthStore.getState().setGuestMode(false);
+            router.push('/(auth)/signup');
+          }}
+        >
+          <Text style={guestStyles.secondaryBtnText}>Sign Up</Text>
+        </Pressable>
+        <Pressable style={guestStyles.dismissBtn} onPress={onDismiss}>
+          <Text style={guestStyles.dismissText}>Continue Browsing</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const guestStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 60,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(139,92,246,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 12,
+  },
+  primaryBtn: {
+    backgroundColor: '#fff',
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  primaryBtnText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  secondaryBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dismissBtn: {
+    paddingVertical: 10,
+  },
+  dismissText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
 
 const styles = StyleSheet.create({
   container: {
@@ -537,6 +706,14 @@ const styles = StyleSheet.create({
     fontSize: 38,
     fontWeight: '900',
     textAlign: 'center',
+    flexShrink: 1,
+  },
+  userNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    maxWidth: '100%',
   },
   profileStatsRow: {
     flexDirection: 'row',

@@ -101,7 +101,12 @@ export function NotificationBell({
         onPress={handlePress}
         style={[animatedStyle, styles.container]}
       >
-        <BlurView intensity={40} tint="dark" style={styles.blurContainer}>
+        <BlurView
+          experimentalBlurMethod="dimezisBlurView"
+          intensity={40}
+          tint="dark"
+          style={styles.blurContainer}
+        >
           {renderContent()}
         </BlurView>
       </AnimatedPressable>

@@ -28,7 +28,7 @@ const INITIAL_FLOW_STATE: FlowState = {
 };
 
 export default function Index() {
-  const { user, initialized, serverSynced, authSyncInProgress } = useAuthStore();
+  const { user, initialized, serverSynced, authSyncInProgress, isGuest } = useAuthStore();
   const { profile, loadProfile } = useProfileStore();
   const [flowState, setFlowState] = useState<FlowState>(INITIAL_FLOW_STATE);
 
@@ -88,7 +88,10 @@ export default function Index() {
     );
   }
 
-  if (!user) return <Redirect href="/(auth)/login" />;
+  if (!user) {
+    if (isGuest) return <Redirect href="/(tabs)/explore" />;
+    return <Redirect href="/(auth)/login" />;
+  }
   if (!basicSetupComplete) return <Redirect href="/profile-setup" />;
   if (!flowState.hasViewedOnboarding) return <Redirect href="/onboarding" />;
   if (!flowState.permissionsRequested) return <Redirect href="/notification-permission" />;

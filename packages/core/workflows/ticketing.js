@@ -180,6 +180,13 @@ export async function verifyCheckoutPayment({
       throw codedError('Forbidden', 'FORBIDDEN');
     }
 
+    if (Number(payment.amount) !== Number(order.totalAmount)) {
+      throw codedError(
+        `Payment amount mismatch: expected ${order.totalAmount}, got ${payment.amount}`,
+        'AMOUNT_MISMATCH',
+      );
+    }
+
     if (order.status !== 'confirmed' && !PAYMENT_PENDING_STATUSES.has(String(order.status || ''))) {
       throw codedError(`Order is ${order.status}`, 'CONFLICT');
     }

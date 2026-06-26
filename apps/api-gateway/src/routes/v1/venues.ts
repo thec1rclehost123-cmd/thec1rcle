@@ -1343,32 +1343,39 @@ export default async function venueRoutes(fastify: FastifyInstance) {
    * GET /api/v1/venues
    * List venues with optional sorting and limit
    */
-  fastify.get('/venues', async (request: any, reply) => {
-    try {
-      const { sort = 'Popular', limit = 12 } = request.query as any;
-      let q: any = fastify.db.collection('venues');
+  fastify.get(
+    '/venues',
+    {
+      preHandler: [fastify.requireAuth],
+      config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+    },
+    async (request: any, reply) => {
+      try {
+        const { sort = 'Popular', limit = 12 } = request.query as any;
+        let q: any = fastify.db.collection('venues');
 
-      // Apply sorting logic
-      if (sort === 'Popular') {
-        q = q.orderBy('heatScore', 'desc');
-      } else if (sort === 'new') {
-        q = q.orderBy('createdAt', 'desc');
+        // Apply sorting logic
+        if (sort === 'Popular') {
+          q = q.orderBy('heatScore', 'desc');
+        } else if (sort === 'new') {
+          q = q.orderBy('createdAt', 'desc');
+        }
+
+        q = q.limit(Number(limit));
+
+        const snapshot = await q.get();
+        const venues = snapshot.docs.map((d: any) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        return { venues };
+      } catch (error: any) {
+        fastify.log.error(`Error in GET /venues: ${error.message}`);
+        return reply.status(500).send({ error: 'Internal Server Error' });
       }
-
-      q = q.limit(Number(limit));
-
-      const snapshot = await q.get();
-      const venues = snapshot.docs.map((d: any) => ({
-        id: d.id,
-        ...d.data(),
-      }));
-
-      return { venues };
-    } catch (error: any) {
-      fastify.log.error(`Error in GET /venues: ${error.message}`);
-      return reply.status(500).send({ error: 'Internal Server Error' });
-    }
-  });
+    },
+  );
 
   /**
    * GET /api/v1/venues/:id
@@ -1432,6 +1439,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           fastify.db
             .collection('events')
             .where('venueId', '==', venueId)
+            .where('startDate', '>=', now)
             .get()
             .catch(() => ({ docs: [] as any[] })),
         ],
@@ -1451,7 +1459,6 @@ export default async function venueRoutes(fastify: FastifyInstance) {
 
       const upcomingEvents = eventsSnap.docs
         .map((item: any) => ({ id: item.id, ...item.data() }))
-        .filter((e: any) => e.startDate >= now)
         .sort((a: any, b: any) => a.startDate.localeCompare(b.startDate))
         .slice(0, 10);
 

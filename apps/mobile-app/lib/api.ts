@@ -36,7 +36,7 @@ function getApiBase(): string {
       // 🛡️ ENHANCEMENT: If we have an explicit base URL from ENV, use it.
       // Otherwise default to the host machine on the standard dev port (4000).
       const devUrl = process.env.EXPO_PUBLIC_API_BASE_URL || `http://${host}:4000`;
-      console.log(`[API] Dev mode — using gateway: ${devUrl}`);
+      if (__DEV__) console.log(`[API] Dev mode — using gateway: ${devUrl}`);
       return devUrl;
     }
   }
@@ -120,7 +120,23 @@ async function apiFetch<T = any>(
       throw new Error('Completing secure sign-in. Please wait.');
     }
 
-    const token = await user.getIdToken(_retry);
+    let token;
+    try {
+      token = await user.getIdToken(_retry);
+    } catch (error: any) {
+      const isDisabled =
+        error.code === 'auth/user-disabled' ||
+        error.code === 'auth/user-not-found' ||
+        error.message?.includes('auth/user-disabled') ||
+        error.message?.includes('auth/user-not-found');
+      if (isDisabled) {
+        getFirebaseAuth()
+          .signOut()
+          .catch(() => {});
+        throw new Error('Your account has been disabled or deleted. Please contact support.');
+      }
+      throw error;
+    }
     headers['Authorization'] = `Bearer ${token}`;
   }
 
@@ -140,6 +156,19 @@ async function apiFetch<T = any>(
     });
     clearTimeout(timeoutId);
 
+    // Handle 429 Too Many Requests — rate limited
+    if (response.status === 429) {
+      const retryAfter = response.headers.get('Retry-After') || response.headers.get('retry-after');
+      const waitSeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+      const rateError = new Error(
+        `Too many requests. Please wait ${waitSeconds} second${waitSeconds === 1 ? '' : 's'} before trying again.`,
+      );
+      (rateError as any).code = 'RATE_LIMITED';
+      (rateError as any).retryAfter = waitSeconds;
+      (rateError as any).status = 429;
+      throw rateError;
+    }
+
     // Handle 401 Unauthorized — potentially expired token
     if (response.status === 401 && requireAuth && !_retry) {
       if (__DEV__) console.log('[API] 401 detected, attempting token refresh retry...');
@@ -153,7 +182,11 @@ async function apiFetch<T = any>(
         typeof data.error === 'string'
           ? data.error
           : data.error?.message || data.message || `Request failed (${response.status})`;
-      throw new Error(errorMsg);
+      const requestError = new Error(errorMsg);
+      (requestError as any).code = data.error?.code || data.code || null;
+      (requestError as any).details = data.error?.details || data.details || null;
+      (requestError as any).status = response.status;
+      throw requestError;
     }
 
     return data as T;
@@ -242,6 +275,13 @@ export interface PricingResult {
       paymentFee?: number;
       gst?: number;
       total?: number;
+      waived?: boolean;
+      waivedBreakdown?: Record<string, number>;
+    };
+    subscription?: {
+      tier?: 'free' | 'premium';
+      bookingFeesWaived?: boolean;
+      bookingFeesSaved?: number;
     };
     platformFee?: number;
     grandTotal: number;
@@ -257,7 +297,6 @@ export interface PricingResult {
 export async function calculatePricing(payload: CalculateRequest): Promise<PricingResult> {
   return apiFetch<PricingResult>(`${API_PREFIX}/checkout/calculate`, {
     method: 'POST',
-    requireAuth: false,
     body: JSON.stringify(payload),
   });
 }

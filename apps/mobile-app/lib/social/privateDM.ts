@@ -20,16 +20,25 @@ function toTime(value: any): number {
   return Number.isFinite(time) ? time : 0;
 }
 
+function extractUrl(value: any): string {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value.uri) return String(value.uri);
+  return String(value);
+}
+
 function normalizeDirectMessage(raw: any, conversationId: string): DirectMessage | null {
   const id = raw?.id || raw?.messageId;
   if (!id) return null;
   const rawType = String(raw?.type || '').toLowerCase();
+  const imageUrl = extractUrl(raw?.imageUrl || (rawType === 'image' ? raw?.content : undefined));
   return {
     id: String(id),
     conversationId: String(raw?.conversationId || conversationId),
     senderId: String(raw?.senderId || raw?.userId || ''),
-    content: String(raw?.content || raw?.text || raw?.imageUrl || ''),
-    type: rawType === 'image' || raw?.imageUrl ? 'image' : 'text',
+    content: imageUrl || String(raw?.content || raw?.text || ''),
+    imageUrl: imageUrl || undefined,
+    type: rawType === 'image' || !!raw?.imageUrl ? 'image' : 'text',
     createdAt: raw?.createdAt || new Date().toISOString(),
     readAt: raw?.readAt,
     isDeleted: raw?.isDeleted === true,
@@ -174,6 +183,7 @@ export function subscribeToDirectMessages(
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+  let connectCheck: ReturnType<typeof setInterval> | null = null;
   const safeMessageLimit = clampMessageLimit(messageLimit);
   let latestMessages: DirectMessage[] = [];
 
@@ -200,13 +210,19 @@ export function subscribeToDirectMessages(
   if (wsManager.isConnected) {
     unsubscribeWS = wsManager.subscribe(`dm:${conversationId}`, wsHandler);
   } else {
-    const connectCheck = setInterval(() => {
+    connectCheck = setInterval(() => {
       if (wsManager.isConnected && !unsubscribeWS) {
         unsubscribeWS = wsManager.subscribe(`dm:${conversationId}`, wsHandler);
-        clearInterval(connectCheck);
+        if (connectCheck) clearInterval(connectCheck);
+        connectCheck = null;
       }
     }, 1000);
-    setTimeout(() => clearInterval(connectCheck), 10000);
+    setTimeout(() => {
+      if (connectCheck) {
+        clearInterval(connectCheck);
+        connectCheck = null;
+      }
+    }, 10000);
   }
 
   async function pollOnce() {
@@ -234,12 +250,17 @@ export function subscribeToDirectMessages(
   }
 
   pollOnce();
-  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS);
+  const jitterMs = Math.random() * 10_000;
+  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS + jitterMs);
 
   return () => {
     active = false;
     if (unsubscribeWS) unsubscribeWS();
     if (pollIntervalId) clearInterval(pollIntervalId);
+    if (connectCheck) {
+      clearInterval(connectCheck);
+      connectCheck = null;
+    }
   };
 }
 

@@ -84,7 +84,7 @@ export async function downloadTicketPDF(orderId: string): Promise<string | null>
 
     return downloadResult.uri;
   } catch (error) {
-    console.error('[Wallet] Download error:', error);
+    if (__DEV__) console.error('[Wallet] Download error:', error);
     return null;
   }
 }
@@ -118,7 +118,7 @@ export async function saveTicket(passData: PassData): Promise<boolean> {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     return true;
   } catch (error) {
-    console.error('[Wallet] Save ticket error:', error);
+    if (__DEV__) console.error('[Wallet] Save ticket error:', error);
     Alert.alert('Error', 'Failed to save ticket. Please try again.');
     return false;
   }
@@ -159,7 +159,7 @@ export async function shareTicket(passData: PassData): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('[Wallet] Share ticket error:', error);
+    if (__DEV__) console.error('[Wallet] Share ticket error:', error);
     Alert.alert('Error', 'Failed to share ticket.');
     return false;
   }
@@ -196,7 +196,7 @@ async function requestAppleWalletPass(passData: PassData): Promise<NativeWalletR
       message: `Apple Wallet failed with status ${downloadResult.status}.`,
     };
   } catch (error) {
-    console.error('[Wallet] Apple pass error:', error);
+    if (__DEV__) console.error('[Wallet] Apple pass error:', error);
     return { status: 'error', message: 'Apple Wallet pass request failed.' };
   }
 }
@@ -232,7 +232,7 @@ async function requestGoogleWalletPass(passData: PassData): Promise<NativeWallet
     }
     return { status: 'error', message: `Google Wallet failed with status ${response.status}.` };
   } catch (error) {
-    console.error('[Wallet] Google pass error:', error);
+    if (__DEV__) console.error('[Wallet] Google pass error:', error);
     return { status: 'error', message: 'Google Wallet pass request failed.' };
   }
 }
@@ -253,7 +253,6 @@ export async function addToWallet(passData: PassData): Promise<boolean> {
     if (Platform.OS === 'ios') {
       const passResult = await requestAppleWalletPass(passData);
       if (passResult.status === 'ready' && 'uri' in passResult) {
-        // .pkpass files auto-open in Apple Wallet
         await Sharing.shareAsync(passResult.uri, {
           mimeType: 'application/vnd.apple.pkpass',
           UTI: 'com.apple.pkpass',
@@ -293,7 +292,7 @@ export async function addToWallet(passData: PassData): Promise<boolean> {
 
     return false;
   } catch (error) {
-    console.error('[Wallet] Add to wallet error:', error);
+    if (__DEV__) console.error('[Wallet] Add to wallet error:', error);
     Alert.alert('Error', 'Failed to add to wallet.');
     return false;
   }

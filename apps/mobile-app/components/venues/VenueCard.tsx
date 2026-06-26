@@ -22,7 +22,13 @@ type VenueCardVenue = Venue & {
   distanceKm?: number | null;
 };
 
-export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: () => void }) {
+export const VenueCard = React.memo(function VenueCard({
+  venue,
+  onPress,
+}: {
+  venue: VenueCardVenue;
+  onPress: () => void;
+}) {
   const handlePress = () => {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onPress();
@@ -57,6 +63,7 @@ export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: 
         <View style={styles.badgeContainer}>
           {venue.isVerified && (
             <BlurView
+              experimentalBlurMethod="dimezisBlurView"
               intensity={30}
               tint="dark"
               style={[styles.badge, { backgroundColor: `${colors.iris}40` }]}
@@ -65,12 +72,22 @@ export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: 
             </BlurView>
           )}
           {venue.venueType ? (
-            <BlurView intensity={30} tint="dark" style={styles.badge}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={30}
+              tint="dark"
+              style={styles.badge}
+            >
               <Text style={styles.badgeText}>{venue.venueType}</Text>
             </BlurView>
           ) : null}
           {venue.tablesAvailable && (
-            <BlurView intensity={30} tint="dark" style={[styles.badge, styles.specialBadge]}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={30}
+              tint="dark"
+              style={[styles.badge, styles.specialBadge]}
+            >
               <Text style={styles.badgeText}>Tables</Text>
             </BlurView>
           )}
@@ -87,7 +104,13 @@ export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: 
           {tags.length > 0 && (
             <View style={styles.tagContainer}>
               {tags.map((tag, idx) => (
-                <BlurView key={`${tag}-${idx}`} intensity={20} tint="dark" style={styles.tag}>
+                <BlurView
+                  experimentalBlurMethod="dimezisBlurView"
+                  key={`${tag}-${idx}`}
+                  intensity={20}
+                  tint="dark"
+                  style={styles.tag}
+                >
                   <Text style={styles.tagText}>{tag}</Text>
                 </BlurView>
               ))}
@@ -121,7 +144,7 @@ export function VenueCard({ venue, onPress }: { venue: VenueCardVenue; onPress: 
       </View>
     </Pressable>
   );
-}
+});
 
 export function VenueSkeleton() {
   return (

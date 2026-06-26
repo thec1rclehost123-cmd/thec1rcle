@@ -28,7 +28,7 @@ export async function reportUser(
 
     return { success: true, reportId: response.reportId };
   } catch (error: any) {
-    console.error('Error reporting user:', error);
+    if (__DEV__) console.error('Error reporting user:', error);
     return { success: false, error: error.message };
   }
 }
@@ -74,7 +74,7 @@ export async function reportMessage({
       reportId: response.report?.id || response.data?.report?.id,
     };
   } catch (error: any) {
-    console.error('Error reporting message:', error);
+    if (__DEV__) console.error('Error reporting message:', error);
     return { success: false, error: error.message };
   }
 }
@@ -89,7 +89,7 @@ export async function isUserBlocked(userId: string, otherUserId: string): Promis
     });
     return response.blockedUserIds.includes(otherUserId);
   } catch (error) {
-    console.error('Error checking block status:', error);
+    if (__DEV__) console.error('Error checking block status:', error);
     return false;
   }
 }
@@ -104,8 +104,27 @@ export async function getBlockedUsers(userId: string): Promise<string[]> {
     });
     return response.blockedUserIds;
   } catch (error) {
-    console.error('Error fetching blocked users:', error);
+    if (__DEV__) console.error('Error fetching blocked users:', error);
     return [];
+  }
+}
+
+/**
+ * Block a user via API Gateway.
+ */
+export async function blockUser(
+  blockerId: string,
+  blockedId: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    await apiFetch('/api/v1/social/block', {
+      method: 'POST',
+      body: JSON.stringify({ targetUid: blockedId }),
+      requireAuth: true,
+    });
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 }
 

@@ -2,6 +2,8 @@
 import * as Linking from 'expo-linking';
 import { Share, Platform } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
+import { router } from 'expo-router';
+import { useAuthStore } from '@/store/authStore';
 
 // App scheme for deep links
 const APP_SCHEME = 'c1rcle';
@@ -56,7 +58,7 @@ export async function shareEventLink(
 
     return result.action === Share.sharedAction;
   } catch (error) {
-    console.error('Error sharing event:', error);
+    if (__DEV__) console.error('Error sharing event:', error);
     return false;
   }
 }
@@ -73,7 +75,7 @@ export async function shareTransferCode(code: string, eventTitle: string): Promi
 
     return result.action === Share.sharedAction;
   } catch (error) {
-    console.error('Error sharing transfer code:', error);
+    if (__DEV__) console.error('Error sharing transfer code:', error);
     return false;
   }
 }
@@ -96,7 +98,7 @@ export async function shareInviteLink(referralCode?: string): Promise<boolean> {
 
     return result.action === Share.sharedAction;
   } catch (error) {
-    console.error('Error sharing invite:', error);
+    if (__DEV__) console.error('Error sharing invite:', error);
     return false;
   }
 }
@@ -146,71 +148,67 @@ export function parseDeepLink(url: string): {
       params,
     };
   } catch (error) {
-    console.error('Error parsing deep link:', error);
+    if (__DEV__) console.error('Error parsing deep link:', error);
     return { type: null, params: {} };
   }
 }
 
-// Handle incoming deep link
-export function handleDeepLink(
-  url: string,
-  navigation: {
-    navigate: (screen: string, params?: any) => void;
-  },
-): void {
+// Handle incoming deep link using expo-router
+export function handleDeepLink(url: string): void {
+  const user = useAuthStore.getState().user;
+  if (!user) {
+    router.replace('/(auth)/login');
+    return;
+  }
+
   const { type, params } = parseDeepLink(url);
 
   switch (type) {
     case 'event':
       if (params.id) {
-        navigation.navigate('event/[id]', {
-          id: params.id,
-          ...(params.ref ? { ref: params.ref } : {}),
-        });
+        router.push(`/event/${params.id}`);
       }
       break;
     case 'ticket':
       if (params.orderId || params.id) {
-        navigation.navigate('ticket/[id]', { id: params.orderId || params.id });
+        router.push(`/ticket/${params.orderId || params.id}`);
       }
       break;
     case 'transfer':
       if (params.code || params.id) {
-        navigation.navigate('transfer/[token]', { code: params.code || params.id });
+        router.push(`/transfer/${params.code || params.id}`);
       }
       break;
     case 'claim':
       if (params.token || params.id) {
-        navigation.navigate('claim/[token]', { token: params.token || params.id });
+        router.push(`/claim/${params.token || params.id}`);
       }
       break;
     case 'profile':
       if (params.userId) {
-        navigation.navigate('profile', { userId: params.userId });
+        router.push(`/profile/${params.userId}`);
       }
       break;
     case 'chat':
       if (params.eventId || params.id) {
-        navigation.navigate('social/group/[eventId]', { eventId: params.eventId || params.id });
+        router.push(`/social/group/${params.eventId || params.id}`);
       }
       break;
     case 'going':
       if (params.orderId || params.id) {
-        navigation.navigate('going/[orderId]', { orderId: params.orderId || params.id });
+        router.push(`/going/${params.orderId || params.id}`);
       }
       break;
     case 'invite':
-      // Handle invite with referral tracking
       if (params.ref) {
-        // Store referral code for signup flow
-        console.log('Referral code:', params.ref);
+        if (__DEV__) console.log('Referral code:', params.ref);
       }
       break;
     case 'safety':
-      navigation.navigate('safety');
+      router.push('/safety');
       break;
     default:
-      console.log('Unknown deep link type:', type);
+      if (__DEV__) console.log('Unknown deep link type:', type);
   }
 }
 

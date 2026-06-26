@@ -76,7 +76,7 @@ export async function getExpoPushToken(): Promise<string | null> {
 
     return token.data;
   } catch (error) {
-    console.error('Error getting push token:', error);
+    if (__DEV__) console.error('Error getting push token:', error);
     return null;
   }
 }
@@ -107,7 +107,7 @@ export async function registerPushToken(userId: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error('Error registering push token:', error);
+    if (__DEV__) console.error('Error registering push token:', error);
     return false;
   }
 }
@@ -214,6 +214,6 @@ export async function refreshPushToken(userId: string): Promise<void> {
 
     await AsyncStorage.setItem(PUSH_TOKEN_KEY, newToken);
   } catch (error) {
-    console.error('Error refreshing push token:', error);
+    if (__DEV__) console.error('Error refreshing push token:', error);
   }
 }

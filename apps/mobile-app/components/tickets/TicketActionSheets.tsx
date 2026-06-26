@@ -98,7 +98,12 @@ export function ActionSheet({
           style={StyleSheet.absoluteFill}
         >
           <Pressable style={StyleSheet.absoluteFill} onPress={onClose}>
-            <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={35}
+              tint="dark"
+              style={StyleSheet.absoluteFill}
+            />
           </Pressable>
         </Animated.View>
 

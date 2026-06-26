@@ -453,7 +453,7 @@ export async function fetchWalkIns(
     return data.walkIns || [];
   } catch (err) {
     cleanup();
-    console.error('[fetchWalkIns] Error:', err);
+    if (__DEV__) console.error('[fetchWalkIns] Error:', err);
     if (__DEV__) {
       return getMockWalkIns();
     }

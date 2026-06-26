@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -11,15 +11,34 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  runOnJS,
+} from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { ArrowLeft, BadgeCheck, Heart, MapPin, MessageCircle, Send, X } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  BadgeCheck,
+  Heart,
+  MapPin,
+  MessageCircle,
+  Send,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react-native';
 import { colors, radii, spacing } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
 import { useDatingStore, type DatingProfile, type Prompt } from '@/store/datingStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
 
 type ReplyTarget = {
   profile: DatingProfile;
@@ -33,6 +52,11 @@ function ProfileHeader({
   onLike,
   onReply,
   stageHeight,
+  animatedCardStyle,
+  animatedBackFarStyle,
+  animatedBackNearStyle,
+  likeOverlayStyle,
+  passOverlayStyle,
 }: {
   profile: DatingProfile;
   liked: boolean;
@@ -40,71 +64,85 @@ function ProfileHeader({
   onLike: () => void;
   onReply: () => void;
   stageHeight: number;
+  animatedCardStyle?: any;
+  animatedBackFarStyle?: any;
+  animatedBackNearStyle?: any;
+  likeOverlayStyle?: any;
+  passOverlayStyle?: any;
 }) {
   return (
     <View style={[styles.heroStage, { height: stageHeight }]}>
-      <View style={styles.backCardFar} />
-      <View style={styles.backCardNear} />
-      <Pressable
-        style={styles.hero}
-        onPress={() => {
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push({
-            pathname: '/dating/[id]',
-            params: { id: profile.id },
-          });
-        }}
-      >
-        <Image
-          source={profile.photos[0].source}
-          style={styles.heroImage}
-          contentFit="cover"
-          contentPosition="center"
-        />
-        <LinearGradient
-          colors={['rgba(95,0,12,0.02)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.88)']}
-          locations={[0, 0.45, 1]}
+      <Animated.View style={[styles.backCardFar, animatedBackFarStyle]} />
+      <Animated.View style={[styles.backCardNear, animatedBackNearStyle]} />
+      <Animated.View style={[styles.hero, animatedCardStyle]}>
+        <Pressable
           style={StyleSheet.absoluteFill}
-        />
-        <View style={styles.heroActionRail}>
-          <Pressable accessibilityLabel="Pass profile" style={styles.railButton} onPress={onPass}>
-            <X size={25} color="#fff" strokeWidth={2.5} />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Like profile"
-            style={[styles.railButton, liked && styles.railButtonActive]}
-            onPress={onLike}
-          >
-            <Heart size={26} color="#fff" fill="#fff" />
-          </Pressable>
-          <Pressable
-            accessibilityLabel="Reply to prompt"
-            style={styles.railButton}
-            onPress={onReply}
-          >
-            <MessageCircle size={25} color="#fff" fill="#fff" />
-          </Pressable>
-        </View>
-        <View style={styles.heroCopy}>
-          <View style={styles.locationRow}>
-            <MapPin size={15} color="rgba(255,255,255,0.86)" fill="rgba(255,255,255,0.86)" />
-            <Text style={styles.locationText}>{profile.venue}</Text>
+          onPress={() => {
+            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            router.push({
+              pathname: '/dating/[id]',
+              params: { id: profile.id },
+            });
+          }}
+        >
+          <Image
+            source={profile.photos[0].source}
+            style={styles.heroImage}
+            contentFit="cover"
+            contentPosition="center"
+          />
+          <LinearGradient
+            colors={['rgba(95,0,12,0.02)', 'rgba(0,0,0,0.08)', 'rgba(0,0,0,0.88)']}
+            locations={[0, 0.45, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.heroActionRail}>
+            <Pressable accessibilityLabel="Pass profile" style={styles.railButton} onPress={onPass}>
+              <X size={25} color="#fff" strokeWidth={2.5} />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Like profile"
+              style={[styles.railButton, liked && styles.railButtonActive]}
+              onPress={onLike}
+            >
+              <Heart size={26} color="#fff" fill="#fff" />
+            </Pressable>
+            <Pressable
+              accessibilityLabel="Reply to prompt"
+              style={styles.railButton}
+              onPress={onReply}
+            >
+              <MessageCircle size={25} color="#fff" fill="#fff" />
+            </Pressable>
           </View>
-          <View style={styles.nameRow}>
-            <Text style={styles.nameText}>
-              {profile.name}, {profile.age}
-            </Text>
-            <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
+          <View style={styles.heroCopy}>
+            <View style={styles.locationRow}>
+              <MapPin size={15} color="rgba(255,255,255,0.86)" fill="rgba(255,255,255,0.86)" />
+              <Text style={styles.locationText}>{profile.venue}</Text>
+            </View>
+            <View style={styles.nameRow}>
+              <Text style={styles.nameText}>
+                {profile.name}, {profile.age}
+              </Text>
+              <PremiumBadgeDot visible={profile.isPremium === true} />
+              <BadgeCheck size={23} color="#3CA4FF" fill="#3CA4FF" />
+            </View>
+            <View style={styles.cardTags}>
+              {profile.tags.slice(0, 3).map((tag) => (
+                <View key={tag} style={styles.cardTag}>
+                  <Text style={styles.cardTagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
           </View>
-          <View style={styles.cardTags}>
-            {profile.tags.slice(0, 3).map((tag) => (
-              <View key={tag} style={styles.cardTag}>
-                <Text style={styles.cardTagText}>{tag}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </Pressable>
+        </Pressable>
+        <Animated.View style={[styles.overlay, styles.likeOverlay, likeOverlayStyle]}>
+          <Text style={styles.overlayText}>LIKE</Text>
+        </Animated.View>
+        <Animated.View style={[styles.overlay, styles.passOverlay, passOverlayStyle]}>
+          <Text style={styles.overlayText}>NOPE</Text>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -167,38 +205,29 @@ export default function DatingScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
   const { user } = useAuthStore();
-  const { profiles, loading, prefetching, hasMore, fetchProfiles, likeUser, passUser } =
+  const { profiles, loading, prefetching, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
     useDatingStore();
-  const [profileIndex, setProfileIndex] = useState(0);
+  const isPremium = useSubscriptionStore((state) => state.isPremium);
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
   const [likesSent, setLikesSent] = useState<string[]>([]);
-  const [, setChatStarts] = useState<Array<{ profileId: string; text: string }>>([]);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
-  const [, setToast] = useState('Ready for tonight');
 
   useEffect(() => {
     if (!user?.uid) return;
-    setProfileIndex(0);
     void fetchProfiles(user.uid, { append: false });
   }, [fetchProfiles, user?.uid]);
-
-  const remainingProfiles = Math.max(profiles.length - profileIndex, 0);
 
   useEffect(() => {
     if (!user?.uid) return;
     if (profiles.length === 0) return;
-    if (remainingProfiles > 5) return;
+    if (profiles.length > 3) return;
     if (loading || prefetching || !hasMore) return;
     void fetchProfiles(user.uid, { append: true });
-  }, [fetchProfiles, hasMore, loading, prefetching, profiles.length, remainingProfiles, user?.uid]);
+  }, [fetchProfiles, hasMore, loading, prefetching, profiles.length, user?.uid]);
 
-  const profile = profiles.length > 0 ? profiles[profileIndex] : null;
+  const profile = profiles.length > 0 ? profiles[0] : null;
   const alreadyLiked = profile ? likesSent.includes(profile.id) : false;
-
-  const advanceProfile = (message: string) => {
-    setToast(message);
-    setProfileIndex((current) => current + 1);
-  };
 
   const handlePass = () => {
     if (!profile) return;
@@ -206,20 +235,19 @@ export default function DatingScreen() {
     if (user?.uid) {
       void passUser(user.uid, profile.userId);
     }
-    advanceProfile(`${profile.name} dismissed`);
   };
 
-  const handleLike = () => {
+  const handleLike = async () => {
     if (!profile) return;
+    const targetProfile = profile;
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setLikesSent((current) => (current.includes(profile.id) ? current : [...current, profile.id]));
     if (user?.uid) {
-      void likeUser(user.uid, profile);
+      const result = await likeUser(user.uid, targetProfile);
+      if (result.paywalled) return;
     }
-    setChatStarts((current) =>
-      [{ profileId: profile.id, text: `Liked ${profile.name}` }, ...current].slice(0, 4),
+    setLikesSent((current) =>
+      current.includes(targetProfile.id) ? current : [...current, targetProfile.id],
     );
-    advanceProfile(`Like sent to ${profile.name}`);
   };
 
   const handleOpenReply = (prompt: Prompt) => {
@@ -229,28 +257,92 @@ export default function DatingScreen() {
     setReplyText('');
   };
 
-  const handleSendReply = () => {
+  const handleSendReply = async () => {
     if (!replyText.trim() || !replyTarget) return;
+    const target = replyTarget;
+    const message = replyText.trim();
+    if (user?.uid) {
+      const result = await sendAskOut(user.uid, target.profile, message);
+      if (result.paywalled) return;
+    }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setLikesSent((current) =>
-      current.includes(replyTarget.profile.id) ? current : [...current, replyTarget.profile.id],
+      current.includes(target.profile.id) ? current : [...current, target.profile.id],
     );
-    setChatStarts((current) =>
-      [
-        { profileId: replyTarget.profile.id, text: `Reply sent: ${replyText.trim()}` },
-        ...current,
-      ].slice(0, 4),
-    );
-    setToast(`Reply sent to ${replyTarget.profile.name}`);
-    setReplyTarget(null);
     setReplyText('');
+    setReplyTarget(null);
   };
 
-  const firstPrompt = profile?.prompts[0] || {
-    id: 'fallback-prompt',
-    title: 'My night out vibe is',
-    answer: profile?.headline || '',
+  const handleAdvancedFilters = () => {
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isPremium) {
+      openPaywall('advancedFilters');
+      return;
+    }
   };
+
+  const firstPrompt = useMemo(
+    () =>
+      profile?.prompts[0] || {
+        id: 'fallback-prompt',
+        title: 'My night out vibe is',
+        answer: profile?.headline || '',
+      },
+    [profile],
+  );
+
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const backCardScale = useSharedValue(1);
+
+  const animatedCardStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: translateX.value },
+      { translateY: translateY.value },
+      { rotate: `${translateX.value * 0.07}deg` },
+    ],
+  }));
+
+  const animatedBackStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: backCardScale.value }],
+  }));
+
+  const likeOverlayStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(Math.max(translateX.value / 50, 0), 1),
+  }));
+
+  const passOverlayStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(Math.max(-translateX.value / 50, 0), 1),
+  }));
+
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      translateX.value = event.translationX;
+      translateY.value = event.translationY;
+      const progress = Math.min(Math.abs(event.translationX) / 120, 1);
+      backCardScale.value = 1 + progress * 0.04;
+    })
+    .onEnd((event) => {
+      if (Math.abs(event.translationX) > 120) {
+        const flyX = event.translationX > 0 ? 500 : -500;
+        const liked = event.translationX > 0;
+        translateX.value = withTiming(flyX, { duration: 200 }, () => {
+          translateX.value = 0;
+          translateY.value = 0;
+          backCardScale.value = 1;
+          if (liked) {
+            runOnJS(handleLike)();
+          } else {
+            runOnJS(handlePass)();
+          }
+        });
+        translateY.value = withTiming(0, { duration: 200 });
+      } else {
+        translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
+        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+        backCardScale.value = withSpring(1, { damping: 20, stiffness: 300 });
+      }
+    });
 
   return (
     <View style={styles.container}>
@@ -261,7 +353,6 @@ export default function DatingScreen() {
         style={StyleSheet.absoluteFill}
       />
       <View
-        key={profile?.id || 'empty-dating-profile'}
         style={[
           styles.content,
           { flex: 1, paddingTop: insets.top, paddingBottom: insets.bottom + 116 },
@@ -278,18 +369,31 @@ export default function DatingScreen() {
             <ArrowLeft size={25} color="#fff" strokeWidth={2.6} />
           </Pressable>
           <Text style={styles.title}>People You May Like</Text>
-          <View style={{ width: 44 }} />
+          <Pressable
+            accessibilityLabel="Advanced filters"
+            style={styles.backButton}
+            onPress={handleAdvancedFilters}
+          >
+            <SlidersHorizontal size={22} color="#fff" strokeWidth={2.5} />
+          </Pressable>
         </View>
 
         {profile ? (
-          <ProfileHeader
-            profile={profile}
-            liked={alreadyLiked}
-            onPass={handlePass}
-            onLike={handleLike}
-            onReply={() => handleOpenReply(firstPrompt)}
-            stageHeight={screenHeight * 0.64}
-          />
+          <GestureDetector gesture={panGesture}>
+            <ProfileHeader
+              profile={profile}
+              liked={alreadyLiked}
+              onPass={handlePass}
+              onLike={handleLike}
+              onReply={() => handleOpenReply(firstPrompt)}
+              stageHeight={screenHeight * 0.64}
+              animatedCardStyle={animatedCardStyle}
+              animatedBackFarStyle={animatedBackStyle}
+              animatedBackNearStyle={animatedBackStyle}
+              likeOverlayStyle={likeOverlayStyle}
+              passOverlayStyle={passOverlayStyle}
+            />
+          </GestureDetector>
         ) : (
           <View style={[styles.heroStage, styles.emptyState, { height: screenHeight * 0.64 }]}>
             <ActivityIndicator color="#fff" />
@@ -823,5 +927,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '800',
+  },
+  overlay: {
+    position: 'absolute',
+    top: 40,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 12,
+    zIndex: 10,
+    borderWidth: 4,
+  },
+  likeOverlay: {
+    left: 20,
+    borderColor: '#4CAF50',
+    backgroundColor: 'rgba(76,175,80,0.3)',
+    transform: [{ rotate: '-15deg' }],
+  },
+  passOverlay: {
+    right: 20,
+    borderColor: '#FF5252',
+    backgroundColor: 'rgba(255,82,82,0.3)',
+    transform: [{ rotate: '15deg' }],
+  },
+  overlayText: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: 4,
   },
 });

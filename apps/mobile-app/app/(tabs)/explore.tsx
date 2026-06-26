@@ -860,7 +860,7 @@ export default function ExploreScreen() {
 
   const greeting = getGreeting();
 
-  const handleScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const handleScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     const now = Date.now();
     if (Math.abs(y - lastTabBarScrollY.current) < 18 && now - lastTabBarEmitAt.current < 120) {
@@ -869,7 +869,7 @@ export default function ExploreScreen() {
     lastTabBarScrollY.current = y;
     lastTabBarEmitAt.current = now;
     DeviceEventEmitter.emit('tabBarScroll', y);
-  };
+  }, []);
 
   const exploreSections = useMemo<ExploreSection[]>(
     () => [
@@ -1066,16 +1066,27 @@ export default function ExploreScreen() {
         contentContainerStyle={{ paddingBottom: insets.bottom + 60 }}
         data={exploreSections}
         keyExtractor={(section) => section.key}
-        renderItem={({ item }) => item.render()}
-        extraData={{
-          allScenesY,
-          cityFilter,
-          dateFilter,
-          categoryFilter,
-          quickFilter,
-          refreshing,
-          showCityModal,
-        }}
+        renderItem={useCallback(({ item }: any) => item.render(), [])}
+        extraData={useMemo(
+          () => ({
+            allScenesY,
+            cityFilter,
+            dateFilter,
+            categoryFilter,
+            quickFilter,
+            refreshing,
+            showCityModal,
+          }),
+          [
+            allScenesY,
+            cityFilter,
+            dateFilter,
+            categoryFilter,
+            quickFilter,
+            refreshing,
+            showCityModal,
+          ],
+        )}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

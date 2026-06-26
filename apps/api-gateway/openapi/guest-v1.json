@@ -169,6 +169,14 @@
         ]
       }
     },
+    "/users/me/subscription": {
+      "get": {
+        "operationId": "getGuestSubscriptionSummary",
+        "tags": [
+          "profiles"
+        ]
+      }
+    },
     "/guest-profiles/{id}": {
       "get": {
         "operationId": "getGuestPublicProfile",

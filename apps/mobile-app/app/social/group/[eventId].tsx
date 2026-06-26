@@ -122,6 +122,7 @@ export default function EventGroupChatScreen() {
   const messagesListRef = useRef<FlashListRef<GroupMessage>>(null);
 
   const [messages, setMessages] = useState<GroupMessage[]>([]);
+  const [tempMessages, setTempMessages] = useState<GroupMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -142,10 +143,15 @@ export default function EventGroupChatScreen() {
 
   const demoEventChat = DEMO_EVENT_CHATS.find((chat) => chat.eventId === eventId);
   const phaseInfo = getPhaseInfo(phase);
-  const visibleMessages = useMemo(
-    () => messages.filter((message) => !hiddenMessageIds.has(message.id)),
-    [hiddenMessageIds, messages],
-  );
+  const visibleMessages = useMemo(() => {
+    const filtered = messages.filter((message) => !hiddenMessageIds.has(message.id));
+    for (const tm of tempMessages) {
+      if (!filtered.find((m) => m.id === tm.id)) {
+        filtered.push(tm);
+      }
+    }
+    return filtered;
+  }, [hiddenMessageIds, messages, tempMessages]);
   const theme: ChatSurfaceTheme = {
     mode: 'event',
     title: eventTitle || demoEventChat?.eventTitle || 'Event group',
@@ -211,9 +217,6 @@ export default function EventGroupChatScreen() {
           if (!active) return;
           setMessages(newMessages);
           setLoading(false);
-          setTimeout(() => {
-            messagesListRef.current?.scrollToEnd({ animated: true });
-          }, 100);
         });
         unsubscribeTyping = subscribeToGroupTyping(eventId!, user!.uid, (status) => {
           if (active) setTypingStatus(status);
@@ -245,12 +248,28 @@ export default function EventGroupChatScreen() {
     await setGroupTypingStatus(eventId, user.uid, user.displayName || 'Guest', false);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempMsg: GroupMessage = {
+      id: tempId,
+      eventId,
+      senderId: user.uid,
+      senderName: user.displayName || 'Guest',
+      senderAvatar: user.photoURL || undefined,
+      content: messageContent,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      isDeleted: false,
+    };
+    setTempMessages((current) => [...current, tempMsg]);
+
     const result = await sendGroupMessage(
       eventId,
       user.uid,
       user.displayName || 'Guest',
       messageContent,
     );
+
+    setTempMessages((current) => current.filter((m) => m.id !== tempId));
 
     if (!result.success) {
       Alert.alert('Error', result.error || 'Failed to send message');
@@ -360,29 +379,36 @@ export default function EventGroupChatScreen() {
 
   const activeTyper = typingStatus.isTyping ? typingStatus.users[0] : null;
 
+  const flashListExtraData = useMemo(
+    () => ({ activeTyper, userId: user?.uid, messageCount: visibleMessages.length }),
+    [activeTyper, user?.uid, visibleMessages.length],
+  );
+
   const renderMessage = useCallback(
     ({ item, index }: { item: GroupMessage; index: number }) => (
-      <BrightMessage
-        content={item.content}
-        time={formatChatTime(item.createdAt, 'en-IN')}
-        senderName={item.senderName}
-        senderAvatar={item.senderAvatar}
-        type={
-          item.type === 'announcement'
-            ? 'announcement'
-            : item.type === 'system'
-              ? 'system'
-              : item.type === 'image'
-                ? 'image'
-                : 'text'
-        }
-        isOwnMessage={item.senderId === user?.uid}
-        index={index}
-        animate={index >= visibleMessages.length - 1}
-        onLongPress={() => handleMessageOptions(item)}
-      />
+      <View style={styles.flip}>
+        <BrightMessage
+          content={item.content}
+          time={formatChatTime(item.createdAt, 'en-IN')}
+          senderName={item.senderName}
+          senderAvatar={item.senderAvatar}
+          type={
+            item.type === 'announcement'
+              ? 'announcement'
+              : item.type === 'system'
+                ? 'system'
+                : item.type === 'image'
+                  ? 'image'
+                  : 'text'
+          }
+          isOwnMessage={item.senderId === user?.uid}
+          index={index}
+          animate={index < 5}
+          onLongPress={() => handleMessageOptions(item)}
+        />
+      </View>
     ),
-    [handleMessageOptions, user?.uid, visibleMessages.length],
+    [handleMessageOptions, user?.uid],
   );
 
   const messageListEmpty = useMemo(() => {
@@ -466,22 +492,26 @@ export default function EventGroupChatScreen() {
 
         <FlashList
           ref={messagesListRef}
-          data={loading ? [] : visibleMessages}
+          data={loading ? [] : [...visibleMessages].reverse()}
           renderItem={renderMessage}
           keyExtractor={(message) => message.id}
           drawDistance={500}
-          style={styles.messages}
+          style={styles.messagesFlipped}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
-          ListEmptyComponent={messageListEmpty}
-          ListFooterComponent={
-            activeTyper ? <BrightTypingIndicator name={activeTyper.userName} /> : null
+          ListEmptyComponent={<View style={styles.flip}>{messageListEmpty}</View>}
+          ListHeaderComponent={
+            activeTyper ? (
+              <View style={styles.flip}>
+                <BrightTypingIndicator name={activeTyper.userName} />
+              </View>
+            ) : null
           }
-          extraData={{ activeTyper, userId: user?.uid, messageCount: visibleMessages.length }}
+          extraData={flashListExtraData}
         />
       </SafeAreaView>
 
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <SafeAreaView edges={['bottom']}>
           <BrightComposerDock>
             <BrightToolButton
@@ -658,6 +688,13 @@ const styles = StyleSheet.create({
     minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  messagesFlipped: {
+    flex: 1,
+    transform: [{ scaleY: -1 }],
+  },
+  flip: {
+    transform: [{ scaleY: -1 }],
   },
   loaderText: {
     color: '#FFFFFF',

@@ -274,8 +274,7 @@ export default function NotificationsScreen() {
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
 
-  // Toggle this to instantly view the DITTO replica Empty State from the design
-  const forceShowEmptyState = true;
+  const forceShowEmptyState = false;
 
   // Hooks must precede any early return to satisfy rules-of-hooks
   useEffect(() => {

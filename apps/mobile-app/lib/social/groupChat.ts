@@ -97,7 +97,7 @@ export async function getEventGroupChat(eventId: string): Promise<{
       participantCount: event.stats?.rsvps || 0,
     };
   } catch (error) {
-    console.error('Error getting group chat status:', error);
+    if (__DEV__) console.error('Error getting group chat status:', error);
     return { enabled: false, phase: 'expired', participantCount: 0 };
   }
 }
@@ -130,7 +130,7 @@ export async function sendGroupMessage(
 
     return { success: true, messageId: response.id };
   } catch (error: any) {
-    console.error('Error sending group message:', error);
+    if (__DEV__) console.error('Error sending group message:', error);
     return { success: false, error: error.message };
   }
 }
@@ -162,7 +162,7 @@ export async function sendGroupImageMessage(
 
     return { success: true, messageId: response.id };
   } catch (error: any) {
-    console.error('Error sending group image:', error);
+    if (__DEV__) console.error('Error sending group image:', error);
     return { success: false, error: error.message };
   }
 }
@@ -209,6 +209,7 @@ export function subscribeToGroupChat(
   let active = true;
   let unsubscribeWS: (() => void) | null = null;
   let pollIntervalId: ReturnType<typeof setInterval> | null = null;
+  let connectCheck: ReturnType<typeof setInterval> | null = null;
   const safeMessageLimit = clampMessageLimit(messageLimit);
   let latestMessages: GroupMessage[] = [];
 
@@ -233,13 +234,19 @@ export function subscribeToGroupChat(
     unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
   } else {
     // Check periodically for WS connection
-    const connectCheck = setInterval(() => {
+    connectCheck = setInterval(() => {
       if (wsManager.isConnected && !unsubscribeWS) {
         unsubscribeWS = wsManager.subscribe(`event:${eventId}`, wsHandler);
-        clearInterval(connectCheck);
+        if (connectCheck) clearInterval(connectCheck);
+        connectCheck = null;
       }
     }, 1000);
-    setTimeout(() => clearInterval(connectCheck), 10000);
+    setTimeout(() => {
+      if (connectCheck) {
+        clearInterval(connectCheck);
+        connectCheck = null;
+      }
+    }, 10000);
   }
 
   async function pollOnce() {
@@ -269,13 +276,18 @@ export function subscribeToGroupChat(
   // Initial fetch
   pollOnce();
 
-  // Slow polling fallback heals dropped WebSocket messages without hammering reads.
-  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS);
+  // Slow polling fallback with jitter to prevent thundering herd when many chats are active.
+  const jitterMs = Math.random() * 10_000;
+  pollIntervalId = setInterval(pollOnce, FALLBACK_POLL_INTERVAL_MS + jitterMs);
 
   return () => {
     active = false;
     if (unsubscribeWS) unsubscribeWS();
     if (pollIntervalId) clearInterval(pollIntervalId);
+    if (connectCheck) {
+      clearInterval(connectCheck);
+      connectCheck = null;
+    }
   };
 }
 
@@ -318,7 +330,7 @@ export async function getRecentGroupMessages(
       safeMessageLimit,
     );
   } catch (error) {
-    console.error('Error fetching group messages:', error);
+    if (__DEV__) console.error('Error fetching group messages:', error);
     return [];
   }
 }

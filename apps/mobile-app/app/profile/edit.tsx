@@ -3,7 +3,7 @@
  * Full-screen form for editing user profile
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -17,7 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { router, usePreventRemove } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -125,12 +125,52 @@ export default function EditProfileScreen() {
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [instagram, setInstagram] = useState('');
   const [spotify, setSpotify] = useState('');
+  const handleInstagramChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setInstagram(text);
+    },
+    [markDirty],
+  );
+  const handleSpotifyChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setSpotify(text);
+    },
+    [markDirty],
+  );
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
   // Validation
   const [errors, setErrors] = useState<{ name?: string }>({});
+
+  // Dirty tracking for unsaved changes warning
+  const initialValues = useRef({ displayName: '', bio: '', city: '', instagram: '', spotify: '' });
+  const [isDirty, setIsDirty] = useState(false);
+  const markDirty = useCallback(() => setIsDirty(true), []);
+  const handleNameChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setDisplayName(text);
+    },
+    [markDirty],
+  );
+  const handleBioChange = useCallback(
+    (text: string) => {
+      markDirty();
+      setBio(text);
+    },
+    [markDirty],
+  );
+
+  usePreventRemove(isDirty && !saved, ({ data }) => {
+    Alert.alert('Unsaved Changes', 'You have unsaved changes. Are you sure you want to leave?', [
+      { text: 'Stay', style: 'cancel', onPress: () => {} },
+      { text: 'Discard', style: 'destructive', onPress: () => data.action() },
+    ]);
+  });
 
   useEffect(() => {
     trackScreen('EditProfile');
@@ -146,12 +186,24 @@ export default function EditProfileScreen() {
     if (!user?.uid || hydratedUserId.current === user.uid) return;
     if (profileLoading && (!profile || profile.uid !== user.uid)) return;
 
-    setDisplayName(profile?.displayName ?? user.displayName ?? '');
-    setBio(profile?.bio ?? '');
-    setCity(profile?.city ?? '');
+    const name = profile?.displayName ?? user.displayName ?? '';
+    const bioVal = profile?.bio ?? '';
+    const cityVal = profile?.city ?? '';
+    const instaVal = profile?.instagram ?? '';
+    const spotVal = profile?.spotify ?? '';
+    setDisplayName(name);
+    setBio(bioVal);
+    setCity(cityVal);
     setPhotoURL(profile?.photoURL ?? user.photoURL ?? '');
-    setInstagram(profile?.instagram ?? '');
-    setSpotify(profile?.spotify ?? '');
+    setInstagram(instaVal);
+    setSpotify(spotVal);
+    initialValues.current = {
+      displayName: name,
+      bio: bioVal,
+      city: cityVal,
+      instagram: instaVal,
+      spotify: spotVal,
+    };
     hydratedUserId.current = user.uid;
   }, [user?.uid, user?.displayName, user?.photoURL, profile, profileLoading]);
 
@@ -304,13 +356,55 @@ export default function EditProfileScreen() {
 
   const handleSelectCity = () => {
     Alert.alert('Select City', 'Choose your home city', [
-      { text: 'Mumbai', onPress: () => setCity('Mumbai') },
-      { text: 'Delhi', onPress: () => setCity('Delhi') },
-      { text: 'Bangalore', onPress: () => setCity('Bangalore') },
-      { text: 'Pune', onPress: () => setCity('Pune') },
-      { text: 'Goa', onPress: () => setCity('Goa') },
-      { text: 'Hyderabad', onPress: () => setCity('Hyderabad') },
-      { text: 'Chennai', onPress: () => setCity('Chennai') },
+      {
+        text: 'Mumbai',
+        onPress: () => {
+          markDirty();
+          setCity('Mumbai');
+        },
+      },
+      {
+        text: 'Delhi',
+        onPress: () => {
+          markDirty();
+          setCity('Delhi');
+        },
+      },
+      {
+        text: 'Bangalore',
+        onPress: () => {
+          markDirty();
+          setCity('Bangalore');
+        },
+      },
+      {
+        text: 'Pune',
+        onPress: () => {
+          markDirty();
+          setCity('Pune');
+        },
+      },
+      {
+        text: 'Goa',
+        onPress: () => {
+          markDirty();
+          setCity('Goa');
+        },
+      },
+      {
+        text: 'Hyderabad',
+        onPress: () => {
+          markDirty();
+          setCity('Hyderabad');
+        },
+      },
+      {
+        text: 'Chennai',
+        onPress: () => {
+          markDirty();
+          setCity('Chennai');
+        },
+      },
       { text: 'Cancel', style: 'cancel' },
     ]);
   };
@@ -389,7 +483,7 @@ export default function EditProfileScreen() {
             <FormField
               label="Name"
               value={displayName}
-              onChangeText={setDisplayName}
+              onChangeText={handleNameChange}
               placeholder="Your full name"
               maxLength={50}
               delay={200}
@@ -399,7 +493,7 @@ export default function EditProfileScreen() {
             <FormField
               label="Bio"
               value={bio}
-              onChangeText={setBio}
+              onChangeText={handleBioChange}
               placeholder="Tell people a bit about yourself..."
               multiline
               maxLength={150}
@@ -421,11 +515,15 @@ export default function EditProfileScreen() {
                     'Link Instagram',
                     'Enter your Instagram username (without @):',
                     [
-                      { text: 'Remove', style: 'destructive', onPress: () => setInstagram('') },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => handleInstagramChange(''),
+                      },
                       { text: 'Cancel', style: 'cancel' },
                       {
                         text: 'Save',
-                        onPress: (text?: string) => setInstagram(text?.trim() || ''),
+                        onPress: (text?: string) => handleInstagramChange(text?.trim() || ''),
                       },
                     ],
                     'plain-text',
@@ -456,9 +554,16 @@ export default function EditProfileScreen() {
                     'Link Spotify',
                     'Enter your Spotify username or profile ID:',
                     [
-                      { text: 'Remove', style: 'destructive', onPress: () => setSpotify('') },
+                      {
+                        text: 'Remove',
+                        style: 'destructive',
+                        onPress: () => handleSpotifyChange(''),
+                      },
                       { text: 'Cancel', style: 'cancel' },
-                      { text: 'Save', onPress: (text?: string) => setSpotify(text?.trim() || '') },
+                      {
+                        text: 'Save',
+                        onPress: (text?: string) => handleSpotifyChange(text?.trim() || ''),
+                      },
                     ],
                     'plain-text',
                     spotify,

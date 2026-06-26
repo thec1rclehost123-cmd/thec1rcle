@@ -17,7 +17,7 @@ export async function getEmergencyContacts(uid: string): Promise<EmergencyContac
     const profile = response.profile || response.data?.profile || response;
     return (profile?.emergencyContacts as EmergencyContact[]) ?? [];
   } catch (error) {
-    console.error('Error fetching emergency contacts:', error);
+    if (__DEV__) console.error('Error fetching emergency contacts:', error);
     return [];
   }
 }
@@ -34,7 +34,7 @@ export async function saveEmergencyContacts(
     });
     return { success: true };
   } catch (error: any) {
-    console.error('Error saving emergency contacts:', error);
+    if (__DEV__) console.error('Error saving emergency contacts:', error);
     return { success: false, error: error.message };
   }
 }
@@ -87,7 +87,7 @@ export async function getCurrentLocation(): Promise<{
       longitude: location.coords.longitude,
     };
   } catch (error) {
-    console.error('Error getting location:', error);
+    if (__DEV__) console.error('Error getting location:', error);
     return null;
   }
 }

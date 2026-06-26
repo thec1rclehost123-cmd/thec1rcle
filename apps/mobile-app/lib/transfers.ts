@@ -33,7 +33,13 @@ export async function initiateTransfer(
   ticketDetails: { tierName: string; quantity: number } | { name: string; quantity: number },
   recipientEmail?: string,
   recipientPhone?: string,
-): Promise<{ success: boolean; transferId?: string; transferCode?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  transferId?: string;
+  transferCode?: string;
+  error?: string;
+  premiumRequired?: boolean;
+}> {
   try {
     // We use the Gateway's initiateFormalTransfer wrapper in api.ts
     const result = await initiateFormalTransfer({
@@ -43,7 +49,11 @@ export async function initiateTransfer(
 
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      ...(error.code === 'PREMIUM_REQUIRED' ? { premiumRequired: true } : {}),
+    };
   }
 }
 

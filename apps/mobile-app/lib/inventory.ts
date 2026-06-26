@@ -20,7 +20,7 @@ export function subscribeToEventInventory(
   onUpdate: (tickets: TicketTier[]) => void,
 ): () => void {
   if (!eventId || typeof eventId !== 'string') {
-    console.error('[Inventory] Invalid eventId:', eventId);
+    if (__DEV__) console.error('[Inventory] Invalid eventId:', eventId);
     return () => {};
   }
 
@@ -71,7 +71,7 @@ export async function checkAvailability(
       remaining: tier.remaining,
     };
   } catch (error) {
-    console.error('Error checking availability:', error);
+    if (__DEV__) console.error('Error checking availability:', error);
     return { available: false, remaining: 0 };
   }
 }
@@ -86,7 +86,7 @@ export async function getEventTickets(eventId: string): Promise<TicketTier[]> {
     const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
     return event?.tickets || [];
   } catch (error) {
-    console.error('Error fetching event tickets:', error);
+    if (__DEV__) console.error('Error fetching event tickets:', error);
     return [];
   }
 }

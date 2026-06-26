@@ -384,7 +384,12 @@ export async function finalizeRazorpayTicketPurchase({
   const ticketResult = await generateTicketsForOrder({ db, orderId });
 
   if (ticketResult?.order?.reservationId) {
-    await releaseReservation(ticketResult.order.reservationId).catch(() => undefined);
+    await releaseReservation(ticketResult.order.reservationId).catch((error) => {
+      console.error(
+        '[finalizeRazorpayTicketPurchase] Failed to release reservation:',
+        error?.message || error,
+      );
+    });
   }
 
   return {
@@ -505,10 +510,42 @@ function mapOrderForWallet(order, tickets, event) {
   };
 }
 
+const CHUNK_SIZE = 30;
+
+async function fetchDocsInChunks(db, collectionName, ids) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  const docs = [];
+  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
+    const snap = await db
+      .collection(collectionName)
+      .where('__name__', 'in', chunk)
+      .get()
+      .catch(() => null);
+    if (snap) {
+      snap.docs.forEach((doc) => docs.push(doc));
+    }
+  }
+  return docs;
+}
+
+async function fetchOrderDocsBulk(db, orderIds) {
+  const orderDocs = await fetchDocsInChunks(db, 'orders', orderIds);
+  const rsvpDocs = await fetchDocsInChunks(db, 'rsvp_orders', orderIds);
+  const byId = new Map();
+  orderDocs.forEach((doc) => byId.set(doc.id, { id: doc.id, ...doc.data(), isRSVP: false }));
+  rsvpDocs.forEach((doc) => {
+    if (!byId.has(doc.id)) {
+      byId.set(doc.id, { id: doc.id, ...doc.data(), isRSVP: true, source: 'rsvp' });
+    }
+  });
+  return byId;
+}
+
 export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
   if (!userId) throw codedError('Unauthorized', 'UNAUTHORIZED');
 
-  const ticketsSnap = await db.collection('tickets').where('userId', '==', userId).get();
+  const ticketsSnap = await db.collection('tickets').where('userId', '==', userId).limit(20).get();
   const tickets = ticketsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
 
   if (!tickets.length) {
@@ -520,32 +557,18 @@ export async function getUserTicketWallet({ db = getAdminDb(), userId }) {
   }
 
   const orderIds = [...new Set(tickets.map((ticket) => ticket.orderId).filter(Boolean))];
-  const orderDocs = await Promise.all(
-    orderIds.map(async (orderId) => {
-      const [orderDoc, rsvpDoc] = await Promise.all([
-        db.collection('orders').doc(orderId).get(),
-        db.collection('rsvp_orders').doc(orderId).get(),
-      ]);
-      if (orderDoc.exists) return { id: orderDoc.id, ...orderDoc.data(), isRSVP: false };
-      if (rsvpDoc.exists)
-        return { id: rsvpDoc.id, ...rsvpDoc.data(), isRSVP: true, source: 'rsvp' };
-      return null;
-    }),
-  );
-  const orders = orderDocs
-    .filter(Boolean)
-    .filter((order) => order.userId === userId && order.status === 'confirmed');
+  const orderMap = await fetchOrderDocsBulk(db, orderIds);
+
+  const orders = [];
+  orderIds.forEach((orderId) => {
+    const order = orderMap.get(orderId);
+    if (order && order.userId === userId && order.status === 'confirmed') {
+      orders.push(order);
+    }
+  });
 
   const eventIds = [...new Set(orders.map((order) => order.eventId).filter(Boolean))];
-  const eventDocs = await Promise.all(
-    eventIds.map((eventId) =>
-      db
-        .collection('events')
-        .doc(eventId)
-        .get()
-        .catch(() => null),
-    ),
-  );
+  const eventDocs = await fetchDocsInChunks(db, 'events', eventIds);
   const eventMap = new Map();
   eventDocs.forEach((doc) => {
     const event = eventFromDoc(doc);

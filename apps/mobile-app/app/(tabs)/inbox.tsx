@@ -3,17 +3,17 @@
  * Segment control: Event Chats | Private Chats
  * Matches the Venues/Hosts tab style.
  */
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
   ScrollView,
-  FlatList,
   Pressable,
   StyleSheet,
   Image,
   Modal,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router, useFocusEffect } from 'expo-router';
@@ -64,7 +64,13 @@ function getEventTimeBadge(eventDate: string): string {
 
 // ── Event chat card ───────────────────────────────────────────────────────────
 
-function EventChatCard({ chat, index }: { chat: EventChat; index: number }) {
+const EventChatCard = React.memo(function EventChatCard({
+  chat,
+  index,
+}: {
+  chat: EventChat;
+  index: number;
+}) {
   const isFirst = index === 0;
   const badge = getEventTimeBadge(chat.eventDate);
   const isLive = badge === 'LIVE NOW' || badge === 'STARTS SOON' || badge.startsWith('STARTS IN');
@@ -125,11 +131,11 @@ function EventChatCard({ chat, index }: { chat: EventChat; index: number }) {
       </View>
     </Pressable>
   );
-}
+});
 
 // ── Private chat row ──────────────────────────────────────────────────────────
 
-function PrivateChatRow({ chat }: { chat: DirectChat }) {
+const PrivateChatRow = React.memo(function PrivateChatRow({ chat }: { chat: DirectChat }) {
   return (
     <Pressable
       style={rowStyles.row}
@@ -176,7 +182,7 @@ function PrivateChatRow({ chat }: { chat: DirectChat }) {
       </View>
     </Pressable>
   );
-}
+});
 
 // ── Ditto Replica Empty State ─────────────────────────────────────────────────
 
@@ -461,7 +467,7 @@ export default function InboxScreen() {
   const cardWidth = (windowWidth - 32 - 12) / 2;
   const cardHeight = cardWidth * 1.33;
 
-  const { user } = useAuthStore();
+  const { user, isGuest } = useAuthStore();
   const {
     eventChats,
     privateChats,
@@ -472,14 +478,24 @@ export default function InboxScreen() {
     subscribeToUpdates,
   } = useChatStore();
 
+  const [refreshing, setRefreshing] = useState(false);
+
   useFocusEffect(
     React.useCallback(() => {
+      if (isGuest) return;
       if (!user?.uid) return;
       fetchAll(user.uid);
       const unsub = subscribeToUpdates(user.uid);
       return () => unsub();
-    }, [user?.uid]),
+    }, [user?.uid, isGuest]),
   );
+
+  const onRefresh = useCallback(() => {
+    if (!user?.uid) return;
+    setRefreshing(true);
+    fetchAll(user.uid);
+    setRefreshing(false);
+  }, [user?.uid, fetchAll]);
 
   const switchTab = (tab: Tab) => {
     if (tab === activeTab) return;
@@ -488,6 +504,10 @@ export default function InboxScreen() {
   };
 
   const newMatchCount = newMatches.filter((m) => m.isNew).length;
+
+  if (isGuest) {
+    return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  }
 
   const hasNoChats =
     !loading && eventChats.length === 0 && privateChats.length === 0 && newMatches.length === 0;
@@ -582,6 +602,13 @@ export default function InboxScreen() {
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.iris}
+              />
+            }
           >
             <Animated.View entering={FadeIn.duration(200)}>
               {privateChats.length > 0 ? (
@@ -602,6 +629,13 @@ export default function InboxScreen() {
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.iris}
+              />
+            }
           >
             <Animated.View entering={FadeIn.duration(200)}>
               {eventChats.length > 0 ? (
@@ -735,6 +769,118 @@ export default function InboxScreen() {
     </View>
   );
 }
+
+// ── Guest auth prompt ──────────────────────────────────────────────────────────
+
+function GuestAuthPrompt({ onDismiss }: { onDismiss: () => void }) {
+  const insets = useSafeAreaInsets();
+
+  return (
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <View style={guestStyles.root}>
+        <View style={guestStyles.iconWrap}>
+          <Sparkles size={36} color="#fff" />
+        </View>
+        <Text style={guestStyles.title}>Join THE C1RCLE</Text>
+        <Text style={guestStyles.subtitle}>
+          Create an account to buy tickets, chat with attendees, and RSVP.
+        </Text>
+        <Pressable
+          style={guestStyles.primaryBtn}
+          onPress={() => {
+            useAuthStore.getState().setGuestMode(false);
+            router.push('/(auth)/login');
+          }}
+        >
+          <Text style={guestStyles.primaryBtnText}>Log In</Text>
+        </Pressable>
+        <Pressable
+          style={guestStyles.secondaryBtn}
+          onPress={() => {
+            useAuthStore.getState().setGuestMode(false);
+            router.push('/(auth)/signup');
+          }}
+        >
+          <Text style={guestStyles.secondaryBtnText}>Sign Up</Text>
+        </Pressable>
+        <Pressable style={guestStyles.dismissBtn} onPress={onDismiss}>
+          <Text style={guestStyles.dismissText}>Continue Browsing</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const guestStyles = StyleSheet.create({
+  root: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    paddingBottom: 60,
+  },
+  iconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(139,92,246,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  title: {
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  subtitle: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+    paddingHorizontal: 12,
+  },
+  primaryBtn: {
+    backgroundColor: '#fff',
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  primaryBtnText: {
+    color: '#000',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryBtn: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    width: '100%',
+    height: 50,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  secondaryBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  dismissBtn: {
+    paddingVertical: 10,
+  },
+  dismissText: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+});
 
 // ── Event card styles ─────────────────────────────────────────────────────────
 

@@ -18,7 +18,9 @@ import * as Haptics from 'expo-haptics';
 import { ArrowLeft, MessageCircle } from 'lucide-react-native';
 import { colors, radii, spacing } from '@/lib/design/theme';
 import { MOCK_PROFILES } from '@/lib/data/mockDating';
+import { useAuthStore } from '@/store/authStore';
 import { useDatingStore } from '@/store/datingStore';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
 import type { DatingProfile, Prompt, DatingPhoto } from '@/lib/data/mockDating';
 
 type ReplyTarget = {
@@ -111,6 +113,8 @@ function ReplySheet({
 export default function DatingProfileScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
+  const { user } = useAuthStore();
+  const sendAskOut = useDatingStore((state) => state.sendAskOut);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
   const storeProfile = useDatingStore((state) =>
@@ -142,8 +146,14 @@ export default function DatingProfileScreen() {
     setReplyText('');
   };
 
-  const handleSendReply = () => {
+  const handleSendReply = async () => {
     if (!replyText.trim() || !replyTarget) return;
+    const target = replyTarget;
+    const message = replyText.trim();
+    if (user?.uid && (target.profile as any).userId) {
+      const result = await sendAskOut(user.uid, target.profile as any, message);
+      if (result.paywalled) return;
+    }
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setReplyTarget(null);
     setReplyText('');
@@ -184,9 +194,12 @@ export default function DatingProfileScreen() {
             style={StyleSheet.absoluteFill}
           />
           <View style={styles.heroInfo}>
-            <Text style={styles.heroName}>
-              {profile.name}, {profile.age}
-            </Text>
+            <View style={styles.heroNameRow}>
+              <Text style={styles.heroName}>
+                {profile.name}, {profile.age}
+              </Text>
+              <PremiumBadgeDot visible={(profile as any).isPremium === true} />
+            </View>
             <Text style={styles.heroHeadline}>{profile.headline}</Text>
           </View>
         </View>
@@ -194,7 +207,7 @@ export default function DatingProfileScreen() {
         <View style={styles.content}>
           <View style={styles.quickFacts}>
             <Text style={styles.quickFact}>{profile.distance}</Text>
-            <Text style={styles.quickFact}>{profile.sharedEvent}</Text>
+            <Text style={styles.quickFact}>{profile.sharedEventTitle}</Text>
             <Text style={styles.quickFact}>{profile.venue}</Text>
           </View>
 
@@ -298,6 +311,12 @@ const styles = StyleSheet.create({
     fontSize: 29,
     fontWeight: '800',
     letterSpacing: 0,
+    flexShrink: 1,
+  },
+  heroNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
   },
   heroHeadline: {
     color: 'rgba(255,255,255,0.82)',

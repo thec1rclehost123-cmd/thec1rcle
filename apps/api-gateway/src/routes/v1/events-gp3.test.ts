@@ -268,6 +268,7 @@ describe('event routes GP-3 conversion contracts', () => {
         datePreset: 'tonight',
         sort: 'heat',
       }),
+      [],
     );
     expect((server as any).eventService.listEvents).not.toHaveBeenCalled();
 
@@ -369,6 +370,7 @@ describe('event routes GP-3 conversion contracts', () => {
         datePreset: 'tonight',
         sort: 'heat',
       }),
+      [],
     );
     expect((server as any).publicDiscoveryService.listEvents).not.toHaveBeenCalled();
     expect((server as any).eventService.listEvents).not.toHaveBeenCalled();

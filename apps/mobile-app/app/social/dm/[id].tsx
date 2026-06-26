@@ -42,8 +42,12 @@ import {
   subscribeToDirectMessages,
   subscribeToDMTyping,
   reportMessage,
+  reportUser,
+  blockUser,
 } from '@/lib/social';
 import { useAuthStore } from '@/store/authStore';
+import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
+import { MoreVertical } from 'lucide-react-native';
 
 const fonts = typography.fontFamily;
 
@@ -87,21 +91,30 @@ export default function DirectMessageScreen() {
 
   const [conversation, setConversation] = useState<PrivateConversation | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
+  const [tempMessages, setTempMessages] = useState<DirectMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [otherUserId, setOtherUserId] = useState<string | undefined>(undefined);
   const [otherUserName, setOtherUserName] = useState(recipientName || 'Guest');
+  const [otherIsPremium, setOtherIsPremium] = useState(false);
   const [otherIsTyping, setOtherIsTyping] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | undefined>(undefined);
   const [sharedEvent, setSharedEvent] = useState<string | undefined>(undefined);
   const [hiddenMessageIds, setHiddenMessageIds] = useState<Set<string>>(() => new Set());
 
   const { canSend, cooldownSeconds, checkRateLimit } = useChatRateLimit();
-  const visibleMessages = useMemo(
-    () => messages.filter((message) => !hiddenMessageIds.has(message.id)),
-    [hiddenMessageIds, messages],
-  );
+  const visibleMessages = useMemo(() => {
+    const filtered = messages.filter((message) => !hiddenMessageIds.has(message.id));
+    const tempIds = new Set(tempMessages.map((m) => m.id));
+    for (const tm of tempMessages) {
+      if (!filtered.find((m) => m.id === tm.id)) {
+        filtered.push(tm);
+      }
+    }
+    return filtered;
+  }, [hiddenMessageIds, messages, tempMessages]);
 
   const typingHandler = useMemo(() => {
     if (conversationId && user?.uid) {
@@ -132,11 +145,17 @@ export default function DirectMessageScreen() {
               (participant) => participant !== user!.uid,
             );
             if (otherUserId) {
+              setOtherUserId(otherUserId);
               const profile = await apiFetch<any>(`/api/v1/profiles/${otherUserId}`, {
                 requireAuth: false,
               });
-              setOtherUserName(profile?.displayName || 'Guest');
-              setAvatarUrl(profile?.photoURL);
+              const publicProfile = profile?.data || profile;
+              setOtherUserName(publicProfile?.displayName || 'Guest');
+              setAvatarUrl(publicProfile?.photoURL);
+              setOtherIsPremium(
+                publicProfile?.isPremium === true ||
+                  publicProfile?.subscription?.tier === 'premium',
+              );
             }
           }
         } catch {
@@ -150,7 +169,6 @@ export default function DirectMessageScreen() {
       const unsubscribeMessages = subscribeToDirectMessages(conversationId, (nextMessages) => {
         if (active) {
           setMessages(nextMessages);
-          setTimeout(() => messagesListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       });
       const unsubscribeTyping = subscribeToDMTyping(conversationId, user.uid, (isTyping, name) => {
@@ -178,9 +196,24 @@ export default function DirectMessageScreen() {
     typingHandler.onBlur();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const tempMsg: DirectMessage = {
+      id: tempId,
+      conversationId,
+      senderId,
+      content,
+      type: 'text',
+      createdAt: new Date().toISOString(),
+      readAt: undefined,
+      isDeleted: false,
+    };
+    setTempMessages((current) => [...current, tempMsg]);
+
     try {
       await sendDirectMessage(conversationId, senderId, content);
+      setTempMessages((current) => current.filter((m) => m.id !== tempId));
     } catch (error: any) {
+      setTempMessages((current) => current.filter((m) => m.id !== tempId));
       Alert.alert('Error', error.message);
       setInputText(content);
     } finally {
@@ -244,6 +277,72 @@ export default function DirectMessageScreen() {
     [conversation?.eventId, conversationId, hideMessageLocally, restoreMessageLocally],
   );
 
+  const handleBlockUser = useCallback(async () => {
+    if (!otherUserId || !user?.uid) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert('Block User', `Are you sure you want to block ${otherUserName}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Block',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await blockUser(user.uid, otherUserId);
+          if (result.success) {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/inbox');
+            }
+          } else {
+            Alert.alert('Error', result.error || 'Failed to block user.');
+          }
+        },
+      },
+    ]);
+  }, [otherUserId, otherUserName, user?.uid]);
+
+  const handleReportUser = useCallback(() => {
+    if (!otherUserId || !user?.uid) return;
+    Alert.alert('Report User', `Report ${otherUserName} for inappropriate behaviour?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Report',
+        style: 'destructive',
+        onPress: async () => {
+          const result = await reportUser(user.uid, otherUserId, 'inappropriate_behaviour');
+          if (result.success) {
+            Alert.alert('Reported', 'Thank you. Our team will review this.');
+          } else {
+            Alert.alert('Error', result.error || 'Failed to report user.');
+          }
+        },
+      },
+    ]);
+  }, [otherUserId, otherUserName, user?.uid]);
+
+  const handleHeaderMenu = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Report User', 'Block User', 'Cancel'],
+          cancelButtonIndex: 2,
+          destructiveButtonIndex: 1,
+        },
+        (buttonIndex) => {
+          if (buttonIndex === 0) handleReportUser();
+          else if (buttonIndex === 1) handleBlockUser();
+        },
+      );
+    } else {
+      Alert.alert('Options', undefined, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Report User', style: 'destructive', onPress: handleReportUser },
+        { text: 'Block User', style: 'destructive', onPress: handleBlockUser },
+      ]);
+    }
+  }, [handleBlockUser, handleReportUser]);
+
   const handleMessageOptions = useCallback(
     (message: DirectMessage) => {
       if (message.senderId === user?.uid) return;
@@ -278,18 +377,20 @@ export default function DirectMessageScreen() {
 
   const renderMessage = useCallback(
     ({ item, index }: { item: DirectMessage; index: number }) => (
-      <BrightMessage
-        content={item.content}
-        time={formatChatTime(item.createdAt)}
-        senderAvatar={avatarUrl}
-        type={item.type === 'image' ? 'image' : 'text'}
-        isOwnMessage={item.senderId === user?.uid}
-        index={index}
-        animate={index >= visibleMessages.length - 1}
-        onLongPress={() => handleMessageOptions(item)}
-      />
+      <View style={styles.flip}>
+        <BrightMessage
+          content={item.content}
+          time={formatChatTime(item.createdAt)}
+          senderAvatar={avatarUrl}
+          type={item.type === 'image' ? 'image' : 'text'}
+          isOwnMessage={item.senderId === user?.uid}
+          index={index}
+          animate={index < 5}
+          onLongPress={() => handleMessageOptions(item)}
+        />
+      </View>
     ),
-    [avatarUrl, handleMessageOptions, user?.uid, visibleMessages.length],
+    [avatarUrl, handleMessageOptions, user?.uid],
   );
 
   const messageListEmpty = useMemo(
@@ -298,6 +399,17 @@ export default function DirectMessageScreen() {
   );
 
   const [isScrolled, setIsScrolled] = useState(false);
+
+  const flashListExtraData = useMemo(
+    () => ({
+      otherIsTyping,
+      otherUserName,
+      avatarUrl,
+      userId: user?.uid,
+      messageCount: visibleMessages.length,
+    }),
+    [otherIsTyping, otherUserName, avatarUrl, user?.uid, visibleMessages.length],
+  );
 
   if (loading) {
     return (
@@ -322,6 +434,21 @@ export default function DirectMessageScreen() {
               router.replace('/(tabs)/inbox');
             }
           }}
+          rightAccessory={
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              {otherUserId ? (
+                <Pressable
+                  onPress={handleHeaderMenu}
+                  hitSlop={8}
+                  style={styles.headerMenuBtn}
+                  accessibilityLabel="More options"
+                >
+                  <MoreVertical size={18} color="rgba(255,255,255,0.7)" strokeWidth={1.8} />
+                </Pressable>
+              ) : null}
+              <PremiumBadgeDot visible={otherIsPremium} />
+            </View>
+          }
         />
 
         {isPending && isRecipient ? (
@@ -351,11 +478,11 @@ export default function DirectMessageScreen() {
 
         <FlashList
           ref={messagesListRef}
-          data={visibleMessages}
+          data={[...visibleMessages].reverse()}
           renderItem={renderMessage}
           keyExtractor={(message) => message.id}
           drawDistance={440}
-          style={styles.messages}
+          style={styles.messagesFlipped}
           contentContainerStyle={styles.messagesContent}
           showsVerticalScrollIndicator={false}
           onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -364,24 +491,20 @@ export default function DirectMessageScreen() {
             else if (y <= 40 && isScrolled) setIsScrolled(false);
           }}
           scrollEventThrottle={16}
-          ListEmptyComponent={messageListEmpty}
-          ListFooterComponent={
+          ListEmptyComponent={<View style={styles.flip}>{messageListEmpty}</View>}
+          ListHeaderComponent={
             otherIsTyping ? (
-              <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} />
+              <View style={styles.flip}>
+                <BrightTypingIndicator name={otherUserName} avatarUrl={avatarUrl} />
+              </View>
             ) : null
           }
-          extraData={{
-            otherIsTyping,
-            otherUserName,
-            avatarUrl,
-            userId: user?.uid,
-            messageCount: visibleMessages.length,
-          }}
+          extraData={flashListExtraData}
         />
       </SafeAreaView>
 
       {isAccepted ? (
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <SafeAreaView edges={['bottom']}>
             <BrightComposerDock>
               <BrightTextInput
@@ -412,6 +535,13 @@ export default function DirectMessageScreen() {
 const styles = StyleSheet.create({
   conversation: {
     flex: 1,
+  },
+  headerMenuBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   loading: {
     flex: 1,
@@ -470,6 +600,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     borderRadius: radii.pill,
     backgroundColor: colors.iris,
+  },
+  messagesFlipped: {
+    flex: 1,
+    transform: [{ scaleY: -1 }],
+  },
+  flip: {
+    transform: [{ scaleY: -1 }],
   },
   requestSecondaryText: {
     color: '#121212',

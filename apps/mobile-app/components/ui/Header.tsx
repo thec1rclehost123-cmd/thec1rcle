@@ -40,7 +40,14 @@ export function Header({
       entering={animated ? FadeIn.duration(300) : undefined}
       style={[styles.container, { paddingTop: insets.top }, transparent && styles.transparent]}
     >
-      {!transparent && <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />}
+      {!transparent && (
+        <BlurView
+          experimentalBlurMethod="dimezisBlurView"
+          intensity={80}
+          tint="dark"
+          style={StyleSheet.absoluteFill}
+        />
+      )}
 
       <View style={styles.content}>
         {/* Left action */}

@@ -94,7 +94,7 @@ interface EventsState {
   hasMore: boolean;
 
   // Actions
-  fetchEvents: (city?: string) => Promise<void>;
+  fetchEvents: (city?: string, cursor?: string) => Promise<void>;
   fetchFeaturedEvents: () => Promise<void>;
   fetchPublicEvents: (options?: { limit?: number }) => Promise<void>;
   searchEvents: (filters: SearchFilters) => Promise<void>;
@@ -327,6 +327,8 @@ function buildQuery(params: Record<string, string | number | undefined>): string
   return query ? `?${query}` : '';
 }
 
+const pendingEventRequests = new Map<string, Promise<Event | null>>();
+
 async function fetchEventTickets(eventId: string): Promise<TicketTier[]> {
   const response = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(eventId)}/tickets`, {
     requireAuth: false,
@@ -349,20 +351,24 @@ export const useEventsStore = create<EventsState>((set, get) => ({
   lastId: null,
   hasMore: true,
 
-  fetchEvents: async (city?: string) => {
+  fetchEvents: async (city?: string, cursor?: string) => {
     if (get().loading) return;
     set({ loading: true, error: null });
 
     try {
       const response = await apiFetch<EventListResponse>(
-        `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest' })}`,
+        `/api/v1/events${buildQuery({ city, limit: 24, sort: 'soonest', cursor })}`,
         { requireAuth: false },
       );
-      const events = filterByCity(appendPublicDemoEvents(extractEvents(response)), city);
+      const incoming = filterByCity(appendPublicDemoEvents(extractEvents(response)), city);
+      const nextCursor = response.nextCursor || null;
+      const hasMore = !!nextCursor;
+
+      const events = cursor ? [...get().events, ...incoming] : incoming;
 
       events.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
-      set({ events, loading: false, lastId: null, hasMore: false });
+      set({ events, loading: false, lastId: nextCursor, hasMore });
     } catch (error: any) {
       console.error('Error fetching events:', error);
       if (PUBLIC_DEMO_MODE) {
@@ -465,33 +471,44 @@ export const useEventsStore = create<EventsState>((set, get) => ({
   },
 
   loadMoreEvents: async () => {
-    // fetchEvents loads the full collection at once; nothing more to page through
+    const { loading, hasMore, lastId } = get();
+    if (loading || !hasMore) return;
+    await get().fetchEvents(undefined, lastId || undefined);
   },
 
   getEventById: async (id: string): Promise<Event | null> => {
     if (!id || typeof id !== 'string') return null;
-    try {
-      const detail = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(id)}`, {
-        requireAuth: false,
-      });
-      const event = normalizeEvent(detail?.event || detail?.data?.event || detail);
-      const tickets = event.tickets?.length ? event.tickets : await fetchEventTickets(event.id);
-      return {
-        ...event,
-        tickets,
-        ticketTiers: tickets,
-        tiers: tickets,
-        minPrice: calculateMinPrice(event, tickets),
-        interestedData: detail?.interestedData || detail?.data?.interestedData,
-      };
-    } catch (error: any) {
-      console.warn('Error fetching event by id:', error);
-      if (PUBLIC_DEMO_MODE) {
-        const event = getDemoEvents().find((demoEvent) => demoEvent.id === id);
-        return event || null;
+
+    const existing = pendingEventRequests.get(id);
+    if (existing) return existing;
+
+    const promise = (async (): Promise<Event | null> => {
+      try {
+        const detail = await apiFetch<any>(`/api/v1/events/${encodeURIComponent(id)}`, {
+          requireAuth: false,
+        });
+        const event = normalizeEvent(detail?.event || detail?.data?.event || detail);
+        return {
+          ...event,
+          tickets: event.tickets,
+          ticketTiers: event.tickets,
+          tiers: event.tickets,
+          minPrice: calculateMinPrice(event, event.tickets || []),
+          interestedData: detail?.interestedData || detail?.data?.interestedData,
+        };
+      } catch (error: any) {
+        console.warn('Error fetching event by id:', error);
+        if (PUBLIC_DEMO_MODE) {
+          const demoEvent = getDemoEvents().find((demoEvent) => demoEvent.id === id);
+          return demoEvent || null;
+        }
+        return null;
       }
-      return null;
-    }
+    })();
+
+    void promise.finally(() => pendingEventRequests.delete(id));
+    pendingEventRequests.set(id, promise);
+    return promise;
   },
 
   clearSearch: () => {
@@ -520,7 +537,7 @@ export const useEventsStore = create<EventsState>((set, get) => ({
         categoryLoading: { ...s.categoryLoading, [category]: false },
       }));
     } catch (error: any) {
-      if (!error.isAbort) console.error(`Error fetching category ${category}:`, error);
+      if (!error.isAbort && __DEV__) console.error(`Error fetching category ${category}:`, error);
       if (PUBLIC_DEMO_MODE) {
         const events = filterByCity(filterByCategory(getDemoEvents(), category), city);
         set((s) => ({

@@ -17,7 +17,7 @@ export async function checkEventEntitlement(
     );
     return response.entitlement;
   } catch (error) {
-    console.error('Error checking entitlement:', error);
+    if (__DEV__) console.error('Error checking entitlement:', error);
     return null;
   }
 }
@@ -64,7 +64,7 @@ export async function getEventAttendees(
     );
     return response.attendees || [];
   } catch (error) {
-    console.error('Error fetching attendees:', error);
+    if (__DEV__) console.error('Error fetching attendees:', error);
     return [];
   }
 }
@@ -77,7 +77,7 @@ export async function getAttendeeCount(eventId: string): Promise<number> {
     const event = await apiFetch<any>(`/api/v1/events/${eventId}`, { requireAuth: false });
     return event?.stats?.rsvps || 0;
   } catch (error) {
-    console.error('Error counting attendees:', error);
+    if (__DEV__) console.error('Error counting attendees:', error);
     return 0;
   }
 }
@@ -102,7 +102,7 @@ export async function canInitiateDM(
     );
     return response;
   } catch (error: any) {
-    console.error('Error checking DM permissions:', error);
+    if (__DEV__) console.error('Error checking DM permissions:', error);
     return { allowed: false, reason: 'Unable to verify permissions' };
   }
 }

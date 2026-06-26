@@ -61,11 +61,27 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   subscribeToUpdates: (userId: string) => {
-    const { eventChats, privateChats } = get();
-    const unsubscribers: (() => void)[] = [];
+    const subscriptions = new Map<string, () => void>();
 
-    for (const chat of eventChats) {
-      if (chat.eventId) {
+    function syncSubscriptions() {
+      const { eventChats, privateChats } = get();
+      const activeEventIds = new Set(eventChats.map((c) => c.eventId).filter(Boolean));
+      const activePrivateIds = new Set(privateChats.map((c) => c.id).filter(Boolean));
+
+      for (const [key, unsub] of subscriptions) {
+        const [type, id] = [key.startsWith('event:') ? 'event' : 'private', key.split(':')[1]];
+        if (
+          (type === 'event' && !activeEventIds.has(id)) ||
+          (type === 'private' && !activePrivateIds.has(id))
+        ) {
+          unsub();
+          subscriptions.delete(key);
+        }
+      }
+
+      for (const chat of eventChats) {
+        const key = `event:${chat.eventId}`;
+        if (!chat.eventId || subscriptions.has(key)) continue;
         const unsub = subscribeToGroupChat(
           chat.eventId,
           (messages: GroupMessage[]) => {
@@ -90,12 +106,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
           },
           1,
         );
-        unsubscribers.push(unsub);
+        subscriptions.set(key, unsub);
       }
-    }
 
-    for (const chat of privateChats) {
-      if (chat.id) {
+      for (const chat of privateChats) {
+        const key = `private:${chat.id}`;
+        if (!chat.id || subscriptions.has(key)) continue;
         const unsub = subscribeToDirectMessages(
           chat.id,
           (messages) => {
@@ -115,10 +131,34 @@ export const useChatStore = create<ChatState>((set, get) => ({
           },
           1,
         );
-        unsubscribers.push(unsub);
+        subscriptions.set(key, unsub);
       }
     }
 
-    return () => unsubscribers.forEach((fn) => fn());
+    syncSubscriptions();
+
+    let prevEventIds = '';
+    let prevPrivateIds = '';
+    const unsubStore = useChatStore.subscribe((state) => {
+      const eventIds = state.eventChats
+        .map((c) => c.eventId)
+        .sort()
+        .join(',');
+      const privateIds = state.privateChats
+        .map((c) => c.id)
+        .sort()
+        .join(',');
+      if (eventIds !== prevEventIds || privateIds !== prevPrivateIds) {
+        prevEventIds = eventIds;
+        prevPrivateIds = privateIds;
+        syncSubscriptions();
+      }
+    });
+
+    return () => {
+      for (const unsub of subscriptions.values()) unsub();
+      subscriptions.clear();
+      unsubStore();
+    };
   },
 }));

@@ -68,13 +68,16 @@ export const useEventInterestStore = create<EventInterestState>((set, get) => ({
     try {
       const response = await apiFetch<any>('/api/v1/users/me', { requireAuth: true });
       const profile = response.profile || response.data?.profile || {};
-      const ids = new Set<string>(
-        [
-          ...(Array.isArray(profile.attendedEvents) ? profile.attendedEvents : []),
-          ...(Array.isArray(profile.interestedEvents) ? profile.interestedEvents : []),
-          ...(Array.isArray(profile.interestedEventIds) ? profile.interestedEventIds : []),
-        ].filter(Boolean),
-      );
+      const extractIds = (arr: any[]): string[] =>
+        arr
+          .map((item: any) => (typeof item === 'string' ? item : item?.id || item?.eventId || ''))
+          .filter(Boolean);
+      const ids = new Set<string>([
+        ...(Array.isArray(profile.interestedEventIds)
+          ? extractIds(profile.interestedEventIds)
+          : []),
+        ...(Array.isArray(profile.interestedEvents) ? extractIds(profile.interestedEvents) : []),
+      ]);
       set({ likedEventIds: ids });
     } catch (e) {
       console.warn('[EventInterestStore] loadUserInterests:', e);

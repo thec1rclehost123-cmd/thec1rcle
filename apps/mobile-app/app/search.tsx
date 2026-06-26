@@ -256,6 +256,11 @@ export default function SearchScreen() {
 
       const lowerQuery = searchQuery.toLowerCase();
 
+      const matchesCityFilter = (event: Event) =>
+        selectedCity === 'All Cities' ||
+        event.location?.includes(selectedCity) ||
+        event.city?.includes(selectedCity);
+
       // Search events
       const eventResults: SearchResult[] = events
         .filter((event) => {
@@ -265,10 +270,7 @@ export default function SearchScreen() {
             event.category?.toLowerCase().includes(lowerQuery) ||
             event.location?.toLowerCase().includes(lowerQuery);
 
-          const matchesCity =
-            selectedCity === 'All Cities' || event.location?.includes(selectedCity);
-
-          return matchesQuery && matchesCity;
+          return matchesQuery && matchesCityFilter(event);
         })
         .map((event) => ({
           id: event.id,
@@ -280,27 +282,45 @@ export default function SearchScreen() {
         }));
 
       // Filter by type if needed
-      let filteredResults = eventResults;
+      let filteredResults: SearchResult[] = [];
       if (activeFilter === 'venues') {
-        // Group by venue
         const venueMap = new Map<string, SearchResult>();
-        eventResults.forEach((r) => {
-          if (r.subtitle && !venueMap.has(r.subtitle)) {
-            const eventData = r.data as Event & { venueId?: string };
-            venueMap.set(r.subtitle, {
-              id: eventData.venueId || `venue-${r.subtitle}`,
+        events.filter(matchesCityFilter).forEach((event) => {
+          const venueName = event.venue || event.venueName || '';
+          const venueMatch = venueName.toLowerCase().includes(lowerQuery);
+          if (!venueMatch || !venueName) return;
+          if (!venueMap.has(venueName)) {
+            venueMap.set(venueName, {
+              id: event.venueId || `venue-${venueName}`,
               type: 'venue',
-              title: r.subtitle,
-              subtitle: `${events.filter((e) => e.venue === r.subtitle).length} events`,
-              imageUrl: r.imageUrl,
-              data: {
-                venueId: eventData.venueId,
-                query: r.subtitle,
-              },
+              title: venueName,
+              subtitle: `${events.filter((e) => (e.venue || e.venueName) === venueName).length} events`,
+              imageUrl: event.coverImage,
+              data: { venueId: event.venueId, query: venueName },
             });
           }
         });
         filteredResults = Array.from(venueMap.values());
+      } else if (activeFilter === 'hosts') {
+        const hostMap = new Map<string, SearchResult>();
+        events.filter(matchesCityFilter).forEach((event) => {
+          const hostName = event.hostName || '';
+          const hostMatch = hostName.toLowerCase().includes(lowerQuery);
+          if (!hostMatch || !hostName) return;
+          if (!hostMap.has(hostName)) {
+            hostMap.set(hostName, {
+              id: event.hostId || `host-${hostName}`,
+              type: 'host',
+              title: hostName,
+              subtitle: `${events.filter((e) => e.hostName === hostName).length} events`,
+              imageUrl: event.coverImage,
+              data: { hostId: event.hostId, query: hostName },
+            });
+          }
+        });
+        filteredResults = Array.from(hostMap.values());
+      } else {
+        filteredResults = eventResults;
       }
 
       setResults(filteredResults);
@@ -345,6 +365,11 @@ export default function SearchScreen() {
         setQuery(result.title);
         performSearch(result.title);
       }
+    } else if (result.type === 'host') {
+      router.push({
+        pathname: '/search',
+        params: { filter: 'events', q: result.title },
+      });
     }
   };
 

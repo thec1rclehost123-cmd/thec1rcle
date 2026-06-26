@@ -94,6 +94,7 @@ export interface DirectMessage {
   conversationId: string;
   senderId: string;
   content: string;
+  imageUrl?: string;
   type: 'text' | 'image';
   createdAt: any;
   readAt?: any;

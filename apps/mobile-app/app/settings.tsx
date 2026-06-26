@@ -30,6 +30,7 @@ import { trackScreen } from '@/lib/analytics';
 import { apiFetch } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
+import { getFirebaseAuth } from '@/lib/firebase';
 
 type IconTone =
   | 'account'
@@ -152,8 +153,13 @@ function SettingsRow({
 export default function SettingsScreen() {
   const { user, signOut } = useAuth();
   const insets = useSafeAreaInsets();
+  const profile = useProfileStore((state) => state.profile);
   const displayName =
     user?.displayName || user?.phoneNumber || user?.email?.split('@')[0] || 'Your account';
+  const isPrioritySupport = profile?.supportQueue === 'priority' || profile?.isPremium === true;
+  const supportMailto = isPrioritySupport
+    ? 'mailto:support@thec1rcle.com?subject=C1RCLE%20Premium%20Priority%20Support'
+    : 'mailto:support@thec1rcle.com?subject=C1RCLE%20Support';
 
   useEffect(() => {
     trackScreen('Settings');
@@ -182,6 +188,11 @@ export default function SettingsScreen() {
           onPress: async () => {
             try {
               await apiFetch('/api/v1/users/me', { method: 'DELETE' });
+              // Also delete the Firebase Auth account so it is fully removed
+              const auth = getFirebaseAuth();
+              if (auth.currentUser) {
+                await auth.currentUser.delete().catch(() => undefined);
+              }
               await AsyncStorage.clear();
               useProfileStore.getState().clearProfile();
               useAuthStore.getState().setUser(null);
@@ -316,7 +327,7 @@ export default function SettingsScreen() {
               </SettingIcon>
             }
             title="Contact Support"
-            onPress={() => openLink('mailto:support@thec1rcle.com')}
+            onPress={() => openLink(supportMailto)}
           />
           <Divider />
           <SettingsRow
@@ -355,7 +366,7 @@ export default function SettingsScreen() {
 
         <SectionLabel title="Build Info" delay={360} />
         <Group delay={380}>
-          <SettingsRow title="App Version" value="8.18.0" />
+          <SettingsRow title="App Version" value="1.0.0" />
           <Divider />
           <SettingsRow title="Build Version" value="2117" />
           <Divider />

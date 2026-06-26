@@ -122,6 +122,7 @@ function AttendeesSheet({
                   )}
                   {!subscribed ? (
                     <BlurView
+                      experimentalBlurMethod="dimezisBlurView"
                       intensity={72}
                       tint="light"
                       style={[StyleSheet.absoluteFill, styles.attendeeBlur]}

@@ -41,6 +41,7 @@ import { shareEventLink } from '@/lib/deeplinks';
 import { addToWallet, isWalletAvailable, type PassData } from '@/lib/wallet';
 import { safeDate, formatEventTime } from '@/lib/utils/date';
 import { type Order, type OrderTicket, useTicketsStore } from '@/store/ticketsStore';
+import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { buildCalendarEventUrl } from '@/lib/calendar';
 
 type ActiveSheet = 'share' | 'transfer' | null;
@@ -69,6 +70,7 @@ export default function TicketDetailScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
   const { getOrderById, fetchUserOrders } = useTicketsStore();
+  const openPaywall = useSubscriptionStore((state) => state.openPaywall);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -242,10 +244,20 @@ export default function TicketDetailScreen() {
       return;
     }
 
-    const response = await initiateFormalTransfer({
-      ticketId: claimedTicket.ticketId,
-      recipientEmail: email,
-    });
+    let response: any;
+    try {
+      response = await initiateFormalTransfer({
+        ticketId: claimedTicket.ticketId,
+        recipientEmail: email,
+      });
+    } catch (error: any) {
+      if (error.code === 'PREMIUM_REQUIRED') {
+        openPaywall('ticketTransfers', error.message);
+        return;
+      }
+      Alert.alert('Transfer failed', error.message || 'Unable to start the transfer.');
+      return;
+    }
     if (!response?.success) {
       Alert.alert('Transfer failed', response?.error || 'Unable to start the transfer.');
       return;
@@ -265,7 +277,17 @@ export default function TicketDetailScreen() {
       return;
     }
 
-    const response = await initiateFormalTransfer({ ticketId: claimedTicket.ticketId });
+    let response: any;
+    try {
+      response = await initiateFormalTransfer({ ticketId: claimedTicket.ticketId });
+    } catch (error: any) {
+      if (error.code === 'PREMIUM_REQUIRED') {
+        openPaywall('ticketTransfers', error.message);
+        return;
+      }
+      Alert.alert('Transfer failed', error.message || 'Unable to generate a transfer link.');
+      return;
+    }
     const token = response?.transfer?.token || response?.transferCode || response?.code;
     if (!response?.success || !token) {
       Alert.alert('Transfer failed', response?.error || 'Unable to generate a transfer link.');

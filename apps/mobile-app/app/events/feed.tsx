@@ -386,7 +386,12 @@ export default function ImmersiveFeedScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         {/* Search Capsule */}
         <View style={styles.topCapsuleContainer}>
-          <BlurView intensity={30} tint="dark" style={styles.topCapsule}>
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={30}
+            tint="dark"
+            style={styles.topCapsule}
+          >
             <Pressable
               hitSlop={15}
               onPress={() => {

@@ -28,6 +28,12 @@ export interface ProfileAnthem {
   externalUrl?: string | null;
 }
 
+export interface UserSubscription {
+  tier: 'free' | 'premium';
+  status?: string | null;
+  expiresAt?: string | null;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -69,6 +75,8 @@ export interface UserProfile {
   // Status
   isVerified?: boolean;
   isPremium?: boolean;
+  subscription?: UserSubscription;
+  supportQueue?: 'standard' | 'priority';
 }
 
 interface ProfileState {
@@ -125,6 +133,18 @@ function normalizeAnthem(value: unknown): ProfileAnthem | null | undefined {
   };
 }
 
+function normalizeSubscription(value: unknown, legacyPremium?: boolean): UserSubscription {
+  const raw = value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
+  const tier = raw.tier === 'premium' || legacyPremium === true ? 'premium' : 'free';
+  return {
+    tier,
+    status:
+      typeof raw.status === 'string' ? raw.status : tier === 'premium' ? 'active' : 'inactive',
+    expiresAt:
+      typeof raw.expiresAt === 'string' || raw.expiresAt === null ? raw.expiresAt : undefined,
+  };
+}
+
 function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProfile {
   const now = new Date().toISOString();
   const rawData = (data ?? {}) as Record<string, any>;
@@ -154,7 +174,15 @@ function normalizeProfile(userId: string, data?: Partial<UserProfile>): UserProf
     connections: data?.connections,
     vibeTags: data?.vibeTags,
     isVerified: data?.isVerified,
-    isPremium: data?.isPremium,
+    subscription: normalizeSubscription(rawData.subscription, rawData.isPremium === true),
+    isPremium:
+      rawData.isPremium === true ||
+      rawData.subscription?.tier === 'premium' ||
+      rawData.subscriptionTier === 'premium',
+    supportQueue:
+      rawData.supportQueue === 'priority' || rawData.subscription?.tier === 'premium'
+        ? 'priority'
+        : 'standard',
     instagram: data?.instagram ?? '',
     spotify: data?.spotify ?? '',
     datingActive: rawData.datingActive === true,
@@ -213,10 +241,10 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
   },
 
   updateProfile: async (userId: string, updates: Partial<UserProfile>) => {
-    const { profile } = get();
     const now = new Date().toISOString();
+    const { profile: prevProfile } = get();
     const nextProfile = normalizeProfile(userId, {
-      ...(profile ?? {}),
+      ...(prevProfile ?? {}),
       ...updates,
       updatedAt: now,
     });
@@ -241,7 +269,8 @@ export const useProfileStore = create<ProfileState>((set, get) => ({
     } catch (error: any) {
       console.warn('Error updating profile:', error);
       set({ error: error.message });
-      if (profile) set({ profile }); // revert
+      // Re-fetch authoritative profile from server instead of reverting to stale snapshot
+      get().loadProfile(userId);
       return false;
     }
   },

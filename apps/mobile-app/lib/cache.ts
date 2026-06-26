@@ -43,7 +43,7 @@ export async function cacheData<T>(key: string, data: T, ttl: number = EVENTS_TT
     };
     await AsyncStorage.setItem(key, JSON.stringify(entry));
   } catch (error) {
-    console.warn('[Cache] Error caching data:', error);
+    if (__DEV__) console.warn('[Cache] Error caching data:', error);
   }
 }
 
@@ -64,7 +64,7 @@ export async function getCachedData<T>(
 
     return { data: parsed.data, isStale };
   } catch (error) {
-    console.warn('[Cache] Error getting cached data:', error);
+    if (__DEV__) console.warn('[Cache] Error getting cached data:', error);
     return { data: null, isStale: true };
   }
 }
@@ -87,7 +87,7 @@ export async function clearAllCaches(): Promise<void> {
       await AsyncStorage.multiRemove(cacheKeys);
     }
   } catch (error) {
-    console.warn('[Cache] Error clearing all caches:', error);
+    if (__DEV__) console.warn('[Cache] Error clearing all caches:', error);
   }
 }
 
@@ -220,6 +220,6 @@ async function revalidateInBackground<T>(
     await cacheData(key, freshData, ttl);
   } catch (error) {
     // Silent — we already have stale data showing
-    console.warn('[Cache] Background revalidation failed:', key);
+    if (__DEV__) console.warn('[Cache] Background revalidation failed:', key);
   }
 }

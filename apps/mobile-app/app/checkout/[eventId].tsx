@@ -411,9 +411,10 @@ export default function TicketSelectionScreen() {
       '#D915A8'
     : '#D915A8';
 
-  console.log(
-    "Checkout screen rendered with horizontal layout! If you don't see this, Metro cache is stuck.",
-  );
+  if (__DEV__)
+    console.log(
+      "Checkout screen rendered with horizontal layout! If you don't see this, Metro cache is stuck.",
+    );
 
   const handleProceed = () => {
     if (!event || selectedItems.length === 0) return;

@@ -21,6 +21,8 @@ import { commitInventory } from '@c1rcle/core/inventory-engine';
 import { telemetry } from '@c1rcle/core/telemetry';
 // @ts-ignore
 import { getAdminDb } from '@c1rcle/core/admin';
+// @ts-ignore
+import { assertCanCheckoutEvent } from '@c1rcle/core/subscription-service';
 
 /**
  * Optimized Checkout Orchestrator
@@ -58,6 +60,14 @@ export class CheckoutService {
     workspaceId?: string | null;
     options?: { queueId?: string | null };
   }): Promise<any> {
+    const event = await this.eventRepo.getById(
+      params.eventId,
+      params.workspaceId || (undefined as any),
+    );
+    if (!event) throw new Error('Event not found');
+    const db = await getAdminDb();
+    await assertCanCheckoutEvent(db, params.userId, event);
+
     telemetry.track('CHECKOUT_RESERVE_REQUESTED', {
       eventId: params.eventId,
       queueId: params.options?.queueId || null,
@@ -105,20 +115,10 @@ export class CheckoutService {
     });
 
     try {
-      const reservationResult = await this.inventory.reserve({
-        eventId,
-        userId: user.id,
-        deviceId: params.deviceId || null,
-        items: [item],
-        workspaceId,
-        reservationMinutes: params.reservationMinutes || 5,
-        strictMode: true,
-      });
-
-      const reservationId = reservationResult.reservationId;
-      const expiresAt = reservationResult.expiresAt;
       const event = await this.eventRepo.getById(eventId, workspaceId || (undefined as any));
       if (!event) throw this.withCode(new Error('Event not found'), 'NOT_FOUND');
+      const db = await getAdminDb();
+      const subscriptionContext = await assertCanCheckoutEvent(db, user.id, event);
 
       const maxTickets = (event as any).isRSVP
         ? 1
@@ -137,10 +137,24 @@ export class CheckoutService {
         }
       }
 
+      const reservationResult = await this.inventory.reserve({
+        eventId,
+        userId: user.id,
+        deviceId: params.deviceId || null,
+        items: [item],
+        workspaceId,
+        reservationMinutes: params.reservationMinutes || 5,
+        strictMode: true,
+      });
+
+      const reservationId = reservationResult.reservationId;
+      const expiresAt = reservationResult.expiresAt;
       const pricingResult = await calculatePricing({
         event,
         items: [item],
         userId: user.id,
+        subscriptionTier: subscriptionContext.subscription.tier,
+        waiveBookingFees: subscriptionContext.subscription.isPremium,
       });
 
       if (!pricingResult.success) {
@@ -312,6 +326,8 @@ export class CheckoutService {
         resolvedWorkspaceId || (undefined as any),
       );
       if (!event) throw new Error('Event not found');
+      const db = await getAdminDb();
+      const subscriptionContext = await assertCanCheckoutEvent(db, userId, event);
 
       const totalQuantity = reservation.items.reduce(
         (sum: number, item: any) => sum + (Number(item.quantity) || 0),
@@ -330,6 +346,8 @@ export class CheckoutService {
         promoCode,
         promoterCode,
         userId,
+        subscriptionTier: subscriptionContext.subscription.tier,
+        waiveBookingFees: subscriptionContext.subscription.isPremium,
       });
 
       if (!pricingResult.success) throw new Error(pricingResult.error);
@@ -356,7 +374,6 @@ export class CheckoutService {
 
       // Phase 1: Atomic Commit — RSVP uniqueness check runs inside the transaction
       // so concurrent requests cannot both pass the check before either writes.
-      const db = await getAdminDb();
       let createdOrder: any = null;
       await db.runTransaction(async (transaction: any) => {
         if ((event as any).isRSVP) {

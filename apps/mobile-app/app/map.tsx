@@ -766,7 +766,12 @@ export default function MapScreen() {
 
       {loading ? (
         <View style={mapStyles.loadingOverlay}>
-          <BlurView intensity={60} tint="dark" style={mapStyles.loadingBlur}>
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={60}
+            tint="dark"
+            style={mapStyles.loadingBlur}
+          >
             <View style={mapStyles.mapSkeletonCard}>
               <Skeleton width={54} height={54} borderRadius={27} />
               <View style={mapStyles.mapSkeletonCopy}>
@@ -792,7 +797,12 @@ export default function MapScreen() {
             }}
             style={mapStyles.backButton}
           >
-            <BlurView intensity={40} tint="dark" style={mapStyles.backButtonBlur}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={mapStyles.backButtonBlur}
+            >
               <Text style={mapStyles.backButtonText}>←</Text>
             </BlurView>
           </Pressable>
@@ -821,7 +831,12 @@ export default function MapScreen() {
             }}
             style={mapStyles.locationButton}
           >
-            <BlurView intensity={40} tint="dark" style={mapStyles.backButtonBlur}>
+            <BlurView
+              experimentalBlurMethod="dimezisBlurView"
+              intensity={40}
+              tint="dark"
+              style={mapStyles.backButtonBlur}
+            >
               <Text style={mapStyles.backButtonText}>📍</Text>
             </BlurView>
           </Pressable>
@@ -857,7 +872,12 @@ export default function MapScreen() {
           entering={SlideInUp.duration(250)}
           style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
         >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={80}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
           <View style={mapStyles.bottomCardInner}>
             <MapEventCard
               cluster={selectedCluster}
@@ -931,7 +951,12 @@ export default function MapScreen() {
           entering={SlideInUp.duration(250)}
           style={[mapStyles.bottomCard, { paddingBottom: insets.bottom + 8 }]}
         >
-          <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={80}
+            tint="dark"
+            style={StyleSheet.absoluteFill}
+          />
           <View style={mapStyles.bottomCardInner}>
             <MapVenueCard
               venue={selectedVenue}

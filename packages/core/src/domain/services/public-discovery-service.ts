@@ -842,7 +842,7 @@ export class PublicDiscoveryService {
     await bumpCacheVersion('search').catch(() => null);
   }
 
-  async listEvents(query: ListParams) {
+  async listEvents(query: ListParams, excludeUserIds?: string[]) {
     try {
       const limit = Math.min(Math.max(Number(query.limit) || 12, 1), 24);
       const searchNeedle = String(query.search || query.q || '')
@@ -870,7 +870,11 @@ export class PublicDiscoveryService {
           readModelVersion: item?.readModelVersion || EVENT_CARD_INDEX_VERSION,
         }),
       );
-      return filterGuestEventCards(normalizedItems, normalizedQuery);
+      const excludeSet = excludeUserIds?.length ? new Set(excludeUserIds) : null;
+      const filtered = excludeSet
+        ? normalizedItems.filter((item: any) => !excludeSet.has(item.hostId))
+        : normalizedItems;
+      return filterGuestEventCards(filtered, normalizedQuery);
     } catch (error: any) {
       if (
         String(error?.message || '')
@@ -881,14 +885,12 @@ export class PublicDiscoveryService {
           '[PublicDiscoveryService] listEvents: missing Firestore index — run index deployment',
           { query, error: error.message },
         );
-      } else {
-        console.error('[PublicDiscoveryService] listEvents failed', error);
       }
-      return { items: [], nextCursor: null, hasMore: false, appliedFilters: {} };
+      throw error;
     }
   }
 
-  async listFeaturedEvents(query: ListParams = {}) {
+  async listFeaturedEvents(query: ListParams = {}, excludeUserIds?: string[]) {
     try {
       const limit = Math.min(Math.max(Number(query.limit) || 6, 1), 12);
       const hostId = await this.resolveHostId(query);
@@ -934,10 +936,12 @@ export class PublicDiscoveryService {
           }),
         )
         .filter((event: any) => isCurrentOrUpcomingGuestEvent(event));
+      const excludeSet = excludeUserIds?.length ? new Set(excludeUserIds) : null;
       const seen = new Set();
       const items = filterGuestEventCards([...pinned, ...heat], normalizedQuery)
         .items.filter((event: any) => {
           if (!event?.id || seen.has(event.id)) return false;
+          if (excludeSet?.has(event.hostId)) return false;
           seen.add(event.id);
           return true;
         })
@@ -967,24 +971,17 @@ export class PublicDiscoveryService {
 
   async getEventDetail(idOrSlug: string) {
     const indexed = await this.events.getByIdOrSlug(idOrSlug);
-    let raw = indexed?.id
-      ? await this.db
-          .collection('events')
-          .doc(indexed.id)
-          .get()
-          .catch(() => null)
-      : null;
+    const resolvedId = indexed?.id || idOrSlug;
 
-    if (!raw?.exists) {
-      const direct = await this.db
-        .collection('events')
-        .doc(idOrSlug)
-        .get()
-        .catch(() => null);
-      if (direct?.exists) raw = direct;
-    }
+    const docSnap = await this.db
+      .collection('events')
+      .doc(resolvedId)
+      .get()
+      .catch(() => null);
 
-    if (!raw?.exists) {
+    let raw = docSnap?.exists ? docSnap : null;
+
+    if (!raw) {
       const slugSnap = await this.db
         .collection('events')
         .where('slug', '==', idOrSlug)
@@ -1026,7 +1023,7 @@ export class PublicDiscoveryService {
     return { event, interestedData };
   }
 
-  async listHosts(query: ListParams) {
+  async listHosts(query: ListParams, excludeUserIds?: string[]) {
     try {
       const limit = normalizeGuestDiscoveryLimit(query.limit, 12, 24);
       const orderByField = normalizeDiscoverySort(query.sort);
@@ -1037,6 +1034,7 @@ export class PublicDiscoveryService {
       let exhausted = false;
       const items: Record<string, any>[] = [];
       let nextCursor = requestCursor;
+      const excludeSet = excludeUserIds?.length ? new Set(excludeUserIds) : null;
 
       while (!exhausted) {
         const chunk = await this.hosts.queryList({
@@ -1055,7 +1053,7 @@ export class PublicDiscoveryService {
 
         for (const item of chunk) {
           const itemCursor = buildDiscoveryListCursor(item, orderByField);
-          if (matchesHostDiscoveryFilters(item, query)) {
+          if (matchesHostDiscoveryFilters(item, query) && !excludeSet?.has(item.id)) {
             if (items.length < limit) {
               items.push(item);
               nextCursor = itemCursor;
@@ -1134,7 +1132,7 @@ export class PublicDiscoveryService {
     };
   }
 
-  async listVenues(query: ListParams) {
+  async listVenues(query: ListParams, excludeUserIds?: string[]) {
     try {
       const limit = normalizeGuestDiscoveryLimit(query.limit, 12, 24);
       const orderByField = normalizeDiscoverySort(query.sort);
@@ -1145,6 +1143,7 @@ export class PublicDiscoveryService {
       let exhausted = false;
       const items: Record<string, any>[] = [];
       let nextCursor = requestCursor;
+      const excludeSet = excludeUserIds?.length ? new Set(excludeUserIds) : null;
 
       while (!exhausted) {
         const chunk = await this.venues.queryList({
@@ -1167,7 +1166,10 @@ export class PublicDiscoveryService {
 
         for (const item of chunk) {
           const itemCursor = buildDiscoveryListCursor(item, orderByField);
-          if (matchesVenueDiscoveryFilters(item, query)) {
+          if (
+            matchesVenueDiscoveryFilters(item, query) &&
+            !excludeSet?.has(item.ownerUid || item.id)
+          ) {
             if (items.length < limit) {
               items.push(item);
               nextCursor = itemCursor;
@@ -1265,7 +1267,7 @@ export class PublicDiscoveryService {
     };
   }
 
-  async search(query: string, limit = 6) {
+  async search(query: string, limit = 6, excludeUserIds?: string[]) {
     const needle = String(query || '')
       .trim()
       .toLowerCase();
@@ -1279,9 +1281,17 @@ export class PublicDiscoveryService {
       this.hosts.querySearchPrefix(needle, candidateLimit),
       this.venues.querySearchPrefix(needle, candidateLimit),
     ]);
-    const events = eventsResult.status === 'fulfilled' ? eventsResult.value : [];
-    const hosts = hostsResult.status === 'fulfilled' ? hostsResult.value : [];
-    const venues = venuesResult.status === 'fulfilled' ? venuesResult.value : [];
+    let events = eventsResult.status === 'fulfilled' ? eventsResult.value : [];
+    let hosts = hostsResult.status === 'fulfilled' ? hostsResult.value : [];
+    let venues = venuesResult.status === 'fulfilled' ? venuesResult.value : [];
+
+    if (excludeUserIds?.length) {
+      const excludeSet = new Set(excludeUserIds);
+      events = events.filter((item: any) => !excludeSet.has(item.hostId));
+      hosts = hosts.filter((item: any) => !excludeSet.has(item.id));
+      venues = venues.filter((item: any) => !excludeSet.has(item.ownerUid || item.id));
+    }
+
     return rankGuestSearchGroups({ events, hosts, venues }, needle, limit);
   }
 }

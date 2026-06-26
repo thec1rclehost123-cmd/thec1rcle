@@ -43,7 +43,7 @@ describe('ticketsStore wallet sync', () => {
 
     await useTicketsStore.getState().fetchUserOrders('user_1');
     expect(useTicketsStore.getState().orders).toHaveLength(1);
-    expect(useTicketsStore.getState().orders[0].status).toBe('payment_pending');
+    expect(useTicketsStore.getState().orders[0].status).toBe('pending_payment');
     expect(useTicketsStore.getState().orders[0].bookingCode).toBe('AX9B21');
     expect(useTicketsStore.getState().orders[0].bookingCodes?.[0].bookingCode).toBe('AX9B21');
     expect(useTicketsStore.getState().orders[0].qrCodes?.[0].bookingCode).toBe('AX9B21');

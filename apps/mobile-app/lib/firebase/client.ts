@@ -301,7 +301,7 @@ export async function loginWithGoogle(): Promise<{ user: User }> {
     if (e?.code) {
       throw e;
     }
-    console.error('Google Sign-In failed:', e);
+    if (__DEV__) console.error('Google Sign-In failed:', e);
     throw new Error(
       e.message ||
         'Google Sign-In is not supported in this client. Please use Email or Apple Login instead.',

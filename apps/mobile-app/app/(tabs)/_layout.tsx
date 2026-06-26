@@ -123,7 +123,12 @@ function CustomTabBar({ state, navigation }: any) {
         tabBarStyle,
       ]}
     >
-      <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFill} />
+      <BlurView
+        experimentalBlurMethod="dimezisBlurView"
+        intensity={35}
+        tint="dark"
+        style={StyleSheet.absoluteFill}
+      />
 
       <View style={styles.tabBarContent}>
         <Animated.View style={[styles.highlightWrapper, highlightStyle]}>
@@ -136,7 +141,13 @@ function CustomTabBar({ state, navigation }: any) {
           const IconComp = Icon as any;
 
           return (
-            <Pressable key={route.key} onPress={() => handlePress(route)} style={styles.tabItem}>
+            <Pressable
+              key={route.key}
+              onPress={() => handlePress(route)}
+              style={styles.tabItem}
+              accessibilityLabel={TAB_LABELS[route.name as VisibleRoute]}
+              accessibilityRole="tab"
+            >
               <View style={styles.iconWrap}>
                 <IconComp size={22} color="#fff" strokeWidth={isFocused ? 2.5 : 2.0} />
                 <Text style={[styles.tabLabel, isFocused && styles.tabLabelActive]}>

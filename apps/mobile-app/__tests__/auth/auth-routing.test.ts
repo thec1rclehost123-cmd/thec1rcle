@@ -17,9 +17,13 @@ jest.mock('@/store/authStore', () => ({
   useAuthStore: jest.fn(),
 }));
 
-jest.mock('@/lib/firebase/profile', () => ({
-  isBasicUserProfileComplete: jest.fn(),
-}));
+jest.mock(
+  '../../lib/firebase/profile',
+  () => ({
+    isBasicUserProfileComplete: jest.fn(),
+  }),
+  { virtual: true },
+);
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   getItem: jest.fn(),
@@ -27,8 +31,9 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   removeItem: jest.fn(),
 }));
 
-const mockUseAuthStore = require('@/store/authStore').useAuthStore;
-const mockIsBasicUserProfileComplete = require('@/lib/firebase/profile').isBasicUserProfileComplete;
+const mockUseAuthStore = require('../../store/authStore').useAuthStore;
+const mockIsBasicUserProfileComplete =
+  require('../../lib/firebase/profile').isBasicUserProfileComplete;
 
 describe('Auth routing', () => {
   beforeEach(() => {

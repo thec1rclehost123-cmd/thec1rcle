@@ -75,14 +75,17 @@ class WebSocketManager {
   private connect() {
     if (!this.enabled) return;
 
-    let url = `${GATEWAY_URL}/ws/updates`;
-    if (this.token) url += `?token=${encodeURIComponent(this.token)}`;
+    const url = `${GATEWAY_URL}/ws/updates`;
 
     const ws = new WebSocket(url);
     this.ws = ws;
 
     ws.onopen = () => {
       this.retries = 0;
+      // Authenticate via message instead of query param to avoid token leakage
+      if (this.token) {
+        ws.send(JSON.stringify({ type: 'AUTH', token: this.token }));
+      }
       // Re-subscribe all active topics on reconnect
       for (const topic of this.subscriptions.keys()) {
         ws.send(JSON.stringify({ type: 'SUBSCRIBE', topic }));

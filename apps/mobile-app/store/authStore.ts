@@ -7,6 +7,7 @@ import { wsManager } from '@/lib/websocket';
 import { useProfileStore } from './profileStore';
 import { useNotificationsStore } from './notificationsStore';
 import { useTicketsStore } from './ticketsStore';
+import { useSubscriptionStore } from './subscriptionStore';
 
 interface AuthState {
   user: User | null;
@@ -15,9 +16,12 @@ interface AuthState {
   serverSynced: boolean;
   authSyncInProgress: boolean;
   authSyncError: string | null;
+  authSyncFailed: boolean;
+  isGuest: boolean;
   setUser: (user: User | null) => void;
   setLoading: (loading: boolean) => void;
   setInitialized: (initialized: boolean) => void;
+  setGuestMode: (isGuest: boolean) => void;
   profileSetupJustCompleted: boolean;
   setProfileSetupJustCompleted: (val: boolean) => void;
   onboardingJustCompleted: boolean;
@@ -31,12 +35,38 @@ export const useAuthStore = create<AuthState>((set) => ({
   serverSynced: false,
   authSyncInProgress: false,
   authSyncError: null,
+  authSyncFailed: false,
+  isGuest: false,
+  setGuestMode: (isGuest) => {
+    set({
+      isGuest,
+      user: null,
+      initialized: true,
+      loading: false,
+      serverSynced: false,
+      authSyncInProgress: false,
+      authSyncError: null,
+      authSyncFailed: false,
+    });
+    if (isGuest) {
+      useProfileStore.getState().clearProfile();
+      useNotificationsStore.getState().clearNotifications();
+      useTicketsStore.getState().clearOrders();
+      useSubscriptionStore.getState().clearSubscription();
+      try {
+        wsManager.stop();
+      } catch {
+        if (__DEV__) console.warn('[AuthStore] Failed to stop websocket after guest mode.');
+      }
+    }
+  },
   setUser: (user) => {
     if (user) {
-      console.warn('[AuthStore] Ignored direct authenticated user set before server sync.');
+      if (__DEV__)
+        console.warn('[AuthStore] Ignored direct authenticated user set before server sync.');
       return;
     }
-    set({ user: null, serverSynced: false });
+    set({ user: null, serverSynced: false, authSyncFailed: false });
   },
   setLoading: (loading) => set({ loading }),
   setInitialized: (initialized) => set({ initialized, loading: false }),
@@ -50,6 +80,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 export function initAuthListener() {
   let currentUserId: string | null = null;
   let authSequence = 0;
+  let authSyncRetryCount = 0;
   let syncRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
   function clearSyncRetry() {
@@ -90,6 +121,8 @@ export function initAuthListener() {
       serverSynced: true,
       authSyncInProgress: false,
       authSyncError: null,
+      authSyncFailed: false,
+      isGuest: false,
     });
   }
 
@@ -102,16 +135,24 @@ export function initAuthListener() {
       result.profile || result.user || result.data?.profile || result.data?.user;
     if (canonicalProfile) {
       useProfileStore.getState().setProfileFromGateway(user.uid, canonicalProfile);
+      useSubscriptionStore.getState().hydrateFromProfile(canonicalProfile);
     }
+    void useSubscriptionStore.getState().fetchSubscription();
   }
 
   function scheduleServerSyncRetry(user: User, sequence: number) {
     clearSyncRetry();
+    authSyncRetryCount += 1;
+    if (authSyncRetryCount >= 5) {
+      useAuthStore.setState({ authSyncFailed: true });
+      return;
+    }
+    const delay = Math.min(1000 * Math.pow(2, authSyncRetryCount), 30000);
     syncRetryTimer = setTimeout(() => {
       if (sequence === authSequence) {
         void hydrateAuthenticatedUser(user, sequence);
       }
-    }, 3000);
+    }, delay);
   }
 
   async function hydrateAuthenticatedUser(user: User, sequence: number) {
@@ -120,7 +161,8 @@ export function initAuthListener() {
       await syncAfterFirebaseAuth(user);
     } catch (error) {
       if (sequence !== authSequence) return;
-      console.warn('[AuthStore] Server auth sync failed after Firebase sign-in.', error);
+      if (__DEV__)
+        console.warn('[AuthStore] Server auth sync failed after Firebase sign-in.', error);
       setServerSyncFailed(error);
       scheduleServerSyncRetry(user, sequence);
       return;
@@ -138,7 +180,7 @@ export function initAuthListener() {
     try {
       void user.getIdToken().then((token) => wsManager.start(token));
     } catch {
-      console.warn('[AuthStore] Failed to start websocket after auth.');
+      if (__DEV__) console.warn('[AuthStore] Failed to start websocket after auth.');
     }
   }
 
@@ -146,6 +188,7 @@ export function initAuthListener() {
     authSequence += 1;
     const sequence = authSequence;
     clearSyncRetry();
+    authSyncRetryCount = 0;
 
     if (user) {
       markAuthSessionPending(user.uid);
@@ -160,14 +203,16 @@ export function initAuthListener() {
         serverSynced: false,
         authSyncInProgress: false,
         authSyncError: null,
+        authSyncFailed: false,
       });
       useProfileStore.getState().clearProfile();
       useNotificationsStore.getState().clearNotifications();
       useTicketsStore.getState().clearOrders();
+      useSubscriptionStore.getState().clearSubscription();
       try {
         wsManager.stop();
       } catch {
-        console.warn('[AuthStore] Failed to stop websocket after sign out.');
+        if (__DEV__) console.warn('[AuthStore] Failed to stop websocket after sign out.');
       }
     }
   });

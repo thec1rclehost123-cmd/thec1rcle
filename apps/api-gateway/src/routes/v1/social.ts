@@ -1,6 +1,8 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { FieldValue } from 'firebase-admin/firestore';
 import { buildErrorResponse, buildSuccessResponse } from '../../lib/api-contracts';
+import { getMutualBlockedUserIds } from '../../lib/blocked-users';
 // @ts-ignore
 import { followEntity, unfollowEntity, isFollowing } from '@c1rcle/core/follow-graph-engine';
 // @ts-ignore
@@ -97,7 +99,9 @@ const VenueFollowParams = z
 const SwipeBody = z
   .object({
     targetUserId: z.string(),
-    action: z.enum(['like', 'pass']),
+    action: z.enum(['like', 'pass', 'askOut']),
+    eventId: z.string().min(1).max(200).optional().nullable(),
+    message: z.string().trim().max(280).optional().nullable(),
   })
   .strict();
 
@@ -986,6 +990,16 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
         const batch = fastify.db.batch();
         snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+
+        const settingsRef = fastify.db.collection('users').doc(userId);
+        batch.set(
+          settingsRef,
+          {
+            settings: { blockedUsers: FieldValue.arrayRemove(targetUid) },
+          },
+          { merge: true },
+        );
+
         await batch.commit();
 
         return { success: true };
@@ -1234,6 +1248,9 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       );
 
     try {
+      const blockedIds = await getMutualBlockedUserIds(fastify, userId);
+      const blockedSet = new Set(blockedIds);
+
       const snapshot = await fastify.db
         .collection('privateConversations')
         .where('participants', 'array-contains', userId)
@@ -1242,7 +1259,11 @@ export default async function socialRoutes(fastify: FastifyInstance) {
 
       const requests = snapshot.docs
         .filter((doc) => doc.data().initiatedBy !== userId)
-        .map((doc) => ({ id: doc.id, ...doc.data() }));
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+        .filter((req: any) => {
+          const otherUid = (req.participants || []).find((p: string) => p !== userId);
+          return otherUid && !blockedSet.has(otherUid);
+        });
 
       return buildSuccessResponse({ requests });
     } catch (error: any) {
@@ -1491,15 +1512,13 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       try {
         const convoDoc = await fastify.db.collection('privateConversations').doc(id).get();
         if (!convoDoc.exists)
-          return reply
-            .status(404)
-            .send(
-              buildErrorResponse({
-                code: 'NOT_FOUND',
-                message: 'Not found',
-                requestId: request.id,
-              }),
-            );
+          return reply.status(404).send(
+            buildErrorResponse({
+              code: 'NOT_FOUND',
+              message: 'Not found',
+              requestId: request.id,
+            }),
+          );
         if (!(convoDoc.data() as any).participants?.includes(userId)) {
           return reply.status(403).send(
             buildErrorResponse({
@@ -1873,11 +1892,25 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       const { targetUid } = request.body;
 
       try {
-        await fastify.db.collection('userBlocks').add({
+        const batch = fastify.db.batch();
+
+        const blockRef = fastify.db.collection('userBlocks').doc();
+        batch.set(blockRef, {
           blockerUid: userId,
           blockedUid: targetUid,
           createdAt: new Date().toISOString(),
         });
+
+        const settingsRef = fastify.db.collection('users').doc(userId);
+        batch.set(
+          settingsRef,
+          {
+            settings: { blockedUsers: FieldValue.arrayUnion(targetUid) },
+          },
+          { merge: true },
+        );
+
+        await batch.commit();
 
         return { success: true };
       } catch (error: any) {
@@ -1950,6 +1983,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.get(
     '/social/discover',
     {
+      config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ querystring: DiscoverProfilesQuery })],
     },
     async (request: any, reply: any) => {
@@ -1989,6 +2023,7 @@ export default async function socialRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/social/swipe',
     {
+      config: { rateLimit: { max: 5, timeWindow: '10 seconds' } },
       preHandler: [fastify.validate({ body: SwipeBody })],
     },
     async (request: any, reply: any) => {
@@ -2010,6 +2045,10 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           userId,
           request.body.targetUserId,
           request.body.action,
+          {
+            eventId: request.body.eventId || null,
+            message: request.body.message || null,
+          },
         );
         return buildSuccessResponse(result);
       } catch (error: any) {
@@ -2018,13 +2057,15 @@ export default async function socialRoutes(fastify: FastifyInstance) {
           'POST /social/swipe failed',
         );
 
-        const code = error.message.includes('limit exceeded') ? 'TOO_MANY_REQUESTS' : 'BAD_REQUEST';
-        const status = error.message.includes('limit exceeded') ? 429 : 400;
+        const isPremiumRequired = error.code === 'PREMIUM_REQUIRED';
+        const code = isPremiumRequired ? 'PREMIUM_REQUIRED' : 'BAD_REQUEST';
+        const status = isPremiumRequired ? 403 : 400;
 
         return reply.status(status).send(
           buildErrorResponse({
             code,
             message: error.message,
+            details: error.details || null,
             requestId: request.id,
           }),
         );
@@ -2047,9 +2088,18 @@ export default async function socialRoutes(fastify: FastifyInstance) {
     }
 
     try {
+      const blockedIds = await getMutualBlockedUserIds(fastify, userId);
+      const blockedSet = new Set(blockedIds);
+
       const { getUserMatches } = await import('@c1rcle/core/guest-dating-service');
       const matches = await getUserMatches(fastify.db, userId);
-      return buildSuccessResponse({ matches });
+
+      const filtered = (matches || []).filter((match: any) => {
+        const otherId = match.userId || match.uid || match.id;
+        return otherId && !blockedSet.has(otherId);
+      });
+
+      return buildSuccessResponse({ matches: filtered });
     } catch (error: any) {
       fastify.log.error(
         { requestId: request.id, userId, error: error.message },
@@ -2101,6 +2151,136 @@ export default async function socialRoutes(fastify: FastifyInstance) {
       }
     },
   );
+
+  /**
+   * GET /api/v1/social/my-chats
+   * Returns the current user's event chats and private conversations,
+   * filtering out conversations with blocked users (mutual blocking).
+   */
+  fastify.get('/social/my-chats', async (request: any, reply) => {
+    const userId = request.user?.uid;
+    if (!userId)
+      return reply.status(401).send(
+        buildErrorResponse({
+          code: 'UNAUTHORIZED',
+          message: 'Unauthorized',
+          requestId: request.id,
+        }),
+      );
+
+    try {
+      const blockedIds = await getMutualBlockedUserIds(fastify, userId);
+      const blockedSet = new Set(blockedIds);
+
+      // ── Private conversations (DMs) ────────────────────────────────────
+      const privateSnap = await fastify.db
+        .collection('privateConversations')
+        .where('participants', 'array-contains', userId)
+        .get();
+
+      const otherUids = new Set<string>();
+      const privateDocs: { id: string; data: any }[] = [];
+      for (const doc of privateSnap.docs) {
+        const data = doc.data();
+        const otherUid = (data.participants || []).find((p: string) => p !== userId);
+        if (!otherUid || blockedSet.has(otherUid)) continue;
+        otherUids.add(otherUid);
+        privateDocs.push({ id: doc.id, data });
+      }
+
+      // Batch-fetch other user profiles
+      const userProfiles = new Map<string, any>();
+      if (otherUids.size > 0) {
+        const userDocs = await Promise.all(
+          [...otherUids].map((uid) =>
+            fastify.db
+              .collection('users')
+              .doc(uid)
+              .get()
+              .catch(() => null),
+          ),
+        );
+        for (const doc of userDocs) {
+          if (doc?.exists) userProfiles.set(doc.id, doc.data());
+        }
+      }
+
+      const privateChats = privateDocs.map(({ id, data }) => {
+        const otherUid = (data.participants || []).find((p: string) => p !== userId);
+        const profile = otherUid ? userProfiles.get(otherUid) : null;
+        return {
+          id,
+          participants: data.participants,
+          eventId: data.eventId || null,
+          otherUserName: profile?.displayName || null,
+          otherUserAvatar: profile?.photoURL || profile?.avatar || null,
+          isOnline: false,
+          lastMessageTime: data.lastMessage?.createdAt || data.updatedAt || data.createdAt,
+          unreadCount: 0,
+          lastMessage: data.lastMessage?.content || null,
+          createdAt: data.createdAt,
+        };
+      });
+
+      // ── Event chats ────────────────────────────────────────────────────
+      const memberSnap = await fastify.db
+        .collection('chatMembers')
+        .where('userId', '==', userId)
+        .where('status', '==', 'active')
+        .get();
+
+      const eventChats: Record<string, any>[] = [];
+      const chatIds = memberSnap.docs.map((d: any) => d.data().chatId).filter(Boolean);
+      if (chatIds.length > 0) {
+        const chatDocs = await Promise.all(
+          chatIds.map((chatId: string) =>
+            fastify.db
+              .collection('chats')
+              .doc(chatId)
+              .get()
+              .catch(() => null),
+          ),
+        );
+        const memberByChatId = new Map<string, any>();
+        for (const doc of memberSnap.docs) {
+          memberByChatId.set(doc.data().chatId, doc.data());
+        }
+        for (const doc of chatDocs) {
+          if (!doc?.exists) continue;
+          const chatData = doc.data()!;
+          const memberData = memberByChatId.get(doc.id) || {};
+          eventChats.push({
+            id: doc.id,
+            eventId: chatData.eventId,
+            eventTitle: chatData.eventTitle || chatData.title || '',
+            eventDate: chatData.eventDate || null,
+            participants: [],
+            participantCount: chatData.participantCount || 0,
+            lastMessage: chatData.lastMessage || null,
+            createdAt: chatData.createdAt,
+            eventCover: chatData.eventCover || chatData.image || null,
+            unreadCount: memberData.unreadCount || 0,
+            activeAvatars: chatData.activeAvatars || [],
+          });
+        }
+      }
+
+      const totalUnread =
+        privateChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0) +
+        eventChats.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+
+      return { eventChats, privateChats, totalUnread };
+    } catch (error: any) {
+      fastify.log.error(`Error in GET /social/my-chats: ${error.message}`);
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
 }
 
 /**

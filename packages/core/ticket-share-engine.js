@@ -3,6 +3,7 @@ import { createHmac, randomBytes } from 'node:crypto';
 import { transferEntitlement } from '@c1rcle/core/entitlement-engine';
 import { deductInventory } from '@c1rcle/core/inventory-engine';
 import { getTicketSecret } from './secret-registry.js';
+import { getUserSubscriptionContext, PremiumRequiredError } from './subscription-service.js';
 
 function isFirebaseConfigured() {
   return true; // assumed to be configured in core environment
@@ -116,6 +117,34 @@ const ORDERS_COLLECTION = 'orders';
 const SHARE_BUNDLES_COLLECTION = 'share_bundles';
 const TICKET_ASSIGNMENTS_COLLECTION = 'ticket_assignments';
 const TRANSFERS_COLLECTION = 'transfers';
+
+async function assertCanCreateTransfer(db, senderId, ticketId) {
+  const context = await getUserSubscriptionContext(db, senderId);
+  const limit = context.limits.ticketTransfers;
+  if (limit === null || context.subscription.isPremium) return context;
+
+  const transferSnapshot = await db
+    .collection(TRANSFERS_COLLECTION)
+    .where('ticketId', '==', ticketId)
+    .where('senderId', '==', senderId)
+    .where('status', '==', 'accepted')
+    .limit(limit)
+    .get();
+
+  if (transferSnapshot.size >= limit) {
+    throw new PremiumRequiredError(
+      'Free members can transfer a ticket once. Premium unlocks unlimited transfers.',
+      {
+        feature: 'ticketTransfers',
+        ticketId,
+        tier: context.subscription.tier,
+        limit,
+      },
+    );
+  }
+
+  return context;
+}
 
 /**
  * Generate a non-guessable token for the share link or transfer
@@ -1403,6 +1432,8 @@ export async function initiateTransfer(ticketId, senderId, recipientEmail = null
     // If expired, we'll mark it as expired and continue to create a new one
     await existing.ref.update({ status: 'expired', updatedAt: new Date().toISOString() });
   }
+
+  await assertCanCreateTransfer(db, senderId, ticketId);
 
   // 4. Create Transfer Record
   const token = generateToken(20);
