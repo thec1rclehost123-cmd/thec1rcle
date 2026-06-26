@@ -1,4 +1,5 @@
-/* global jest, describe, beforeEach, it, expect, fetchMock */
+/* global jest, describe, beforeEach, it, expect */
+declare const fetchMock: any;
 
 jest.mock('../../lib/firebase', () => ({
   getFirebaseAuth: jest.fn(),

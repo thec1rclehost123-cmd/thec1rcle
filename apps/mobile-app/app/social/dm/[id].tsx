@@ -309,7 +309,7 @@ export default function DirectMessageScreen() {
         text: 'Report',
         style: 'destructive',
         onPress: async () => {
-          const result = await reportUser(user.uid, otherUserId, 'inappropriate_behaviour');
+          const result = await reportUser(user.uid, otherUserId, 'inappropriate');
           if (result.success) {
             Alert.alert('Reported', 'Thank you. Our team will review this.');
           } else {

@@ -186,7 +186,7 @@ export function handleDeepLink(url: string): void {
       break;
     case 'profile':
       if (params.userId) {
-        router.push(`/profile/${params.userId}`);
+        router.push(`/profile/${params.userId}` as any);
       }
       break;
     case 'chat':

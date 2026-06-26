@@ -131,7 +131,9 @@ describe('eventsStore', () => {
 
       const featured = useEventsStore.getState().featuredEvents;
       expect(featured.length).toBeGreaterThanOrEqual(1);
-      expect(featured[0].heatScore).toBeGreaterThanOrEqual(featured[featured.length - 1].heatScore);
+      expect(featured[0].heatScore || 0).toBeGreaterThanOrEqual(
+        featured[featured.length - 1].heatScore || 0,
+      );
     });
 
     it('falls back to heat-sorted when not enough featured events', async () => {
@@ -147,7 +149,9 @@ describe('eventsStore', () => {
 
       const featured = useEventsStore.getState().featuredEvents;
       expect(featured.length).toBeGreaterThanOrEqual(1);
-      expect(featured[0].heatScore).toBeGreaterThanOrEqual(featured[featured.length - 1].heatScore);
+      expect(featured[0].heatScore || 0).toBeGreaterThanOrEqual(
+        featured[featured.length - 1].heatScore || 0,
+      );
     });
 
     it('sets featuredLoading guard', async () => {

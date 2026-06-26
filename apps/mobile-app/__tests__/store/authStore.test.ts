@@ -1,4 +1,4 @@
-let mockAuthCallback = null;
+let mockAuthCallback: any = null;
 const mockUnsubscribe = jest.fn();
 const mockAppStateRemove = jest.fn();
 

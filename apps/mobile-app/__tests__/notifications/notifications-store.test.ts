@@ -18,7 +18,7 @@ const flushMicrotasks = async () => {
   await Promise.resolve();
 };
 
-const makeNotification = (overrides = {}) => ({
+const makeNotification = (overrides = {}): any => ({
   id: 'notif_1',
   type: 'event_reminder',
   title: 'Test Notification',

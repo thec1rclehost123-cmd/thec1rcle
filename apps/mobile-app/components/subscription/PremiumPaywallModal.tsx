@@ -87,7 +87,7 @@ export function PremiumPaywallModal() {
           {offerings.length > 0 && (
             <Text style={styles.pricingText}>
               {offerings[0].product.priceString}/
-              {offerings[0].packageType === 'lifetime' ? 'once' : 'month'}
+              {offerings[0].packageType === Purchases.PACKAGE_TYPE.LIFETIME ? 'once' : 'month'}
             </Text>
           )}
 

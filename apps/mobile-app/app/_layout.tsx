@@ -61,7 +61,7 @@ export default function RootLayout() {
           if (conversationId) router.push(`/social/dm/${conversationId}`);
           break;
         case 'match':
-          if (matchId) router.push(`/social/matches/${matchId}`);
+          if (matchId) router.push(`/social/matches/${matchId}` as any);
           break;
         case 'dm_request':
           if (conversationId) router.push(`/social/dm/${conversationId}`);
@@ -70,7 +70,7 @@ export default function RootLayout() {
           if (eventId) router.push(`/event/${eventId}`);
           break;
         default:
-          router.push('/(tabs)/notifications');
+          router.push('/(tabs)/notifications' as any);
           break;
       }
     });

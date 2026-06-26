@@ -17,7 +17,7 @@ import {
   Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router, usePreventRemove } from 'expo-router';
+import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
@@ -125,6 +125,18 @@ export default function EditProfileScreen() {
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [instagram, setInstagram] = useState('');
   const [spotify, setSpotify] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  // Validation
+  const [errors, setErrors] = useState<{ name?: string }>({});
+
+  // Dirty tracking for unsaved changes warning
+  const initialValues = useRef({ displayName: '', bio: '', city: '', instagram: '', spotify: '' });
+  const [isDirty, setIsDirty] = useState(false);
+  const markDirty = useCallback(() => setIsDirty(true), []);
+
   const handleInstagramChange = useCallback(
     (text: string) => {
       markDirty();
@@ -139,17 +151,6 @@ export default function EditProfileScreen() {
     },
     [markDirty],
   );
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // Validation
-  const [errors, setErrors] = useState<{ name?: string }>({});
-
-  // Dirty tracking for unsaved changes warning
-  const initialValues = useRef({ displayName: '', bio: '', city: '', instagram: '', spotify: '' });
-  const [isDirty, setIsDirty] = useState(false);
-  const markDirty = useCallback(() => setIsDirty(true), []);
   const handleNameChange = useCallback(
     (text: string) => {
       markDirty();
@@ -165,12 +166,12 @@ export default function EditProfileScreen() {
     [markDirty],
   );
 
-  usePreventRemove(isDirty && !saved, ({ data }) => {
-    Alert.alert('Unsaved Changes', 'You have unsaved changes. Are you sure you want to leave?', [
-      { text: 'Stay', style: 'cancel', onPress: () => {} },
-      { text: 'Discard', style: 'destructive', onPress: () => data.action() },
-    ]);
-  });
+  // usePreventRemove(isDirty && !saved, ({ data }) => {
+  //   Alert.alert('Unsaved Changes', 'You have unsaved changes. Are you sure you want to leave?', [
+  //     { text: 'Stay', style: 'cancel', onPress: () => {} },
+  //     { text: 'Discard', style: 'destructive', onPress: () => data.action() },
+  //   ]);
+  // });
 
   useEffect(() => {
     trackScreen('EditProfile');

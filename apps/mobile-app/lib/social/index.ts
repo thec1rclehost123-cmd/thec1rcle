@@ -2,7 +2,19 @@
 export * from './types';
 export * from './entitlements';
 export * from './groupChat';
-export * from './privateDM';
+export {
+  getExistingConversation,
+  initiateDMRequest,
+  acceptDMRequest,
+  declineDMRequest,
+  sendDirectMessage,
+  sendDirectImageMessage,
+  subscribeToDirectMessages,
+  getUserEventConversations,
+  getPendingDMRequests,
+  saveContact,
+  getSavedContacts,
+} from './privateDM';
 export * from './moderation';
 export * from './media';
 export * from './typing';

@@ -7,6 +7,7 @@ import {
   Text,
   TextInput,
   View,
+  ScrollView,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
@@ -483,6 +484,7 @@ export default function VenuesTab() {
         data={feedVenues}
         renderItem={renderVenueCard}
         keyExtractor={(item: Venue) => item.id}
+        // @ts-ignore
         estimatedItemSize={340}
         contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 180 }]}
         showsVerticalScrollIndicator={false}
