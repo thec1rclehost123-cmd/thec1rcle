@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import TicketModal from './TicketModal';
 import GuestlistModal from './GuestlistModal';
 import LikeButton from './LikeButton';
-import { formatEventDate } from '@c1rcle/core/time';
+import { formatEventDate, formatEventTime } from '@c1rcle/core/time';
 
 const avatarPalette = ['#FDE047', '#F43F5E', '#A855F7', '#38BDF8', '#34D399', '#F97316'];
 // 50-entry gender-assigned pool (35F + 15M = 7:3 ratio) for aesthetic social proof
@@ -366,12 +366,12 @@ export default function EventDetailPage({
   const scheduleEntries = useMemo(
     () =>
       [
-        event?.doorsOpen ? { label: 'Doors Open', time: event.doorsOpen } : null,
+        event?.doorsOpen ? { label: 'Doors Open', time: formatEventTime(event.doorsOpen) } : null,
         event?.startTime || event?.time
-          ? { label: 'Event Starts', time: event.startTime || event.time }
+          ? { label: 'Event Starts', time: formatEventTime(event.startTime || event.time) }
           : null,
-        event?.lastEntry ? { label: 'Last Entry', time: event.lastEntry } : null,
-        event?.endTime ? { label: 'Event Ends', time: event.endTime } : null,
+        event?.lastEntry ? { label: 'Last Entry', time: formatEventTime(event.lastEntry) } : null,
+        event?.endTime ? { label: 'Event Ends', time: formatEventTime(event.endTime) } : null,
       ].filter(Boolean),
     [event?.doorsOpen, event?.startTime, event?.time, event?.lastEntry, event?.endTime],
   );

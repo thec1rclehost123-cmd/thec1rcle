@@ -16,6 +16,23 @@ import {
 } from 'lucide-react';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
+function fmt12(t: string): string {
+  if (!t) return '';
+  const [h, m] = t.split(':').map(Number);
+  const h12 = h % 12 || 12;
+  return `${h12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
+const SELECT_TIMES: string[] = (() => {
+  const times = [];
+  for (let h = 0; h < 24; h++) {
+    const hh = String(h).padStart(2, '0');
+    times.push(`${hh}:00`);
+    times.push(`${hh}:30`);
+  }
+  return times;
+})();
+
 interface VenueCalendarPreviewProps {
   venueId: string;
   venueName: string;
@@ -489,23 +506,47 @@ export function VenueCalendarPreview({
                           <label className="text-[11px] font-semibold text-gray-500">
                             Doors Open
                           </label>
-                          <input
-                            type="time"
+                          <select
                             value={doorsOpen}
                             onChange={(e) => setDoorsOpen(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700"
-                          />
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700 appearance-none cursor-pointer"
+                          >
+                            {(() => {
+                              const options = [...SELECT_TIMES];
+                              if (doorsOpen && !options.includes(doorsOpen)) {
+                                options.push(doorsOpen);
+                                options.sort();
+                              }
+                              return options.map((t) => (
+                                <option key={t} value={t}>
+                                  {fmt12(t)}
+                                </option>
+                              ));
+                            })()}
+                          </select>
                         </div>
                         <div className="space-y-2">
                           <label className="text-[11px] font-semibold text-gray-500">
                             Last Entry
                           </label>
-                          <input
-                            type="time"
+                          <select
                             value={lastEntry}
                             onChange={(e) => setLastEntry(e.target.value)}
-                            className="w-full px-3 py-2 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700"
-                          />
+                            className="w-full px-3 py-2.5 rounded-xl bg-white border border-gray-200 text-sm focus:outline-none focus:border-indigo-500 transition-all text-gray-700 appearance-none cursor-pointer"
+                          >
+                            {(() => {
+                              const options = [...SELECT_TIMES];
+                              if (lastEntry && !options.includes(lastEntry)) {
+                                options.push(lastEntry);
+                                options.sort();
+                              }
+                              return options.map((t) => (
+                                <option key={t} value={t}>
+                                  {fmt12(t)}
+                                </option>
+                              ));
+                            })()}
+                          </select>
                         </div>
                       </div>
                     </div>

@@ -3,6 +3,8 @@
  * No React, no state — safe to import in server or client contexts.
  */
 
+import { formatEventTime } from '@c1rcle/core/time';
+
 export function truncateInfo(value, maxLength = 88) {
   if (!value) return '';
   const normalized = String(value).replace(/\s+/g, ' ').trim();
@@ -55,9 +57,12 @@ export function buildNeedToKnowItems(event, selectedTickets = []) {
     items.push({ label, value: normalized });
   };
 
-  pushItem('Doors', event?.doorsOpen || event?.doorsTime || event?.doorTime || event?.doors);
+  pushItem(
+    'Doors',
+    formatEventTime(event?.doorsOpen || event?.doorsTime || event?.doorTime || event?.doors),
+  );
   pushItem('Timing', formatNeedToKnowTime(event));
-  pushItem('Last entry', event?.lastEntry);
+  pushItem('Last entry', formatEventTime(event?.lastEntry));
 
   const ageRule = event?.ageRestriction || event?.ageLimit;
   if (ageRule && String(ageRule).toLowerCase() !== 'all') {

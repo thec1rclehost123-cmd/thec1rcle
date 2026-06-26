@@ -130,6 +130,16 @@ const BLOCK_TIMES: string[] = (() => {
   return out;
 })();
 
+const SELECT_TIMES: string[] = (() => {
+  const times = [];
+  for (let h = 0; h < 24; h++) {
+    const hh = String(h).padStart(2, '0');
+    times.push(`${hh}:00`);
+    times.push(`${hh}:30`);
+  }
+  return times;
+})();
+
 // ── Main component ──────────────────────────────────────────────────────────
 
 export function VenueEventCalendar() {
@@ -1137,16 +1147,28 @@ function RightPanel({
                   >
                     Doors Open
                   </label>
-                  <input
-                    type="time"
+                  <select
                     value={doorsOpen}
                     onChange={(e) => setDoorsOpen(e.target.value)}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500"
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
                     style={{
                       background: '#0f0f14',
                       borderColor: 'rgba(255,255,255,0.08)',
                     }}
-                  />
+                  >
+                    {(() => {
+                      const options = [...SELECT_TIMES];
+                      if (doorsOpen && !options.includes(doorsOpen)) {
+                        options.push(doorsOpen);
+                        options.sort();
+                      }
+                      return options.map((t) => (
+                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
+                          {fmt12(t)}
+                        </option>
+                      ));
+                    })()}
+                  </select>
                 </div>
                 <div>
                   <label
@@ -1155,16 +1177,28 @@ function RightPanel({
                   >
                     Last Entry
                   </label>
-                  <input
-                    type="time"
+                  <select
                     value={lastEntry}
                     onChange={(e) => setLastEntry(e.target.value)}
-                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500"
+                    className="w-full rounded-xl px-3.5 py-2.5 text-[13px] font-black text-white border transition-colors focus:outline-none focus:border-orange-500 appearance-none cursor-pointer"
                     style={{
                       background: '#0f0f14',
                       borderColor: 'rgba(255,255,255,0.08)',
                     }}
-                  />
+                  >
+                    {(() => {
+                      const options = [...SELECT_TIMES];
+                      if (lastEntry && !options.includes(lastEntry)) {
+                        options.push(lastEntry);
+                        options.sort();
+                      }
+                      return options.map((t) => (
+                        <option key={t} value={t} className="bg-[#0f0f14] text-white">
+                          {fmt12(t)}
+                        </option>
+                      ));
+                    })()}
+                  </select>
                 </div>
               </div>
 
