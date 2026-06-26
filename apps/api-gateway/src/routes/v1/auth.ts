@@ -670,6 +670,21 @@ export default async function authRoutes(fastify: FastifyInstance) {
         });
 
         await fastify.auth.updateUser(userId, { password: request.body.newPassword });
+
+        await fastify.db
+          .collection('users')
+          .doc(userId)
+          .update({
+            mustChangePassword: false,
+            updatedAt: new Date().toISOString(),
+          })
+          .catch((err: any) => {
+            fastify.log.error(
+              { err, userId },
+              'Failed to clear mustChangePassword flag in Firestore',
+            );
+          });
+
         return { success: true };
       } catch (error: any) {
         return reply.status(error?.statusCode || 400).send(

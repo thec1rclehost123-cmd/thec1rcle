@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   User,
   onAuthStateChanged,
@@ -53,6 +54,7 @@ interface MeApiResponse {
     _staffTabVisibility?: Record<string, boolean>;
     _staffActionPermissions?: Record<string, boolean>;
     _staffPiiPolicy?: Record<string, boolean>;
+    mustChangePassword?: boolean;
   } | null;
   // Gateway puts activeMembership here when loadMemberships succeeds.
   activeMembership?: MeActiveMembership | null;
@@ -98,6 +100,8 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function DashboardAuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<any | null>(null);
   const [profile, setProfile] = useState<DashboardProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +119,21 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
   // membershipId for periodic permission refresh (staff only)
   const [membershipId, setMembershipId] = useState<string | null>(null);
   const lastProfileFetchRef = useRef<number>(0);
+
+  useEffect(() => {
+    if (!loading && user && profile?.mustChangePassword) {
+      const isDashboardPath = pathname
+        ? pathname.startsWith('/venue') ||
+          pathname.startsWith('/host') ||
+          pathname.startsWith('/promoter') ||
+          pathname === '/'
+        : false;
+
+      if (isDashboardPath && pathname !== '/auth/change-password') {
+        router.replace('/auth/change-password');
+      }
+    }
+  }, [loading, user, profile, pathname, router]);
 
   useEffect(() => {
     const auth = getFirebaseAuth();
@@ -279,6 +298,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
           email: user.email || '',
           displayName: userData.displayName || userData.username || 'User',
           activeMembership,
+          mustChangePassword: userData.mustChangePassword ?? false,
         });
         lastProfileFetchRef.current = Date.now();
       } catch (err: any) {
@@ -462,6 +482,31 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     if (!user) return '';
     return user.getIdToken(true);
   };
+
+  const isDashboardPath = pathname
+    ? pathname.startsWith('/venue') ||
+      pathname.startsWith('/host') ||
+      pathname.startsWith('/promoter') ||
+      pathname === '/'
+    : false;
+
+  const redirectPending =
+    !loading &&
+    user &&
+    profile?.mustChangePassword &&
+    isDashboardPath &&
+    pathname !== '/auth/change-password';
+
+  if (loading || redirectPending) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center">
+        <div className="w-12 h-12 border-4 border-border-subtle border-t-white rounded-full animate-spin mb-4" />
+        <p className="text-zinc-500 text-xs font-black uppercase tracking-[0.3em]">
+          {redirectPending ? 'Redirecting' : 'Authorizing Access'}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider

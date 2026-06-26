@@ -1805,28 +1805,163 @@ export default async function venueRoutes(fastify: FastifyInstance) {
     },
   );
 
-  fastify.post(
-    '/venue/staff/accept',
-    {
-      preHandler: [fastify.requireAuth],
-    },
-    async (request: any, reply) => {
-      const { invitationId } = request.body as any;
-      if (!invitationId) return reply.status(400).send({ error: 'invitationId required' });
+  fastify.get('/venue/staff/accept', async (request: any, reply) => {
+    const { code, venue } = request.query as any;
+    if (!code || !venue) {
+      return reply.status(400).send({ error: 'code and venue parameters required' });
+    }
 
-      const ref = fastify.db.collection('venue_staff').doc(invitationId);
-      const doc = await ref.get();
-      if (!doc.exists) return reply.status(404).send({ error: 'Invitation not found' });
+    try {
+      const snap = await fastify.db
+        .collection('venue_staff')
+        .where('venueId', '==', venue)
+        .where('inviteToken', '==', code)
+        .limit(1)
+        .get();
 
-      await ref.update({
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const staffData = snap.docs[0].data();
+      if (staffData.inviteExpires && new Date() > new Date(staffData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      if (staffData.status !== 'invited' && staffData.status !== 'active') {
+        return reply.status(400).send({ error: 'Invitation already accepted' });
+      }
+
+      const venueDoc = await fastify.db.collection('venues').doc(venue).get();
+      const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
+
+      return {
+        name: staffData.name,
+        email: staffData.email,
+        role: staffData.role,
+        venueName,
+        status: staffData.status,
+      };
+    } catch (error: any) {
+      fastify.log.error({ error: error.message }, 'GET /venue/staff/accept failed');
+      return reply.status(500).send({ error: 'Internal Server Error' });
+    }
+  });
+
+  fastify.post('/venue/staff/accept', async (request: any, reply) => {
+    const { inviteCode, venueId } = request.body as any;
+    if (!inviteCode || !venueId) {
+      return reply.status(400).send({ error: 'inviteCode and venueId required' });
+    }
+
+    try {
+      const snap = await fastify.db
+        .collection('venue_staff')
+        .where('venueId', '==', venueId)
+        .where('inviteToken', '==', inviteCode)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const staffDoc = snap.docs[0];
+      const staffData = staffDoc.data();
+
+      if (staffData.inviteExpires && new Date() > new Date(staffData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      if (staffData.status === 'active') {
+        return {
+          success: true,
+          email: staffData.email,
+          tempPassword: staffData.tempPassword,
+          alreadyAccepted: true,
+        };
+      }
+
+      if (staffData.status !== 'invited') {
+        return reply.status(400).send({ error: 'Invitation already accepted' });
+      }
+
+      const email = staffData.email;
+      const name = staffData.name;
+      const role = staffData.role;
+      const tempPassword = staffData.tempPassword;
+
+      // 1. Create the user in Firebase Auth if they don't exist
+      let userRecord;
+      try {
+        userRecord = await fastify.auth.getUserByEmail(email);
+      } catch (e: any) {
+        if (e.code === 'auth/user-not-found') {
+          userRecord = await fastify.auth.createUser({
+            email,
+            password: tempPassword,
+            displayName: name,
+          });
+
+          // Seed Firestore user doc immediately with mustChangePassword: true
+          await fastify.db.collection('users').doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email,
+            displayName: name,
+            role: 'staff',
+            isApproved: true,
+            onboardingComplete: true,
+            mustChangePassword: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      const uid = userRecord.uid;
+
+      // Get venue details for membership record
+      const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
+      const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
+
+      // 2. Create the partner_memberships document
+      const membershipSnap = await fastify.db
+        .collection('partner_memberships')
+        .where('partnerId', '==', venueId)
+        .where('uid', '==', uid)
+        .limit(1)
+        .get();
+
+      if (membershipSnap.empty) {
+        await fastify.db.collection('partner_memberships').add({
+          uid,
+          partnerId: venueId,
+          partnerName: venueName,
+          partnerType: 'venue',
+          role,
+          isActive: true,
+          joinedAt: Date.now(),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // 3. Update the venue_staff record status to active
+      await staffDoc.ref.update({
         status: 'active',
         verified: true,
         isActive: true,
+        userId: uid,
         updatedAt: new Date().toISOString(),
       });
-      return { success: true };
-    },
-  );
+
+      return { success: true, email, tempPassword };
+    } catch (error: any) {
+      fastify.log.error({ error: error.message }, 'POST /venue/staff/accept failed');
+      return reply.status(500).send({ error: 'Internal Server Error' });
+    }
+  });
 
   fastify.post(
     '/venue/upload',

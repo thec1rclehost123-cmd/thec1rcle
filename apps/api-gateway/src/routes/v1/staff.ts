@@ -87,6 +87,22 @@ const SECURITY_TABS = {
   presence: false,
 };
 
+const DOOR_TABS = {
+  guest_ops: true,
+  walk_ins: true,
+  registers: false,
+  overview: false,
+  analytics: false,
+  events: false,
+  finance: false,
+  calendar: false,
+  staff: false,
+  settings: false,
+  door: true,
+  partners: false,
+  presence: false,
+};
+
 const FINANCE_ADMIN_TABS = {
   finance: true,
   analytics: true,
@@ -125,6 +141,7 @@ const ROLE_DEFAULT_TABS: Record<string, Record<string, boolean>> = {
   FINANCE_ADMIN: FINANCE_ADMIN_TABS,
   STAFF: STAFF_TABS,
   SECURITY: SECURITY_TABS,
+  DOOR: DOOR_TABS,
 };
 
 export default async function staffRoutes(fastify: FastifyInstance) {

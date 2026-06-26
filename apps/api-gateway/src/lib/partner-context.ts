@@ -28,6 +28,7 @@ function membershipToRoles(partnerType: string, role: string): PartnerRole[] {
   if (t === 'venue') {
     if (r === 'owner') return ['venue_owner'];
     if (r === 'manager') return ['venue_manager'];
+    if (r === 'door') return ['venue_staff'];
     return ['venue_staff'];
   }
   if (t === 'host') return ['host_owner'];

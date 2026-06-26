@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
+import { generateTemporaryPassword, sendInvitationEmail } from '../../../lib/email.js';
 import {
   getPartnerProfileSummary,
   getConnectionForViewer,
@@ -1812,17 +1813,125 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'staff' && request.method === 'POST') {
+          const emailRecipient = String(body.email || '')
+            .toLowerCase()
+            .trim();
+          if (!emailRecipient) {
+            return reply.status(400).send(
+              buildErrorResponse({
+                code: 'BAD_REQUEST',
+                message: 'Email is required',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          // Check if an invitation/active/removed staff already exists
+          const existingStaffSnap = await fastify.db
+            .collection('venue_staff')
+            .where('venueId', '==', ctx.partnerId)
+            .where('email', '==', emailRecipient)
+            .get();
+
+          if (!existingStaffSnap.empty) {
+            const existingStaff = existingStaffSnap.docs[0].data();
+            if (existingStaff.status === 'active') {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'This team member is already active in this venue',
+                  requestId: request.id,
+                }),
+              );
+            } else if (existingStaff.status === 'invited') {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'A pending invitation already exists for this email',
+                  requestId: request.id,
+                }),
+              );
+            } else if (existingStaff.status === 'removed') {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'This team member has been removed from this venue',
+                  requestId: request.id,
+                }),
+              );
+            }
+          }
+
+          // Check if user is already registered in Firebase Auth
+          try {
+            const userRecord = await fastify.auth.getUserByEmail(emailRecipient);
+            if (userRecord) {
+              return reply.status(400).send(
+                buildErrorResponse({
+                  code: 'BAD_REQUEST',
+                  message: 'A user with this email address already exists',
+                  requestId: request.id,
+                }),
+              );
+            }
+          } catch (e: any) {
+            if (e.code !== 'auth/user-not-found') {
+              throw e;
+            }
+          }
+
           const now = new Date().toISOString();
+          const tempPassword = generateTemporaryPassword();
+          const inviteToken = randomUUID();
+          const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+          const venueDoc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
+          const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
+
+          let origin = 'http://localhost:3001';
+          if (request.headers.referer) {
+            try {
+              origin = new URL(request.headers.referer).origin;
+            } catch {
+              if (request.headers.origin) origin = request.headers.origin;
+            }
+          } else if (request.headers.origin) {
+            origin = request.headers.origin;
+          }
+
+          const acceptLink = `${origin}/auth/staff-invite?code=${inviteToken}&venue=${ctx.partnerId}`;
+          const setPasswordLink = `${origin}/auth/change-password?code=${inviteToken}&venue=${ctx.partnerId}`;
+
+          const roleLabels: Record<string, string> = {
+            MANAGER: 'Manager',
+            FINANCE_ADMIN: 'Finance',
+            SECURITY: 'Security',
+            DOOR: 'Door',
+            STAFF: 'Staff',
+          };
+          const roleLabel = roleLabels[body.role] || body.role;
+
+          await sendInvitationEmail({
+            recipient: emailRecipient,
+            name: body.name || 'Team Member',
+            roleLabel,
+            venueName,
+            tempPassword,
+            acceptLink,
+            setPasswordLink,
+          });
+
           const res = await fastify.db.collection('venue_staff').add({
             venueId: ctx.partnerId,
-            email: String(body.email || '')
-              .toLowerCase()
-              .trim(),
+            email: emailRecipient,
             name: body.name || '',
             role: body.role,
             status: 'invited',
             verified: false,
             isActive: true,
+            tempPassword,
+            inviteToken,
+            inviteExpires,
             createdAt: now,
             updatedAt: now,
           });
@@ -1849,16 +1958,62 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+          const staffData = doc.data();
           const now = new Date().toISOString();
+
+          if (body.action === 'remove') {
+            await ref.update({
+              status: 'removed',
+              isActive: false,
+              updatedAt: now,
+            });
+            if (staffData?.userId) {
+              const membershipsSnap = await fastify.db
+                .collection('partner_memberships')
+                .where('partnerId', '==', ctx.partnerId)
+                .where('uid', '==', staffData.userId)
+                .get();
+
+              for (const membershipDoc of membershipsSnap.docs) {
+                await membershipDoc.ref.update({
+                  isActive: false,
+                  updatedAt: now,
+                });
+              }
+            }
+            return reply.send({ success: true });
+          }
+
           const updates: any = { updatedAt: now };
-          if (body.action === 'suspend')
-            ((updates.status = 'suspended'), (updates.isActive = false));
-          if (body.action === 'reactivate')
-            ((updates.status = 'active'), (updates.isActive = true));
+          if (body.action === 'suspend') {
+            updates.status = 'suspended';
+            updates.isActive = false;
+          } else if (body.action === 'reactivate') {
+            updates.status = 'active';
+            updates.isActive = true;
+          }
+
           if (body.action === 'verify') updates.verified = true;
           if (body.role !== undefined) updates.role = body.role;
           if (body.isActive !== undefined) updates.isActive = body.isActive;
+
           await ref.update(updates);
+
+          if (staffData?.userId) {
+            const membershipsSnap = await fastify.db
+              .collection('partner_memberships')
+              .where('partnerId', '==', ctx.partnerId)
+              .where('uid', '==', staffData.userId)
+              .get();
+
+            for (const membershipDoc of membershipsSnap.docs) {
+              await membershipDoc.ref.update({
+                isActive: body.action === 'reactivate',
+                updatedAt: now,
+              });
+            }
+          }
+
           return reply.send({ success: true });
         }
 
@@ -1882,11 +2037,30 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
+
+          const staffData = doc.data();
+          const now = new Date().toISOString();
           await ref.update({
-            isActive: false,
             status: 'removed',
-            updatedAt: new Date().toISOString(),
+            isActive: false,
+            updatedAt: now,
           });
+
+          if (staffData?.userId) {
+            const membershipsSnap = await fastify.db
+              .collection('partner_memberships')
+              .where('partnerId', '==', ctx.partnerId)
+              .where('uid', '==', staffData.userId)
+              .get();
+
+            for (const membershipDoc of membershipsSnap.docs) {
+              await membershipDoc.ref.update({
+                isActive: false,
+                updatedAt: now,
+              });
+            }
+          }
+
           return reply.send({ success: true });
         }
 

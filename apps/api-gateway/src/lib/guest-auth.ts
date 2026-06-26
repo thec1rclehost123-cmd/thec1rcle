@@ -90,6 +90,7 @@ export function normalizeGuestProfile(
     partnerId: asNullableString(merged.partnerId),
     onboardingStatus: asNullableString(merged.onboardingStatus),
     isApproved: merged.isApproved === true,
+    mustChangePassword: merged.mustChangePassword === true,
   };
 }
 

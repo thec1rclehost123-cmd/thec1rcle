@@ -2,11 +2,15 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Shield, Loader2, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Shield, Loader2, CheckCircle } from 'lucide-react';
+import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 
 const ROLE_LABELS: Record<string, string> = {
   STAFF: 'Employee',
   FINANCE_ADMIN: 'Finance',
+  MANAGER: 'Manager',
+  SECURITY: 'Security',
+  DOOR: 'Door',
   manager: 'Manager',
   security: 'Security',
   scanner: 'Scanner',
@@ -15,6 +19,7 @@ const ROLE_LABELS: Record<string, string> = {
 function StaffInviteContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { signIn } = useDashboardAuth();
 
   const code = searchParams.get('code') || '';
   const venueId = searchParams.get('venue') || '';
@@ -27,9 +32,6 @@ function StaffInviteContent() {
     venueName: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -40,12 +42,14 @@ function StaffInviteContent() {
     }
 
     // Fetch invite info to show the user what they're accepting
-    fetch(`/api/partners/venues/staff/accept?code=${code}&venue=${venueId}`)
+    fetch(`/api/venue/staff/accept?code=${code}&venue=${venueId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) {
           setErrorMsg(data.error);
           setStep('error');
+        } else if (data.status === 'active') {
+          router.replace(`/auth/change-password?code=${code}&venue=${venueId}&status=accepted`);
         } else {
           setInviteInfo(data);
           setStep('form');
@@ -55,22 +59,18 @@ function StaffInviteContent() {
         setErrorMsg('Failed to load invite details. Please try again.');
         setStep('error');
       });
-  }, [code, venueId]);
+  }, [code, venueId, router]);
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (password.length < 8) {
-      setErrorMsg('Password must be at least 8 characters.');
-      return;
-    }
     setSubmitting(true);
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/partners/venues/staff/accept', {
+      const res = await fetch('/api/venue/staff/accept', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteCode: code, venueId, password }),
+        body: JSON.stringify({ inviteCode: code, venueId }),
       });
       const data = await res.json();
 
@@ -80,23 +80,23 @@ function StaffInviteContent() {
         return;
       }
 
+      // Store temporary password in session storage for the change password page
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('tempPassword', data.tempPassword);
+      }
+
+      // Sign in the user using Firebase Auth client
+      await signIn(data.email, data.tempPassword);
+
       setStep('success');
-      setTimeout(() => router.replace('/venue'), 2000);
-    } catch {
+      setTimeout(() => {
+        router.replace('/auth/change-password');
+      }, 1500);
+    } catch (err: any) {
+      console.error(err);
       setErrorMsg('Something went wrong. Please try again.');
       setSubmitting(false);
     }
-  };
-
-  const inputStyle: React.CSSProperties = {
-    background: 'rgba(255,255,255,0.05)',
-    color: '#fff',
-    border: '1px solid rgba(255,255,255,0.1)',
-    borderRadius: 12,
-    padding: '12px 16px',
-    fontSize: 14,
-    outline: 'none',
-    width: '100%',
   };
 
   return (
@@ -156,37 +156,20 @@ function StaffInviteContent() {
 
             <div className="h-px" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
-            {/* Password form */}
+            {/* Accept form */}
             <form onSubmit={handleAccept} className="space-y-4">
               <div>
                 <p className="text-[11px] text-white/40 uppercase tracking-widest font-bold mb-1">
-                  Email
+                  Email Address
                 </p>
-                <p className="text-[13px] text-white/70">{inviteInfo.email}</p>
+                <p className="text-[14px] text-white font-medium">{inviteInfo.email}</p>
               </div>
 
               <div>
-                <label className="text-[11px] text-white/40 uppercase tracking-widest font-bold mb-1.5 block">
-                  SET YOUR PASSWORD
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    minLength={8}
-                    placeholder="Min. 8 characters"
-                    style={inputStyle}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
+                <p className="text-[11px] text-white/40 uppercase tracking-widest font-bold mb-1">
+                  Invitation Code
+                </p>
+                <p className="text-[12px] text-zinc-500 font-mono break-all">{code}</p>
               </div>
 
               {errorMsg && <p className="text-[12px] text-red-400">{errorMsg}</p>}
@@ -194,12 +177,12 @@ function StaffInviteContent() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full py-3 rounded-xl text-[14px] font-black flex items-center justify-center gap-2 hover:brightness-110 transition-all"
+                className="w-full py-3 rounded-xl text-[14px] font-black flex items-center justify-center gap-2 hover:brightness-110 transition-all cursor-pointer"
                 style={{ background: 'linear-gradient(135deg, #f97316, #e11d48)', color: '#fff' }}
               >
                 {submitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Creating Account...
+                    <Loader2 className="w-4 h-4 animate-spin" /> Accepting Invite...
                   </>
                 ) : (
                   'Accept Invitation'
@@ -216,8 +199,10 @@ function StaffInviteContent() {
           >
             <CheckCircle className="w-12 h-12 text-green-500" />
             <div className="text-center">
-              <h2 className="text-[18px] font-black text-white">You're in!</h2>
-              <p className="text-[13px] text-white/50 mt-1">Redirecting to your dashboard...</p>
+              <h2 className="text-[18px] font-black text-white">Accepted!</h2>
+              <p className="text-[13px] text-white/50 mt-1">
+                Directing you to set a new password...
+              </p>
             </div>
           </div>
         )}

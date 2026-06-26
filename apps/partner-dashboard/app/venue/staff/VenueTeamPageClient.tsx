@@ -43,11 +43,21 @@ const ROLE_OPTIONS: Array<{ value: EditableVenueRole; label: string; description
     label: 'Security',
     description: 'Focused on entry, safety, and incident awareness at the door.',
   },
+  {
+    value: 'DOOR',
+    label: 'Door',
+    description: 'Focused on check-ins, guest entry, and front-of-house operations.',
+  },
 ];
 
 function normalizeVenueRole(role: string): VenueRole {
   const normalized = role.toUpperCase();
-  if (normalized === 'MANAGER' || normalized === 'FINANCE_ADMIN' || normalized === 'SECURITY') {
+  if (
+    normalized === 'MANAGER' ||
+    normalized === 'FINANCE_ADMIN' ||
+    normalized === 'SECURITY' ||
+    normalized === 'DOOR'
+  ) {
     return normalized as VenueRole;
   }
   if (normalized === 'OWNER') return 'OWNER';
