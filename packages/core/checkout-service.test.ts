@@ -24,6 +24,12 @@ vi.mock('./admin.js', () => ({
         update: vi.fn(),
         get: vi.fn(),
         set: vi.fn(),
+        collection: vi.fn(() => ({
+          doc: vi.fn(() => ({
+            get: vi.fn(),
+            set: vi.fn(),
+          })),
+        })),
       })),
     })),
   })),

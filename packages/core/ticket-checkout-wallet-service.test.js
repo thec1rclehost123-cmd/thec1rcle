@@ -54,6 +54,10 @@ class FakeDocRef {
     const existing = collection.get(this.id) || {};
     collection.set(this.id, { ...existing, ...value });
   }
+
+  collection(name) {
+    return new FakeCollectionRef(this.db, `${this.collectionName}/${this.id}/${name}`);
+  }
 }
 
 class FakeQuery {
@@ -79,7 +83,11 @@ class FakeQuery {
       ([id, data]) => new FakeDocSnapshot(new FakeDocRef(this.db, this.collectionName, id), data),
     );
     for (const filter of this.filters) {
-      docs = docs.filter((doc) => doc.data()?.[filter.field] === filter.value);
+      if (filter.field === '__name__' && filter.op === 'in') {
+        docs = docs.filter((doc) => filter.value.includes(doc.id));
+      } else {
+        docs = docs.filter((doc) => doc.data()?.[filter.field] === filter.value);
+      }
     }
     if (this.limitValue) docs = docs.slice(0, this.limitValue);
     return new FakeQuerySnapshot(docs);
