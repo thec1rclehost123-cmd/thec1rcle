@@ -295,7 +295,7 @@ function CoverChargeConfig({
               {/* Wallet Amount */}
               <div className="space-y-1">
                 <AppleInput
-                  label="Wallet Credit Amount"
+                  label="Wallet Credit Amount (Optional)"
                   type="number"
                   prefix="₹"
                   value={cfg.walletAmountPaise === 0 ? '' : String(cfg.walletAmountPaise)}
@@ -315,7 +315,7 @@ function CoverChargeConfig({
               {/* Termination Hour */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Wallet Expires At
+                  Wallet Expires At (Optional)
                 </label>
                 <select
                   value={cfg.terminationHour}
@@ -333,7 +333,7 @@ function CoverChargeConfig({
               {/* Termination Policy */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-widest">
-                  Unspent Balance Policy
+                  Unspent Balance Policy (Optional)
                 </label>
                 <div className="flex gap-2">
                   {(
@@ -687,7 +687,7 @@ const TicketTierCard = forwardRef<
                   {!isRSVP ? (
                     <div className="space-y-1">
                       <AppleInput
-                        label="Price"
+                        label="Price *"
                         type="number"
                         prefix="₹"
                         value={tier.price}
@@ -715,7 +715,7 @@ const TicketTierCard = forwardRef<
                     </div>
                   )}
                   <AppleInput
-                    label="Quantity"
+                    label="Quantity *"
                     type="number"
                     value={tier.quantity}
                     onChange={(e: any) =>

@@ -445,8 +445,26 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     }
 
     // Ticketing validation
-    // Revenue and capacity validated by backend
-    validation.ticketing = { isValid: true, issues: [], fieldErrors: {} };
+    const ticketingIssues: string[] = [];
+    const ticketingFieldErrors: Record<string, string> = {};
+    if (formData.tickets && formData.tickets.length > 0) {
+      formData.tickets.forEach((tier: any, index: number) => {
+        const label = tier.name?.trim() || `Tier ${index + 1}`;
+        if (tier.price === '' || tier.price === null || tier.price === undefined) {
+          ticketingIssues.push(`"${label}": Price is required`);
+          ticketingFieldErrors.tickets = 'Fill in Price and Quantity for all ticket tiers';
+        }
+        if (tier.quantity === '' || tier.quantity === null || tier.quantity === undefined) {
+          ticketingIssues.push(`"${label}": Quantity is required`);
+          ticketingFieldErrors.tickets = 'Fill in Price and Quantity for all ticket tiers';
+        }
+      });
+    }
+    validation.ticketing = {
+      isValid: ticketingIssues.length === 0,
+      issues: ticketingIssues,
+      fieldErrors: ticketingFieldErrors,
+    };
 
     // Media validation (soft warning)
     if (!formData.poster && !formData.images?.length) {

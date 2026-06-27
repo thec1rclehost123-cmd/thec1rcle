@@ -362,6 +362,9 @@ export default function CreateEventForm() {
         >
           {/* Event Name - Hero Input */}
           <div className="group">
+            <label className="text-xs text-black/50 dark:text-white/50 mb-2 uppercase tracking-wider block">
+              Event Title *
+            </label>
             <input
               type="text"
               value={form.title}
@@ -380,7 +383,10 @@ export default function CreateEventForm() {
           >
             <div className="flex items-center gap-3 text-sm text-iris-glow mb-3">
               <IconSparkles />
-              <span className="font-medium">Quick Hook</span>
+              <span className="font-medium">
+                Quick Hook{' '}
+                <span className="text-black/40 dark:text-white/40 font-normal">(Optional)</span>
+              </span>
             </div>
             <input
               type="text"
@@ -423,18 +429,25 @@ export default function CreateEventForm() {
           {/* Event Details */}
           <GlassSection icon={<IconEdit />} title="Event Details">
             <div className="space-y-4">
-              <FloatingInput
-                icon={<IconAlignLeft />}
-                placeholder="Tell your story..."
-                value={form.description}
-                onChange={handleChange('description')}
-                multiline
-              />
+              <div>
+                <span className="text-xs text-black/40 dark:text-white/40 uppercase tracking-wider">
+                  Description (Optional)
+                </span>
+                <FloatingInput
+                  icon={<IconAlignLeft />}
+                  placeholder="Tell your story..."
+                  value={form.description}
+                  onChange={handleChange('description')}
+                  multiline
+                />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="glass-panel group relative flex flex-col rounded-2xl border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 backdrop-blur-xl px-5 py-4 shadow-glow">
                   <div className="flex items-center gap-3 text-sm text-[#F44A22] mb-2">
                     <IconMapPin className="w-4 h-4" />
-                    <span className="font-medium uppercase tracking-widest text-[10px]">City</span>
+                    <span className="font-medium uppercase tracking-widest text-[10px]">
+                      City *
+                    </span>
                   </div>
                   <select
                     value={form.city}
@@ -455,20 +468,30 @@ export default function CreateEventForm() {
                   </select>
                 </div>
 
+                <div>
+                  <span className="text-xs text-black/40 dark:text-white/40 uppercase tracking-wider">
+                    Location *
+                  </span>
+                  <FloatingInput
+                    icon={<IconNavigation />}
+                    placeholder="Area / Specific Location (e.g. Koregaon Park)"
+                    value={form.location}
+                    onChange={handleChange('location')}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <span className="text-xs text-black/40 dark:text-white/40 uppercase tracking-wider">
+                  Venue (Optional)
+                </span>
                 <FloatingInput
-                  icon={<IconNavigation />}
-                  placeholder="Area / Specific Location (e.g. Koregaon Park)"
-                  value={form.location}
-                  onChange={handleChange('location')}
-                  required
+                  icon={<IconBuilding />}
+                  placeholder="Venue name"
+                  value={form.venue}
+                  onChange={handleChange('venue')}
                 />
               </div>
-              <FloatingInput
-                icon={<IconBuilding />}
-                placeholder="Venue Name (optional)"
-                value={form.venue}
-                onChange={handleChange('venue')}
-              />
             </div>
           </GlassSection>
 
@@ -561,7 +584,7 @@ export default function CreateEventForm() {
           </GlassSection>
 
           {/* Guestlist with avatars */}
-          <GlassSection icon={<IconUsers />} title="Guestlist" badge="Social">
+          <GlassSection icon={<IconUsers />} title="Guestlist" badge="Social (Optional)">
             <div className="flex items-center gap-4 mb-4">
               <div className="flex -space-x-3">
                 {guestNames.slice(0, 6).map((guest, i) => (
@@ -684,7 +707,7 @@ export default function CreateEventForm() {
           </GlassSection>
 
           {/* Page Settings */}
-          <GlassSection icon={<IconSettings />} title="Page Settings">
+          <GlassSection icon={<IconSettings />} title="Page Settings" badge="All Optional">
             <div className="space-y-4">
               <Toggle label="Show on Explore Page" value={showExplore} onChange={setShowExplore} />
               <Toggle
@@ -719,7 +742,7 @@ export default function CreateEventForm() {
           </GlassSection>
 
           {/* Flyer Upload (Relocated for better wizard flow) */}
-          <GlassSection icon={<IconImage />} title="Event Poster" badge="Hero Image">
+          <GlassSection icon={<IconImage />} title="Event Poster" badge="Hero Image (Optional)">
             <div
               className="relative aspect-[16/9] w-full rounded-2xl overflow-hidden border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 cursor-pointer group"
               onClick={handleFlyerUploadClick}
@@ -906,6 +929,7 @@ function DateTimeInput({ label, dateValue, timeValue, onDateChange, onTimeChange
     <div>
       <label className="block text-xs text-black/50 dark:text-white/50 mb-2 uppercase tracking-wider">
         {label}
+        {required ? ' *' : ' (Optional)'}
       </label>
       <div className="flex gap-2">
         <input

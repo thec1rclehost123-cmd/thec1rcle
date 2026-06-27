@@ -173,7 +173,7 @@ function TablePackageCard({
               {/* Table Name */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                  Table/Package Name
+                  Table/Package Name (Optional)
                 </label>
                 <input
                   type="text"
@@ -231,7 +231,7 @@ function TablePackageCard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Guests per Table
+                    Guests per Table (Optional)
                   </label>
                   <div className="relative">
                     <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868b]" />
@@ -247,7 +247,7 @@ function TablePackageCard({
                 </div>
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Tables Available
+                    Tables Available (Optional)
                   </label>
                   <input
                     type="number"
@@ -263,7 +263,7 @@ function TablePackageCard({
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                    Price per Table
+                    Price per Table (Optional)
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[15px] font-bold text-[#86868b]">
@@ -325,7 +325,7 @@ function TablePackageCard({
               {/* What's Included */}
               <div className="space-y-2">
                 <label className="block text-[11px] font-medium text-[#86868b] uppercase tracking-wide">
-                  What's Included
+                  What's Included (Optional)
                 </label>
                 <div className="flex flex-wrap gap-2">
                   {COMMON_INCLUDES.map((item) => {
