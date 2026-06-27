@@ -490,6 +490,10 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
       pathname === '/'
     : false;
 
+  const isBypassPath = pathname
+    ? pathname.startsWith('/onboard') || pathname.startsWith('/login')
+    : false;
+
   const redirectPending =
     !loading &&
     user &&
@@ -497,7 +501,7 @@ export function DashboardAuthProvider({ children }: { children: ReactNode }) {
     isDashboardPath &&
     pathname !== '/auth/change-password';
 
-  if (loading || redirectPending) {
+  if ((loading && !isBypassPath) || redirectPending) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center">
         <div className="w-12 h-12 border-4 border-border-subtle border-t-white rounded-full animate-spin mb-4" />

@@ -116,6 +116,23 @@ const CreateAccountSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   phone: z.string().min(10).optional(),
+  name: z.string().optional(),
+  contactPerson: z.string().optional(),
+  city: z.string().optional(),
+  area: z.string().optional(),
+  website: z.string().optional(),
+  capacity: z.string().optional(),
+  plan: z.string().optional(),
+  role: z.string().optional(),
+  association: z.string().optional(),
+  associatedHostId: z.string().optional(),
+  instagram: z.string().optional(),
+  bio: z.string().optional(),
+  upcomingEventsText: z.string().optional(),
+  pastEventsText: z.string().optional(),
+  businessType: z.string().optional(),
+  registrationNumber: z.string().optional(),
+  entityType: z.string().optional(),
 });
 
 // Normalize to E.164: plain 10-digit numbers are assumed Indian (+91).
@@ -708,7 +725,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: CreateAccountSchema })],
     },
     async (request: any, reply) => {
-      const { email, password, phone } = request.body;
+      const { email, password, phone, ...details } = request.body;
 
       try {
         // 1. Create the user in Firebase Auth
@@ -724,20 +741,27 @@ export default async function authRoutes(fastify: FastifyInstance) {
         //    Without this, users who abandon onboarding have no Firestore doc
         //    and can neither log in nor re-onboard.
         const cleanPhone = e164Phone;
-        await fastify.db
-          .collection('users')
-          .doc(userRecord.uid)
-          .set({
-            uid: userRecord.uid,
-            email,
-            displayName: email.split('@')[0] || 'Member',
-            phone: cleanPhone,
-            role: 'pending',
-            isApproved: false,
-            onboardingComplete: false,
-            createdAt: FieldValue.serverTimestamp(),
-            updatedAt: FieldValue.serverTimestamp(),
-          });
+        const userDocData: Record<string, any> = {
+          uid: userRecord.uid,
+          email,
+          displayName: details.name || email.split('@')[0] || 'Member',
+          phone: cleanPhone,
+          role: 'pending',
+          isApproved: false,
+          onboardingComplete: false,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+          ...details,
+        };
+
+        if (details.entityType) {
+          userDocData.onboardingEntityType = details.entityType;
+        }
+        if (details.role) {
+          userDocData.onboardingRole = details.role;
+        }
+
+        await fastify.db.collection('users').doc(userRecord.uid).set(userDocData);
 
         // 3. Generate a custom token so the client can sign in immediately
         const customToken = await fastify.auth.createCustomToken(userRecord.uid);
@@ -783,6 +807,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
   const CheckAvailabilitySchema = z.object({
     email: z.string().email().optional(),
     phone: z.string().optional(),
+  });
+
+  const CheckEmailSchema = z.object({
+    email: z.string().email(),
   });
 
   fastify.post(
@@ -832,6 +860,36 @@ export default async function authRoutes(fastify: FastifyInstance) {
           ...(taken.includes('phone') ? { phone: 'This phone number is already registered.' } : {}),
         },
       };
+    },
+  );
+
+  /**
+   * POST /api/v1/auth/check-email
+   * Check if a specific email exists in the Firebase Auth database.
+   */
+  fastify.post(
+    '/check-email',
+    {
+      preHandler: [fastify.validate({ body: CheckEmailSchema })],
+    },
+    async (request: any, reply) => {
+      const { email } = request.body;
+      try {
+        await fastify.auth.getUserByEmail(email);
+        return { exists: true };
+      } catch (error: any) {
+        if (error.code === 'auth/user-not-found') {
+          return { exists: false };
+        }
+        fastify.log.error({ error: error.message }, 'Check-email failed');
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'CHECK_FAILED',
+            message: 'Email check failed',
+            requestId: request.id,
+          }),
+        );
+      }
     },
   );
 
@@ -991,6 +1049,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
   const OnboardingProgressSchema = z.object({
     onboardingStep: z.string(),
     entityType: z.string().optional(),
+    name: z.string().optional(),
+    contactPerson: z.string().optional(),
+    city: z.string().optional(),
+    area: z.string().optional(),
+    website: z.string().optional(),
+    capacity: z.string().optional(),
+    plan: z.string().optional(),
+    role: z.string().optional(),
+    association: z.string().optional(),
+    associatedHostId: z.string().optional(),
+    instagram: z.string().optional(),
+    bio: z.string().optional(),
+    upcomingEventsText: z.string().optional(),
+    pastEventsText: z.string().optional(),
+    businessType: z.string().optional(),
+    registrationNumber: z.string().optional(),
   });
 
   fastify.patch(
@@ -1009,12 +1083,19 @@ export default async function authRoutes(fastify: FastifyInstance) {
           }),
         );
       }
-      const { onboardingStep, entityType } = request.body;
+      const { onboardingStep, entityType, ...details } = request.body;
       const update: Record<string, any> = {
         onboardingStep,
         updatedAt: FieldValue.serverTimestamp(),
+        ...details,
       };
-      if (entityType) update.entityType = entityType;
+      if (entityType) {
+        update.entityType = entityType;
+        update.onboardingEntityType = entityType; // keep both for compatibility with guards
+      }
+      if (details.role) {
+        update.onboardingRole = details.role; // keep compatibility with gateway auth
+      }
       await fastify.db.collection('users').doc(userId).set(update, { merge: true });
       return { success: true };
     },
