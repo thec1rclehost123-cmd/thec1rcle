@@ -1310,12 +1310,45 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
 
         if (rest === 'notifications' && request.method === 'GET') {
-          const snap = await fastify.db
-            .collection('notifications')
-            .where('recipientId', '==', ctx.partnerId)
-            .limit(100)
-            .get()
-            .catch(() => ({ docs: [] as any[] }));
+          const limit = Math.min(parseInt(String(query.limit || '50'), 10) || 50, 100);
+          let snap: any;
+          try {
+            snap = await fastify.db
+              .collection('notifications')
+              .where('recipientId', '==', ctx.partnerId)
+              .orderBy('createdAt', 'desc')
+              .limit(limit)
+              .get();
+          } catch (err: any) {
+            if (
+              err.code === 9 ||
+              String(err).includes('requires an index') ||
+              String(err).includes('FAILED_PRECONDITION')
+            ) {
+              fastify.log.warn(
+                { partnerId: ctx.partnerId },
+                'Firestore index missing for venue notifications query. Falling back to in-memory sort.',
+              );
+              const fallbackQ = await fastify.db
+                .collection('notifications')
+                .where('recipientId', '==', ctx.partnerId)
+                .limit(limit * 2)
+                .get()
+                .catch(() => ({ docs: [] as any[] }));
+              const sortedDocs = [...((fallbackQ as any).docs || [])].sort((a: any, b: any) => {
+                const aTime = new Date(a.data()?.createdAt || 0).getTime();
+                const bTime = new Date(b.data()?.createdAt || 0).getTime();
+                return bTime - aTime;
+              });
+              snap = { docs: sortedDocs.slice(0, limit) };
+            } else {
+              request.log.error(
+                { err, partnerId: ctx.partnerId },
+                'Failed to fetch venue notifications',
+              );
+              snap = { docs: [] as any[] };
+            }
+          }
           const notifications = ((snap as any).docs || []).map((doc: any) => {
             const data = doc.data() || {};
             return {
@@ -1325,14 +1358,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               message: decrypt(data.message),
             };
           });
-          notifications.sort(
-            (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
-          );
-          return reply.send({ notifications: notifications.slice(0, 50) });
+          return reply.send({ notifications });
         }
 
-        if (rest === 'notifications/read' && request.method === 'PATCH') {
+        if (rest === 'notifications' && request.method === 'PATCH') {
           const notificationId = String(body.notificationId || '');
           const markAllRead = body.markAllRead === true;
           if (markAllRead) {
@@ -1340,11 +1369,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .collection('notifications')
               .where('recipientId', '==', ctx.partnerId)
               .where('read', '==', false)
-              .get();
+              .get()
+              .catch(() => ({ docs: [] as any[] }));
             const batch = fastify.db.batch();
-            snap.docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
-            await batch.commit();
-            return reply.send({ success: true, markedCount: snap.size });
+            (snap as any).docs.forEach((doc: any) => batch.update(doc.ref, { read: true }));
+            await batch.commit().catch(() => {});
+            return reply.send({ success: true, markedCount: (snap as any).docs.length });
           }
           if (!notificationId)
             return reply.status(400).send(
@@ -1354,7 +1384,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          await fastify.db.collection('notifications').doc(notificationId).update({ read: true });
+          await fastify.db
+            .collection('notifications')
+            .doc(notificationId)
+            .update({ read: true })
+            .catch(() => {});
           return reply.send({ success: true, markedCount: 1 });
         }
 
@@ -2271,12 +2305,21 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('eventId', '==', evtId)
               .where('status', 'in', ['confirmed', 'paid'])
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error({ err, eventId: evtId }, 'Failed to query orders for overview');
+                return { docs: [] as any[] };
+              }),
             fastify.db
               .collection('check_ins')
               .where('eventId', '==', evtId)
               .get()
-              .catch(() => ({ size: 0 })),
+              .catch((err: any) => {
+                request.log.error(
+                  { err, eventId: evtId },
+                  'Failed to query check_ins for overview',
+                );
+                return { size: 0 };
+              }),
             fastify.db
               .collection('event_views')
               .doc(evtId)
@@ -2354,6 +2397,47 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             toNumber(viewsData.count || 0) > 0
               ? Math.round((ticketsSold / toNumber(viewsData.count)) * 100)
               : 0;
+
+          // Build sales timeline from order dates
+          const salesByDate = new Map<string, { tickets: number; revenue: number }>();
+          for (const d of orderDocs) {
+            const o = d.data();
+            const date = (o.createdAt || '').split('T')[0];
+            if (!date) continue;
+            if (!salesByDate.has(date)) salesByDate.set(date, { tickets: 0, revenue: 0 });
+            const entry = salesByDate.get(date)!;
+            entry.tickets += toNumber(o.ticketCount || 1);
+            entry.revenue += toNumber(o.totalPaise || 0) / 100;
+          }
+          const salesTimeline = Array.from(salesByDate.entries())
+            .map(([date, data]) => ({ date, tickets: data.tickets, revenue: data.revenue }))
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+          // Build hourly check-in timeline
+          const hourlyMap = new Map<string, number>();
+          const checkInDocs = (checkinsSnap as any).docs || [];
+          for (const d of checkInDocs) {
+            const o = d.data();
+            const ts = o.checkedInAt || o.createdAt;
+            if (!ts) continue;
+            const hour = String(ts).split('T')[1]?.split(':')[0];
+            if (!hour) continue;
+            hourlyMap.set(hour, (hourlyMap.get(hour) || 0) + 1);
+          }
+          const hourlyTimeline = Array.from(hourlyMap.entries())
+            .map(([hour, count]) => ({ hour: Number(hour), label: `${hour}:00`, checkIns: count }))
+            .sort((a, b) => a.hour - b.hour);
+
+          // Derive peak hours from timelines
+          const peakSalesEntry =
+            salesTimeline.length > 0
+              ? salesTimeline.reduce((a, b) => (a.revenue > b.revenue ? a : b))
+              : null;
+          const peakCheckInEntry =
+            hourlyTimeline.length > 0
+              ? hourlyTimeline.reduce((a, b) => (a.checkIns > b.checkIns ? a : b))
+              : null;
+
           return reply.send({
             ticketsSold,
             grossRevenue,
@@ -2375,10 +2459,22 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             topPromoter: null,
             views: toNumber(viewsData.count || 0),
             saves: toNumber(viewsData.saves || 0),
-            salesTimeline: [],
-            hourlyTimeline: [],
-            peakSalesHour: null,
-            peakCheckInHour: null,
+            salesTimeline,
+            hourlyTimeline,
+            peakSalesHour: peakSalesEntry
+              ? {
+                  date: peakSalesEntry.date,
+                  revenue: peakSalesEntry.revenue,
+                  tickets: peakSalesEntry.tickets,
+                }
+              : null,
+            peakCheckInHour: peakCheckInEntry
+              ? {
+                  hour: peakCheckInEntry.hour,
+                  label: peakCheckInEntry.label,
+                  checkIns: peakCheckInEntry.checkIns,
+                }
+              : null,
             timeZone: event.timeZone || 'Asia/Kolkata',
           });
         }
@@ -2393,13 +2489,22 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               .where('eventId', '==', evtId)
               .where('status', 'in', ['confirmed', 'paid'])
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error({ err, eventId: evtId }, 'Failed to query orders for finance');
+                return { docs: [] as any[] };
+              }),
             fastify.db
               .collection('walk_in_entries')
               .doc(evtId)
               .collection('logs')
               .get()
-              .catch(() => ({ docs: [] as any[] })),
+              .catch((err: any) => {
+                request.log.error(
+                  { err, eventId: evtId },
+                  'Failed to query walk_in_entries for finance',
+                );
+                return { docs: [] as any[] };
+              }),
           ]);
           if (!eventDoc.exists)
             return reply.status(404).send(

@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
 import { GATEWAY_URL } from '@/lib/server/apiGateway';
 
+export const dynamic = 'force-dynamic';
+
 function errorResponse(req: NextRequest, status: number, message: string, code?: string) {
   return NextResponse.json(
     {
@@ -25,7 +27,7 @@ function errorResponse(req: NextRequest, status: number, message: string, code?:
 }
 
 /**
- * GET /api/venue/events/[id]/computed-analytics
+ * GET /api/partners/venues/events/[id]/computed-analytics
  *
  * Consolidates overview + finance data for a single event and computes all
  * derived analytics metrics server-side. The browser receives ready-to-render
@@ -44,9 +46,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const qs = new URLSearchParams({ venueId: ctx.venueId });
 
+  // Corrected gateway URLs to map to unified partners wildcard routes
   const [overviewRes, financeRes] = await Promise.all([
-    fetch(`${GATEWAY_URL}/api/v1/venue/events/${id}/overview?${qs}`, { headers }),
-    fetch(`${GATEWAY_URL}/api/v1/venue/events/${id}/finance?${qs}`, { headers }),
+    fetch(`${GATEWAY_URL}/api/v1/partners/venues/events/${id}/overview?${qs}`, { headers }),
+    fetch(`${GATEWAY_URL}/api/v1/partners/venues/events/${id}/finance?${qs}`, { headers }),
   ]);
 
   if (!overviewRes.ok || !financeRes.ok) {

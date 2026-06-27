@@ -134,7 +134,7 @@ export default function EventAnalyticsClient({
 }) {
   const { profile, user } = useDashboardAuth();
   const entityId = profile?.activeMembership?.partnerId;
-  const useEmbeddedEventAnalytics = embedded && role === 'venue' && Boolean(eventId);
+  const useComputedEventAnalytics = role === 'venue' && Boolean(eventId);
 
   const [rangeDays, setRangeDays] = useState<number>(30);
   const [copied, setCopied] = useState(false);
@@ -197,7 +197,7 @@ export default function EventAnalyticsClient({
         ...(entityId ? { 'x-partner-id': entityId, 'x-venue-id': entityId } : {}),
       };
 
-      if (useEmbeddedEventAnalytics && eventId) {
+      if (useComputedEventAnalytics && eventId) {
         const res = await fetch(`/api/partners/venues/events/${eventId}/computed-analytics`, {
           headers,
         });
@@ -494,7 +494,7 @@ export default function EventAnalyticsClient({
           )}
 
           {/* Date range picker — standalone only, above analytics sections */}
-          {!embedded && !useEmbeddedEventAnalytics && (
+          {!embedded && !useComputedEventAnalytics && (
             <div className="flex items-center justify-between gap-3 flex-wrap">
               <p
                 className="text-[12px] font-bold uppercase tracking-[0.14em]"

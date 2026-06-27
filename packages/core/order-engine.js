@@ -145,6 +145,8 @@ export function buildOrderPayload(params) {
   const isRSVP = !!event.isRSVP;
   const orderId = generateOrderId(isRSVP ? 'RSVP' : 'ORD');
 
+  const ticketCount = pricing.items.reduce((s, item) => s + item.quantity, 0);
+
   return {
     id: orderId,
     eventId: event.id,
@@ -155,6 +157,8 @@ export function buildOrderPayload(params) {
     userName: user.name,
     userEmail: user.email,
     userPhone: user.phone,
+    ticketCount,
+    totalPaise: Math.round(pricing.grandTotal * 100),
     tickets: pricing.items.map((item) => ({
       ticketId: item.tierId,
       name: item.tierName,
