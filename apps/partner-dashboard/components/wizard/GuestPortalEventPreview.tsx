@@ -150,7 +150,6 @@ function useDominantColor(imageUrl?: string | null) {
     }
 
     const img = new window.Image();
-    img.crossOrigin = 'anonymous';
     img.src = imageUrl;
     img.onload = () => {
       try {

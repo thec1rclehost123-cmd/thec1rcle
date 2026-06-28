@@ -954,8 +954,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           typeof data.error === 'object' && data.error ? data.error.message : data.error;
         alert(`Error: ${data.message || errMsg || 'Failed to create event'}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Submission failed', err);
+      setSaveState('failed');
+      alert(
+        `Error: ${err?.message || 'Failed to save event. Please check that the API gateway is running on port 4000.'}`,
+      );
     } finally {
       setIsSubmitting(false);
     }

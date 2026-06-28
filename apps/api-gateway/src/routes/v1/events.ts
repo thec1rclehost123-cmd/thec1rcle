@@ -1802,12 +1802,17 @@ export default async function eventRoutes(fastify: FastifyInstance) {
       }
 
       try {
-        const event = buildEvent({
+        const built = buildEvent({
           ...body,
           creatorId: hostId,
           workspaceId: hostId,
         }) as Record<string, any>;
-        event.workspaceId = hostId;
+        // Preserve all wizard-specific fields that buildEvent doesn't output
+        const event = {
+          ...body,
+          ...built,
+          workspaceId: hostId,
+        };
         const eventRecord = await enrichPartnerSnapshots(fastify.db, event);
 
         const slotRecord =
