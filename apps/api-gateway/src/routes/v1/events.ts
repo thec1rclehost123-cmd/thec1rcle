@@ -1808,7 +1808,7 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           workspaceId: hostId,
         }) as Record<string, any>;
         // Preserve all wizard-specific fields that buildEvent doesn't output
-        const event = {
+        const event: any = {
           ...body,
           ...built,
           workspaceId: hostId,
