@@ -1895,6 +1895,15 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       let userRecord;
       try {
         userRecord = await fastify.auth.getUserByEmail(email);
+        // User exists, update password to the new tempPassword
+        await fastify.auth.updateUser(userRecord.uid, {
+          password: tempPassword,
+        });
+        // Reset mustChangePassword to true in Firestore user record
+        await fastify.db.collection('users').doc(userRecord.uid).update({
+          mustChangePassword: true,
+          updatedAt: new Date().toISOString(),
+        });
       } catch (e: any) {
         if (e.code === 'auth/user-not-found') {
           userRecord = await fastify.auth.createUser({

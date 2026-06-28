@@ -8,7 +8,7 @@ import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
 function ChangePasswordContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signOut } = useDashboardAuth();
+  const { signOut, getIdToken } = useDashboardAuth();
 
   const status = searchParams.get('status') || '';
 
@@ -25,11 +25,17 @@ function ChangePasswordContent() {
   const [errorMsg, setErrorMsg] = useState('');
 
   useEffect(() => {
-    // Check if temporary password is saved in session storage
+    // Check if temporary password is saved in session storage or URL query
     if (typeof window !== 'undefined') {
       const savedTemp = sessionStorage.getItem('tempPassword');
       if (savedTemp) {
         setCurrentPassword(savedTemp);
+      } else {
+        const urlParams = new URLSearchParams(window.location.search);
+        const queryTemp = urlParams.get('temp');
+        if (queryTemp) {
+          setCurrentPassword(queryTemp);
+        }
       }
     }
   }, []);
@@ -51,9 +57,15 @@ function ChangePasswordContent() {
     setSubmitting(true);
 
     try {
+      const token = await getIdToken().catch(() => '');
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
       const res = await fetch('/api/auth/change-password', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json();

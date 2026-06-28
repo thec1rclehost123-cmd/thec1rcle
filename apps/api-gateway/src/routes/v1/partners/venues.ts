@@ -1869,6 +1869,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
           if (!existingStaffSnap.empty) {
             const existingStaff = existingStaffSnap.docs[0].data();
+            const existingStaffDoc = existingStaffSnap.docs[0];
             if (existingStaff.status === 'active') {
               return reply.status(400).send(
                 buildErrorResponse({
@@ -1886,31 +1887,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 }),
               );
             } else if (existingStaff.status === 'removed') {
-              return reply.status(400).send(
-                buildErrorResponse({
-                  code: 'BAD_REQUEST',
-                  message: 'This team member has been removed from this venue',
-                  requestId: request.id,
-                }),
-              );
-            }
-          }
-
-          // Check if user is already registered in Firebase Auth
-          try {
-            const userRecord = await fastify.auth.getUserByEmail(emailRecipient);
-            if (userRecord) {
-              return reply.status(400).send(
-                buildErrorResponse({
-                  code: 'BAD_REQUEST',
-                  message: 'A user with this email address already exists',
-                  requestId: request.id,
-                }),
-              );
-            }
-          } catch (e: any) {
-            if (e.code !== 'auth/user-not-found') {
-              throw e;
+              // Delete the old 'removed' staff record so a fresh one can be created
+              await existingStaffDoc.ref.delete();
             }
           }
 

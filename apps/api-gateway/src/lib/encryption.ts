@@ -1,4 +1,10 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
+import {
+  createCipheriv,
+  createDecipheriv,
+  randomBytes,
+  scryptSync,
+  timingSafeEqual,
+} from 'node:crypto';
 
 const algorithm = 'aes-256-cbc';
 const secret = process.env.ENCRYPTION_KEY || 'c1rcle-super-secret-key-1234567890';
@@ -35,4 +41,25 @@ export function decrypt(encryptedText: string | null | undefined): string {
     // If decryption fails, return original text (useful for legacy data)
     return encryptedText;
   }
+}
+
+/**
+ * Hashes a plaintext password securely using scrypt.
+ */
+export function hashPassword(password: string): string {
+  const salt = randomBytes(16).toString('hex');
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+}
+
+/**
+ * Verifies a password against a stored scrypt hash.
+ */
+export function verifyPassword(password: string, storedHash: string): boolean {
+  if (!storedHash) return false;
+  const parts = storedHash.split(':');
+  if (parts.length !== 2) return false;
+  const [salt, key] = parts;
+  const hash = scryptSync(password, salt, 64).toString('hex');
+  return timingSafeEqual(Buffer.from(key, 'hex'), Buffer.from(hash, 'hex'));
 }

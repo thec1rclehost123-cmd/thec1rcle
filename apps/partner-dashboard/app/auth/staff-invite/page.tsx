@@ -23,6 +23,7 @@ function StaffInviteContent() {
 
   const code = searchParams.get('code') || '';
   const venueId = searchParams.get('venue') || '';
+  const tempPasswordParam = searchParams.get('temp') || '';
 
   const [step, setStep] = useState<'loading' | 'form' | 'success' | 'error'>('loading');
   const [inviteInfo, setInviteInfo] = useState<{
@@ -49,7 +50,9 @@ function StaffInviteContent() {
           setErrorMsg(data.error);
           setStep('error');
         } else if (data.status === 'active') {
-          router.replace(`/auth/change-password?code=${code}&venue=${venueId}&status=accepted`);
+          router.replace(
+            `/auth/change-password?code=${code}&venue=${venueId}&status=accepted&temp=${tempPasswordParam}`,
+          );
         } else {
           setInviteInfo(data);
           setStep('form');
@@ -59,7 +62,7 @@ function StaffInviteContent() {
         setErrorMsg('Failed to load invite details. Please try again.');
         setStep('error');
       });
-  }, [code, venueId, router]);
+  }, [code, venueId, router, tempPasswordParam]);
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,17 +83,21 @@ function StaffInviteContent() {
         return;
       }
 
+      const tempPassword = tempPasswordParam || data.tempPassword;
+
       // Store temporary password in session storage for the change password page
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('tempPassword', data.tempPassword);
+      if (typeof window !== 'undefined' && tempPassword) {
+        sessionStorage.setItem('tempPassword', tempPassword);
       }
 
       // Sign in the user using Firebase Auth client
-      await signIn(data.email, data.tempPassword);
+      await signIn(inviteInfo?.email || data.email, tempPassword);
 
       setStep('success');
       setTimeout(() => {
-        router.replace('/auth/change-password');
+        router.replace(
+          tempPassword ? `/auth/change-password?temp=${tempPassword}` : '/auth/change-password',
+        );
       }, 1500);
     } catch (err: any) {
       console.error(err);

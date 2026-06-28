@@ -10,6 +10,7 @@ import {
 } from '../../lib/guest-csrf';
 import { buildGuestAuthBootstrap, buildGuestProfileCreatePayload } from '../../lib/guest-auth';
 import { sendGuestOtp, verifyGuestOtp } from '../../lib/guest-otp';
+import { hashPassword } from '../../lib/encryption';
 import {
   getPermissionsForRole,
   getDefaultTabVisibility,
@@ -688,19 +689,47 @@ export default async function authRoutes(fastify: FastifyInstance) {
 
         await fastify.auth.updateUser(userId, { password: request.body.newPassword });
 
+        const hashedNewPassword = hashPassword(request.body.newPassword);
+
         await fastify.db
           .collection('users')
           .doc(userId)
           .update({
+            password: hashedNewPassword,
             mustChangePassword: false,
             updatedAt: new Date().toISOString(),
           })
           .catch((err: any) => {
             fastify.log.error(
               { err, userId },
-              'Failed to clear mustChangePassword flag in Firestore',
+              'Failed to update users password and mustChangePassword flag in Firestore',
             );
           });
+
+        if (userRecord.email) {
+          try {
+            const staffSnap = await fastify.db
+              .collection('venue_staff')
+              .where('email', '==', userRecord.email)
+              .get();
+
+            if (!staffSnap.empty) {
+              const batch = fastify.db.batch();
+              staffSnap.docs.forEach((doc) => {
+                batch.update(doc.ref, {
+                  password: hashedNewPassword,
+                  updatedAt: new Date().toISOString(),
+                });
+              });
+              await batch.commit();
+            }
+          } catch (err: any) {
+            fastify.log.error(
+              { err, email: userRecord.email },
+              'Failed to update venue_staff password in Firestore',
+            );
+          }
+        }
 
         return { success: true };
       } catch (error: any) {
