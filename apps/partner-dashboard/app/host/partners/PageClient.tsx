@@ -372,29 +372,29 @@ export default function HostPartnersPage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 flex-1 max-w-2xl">
-            <div className="flex items-center gap-2 flex-1 px-4 py-2 rounded-2xl bg-white/5 border border-white/10">
-              <Search className="w-3.5 h-3.5 text-white/30" />
+          <div className="flex items-center gap-2 flex-1 min-w-0 max-w-2xl">
+            <div className="flex items-center gap-2 flex-1 min-w-0 px-4 py-2 rounded-2xl bg-white/5 border border-white/10">
+              <Search className="w-3.5 h-3.5 text-white/30 shrink-0" />
               <input
                 type="text"
                 value={discoverSearch}
                 onChange={(e) => setDiscoverSearch(e.target.value)}
                 placeholder="Search connections..."
-                className="flex-1 bg-transparent border-none outline-none text-[12px] font-medium placeholder:text-white/20 text-white"
+                className="flex-1 min-w-0 bg-transparent border-none outline-none text-[12px] font-medium placeholder:text-white/20 text-white"
               />
               {discoverSearch && (
-                <button onClick={() => setDiscoverSearch('')}>
+                <button onClick={() => setDiscoverSearch('')} className="shrink-0">
                   <X className="w-3.5 h-3.5 text-white/30" />
                 </button>
               )}
             </div>
 
-            <div className="flex p-1 rounded-2xl bg-white/5 border border-white/10">
+            <div className="flex p-1 rounded-2xl bg-white/5 border border-white/10 shrink-0">
               {['venue', 'promoter'].map((t) => (
                 <button
                   key={t}
                   onClick={() => setDiscoverType(t)}
-                  className="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all"
+                  className="px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all shrink-0"
                   style={
                     discoverType === t
                       ? { background: '#27272a', color: 'white' }
@@ -407,10 +407,13 @@ export default function HostPartnersPage() {
             </div>
 
             <button
-              onClick={() => setDiscoverRefresh((n) => n + 1)}
-              className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/30 hover:text-white transition-colors"
+              onClick={() => {
+                setDiscoverRefresh((n) => n + 1);
+                fetchData();
+              }}
+              className="p-2.5 rounded-2xl bg-white/5 border border-white/10 text-white/30 hover:text-white transition-colors shrink-0 flex items-center justify-center"
             >
-              <RefreshCw className="w-3.5 h-3.5" />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             </button>
           </div>
         </motion.div>

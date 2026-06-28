@@ -764,27 +764,27 @@ function OnboardingContent() {
           }
         }
         // Log the details being saved during account creation
-        console.log('Data going to be saved in database during account creation:', {
-          email: formData.email,
-          phone: createPhone || undefined,
-          name: formData.name,
-          contactPerson: formData.contactPerson,
-          city: formData.city,
-          area: formData.area,
-          website: formData.website,
-          capacity: formData.capacity,
-          plan: formData.plan,
-          role: formData.role,
-          association: formData.association,
-          associatedHostId: formData.associatedHostId,
-          instagram: formData.instagram,
-          bio: formData.bio,
-          upcomingEventsText: formData.upcomingEventsText,
-          pastEventsText: formData.pastEventsText,
-          businessType: formData.businessType,
-          registrationNumber: formData.registrationNumber,
-          entityType: entityType,
-        });
+        // console.log('Data going to be saved in database during account creation:', {
+        // email: formData.email,
+        // phone: createPhone || undefined,
+        // name: formData.name,
+        // contactPerson: formData.contactPerson,
+        // city: formData.city,
+        // area: formData.area,
+        // website: formData.website,
+        // capacity: formData.capacity,
+        // plan: formData.plan,
+        // role: formData.role,
+        // association: formData.association,
+        // associatedHostId: formData.associatedHostId,
+        // instagram: formData.instagram,
+        // bio: formData.bio,
+        // upcomingEventsText: formData.upcomingEventsText,
+        // pastEventsText: formData.pastEventsText,
+        // businessType: formData.businessType,
+        // registrationNumber: formData.registrationNumber,
+        // entityType: entityType,
+        // });
         // Create account server-side (Admin SDK) — avoids client Firebase Auth connectivity issues
         const res = await fetch('/api/auth/create-account', {
           method: 'POST',
