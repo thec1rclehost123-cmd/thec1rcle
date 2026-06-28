@@ -1114,21 +1114,20 @@ export const adminStore = {
 
     // 1. Fetch precomputed global stats (O(1) read)
     const statsDoc = await db.collection('platform_stats').doc('current').get();
-    const baseStats = statsDoc.exists
-      ? statsDoc.data()
-      : {
-          users_total: 0,
-          events_total: 0,
-          revenue: { total: 0 },
-          tickets_sold_total: 0,
-          pendingReviewsCount: 0,
-          activeIncidentsCount: 0,
-          liveEvents: 0,
-          liveUsers: 0,
-          liveHosts: 0,
-          liveVenues: 0,
-          updatedAt: new Date().toISOString(),
-        };
+    const defaultStats = {
+      users_total: 0,
+      events_total: 0,
+      revenue: { total: 0 },
+      tickets_sold_total: 0,
+      pendingReviewsCount: 0,
+      activeIncidentsCount: 0,
+      liveEvents: 0,
+      liveUsers: 0,
+      liveHosts: 0,
+      liveVenues: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    const baseStats = statsDoc.exists ? { ...defaultStats, ...statsDoc.data() } : defaultStats;
 
     // 2. Detect staleness (> 30 mins)
     const lastSyncDate = new Date(baseStats.updatedAt || 0);
