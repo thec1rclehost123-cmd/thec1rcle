@@ -459,6 +459,17 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           ticketingFieldErrors.tickets = 'Fill in Price and Quantity for all ticket tiers';
         }
       });
+      const totalTickets = formData.tickets.reduce(
+        (sum: number, t: any) => sum + (Number(t.quantity) || 0),
+        0,
+      );
+      const capacity = formData.capacity || 500;
+      if (totalTickets > capacity) {
+        ticketingIssues.push(
+          `Quantity is exceeding the decided capacity (${totalTickets}/${capacity})`,
+        );
+        ticketingFieldErrors.tickets = 'Total ticket quantity exceeds the decided capacity';
+      }
     }
     validation.ticketing = {
       isValid: ticketingIssues.length === 0,
@@ -486,12 +497,36 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
   }, [formData, role, scheduleAvailability]);
 
   // Grand Total Calculation
-  // Revenue and capacity calculations moved to backend
-  const grandTotal = {
-    totalTickets: 0,
-    revenue: 0,
-    capacity: 0,
-  };
+  const grandTotal = useMemo(() => {
+    const ticketRevenue = (formData.tickets || []).reduce(
+      (acc: number, tier: any) => acc + (Number(tier.price) || 0) * (Number(tier.quantity) || 0),
+      0,
+    );
+    const tableRevenue = formData.tablesEnabled
+      ? (formData.tables || []).reduce(
+          (acc: number, table: any) =>
+            acc + (Number(table.price) || 0) * (Number(table.quantity) || 0),
+          0,
+        )
+      : 0;
+    const ticketCapacity = (formData.tickets || []).reduce(
+      (acc: number, tier: any) => acc + (Number(tier.quantity) || 0),
+      0,
+    );
+    const tableCapacity = formData.tablesEnabled
+      ? (formData.tables || []).reduce(
+          (acc: number, table: any) =>
+            acc +
+            (Number(table.capacity || table.guestsPerTable) || 0) * (Number(table.quantity) || 0),
+          0,
+        )
+      : 0;
+
+    return {
+      revenue: ticketRevenue + tableRevenue,
+      capacity: ticketCapacity + tableCapacity,
+    };
+  }, [formData.tickets, formData.tables, formData.tablesEnabled]);
 
   const updateFormData = useCallback((updates: any) => {
     setFormData((prev: any) => ({ ...prev, ...updates }));

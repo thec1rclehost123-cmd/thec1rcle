@@ -1008,10 +1008,12 @@ export function TicketTierStep({
 
   const tickets: TicketTier[] = formData.tickets || [];
   const capacity = formData.capacity || 500;
-  // Calculations moved to backend
-  const totalTickets = 0;
-  const inventoryValue = 0;
-  const capacityUsage = 0;
+  const totalTickets = tickets.reduce((sum, t) => sum + (Number(t.quantity) || 0), 0);
+  const inventoryValue = tickets.reduce(
+    (sum, t) => sum + (Number(t.price) || 0) * (Number(t.quantity) || 0),
+    0,
+  );
+  const capacityUsage = capacity > 0 ? (totalTickets / capacity) * 100 : 0;
 
   const updateTicket = (index: number, updates: Partial<TicketTier>) => {
     const newTickets = [...tickets];
@@ -1236,6 +1238,15 @@ export function TicketTierStep({
           </div>
         )}
       </div>
+
+      {totalTickets > capacity && (
+        <div className="flex items-center gap-2.5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-[12px] text-red-500 font-bold">
+          <AlertCircle className="w-4.5 h-4.5 flex-shrink-0" />
+          <span>
+            Quantity is exceeding the decided capacity ({totalTickets}/{capacity})
+          </span>
+        </div>
+      )}
 
       {/* ─── Tab Bar ─── */}
       <div className="flex items-center gap-1 bg-surface-secondary border border-border-subtle rounded-xl p-1">
