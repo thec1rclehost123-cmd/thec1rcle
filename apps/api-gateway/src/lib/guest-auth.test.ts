@@ -163,8 +163,8 @@ describe('guest-auth contracts', () => {
     );
 
     expect(result.error).toBeNull();
-    expect(result.safeUpdates.gender).toBe('woman');
-    expect(result.safeUpdates.genderLastChangedAt).toBe('2026-04-20T00:00:00.000Z');
+    expect((result.safeUpdates as any).gender).toBe('woman');
+    expect((result.safeUpdates as any).genderLastChangedAt).toBe('2026-04-20T00:00:00.000Z');
   });
 
   it('normalizes avatar and phone fields during safe guest profile updates', () => {
