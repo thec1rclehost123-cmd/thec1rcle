@@ -1364,6 +1364,20 @@ export default async function eventRoutes(fastify: FastifyInstance) {
         }
       }
 
+      if (request.body.startDate && request.body.endDate) {
+        const start = new Date(request.body.startDate);
+        const end = new Date(request.body.endDate);
+        if (end.getTime() <= start.getTime()) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'End date must be after start date',
+              requestId: request.id,
+            }),
+          );
+        }
+      }
+
       try {
         const event = await fastify.eventService.createEvent(request.body, actorId, workspaceId);
 
@@ -1742,6 +1756,41 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           body.venueId = exact.venueId;
           body.venueName = exact.venueName || body.venueName || body.venue || '';
           body.venue = body.venueName;
+        }
+      }
+
+      // --- Validate end time is after start time ---
+      if (!isDraft && body.startDate) {
+        const sTime = body.startTime || '00:00';
+        const eTime = body.endTime || '00:00';
+        const sDate = body.startDate;
+        const eDate = body.endDate || sDate;
+
+        const [sYr, sMon, sDay] = sDate.split('-').map(Number);
+        const [sHr, sMin] = sTime.split(':').map(Number);
+        const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+        const [eYr, eMon, eDay] = eDate.split('-').map(Number);
+        const [eHr, eMin] = eTime.split(':').map(Number);
+        const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+        const isSameDayOrUnspecified = !body.endDate || body.endDate === sDate;
+        if (isSameDayOrUnspecified && body.startTime && body.endTime) {
+          const startMinutes = sHr * 60 + sMin;
+          const endMinutes = eHr * 60 + eMin;
+          if (endMinutes < startMinutes) {
+            endDt.setDate(endDt.getDate() + 1);
+          }
+        }
+
+        if (endDt.getTime() <= startDt.getTime()) {
+          return reply.status(400).send(
+            buildErrorResponse({
+              code: 'BAD_REQUEST',
+              message: 'End time of event must be after the start time',
+              requestId: request.id,
+            }),
+          );
         }
       }
 

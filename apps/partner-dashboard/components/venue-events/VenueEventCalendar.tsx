@@ -16,6 +16,7 @@ import {
   Check,
   CheckCircle2,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
@@ -698,6 +699,10 @@ function RightPanel({
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [timeConfirmed, setTimeConfirmed] = useState(false);
 
+  const isTimeInvalid = useMemo(() => {
+    return timeToMins(endTime) <= timeToMins(startTime);
+  }, [startTime, endTime]);
+
   const fromDisabled = useMemo<Set<string>>(() => {
     const disabled = new Set<string>();
     BLOCK_TIMES.forEach((t) => {
@@ -999,20 +1004,28 @@ function RightPanel({
         {!isBlocked && (
           <button
             onClick={() =>
-              timeConfirmed && !hasOverlap && onConfirm(startTime, endTime, doorsOpen, lastEntry)
+              timeConfirmed &&
+              !hasOverlap &&
+              !isTimeInvalid &&
+              onConfirm(startTime, endTime, doorsOpen, lastEntry)
             }
-            disabled={!timeConfirmed || hasOverlap || confirmChecking}
+            disabled={!timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking}
             className="flex-1 py-3 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98] flex items-center justify-center gap-2"
             style={{
               background:
-                !timeConfirmed || hasOverlap || confirmChecking
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
                   ? 'rgba(255,255,255,0.06)'
                   : 'linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)',
               color:
-                !timeConfirmed || hasOverlap || confirmChecking ? 'rgba(255,255,255,0.2)' : 'white',
-              cursor: !timeConfirmed || hasOverlap || confirmChecking ? 'not-allowed' : 'pointer',
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
+                  ? 'rgba(255,255,255,0.2)'
+                  : 'white',
+              cursor:
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
+                  ? 'not-allowed'
+                  : 'pointer',
               boxShadow:
-                !timeConfirmed || hasOverlap || confirmChecking
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
                   ? 'none'
                   : '0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
             }}
@@ -1020,18 +1033,23 @@ function RightPanel({
             {confirmChecking ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              !timeConfirmed && <Lock className="w-3 h-3" />
+              (!timeConfirmed || isTimeInvalid) && <Lock className="w-3 h-3" />
             )}
             {confirmChecking
               ? 'Verifying...'
-              : !timeConfirmed
-                ? 'Select a Time First'
+              : !timeConfirmed || isTimeInvalid
+                ? 'Invalid Time Slot'
                 : 'Continue to Create Event'}
           </button>
         )}
         {confirmError && (
           <p className="text-[11px] font-medium text-red-400 absolute bottom-16 left-5 right-5">
             {confirmError}
+          </p>
+        )}
+        {isTimeInvalid && (
+          <p className="text-[11px] font-medium text-red-400 absolute bottom-16 left-5 right-5 text-center">
+            End time of event must be after the start time
           </p>
         )}
         <button
@@ -1217,24 +1235,41 @@ function RightPanel({
                 </div>
               )}
 
+              {isTimeInvalid && (
+                <div
+                  className="flex items-center gap-2.5 px-4 py-3 rounded-xl"
+                  style={{
+                    background: 'rgba(248,113,113,0.08)',
+                    border: '1px solid rgba(248,113,113,0.2)',
+                  }}
+                >
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: '#F87171' }} />
+                  <p className="text-[12px] font-black" style={{ color: 'rgba(248,113,113,0.8)' }}>
+                    End time of event must be after the start time
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={() => {
-                  if (!hasOverlap) {
+                  if (!hasOverlap && !isTimeInvalid) {
                     setTimeConfirmed(true);
                     setTimeModalOpen(false);
                   }
                 }}
-                disabled={hasOverlap}
+                disabled={hasOverlap || isTimeInvalid}
                 className="w-full py-4 rounded-2xl text-[14px] font-black uppercase tracking-widest transition-all duration-200 active:scale-[0.98]"
                 style={{
-                  background: hasOverlap
-                    ? 'rgba(255,255,255,0.06)'
-                    : 'linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)',
-                  color: hasOverlap ? 'rgba(255,255,255,0.2)' : 'white',
-                  cursor: hasOverlap ? 'not-allowed' : 'pointer',
-                  boxShadow: hasOverlap
-                    ? 'none'
-                    : '0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
+                  background:
+                    hasOverlap || isTimeInvalid
+                      ? 'rgba(255,255,255,0.06)'
+                      : 'linear-gradient(135deg, #F44A22 0%, #FF6B4A 100%)',
+                  color: hasOverlap || isTimeInvalid ? 'rgba(255,255,255,0.2)' : 'white',
+                  cursor: hasOverlap || isTimeInvalid ? 'not-allowed' : 'pointer',
+                  boxShadow:
+                    hasOverlap || isTimeInvalid
+                      ? 'none'
+                      : '0 4px 24px rgba(244,74,34,0.45), inset 0 1px 0 rgba(255,255,255,0.15)',
                 }}
               >
                 Confirm Time

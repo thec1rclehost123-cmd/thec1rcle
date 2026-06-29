@@ -191,6 +191,31 @@ export default function CreateEventForm() {
       return;
     }
 
+    if (form.startDate && form.startTime && form.endTime) {
+      const [sYr, sMon, sDay] = form.startDate.split('-').map(Number);
+      const [sHr, sMin] = form.startTime.split(':').map(Number);
+      const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+      const effectiveEndDate = form.endDate || form.startDate;
+      const [eYr, eMon, eDay] = effectiveEndDate.split('-').map(Number);
+      const [eHr, eMin] = form.endTime.split(':').map(Number);
+      const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+      const isSameDayOrUnspecified = !form.endDate || form.endDate === form.startDate;
+      if (isSameDayOrUnspecified) {
+        const startMinutes = sHr * 60 + sMin;
+        const endMinutes = eHr * 60 + eMin;
+        if (endMinutes < startMinutes) {
+          endDt.setDate(endDt.getDate() + 1);
+        }
+      }
+
+      if (endDt.getTime() <= startDt.getTime()) {
+        setStatus({ type: 'error', message: 'End time of event must be after the start time' });
+        return;
+      }
+    }
+
     setSubmitting(true);
     setStatus({ type: '', message: '' });
 
