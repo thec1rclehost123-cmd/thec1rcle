@@ -22,6 +22,7 @@ export type ProfileAnthem = {
 };
 
 export type ProfileSettingsUpdate = {
+  gender?: string | null;
   bio?: string | null;
   datingPhotos?: string[];
   datingVitals?: DatingVitals;
@@ -494,7 +495,7 @@ export function buildSafeProfileSettingsUpdate(
   if (spotify !== undefined) safe.spotify = spotify;
 
   if (updates.gender !== undefined) {
-    if (!VALID_GENDERS.has(updates.gender)) {
+    if (updates.gender !== null && !VALID_GENDERS.has(updates.gender)) {
       return {
         safeUpdates: {},
         error: 'Invalid gender value',

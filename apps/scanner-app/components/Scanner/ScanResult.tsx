@@ -10,6 +10,7 @@ interface ScanResultProps {
       ticketType: string;
       quantity: number;
       entryType: string;
+      genderRestriction?: string | null;
     };
     previousScan?: {
       time: string;
