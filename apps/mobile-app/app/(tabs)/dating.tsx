@@ -336,7 +336,7 @@ export default function DatingScreen() {
     if (filterHeightMin > 0) filters.heightMin = filterHeightMin;
     if (filterHeightMax > 0) filters.heightMax = filterHeightMax;
     if (filterVerifiedOnly) filters.verifiedOnly = true;
-    void fetchProfiles(user!.uid, { append: false, filters });
+    void fetchProfiles(user!.uid, { append: false });
     setShowFilters(false);
   };
 

@@ -976,7 +976,7 @@ const styles = StyleSheet.create({
   genderChip: {
     paddingVertical: 10,
     paddingHorizontal: 16,
-    borderRadius: radii.full,
+    borderRadius: radii.pill,
     backgroundColor: colors.base[50],
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.06)',

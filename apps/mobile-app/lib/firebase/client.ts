@@ -45,7 +45,7 @@ function getReactNativeAuthPersistence() {
     };
     // Use SecureStore-backed storage instead of plain AsyncStorage
     // so that auth tokens are encrypted via iOS Keychain / Android Keystore.
-    return authModule.getReactNativePersistence?.(secureStorage);
+    return authModule.getReactNativePersistence?.(secureStorage as any);
   } catch {
     return undefined;
   }

@@ -141,7 +141,9 @@ export default function OtpScreen() {
                 style={styles.boxWrap}
               >
                 <TextInput
-                  ref={(ref) => (inputRefs.current[index] = ref)}
+                  ref={(ref) => {
+                    inputRefs.current[index] = ref;
+                  }}
                   value={digit}
                   onChangeText={(t) => handleCodeChange(t, index)}
                   onKeyPress={(e) => handleKeyPress(e, index)}
