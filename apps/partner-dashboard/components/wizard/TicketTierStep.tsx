@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { ScheduledPricing } from './components/ScheduledPricing';
 import { PromoCodeManager } from './components/PromoCodeManager';
+import { useToast } from '@/components/ui/Toast';
 
 interface ScheduledPrice {
   id: string;
@@ -1004,6 +1005,7 @@ export function TicketTierStep({
   updateFormData,
   validationErrors,
 }: TicketTierStepProps) {
+  const { warning: toastWarning } = useToast();
   const [activeTab, setActiveTab] = useState<ActiveTab>('tiers');
 
   const tickets: TicketTier[] = formData.tickets || [];
@@ -1016,6 +1018,20 @@ export function TicketTierStep({
   const capacityUsage = capacity > 0 ? (totalTickets / capacity) * 100 : 0;
 
   const updateTicket = (index: number, updates: Partial<TicketTier>) => {
+    if (updates.quantity !== undefined) {
+      const newQty = Number(updates.quantity) || 0;
+      const otherTicketsTotal = tickets.reduce(
+        (sum, t, idx) => (idx === index ? sum : sum + (Number(t.quantity) || 0)),
+        0,
+      );
+      if (otherTicketsTotal + newQty > capacity) {
+        toastWarning(
+          'Capacity Exceeded',
+          `Quantity is exceeding the decided capacity (${otherTicketsTotal + newQty}/${capacity})`,
+        );
+        updates.quantity = Math.max(0, capacity - otherTicketsTotal);
+      }
+    }
     const newTickets = [...tickets];
     newTickets[index] = { ...newTickets[index], ...updates };
     updateFormData({ tickets: newTickets });
@@ -1026,13 +1042,22 @@ export function TicketTierStep({
   };
 
   const addTicket = () => {
+    let defaultQty = 50;
+    if (totalTickets + defaultQty > capacity) {
+      const remaining = Math.max(0, capacity - totalTickets);
+      toastWarning(
+        'Capacity Exceeded',
+        `Quantity is exceeding the decided capacity. Capped new tier quantity at ${remaining}`,
+      );
+      defaultQty = remaining;
+    }
     const newTicket: TicketTier = {
       id: Date.now().toString(),
       name: '',
       entryType: 'stag',
       genderRequirement: 'male',
       price: formData.isRSVP ? 0 : 0,
-      quantity: 50,
+      quantity: defaultQty,
       minPerOrder: 1,
       maxPerOrder: 10,
       promoterEnabled: true,
@@ -1337,7 +1362,28 @@ export function TicketTierStep({
                   <button
                     key={preset.label}
                     onClick={() => {
-                      const newTickets = preset.tiers.map((t, i) => ({
+                      const presetTotal = (preset.tiers as any[]).reduce(
+                        (sum: number, t: any) => sum + t.quantity,
+                        0,
+                      );
+                      let adjustedTiers: any[] = preset.tiers;
+                      if (presetTotal > capacity) {
+                        toastWarning(
+                          'Preset Capacity Adjusted',
+                          `The selected preset's total quantity (${presetTotal}) exceeds the decided capacity (${capacity}). Quantities have been scaled down to fit.`,
+                        );
+                        let allocated = 0;
+                        adjustedTiers = preset.tiers.map((t: any, idx) => {
+                          const isLast = idx === preset.tiers.length - 1;
+                          const qty = isLast
+                            ? Math.max(0, capacity - allocated)
+                            : Math.floor(t.quantity * (capacity / presetTotal));
+                          allocated += qty;
+                          return { ...t, quantity: qty };
+                        });
+                      }
+
+                      const newTickets = adjustedTiers.map((t: any, i) => ({
                         id: `preset-${Date.now()}-${i}`,
                         ...t,
                         minPerOrder: 1,

@@ -1,37 +1,30 @@
-# Bug Fix: Ticket Tiers Capacity Exceeding Event Capacity
+# Ticket Capacity Bug Fix
 
-## Description
-This document outlines the bug fix implemented for the ticket capacity validation issue.
+## Issue Description
+When creating an event, the user sets a maximum expected capacity. However, when configuring the ticket tiers in the Tickets step, the total quantity of tickets across all tiers could exceed the configured capacity. This allowed users to accidentally oversell their events beyond the venue's physical or legal limits.
 
-### Bug Detail
-- **Issue**: The total quantity configured across all ticket tiers was allowed to exceed the defined venue/event capacity.
-- **Expected Behavior**: The sum of all ticket quantities across all ticket tiers should not exceed the event's overall capacity.
-- **Actual Behavior**: The user was able to create/configure ticket tiers with a total quantity larger than the event capacity and proceed through the wizard without any warnings or validation errors.
+## Expected Behavior
+The total quantity of tickets configured across all tiers should never exceed the event capacity. If a user attempts to set a ticket quantity or apply presets/tiers that exceed the capacity, the system should prevent it and inform the user with a warning message.
 
----
+## Actual Behavior
+Users could set any ticket tier quantities without validation checking, allowing the total ticket count to easily exceed capacity.
 
-## Changes Implemented
+## Solution Implemented
+We modified [TicketTierStep.tsx](file:///c:/Users/majid/OneDrive/Desktop%20-%20Copy/Desktop/thec1rcle/apps/partner-dashboard/components/wizard/TicketTierStep.tsx) to enforce the capacity limit on all three pathways where ticket tiers or their quantities are configured:
 
-We resolved this bug by implementing client-side validation and updating dynamic calculations in the partner dashboard wizard.
+1. **Individual Tier Updates (`updateTicket`):**
+   - Before applying a quantity update to a ticket tier, the system checks if the new total ticket quantity (other ticket quantities + updated quantity) exceeds the event capacity.
+   - If it does, a warning toast notification is shown to the user (`toastWarning`), and the updated quantity is capped exactly at the remaining capacity (`capacity - otherTicketsTotal`).
 
-### 1. Dynamic Calculations in `TicketTierStep` Component
-**File modified**: [`TicketTierStep.tsx`](file:///c:/Users/majid/OneDrive/Desktop%20-%20Copy/Desktop/thec1rcle/apps/partner-dashboard/components/wizard/TicketTierStep.tsx)
-- Replaced hardcoded helper variables (`totalTickets`, `inventoryValue`, `capacityUsage`) with live, dynamic client-side calculations:
-  - `totalTickets`: Sum of all ticket quantities configured in tiers.
-  - `inventoryValue`: Sum of price * quantity for all ticket tiers.
-  - `capacityUsage`: Ratio of total tickets to the event capacity.
-- Added a visual warning banner directly in the ticket tier creation step below the Top Bar that appears if the total tickets exceed capacity, displaying:
-  `Quantity is exceeding the decided capacity (total/capacity)`.
+2. **Adding a New Tier (`addTicket`):**
+   - Before adding a new ticket tier (which defaults to a quantity of 50), the system checks if the addition would cause the total to exceed the event capacity.
+   - If it does, the default quantity for the new tier is automatically capped at the remaining capacity, and a warning toast notification is shown.
 
-### 2. Validation & Preview Calculations in `CreateEventWizardV2` Component
-**File modified**: [`CreateEventWizardV2.tsx`](file:///c:/Users/majid/OneDrive/Desktop%20-%20Copy/Desktop/thec1rcle/apps/partner-dashboard/components/wizard/CreateEventWizardV2.tsx)
-- Added ticketing capacity validation checks under step validation.
-- Prevents the user from clicking **Continue** to proceed to the next step if the total tickets configured exceeds the overall event capacity.
-- Replaced the hardcoded static `grandTotal` object with a dynamic `useMemo` calculation hook to keep the right-side preview panel stats (`Inventory Value` and `Total Capacity`) in sync in real-time as the user adds, edits, or deletes ticket tiers.
+3. **Applying Quick Presets:**
+   - When a user selects a quick preset (e.g. Nightclub, Concert, Simple Entry) whose pre-defined quantities sum up to more than the event capacity, the system automatically scales down the ticket quantities proportionally so that their sum exactly matches the event's capacity.
+   - A warning toast notification is displayed to explain that the preset quantities were scaled down to fit the decided capacity.
 
----
-
-## Verification and Testing
-- **Visual Alert**: When the sum of quantities in ticket tiers exceeds the capacity limit (e.g. 550 total tickets vs 500 capacity), a red warning banner is shown: *"Quantity is exceeding the decided capacity (550/500)"*.
-- **Navigation Lock**: The wizard blocks progression from step 3 (Tickets) to step 4 (Tables) if the ticket total exceeds capacity, ensuring validation passes before moving forward.
-- **Preview Accuracy**: The preview panel now correctly shows the dynamic `Inventory Value` and `Total Capacity` instead of hardcoded `₹0` and `0`.
+## Verification Actions
+- Verified that adding a ticket tier when near capacity correctly caps the new tier's quantity and displays a warning toast.
+- Verified that editing a ticket tier's quantity to a value higher than the remaining capacity displays a warning toast and caps the input value.
+- Verified that applying the presets (like Concert or Nightclub) automatically scales down their respective ticket quantities to fit inside the event capacity when the preset total exceeds it.
