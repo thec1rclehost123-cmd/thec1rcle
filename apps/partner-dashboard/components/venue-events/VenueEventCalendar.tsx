@@ -170,7 +170,10 @@ export function VenueEventCalendar() {
     async (url: string) => {
       if (!user) throw new Error('Not authenticated');
       const token = await user.getIdToken(true);
-      return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+      return fetch(url, {
+        cache: 'no-store',
+        headers: { Authorization: `Bearer ${token}` },
+      });
     },
     [user],
   );
@@ -192,7 +195,15 @@ export function VenueEventCalendar() {
         const data = await res.json();
         // Operating view returns a raw array or wrapped in calendar/days
         const rawDays = Array.isArray(data) ? data : data.calendar || data.days || [];
-        setCalendarData(rawDays);
+        const normalizedDays = rawDays.map((d: any) => {
+          const apiState = String(d.state || '').toUpperCase();
+          const normalizedState = apiState === 'BOOKED' ? 'CONFIRMED' : apiState;
+          return {
+            ...d,
+            state: normalizedState,
+          };
+        });
+        setCalendarData(normalizedDays);
       } catch (err) {
         console.error('Failed to fetch venue calendar:', err);
         setCalendarData([]);
@@ -275,7 +286,8 @@ export function VenueEventCalendar() {
         timeOverlaps(e.startTime || '21:00', e.endTime || '04:00', startTime, endTime),
       );
 
-      if (day?.state === 'BLOCKED' || hasConflict) {
+      const dayState = String(day?.state || '').toUpperCase();
+      if (dayState === 'BLOCKED' || hasConflict) {
         setConfirmError('This slot was just taken or blocked. Please choose another time.');
         return;
       }

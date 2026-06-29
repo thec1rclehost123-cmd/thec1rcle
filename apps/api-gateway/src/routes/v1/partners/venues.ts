@@ -386,9 +386,14 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       fastify.db
         .collection('availability_slots')
         .where('venueId', '==', venueId)
-        .where('date', '>=', startDate)
-        .where('date', '<=', endDate)
         .get()
+        .then((snap) => {
+          const docs = snap.docs.filter((doc) => {
+            const d = String(doc.data()?.date || '');
+            return d >= startDate && d <= endDate;
+          });
+          return { docs };
+        })
         .catch(() => ({ docs: [] as any[] })),
     ]);
     const allEvents = ((eventsSnap as any).docs || []).map((doc: any) => ({
@@ -721,8 +726,106 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
 
       try {
         requireType(ctx, 'venue');
-        return reply.send(
-          await buildLegacyCalendar(ctx.partnerId, request.query.startDate, request.query.endDate),
+        return reply
+          .header('Cache-Control', 'no-store, no-cache, must-revalidate')
+          .send(
+            await buildLegacyCalendar(
+              ctx.partnerId,
+              request.query.startDate,
+              request.query.endDate,
+            ),
+          );
+      } catch (err: any) {
+        if (err.statusCode)
+          return reply
+            .status(err.statusCode)
+            .send(
+              buildErrorResponse({ code: err.code, message: err.message, requestId: request.id }),
+            );
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/venues/calendar',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      const ctx = await resolvePartnerContext(fastify.db, request);
+      if (!ctx)
+        return reply.status(403).send(
+          buildErrorResponse({
+            code: 'FORBIDDEN',
+            message: 'No partner identity found',
+            requestId: request.id,
+          }),
+        );
+
+      try {
+        requireType(ctx, 'venue');
+        const { action, date, startTime, endTime, reason, slotId } = request.body as any;
+        const normalizedAction = String(action || '').toLowerCase();
+        const now = new Date().toISOString();
+
+        if (normalizedAction === 'block') {
+          const blockRef = await fastify.db.collection('availability_slots').add({
+            venueId: ctx.partnerId,
+            date,
+            requestedDate: date,
+            startTime: startTime || null,
+            endTime: endTime || null,
+            requestedStartTime: startTime || null,
+            requestedEndTime: endTime || null,
+            reason: reason || null,
+            source: 'venue_block',
+            status: 'blocked',
+            createdAt: now,
+            updatedAt: now,
+          });
+          return reply.status(201).send({ success: true, slotId: blockRef.id });
+        }
+
+        if (normalizedAction === 'unblock') {
+          const batch = fastify.db.batch();
+          let docs: any[] = [];
+
+          if (slotId) {
+            const blockDoc = await fastify.db.collection('availability_slots').doc(slotId).get();
+            if (blockDoc.exists) docs = [blockDoc];
+          } else {
+            const snapshot = await fastify.db
+              .collection('availability_slots')
+              .where('venueId', '==', ctx.partnerId)
+              .where('date', '==', date)
+              .where('source', '==', 'venue_block')
+              .get();
+            docs = snapshot.docs.filter((doc: any) => {
+              const data = doc.data() as Record<string, any>;
+              if (startTime && data.startTime && data.startTime !== startTime) return false;
+              if (endTime && data.endTime && data.endTime !== endTime) return false;
+              return true;
+            });
+          }
+
+          docs.forEach((doc: any) => batch.delete(doc.ref));
+          await batch.commit();
+          return reply.send({ success: true, removedCount: docs.length });
+        }
+
+        return reply.status(400).send(
+          buildErrorResponse({
+            code: 'BAD_REQUEST',
+            message: 'action must be block or unblock',
+            requestId: request.id,
+          }),
         );
       } catch (err: any) {
         if (err.statusCode)

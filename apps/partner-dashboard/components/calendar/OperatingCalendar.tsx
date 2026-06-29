@@ -109,6 +109,7 @@ export function OperatingCalendar() {
   const [selectedDateStr, setSelected] = useState<string | null>(null);
   const [calendarData, setCalendarData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeFilter, setActiveFilter] = useState<'ALL' | 'BOOKED' | 'PENDING' | 'BLOCKED'>('ALL');
 
   const year = parseInt(
     currentDate.toLocaleString('en-US', { year: 'numeric', timeZone: 'Asia/Kolkata' }),
@@ -129,14 +130,24 @@ export function OperatingCalendar() {
       const param = role === 'venue' ? `venueId=${pid}` : `hostId=${pid}`;
       const res = await fetch(
         `/api/partners/venues/calendar?${param}&view=operating&startDate=${start}&endDate=${end}`,
-        { headers: tok ? { Authorization: `Bearer ${tok}` } : {} },
+        {
+          cache: 'no-store',
+          headers: tok ? { Authorization: `Bearer ${tok}` } : {},
+        },
       );
       const data = await res.json();
       if (res.ok && Array.isArray(data)) {
         setCalendarData(
           data.map((d: any) => {
             const ev = filterVisibleEvents(d.events);
-            return { ...d, events: ev, stats: { ...d.stats, eventCount: ev.length } };
+            const apiState = String(d.state || '').toUpperCase();
+            const normalizedState = apiState === 'BOOKED' ? 'CONFIRMED' : apiState;
+            return {
+              ...d,
+              state: normalizedState,
+              events: ev,
+              stats: { ...d.stats, eventCount: ev.length },
+            };
           }),
         );
       } else if (!silent) {
@@ -212,27 +223,30 @@ export function OperatingCalendar() {
     date: string,
     action: 'block' | 'unblock',
     reason = 'Manual Block',
-    startTime = '16:00',
-    endTime = '04:00',
+    startTime?: string,
+    endTime?: string,
   ) => {
     if (!profile?.activeMembership?.partnerId) return;
     const tok = await user?.getIdToken();
     const pid = profile.activeMembership.partnerId;
+    const body: any = { action, venueId: pid, date };
+    if (action === 'block') {
+      body.reason = reason;
+      body.startTime = startTime || '16:00';
+      body.endTime = endTime || '04:00';
+    }
     const res = await fetch(`/api/partners/venues/calendar?venueId=${pid}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(tok ? { Authorization: `Bearer ${tok}` } : {}),
       },
-      body: JSON.stringify({ action, venueId: pid, date, reason, startTime, endTime }),
+      body: JSON.stringify(body),
     });
     if (!res.ok) {
-      console.error(
-        '[Calendar] Block/unblock failed:',
-        res.status,
-        await res.text().catch(() => ''),
-      );
-      return;
+      const errText = await res.text().catch(() => '');
+      console.error('[Calendar] Block/unblock failed:', res.status, errText);
+      throw new Error(`Block/unblock failed: ${res.status} - ${errText}`);
     }
 
     // Optimistic update — immediately reflect in local state while fetchCalendar runs
@@ -241,14 +255,18 @@ export function OperatingCalendar() {
       const updated = prev.map((d) => {
         if (d.date !== date) return d;
         if (action === 'unblock') return { ...d, state: 'OPEN', block: null };
-        return { ...d, state: 'BLOCKED', block: { startTime, endTime, reason } };
+        return {
+          ...d,
+          state: 'BLOCKED',
+          block: { startTime: startTime || '16:00', endTime: endTime || '04:00', reason },
+        };
       });
       // If date wasn't in calendarData yet (empty initial load), inject it
       if (!exists && action === 'block') {
         updated.push({
           date,
           state: 'BLOCKED',
-          block: { startTime, endTime, reason },
+          block: { startTime: startTime || '16:00', endTime: endTime || '04:00', reason },
           events: [],
           slots: [],
           stats: { eventCount: 0, pendingSlots: 0 },
@@ -310,6 +328,7 @@ export function OperatingCalendar() {
           <div className="hidden lg:flex items-center gap-2">
             {[
               {
+                id: 'BOOKED',
                 n: stats.confirmed,
                 label: 'Booked',
                 color: C.teal,
@@ -317,6 +336,7 @@ export function OperatingCalendar() {
                 bd: 'rgba(52,211,153,.25)',
               },
               {
+                id: 'PENDING',
                 n: stats.pending,
                 label: 'Pending',
                 color: C.amber,
@@ -324,22 +344,32 @@ export function OperatingCalendar() {
                 bd: 'rgba(251,191,36,.25)',
               },
               {
+                id: 'BLOCKED',
                 n: stats.blocked,
                 label: 'Blocked',
                 color: C.red,
                 bg: 'rgba(248,113,113,.12)',
                 bd: 'rgba(248,113,113,.25)',
               },
-            ].map((s) => (
-              <div
-                key={s.label}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border"
-                style={{ background: s.bg, color: s.color, borderColor: s.bd }}
-              >
-                <span className="tabular-nums text-[11px]">{s.n}</span>
-                <span className="uppercase tracking-widest opacity-70">{s.label}</span>
-              </div>
-            ))}
+            ].map((s) => {
+              const isActive = activeFilter === s.id;
+              return (
+                <button
+                  key={s.label}
+                  onClick={() => setActiveFilter(activeFilter === s.id ? 'ALL' : (s.id as any))}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black border transition-all hover:scale-[1.02]"
+                  style={{
+                    background: isActive ? s.color : s.bg,
+                    color: isActive ? '#000' : s.color,
+                    borderColor: isActive ? s.color : s.bd,
+                    boxShadow: isActive ? `0 0 12px ${s.color}40` : 'none',
+                  }}
+                >
+                  <span className="tabular-nums text-[11px]">{s.n}</span>
+                  <span className="uppercase tracking-widest opacity-70">{s.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -426,6 +456,11 @@ export function OperatingCalendar() {
                     const hasEvents = evCount > 0;
                     const isWeekend = idx % 7 === 0 || idx % 7 === 6;
 
+                    let isDimmed = false;
+                    if (activeFilter === 'BOOKED' && !hasEvents) isDimmed = true;
+                    if (activeFilter === 'PENDING' && !hasPending) isDimmed = true;
+                    if (activeFilter === 'BLOCKED' && !isBlocked) isDimmed = true;
+
                     // Solid surface colours — hierarchy matters
                     let bg = isPast ? C.surfacePast : isWeekend ? C.surfaceWeekend : C.surface;
                     let border = `1px solid ${isPast ? 'rgba(255,255,255,0.05)' : C.borderDefault}`;
@@ -476,7 +511,8 @@ export function OperatingCalendar() {
                           border,
                           boxShadow: shadow,
                           cursor: isPast ? 'not-allowed' : 'pointer',
-                          opacity: isPast ? 0.42 : 1,
+                          opacity: isDimmed ? 0.15 : isPast ? 0.42 : 1,
+                          pointerEvents: isDimmed ? 'none' : 'auto',
                         }}
                         onMouseEnter={(e) => {
                           if (!isPast && !isSel && !isToday)
@@ -566,23 +602,34 @@ export function OperatingCalendar() {
               }}
             >
               {[
-                { color: C.teal, label: 'Confirmed', bg: C.surfaceEvent },
-                { color: C.amber, label: 'Pending', bg: C.surfacePending },
-                { color: C.red, label: 'Blocked', bg: C.surfaceBlocked },
-              ].map(({ color, label, bg }) => (
-                <div key={label} className="flex items-center gap-2">
-                  <div
-                    className="w-3 h-3 rounded-md"
-                    style={{ background: bg, border: `1px solid ${color}40` }}
-                  />
-                  <span
-                    className="text-[9px] font-black uppercase tracking-widest"
-                    style={{ color: 'rgba(255,255,255,0.3)' }}
+                { color: C.teal, label: 'Confirmed', bg: C.surfaceEvent, id: 'BOOKED' },
+                { color: C.amber, label: 'Pending', bg: C.surfacePending, id: 'PENDING' },
+                { color: C.red, label: 'Blocked', bg: C.surfaceBlocked, id: 'BLOCKED' },
+              ].map(({ color, label, bg, id }) => {
+                const isActive = activeFilter === id;
+                return (
+                  <button
+                    key={label}
+                    onClick={() => setActiveFilter(activeFilter === id ? 'ALL' : (id as any))}
+                    className="flex items-center gap-2 transition-all hover:scale-[1.02]"
                   >
-                    {label}
-                  </span>
-                </div>
-              ))}
+                    <div
+                      className="w-3 h-3 rounded-md"
+                      style={{
+                        background: isActive ? color : bg,
+                        border: `1px solid ${color}${isActive ? '' : '40'}`,
+                        boxShadow: isActive ? `0 0 8px ${color}60` : 'none',
+                      }}
+                    />
+                    <span
+                      className="text-[9px] font-black uppercase tracking-widest"
+                      style={{ color: isActive ? color : 'rgba(255,255,255,0.3)' }}
+                    >
+                      {label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -832,6 +879,10 @@ function SidePanel({
   const [isBlockingMode, setBlockingMode] = useState(false);
 
   useEffect(() => {
+    setBlockingMode(false);
+  }, [dateStr]);
+
+  useEffect(() => {
     if (!isBlockingMode) {
       setReason(data?.block?.reason || 'Private Event / Maintenance');
       setStartTime(data?.block?.startTime || '20:00');
@@ -912,6 +963,8 @@ function SidePanel({
     try {
       await onBlockDate(dateStr, 'block', reason, startTime, endTime);
       setBlockingMode(false);
+    } catch (err) {
+      console.error('[SidePanel] Block failed:', err);
     } finally {
       setIsPending(false);
     }
@@ -922,6 +975,8 @@ function SidePanel({
     try {
       await onBlockDate(dateStr, 'unblock');
       setBlockingMode(false);
+    } catch (err) {
+      console.error('[SidePanel] Unblock failed:', err);
     } finally {
       setIsPending(false);
     }
