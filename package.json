@@ -38,7 +38,7 @@
     "@lhci/cli": "^0.15.1",
     "@size-limit/file": "^12.1.0",
     "@vitest/coverage-v8": "^4.0.18",
-    "expo": "^56.0.0",
+    "expo": "^56.0.12",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.7",
     "size-limit": "^12.1.0",
