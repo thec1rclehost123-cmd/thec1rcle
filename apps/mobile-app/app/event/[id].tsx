@@ -53,6 +53,7 @@ import { useProfileStore } from '@/store/profileStore';
 import { shareEventLink } from '@/lib/deeplinks';
 import { useTicketsStore } from '@/store/ticketsStore';
 import { useAuthStore } from '@/store/authStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import AuthSheet from '@/components/ui/AuthSheet';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -116,35 +117,6 @@ function formatGoingDate(value?: string) {
     .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
     .replace(':00', '');
   return `${weekday}, ${month} ${day} at ${time}`;
-}
-
-function GoingMarquee({ accent }: { accent: string }) {
-  const marqueeX = useSharedValue(0);
-
-  useEffect(() => {
-    marqueeX.value = 0;
-    marqueeX.value = withRepeat(
-      withTiming(-SCREEN_WIDTH, { duration: 9000, easing: Easing.linear }),
-      -1,
-      false,
-    );
-  }, [marqueeX]);
-
-  const marqueeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: marqueeX.value }],
-  }));
-
-  return (
-    <View style={[styles.goingMarquee, { backgroundColor: accent }]}>
-      <Animated.View style={[styles.goingMarqueeTrack, marqueeStyle]}>
-        {Array.from({ length: 12 }).map((_, index) => (
-          <Text key={index} style={styles.goingMarqueeText}>
-            THEC1RCLE
-          </Text>
-        ))}
-      </Animated.View>
-    </View>
-  );
 }
 
 function TicketOriginEventView({
@@ -226,7 +198,6 @@ function TicketOriginEventView({
   return (
     <View style={[styles.goingScreen, { backgroundColor: accent }]}>
       <SafeAreaView style={styles.goingSafeArea}>
-        <GoingMarquee accent={accent} />
         <View style={styles.goingContent}>
           <Animated.View entering={FadeInDown.duration(420)} style={styles.goingHeader}>
             <Text style={styles.goingTitle} numberOfLines={3}>
@@ -301,7 +272,6 @@ function TicketOriginEventView({
 
               <View style={styles.sharePreviewContainer}>
                 <View style={[styles.sharePreviewCard, { backgroundColor: accent }]}>
-                  <GoingMarquee accent={accent} />
                   <View style={styles.sharePreviewInfo}>
                     <Text style={styles.sharePreviewTitle} numberOfLines={2}>
                       {title.toUpperCase()}
@@ -352,6 +322,23 @@ function TicketOriginEventView({
 }
 
 // Premium Ticket Tier Card
+function getGenderRestriction(tier: TicketTier): string | null {
+  const r =
+    tier.genderRestriction ||
+    (tier as any).genderRequirement ||
+    (tier as any).requiredGender ||
+    null;
+  if (r && r !== 'none' && r !== 'any') return r;
+  if (String(tier.entryType || '').toLowerCase() === 'female') return 'female';
+  return null;
+}
+
+function getRestrictionLabel(gender: string): string {
+  if (gender === 'female') return 'Ladies Only';
+  if (gender === 'male') return 'Men Only';
+  return `${gender} Only`;
+}
+
 function TicketTierCard({
   tier,
   event,
@@ -369,6 +356,13 @@ function TicketTierCard({
   const [added, setAdded] = useState(false);
   const isAvailable = tier.remaining > 0;
   const { addItem } = useCartStore();
+  const profile = useProfileStore((s) => s.profile);
+
+  const genderRestriction = getGenderRestriction(tier);
+  const userGender = profile?.gender || null;
+  const isGenderRestricted =
+    genderRestriction !== null && userGender !== null && userGender !== genderRestriction;
+  const isGenderUnknown = genderRestriction !== null && userGender === null;
 
   // Compute sold percentage for progress bar
   const soldPercent = tier.soldPercent ?? 0;
@@ -380,6 +374,15 @@ function TicketTierCard({
   }));
 
   const handleQuantityChange = (delta: number) => {
+    if (isGenderRestricted || isGenderUnknown) {
+      Alert.alert(
+        'Restricted Ticket',
+        genderRestriction === 'female'
+          ? 'This ticket is restricted to female attendees only.'
+          : `This ticket is restricted to ${genderRestriction} attendees only.`,
+      );
+      return;
+    }
     Haptics.selectionAsync();
     if (delta > 0) {
       setQuantity(quantity + 1);
@@ -389,6 +392,15 @@ function TicketTierCard({
   };
 
   const handleAddToCart = () => {
+    if (isGenderRestricted || isGenderUnknown) {
+      Alert.alert(
+        'Restricted Ticket',
+        genderRestriction === 'female'
+          ? 'This ticket is restricted to female attendees only.'
+          : `This ticket is restricted to ${genderRestriction} attendees only.`,
+      );
+      return;
+    }
     const result = addItem({
       eventId: event.id,
       eventTitle: event.title,
@@ -425,8 +437,23 @@ function TicketTierCard({
         styles.tierCard,
         isPopular && styles.tierCardPopular,
         !isAvailable && styles.tierCardSoldOut,
+        isGenderRestricted && styles.tierCardRestricted,
       ]}
     >
+      {/* Gender restriction badge */}
+      {genderRestriction && (
+        <View style={styles.genderBadge}>
+          <LinearGradient
+            colors={
+              genderRestriction === 'female' ? ['#FF69B4', '#FF1493'] : ['#4A90D9', '#2E6BB5']
+            }
+            style={styles.genderBadgeGradient}
+          >
+            <Text style={styles.genderBadgeText}>{getRestrictionLabel(genderRestriction)}</Text>
+          </LinearGradient>
+        </View>
+      )}
+
       {/* Popular badge */}
       {isPopular && (
         <View style={styles.popularBadge}>
@@ -458,7 +485,7 @@ function TicketTierCard({
       )}
 
       {/* Quantity & Add Button */}
-      {isAvailable ? (
+      {isAvailable && !isGenderRestricted ? (
         <View style={styles.tierActions}>
           <View style={styles.quantitySelector}>
             <Pressable onPress={() => handleQuantityChange(-1)} style={styles.quantityButton}>
@@ -479,6 +506,10 @@ function TicketTierCard({
             </LinearGradient>
           </Pressable>
         </View>
+      ) : isGenderRestricted ? (
+        <Pressable onPress={handleAddToCart} style={styles.restrictedButton}>
+          <Text style={styles.restrictedButtonText}>Restricted</Text>
+        </Pressable>
       ) : (
         <Pressable
           onPress={() => {
@@ -541,6 +572,7 @@ export default function EventDetailScreen() {
   const { getEventById, events, featuredEvents } = useEventsStore();
   const cartItems = useCartStore((s) => s.items);
   const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  const isPremium = useSubscriptionStore((s) => s.isPremium);
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const profile = useProfileStore((s) => s.profile);
@@ -847,11 +879,19 @@ export default function EventDetailScreen() {
   };
 
   const isSoldOut = !event?.tickets?.some((tier) => tier.remaining > 0);
+  const isPremiumGated = event?.premiumOnly === true || event?.isEarlyAccess === true;
+  const premiumGateFeature: PremiumFeature = event?.isEarlyAccess
+    ? 'earlyAccessDrop'
+    : 'premiumOnlyEvent';
 
   const handleGetTickets = () => {
     const { user: authUser, isGuest } = useAuthStore.getState();
     if (!authUser || isGuest) {
       setShowAuthSheet(true);
+      return;
+    }
+    if (isPremiumGated && !isPremium) {
+      useSubscriptionStore.getState().openPaywall(premiumGateFeature);
       return;
     }
     if (ticketTransitionLocked.current || loading || isSoldOut) return;
@@ -1525,15 +1565,27 @@ export default function EventDetailScreen() {
           onPress={handleGetTickets}
           style={[
             styles.floatingPill,
-            { backgroundColor: accent },
+            isPremiumGated && !isPremium ? styles.floatingPillPremium : { backgroundColor: accent },
             ticketButtonAnimatedStyle,
             (loading || isSoldOut) && { opacity: 0.5 },
           ]}
           pointerEvents={loading || isSoldOut ? 'none' : 'auto'}
         >
-          <Animated.Text style={[styles.floatingPillText, ticketButtonTextStyle]}>
-            {floatingTicketLabel}
-          </Animated.Text>
+          {isPremiumGated && !isPremium ? (
+            <LinearGradient
+              colors={['#F7D06A', '#B86F17']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.floatingPillPremiumGradient}
+            >
+              <Ionicons name="lock-closed" size={16} color="#241200" style={{ marginRight: 8 }} />
+              <Text style={styles.floatingPillPremiumText}>Unlock Premium Access</Text>
+            </LinearGradient>
+          ) : (
+            <Animated.Text style={[styles.floatingPillText, ticketButtonTextStyle]}>
+              {floatingTicketLabel}
+            </Animated.Text>
+          )}
         </AnimatedPressable>
       </View>
 
@@ -1565,24 +1617,7 @@ const styles = StyleSheet.create({
   goingSafeArea: {
     flex: 1,
   },
-  goingMarquee: {
-    height: 34,
-    overflow: 'hidden',
-    justifyContent: 'center',
-  },
-  goingMarqueeTrack: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: SCREEN_WIDTH * 3,
-  },
-  goingMarqueeText: {
-    color: '#161616',
-    fontFamily: eventFont.black,
-    fontSize: 14,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-    marginRight: 20,
-  },
+
   goingContent: {
     flex: 1,
     paddingHorizontal: 20,
@@ -2134,6 +2169,43 @@ const styles = StyleSheet.create({
   },
   tierCardSoldOut: {
     opacity: 0.5,
+  },
+  tierCardRestricted: {
+    opacity: 0.5,
+    borderColor: '#FF4444',
+    borderWidth: 1,
+  },
+  genderBadge: {
+    position: 'absolute',
+    top: -12,
+    left: 16,
+    zIndex: 10,
+  },
+  genderBadgeGradient: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: radii.pill,
+  },
+  genderBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  restrictedButton: {
+    backgroundColor: 'rgba(255, 68, 68, 0.15)',
+    borderRadius: radii.lg,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 68, 68, 0.3)',
+  },
+  restrictedButtonText: {
+    color: '#FF4444',
+    fontSize: 14,
+    fontWeight: '700',
   },
   popularBadge: {
     position: 'absolute',
@@ -3121,6 +3193,24 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
+  },
+  floatingPillPremium: {
+    overflow: 'hidden',
+    borderRadius: 20,
+  },
+  floatingPillPremiumGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: 40,
+    paddingHorizontal: 20,
+  },
+  floatingPillPremiumText: {
+    color: '#241200',
+    fontFamily: eventFont.black,
+    fontSize: 13,
+    fontWeight: '900',
   },
   floatingPillText: {
     color: '#fff',

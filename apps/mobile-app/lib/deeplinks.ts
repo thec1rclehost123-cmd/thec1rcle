@@ -108,6 +108,28 @@ export async function copyToClipboard(text: string): Promise<void> {
   await Clipboard.setStringAsync(text);
 }
 
+// Check user has social profile before routing to dating features
+function requireSocialProfile(): boolean {
+  const { useProfileStore } = require('@/store/profileStore');
+  const profile = useProfileStore.getState().profile;
+  if (!profile?.socialSetupComplete) {
+    const { router } = require('expo-router');
+    router.push('/social-setup');
+    return false;
+  }
+  return true;
+}
+
+// --- 🛡️ DEEP LINK PARAM SANITIZATION ---
+// Strips non-alphanumeric, dash, underscore, slash, colon, dot characters
+// and caps length at 200 to prevent injection / buffer-overflow attacks.
+const SANITIZE_RE = /[^a-zA-Z0-9\-_\/:.\s]/g;
+const MAX_PARAM_LENGTH = 200;
+
+function sanitizeParam(value: string): string {
+  return value.replace(SANITIZE_RE, '').slice(0, MAX_PARAM_LENGTH);
+}
+
 // Parse deep link URL
 export function parseDeepLink(url: string): {
   type: DeepLinkType | null;
@@ -126,19 +148,20 @@ export function parseDeepLink(url: string): {
 
     // If we have an ID in the path (e.g. event/123), add it to params
     if (pathParts.length > 1) {
-      params.id = pathParts[1];
-      if (type === 'event') params.eventId = pathParts[1];
-      if (type === 'ticket') params.orderId = pathParts[1];
-      if (type === 'chat') params.eventId = pathParts[1];
-      if (type === 'claim') params.token = pathParts[1];
-      if (type === 'going') params.orderId = pathParts[1];
-      if (type === 'transfer') params.code = pathParts[1];
+      const sanitized = sanitizeParam(pathParts[1]);
+      params.id = sanitized;
+      if (type === 'event') params.eventId = sanitized;
+      if (type === 'ticket') params.orderId = sanitized;
+      if (type === 'chat') params.eventId = sanitized;
+      if (type === 'claim') params.token = sanitized;
+      if (type === 'going') params.orderId = sanitized;
+      if (type === 'transfer') params.code = sanitized;
     }
 
     if (parsed.queryParams) {
       Object.entries(parsed.queryParams).forEach(([key, value]) => {
         if (typeof value === 'string') {
-          params[key] = value;
+          params[key] = sanitizeParam(value);
         }
       });
     }
@@ -184,8 +207,11 @@ export function handleDeepLink(url: string): void {
         router.push(`/claim/${params.token || params.id}`);
       }
       break;
+
     case 'profile':
       if (params.userId) {
+        // Dating profile deep links require social setup
+        if (!requireSocialProfile()) return;
         router.push(`/profile/${params.userId}` as any);
       }
       break;

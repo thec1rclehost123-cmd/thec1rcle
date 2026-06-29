@@ -5,6 +5,7 @@ import {
   Modal,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -36,9 +37,16 @@ import {
 } from 'lucide-react-native';
 import { colors, radii, spacing } from '@/lib/design/theme';
 import { useAuthStore } from '@/store/authStore';
-import { useDatingStore, type DatingProfile, type Prompt } from '@/store/datingStore';
+import { useProfileStore } from '@/store/profileStore';
+import {
+  useDatingStore,
+  type DatingProfile,
+  type Prompt,
+  type DatingFilters,
+} from '@/store/datingStore';
 import { useSubscriptionStore } from '@/store/subscriptionStore';
 import { PremiumBadgeDot } from '@/components/ui/PremiumBadge';
+import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
 
 type ReplyTarget = {
   profile: DatingProfile;
@@ -51,6 +59,7 @@ function ProfileHeader({
   onPass,
   onLike,
   onReply,
+  onRequireSocial,
   stageHeight,
   animatedCardStyle,
   animatedBackFarStyle,
@@ -63,6 +72,7 @@ function ProfileHeader({
   onPass: () => void;
   onLike: () => void;
   onReply: () => void;
+  onRequireSocial: () => boolean;
   stageHeight: number;
   animatedCardStyle?: any;
   animatedBackFarStyle?: any;
@@ -78,6 +88,7 @@ function ProfileHeader({
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={() => {
+            if (!onRequireSocial()) return;
             void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             router.push({
               pathname: '/dating/[id]',
@@ -204,7 +215,8 @@ function ReplySheet({
 export default function DatingScreen() {
   const insets = useSafeAreaInsets();
   const { height: screenHeight } = useWindowDimensions();
-  const { user } = useAuthStore();
+  const { user, isGuest } = useAuthStore();
+  const { profile: currentUserProfile } = useProfileStore();
   const { profiles, loading, prefetching, hasMore, fetchProfiles, likeUser, passUser, sendAskOut } =
     useDatingStore();
   const isPremium = useSubscriptionStore((state) => state.isPremium);
@@ -212,6 +224,30 @@ export default function DatingScreen() {
   const [likesSent, setLikesSent] = useState<string[]>([]);
   const [replyTarget, setReplyTarget] = useState<ReplyTarget>(null);
   const [replyText, setReplyText] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterVibeTags, setFilterVibeTags] = useState<string[]>([]);
+  const [filterIntent, setFilterIntent] = useState<string>('');
+  const [filterHeightMin, setFilterHeightMin] = useState<number>(0);
+  const [filterHeightMax, setFilterHeightMax] = useState<number>(0);
+  const [filterVerifiedOnly, setFilterVerifiedOnly] = useState(false);
+
+  const VIBE_TAG_OPTIONS = [
+    'Music',
+    'Dancing',
+    'Casual',
+    'Vibing',
+    'Party',
+    'Chill',
+    'Luxury',
+    'Networking',
+  ];
+  const INTENT_OPTIONS = [
+    'Casual Dating',
+    'Something Serious',
+    'Friends',
+    'Looking for Connections',
+  ];
+  const HEIGHT_OPTIONS = [0, 150, 155, 160, 165, 170, 175, 180, 185, 190, 195, 200];
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -229,8 +265,17 @@ export default function DatingScreen() {
   const profile = profiles.length > 0 ? profiles[0] : null;
   const alreadyLiked = profile ? likesSent.includes(profile.id) : false;
 
+  const requireSocialProfile = () => {
+    if (!currentUserProfile?.socialSetupComplete) {
+      router.push('/social-setup');
+      return false;
+    }
+    return true;
+  };
+
   const handlePass = () => {
     if (!profile) return;
+    if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (user?.uid) {
       void passUser(user.uid, profile.userId);
@@ -239,6 +284,7 @@ export default function DatingScreen() {
 
   const handleLike = async () => {
     if (!profile) return;
+    if (!requireSocialProfile()) return;
     const targetProfile = profile;
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     if (user?.uid) {
@@ -252,6 +298,7 @@ export default function DatingScreen() {
 
   const handleOpenReply = (prompt: Prompt) => {
     if (!profile) return;
+    if (!requireSocialProfile()) return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setReplyTarget({ profile, prompt });
     setReplyText('');
@@ -279,7 +326,41 @@ export default function DatingScreen() {
       openPaywall('advancedFilters');
       return;
     }
+    setShowFilters(true);
   };
+
+  const applyFilters = () => {
+    const filters: DatingFilters = {};
+    if (filterVibeTags.length > 0) filters.vibeTags = filterVibeTags;
+    if (filterIntent) filters.intent = filterIntent;
+    if (filterHeightMin > 0) filters.heightMin = filterHeightMin;
+    if (filterHeightMax > 0) filters.heightMax = filterHeightMax;
+    if (filterVerifiedOnly) filters.verifiedOnly = true;
+    void fetchProfiles(user!.uid, { append: false, filters });
+    setShowFilters(false);
+  };
+
+  const clearFilters = () => {
+    setFilterVibeTags([]);
+    setFilterIntent('');
+    setFilterHeightMin(0);
+    setFilterHeightMax(0);
+    setFilterVerifiedOnly(false);
+    void fetchProfiles(user!.uid, { append: false });
+    setShowFilters(false);
+  };
+
+  const toggleVibeTag = (tag: string) => {
+    setFilterVibeTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+    );
+  };
+
+  const activeFilterCount =
+    filterVibeTags.length +
+    (filterIntent ? 1 : 0) +
+    (filterHeightMin > 0 || filterHeightMax > 0 ? 1 : 0) +
+    (filterVerifiedOnly ? 1 : 0);
 
   const firstPrompt = useMemo(
     () =>
@@ -314,6 +395,10 @@ export default function DatingScreen() {
   const passOverlayStyle = useAnimatedStyle(() => ({
     opacity: Math.min(Math.max(-translateX.value / 50, 0), 1),
   }));
+
+  // if (isGuest) {
+  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  // }
 
   const panGesture = Gesture.Pan()
     .onUpdate((event) => {
@@ -386,6 +471,7 @@ export default function DatingScreen() {
               onPass={handlePass}
               onLike={handleLike}
               onReply={() => handleOpenReply(firstPrompt)}
+              onRequireSocial={requireSocialProfile}
               stageHeight={screenHeight * 0.64}
               animatedCardStyle={animatedCardStyle}
               animatedBackFarStyle={animatedBackStyle}
@@ -415,6 +501,196 @@ export default function DatingScreen() {
         onClose={() => setReplyTarget(null)}
         onSend={handleSendReply}
       />
+
+      <Modal
+        visible={showFilters}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilters(false)}
+      >
+        <View style={styles.modalRoot}>
+          <Pressable style={styles.modalScrim} onPress={() => setShowFilters(false)} />
+          <View style={styles.filterSheet}>
+            <View style={styles.filterSheetHeader}>
+              <Pressable onPress={clearFilters}>
+                <Text style={styles.filterSheetReset}>Reset</Text>
+              </Pressable>
+              <Text style={styles.filterSheetTitle}>Advanced Filters</Text>
+              <Pressable onPress={applyFilters}>
+                <Text style={styles.filterSheetApply}>Apply ({activeFilterCount})</Text>
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.filterSheetScroll}>
+              <Text style={styles.filterSectionLabel}>Vibe Tags</Text>
+              <View style={styles.filterChipsRow}>
+                {VIBE_TAG_OPTIONS.map((tag) => (
+                  <Pressable
+                    key={tag}
+                    onPress={() => toggleVibeTag(tag)}
+                    style={[
+                      styles.filterChip,
+                      filterVibeTags.includes(tag) && styles.filterChipActive,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filterVibeTags.includes(tag) && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {tag}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Intent</Text>
+              <View style={styles.filterChipsRow}>
+                {INTENT_OPTIONS.map((intent) => (
+                  <Pressable
+                    key={intent}
+                    onPress={() => setFilterIntent(filterIntent === intent ? '' : intent)}
+                    style={[styles.filterChip, filterIntent === intent && styles.filterChipActive]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        filterIntent === intent && styles.filterChipTextActive,
+                      ]}
+                    >
+                      {intent}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Height (cm)</Text>
+              <View style={styles.filterHeightRow}>
+                <View style={styles.filterHeightPicker}>
+                  <Text style={styles.filterHeightLabel}>Min</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.filterHeightScroll}
+                  >
+                    {HEIGHT_OPTIONS.map((h) =>
+                      h === 0 ? (
+                        <Pressable
+                          key="min-none"
+                          onPress={() => setFilterHeightMin(0)}
+                          style={[
+                            styles.filterHeightOption,
+                            filterHeightMin === 0 && styles.filterChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterHeightOptionText,
+                              filterHeightMin === 0 && styles.filterChipTextActive,
+                            ]}
+                          >
+                            Any
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          key={`min-${h}`}
+                          onPress={() => setFilterHeightMin(h)}
+                          style={[
+                            styles.filterHeightOption,
+                            filterHeightMin === h && styles.filterChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterHeightOptionText,
+                              filterHeightMin === h && styles.filterChipTextActive,
+                            ]}
+                          >
+                            {h}
+                          </Text>
+                        </Pressable>
+                      ),
+                    )}
+                  </ScrollView>
+                </View>
+                <View style={styles.filterHeightPicker}>
+                  <Text style={styles.filterHeightLabel}>Max</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.filterHeightScroll}
+                  >
+                    {HEIGHT_OPTIONS.map((h) =>
+                      h === 0 ? (
+                        <Pressable
+                          key="max-none"
+                          onPress={() => setFilterHeightMax(0)}
+                          style={[
+                            styles.filterHeightOption,
+                            filterHeightMax === 0 && styles.filterChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterHeightOptionText,
+                              filterHeightMax === 0 && styles.filterChipTextActive,
+                            ]}
+                          >
+                            Any
+                          </Text>
+                        </Pressable>
+                      ) : (
+                        <Pressable
+                          key={`max-${h}`}
+                          onPress={() => setFilterHeightMax(h)}
+                          style={[
+                            styles.filterHeightOption,
+                            filterHeightMax === h && styles.filterChipActive,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.filterHeightOptionText,
+                              filterHeightMax === h && styles.filterChipTextActive,
+                            ]}
+                          >
+                            {h}
+                          </Text>
+                        </Pressable>
+                      ),
+                    )}
+                  </ScrollView>
+                </View>
+              </View>
+
+              <Text style={styles.filterSectionLabel}>Verified Only</Text>
+              <Pressable
+                onPress={() => setFilterVerifiedOnly(!filterVerifiedOnly)}
+                style={styles.filterToggleRow}
+              >
+                <Text style={styles.filterToggleLabel}>
+                  {filterVerifiedOnly ? 'Show verified profiles only' : 'Show all profiles'}
+                </Text>
+                <View
+                  style={[
+                    styles.filterToggleTrack,
+                    filterVerifiedOnly && styles.filterToggleTrackActive,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.filterToggleThumb,
+                      filterVerifiedOnly && styles.filterToggleThumbActive,
+                    ]}
+                  />
+                </View>
+              </Pressable>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -954,5 +1230,138 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#fff',
     letterSpacing: 4,
+  },
+  filterSheet: {
+    maxHeight: '78%',
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    backgroundColor: '#111111',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  filterSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.lg,
+  },
+  filterSheetTitle: {
+    color: '#fff',
+    fontSize: 17,
+    fontWeight: '900',
+  },
+  filterSheetReset: {
+    color: 'rgba(255,255,255,0.48)',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  filterSheetApply: {
+    color: colors.iris,
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  filterSheetScroll: {
+    maxHeight: '90%',
+  },
+  filterSectionLabel: {
+    color: 'rgba(255,255,255,0.62)',
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+    marginTop: spacing.md,
+  },
+  filterChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterChip: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  filterChipActive: {
+    backgroundColor: 'rgba(246,197,91,0.15)',
+    borderColor: 'rgba(246,197,91,0.4)',
+  },
+  filterChipText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  filterChipTextActive: {
+    color: '#F6C55B',
+  },
+  filterHeightRow: {
+    gap: spacing.sm,
+  },
+  filterHeightPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  filterHeightLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 13,
+    fontWeight: '700',
+    width: 34,
+  },
+  filterHeightScroll: {
+    flexGrow: 0,
+  },
+  filterHeightOption: {
+    borderRadius: radii.pill,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginRight: 6,
+  },
+  filterHeightOptionText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  filterToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  filterToggleLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    flex: 1,
+  },
+  filterToggleTrack: {
+    width: 48,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    padding: 2,
+    justifyContent: 'center',
+  },
+  filterToggleTrackActive: {
+    backgroundColor: colors.iris,
+  },
+  filterToggleThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  filterToggleThumbActive: {
+    alignSelf: 'flex-end',
   },
 });

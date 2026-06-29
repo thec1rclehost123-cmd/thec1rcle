@@ -25,6 +25,7 @@ import {
   createShareBundle,
   claimTicketSlot,
   reclaimUnclaimedSlot,
+  revokeClaimedTicket,
   cancelShareBundle,
   getOrderShareBundles,
   getOrderAssignments,
@@ -227,6 +228,12 @@ export async function reclaimGuestShareSlot(userId: string, bundleId: string, sl
   return result;
 }
 
+export async function revokeGuestShareSlot(userId: string, bundleId: string, slotIndex: number) {
+  const result = await revokeClaimedTicket(bundleId, userId, slotIndex);
+  await invalidateGuestWallet([userId, result?.revokedUserId || null]);
+  return result;
+}
+
 export async function cancelGuestShareBundle(userId: string, bundleId: string) {
   const result = await cancelShareBundle(bundleId, userId);
   await invalidateGuestWallet([userId]);
@@ -246,9 +253,106 @@ export async function initiateGuestTransfer(
   recipientEmail?: string | null,
 ) {
   await verifyTicketOwnershipDirect(userId, ticketId);
+
+  // If a recipient email is provided, check gender restriction before initiating
+  if (recipientEmail) {
+    const db: Firestore = getAdminDb();
+    const ticketData = await resolveTicketGenderRequirement(ticketId, db);
+    if (ticketData.requiredGender && ticketData.requiredGender !== 'any') {
+      const recipient = await findUserByEmail(recipientEmail);
+      if (!recipient) {
+        throw Object.assign(new Error('Recipient not found. Please check the email address.'), {
+          statusCode: 404,
+        });
+      }
+      const recipientGender = recipient.gender || null;
+      const normalizedGender = recipientGender ? recipientGender.toLowerCase() : null;
+
+      if (!normalizedGender || ['other', 'prefer_not_to_say'].includes(normalizedGender)) {
+        const err = new Error(
+          !normalizedGender
+            ? 'Recipient has not set their gender and cannot receive restricted tickets.'
+            : 'Recipient must update their gender in profile settings before receiving this ticket.',
+        );
+        (err as any).statusCode = 403;
+        (err as any).code = 'GENDER_UPDATE_REQUIRED';
+        throw err;
+      }
+
+      if (normalizedGender !== ticketData.requiredGender) {
+        const err = new Error(
+          `This ticket is restricted to ${ticketData.requiredGender} attendees only and cannot be transferred to this recipient.`,
+        );
+        (err as any).statusCode = 403;
+        (err as any).code = 'GENDER_RESTRICTION';
+        throw err;
+      }
+    }
+  }
+
   const result = await initiateTransfer(ticketId, userId, recipientEmail ?? null);
   await invalidateGuestWallet([userId]);
   return result;
+}
+
+async function resolveTicketGenderRequirement(
+  ticketId: string,
+  db: Firestore,
+): Promise<{ requiredGender: string | null }> {
+  if (ticketId.startsWith('ENT-')) {
+    const doc = await db.collection('entitlements').doc(ticketId).get();
+    if (doc.exists) {
+      const data = doc.data()!;
+      return { requiredGender: data.genderRestriction || data.genderConstraint || null };
+    }
+    return { requiredGender: null };
+  }
+
+  if (ticketId.startsWith('CLAIM-') || ticketId.startsWith('TRANS-')) {
+    const doc = await db.collection('ticket_assignments').doc(ticketId).get();
+    if (doc.exists) {
+      const data = doc.data()!;
+      return { requiredGender: data.genderRestriction || data.requiredGender || null };
+    }
+    return { requiredGender: null };
+  }
+
+  const parts = ticketId.split('-');
+  if (parts.length >= 3) {
+    const orderId = parts.slice(0, parts.length - 2).join('-');
+    const orderDoc = await db.collection('orders').doc(orderId).get();
+    if (!orderDoc.exists) return { requiredGender: null };
+
+    const order = orderDoc.data()!;
+    const tierId = parts[parts.length - 2];
+    const sourceTicket = (order.tickets || []).find(
+      (t: any) => t.ticketId === tierId || t.tierId === tierId,
+    );
+
+    if (sourceTicket?.genderRestriction || sourceTicket?.requiredGender) {
+      return { requiredGender: sourceTicket.genderRestriction || sourceTicket.requiredGender };
+    }
+
+    const eventDoc = order.eventId ? await db.collection('events').doc(order.eventId).get() : null;
+    const event = eventDoc?.exists ? eventDoc.data() : null;
+    const eventTiers = event?.ticketCatalog?.tiers || event?.tickets || [];
+    const eventTicket = eventTiers.find((t: any) => t.id === tierId);
+    let inferred =
+      eventTicket?.genderRestriction ||
+      eventTicket?.genderRequirement ||
+      eventTicket?.requiredGender ||
+      eventTicket?.gender ||
+      null;
+    if (!inferred) {
+      const entryType = String(eventTicket?.entryType || '').toLowerCase();
+      if (entryType === 'female') inferred = 'female';
+      else if (entryType === 'stag' || entryType === 'male') inferred = 'male';
+    }
+
+    return { requiredGender: inferred || sourceTicket?.genderRequirement || null };
+  }
+
+  return { requiredGender: null };
 }
 
 export async function acceptGuestTransfer(userId: string, transferCode: string) {

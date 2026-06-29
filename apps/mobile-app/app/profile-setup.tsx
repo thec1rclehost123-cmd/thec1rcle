@@ -1,6 +1,6 @@
 /**
  * Profile Setup — post-auth, first sign-in only
- * 4 steps: Name → City → Vibe Tags → Photo
+ * 3 steps: Name → Vibe Tags → Photo
  */
 
 import { useEffect, useState } from 'react';
@@ -22,6 +22,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import { Camera } from 'lucide-react-native';
 import Animated, { FadeInRight, FadeOutLeft, FadeIn } from 'react-native-reanimated';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
@@ -56,8 +57,6 @@ export async function hasCompletedProfileSetup(userId?: string): Promise<boolean
   }
 }
 
-const CITIES = ['Pune', 'Mumbai', 'Bengaluru', 'Goa', 'Delhi', 'Other'];
-
 const VIBE_TAGS = [
   'Party Mode',
   'Chill',
@@ -68,7 +67,7 @@ const VIBE_TAGS = [
   'Brunch Club',
 ];
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 // ─── Progress Bar ───────────────────────────────────────────────
 function ProgressDots({ step }: { step: number }) {
@@ -94,7 +93,6 @@ export default function ProfileSetupScreen() {
 
   const [step, setStep] = useState(1);
   const [name, setName] = useState(profile?.displayName ?? user?.displayName ?? '');
-  const [city, setCity] = useState(profile?.city ?? '');
   const [vibeTags, setVibeTags] = useState<string[]>(profile?.vibeTags ?? []);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [photoDimensions, setPhotoDimensions] = useState<{ width?: number; height?: number }>();
@@ -103,9 +101,8 @@ export default function ProfileSetupScreen() {
   useEffect(() => {
     if (!profile) return;
     if (!name && profile.displayName) setName(profile.displayName);
-    if (!city && profile.city) setCity(profile.city);
     if (vibeTags.length === 0 && profile.vibeTags?.length) setVibeTags(profile.vibeTags);
-  }, [city, name, profile, vibeTags.length]);
+  }, [name, profile, vibeTags.length]);
 
   const toggleVibe = (tag: string) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -161,7 +158,6 @@ export default function ProfileSetupScreen() {
         email: user.email ?? undefined,
         displayName: name.trim() || user.displayName || '',
         phone: user.phoneNumber ?? undefined,
-        city: city || undefined,
         vibeTags: vibeTags.length > 0 ? vibeTags : undefined,
         photoURL: uploadedPhotoUrl,
         photos: uploadedPhotoUrl ? [uploadedPhotoUrl] : undefined,
@@ -191,7 +187,7 @@ export default function ProfileSetupScreen() {
     );
   };
 
-  const canProceed = step === 1 ? name.trim().length > 0 : step === 2 ? city.length > 0 : true; // vibe tags and photo are optional
+  const canProceed = step === 1 ? name.trim().length > 0 : true; // vibe tags and photo are optional
 
   return (
     <SafeAreaView style={styles.container}>
@@ -236,7 +232,7 @@ export default function ProfileSetupScreen() {
               exiting={FadeOutLeft.springify()}
               style={styles.stepContainer}
             >
-              <Text style={styles.stepLabel}>STEP 1 OF 4</Text>
+              <Text style={styles.stepLabel}>STEP 1 OF 3</Text>
               <Text style={styles.stepTitle}>What's your name?</Text>
               <Text style={styles.stepSubtitle}>
                 This is how you'll appear to others at events.
@@ -254,43 +250,14 @@ export default function ProfileSetupScreen() {
             </Animated.View>
           )}
 
-          {/* ── Step 2: City ─────────────────────────── */}
+          {/* ── Step 2: Vibe Tags ─────────────────────── */}
           {step === 2 && (
             <Animated.View
               key="step-2"
               entering={FadeInRight.springify()}
               style={styles.stepContainer}
             >
-              <Text style={styles.stepLabel}>STEP 2 OF 4</Text>
-              <Text style={styles.stepTitle}>Where are you based?</Text>
-              <Text style={styles.stepSubtitle}>We'll show you events in your city first.</Text>
-              <View style={styles.cityGrid}>
-                {CITIES.map((c) => (
-                  <Pressable
-                    key={c}
-                    onPress={() => {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                      setCity(c);
-                    }}
-                    style={[styles.cityChip, city === c && styles.cityChipActive]}
-                  >
-                    <Text style={[styles.cityChipText, city === c && styles.cityChipTextActive]}>
-                      {c}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-            </Animated.View>
-          )}
-
-          {/* ── Step 3: Vibe Tags ─────────────────────── */}
-          {step === 3 && (
-            <Animated.View
-              key="step-3"
-              entering={FadeInRight.springify()}
-              style={styles.stepContainer}
-            >
-              <Text style={styles.stepLabel}>STEP 3 OF 4</Text>
+              <Text style={styles.stepLabel}>STEP 2 OF 3</Text>
               <Text style={styles.stepTitle}>Pick your vibe</Text>
               <Text style={styles.stepSubtitle}>
                 Choose up to 5 tags to personalise your experience.
@@ -317,14 +284,14 @@ export default function ProfileSetupScreen() {
             </Animated.View>
           )}
 
-          {/* ── Step 4: Photo ─────────────────────────── */}
-          {step === 4 && (
+          {/* ── Step 3: Photo ─────────────────────────── */}
+          {step === 3 && (
             <Animated.View
-              key="step-4"
+              key="step-3"
               entering={FadeInRight.springify()}
               style={styles.stepContainer}
             >
-              <Text style={styles.stepLabel}>STEP 4 OF 4</Text>
+              <Text style={styles.stepLabel}>STEP 3 OF 3</Text>
               <Text style={styles.stepTitle}>Add a photo</Text>
               <Text style={styles.stepSubtitle}>
                 Optional — helps others recognise you at events.
@@ -338,13 +305,17 @@ export default function ProfileSetupScreen() {
                     contentFit="cover"
                   />
                 ) : (
-                  <LinearGradient
-                    colors={['rgba(244,74,34,0.15)', 'rgba(244,74,34,0.05)']}
-                    style={styles.photoPlaceholder}
-                  >
-                    <Text style={styles.photoPlaceholderIcon}>📷</Text>
-                    <Text style={styles.photoPlaceholderText}>Tap to choose photo</Text>
-                  </LinearGradient>
+                  <View style={styles.photoPlaceholderOuter}>
+                    <LinearGradient
+                      colors={['rgba(244,74,34,0.2)', 'rgba(244,74,34,0.02)']}
+                      style={styles.photoPlaceholder}
+                    >
+                      <View style={styles.cameraIconWrap}>
+                        <Camera size={40} color={colors.iris} strokeWidth={1.5} />
+                      </View>
+                      <Text style={styles.photoPlaceholderText}>Upload Photo</Text>
+                    </LinearGradient>
+                  </View>
                 )}
               </Pressable>
             </Animated.View>
@@ -469,32 +440,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
   },
-  cityGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-  },
-  cityChip: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: radii.pill,
-    backgroundColor: colors.base[50],
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-  },
-  cityChipActive: {
-    backgroundColor: 'rgba(244,74,34,0.15)',
-    borderColor: colors.iris,
-  },
-  cityChipText: {
-    color: colors.goldMetallic,
-    fontSize: 15,
-    fontWeight: '500',
-  },
-  cityChipTextActive: {
-    color: colors.iris,
-    fontWeight: '700',
-  },
   vibeGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -530,33 +475,46 @@ const styles = StyleSheet.create({
   },
   photoPickerBtn: {
     alignSelf: 'center',
-    marginTop: 8,
+    marginTop: 20,
   },
   photoPreview: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     borderWidth: 3,
     borderColor: colors.iris,
   },
+  photoPlaceholderOuter: {
+    shadowColor: colors.iris,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
   photoPlaceholder: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(244,74,34,0.3)',
-    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: 'rgba(244,74,34,0.4)',
+    backgroundColor: 'rgba(244,74,34,0.05)',
   },
-  photoPlaceholderIcon: {
-    fontSize: 36,
-    marginBottom: 8,
+  cameraIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(244,74,34,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
   },
   photoPlaceholderText: {
-    color: colors.goldMetallic,
-    fontSize: 13,
-    textAlign: 'center',
+    color: colors.iris,
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   footer: {
     paddingHorizontal: 24,

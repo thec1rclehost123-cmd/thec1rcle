@@ -3,11 +3,7 @@ import { View } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import {
-  hasRequestedPermissions,
-  hasSkippedSocialSetup,
-  hasViewedOnboarding,
-} from '@/lib/onboardingFlow';
+import { hasRequestedPermissions, hasViewedOnboarding } from '@/lib/onboardingFlow';
 import { DiscoLoader } from '@/components/ui/DiscoLoader';
 import { hasCompletedProfileSetup } from './profile-setup';
 
@@ -16,7 +12,6 @@ type FlowState = {
   basicProfileComplete: boolean;
   hasViewedOnboarding: boolean;
   permissionsRequested: boolean;
-  userSkippedSocial: boolean;
 };
 
 const INITIAL_FLOW_STATE: FlowState = {
@@ -24,7 +19,6 @@ const INITIAL_FLOW_STATE: FlowState = {
   basicProfileComplete: false,
   hasViewedOnboarding: false,
   permissionsRequested: false,
-  userSkippedSocial: false,
 };
 
 export default function Index() {
@@ -46,16 +40,14 @@ export default function Index() {
       hasCompletedProfileSetup(user.uid),
       hasViewedOnboarding(user.uid),
       hasRequestedPermissions(user.uid),
-      hasSkippedSocialSetup(user.uid),
       loadProfile(user.uid).catch(() => undefined),
-    ]).then(([basicProfileComplete, onboardingViewed, permissionsRequested, userSkippedSocial]) => {
+    ]).then(([basicProfileComplete, onboardingViewed, permissionsRequested]) => {
       if (cancelled) return;
       setFlowState({
         checked: true,
         basicProfileComplete,
         hasViewedOnboarding: onboardingViewed,
         permissionsRequested,
-        userSkippedSocial,
       });
     });
 
@@ -70,7 +62,6 @@ export default function Index() {
     profile?.profileComplete ||
     flowState.basicProfileComplete,
   );
-  const socialSetupComplete = profile?.socialSetupComplete === true;
   const waitingForAuthSync = authSyncInProgress || Boolean(user && !serverSynced);
 
   if (!initialized || waitingForAuthSync || !flowState.checked) {
@@ -95,8 +86,5 @@ export default function Index() {
   if (!basicSetupComplete) return <Redirect href="/profile-setup" />;
   if (!flowState.hasViewedOnboarding) return <Redirect href="/onboarding" />;
   if (!flowState.permissionsRequested) return <Redirect href="/notification-permission" />;
-  if (!socialSetupComplete && !flowState.userSkippedSocial) {
-    return <Redirect href="/social-setup" />;
-  }
   return <Redirect href="/(tabs)/explore" />;
 }

@@ -1,38 +1,133 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Crown, Sparkles, X } from 'lucide-react-native';
+import { Crown, Sparkles, X, Lock, RefreshCw } from 'lucide-react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import Purchases, { type PurchasesPackage } from 'react-native-purchases';
 import { colors, radii, spacing } from '@/lib/design/theme';
-import { useSubscriptionStore } from '@/store/subscriptionStore';
+import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import { apiFetch } from '@/lib/api';
 
-const PERKS = ['Unlimited Likes', '5 Ask Outs daily', 'Zero booking fees', 'Full likes visibility'];
+type PerkMap = Record<PremiumFeature | 'default', string[]>;
+
+const PERKS_MAP: PerkMap = {
+  dailyLikes: [
+    'Unlimited Daily Likes',
+    '5 Ask Outs daily',
+    'Zero booking fees',
+    'Full likes visibility',
+  ],
+  askOuts: [
+    'Unlimited Daily Likes',
+    '5 Ask Outs daily',
+    'Zero booking fees',
+    'Full likes visibility',
+  ],
+  whoLikedMe: ['See Who Liked You', 'Unlimited Likes', 'Zero booking fees', 'Priority support'],
+  rewind: [
+    'Unlimited Rewinds',
+    'Unlimited Daily Likes',
+    '5 Ask Outs daily',
+    'Full likes visibility',
+  ],
+  advancedFilters: [
+    'Advanced Filters',
+    'Vibe Tags & Intent',
+    'Height & Verified Only',
+    'Full likes visibility',
+  ],
+  premiumOnlyEvent: [
+    'Exclusive Events Access',
+    'Early Access Drops',
+    'Zero booking fees',
+    'Unlimited transfers',
+  ],
+  earlyAccessDrop: [
+    'Early Access Drops',
+    'Exclusive Events Access',
+    'Zero booking fees',
+    'Unlimited transfers',
+  ],
+  bookingFees: [
+    'Zero Booking Fees',
+    'Unlimited Daily Likes',
+    '5 Ask Outs daily',
+    'Full likes visibility',
+  ],
+  ticketTransfers: [
+    'Unlimited Transfers',
+    'Zero booking fees',
+    'Exclusive Events Access',
+    'Priority support',
+  ],
+  default: ['Unlimited Likes', '5 Ask Outs daily', 'Zero booking fees', 'Full likes visibility'],
+};
+
+function usePerks(feature: PremiumFeature | null): string[] {
+  if (feature && PERKS_MAP[feature]) {
+    return PERKS_MAP[feature];
+  }
+  return PERKS_MAP.default;
+}
 
 export function PremiumPaywallModal() {
   const paywall = useSubscriptionStore((state) => state.paywall);
   const closePaywall = useSubscriptionStore((state) => state.closePaywall);
   const hydrateFromRevenueCat = useSubscriptionStore((state) => state.hydrateFromRevenueCat);
+  const restorePurchases = useSubscriptionStore((state) => state.restorePurchases);
 
   const [offerings, setOfferings] = useState<PurchasesPackage[]>([]);
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [loadingOfferings, setLoadingOfferings] = useState(false);
+
+  const perks = usePerks(paywall.feature);
+
+  const slideUp = useSharedValue(0);
+
+  const sheetAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: withSpring(slideUp.value === 0 ? 300 : 0, { damping: 28, stiffness: 260 }) },
+    ],
+    opacity: withSpring(slideUp.value === 0 ? 0 : 1, { damping: 28, stiffness: 260 }),
+  }));
+
+  const loadOfferings = useCallback(async () => {
+    setLoadFailed(false);
+    setLoadingOfferings(true);
+    setError(null);
+    try {
+      const result = await Purchases.getOfferings();
+      const current = result.current;
+      if (current?.availablePackages) {
+        setOfferings(current.availablePackages);
+      }
+    } catch {
+      setLoadFailed(true);
+    } finally {
+      setLoadingOfferings(false);
+    }
+  }, []);
 
   useEffect(() => {
-    if (!paywall.visible) return;
+    if (!paywall.visible) {
+      slideUp.value = 0;
+      return;
+    }
     setError(null);
-    Purchases.getOfferings()
-      .then((result) => {
-        const current = result.current;
-        if (current?.availablePackages) {
-          setOfferings(current.availablePackages);
-        }
-      })
-      .catch(() => {});
+    setOfferings([]);
+    setLoadFailed(false);
+    slideUp.value = withSpring(1, { damping: 28, stiffness: 260 });
+    loadOfferings();
   }, [paywall.visible]);
 
   const handlePurchase = async () => {
     if (offerings.length === 0) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setPurchasing(true);
     setError(null);
     try {
@@ -52,69 +147,107 @@ export function PremiumPaywallModal() {
     }
   };
 
+  const handleRestore = async () => {
+    setRestoring(true);
+    setError(null);
+    try {
+      await restorePurchases();
+      closePaywall();
+    } catch (e: any) {
+      setError(e.message || 'Restore failed. Please try again.');
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  const isLoading = loadingOfferings || purchasing || restoring;
+
   return (
     <Modal visible={paywall.visible} transparent animationType="fade" onRequestClose={closePaywall}>
       <View style={styles.root}>
         <Pressable style={styles.scrim} onPress={closePaywall} />
-        <View style={styles.sheet}>
-          <Pressable
-            accessibilityLabel="Close paywall"
-            style={styles.closeButton}
-            onPress={closePaywall}
+        <Animated.View style={[styles.sheetWrapper, sheetAnimatedStyle]}>
+          <BlurView
+            experimentalBlurMethod="dimezisBlurView"
+            intensity={44}
+            tint="dark"
+            style={styles.sheetBlur}
           >
-            <X size={18} color="rgba(255,255,255,0.76)" strokeWidth={2.4} />
-          </Pressable>
-
-          <LinearGradient colors={['#FFE8A3', '#D99A28']} style={styles.crownWrap}>
-            <Crown size={26} color="#2B1600" strokeWidth={2.6} />
-          </LinearGradient>
-
-          <Text style={styles.eyebrow}>C1RCLE Premium</Text>
-          <Text style={styles.title}>{paywall.title}</Text>
-          <Text style={styles.message}>{paywall.message}</Text>
-
-          <View style={styles.perksGrid}>
-            {PERKS.map((perk) => (
-              <View key={perk} style={styles.perkPill}>
-                <Sparkles size={13} color="#F6C55B" strokeWidth={2.4} />
-                <Text style={styles.perkText}>{perk}</Text>
-              </View>
-            ))}
-          </View>
-
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-
-          {offerings.length > 0 && (
-            <Text style={styles.pricingText}>
-              {offerings[0].product.priceString}/
-              {offerings[0].packageType === Purchases.PACKAGE_TYPE.LIFETIME ? 'once' : 'month'}
-            </Text>
-          )}
-
-          <Pressable
-            style={styles.primaryButton}
-            onPress={handlePurchase}
-            disabled={purchasing || offerings.length === 0}
-          >
-            <LinearGradient
-              colors={['#F7D06A', '#B86F17']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.primaryGradient}
+            <Pressable
+              accessibilityLabel="Close paywall"
+              style={styles.closeButton}
+              onPress={closePaywall}
             >
-              {purchasing ? (
-                <ActivityIndicator color="#241200" />
-              ) : (
-                <Text style={styles.primaryText}>
-                  {offerings.length === 0 ? 'Loading...' : 'Upgrade to Premium'}
-                </Text>
-              )}
+              <X size={18} color="rgba(255,255,255,0.76)" strokeWidth={2.4} />
+            </Pressable>
+
+            <LinearGradient colors={['#FFE8A3', '#D99A28']} style={styles.crownWrap}>
+              <Crown size={26} color="#2B1600" strokeWidth={2.6} />
             </LinearGradient>
-          </Pressable>
-          <Pressable style={styles.secondaryButton} onPress={closePaywall} disabled={purchasing}>
-            <Text style={styles.secondaryText}>Not now</Text>
-          </Pressable>
-        </View>
+
+            <Text style={styles.eyebrow}>C1RCLE Premium</Text>
+            <Text style={styles.title}>{paywall.title}</Text>
+            <Text style={styles.message}>{paywall.message}</Text>
+
+            <View style={styles.perksGrid}>
+              {perks.map((perk) => (
+                <View key={perk} style={styles.perkPill}>
+                  <Sparkles size={13} color="#F6C55B" strokeWidth={2.4} />
+                  <Text style={styles.perkText}>{perk}</Text>
+                </View>
+              ))}
+            </View>
+
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+
+            {!loadFailed && offerings.length > 0 && (
+              <Text style={styles.pricingText}>
+                {offerings[0].product.priceString}/
+                {offerings[0].packageType === Purchases.PACKAGE_TYPE.LIFETIME ? 'once' : 'month'}
+              </Text>
+            )}
+
+            {loadFailed ? (
+              <Pressable style={styles.retryButton} onPress={loadOfferings} disabled={isLoading}>
+                <RefreshCw size={16} color="#F6C55B" strokeWidth={2.4} />
+                <Text style={styles.retryText}>Retry</Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={styles.primaryButton}
+                onPress={handlePurchase}
+                disabled={isLoading || offerings.length === 0}
+              >
+                <LinearGradient
+                  colors={['#F7D06A', '#B86F17']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.primaryGradient}
+                >
+                  {purchasing ? (
+                    <ActivityIndicator color="#241200" />
+                  ) : (
+                    <Text style={styles.primaryText}>
+                      {offerings.length === 0 ? 'Loading...' : 'Upgrade to Premium'}
+                    </Text>
+                  )}
+                </LinearGradient>
+              </Pressable>
+            )}
+
+            <Pressable style={styles.secondaryButton} onPress={closePaywall} disabled={isLoading}>
+              <Text style={styles.secondaryText}>Not now</Text>
+            </Pressable>
+
+            <Pressable style={styles.restoreButton} onPress={handleRestore} disabled={isLoading}>
+              {restoring ? (
+                <ActivityIndicator color="rgba(255,255,255,0.48)" size="small" />
+              ) : (
+                <Text style={styles.restoreText}>Restore Purchases</Text>
+              )}
+            </Pressable>
+          </BlurView>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -129,16 +262,20 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.68)',
   },
-  sheet: {
+  sheetWrapper: {
     marginHorizontal: spacing.base,
     marginBottom: spacing.base,
     borderRadius: 8,
+    overflow: 'hidden',
+  },
+  sheetBlur: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xl,
     paddingBottom: spacing.lg,
-    backgroundColor: '#111111',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.12)',
+    borderRadius: 8,
+    overflow: 'hidden',
   },
   closeButton: {
     position: 'absolute',
@@ -150,6 +287,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.08)',
+    zIndex: 10,
   },
   crownWrap: {
     width: 58,
@@ -217,6 +355,23 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: spacing.sm,
   },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: spacing.xl,
+    minHeight: 52,
+    borderRadius: radii.pill,
+    backgroundColor: 'rgba(246,197,91,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(246,197,91,0.22)',
+  },
+  retryText: {
+    color: '#F6C55B',
+    fontSize: 15,
+    fontWeight: '900',
+  },
   primaryButton: {
     marginTop: spacing.xl,
     borderRadius: radii.pill,
@@ -242,6 +397,17 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.56)',
     fontSize: 14,
     fontWeight: '800',
+  },
+  restoreButton: {
+    minHeight: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restoreText: {
+    color: 'rgba(255,255,255,0.38)',
+    fontSize: 13,
+    fontWeight: '700',
+    textDecorationLine: 'underline',
   },
 });
 

@@ -144,6 +144,59 @@ function extractQueueId(admissionToken?: string | null): string | null {
   return parts[2] || null;
 }
 
+async function enforceGenderRestriction(
+  fastify: any,
+  event: any,
+  items: { tierId: string; quantity: number }[],
+  userId: string,
+): Promise<void> {
+  const tiers = event.ticketCatalog?.tiers || event.tickets || [];
+  for (const item of items) {
+    const tier = tiers.find((t: any) => t.id === item.tierId);
+    if (!tier) continue;
+
+    let restriction =
+      tier.genderRestriction ||
+      tier.genderRequirement ||
+      tier.requiredGender ||
+      tier.gender ||
+      null;
+    if (!restriction || restriction === 'none' || restriction === 'any') {
+      const entryType = String(tier.entryType || '').toLowerCase();
+      if (entryType === 'female') restriction = 'female';
+      else if (entryType === 'stag' || entryType === 'male') restriction = 'male';
+      if (!restriction) continue;
+    }
+
+    const db = fastify.db;
+    const userDoc = await db.collection('users').doc(userId).get();
+    const profile = userDoc.exists ? userDoc.data() : null;
+    const userGender = profile?.gender || null;
+
+    // Edge case: null/other/prefer_not_to_say users cannot buy gender-restricted tickets
+    if (!userGender || ['other', 'prefer_not_to_say'].includes(userGender.toLowerCase())) {
+      const err = new Error(
+        !userGender
+          ? 'Please set your gender in profile settings before purchasing this ticket.'
+          : 'This ticket is restricted to specific genders. Update your gender in profile settings to continue.',
+      );
+      (err as any).statusCode = 403;
+      (err as any).code = 'GENDER_UPDATE_REQUIRED';
+      throw err;
+    }
+
+    const normalizedGender = userGender.toLowerCase();
+    if (normalizedGender !== restriction) {
+      const err = new Error(
+        `${tier.name || 'This ticket'} is restricted to ${restriction} attendees only.`,
+      );
+      (err as any).statusCode = 403;
+      (err as any).code = 'GENDER_RESTRICTION';
+      throw err;
+    }
+  }
+}
+
 async function buildCheckoutQuote(event: any, items: any[], pricing: any, db: any, redis: any) {
   const tiers = event.ticketCatalog?.tiers || event.tickets || [];
   const selectedByTier = new Map(
@@ -472,6 +525,12 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
       const idempotencyKey = request.headers['x-idempotency-key'] as string;
 
       try {
+        const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+        const event = eventDoc.exists ? { id: eventDoc.id, ...eventDoc.data() } : null;
+        if (event) {
+          await enforceGenderRestriction(fastify, event, items, userId);
+        }
+
         await enforcePublicRateLimit(fastify, request, `checkout:reserve:${userId}`, 5, 60);
 
         const work = async () => {
@@ -506,6 +565,13 @@ export default async function checkoutRoutes(fastify: FastifyInstance) {
 
         return result;
       } catch (error: any) {
+        if (error.statusCode === 403) {
+          return reply.status(403).send({
+            success: false,
+            code: error.code || 'GENDER_RESTRICTION',
+            error: error.message,
+          });
+        }
         if (isPremiumRequiredError(error)) {
           return premiumRequiredResponse(request, reply, error);
         }

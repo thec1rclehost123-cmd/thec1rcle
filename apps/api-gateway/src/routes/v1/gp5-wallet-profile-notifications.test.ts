@@ -96,6 +96,9 @@ import guestPassRoutes from './guest-passes';
 // @ts-ignore
 import { buildGuestPass } from '@c1rcle/core/guest-pass-engine';
 
+// @ts-ignore
+import { initiateGuestTransfer } from '../../services/guest-gp5';
+
 async function buildServer() {
   const server = Fastify({ logger: false });
   server.decorate('db', {
@@ -247,6 +250,52 @@ describe('GP-5 gateway wallet/profile/notification routes', () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ success: true });
+    await server.close();
+  });
+
+  it('POST /api/v1/tickets/transfer returns 403 GENDER_UPDATE_REQUIRED when recipient gender is prefer_not_to_say', async () => {
+    vi.mocked(initiateGuestTransfer).mockRejectedValueOnce(
+      Object.assign(new Error('Recipient must update their gender to proceed with this transfer'), {
+        statusCode: 403,
+        code: 'GENDER_UPDATE_REQUIRED',
+      }),
+    );
+
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/tickets/transfer',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { ticketId: 'ENT-TKT-1', recipientEmail: 'recipient@example.com' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'GENDER_UPDATE_REQUIRED' },
+    });
+    await server.close();
+  });
+
+  it('POST /api/v1/tickets/transfer returns 403 GENDER_RESTRICTION when recipient gender does not match ticket requirement', async () => {
+    vi.mocked(initiateGuestTransfer).mockRejectedValueOnce(
+      Object.assign(new Error('This ticket is restricted to female attendees'), {
+        statusCode: 403,
+        code: 'GENDER_RESTRICTION',
+      }),
+    );
+
+    const server = await buildServer();
+    const response = await server.inject({
+      method: 'POST',
+      url: '/api/v1/tickets/transfer',
+      headers: { authorization: 'Bearer test-token' },
+      payload: { ticketId: 'ENT-TKT-1', recipientEmail: 'male@example.com' },
+    });
+
+    expect(response.statusCode).toBe(403);
+    expect(response.json()).toMatchObject({
+      error: { code: 'GENDER_RESTRICTION' },
+    });
     await server.close();
   });
 });

@@ -212,6 +212,14 @@ function dedupeProfiles(profiles: DatingProfile[]): DatingProfile[] {
   });
 }
 
+export interface DatingFilters {
+  vibeTags?: string[];
+  intent?: string;
+  heightMin?: number;
+  heightMax?: number;
+  verifiedOnly?: boolean;
+}
+
 export const useDatingStore = create<DatingState>((set, get) => ({
   profiles: [],
   matches: [],
@@ -222,8 +230,12 @@ export const useDatingStore = create<DatingState>((set, get) => ({
   nextCursor: null,
   hasMore: true,
 
-  fetchProfiles: async (userId: string, options = {}) => {
+  fetchProfiles: async (
+    userId: string,
+    options: { append?: boolean; filters?: DatingFilters } = {},
+  ) => {
     const append = options.append === true;
+    const filters = options.filters;
     const { loading, prefetching, hasMore, nextCursor } = get();
     if (append) {
       if (loading || prefetching || !hasMore || !nextCursor) return;
@@ -234,7 +246,16 @@ export const useDatingStore = create<DatingState>((set, get) => ({
     }
 
     try {
-      const query = append && nextCursor ? `?cursor=${encodeURIComponent(nextCursor)}` : '';
+      const params = new URLSearchParams();
+      if (append && nextCursor) params.set('cursor', nextCursor);
+      if (filters?.vibeTags && filters.vibeTags.length > 0)
+        params.set('vibeTags', filters.vibeTags.join(','));
+      if (filters?.intent) params.set('intent', filters.intent);
+      if (filters?.heightMin != null) params.set('heightMin', String(filters.heightMin));
+      if (filters?.heightMax != null) params.set('heightMax', String(filters.heightMax));
+      if (filters?.verifiedOnly) params.set('verifiedOnly', 'true');
+      const queryString = params.toString();
+      const query = queryString ? `?${queryString}` : '';
       const response = await apiFetch<{
         profiles?: any[];
         nextCursor?: string | null;

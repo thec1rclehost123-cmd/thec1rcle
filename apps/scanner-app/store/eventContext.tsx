@@ -12,6 +12,9 @@ export interface EventTier {
 export interface EventData {
   valid: boolean;
   code: string;
+  codeId?: string;
+  sessionToken?: string;
+  sessionExpiresAt?: string;
   event: {
     id: string;
     title: string;
@@ -26,6 +29,8 @@ export interface EventData {
   permissions: {
     canScan: boolean;
     canDoorEntry: boolean;
+    canWalkIn?: boolean;
+    canCharge?: boolean;
   };
   tiers: EventTier[];
   gate?: string;
@@ -34,6 +39,7 @@ export interface EventData {
     prebooked: number;
     doorEntries: number;
     doorRevenue: number;
+    walkIns?: number;
   };
 }
 

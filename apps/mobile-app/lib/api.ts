@@ -670,4 +670,18 @@ export async function cancelShareBundle(payload: { bundleId: string }): Promise<
   });
 }
 
+/**
+ * Revoke an already-claimed ticket from a share bundle (host only).
+ * Uses: POST /api/v1/tickets/share/revoke
+ */
+export async function revokeSharedTicket(payload: {
+  bundleId: string;
+  slotIndex: number;
+}): Promise<any> {
+  return apiFetch(`${API_PREFIX}/tickets/share/revoke`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 export { getAuthToken, apiFetch, API_BASE };

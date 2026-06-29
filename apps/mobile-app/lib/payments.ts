@@ -12,6 +12,7 @@ import { useCartStore } from '@/store/cartStore';
 import { useTicketsStore } from '@/store/ticketsStore';
 import { useSubscriptionStore, type PremiumFeature } from '@/store/subscriptionStore';
 import { reserveTickets, initiateCheckout, verifyPayment } from './api';
+import { getFirebaseAuth } from './firebase';
 
 // Razorpay key for the frontend SDK (public key only — secret stays on server)
 const RAZORPAY_KEY = process.env.EXPO_PUBLIC_RAZORPAY_KEY;
@@ -199,6 +200,8 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
       useCartStore.getState().setPendingPaymentOrderId(null);
       useCartStore.getState().clearCart();
       await refreshTicketWallet();
+      // Force token refresh so Custom Claims (event_xxx) are available immediately
+      await getFirebaseAuth().currentUser?.getIdToken(true);
       onStatusChange?.('confirmed');
       return {
         success: true,
@@ -262,6 +265,8 @@ export async function processFullCheckout(params: CheckoutParams): Promise<Check
     useCartStore.getState().setPendingPaymentOrderId(null);
     useCartStore.getState().clearCart();
     await refreshTicketWallet();
+    // Force token refresh so Custom Claims (event_xxx) are available immediately
+    await getFirebaseAuth().currentUser?.getIdToken(true);
 
     onStatusChange?.('confirmed');
     return {

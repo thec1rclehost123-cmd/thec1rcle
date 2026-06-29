@@ -520,10 +520,12 @@ export default async function userRoutes(fastify: FastifyInstance) {
           { requestId: request.id, userId, error: error.message },
           'PATCH /users/me/settings failed',
         );
-        return reply.status(500).send(
+
+        const statusCode = error.statusCode || error.status || 500;
+        return reply.status(statusCode).send(
           buildErrorResponse({
-            code: 'INTERNAL_ERROR',
-            message: 'Internal server error',
+            code: error.code || 'INTERNAL_ERROR',
+            message: error.message || 'Internal server error',
             requestId: request.id,
           }),
         );

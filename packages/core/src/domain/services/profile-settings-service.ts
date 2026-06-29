@@ -111,6 +111,8 @@ type SettingsPatch = {
 const MAX_BIO_LENGTH = 500;
 const MAX_DATING_PHOTOS = 6;
 const MAX_VIBE_TAGS = 20;
+const GENDER_CHANGE_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
+const VALID_GENDERS = new Set(['male', 'female', 'other', 'prefer_not_to_say']);
 const PROFILE_FLOW_FLAG_KEYS = [
   'basicSetupComplete',
   'profileSetupComplete',
@@ -442,10 +444,11 @@ function buildMergedUserSettings(existingSettings: unknown, patch: SettingsPatch
   return settings;
 }
 
-function buildSafeProfileSettingsUpdate(
+export function buildSafeProfileSettingsUpdate(
   updates: ProfileSettingsUpdate,
   existingData: Record<string, unknown> = {},
-): Record<string, unknown> {
+  now = new Date().toISOString(),
+): { safeUpdates: Record<string, unknown>; error?: string; statusCode?: number } {
   const safe: Record<string, unknown> = {};
 
   const bio = normalizeNullableString(updates.bio, MAX_BIO_LENGTH);
@@ -490,6 +493,41 @@ function buildSafeProfileSettingsUpdate(
   const spotify = normalizeNullableString(updates.spotify, 160);
   if (spotify !== undefined) safe.spotify = spotify;
 
+  if (updates.gender !== undefined) {
+    if (!VALID_GENDERS.has(updates.gender)) {
+      return {
+        safeUpdates: {},
+        error: 'Invalid gender value',
+        statusCode: 400,
+      };
+    }
+
+    const existingGender = existingData.gender as string | undefined;
+    if (existingGender && existingGender !== updates.gender) {
+      const lastChangedAt = existingData.genderLastChangedAt
+        ? new Date(existingData.genderLastChangedAt as string).getTime()
+        : 0;
+      const msSinceChange = new Date(now).getTime() - lastChangedAt;
+
+      if (msSinceChange < GENDER_CHANGE_COOLDOWN_MS) {
+        const daysLeft = Math.ceil(
+          (GENDER_CHANGE_COOLDOWN_MS - msSinceChange) / (24 * 60 * 60 * 1000),
+        );
+        return {
+          safeUpdates: {},
+          error: `Gender can only be changed once every 30 days. Please try again in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}.`,
+          statusCode: 429,
+        };
+      }
+
+      safe.genderLastChangedAt = now;
+    } else if (!existingGender) {
+      safe.genderLastChangedAt = now;
+    }
+
+    safe.gender = updates.gender;
+  }
+
   if (typeof updates.datingActive === 'boolean') safe.datingActive = updates.datingActive;
 
   for (const key of PROFILE_FLOW_FLAG_KEYS) {
@@ -519,8 +557,8 @@ function buildSafeProfileSettingsUpdate(
     }
   }
 
-  safe.updatedAt = new Date().toISOString();
-  return safe;
+  safe.updatedAt = now;
+  return { safeUpdates: safe };
 }
 
 export async function updateUserProfileSettings(
@@ -534,7 +572,14 @@ export async function updateUserProfileSettings(
   const userRef = db.collection('users').doc(userId);
   const existing = await userRef.get();
   const existingData = existing.exists ? existing.data() || {} : {};
-  const safeUpdates = buildSafeProfileSettingsUpdate(updates, existingData);
+  const result = buildSafeProfileSettingsUpdate(updates, existingData);
+
+  if (result.error) {
+    const err = new Error(result.error) as any;
+    err.code = result.statusCode === 429 ? 'PROFILE_UPDATE_COOLDOWN' : 'UPDATE_FAILED';
+    err.statusCode = result.statusCode || 400;
+    throw err;
+  }
 
   if (!existing.exists) {
     await userRef.set({
@@ -542,10 +587,10 @@ export async function updateUserProfileSettings(
       isActive: true,
       isDeleted: false,
       createdAt: new Date().toISOString(),
-      ...safeUpdates,
+      ...result.safeUpdates,
     });
   } else {
-    await userRef.set(safeUpdates, { merge: true });
+    await userRef.set(result.safeUpdates, { merge: true });
   }
 
   const updatedDoc = await userRef.get();

@@ -7,6 +7,7 @@ import {
   Ticket,
   MessageCircle,
   Heart,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react-native';
 import Animated, {
@@ -25,11 +26,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 // Spotlight Cone removed.
 
 // ── Tab routes shown in the bar ───────────────────────────────────────────────
-const VISIBLE_ROUTES = ['explore', 'inbox', 'social', 'tickets', 'venues'] as const;
+const VISIBLE_ROUTES = ['explore', 'wallet', 'inbox', 'social', 'tickets', 'venues'] as const;
 type VisibleRoute = (typeof VISIBLE_ROUTES)[number];
 
 const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
   explore: Compass,
+  wallet: Wallet,
   inbox: MessageCircle,
   social: Heart,
   tickets: Ticket,
@@ -38,6 +40,7 @@ const TAB_ICONS: Record<VisibleRoute, LucideIcon> = {
 
 const TAB_LABELS: Record<VisibleRoute, string> = {
   explore: 'Explore',
+  wallet: 'Wallet',
   inbox: 'Chat',
   social: 'Dating',
   tickets: 'Tickets',
@@ -46,7 +49,8 @@ const TAB_LABELS: Record<VisibleRoute, string> = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const TAB_BAR_WIDTH = SCREEN_WIDTH - 40;
-const TAB_ITEM_WIDTH = (TAB_BAR_WIDTH - 8) / 5;
+const TAB_COUNT = 6;
+const TAB_ITEM_WIDTH = (TAB_BAR_WIDTH - 8) / TAB_COUNT;
 
 function CustomTabBar({ state, navigation }: any) {
   const insets = useSafeAreaInsets();
@@ -167,6 +171,7 @@ export default function TabLayout() {
   return (
     <Tabs tabBar={(props) => <CustomTabBar {...props} />} screenOptions={{ headerShown: false }}>
       <Tabs.Screen name="explore" options={{ title: 'Explore' }} />
+      <Tabs.Screen name="wallet" options={{ title: 'Wallet' }} />
       <Tabs.Screen name="inbox" options={{ title: 'Inbox' }} />
       <Tabs.Screen name="social" options={{ title: 'Social' }} />
       <Tabs.Screen name="tickets" options={{ title: 'Tickets' }} />

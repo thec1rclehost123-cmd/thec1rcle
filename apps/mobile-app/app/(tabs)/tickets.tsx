@@ -39,6 +39,7 @@ import Animated, {
 import { Image } from 'expo-image';
 import { colors, radii, gradients, typography } from '@/lib/design/theme';
 import { NotificationBell } from '@/components/ui/NotificationBell';
+import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
 import { ErrorState, NetworkError } from '@/components/ui/EmptyState';
 import { SkeletonList } from '@/components/ui/Skeleton';
 import { safeDate, formatEventDate, formatEventTime } from '@/lib/utils/date';
@@ -580,11 +581,26 @@ function QRModal({
                 {order.tickets?.map((t, i) => {
                   const price = t.price ?? 0;
                   const qty = t.quantity ?? 1;
+                  const genderReq = t.requiredGender || (t as any).genderRestriction;
                   return (
                     <View key={i} style={ms.breakdownRow}>
-                      <Text style={ms.breakdownLabel}>
-                        {t.tierName || 'Ticket'} × {qty}
-                      </Text>
+                      <View style={ms.breakdownLabelRow}>
+                        <Text style={ms.breakdownLabel}>
+                          {t.tierName || 'Ticket'} × {qty}
+                        </Text>
+                        {genderReq && genderReq !== 'any' && genderReq !== 'none' && (
+                          <View
+                            style={[
+                              ms.genderRestrictionPill,
+                              { backgroundColor: genderReq === 'female' ? '#FF1493' : '#4A90D9' },
+                            ]}
+                          >
+                            <Text style={ms.genderRestrictionPillText}>
+                              {genderReq === 'female' ? 'FEMALE' : genderReq.toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={ms.breakdownValue}>
                         {price > 0 ? `₹${(price * qty).toLocaleString('en-IN')}` : 'Free'}
                       </Text>
@@ -977,6 +993,22 @@ const ms = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
   },
+  breakdownLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  genderRestrictionPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  genderRestrictionPillText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
 });
 
 // Full-bleed Boarding-Pass Ticket Card
@@ -1277,7 +1309,7 @@ function SegmentedHeader({
       <Pressable
         onPress={() => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/(tabs)/explore');
+          router.push('/(tabs)/wallet');
         }}
         style={[
           styles.headerIconBtn,
@@ -1345,7 +1377,7 @@ function getOrderGroupLabel(order: Order): string {
 
 export default function TicketsScreen() {
   const { orders: storeOrders, loading: storeLoading, error, fetchUserOrders } = useTicketsStore();
-  const { user } = useAuthStore();
+  const { user, isGuest } = useAuthStore();
   const stats = (user as any)?.stats ?? {};
   const kpiActiveLinks = stats.activeLinks ?? 0;
   const kpiClicks = stats.totalClicks ?? 0;
@@ -1463,6 +1495,10 @@ export default function TicketsScreen() {
     }, 45_000);
     return () => clearInterval(refreshTimer);
   }, [fetchUserOrders, showQRModal, user?.uid]);
+
+  // if (isGuest) {
+  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  // }
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>

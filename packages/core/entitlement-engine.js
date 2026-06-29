@@ -109,7 +109,7 @@ export async function issueEntitlements(order, items, transaction = null) {
  * Generate a rotating QR payload for an entitlement
  * Time window: 30 seconds
  */
-export function generateEntitlementQR(entitlementId) {
+export function generateEntitlementQR(entitlementId, genderRestriction = null) {
   const timestamp = Math.floor(Date.now() / 1000);
   const window = Math.floor(timestamp / 30);
 
@@ -119,11 +119,17 @@ export function generateEntitlementQR(entitlementId) {
     .digest('hex')
     .substring(0, 16);
 
-  return {
+  const payload = {
     eid: entitlementId,
     ts: timestamp,
     sig: signature,
   };
+
+  if (genderRestriction && genderRestriction !== 'none') {
+    payload.gr = genderRestriction;
+  }
+
+  return payload;
 }
 
 /**

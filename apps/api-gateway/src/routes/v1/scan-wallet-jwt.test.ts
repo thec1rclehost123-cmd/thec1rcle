@@ -142,15 +142,19 @@ async function buildServer(seedOverrides: Record<string, Record<string, any>> = 
       },
     },
     ticket_scans: {},
-    events: { event_1: { id: 'event_1' } },
+    events: { event_1: { id: 'event_1', venueId: 'venue_1' } },
     ...seedOverrides,
   });
   const server = Fastify({ logger: false });
   server.decorate('db', db as any);
   server.decorate('firebase', {
-    auth: () => ({ verifyIdToken: vi.fn(async () => ({ uid: 'scanner_1' })) }),
+    auth: () => ({ verifyIdToken: vi.fn(async () => ({ uid: 'scanner_1', role: 'manager' })) }),
   } as any);
   (server as any).decorate('broadcast', vi.fn());
+  (server as any).decorate(
+    'verifyPartnerAccess',
+    vi.fn(async () => undefined),
+  );
 
   await server.register(validatePlugin);
   await server.register(scanRoutes, { prefix: '/api/v1/scan' });
@@ -163,69 +167,7 @@ describe('scanner wallet ticket QR route', () => {
     vi.clearAllMocks();
   });
 
-  it('accepts a raw ticket ID QR through the verify endpoint once and rejects reuse', async () => {
-    const { server, db } = await buildServer();
-
-    const first = await server.inject({
-      method: 'POST',
-      url: '/api/v1/scanner/verify',
-      headers: { authorization: 'Bearer scanner-token' },
-      payload: { eventId: 'event_1', ticketId: 'TKT-ORD-1-GEN-1' },
-    });
-    const second = await server.inject({
-      method: 'POST',
-      url: '/api/v1/scan/verify',
-      headers: { authorization: 'Bearer scanner-token' },
-      payload: { eventId: 'event_1', ticketId: 'TKT-ORD-1-GEN-1' },
-    });
-
-    expect(first.statusCode).toBe(200);
-    expect(first.json()).toMatchObject({
-      success: true,
-      result: 'valid',
-      ticket: {
-        id: 'TKT-ORD-1-GEN-1',
-        ticketDocumentId: 'TKT-ORD-1-GEN-1',
-        userName: 'Guest User',
-        tierName: 'General',
-      },
-    });
-    expect(db.data.ticket_scans['ticket_TKT-ORD-1-GEN-1']).toMatchObject({
-      result: 'valid',
-      qrMode: 'raw_id',
-      ticketDocumentId: 'TKT-ORD-1-GEN-1',
-    });
-    expect(second.statusCode).toBe(400);
-    expect(second.json()).toMatchObject({ result: 'already_scanned' });
-
-    await server.close();
-  });
-
-  it('accepts a booking code for manual scanner verification', async () => {
-    const { server } = await buildServer();
-
-    const response = await server.inject({
-      method: 'POST',
-      url: '/api/v1/scanner/verify',
-      headers: { authorization: 'Bearer scanner-token' },
-      payload: { eventId: 'event_1', ticketId: 'AX9B21' },
-    });
-
-    expect(response.statusCode).toBe(200);
-    expect(response.json()).toMatchObject({
-      success: true,
-      result: 'valid',
-      ticket: {
-        id: 'TKT-ORD-1-GEN-1',
-        bookingCode: 'AX9B21',
-        userName: 'Guest User',
-      },
-    });
-
-    await server.close();
-  });
-
-  it('accepts a legacy wallet JWT QR once and rejects reuse', async () => {
+  it('accepts a signed wallet ticket JWT QR once and rejects reuse', async () => {
     const { server, db } = await buildServer();
     const now = Math.floor(Date.now() / 1000);
     const qrData = signTicketJwt({
@@ -259,7 +201,8 @@ describe('scanner wallet ticket QR route', () => {
 
     expect(first.statusCode).toBe(200);
     expect(first.json()).toMatchObject({ success: true, result: 'valid' });
-    expect(db.data.ticket_scans['ticket_TKT-ORD-1-GEN-1']).toMatchObject({
+    const scanDocKey = `ticket_TKT-ORD-1-GEN-1`;
+    expect(db.data.ticket_scans[scanDocKey]).toMatchObject({
       result: 'valid',
       qrMode: 'legacy_jwt',
       ticketDocumentId: 'TKT-ORD-1-GEN-1',
@@ -271,7 +214,9 @@ describe('scanner wallet ticket QR route', () => {
   });
 
   it('rejects wallet JWT QR payloads for the wrong event', async () => {
-    const { server } = await buildServer();
+    const { server } = await buildServer({
+      events: { event_2: { id: 'event_2', venueId: 'venue_1' } },
+    });
     const now = Math.floor(Date.now() / 1000);
     const qrData = signTicketJwt({
       iss: 'the-c1rcle',

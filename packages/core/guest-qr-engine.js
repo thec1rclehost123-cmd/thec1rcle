@@ -26,6 +26,7 @@ export function generateQRPayload({
   quantity = 1,
   entryType = 'general',
   isRSVP = false,
+  genderRestriction = null,
 }) {
   const timestamp = Date.now();
 
@@ -42,6 +43,11 @@ export function generateQRPayload({
     ts: timestamp, // Timestamp
     v: 1, // Version for future compatibility
   };
+
+  // Embed gender restriction for offline scanner display
+  if (genderRestriction && genderRestriction !== 'none' && genderRestriction !== 'any') {
+    payload.gr = genderRestriction;
+  }
 
   // Create signature
   const dataToSign = `${orderId}:${eventId}:${ticketId}:${userId}:${quantity}:${timestamp}:${isRSVP ? 'RSVP' : 'PAID'}`;

@@ -19,7 +19,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { Image } from 'expo-image';
 import Svg, { Path } from 'react-native-svg';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+import { ExploreFeaturedCarousel } from '@/components/ui/ExploreFeaturedCarousel';
+import { ExploreChooseScene } from '@/components/ui/ExploreChooseScene';
+import { ExploreMapPreview } from '@/components/ui/ExploreMapPreview';
 import { useEventsStore, type Event, getHeatScore } from '@/store/eventsStore';
 import { useRecommendationsStore } from '@/store/recommendationsStore';
 import { useProfileStore } from '@/store/profileStore';
@@ -67,69 +69,6 @@ import {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const PURE_BLACK = '#000000';
-
-const DEFAULT_MAP_REGION = {
-  latitude: 19.076,
-  longitude: 72.8777,
-  latitudeDelta: 0.15,
-  longitudeDelta: 0.15,
-};
-
-function hasFiniteCoordinates(event: Event) {
-  return (
-    Number.isFinite(Number(event.coordinates?.latitude)) &&
-    Number.isFinite(Number(event.coordinates?.longitude))
-  );
-}
-
-const darkMapStyle = [
-  { elementType: 'geometry', stylers: [{ color: '#1d1d1d' }] },
-  { elementType: 'labels.text.fill', stylers: [{ color: '#8a8a8a' }] },
-  { elementType: 'labels.text.stroke', stylers: [{ color: '#1d1d1d' }] },
-  {
-    featureType: 'administrative',
-    elementType: 'geometry',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'administrative.locality',
-    elementType: 'labels.text.fill',
-    stylers: [{ color: '#bdbdbd' }],
-  },
-  {
-    featureType: 'poi',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'poi.park',
-    elementType: 'geometry',
-    stylers: [{ color: '#1a2e1a' }, { visibility: 'simplified' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#2c2c2c' }],
-  },
-  {
-    featureType: 'road',
-    elementType: 'geometry.stroke',
-    stylers: [{ color: '#212121' }],
-  },
-  {
-    featureType: 'road.highway',
-    elementType: 'geometry.fill',
-    stylers: [{ color: '#3c3c3c' }],
-  },
-  {
-    featureType: 'transit',
-    stylers: [{ visibility: 'off' }],
-  },
-  {
-    featureType: 'water',
-    elementType: 'geometry',
-    stylers: [{ color: '#0e1626' }],
-  },
-];
 
 // ── Date filter pills ─────────────────────────────────────────────────────────
 const DATE_FILTERS = [
@@ -269,169 +208,6 @@ function HeaderProfileAvatar() {
   );
 }
 
-function AnimatedPeekCard({ event, index, scrollX, itemWidth }: any) {
-  const animatedStyle = useAnimatedStyle(() => {
-    const inputRange = [(index - 1) * itemWidth, index * itemWidth, (index + 1) * itemWidth];
-
-    // Scale down side cards
-    const scale = interpolate(scrollX.value, inputRange, [0.85, 1, 0.85], Extrapolation.CLAMP);
-
-    // Push side cards inwards to create the "stacked/overlapping" effect
-    const translateX = interpolate(
-      scrollX.value,
-      inputRange,
-      [-itemWidth * 0.15, 0, itemWidth * 0.15],
-      Extrapolation.CLAMP,
-    );
-
-    // Fade out side cards slightly
-    const opacity = interpolate(scrollX.value, inputRange, [0.6, 1, 0.6], Extrapolation.CLAMP);
-
-    // Center card is always on top
-    const zIndex = interpolate(scrollX.value, inputRange, [0, 10, 0], Extrapolation.CLAMP);
-
-    return {
-      transform: [{ translateX }, { scale }],
-      opacity,
-      zIndex: Math.round(zIndex),
-    };
-  });
-
-  return (
-    <Animated.View style={[{ width: itemWidth, alignItems: 'center' }, animatedStyle]}>
-      <View style={{ width: '100%', paddingHorizontal: 4, position: 'relative' }}>
-        <PremiumEventCard event={event} index={index} variant="featured" />
-      </View>
-    </Animated.View>
-  );
-}
-
-function FeaturedCarousel({ events }: { events: Event[] }) {
-  if (!events.length) return null;
-
-  const scrollX = useSharedValue(0);
-  const targetX = useSharedValue(0);
-  const isInteracting = useSharedValue(false);
-
-  const ITEM_WIDTH = SCREEN_WIDTH * 0.78;
-  const SPACER = (SCREEN_WIDTH - ITEM_WIDTH) / 2;
-  const scrollViewRef = useAnimatedRef<Animated.ScrollView>();
-
-  // Keep the visual carousel bounded; an oversized repeated rail is expensive on iOS.
-  const rail = useMemo(() => {
-    return events.slice(0, 8);
-  }, [events]);
-  const isScreenFocused = useSharedValue(false);
-  const isAppActive = useSharedValue(AppState.currentState === 'active');
-
-  // Custom smooth scroll logic on the UI thread
-  useAnimatedReaction(
-    () => targetX.value,
-    (val, prevVal) => {
-      if (val !== prevVal && !isInteracting.value && isScreenFocused.value && isAppActive.value) {
-        scrollTo(scrollViewRef, val, 0, false);
-      }
-    },
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      isScreenFocused.value = true;
-      return () => {
-        isScreenFocused.value = false;
-      };
-    }, [isScreenFocused]),
-  );
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      isAppActive.value = state === 'active';
-    });
-    return () => sub.remove();
-  }, [isAppActive]);
-
-  useEffect(() => {
-    if (!rail.length) return;
-
-    setTimeout(() => {
-      targetX.value = 0;
-      scrollX.value = 0;
-      if (scrollViewRef.current) {
-        (scrollViewRef.current as unknown as ScrollView).scrollTo({ x: 0, animated: false });
-      }
-    }, 100);
-
-    if (rail.length < 2) return;
-
-    const interval = setInterval(() => {
-      if (
-        !isInteracting.value &&
-        isScreenFocused.value &&
-        isAppActive.value &&
-        scrollViewRef.current
-      ) {
-        const currentIndex = Math.round(scrollX.value / ITEM_WIDTH);
-        const nextIndex = (currentIndex + 1) % rail.length;
-        const nextOffset = nextIndex * ITEM_WIDTH;
-        targetX.value = withTiming(nextOffset, { duration: 800 });
-      }
-    }, 2800); // 2000ms pause + 800ms transition
-
-    return () => clearInterval(interval);
-  }, [rail.length, ITEM_WIDTH, isAppActive, isScreenFocused]);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (e) => {
-      scrollX.value = e.contentOffset.x;
-      if (isInteracting.value) {
-        targetX.value = e.contentOffset.x;
-      }
-    },
-    onBeginDrag: () => {
-      isInteracting.value = true;
-    },
-    onEndDrag: () => {
-      isInteracting.value = false;
-    },
-  });
-
-  return (
-    <View style={{ marginBottom: 36, position: 'relative' }}>
-      <Animated.ScrollView
-        ref={scrollViewRef}
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        snapToInterval={ITEM_WIDTH}
-        snapToAlignment="center"
-        decelerationRate="normal"
-        bounces={false}
-        onScroll={scrollHandler}
-        onScrollBeginDrag={() => {
-          isInteracting.value = true;
-        }}
-        onScrollEndDrag={() => {
-          isInteracting.value = false;
-        }}
-        scrollEventThrottle={16}
-        contentContainerStyle={{
-          paddingHorizontal: SPACER,
-          paddingBottom: 20,
-        }}
-      >
-        {rail.map((event, index) => (
-          <AnimatedPeekCard
-            key={`${event.id}-${index}`}
-            event={event}
-            index={index}
-            scrollX={scrollX}
-            itemWidth={ITEM_WIDTH}
-          />
-        ))}
-      </Animated.ScrollView>
-    </View>
-  );
-}
-
 // ── Category filter pills ─────────────────────────────────────────────────────
 function CategoryFilterRow({
   active,
@@ -551,155 +327,6 @@ function SectionHeader({
   );
 }
 
-// ── Map preview section ────────────────────────────────────────────────────────
-function MapSection({ events }: { events: Event[] }) {
-  const eventsWithCoords = useMemo(() => {
-    return events.filter(hasFiniteCoordinates);
-  }, [events]);
-
-  const initialRegion = useMemo(() => {
-    if (eventsWithCoords.length > 0) {
-      const first = eventsWithCoords[0].coordinates!;
-      return {
-        latitude: first.latitude,
-        longitude: first.longitude,
-        latitudeDelta: 0.08,
-        longitudeDelta: 0.08,
-      };
-    }
-    return DEFAULT_MAP_REGION;
-  }, [eventsWithCoords]);
-
-  return (
-    <View style={styles.section}>
-      <SectionHeader
-        title="Explore on Map"
-        onViewAll={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/map');
-        }}
-        viewAllLabel="View Map →"
-      />
-      <Pressable
-        style={styles.mapCard}
-        onPress={() => {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          router.push('/map');
-        }}
-      >
-        <MapView
-          style={StyleSheet.absoluteFillObject}
-          provider={PROVIDER_DEFAULT}
-          initialRegion={initialRegion}
-          scrollEnabled={false}
-          zoomEnabled={false}
-          rotateEnabled={false}
-          pitchEnabled={false}
-          toolbarEnabled={false}
-          userInterfaceStyle="dark"
-          customMapStyle={darkMapStyle}
-        >
-          {eventsWithCoords.slice(0, 10).map((e) => (
-            <Marker key={e.id} coordinate={e.coordinates!} pinColor="#F44A22" />
-          ))}
-        </MapView>
-        {/* Dark overlay so badge is readable */}
-        <View style={styles.mapOverlay} />
-        {/* Events nearby badge */}
-        <View style={styles.mapBadge}>
-          <Text style={styles.mapBadgeText}>
-            📍 {eventsWithCoords.length || events.length} events nearby
-          </Text>
-        </View>
-      </Pressable>
-    </View>
-  );
-}
-const SCENE_CATEGORIES = [
-  {
-    id: 'bollywood',
-    label: 'BOLLYWOOD',
-    bg: '#F44A22',
-    image: require('../../assets/bollywood.jpg'),
-  },
-  { id: 'techno', label: 'TECHNO', bg: '#8B5CF6', image: require('../../assets/techno.jpg') },
-  { id: 'raves', label: 'RAVES', bg: '#3B82F6', image: require('../../assets/raves.jpg') },
-  {
-    id: 'pool-parties',
-    label: 'POOL\nPARTIES',
-    bg: '#06B6D4',
-    image: require('../../assets/pool.jpg'),
-  },
-  {
-    id: 'sundowners',
-    label: 'SUN\nDOWNERS',
-    bg: '#EAB308',
-    image: require('../../assets/09f5dd049312a8bf3c50ea656e1a203b.jpg'),
-  },
-];
-
-function ChooseYourSceneGrid() {
-  const handlePress = (cat: any) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push({ pathname: '/events/feed', params: { type: cat.id } });
-  };
-
-  const renderCard = (cat: any, fontSize = 16) => (
-    <Pressable
-      onPress={() => handlePress(cat)}
-      style={{ flex: 1, backgroundColor: cat.bg, borderRadius: 12, overflow: 'hidden' }}
-    >
-      <Image source={cat.image} style={StyleSheet.absoluteFillObject} contentFit="cover" />
-      <LinearGradient
-        colors={['rgba(0,0,0,0.7)', 'transparent']}
-        style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 48 }}
-      />
-      <Text
-        style={{
-          position: 'absolute',
-          top: 12,
-          left: 12,
-          right: 12,
-          color: '#FFF',
-          fontSize,
-          fontWeight: '900',
-          letterSpacing: 0,
-          lineHeight: fontSize * 1.1,
-        }}
-        numberOfLines={2}
-        adjustsFontSizeToFit
-      >
-        {cat.label}
-      </Text>
-    </Pressable>
-  );
-
-  const CONTAINER_SIZE = SCREEN_WIDTH;
-
-  return (
-    <View style={{ marginTop: 12, marginBottom: 44 }}>
-      <SectionHeader title="Choose Your Scene" />
-
-      <View style={{ paddingHorizontal: 0 }}>
-        <View style={{ width: CONTAINER_SIZE, height: CONTAINER_SIZE, gap: 6 }}>
-          {/* Top Row */}
-          <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
-            <View style={{ flex: 2 }}>{renderCard(SCENE_CATEGORIES[0], 18)}</View>
-            <View style={{ flex: 1 }}>{renderCard(SCENE_CATEGORIES[4], 18)}</View>
-          </View>
-
-          {/* Bottom Row */}
-          <View style={{ flex: 1, flexDirection: 'row', gap: 6 }}>
-            <View style={{ flex: 1 }}>{renderCard(SCENE_CATEGORIES[2], 18)}</View>
-            <View style={{ flex: 1 }}>{renderCard(SCENE_CATEGORIES[3], 18)}</View>
-            <View style={{ flex: 1 }}>{renderCard(SCENE_CATEGORIES[1], 18)}</View>
-          </View>
-        </View>
-      </View>
-    </View>
-  );
-}
-
 // ── Main screen ────────────────────────────────────────────────────────────────
 export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
@@ -709,11 +336,12 @@ export default function ExploreScreen() {
   const ticketsStore = useTicketsStore();
   const { user } = useAuth();
   const { loadUserInterests } = useEventInterestStore();
+  const profile = useProfileStore((s) => s.profile);
 
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [dateFilter, setDateFilter] = useState<DateFilter>('all');
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all');
-  const [cityFilter, setCityFilter] = useState('all');
+  const [cityFilter, setCityFilter] = useState(profile?.city?.toLowerCase() || 'all');
   const [showCityModal, setShowCityModal] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [cachedEvents, setCachedEvents] = useState<Event[]>([]);
@@ -955,12 +583,12 @@ export default function ExploreScreen() {
         key: 'featured',
         render: () =>
           quickFilter === 'all' && !isInitialLoading && heroSlides.length > 0 ? (
-            <FeaturedCarousel events={heroSlides} />
+            <ExploreFeaturedCarousel events={heroSlides} />
           ) : null,
       },
       {
         key: 'choose-scene',
-        render: () => (quickFilter === 'all' ? <ChooseYourSceneGrid /> : null),
+        render: () => (quickFilter === 'all' ? <ExploreChooseScene /> : null),
       },
       {
         key: 'worth-it',
@@ -1031,7 +659,9 @@ export default function ExploreScreen() {
       {
         key: 'map',
         render: () =>
-          !isInitialLoading && allEvents.length > 0 ? <MapSection events={allEvents} /> : null,
+          !isInitialLoading && allEvents.length > 0 ? (
+            <ExploreMapPreview events={allEvents} />
+          ) : null,
       },
     ],
     [
@@ -1275,31 +905,6 @@ const styles = StyleSheet.create({
     textShadowRadius: 8,
   },
   viewAll: { color: colors.iris, fontSize: typography.fontSize.base, fontWeight: '700' },
-
-  // ── Map section ───────────────────────────────────────────────────────────────
-  mapCard: {
-    marginHorizontal: 16,
-    height: 180,
-    borderRadius: 20,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  mapOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.25)',
-  },
-  mapBadge: {
-    position: 'absolute',
-    bottom: 16,
-    alignSelf: 'center',
-    backgroundColor: 'rgba(0,0,0,0.75)',
-    borderRadius: 100,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  mapBadgeText: { color: colors.goldLight, fontSize: typography.fontSize.sm, fontWeight: '700' },
 
   // ── Empty state ───────────────────────────────────────────────────────────────
   emptyState: { alignItems: 'center', paddingVertical: 60, gap: 8 },

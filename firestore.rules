@@ -17,6 +17,54 @@ service cloud.firestore {
       return isAdmin() && request.auth.token.admin_role == 'super';
     }
 
+    // --- 🛡️ ALLOWLIST SCHEMA VALIDATION (Client-Write Guards) ---
+    //
+    // STRICT ALLOWLIST: Only these fields may be written by the client.
+    // Any field not in this list is silently stripped / rejected.
+    // This prevents privilege escalation (isPremium, admin, etc.),
+    // financial tampering (walletBalance), and state corruption.
+    //
+    // Server-managed fields (createdAt, role, subscription, etc.)
+    // are implicitly rejected because they are NOT listed here.
+    //
+    // Note: `socialSetupComplete` is allowed because it is set client-side
+    // when the user completes the social setup flow. The API Gateway
+    // enforces server-side authorization for the actual social profile data.
+    function hasOnlyAllowedUserFields(data) {
+      return data.keys().hasOnly([
+        'displayName', 'photoURL', 'bio', 'city', 'phone', 'phoneNumber',
+        'gender', 'dateOfBirth', 'instagram', 'spotify',
+        'vibeTags', 'photos', 'datingPhotos', 'datingActive',
+        'datingVitals', 'anthem',
+        'socialSetupComplete',
+        'pushNewMatches', 'pushEventUpdates',
+        'notificationPreferences',
+      ]);
+    }
+
+    // For updates, request.resource.data is the MERGED document (existing + changes).
+    // We must check only the keys actually being written by the client, not the
+    // full merged document which includes server-managed fields like createdAt.
+    function updateHasOnlyAllowedUserFields(diff) {
+      return diff.affectedKeys().hasOnly([
+        'displayName', 'photoURL', 'bio', 'city', 'phone', 'phoneNumber',
+        'gender', 'dateOfBirth', 'instagram', 'spotify',
+        'vibeTags', 'photos', 'datingPhotos', 'datingActive',
+        'datingVitals', 'anthem',
+        'socialSetupComplete',
+        'pushNewMatches', 'pushEventUpdates',
+        'notificationPreferences',
+      ]);
+    }
+
+    // Onboarding gating: only allow access to dating/matching features
+    // if the user has completed basic profile setup.
+    function hasCompletedBasicSetup(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.basicSetupComplete == true
+          || get(/databases/$(database)/documents/users/$(userId)).data.profileSetupComplete == true
+          || get(/databases/$(database)/documents/users/$(userId)).data.profileComplete == true;
+    }
+
     // --- 🧾 AUDIT & GOVERNANCE ---
     match /admin_audit_logs/{logId} {
       allow read, create: if isAdmin();
@@ -30,12 +78,19 @@ service cloud.firestore {
     // --- 👥 SILOED IDENTITY DOMAINS ---
 
     // 1. Consumer Domain
+    // IDOR: Users can only read/write their own document.
+    // Schema: Client writes are validated to block privilege escalation fields.
     match /users/{userId} {
       allow read: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId 
-                      && !request.resource.data.diff(resource.data).affectedKeys()
-                          .hasAny(['role', 'admin_role', 'admin', 'isBanned']));
+      // Allow create: authenticated user creating their own doc, ONLY allowed fields
+      allow create: if isSignedIn() && request.auth.uid == userId
+                      && hasOnlyAllowedUserFields(request.resource.data);
+      // Allow update: same user, ONLY allowed fields (check delta, not merged doc)
+      // Using diff ensures server-managed fields (createdAt, role, etc.) are
+      // never rejected just because they exist on the server-side doc.
+      allow update: if isAdmin() || (isSignedIn() && request.auth.uid == userId
+                      && exists(/databases/$(database)/documents/users/$(userId))
+                      && updateHasOnlyAllowedUserFields(diff));
     }
 
     // 2. Business Domains (Entity Records)
@@ -315,40 +370,40 @@ service cloud.firestore {
     // --- ❤️ DATING / MATCHING LAYER ---
 
     // User Likes (swipe right)
+    // GATED: User must have completed basic setup to access dating features.
     match /userLikes/{likeId} {
-      // list: allow signed-in users — where clause in query constrains results
-      // get:  verify ownership on individual doc reads
-      allow list: if isSignedIn();
-      allow get: if isSignedIn() && (
+      allow list: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid);
+      allow get: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
         resource.data.fromUserId == request.auth.uid ||
         resource.data.toUserId == request.auth.uid
       );
-      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
+                      && request.resource.data.fromUserId == request.auth.uid;
       allow update, delete: if false;
     }
 
     // User Passes (swipe left — kept to avoid reshowing profiles)
     match /userPasses/{passId} {
-      allow list: if isSignedIn();
-      allow get: if isSignedIn() && resource.data.fromUserId == request.auth.uid;
-      allow create: if isSignedIn() && request.resource.data.fromUserId == request.auth.uid;
+      allow list: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid);
+      allow get: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
+                   && resource.data.fromUserId == request.auth.uid;
+      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid)
+                      && request.resource.data.fromUserId == request.auth.uid;
       allow update, delete: if false;
     }
 
     // Mutual Matches
     match /userMatches/{matchId} {
-      // list: allow signed-in users — queries are always filtered by user1Id or user2Id
-      // get:  verify participation on individual doc reads
-      allow list: if isSignedIn();
-      allow get: if isSignedIn() && (
+      allow list: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid);
+      allow get: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
         resource.data.user1Id == request.auth.uid ||
         resource.data.user2Id == request.auth.uid
       );
-      allow create: if isSignedIn() && (
+      allow create: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
         request.resource.data.user1Id == request.auth.uid ||
         request.resource.data.user2Id == request.auth.uid
       );
-      allow update: if isSignedIn() && (
+      allow update: if isSignedIn() && hasCompletedBasicSetup(request.auth.uid) && (
         resource.data.user1Id == request.auth.uid ||
         resource.data.user2Id == request.auth.uid
       );
@@ -373,9 +428,17 @@ service cloud.firestore {
     // --- 💬 EVENT SOCIAL LAYER ---
     
     // Event Group Chat Messages
+    // Ticket-Gated: Read/write requires a confirmed order or RSVP for this event.
+    // Entitlement is checked via Firebase Custom Claims (set on ticket fulfillment)
+    // rather than Firestore exists() reads, avoiding N+1 costs at scale.
+    // The claim key follows the pattern `event_<eventId>: true`.
+    // Event hosts/venues are granted the claim by the entitlement Cloud Function.
     match /eventGroupMessages/{messageId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.senderId == request.auth.uid
+      );
+      allow create: if isSignedIn() && request.auth.token['event_' + request.resource.data.eventId] == true;
       allow update: if isAdmin(); // Only moderators can update (delete flag)
       allow delete: if false; // Never hard delete, use soft delete
     }

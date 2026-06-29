@@ -17,13 +17,15 @@ import {
   type User,
   type Auth,
 } from 'firebase/auth';
+import { initializeAppCheck, CustomProvider, type AppCheck } from 'firebase/app-check';
 import { NativeModules } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { firebaseConfig } from './config';
+import { secureStorage } from './secureStorage';
 
 // Initialize Firebase App (singleton)
 let firebaseApp: FirebaseApp;
 let firebaseAuth: Auth;
+let firebaseAppCheck: AppCheck | null = null;
 
 type PendingProviderLink = {
   email: string;
@@ -34,14 +36,16 @@ type PendingProviderLink = {
 
 let pendingProviderLink: PendingProviderLink | null = null;
 
-type ReactNativePersistenceFactory = (storage: typeof AsyncStorage) => any;
+type ReactNativePersistenceFactory = (storage: Storage) => any;
 
 function getReactNativeAuthPersistence() {
   try {
     const authModule = require('@firebase/auth') as {
       getReactNativePersistence?: ReactNativePersistenceFactory;
     };
-    return authModule.getReactNativePersistence?.(AsyncStorage);
+    // Use SecureStore-backed storage instead of plain AsyncStorage
+    // so that auth tokens are encrypted via iOS Keychain / Android Keystore.
+    return authModule.getReactNativePersistence?.(secureStorage);
   } catch {
     return undefined;
   }
@@ -52,6 +56,34 @@ export function getFirebaseApp(): FirebaseApp {
     firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
   }
   return firebaseApp;
+}
+
+/**
+ * Initialize Firebase App Check with a CustomProvider.
+ *
+ * React Native does not support ReCaptchaV3Provider natively.
+ * A CustomProvider is used with the debug token sourced from
+ * EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN (set in .env.development).
+ *
+ * ⚠️ BEFORE PRODUCTION RELEASE:
+ * Migrate to @react-native-firebase/app-check and use
+ * DeviceCheck (iOS) / Play Integrity (Android) attestation.
+ * See https://firebase.google.com/docs/app-check/react-native
+ */
+export function initAppCheck(): AppCheck {
+  if (!firebaseAppCheck) {
+    const debugToken = process.env.EXPO_PUBLIC_APPCHECK_DEBUG_TOKEN || '';
+    firebaseAppCheck = initializeAppCheck(getFirebaseApp(), {
+      provider: new CustomProvider({
+        getToken: async () => ({
+          token: debugToken,
+          expireTimeMillis: Date.now() + 1000 * 60 * 60, // 1 hour
+        }),
+      }),
+      isTokenAutoRefreshEnabled: true,
+    });
+  }
+  return firebaseAppCheck;
 }
 
 // Firebase Auth

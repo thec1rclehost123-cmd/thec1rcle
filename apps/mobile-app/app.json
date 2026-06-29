@@ -131,18 +131,7 @@
           }
         }
       ],
-      "expo-image",
-      [
-        "react-native-purchases",
-        {
-          "ios": {
-            "apiKey": "$REVENUECAT_IOS_API_KEY"
-          },
-          "android": {
-            "apiKey": "$REVENUECAT_ANDROID_API_KEY"
-          }
-        }
-      ]
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true

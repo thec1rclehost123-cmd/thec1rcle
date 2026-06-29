@@ -49,6 +49,8 @@ export interface Event {
     count?: number;
     users?: any[];
   };
+  premiumOnly?: boolean;
+  isEarlyAccess?: boolean;
 }
 
 export interface TicketTier {
@@ -61,6 +63,7 @@ export interface TicketTier {
   soldPercent?: number;
   description?: string;
   entryType?: string;
+  genderRestriction?: 'male' | 'female' | 'other' | 'none';
 }
 
 export interface SearchFilters {
@@ -152,6 +155,7 @@ function normalizeTicketTier(raw: any): TicketTier {
     soldPercent: Number(raw?.soldPercent ?? 0),
     description: raw?.description,
     entryType: raw?.entryType,
+    genderRestriction: raw?.genderRestriction ?? raw?.genderRequirement ?? undefined,
   };
 }
 

@@ -170,6 +170,8 @@ export function initAuthListener() {
 
     if (sequence !== authSequence) return;
 
+    void useSubscriptionStore.getState().fetchRevenueCatSubscription();
+
     clearSyncRetry();
     currentUserId = user.uid;
     setAuthenticatedUser(user);

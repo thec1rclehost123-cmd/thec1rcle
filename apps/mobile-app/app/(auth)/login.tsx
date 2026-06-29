@@ -10,7 +10,7 @@ import {
   StyleSheet,
   Animated,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import { router } from 'expo-router';
@@ -51,6 +51,7 @@ export default function LoginScreen() {
   const [showEmailForm, setShowEmailForm] = useState(false);
 
   const { login, loginApple, loginGoogle, loading, error, clearError } = useAuth();
+  const insets = useSafeAreaInsets();
 
   // Animated values for staggered layout slide & fade-in
   const fadeLogo = useRef(new Animated.Value(1)).current;
@@ -68,8 +69,6 @@ export default function LoginScreen() {
   const fadeFooter = useRef(new Animated.Value(1)).current;
   const slideFooter = useRef(new Animated.Value(0)).current;
 
-  const glowAnim = useRef(new Animated.Value(0.3)).current;
-
   // Transition animation for when email form reveals
   const fadeForm = useRef(new Animated.Value(0)).current;
   const slideForm = useRef(new Animated.Value(15)).current;
@@ -82,27 +81,15 @@ export default function LoginScreen() {
 
   useEffect(() => {
     return () => {
-      player.pause();
+      try {
+        player.pause();
+      } catch (e) {
+        // Ignore native crash during Fast Refresh when player is already released
+      }
     };
   }, [player]);
 
   useEffect(() => {
-    // Continuous subtle pulsing glow behind logo
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(glowAnim, {
-          toValue: 0.6,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(glowAnim, {
-          toValue: 0.25,
-          duration: 3000,
-          useNativeDriver: true,
-        }),
-      ]),
-    ).start();
-
     // Staggered layout mount animation
     Animated.stagger(100, [
       Animated.parallel([
@@ -196,7 +183,7 @@ export default function LoginScreen() {
       />
 
       <SafeAreaView style={s.safeArea}>
-        <View style={s.skipRow}>
+        <View style={[s.skipRow, { top: insets.top > 0 ? insets.top : 20 }]}>
           <Pressable
             onPress={() => {
               useAuthStore.getState().setGuestMode(true);
@@ -426,20 +413,6 @@ const s = StyleSheet.create({
     position: 'relative',
     width: '100%',
   },
-  glowCircle: {
-    position: 'absolute',
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(139, 92, 246, 0.12)', // Violet light glow
-    alignSelf: 'center',
-    top: -30,
-    // iOS soft glow shadows
-    shadowColor: '#8b5cf6',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 35,
-  },
   inviteCue: {
     color: 'rgba(255,255,255,0.45)',
     fontSize: 10,
@@ -485,6 +458,8 @@ const s = StyleSheet.create({
   buttonGroup: {
     width: '100%',
     gap: 12,
+    minHeight: 280,
+    justifyContent: 'flex-end',
   },
   appleAuthButton: {
     width: '100%',
@@ -531,6 +506,8 @@ const s = StyleSheet.create({
   form: {
     width: '100%',
     gap: 12,
+    minHeight: 280,
+    justifyContent: 'flex-end',
   },
   input: {
     backgroundColor: 'rgba(255,255,255,0.06)',

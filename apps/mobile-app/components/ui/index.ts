@@ -1,4 +1,5 @@
 // UI Components Index
+export { GuestAuthPrompt } from './GuestAuthPrompt';
 export { Button } from './Button';
 export { Card } from './Card';
 export { Input } from './Input';

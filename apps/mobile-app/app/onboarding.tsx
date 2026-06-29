@@ -155,7 +155,10 @@ export default function OnboardingScreen() {
     if (isLastSlide) {
       await markOnboardingComplete(user?.uid);
       if (user?.uid) {
-        await useProfileStore.getState().updateProfile(user.uid, { onboardingComplete: true });
+        useProfileStore
+          .getState()
+          .updateProfile(user.uid, { onboardingComplete: true })
+          .catch(console.error);
       }
       setOnboardingJustCompleted(true);
       router.replace('/notification-permission');
@@ -176,7 +179,10 @@ export default function OnboardingScreen() {
   const handleSkip = useCallback(async () => {
     await markOnboardingComplete(user?.uid);
     if (user?.uid) {
-      await useProfileStore.getState().updateProfile(user.uid, { onboardingComplete: true });
+      useProfileStore
+        .getState()
+        .updateProfile(user.uid, { onboardingComplete: true })
+        .catch(console.error);
     }
     setOnboardingJustCompleted(true);
     router.replace('/notification-permission');

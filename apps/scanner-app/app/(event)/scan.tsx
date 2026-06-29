@@ -35,6 +35,7 @@ interface ScanResultData {
     ticketType: string;
     quantity: number;
     entryType: string;
+    genderRestriction?: string | null;
   };
   previousScan?: {
     time: string;
@@ -138,6 +139,7 @@ export default function ScanScreen() {
           ticketType: result.ticket?.ticketName || 'Entry',
           quantity: result.ticket?.quantity || 1,
           entryType: result.ticket?.entryType || 'general',
+          genderRestriction: result.ticket?.genderRestriction || null,
         },
       });
     } else {

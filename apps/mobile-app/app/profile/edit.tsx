@@ -122,12 +122,20 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState(user?.displayName || '');
   const [bio, setBio] = useState('');
   const [city, setCity] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
   const [photoURL, setPhotoURL] = useState(user?.photoURL || '');
   const [instagram, setInstagram] = useState('');
   const [spotify, setSpotify] = useState('');
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+
+  const genderOptions: { key: string; label: string }[] = [
+    { key: 'male', label: 'Male' },
+    { key: 'female', label: 'Female' },
+    { key: 'other', label: 'Other' },
+    { key: 'prefer_not_to_say', label: 'Prefer not to say' },
+  ];
 
   // Validation
   const [errors, setErrors] = useState<{ name?: string }>({});
@@ -190,11 +198,13 @@ export default function EditProfileScreen() {
     const name = profile?.displayName ?? user.displayName ?? '';
     const bioVal = profile?.bio ?? '';
     const cityVal = profile?.city ?? '';
+    const genderVal = profile?.gender ?? null;
     const instaVal = profile?.instagram ?? '';
     const spotVal = profile?.spotify ?? '';
     setDisplayName(name);
     setBio(bioVal);
     setCity(cityVal);
+    setGender(genderVal);
     setPhotoURL(profile?.photoURL ?? user.photoURL ?? '');
     setInstagram(instaVal);
     setSpotify(spotVal);
@@ -322,7 +332,7 @@ export default function EditProfileScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
-      const updates = {
+      const updates: Record<string, any> = {
         displayName: displayName.trim(),
         bio: bio.trim(),
         city: city.trim(),
@@ -330,6 +340,10 @@ export default function EditProfileScreen() {
         instagram: instagram.trim().replace(/^@+/, ''),
         spotify: spotify.trim(),
       };
+
+      if (gender !== null) {
+        updates.gender = gender;
+      }
 
       const success = await updateProfile(user.uid, updates);
 
@@ -346,9 +360,20 @@ export default function EditProfileScreen() {
         setSaved(false);
         router.back();
       }, 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving profile:', error);
-      Alert.alert('Error', 'Failed to save profile. Please try again.');
+
+      if (error.status === 429 || error.code === 'PROFILE_UPDATE_COOLDOWN') {
+        Alert.alert(
+          'Gender Change Limited',
+          'Gender can only be changed once every 30 days. Contact support if this was a mistake.',
+        );
+      } else if (error.code === 'GENDER_UPDATE_REQUIRED') {
+        Alert.alert('Gender Required', 'Please set your gender to continue with this action.');
+      } else {
+        Alert.alert('Error', 'Failed to save profile. Please try again.');
+      }
+
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       setSaving(false);
@@ -503,6 +528,48 @@ export default function EditProfileScreen() {
             />
 
             <CitySelector value={city} onSelect={handleSelectCity} delay={400} />
+
+            {/* Gender Selector */}
+            <Animated.View
+              entering={FadeInDown.delay(450).springify()}
+              style={styles.fieldContainer}
+            >
+              <Text style={styles.fieldLabel}>Gender</Text>
+              {gender ? (
+                <View style={styles.genderReadonlyContainer}>
+                  <Text style={styles.genderReadonlyValue}>
+                    {genderOptions.find((g) => g.key === gender)?.label || gender}
+                  </Text>
+                  <Text style={styles.genderReadonlyHint}>
+                    Gender can only be changed once every 30 days. Contact support if this was a
+                    mistake.
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.genderGrid}>
+                  {genderOptions.map((option) => (
+                    <Pressable
+                      key={option.key}
+                      onPress={() => {
+                        markDirty();
+                        Haptics.selectionAsync();
+                        setGender(option.key);
+                      }}
+                      style={[styles.genderChip, gender === option.key && styles.genderChipActive]}
+                    >
+                      <Text
+                        style={[
+                          styles.genderChipText,
+                          gender === option.key && styles.genderChipTextActive,
+                        ]}
+                      >
+                        {option.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+            </Animated.View>
           </View>
 
           {/* Social Section */}
@@ -881,5 +948,49 @@ const styles = StyleSheet.create({
     color: colors.goldMetallic,
     fontSize: 13,
     lineHeight: 18,
+  },
+  genderReadonlyContainer: {
+    backgroundColor: colors.base[50],
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  genderReadonlyValue: {
+    color: colors.gold,
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  genderReadonlyHint: {
+    color: colors.goldMetallic,
+    fontSize: 12,
+    marginTop: 8,
+    lineHeight: 16,
+  },
+  genderGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  genderChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: radii.full,
+    backgroundColor: colors.base[50],
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  genderChipActive: {
+    backgroundColor: colors.iris,
+    borderColor: colors.iris,
+  },
+  genderChipText: {
+    color: colors.goldMetallic,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  genderChipTextActive: {
+    color: '#fff',
   },
 });

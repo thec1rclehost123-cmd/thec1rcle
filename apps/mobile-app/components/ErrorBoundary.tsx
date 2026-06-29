@@ -4,52 +4,50 @@
  * In production, reports errors to Sentry.
  */
 
-import React, { Component, type ErrorInfo, type ReactNode } from "react";
-import { CrashScreen } from "./CrashScreen";
-import { captureException } from "@/lib/sentry";
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+import { CrashScreen } from './CrashScreen';
+import { captureException } from '@/lib/sentry';
 
 interface ErrorBoundaryProps {
-    children: ReactNode;
-    onReset?: () => void;
+  children: ReactNode;
+  onReset?: () => void;
 }
 
 interface ErrorBoundaryState {
-    hasError: boolean;
-    error: Error | null;
+  hasError: boolean;
+  error: Error | null;
 }
 
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-    constructor(props: ErrorBoundaryProps) {
-        super(props);
-        this.state = { hasError: false, error: null };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    if (error?.message?.includes("VideoPlayer.pause' has been rejected")) {
+      return { hasError: false, error: null };
+    }
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('ErrorBoundary caught:', error, errorInfo);
+    captureException(error, { componentStack: errorInfo.componentStack });
+  }
+
+  handleRetry = () => {
+    this.setState({ hasError: false, error: null });
+    this.props.onReset?.();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return <CrashScreen error={this.state.error || undefined} onRetry={this.handleRetry} />;
     }
 
-    static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-        return { hasError: true, error };
-    }
-
-    componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error("ErrorBoundary caught:", error, errorInfo);
-        captureException(error, { componentStack: errorInfo.componentStack });
-    }
-
-    handleRetry = () => {
-        this.setState({ hasError: false, error: null });
-        this.props.onReset?.();
-    };
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <CrashScreen
-                    error={this.state.error || undefined}
-                    onRetry={this.handleRetry}
-                />
-            );
-        }
-
-        return this.props.children;
-    }
+    return this.props.children;
+  }
 }
 
 export default ErrorBoundary;

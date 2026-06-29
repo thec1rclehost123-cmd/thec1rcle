@@ -7,7 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import Purchases from 'react-native-purchases';
+
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { colors } from '@/lib/design/theme';
 import { QueryProvider } from '@/components/providers/QueryProvider';
@@ -28,15 +28,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {
 
 export default function RootLayout() {
   const RootGestureHandlerView = GestureHandlerRootView as any;
-
-  useEffect(() => {
-    Purchases.configure({
-      apiKey:
-        Platform.OS === 'ios'
-          ? process.env.EXPO_PUBLIC_RC_IOS!
-          : process.env.EXPO_PUBLIC_RC_ANDROID!,
-    });
-  }, []);
 
   useEffect(() => initAuthListener(), []);
 

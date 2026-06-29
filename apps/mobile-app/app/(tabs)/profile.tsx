@@ -34,6 +34,7 @@ import { colors, gradients } from '@/lib/design/theme';
 import { safeDate } from '@/lib/utils/date';
 import { trackScreen } from '@/lib/analytics';
 import { PremiumBadge } from '@/components/ui/PremiumBadge';
+import { GuestAuthPrompt } from '@/components/ui/GuestAuthPrompt';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -260,9 +261,9 @@ export default function ProfileScreen() {
     });
   };
 
-  if (isGuest) {
-    return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
-  }
+  // if (isGuest) {
+  //   return <GuestAuthPrompt onDismiss={() => router.replace('/(tabs)/explore')} />;
+  // }
 
   if (profileLoading && ticketsLoading && !profile && orders.length === 0) {
     return (
@@ -518,118 +519,6 @@ export default function ProfileScreen() {
     </View>
   );
 }
-
-// ── Guest auth prompt ──────────────────────────────────────────────────────────
-
-function GuestAuthPrompt({ onDismiss }: { onDismiss: () => void }) {
-  const insets = useSafeAreaInsets();
-
-  return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
-      <View style={guestStyles.root}>
-        <View style={guestStyles.iconWrap}>
-          <Ionicons name="sparkles" size={36} color="#fff" />
-        </View>
-        <Text style={guestStyles.title}>Join THE C1RCLE</Text>
-        <Text style={guestStyles.subtitle}>
-          Create an account to buy tickets, chat with attendees, and RSVP.
-        </Text>
-        <Pressable
-          style={guestStyles.primaryBtn}
-          onPress={() => {
-            useAuthStore.getState().setGuestMode(false);
-            router.push('/(auth)/login');
-          }}
-        >
-          <Text style={guestStyles.primaryBtnText}>Log In</Text>
-        </Pressable>
-        <Pressable
-          style={guestStyles.secondaryBtn}
-          onPress={() => {
-            useAuthStore.getState().setGuestMode(false);
-            router.push('/(auth)/signup');
-          }}
-        >
-          <Text style={guestStyles.secondaryBtnText}>Sign Up</Text>
-        </Pressable>
-        <Pressable style={guestStyles.dismissBtn} onPress={onDismiss}>
-          <Text style={guestStyles.dismissText}>Continue Browsing</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-const guestStyles = StyleSheet.create({
-  root: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    paddingBottom: 60,
-  },
-  iconWrap: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: 'rgba(139,92,246,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  subtitle: {
-    color: 'rgba(255,255,255,0.6)',
-    fontSize: 15,
-    fontWeight: '500',
-    textAlign: 'center',
-    lineHeight: 22,
-    marginBottom: 32,
-    paddingHorizontal: 12,
-  },
-  primaryBtn: {
-    backgroundColor: '#fff',
-    width: '100%',
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  primaryBtnText: {
-    color: '#000',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  secondaryBtn: {
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-    width: '100%',
-    height: 50,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  secondaryBtnText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  dismissBtn: {
-    paddingVertical: 10,
-  },
-  dismissText: {
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
 
 const styles = StyleSheet.create({
   container: {

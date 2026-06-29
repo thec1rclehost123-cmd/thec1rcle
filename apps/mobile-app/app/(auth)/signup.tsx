@@ -15,15 +15,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
-import { Eye, EyeOff, ChevronDown, Check, X } from 'lucide-react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { BlurView } from 'expo-blur';
 import { useAuth } from '@/hooks/useAuth';
 import { useProfileStore } from '@/store/profileStore';
 import { getFirebaseAuth } from '@/lib/firebase';
-
-const CITIES = ['Mumbai', 'Pune', 'Bengaluru', 'Goa', 'Delhi', 'Hyderabad'];
 
 const GENDERS: { key: 'male' | 'female' | 'other' | 'prefer_not_to_say'; label: string }[] = [
   { key: 'male', label: 'Male' },
@@ -36,10 +34,10 @@ export default function SignupScreen() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('Mumbai');
-  const [showCityPicker, setShowCityPicker] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other' | 'prefer_not_to_say' | ''>('');
-  const [age, setAge] = useState('');
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -57,7 +55,11 @@ export default function SignupScreen() {
 
   useEffect(() => {
     return () => {
-      player.pause();
+      try {
+        player.pause();
+      } catch (e) {
+        // Ignore native crash during Fast Refresh when player is already released
+      }
     };
   }, [player]);
 
@@ -85,10 +87,29 @@ export default function SignupScreen() {
       setLocalError('Please select your gender');
       return;
     }
-    if (!age || isNaN(parseInt(age))) {
-      setLocalError('Please enter a valid age');
+    const d = parseInt(day);
+    const m = parseInt(month);
+    const y = parseInt(year);
+    if (!day || !month || !year || isNaN(d) || isNaN(m) || isNaN(y)) {
+      setLocalError('Please enter a valid Date of Birth');
       return;
     }
+    const dob = new Date(y, m - 1, d);
+    if (dob.getFullYear() !== y || dob.getMonth() !== m - 1 || dob.getDate() !== d) {
+      setLocalError('Invalid Date of Birth');
+      return;
+    }
+    const today = new Date();
+    let calcAge = today.getFullYear() - dob.getFullYear();
+    const mDiff = today.getMonth() - dob.getMonth();
+    if (mDiff < 0 || (mDiff === 0 && today.getDate() < dob.getDate())) {
+      calcAge--;
+    }
+    if (calcAge < 18) {
+      setLocalError('You must be at least 18 years old to join');
+      return;
+    }
+    const dateOfBirthStr = `${y}-${m.toString().padStart(2, '0')}-${d.toString().padStart(2, '0')}`;
     if (password !== confirmPassword) {
       setLocalError("Passwords don't match");
       return;
@@ -100,22 +121,19 @@ export default function SignupScreen() {
     if (result.success) {
       if (router.canDismiss()) router.dismissAll();
       try {
-        const birthYear = new Date().getFullYear() - parseInt(age);
-        const dateOfBirth = `${birthYear}-01-01`;
         const auth = getFirebaseAuth();
         const user = auth.currentUser;
         if (user) {
-          await updateProfile(user.uid, {
+          updateProfile(user.uid, {
             email: user.email ?? email.trim(),
             displayName: fullName.trim(),
             phone: phone.trim() || undefined,
-            city,
             gender: gender as any,
-            dateOfBirth,
-          });
+            dateOfBirth: dateOfBirthStr,
+          }).catch((err) => console.error('Failed to save profile during signup:', err));
         }
       } catch (err) {
-        console.error('Failed to save profile during signup:', err);
+        console.error('Failed to trigger profile update:', err);
       }
       router.replace('/');
     }
@@ -228,29 +246,6 @@ export default function SignupScreen() {
                 </View>
               </Field>
 
-              {/* City */}
-              <View style={s.fieldWrap}>
-                <Text style={s.fieldLabel}>CITY</Text>
-                <Pressable
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setShowCityPicker(true);
-                  }}
-                >
-                  <BlurView
-                    experimentalBlurMethod="dimezisBlurView"
-                    intensity={40}
-                    tint="dark"
-                    style={s.fieldBox}
-                  >
-                    <View style={s.pickerRow}>
-                      <Text style={s.pickerValue}>{city}</Text>
-                      <ChevronDown size={16} color="rgba(255,255,255,0.6)" strokeWidth={2.5} />
-                    </View>
-                  </BlurView>
-                </Pressable>
-              </View>
-
               {/* Gender */}
               <View style={s.fieldWrap}>
                 <Text style={s.fieldLabel}>GENDER</Text>
@@ -280,21 +275,51 @@ export default function SignupScreen() {
                 </View>
               </View>
 
-              {/* Age */}
-              <Field label="AGE">
-                <TextInput
-                  style={s.input}
-                  placeholder="e.g. 25"
-                  placeholderTextColor="rgba(255,255,255,0.4)"
-                  keyboardType="numeric"
-                  value={age}
-                  onChangeText={(t) => {
-                    setAge(t.replace(/[^0-9]/g, ''));
-                    clearErrors();
-                  }}
-                  returnKeyType="next"
-                  maxLength={2}
-                />
+              {/* Date of Birth */}
+              <Field label="DATE OF BIRTH">
+                <View style={s.dobRow}>
+                  <TextInput
+                    style={[s.input, s.dobInput]}
+                    placeholder="DD"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={day}
+                    onChangeText={(t) => {
+                      setDay(t.replace(/[^0-9]/g, ''));
+                      clearErrors();
+                    }}
+                    maxLength={2}
+                    returnKeyType="next"
+                  />
+                  <Text style={s.dobSeparator}>/</Text>
+                  <TextInput
+                    style={[s.input, s.dobInput]}
+                    placeholder="MM"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={month}
+                    onChangeText={(t) => {
+                      setMonth(t.replace(/[^0-9]/g, ''));
+                      clearErrors();
+                    }}
+                    maxLength={2}
+                    returnKeyType="next"
+                  />
+                  <Text style={s.dobSeparator}>/</Text>
+                  <TextInput
+                    style={[s.input, s.dobInput, { flex: 1.5 }]}
+                    placeholder="YYYY"
+                    placeholderTextColor="rgba(255,255,255,0.4)"
+                    keyboardType="numeric"
+                    value={year}
+                    onChangeText={(t) => {
+                      setYear(t.replace(/[^0-9]/g, ''));
+                      clearErrors();
+                    }}
+                    maxLength={4}
+                    returnKeyType="next"
+                  />
+                </View>
               </Field>
 
               {/* Password */}
@@ -385,53 +410,6 @@ export default function SignupScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-
-        {/* City Picker Modal */}
-        <Modal
-          visible={showCityPicker}
-          transparent
-          animationType="slide"
-          onRequestClose={() => setShowCityPicker(false)}
-        >
-          <Pressable style={s.modalOverlay} onPress={() => setShowCityPicker(false)}>
-            <BlurView
-              experimentalBlurMethod="dimezisBlurView"
-              intensity={20}
-              tint="dark"
-              style={StyleSheet.absoluteFillObject}
-            />
-          </Pressable>
-          <View style={s.modalSheet}>
-            <View style={s.modalHandle} />
-            <View style={s.modalHeader}>
-              <Text style={s.modalTitle}>SELECT CITY</Text>
-              <Pressable onPress={() => setShowCityPicker(false)} style={s.modalClose}>
-                <X size={18} color="#FFF" strokeWidth={2.5} />
-              </Pressable>
-            </View>
-
-            <FlatList
-              bounces={false}
-              overScrollMode="never"
-              data={CITIES}
-              keyExtractor={(item) => item}
-              renderItem={({ item }) => (
-                <Pressable
-                  style={[s.cityRow, city === item && s.cityRowActive]}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    setCity(item);
-                    setShowCityPicker(false);
-                  }}
-                >
-                  <Text style={[s.cityRowText, city === item && s.cityRowTextActive]}>{item}</Text>
-                  {city === item && <Check size={18} color="#FFF" strokeWidth={3} />}
-                </Pressable>
-              )}
-              style={s.cityList}
-            />
-          </View>
-        </Modal>
       </SafeAreaView>
     </View>
   );
@@ -592,16 +570,20 @@ const s = StyleSheet.create({
     flex: 1,
   },
 
-  // City picker trigger
-  pickerRow: {
+  dobRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  pickerValue: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  dobInput: {
+    flex: 1,
+    textAlign: 'center',
+  },
+  dobSeparator: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 20,
+    fontWeight: '300',
+    paddingHorizontal: 12,
   },
 
   // Gender chips

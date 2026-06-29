@@ -4,6 +4,7 @@ import {
   validateScannerDevice,
   recordScanAttempt,
 } from '@c1rcle/core/scan-engine';
+import { activateWallet } from '@c1rcle/core/cover-charge-engine';
 import { randomBytes, createHmac, timingSafeEqual } from 'node:crypto';
 import { FieldValue } from 'firebase-admin/firestore';
 import { z } from 'zod';
@@ -349,6 +350,68 @@ function verifyWalletTicketJwt(qrData: string) {
   return claims;
 }
 
+function verifyWalletJwt(qrData: string) {
+  const parts = qrData.split('.');
+  if (parts.length !== 3) {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  let header: any;
+  let claims: any;
+  try {
+    header = decodeJwtPart(parts[0]);
+    claims = decodeJwtPart(parts[1]);
+  } catch {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  if (header?.alg !== 'HS256') {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  const expected = createHmac('sha256', QR_SECRET).update(`${parts[0]}.${parts[1]}`).digest();
+  const actual = base64UrlToBuffer(parts[2]);
+  if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    claims?.iss !== 'the-c1rcle' ||
+    claims?.aud !== 'c1rcle-scanner' ||
+    claims?.typ !== 'wallet'
+  ) {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+  if (Number(claims.nbf || 0) > now + 30) {
+    const error = new Error('Wallet QR is not valid yet');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+  if (Number(claims.exp || 0) <= now) {
+    const error = new Error('Wallet QR has expired');
+    (error as any).result = 'expired';
+    throw error;
+  }
+  if (!claims.walletId || !claims.userId) {
+    const error = new Error('Invalid wallet QR');
+    (error as any).result = 'invalid';
+    throw error;
+  }
+
+  return claims;
+}
+
 async function resolveTicketForJwt(fastify: FastifyInstance, claims: any) {
   const candidateIds = [claims.jti, claims.ticketId, claims.sub].filter(Boolean);
   for (const candidate of candidateIds) {
@@ -372,64 +435,35 @@ async function resolveTicketForJwt(fastify: FastifyInstance, claims: any) {
   return { ref: doc.ref, id: doc.id, data: { id: doc.id, ...doc.data() } };
 }
 
-function rawTicketIdCandidate(value: any): string | null {
-  if (typeof value !== 'string') return null;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (trimmed.split('.').length === 3) return trimmed;
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) return null;
-  return trimmed;
-}
-
 function getTicketQrCandidate(value: any): string | null {
-  const direct = rawTicketIdCandidate(value);
-  if (direct) return direct;
+  if (isJwtLike(value)) return value;
   if (!value || typeof value !== 'object') return null;
-  return (
-    rawTicketIdCandidate(value.ticketId) ||
-    rawTicketIdCandidate(value.bookingCode) ||
-    rawTicketIdCandidate(value.qrData) ||
-    rawTicketIdCandidate(value.qrCode) ||
-    rawTicketIdCandidate(value.qrPayload) ||
-    rawTicketIdCandidate(value.qrJwt)
-  );
-}
-
-async function resolveUniqueTicketQuery(fastify: FastifyInstance, field: string, value: string) {
-  const snapshot = await fastify.db.collection('tickets').where(field, '==', value).limit(2).get();
-  if (snapshot.empty || snapshot.docs.length !== 1) return null;
-  const doc = snapshot.docs[0];
-  return { ref: doc.ref, id: doc.id, data: { id: doc.id, ...doc.data() } };
-}
-
-async function resolveTicketForRawId(fastify: FastifyInstance, scannedTicketId: string) {
-  const value = scannedTicketId.trim();
-  const directRef = fastify.db.collection('tickets').doc(value);
-  const directDoc = await directRef.get();
-  if (directDoc.exists) {
-    return { ref: directRef, id: directDoc.id, data: { id: directDoc.id, ...directDoc.data() } };
-  }
-
-  return (
-    (await resolveUniqueTicketQuery(fastify, 'bookingCode', value)) ||
-    (await resolveUniqueTicketQuery(fastify, 'ticketId', value))
-  );
+  return isJwtLike(value.ticketId)
+    ? value.ticketId
+    : isJwtLike(value.bookingCode)
+      ? value.bookingCode
+      : isJwtLike(value.qrData)
+        ? value.qrData
+        : isJwtLike(value.qrCode)
+          ? value.qrCode
+          : isJwtLike(value.qrPayload)
+            ? value.qrPayload
+            : isJwtLike(value.qrJwt)
+              ? value.qrJwt
+              : null;
 }
 
 async function resolveTicketForQrValue(fastify: FastifyInstance, qrValue: string) {
-  if (isJwtLike(qrValue)) {
-    const claims = verifyWalletTicketJwt(qrValue);
-    return {
-      ticketLookup: await resolveTicketForJwt(fastify, claims),
-      legacyClaims: claims,
-      qrMode: 'legacy_jwt',
-    };
+  if (!isJwtLike(qrValue)) {
+    const error = new Error('Invalid ticket QR');
+    (error as any).result = 'invalid';
+    throw error;
   }
-
+  const claims = verifyWalletTicketJwt(qrValue);
   return {
-    ticketLookup: await resolveTicketForRawId(fastify, qrValue),
-    legacyClaims: null,
-    qrMode: 'raw_id',
+    ticketLookup: await resolveTicketForJwt(fastify, claims),
+    legacyClaims: claims,
+    qrMode: 'legacy_jwt',
   };
 }
 
@@ -493,6 +527,14 @@ function buildRichTicketScanResponse({
   scannedAt: string;
 }) {
   const userName = order.userName || ticket.userName || ticket.claimedBy?.name || 'Guest';
+  const genderRestriction =
+    ticket.genderRestriction ||
+    ticket.genderConstraint ||
+    ticket.requiredGender ||
+    ticket.genderRequirement ||
+    (String(ticket.entryType || '').toLowerCase() === 'female' ? 'female' : null) ||
+    null;
+
   return {
     success: true,
     result: 'valid',
@@ -518,6 +560,7 @@ function buildRichTicketScanResponse({
       userPhone: order.userPhone || ticket.userPhone || null,
       quantity: 1,
       entryType: ticket.entryType || 'general',
+      genderRestriction,
       scanCountAllowed: Number(ticket.scanCountAllowed || 1),
       scanCountUsed: Number(ticket.scanCountUsed || 0) + 1,
       checkedInAt: scannedAt,
@@ -555,6 +598,17 @@ async function processWalletTicketScan(
   const gate = request.body.gate || null;
   const operator = getOperatorDetails(scannedBy);
   const authorizedVenueId = venueId || auth.codeData?.venueId || null;
+
+  // SECURITY: Firebase-authenticated users must have event-management access
+  if (auth.usingFirebase) {
+    const scanEventId = eventId || auth.codeData?.eventId;
+    if (!scanEventId) {
+      return reply.status(400).send({ error: 'eventId is required', result: 'invalid' });
+    }
+    const access = await requireEventManagementAccess(fastify, request, scanEventId);
+    if (!access.allowed)
+      return reply.status(access.status).send({ error: access.error, result: 'unauthorized' });
+  }
 
   let resolved: any;
   try {
@@ -699,6 +753,16 @@ async function processWalletTicketScan(
   let existingScanData: any = null;
   let scannedAt = new Date().toISOString();
 
+  // Pre-fetch PENDING wallet ref (outside transaction) for activation inside the transaction
+  const pendingWalletSnap = await fastify.db
+    .collection('cover_wallets')
+    .where('orderId', '==', claims.orderId)
+    .where('userId', '==', claims.userId)
+    .where('state', '==', 'PENDING')
+    .limit(1)
+    .get();
+  const pendingWalletRef = pendingWalletSnap.empty ? null : pendingWalletSnap.docs[0].ref;
+
   await fastify.db.runTransaction(async (tx: any) => {
     const [freshTicketDoc, existingScanDoc] = await Promise.all([
       tx.get(ticketLookup.ref),
@@ -761,6 +825,23 @@ async function processWalletTicketScan(
       lastTicketScannedAt: now,
       updatedAt: now,
     });
+
+    // ── Cover Wallet Activation (inside the scan transaction) ────────────────
+    // If the scanned order has a PENDING cover wallet, activate it atomically.
+    // If this fails, the entire scan transaction aborts, preventing entry
+    // without an active wallet.
+    if (pendingWalletRef) {
+      const walletDoc = await tx.get(pendingWalletRef);
+      if (walletDoc.exists && walletDoc.data().state === 'PENDING') {
+        tx.update(pendingWalletRef, {
+          state: 'ACTIVE',
+          activatedAt: now,
+          activatedBy: operator.operatorName || 'scanner',
+          scanId: scanDocId,
+          lastActivityAt: now,
+        });
+      }
+    }
   });
 
   if (lifecycleRejected) {
@@ -920,6 +1001,89 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   );
 
   /**
+   * POST /api/v1/scan/wallet-qr
+   * Verify a wallet Pay-at-Bar QR JWT and return wallet context.
+   * Used by the scanner-app bartender mode.
+   */
+  fastify.post(
+    '/wallet-qr',
+    {
+      preHandler: [fastify.validate({ body: ScanBody })],
+    },
+    async (request: any, reply) => {
+      const qrValue = getJwtCandidate(
+        request.body.qrData || request.body.ticketId || request.body.ticketPayload,
+      );
+
+      if (!qrValue) {
+        return reply.status(400).send({ error: 'QR data is required', result: 'invalid' });
+      }
+
+      // Support both Bearer token and X-Scanner-Code header auth
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized) {
+        // Fallback: check X-Scanner-Code header for scanner-app compat
+        const scannerCode = (request.headers['x-scanner-code'] as string) || '';
+        if (scannerCode) {
+          const codeSnap = await fastify.db
+            .collection('event_codes')
+            .where('code', '==', scannerCode.toUpperCase().trim())
+            .limit(1)
+            .get();
+          if (codeSnap.empty || codeSnap.docs[0].data().isRevoked) {
+            return scannerSessionError(reply);
+          }
+          request.scannerCodeId = codeSnap.docs[0].id;
+        } else {
+          return scannerSessionError(reply);
+        }
+      }
+
+      let claims: any;
+      try {
+        claims = verifyWalletJwt(qrValue);
+      } catch (error: any) {
+        const result = error.result || 'invalid';
+        return reply.status(400).send({ error: error.message || 'Invalid wallet QR', result });
+      }
+
+      const walletDoc = await fastify.db.collection('cover_wallets').doc(claims.walletId).get();
+      if (!walletDoc.exists) {
+        return reply.status(404).send({ error: 'Wallet not found', result: 'not_found' });
+      }
+
+      const wallet = walletDoc.data() as any;
+
+      if (wallet.state !== 'ACTIVE') {
+        return reply.status(400).send({
+          error:
+            wallet.state === 'PENDING' ? 'Wallet is not yet activated' : 'Wallet is not active',
+          result: 'wallet_inactive',
+          state: wallet.state,
+        });
+      }
+
+      return {
+        success: true,
+        wallet: {
+          id: walletDoc.id,
+          userId: wallet.userId,
+          orderId: wallet.orderId,
+          currentBalancePaise: wallet.currentBalancePaise,
+          openingBalancePaise: wallet.openingBalancePaise,
+          guestName: wallet.guestFirstName || 'Guest',
+          state: wallet.state,
+          rules: {
+            minChargeAmountPaise: wallet.rules?.minChargeAmountPaise || 0,
+            maxChargeAmountPaise: wallet.rules?.maxChargeAmountPaise || wallet.currentBalancePaise,
+            showBalanceToGuest: wallet.rules?.showBalanceToGuest ?? true,
+          },
+        },
+      };
+    },
+  );
+
+  /**
    * POST /api/v1/scan
    * Process a QR scan
    */
@@ -1050,6 +1214,8 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         // Increment event checkIns stat (fire-and-forget)
         const entitlementEventId = eventId || payload.eventId;
         if (entitlementEventId) {
+          const genderRestriction: string | undefined =
+            payload.gr || (result.entitlementType === 'female' ? 'female' : undefined);
           fastify.db
             .collection('events')
             .doc(entitlementEventId)
@@ -1361,11 +1527,13 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       // Increment event checkIns stat (fire-and-forget)
       if (payload.e) {
+        const qty = payload.q || 1;
+        const isFemale = payload.et === 'female' || payload.gr === 'female';
         fastify.db
           .collection('events')
           .doc(payload.e)
           .update({
-            'stats.checkIns': FieldValue.increment(payload.q || 1),
+            'stats.checkIns': FieldValue.increment(qty),
           })
           .catch(() => {});
       }
@@ -2499,7 +2667,10 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       }
 
       const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
-      const qr = generateEntitlementQR(id);
+      const qr = generateEntitlementQR(
+        id,
+        entitlement.genderRestriction || entitlement.genderConstraint || null,
+      );
       return { ...qr, rawData: JSON.stringify(qr) };
     },
   );

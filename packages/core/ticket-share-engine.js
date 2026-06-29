@@ -155,23 +155,26 @@ function generateToken(length = 16) {
 
 /**
  * Sign a ticket payload for QR verification.
- * Token format: ticketId:userId:issuedAt:hmac
+ * Token format: ticketId:redeemerId:issuedAt:hmac
  * - Uses full 64-char HMAC (no truncation)
- * - Binds signature to userId so stolen tokens are useless to others
+ * - Binds signature to redeemerId so stolen tokens are useless to others
  * - issuedAt enables TTL expiry validation at scan time
  * @param {string} ticketId
- * @param {string} userId
+ * @param {string} redeemerId
  * @returns {{ token: string, issuedAt: number }}
  */
-function signTicketPayload(ticketId, userId) {
+function signTicketPayload(ticketId, redeemerId) {
+  if (!redeemerId) {
+    throw new Error('redeemerId is required to sign a ticket payload');
+  }
   const secret = getTicketSecret();
   if (!secret) {
     throw new Error('TICKET_SECRET env var is not configured');
   }
   const issuedAt = Date.now();
-  const payload = `${ticketId}:${userId}:${issuedAt}`;
+  const payload = `${ticketId}:${redeemerId}:${issuedAt}`;
   const signature = createHmac('sha256', secret).update(payload).digest('hex'); // full 64 chars
-  return { token: `${ticketId}:${userId}:${issuedAt}:${signature}`, issuedAt };
+  return { token: `${ticketId}:${redeemerId}:${issuedAt}:${signature}`, issuedAt };
 }
 
 /**
@@ -416,27 +419,58 @@ export async function createShareBundle(
   console.log(
     `[TicketShareStore] Creating share bundle. orderId=${orderId}, userId=${userId}, tierId=${tierId}`,
   );
-  const order = await getOrderById(orderId);
+
+  const db = getAdminDb();
+
+  // SECURITY: Read order INSIDE transaction to prevent TOCTOU race conditions
+  let order;
+  let actualTierId;
+  await db.runTransaction(async (tx) => {
+    const orderRef = db.collection(ORDERS_COLLECTION).doc(orderId);
+    const orderDoc = await tx.get(orderRef);
+
+    if (!orderDoc.exists) {
+      throw new Error('Order not found');
+    }
+
+    order = { id: orderDoc.id, ...orderDoc.data() };
+
+    if (order.userId !== userId) {
+      throw new Error('Unauthorized');
+    }
+
+    if (order.status !== 'confirmed') {
+      throw new Error('Order must be confirmed before sharing');
+    }
+
+    actualTierId = tierId || order.tickets[0]?.ticketId;
+    const sourceTicket = order.tickets?.find(
+      (t) => t.ticketId === actualTierId || t.tierId === actualTierId || t.id === actualTierId,
+    );
+    const purchasedQuantity = sourceTicket?.quantity || 0;
+
+    // SECURITY: Do not trust client quantity — cap at purchased amount
+    const clampedQuantity = Math.min(quantity, purchasedQuantity);
+    if (clampedQuantity < 1) {
+      throw new Error('No purchasable tickets found for this tier');
+    }
+    if (clampedQuantity !== quantity) {
+      console.warn(
+        `[TicketShareStore] Quantity clamped from ${quantity} to ${purchasedQuantity} for order ${orderId}`,
+      );
+    }
+    quantity = clampedQuantity;
+  });
 
   if (!order) {
     throw new Error('Order not found');
   }
 
-  if (order.userId !== userId) {
-    throw new Error('Unauthorized');
-  }
-
-  if (order.status !== 'confirmed') {
-    throw new Error('Order must be confirmed before sharing');
-  }
-
-  const db = getAdminDb();
-
   // Check if bundle already exists for this order+tier
   const query = db
     .collection(SHARE_BUNDLES_COLLECTION)
     .where('orderId', '==', orderId)
-    .where('tierId', '==', tierId || order.tickets[0]?.ticketId);
+    .where('tierId', '==', actualTierId);
 
   const existingSnapshot = await query.get();
   if (!existingSnapshot.empty) {
@@ -458,7 +492,7 @@ export async function createShareBundle(
     }
   }
 
-  const actualTierId = tierId || order.tickets[0]?.ticketId;
+  // actualTierId is already set inside the transaction block above
   const tier = event?.tickets?.find((t) => t.id === actualTierId);
   const buyerGender = await getUserGender(userId);
 
@@ -674,7 +708,9 @@ export async function claimTicketSlot(token, redeemerId) {
         : `CLAIM-${bundleId}-${redeemerId}-${Date.now().toString(36)}`;
 
     const qrPayload =
-      bundle.mode === 'shared_qr' ? bundle.groupQrPayload : signTicketPayload(assignmentId);
+      bundle.mode === 'shared_qr'
+        ? bundle.groupQrPayload
+        : signTicketPayload(assignmentId, redeemerId);
 
     const assignment = {
       bundleId,
@@ -804,7 +840,7 @@ export async function getOrderAssignments(orderId) {
  * Validate and scan a ticket (Used by Scanner)
  * Works for both direct order tickets and claimed tickets
  */
-export async function validateAndScanTicket(ticketId, signature, eventId, scannerId, options = {}) {
+export async function validateAndScanTicket(ticketId, token, eventId, scannerId, options = {}) {
   if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
 
   const { directPayload = null } = options;
@@ -812,10 +848,11 @@ export async function validateAndScanTicket(ticketId, signature, eventId, scanne
   // If we have a directPayload, it means the signature was already verified by the route handler
   // using the more complex qrStore.verifyQRPayload() logic.
   if (!directPayload) {
-    const expectedPayload = signTicketPayload(ticketId);
-    if (`${ticketId}:${signature}` !== expectedPayload) {
-      return { valid: false, reason: 'invalid_signature' };
+    const verification = verifyTicketToken(token);
+    if (!verification.valid) {
+      return { valid: false, reason: verification.reason || 'invalid_signature' };
     }
+    ticketId = verification.ticketId;
   }
 
   const db = getAdminDb();
@@ -907,8 +944,13 @@ async function _handleAssignmentScan(transaction, doc, eventId, scannerId, now) 
   if (data.eventId !== eventId) return { valid: false, reason: 'event_mismatch' };
   if (data.status === 'used')
     return { valid: false, reason: 'already_used', scannedAt: data.scannedAt };
-  if (data.status === 'cancelled' || data.status === 'voided')
-    return { valid: false, reason: 'cancelled' };
+  if (data.isRevoked || data.status === 'cancelled' || data.status === 'voided') {
+    return {
+      valid: false,
+      reason: data.isRevoked ? 'revoked' : 'cancelled',
+      ticket: data,
+    };
+  }
 
   const db = getAdminDb();
   const orderRef = db.collection('orders').doc(data.orderId);
@@ -1588,7 +1630,7 @@ export async function acceptTransfer(tokenOrId, recipientId) {
     } else {
       // Convert direct order ticket to an assignment for the new user
       const assignmentId = `TRANS-${ticketId}-${recipientId.slice(0, 5)}-${randomBytes(4).toString('hex')}`;
-      const qrPayload = signTicketPayload(assignmentId);
+      const qrPayload = signTicketPayload(assignmentId, recipientId);
 
       const assignment = {
         originalTicketId: ticketId,
@@ -1856,6 +1898,139 @@ export async function reclaimUnclaimedSlot(bundleId, userId, slotIndex) {
     );
 
     return { success: true };
+  });
+}
+
+/**
+ * Revoke an already-claimed ticket from a share bundle.
+ * Only the bundle owner (host) can revoke. Nullifies the assignment and resets
+ * the slot so a real friend can claim it.
+ */
+export async function revokeClaimedTicket(bundleId, hostUserId, slotIndex) {
+  if (!isFirebaseConfigured()) throw new Error('Firebase not configured');
+  const db = getAdminDb();
+
+  return await db.runTransaction(async (transaction) => {
+    const bundleRef = db.collection(SHARE_BUNDLES_COLLECTION).doc(bundleId);
+    const doc = await transaction.get(bundleRef);
+
+    if (!doc.exists) throw new Error('Share bundle not found');
+    const bundle = doc.data();
+
+    if (bundle.userId !== hostUserId)
+      throw new Error('Unauthorized: Only the ticket owner can revoke claimed tickets');
+    if (bundle.status === 'cancelled') throw new Error('Share bundle is already cancelled');
+
+    const slots = bundle.slots || [];
+    const slotIdx = slots.findIndex((s) => s.slotIndex === slotIndex);
+
+    if (slotIdx === -1) throw new Error('Slot not found');
+    if (slots[slotIdx].claimStatus !== 'claimed') {
+      throw new Error('This ticket has not been claimed yet and cannot be revoked.');
+    }
+
+    const claimedUserId = slots[slotIdx].currentOwnerUserId;
+    const issuedTicketId = slots[slotIdx].issuedTicketId;
+
+    // SECURITY: Transactionally verify assignment details before revoking
+    let assignmentVerified = false;
+
+    // Path 1: Void by issuedTicketId (direct assignment reference)
+    if (issuedTicketId) {
+      const assignmentRef = db.collection(TICKET_ASSIGNMENTS_COLLECTION).doc(issuedTicketId);
+      const assignmentDoc = await transaction.get(assignmentRef);
+      if (assignmentDoc.exists) {
+        const assignment = assignmentDoc.data();
+        // Verify bundleId and redeemerId match
+        if (assignment.bundleId === bundleId && assignment.redeemerId === claimedUserId) {
+          // SECURITY: Cannot revoke a ticket that has already been used
+          if (assignment.status === 'used') {
+            throw new Error('Cannot revoke a ticket that has already been scanned for entry');
+          }
+          assignmentVerified = true;
+          transaction.update(assignmentRef, {
+            status: 'cancelled',
+            isRevoked: true,
+            revokedAt: new Date().toISOString(),
+            cancelledBy: hostUserId,
+            voidReason: 'revoked_by_host',
+          });
+        }
+      }
+    }
+
+    // Path 2: Fallback lookup by bundleId + redeemerId if path 1 didn't match
+    if (!assignmentVerified && claimedUserId) {
+      const altSnapshot = await transaction.get(
+        db
+          .collection(TICKET_ASSIGNMENTS_COLLECTION)
+          .where('bundleId', '==', bundleId)
+          .where('redeemerId', '==', claimedUserId)
+          .where('status', '==', 'active')
+          .limit(2),
+      );
+      if (!altSnapshot.empty) {
+        for (const altDoc of altSnapshot.docs) {
+          const alt = altDoc.data();
+          // SECURITY: Cannot revoke a used ticket
+          if (alt.status === 'used') {
+            throw new Error('Cannot revoke a ticket that has already been scanned for entry');
+          }
+          assignmentVerified = true;
+          transaction.update(altDoc.ref, {
+            status: 'cancelled',
+            isRevoked: true,
+            revokedAt: new Date().toISOString(),
+            cancelledBy: hostUserId,
+            voidReason: 'revoked_by_host',
+          });
+        }
+      }
+    }
+
+    if (!assignmentVerified && claimedUserId) {
+      // Log warning but proceed — revoke the slot even if assignment is missing
+      console.warn(
+        `[TicketShare] Revoke: no matching active assignment found for bundle ${bundleId}, user ${claimedUserId}`,
+      );
+    }
+
+    // Reset slot to unclaimed
+    const updatedSlots = slots.map((s) =>
+      s.slotIndex === slotIndex
+        ? {
+            ...s,
+            currentOwnerUserId: null,
+            claimStatus: 'unclaimed',
+            claimedAt: null,
+            issuedTicketId: null,
+          }
+        : s,
+    );
+
+    transaction.update(bundleRef, {
+      slots: updatedSlots,
+      remainingSlots: (bundle.remainingSlots || 0) + 1,
+      status: 'active',
+    });
+
+    await logAuditEvent(
+      'revoke_succeeded',
+      {
+        bundleId,
+        hostUserId,
+        revokedUserId: claimedUserId,
+        slotIndex,
+        assignmentId: issuedTicketId,
+      },
+      db,
+    );
+
+    return {
+      success: true,
+      revokedUserId: claimedUserId,
+      releasedSlot: slotIndex,
+    };
   });
 }
 

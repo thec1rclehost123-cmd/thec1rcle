@@ -35,6 +35,7 @@ import {
   getTicketShares,
   initiateFormalTransfer,
   reclaimSharedTicket,
+  revokeSharedTicket,
 } from '@/lib/api';
 import { track, trackScreen, AnalyticsEvents } from '@/lib/analytics';
 import { shareEventLink } from '@/lib/deeplinks';
@@ -363,6 +364,28 @@ export default function TicketDetailScreen() {
     ]);
   };
 
+  const confirmRevokeSlot = (bundleId: string, slotIndex: number) => {
+    Alert.alert(
+      'Revoke claimed ticket',
+      'This instantly voids the ticket for that guest. They will lose access at the door.',
+      [
+        { text: 'Keep', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: async () => {
+            const response = await revokeSharedTicket({ bundleId, slotIndex });
+            if (!response?.success) {
+              Alert.alert('Unable to revoke', response?.error || 'Revoke failed.');
+              return;
+            }
+            await refreshWallet();
+          },
+        },
+      ],
+    );
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, styles.center]}>
@@ -616,6 +639,23 @@ export default function TicketDetailScreen() {
                         >
                           <Text style={styles.slotButtonText}>Reclaim</Text>
                         </Pressable>
+                      </View>
+                    ))}
+                  {(bundle.slots || [])
+                    .filter((slot: any) => slot.claimStatus === 'claimed')
+                    .map((slot: any) => (
+                      <View key={`${bundle.id}-${slot.slotIndex}-claimed`} style={styles.slotRow}>
+                        <View style={styles.slotClaimedInfo}>
+                          <Text style={styles.slotLabel}>Slot {slot.slotIndex} - Claimed</Text>
+                        </View>
+                        <View style={styles.slotRevokeWrap}>
+                          <Pressable
+                            onPress={() => confirmRevokeSlot(bundle.id, slot.slotIndex)}
+                            style={styles.revokeButton}
+                          >
+                            <Text style={styles.revokeButtonText}>Revoke</Text>
+                          </Pressable>
+                        </View>
                       </View>
                     ))}
                 </View>
@@ -964,6 +1004,26 @@ const styles = StyleSheet.create({
   },
   slotButtonText: {
     color: colors.iris,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  slotClaimedInfo: {
+    flex: 1,
+    marginRight: 8,
+  },
+  slotRevokeWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  revokeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 12,
+    backgroundColor: 'rgba(244,74,34,0.25)',
+  },
+  revokeButtonText: {
+    color: '#F44A22',
     fontSize: 12,
     fontWeight: '700',
   },

@@ -200,7 +200,7 @@ export interface ReverseTransactionRequest {
   walletId: string;
   transactionId: string;
   reason: string;
-  supervisorPinHash: string; // bcrypt hash of the PIN the client sent
+  supervisorPin: string; // plain-text PIN, verified server-side via bcrypt
   operatorId: string;
   operatorRole: string;
   deviceId: string;

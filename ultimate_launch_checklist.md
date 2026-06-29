@@ -1,12 +1,26 @@
 # THE C1RCLE Mobile App Zero-To-Production Launch Checklist
 
-Last audited: 2026-06-19
+Last audited: 2026-06-26
 Audit root: `/Users/aayushdivase/Desktop/thec1rcle/thec1rcle`
 Primary app: `apps/mobile-app`
 Primary backend: `apps/api-gateway`
 Shared logic: `packages/core`
 
 This document is the production launch source of truth for THE C1RCLE mobile app. It is intentionally codebase-grounded. It does not treat a screen, helper, route, or library as production-ready unless it is wired into the real user flow, has the required config, and has a verification path.
+
+## Technical Pre-QA Gate
+
+Status: NOT READY FOR TESTFLIGHT / PLAY STORE QA HANDOFF.
+
+1. [x] ~~Run Firebase Emulator rules simulation for regular authenticated users.~~
+   Acceptance: `scripts/preqa-rules-smoke.mjs` passes against Auth, Firestore, and Storage emulators; regular users cannot create privileged `users/{uid}` fields, cannot write `events`, cannot read/write `directMessages`, cannot write `cover_wallets`, cannot write wallet txns, and can only upload bounded image files to their own allowed Storage paths.
+2. [ ] Verify Firebase Console state.
+   Acceptance: Firestore composite indexes from `firestore.indexes.json` are deployed and no required indexes are `Building` or `Failed`.
+3. [ ] Verify provider credentials in Firebase/Apple/Google consoles.
+   Acceptance: Apple Service ID/private key/revocation flow, Google Android SHA-1/SHA-256, Google web client ID, APNs, and phone-auth anti-abuse limits are production configured.
+4. [ ] Verify third-party production webhooks and dashboards.
+   Acceptance: Razorpay webhook hits production API Gateway with strict signature verification, RevenueCat entitlement webhook is configured if Premium is enabled, and Sentry/Crashlytics startup crash capture is visible in dashboards.
+5. [x] ~~Local code-owned security hardening has been applied: Firestore user creation now blocks privileged fields, Storage verification/KYC/profile/event writes are owner/admin scoped with 5 MB image constraints, and chat/event composite indexes required by gateway queries are declared.~~
 
 ## 1. To do
 
@@ -37,6 +51,8 @@ This document is the production launch source of truth for THE C1RCLE mobile app
    Acceptance: notification token generation uses the EAS project ID lookup recommended by Expo SDK 56, a dedicated `/api/v1/users/me/device-token` route exists, and token refresh runs after auth and foreground resume; physical APNs/FCM/EAS credential proof remains open.
 6. [ ] Media upload/moderation ownership remains partial.
    Acceptance: profile and verification image uploads are routed through a server media service or explicitly approved Firebase Storage rules/moderation policy before public launch.
+7. [ ] Firebase security rules are locally hardened and emulator-proven, but not production-deployed in this pass.
+   Acceptance: deploy `firestore.rules`, `storage.rules`, and `firestore.indexes.json`; then verify Firebase Console shows no required indexes in `Building` or `Failed`.
 
 ## 3. Done
 
@@ -52,6 +68,8 @@ This document is the production launch source of truth for THE C1RCLE mobile app
 10. [x] ~~EAS preview and production builds explicitly set `EXPO_PUBLIC_DEMO_MODE=false`.~~
 11. [x] ~~Follow state, social/profile verification writes, onboarding profile persistence, and notification reads now use versioned Fastify gateway contracts instead of direct client Firestore paths.~~
 12. [x] ~~`apps/mobile-app/scripts/launch-readiness-check.cjs` documents local push/checkout readiness checks and the external physical-device proofs still required.~~
+13. [x] ~~Pre-QA local security pass tightened Firestore user-create privilege guards, Storage upload/read rules for profile/KYC/verification/event media, and declared missing chat/event indexes.~~
+14. [x] ~~Pre-QA Firebase emulator smoke now runs through `scripts/preqa-rules-smoke.mjs` and passed against Auth, Firestore, and Storage emulators.~~
 
 ## Executive Launch Decision
 

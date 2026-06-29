@@ -7,20 +7,31 @@ import * as Location from 'expo-location';
 import { colors } from '@/lib/design/theme';
 import { markPermissionsRequested } from '@/lib/onboardingFlow';
 import { useAuthStore } from '@/store/authStore';
+import { useProfileStore } from '@/store/profileStore';
+import { saveBasicUserProfile } from '@/lib/firebase/userProfile';
 
 export default function LocationPermissionScreen() {
   const { user } = useAuthStore();
 
-  const continueToSocialSetup = async () => {
+  const continueToExplore = async () => {
     await markPermissionsRequested(user?.uid);
-    router.replace('/social-setup');
+    router.replace('/(tabs)/explore');
   };
 
   const handleAllow = async () => {
     try {
-      await Location.requestForegroundPermissionsAsync();
+      const { granted } = await Location.requestForegroundPermissionsAsync();
+      if (granted && user?.uid) {
+        const pos = await Location.getCurrentPositionAsync({});
+        const [geo] = await Location.reverseGeocodeAsync(pos.coords);
+        if (geo?.city) {
+          const city = geo.city;
+          useProfileStore.getState().updateProfile(user.uid, { city });
+          await saveBasicUserProfile(user.uid, { city });
+        }
+      }
     } finally {
-      await continueToSocialSetup();
+      await continueToExplore();
     }
   };
 
@@ -46,7 +57,7 @@ export default function LocationPermissionScreen() {
             <Text style={styles.buttonText}>Allow Location</Text>
           </LinearGradient>
         </Pressable>
-        <Pressable onPress={continueToSocialSetup} style={styles.skipButton}>
+        <Pressable onPress={continueToExplore} style={styles.skipButton}>
           <Text style={styles.skipText}>Not Now</Text>
         </Pressable>
       </View>

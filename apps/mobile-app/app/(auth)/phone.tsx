@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -7,9 +7,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
+import { useVideoPlayer, VideoView } from 'expo-video';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
 import { firebaseConfig } from '@/lib/firebase';
 
@@ -25,6 +28,20 @@ export default function PhoneAuthScreen() {
   const [phone, setPhone] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
   const { sendPhoneCode, loading, error, clearError } = useAuth();
+
+  const player = useVideoPlayer(require('../../assets/review-video.mp4'), (player) => {
+    player.loop = true;
+    player.muted = true;
+    player.play();
+  });
+
+  useEffect(() => {
+    return () => {
+      try {
+        player.pause();
+      } catch (e) {}
+    };
+  }, [player]);
 
   const submit = async () => {
     setLocalError(null);
@@ -46,49 +63,72 @@ export default function PhoneAuthScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        style={styles.content}
-      >
-        <Text style={styles.title}>Phone login</Text>
-        <Text style={styles.label}>Phone number</Text>
-        <TextInput
-          value={phone}
-          onChangeText={(value) => {
-            setPhone(value);
-            setLocalError(null);
-            clearError();
-          }}
-          placeholder="+91 98765 43210"
-          placeholderTextColor="rgba(255,255,255,0.35)"
-          keyboardType="phone-pad"
-          autoComplete="tel"
-          style={styles.input}
-        />
+    <View style={styles.container}>
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFillObject}
+        contentFit="cover"
+        nativeControls={false}
+      />
+      <LinearGradient
+        colors={['rgba(0,0,0,0.1)', 'rgba(0,0,0,0.8)', '#000000']}
+        locations={[0, 0.4, 1]}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.content}
+        >
+          <Text style={styles.title}>PHONE LOGIN</Text>
+          <Text style={styles.label}>Phone number</Text>
+          <TextInput
+            value={phone}
+            onChangeText={(value) => {
+              setPhone(value);
+              setLocalError(null);
+              clearError();
+            }}
+            placeholder="+91 98765 43210"
+            placeholderTextColor="rgba(255,255,255,0.35)"
+            keyboardType="phone-pad"
+            autoComplete="tel"
+            style={styles.input}
+          />
 
-        {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
+          {localError || error ? <Text style={styles.error}>{localError || error}</Text> : null}
 
-        <Pressable style={styles.button} onPress={submit} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#000" />
-          ) : (
-            <Text style={styles.buttonText}>Send OTP</Text>
-          )}
-        </Pressable>
+          <Pressable style={styles.button} onPress={submit} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.buttonText}>Send OTP</Text>
+            )}
+          </Pressable>
 
-        <Pressable style={styles.secondary} onPress={() => router.back()}>
-          <Text style={styles.secondaryText}>Back</Text>
-        </Pressable>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+          <Pressable style={styles.secondary} onPress={() => router.back()}>
+            <Text style={styles.secondaryText}>Back</Text>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#161616' },
+  container: { flex: 1, backgroundColor: '#000' },
+  safeArea: { flex: 1 },
   content: { flex: 1, justifyContent: 'center', padding: 24, gap: 12 },
-  title: { color: '#fff', fontSize: 28, fontWeight: '800', marginBottom: 12 },
+  title: {
+    color: '#FFFFFF',
+    fontSize: 32,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 12,
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 6,
+  },
   label: { color: 'rgba(255,255,255,0.7)', fontSize: 13, fontWeight: '700' },
   input: {
     height: 52,

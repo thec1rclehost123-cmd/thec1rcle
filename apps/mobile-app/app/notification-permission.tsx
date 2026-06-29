@@ -70,8 +70,7 @@ export default function NotificationPermissionScreen() {
   const { user } = useAuthStore();
 
   const continueToSocialSetup = async () => {
-    await markPermissionsRequested(user?.uid);
-    router.replace('/social-setup');
+    router.replace('/location-permission');
   };
 
   const handleAllow = async () => {

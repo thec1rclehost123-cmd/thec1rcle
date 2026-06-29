@@ -52,6 +52,7 @@ export type SubscriptionStateShape = {
   applyServerContext: (payload?: any) => void;
   hydrateFromRevenueCat: (customerInfo: any) => Promise<void>;
   fetchRevenueCatSubscription: () => Promise<void>;
+  restorePurchases: () => Promise<void>;
   openPaywall: (feature: PremiumFeature, message?: string) => void;
   closePaywall: () => void;
   canUseDailyFeature: (feature: 'dailyLikes' | 'askOuts') => boolean;
@@ -242,11 +243,11 @@ export const useSubscriptionStore = create<SubscriptionStateShape>((set, get) =>
   },
 
   fetchRevenueCatSubscription: async () => {
-    try {
-      const Purchases = require('react-native-purchases').default;
-      const customerInfo = await Purchases.getCustomerInfo();
-      await get().hydrateFromRevenueCat(customerInfo);
-    } catch {}
+    // Deprecated RevenueCat integration
+  },
+
+  restorePurchases: async () => {
+    // Deprecated RevenueCat integration
   },
 
   openPaywall: (feature, message) => {

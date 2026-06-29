@@ -57,6 +57,13 @@ export default function EventLayout() {
           }}
         />
         <Tabs.Screen
+          name="bartender"
+          options={{
+            title: 'Bar',
+            tabBarIcon: ({ color, size }) => <Ionicons name="beer" size={size} color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="door-entry"
           options={{
             title: 'Door Entry',
