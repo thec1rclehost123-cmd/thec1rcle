@@ -16,7 +16,7 @@
     "dev:inngest": "npx inngest-cli@latest dev -u http://localhost:3005/api/inngest",
     "docker:up": "docker compose up -d redis api-gateway --build",
     "docker:down": "docker compose down",
-    "build": "turbo build",
+    "build": "turbo build --concurrency=1",
     "lint": "turbo lint",
     "type-check": "turbo type-check",
     "test": "turbo run test",
