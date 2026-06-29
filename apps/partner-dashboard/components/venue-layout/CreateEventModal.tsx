@@ -32,6 +32,7 @@ interface TicketPhase {
 export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateEventModalProps) {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Basic Info
   const [title, setTitle] = useState('');
@@ -164,6 +165,12 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
           {/* Step 1: Basic Info */}
           {step === 1 && (
             <div className="space-y-5">
+              {error && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center gap-3 text-red-500 text-sm">
+                  <AlertCircle className="h-5 w-5 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-text-secondary mb-2">
                   Event Title *
@@ -528,7 +535,38 @@ export function CreateEventModal({ isOpen, onClose, venueId, onSubmit }: CreateE
 
           {step < 4 ? (
             <button
-              onClick={() => setStep(step + 1)}
+              onClick={() => {
+                if (step === 1) {
+                  if (!title.trim()) {
+                    setError('Event title is required');
+                    return;
+                  }
+                  if (!eventDate) {
+                    setError('Event date is required');
+                    return;
+                  }
+                  if (startTime && endTime) {
+                    const [sHr, sMin] = startTime.split(':').map(Number);
+                    const [eHr, eMin] = endTime.split(':').map(Number);
+                    const [sYr, sMon, sDay] = eventDate.split('-').map(Number);
+                    const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+                    const endDt = new Date(sYr, sMon - 1, sDay, eHr, eMin);
+
+                    const startMinutes = sHr * 60 + sMin;
+                    const endMinutes = eHr * 60 + eMin;
+                    if (endMinutes < startMinutes) {
+                      endDt.setDate(endDt.getDate() + 1);
+                    }
+
+                    if (endDt.getTime() <= startDt.getTime()) {
+                      setError('End time of event must be after the start time');
+                      return;
+                    }
+                  }
+                }
+                setError(null);
+                setStep(step + 1);
+              }}
               className="flex-1 px-6 py-3 bg-indigo-600 text-text-primary font-semibold rounded-lg hover:bg-indigo-700"
             >
               Continue

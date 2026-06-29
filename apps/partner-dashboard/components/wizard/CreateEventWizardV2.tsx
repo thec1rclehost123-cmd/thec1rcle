@@ -429,6 +429,31 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       validation.identity.fieldErrors.startDate = 'Required';
       validation.identity.isValid = false;
     }
+    if (formData.startDate && formData.startTime && formData.endTime) {
+      const [sYr, sMon, sDay] = formData.startDate.split('-').map(Number);
+      const [sHr, sMin] = formData.startTime.split(':').map(Number);
+      const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+      const effectiveEndDate = formData.endDate || formData.startDate;
+      const [eYr, eMon, eDay] = effectiveEndDate.split('-').map(Number);
+      const [eHr, eMin] = formData.endTime.split(':').map(Number);
+      const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+      const isSameDayOrUnspecified = !formData.endDate || formData.endDate === formData.startDate;
+      if (isSameDayOrUnspecified) {
+        const startMinutes = sHr * 60 + sMin;
+        const endMinutes = eHr * 60 + eMin;
+        if (endMinutes < startMinutes) {
+          endDt.setDate(endDt.getDate() + 1);
+        }
+      }
+
+      if (endDt.getTime() <= startDt.getTime()) {
+        validation.identity.issues.push('End time must be after start time');
+        validation.identity.fieldErrors.endTime = 'Must be after start time';
+        validation.identity.isValid = false;
+      }
+    }
     if (formData.venueId && formData.startDate && formData.startTime && formData.endTime) {
       if (scheduleAvailability.checking) {
         validation.identity.issues.push('Checking venue availability...');
@@ -485,6 +510,30 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
     if (!formData.startDate || !formData.startTime || !formData.endTime) {
       validation.review.issues.push('Event date and time must be selected before publishing');
       validation.review.isValid = false;
+    } else {
+      const [sYr, sMon, sDay] = formData.startDate.split('-').map(Number);
+      const [sHr, sMin] = formData.startTime.split(':').map(Number);
+      const startDt = new Date(sYr, sMon - 1, sDay, sHr, sMin);
+
+      const effectiveEndDate = formData.endDate || formData.startDate;
+      const [eYr, eMon, eDay] = effectiveEndDate.split('-').map(Number);
+      const [eHr, eMin] = formData.endTime.split(':').map(Number);
+      const endDt = new Date(eYr, eMon - 1, eDay, eHr, eMin);
+
+      const isSameDayOrUnspecified = !formData.endDate || formData.endDate === formData.startDate;
+      if (isSameDayOrUnspecified) {
+        const startMinutes = sHr * 60 + sMin;
+        const endMinutes = eHr * 60 + eMin;
+        if (endMinutes < startMinutes) {
+          endDt.setDate(endDt.getDate() + 1);
+        }
+      }
+
+      if (endDt.getTime() <= startDt.getTime()) {
+        validation.review.issues.push('End time must be after start time');
+        validation.review.fieldErrors.endTime = 'Must be after start time';
+        validation.review.isValid = false;
+      }
     }
     if (!scheduleAvailability.checking && !scheduleAvailability.available) {
       validation.review.issues.push(scheduleAvailability.reason || 'Selected slot is unavailable');
@@ -908,6 +957,7 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           '',
         settings: { ...(formData.settings || {}), showGuestlist },
       };
+      console.log('payload', payload);
       const draftPayload = { ...payload, lifecycle: 'draft' };
       let res: Response;
       if (role === 'host' && !isDraft) {

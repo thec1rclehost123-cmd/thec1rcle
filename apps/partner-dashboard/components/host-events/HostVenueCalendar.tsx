@@ -18,6 +18,7 @@ import {
   Loader2,
   Clock3,
   ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDashboardAuth } from '@/components/providers/DashboardAuthProvider';
@@ -696,6 +697,10 @@ function RightPanel({
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [timeConfirmed, setTimeConfirmed] = useState(false);
 
+  const isTimeInvalid = useMemo(() => {
+    return timeToMins(endTime) <= timeToMins(startTime);
+  }, [startTime, endTime]);
+
   const fromDisabled = useMemo<Set<string>>(() => {
     const disabled = new Set<string>();
     BLOCK_TIMES.forEach((t) => {
@@ -959,13 +964,16 @@ function RightPanel({
         {!isBlocked && (
           <button
             onClick={() =>
-              timeConfirmed && !hasOverlap && onConfirm(startTime, endTime, doorsOpen, lastEntry)
+              timeConfirmed &&
+              !hasOverlap &&
+              !isTimeInvalid &&
+              onConfirm(startTime, endTime, doorsOpen, lastEntry)
             }
-            disabled={!timeConfirmed || hasOverlap || confirmChecking}
+            disabled={!timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking}
             className="w-full py-4 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-30"
             style={{
               background:
-                !timeConfirmed || hasOverlap || confirmChecking
+                !timeConfirmed || hasOverlap || isTimeInvalid || confirmChecking
                   ? 'rgba(255,255,255,0.06)'
                   : 'linear-gradient(135deg, #F44A22, #FF6B4A)',
               color: 'white',
@@ -976,11 +984,20 @@ function RightPanel({
             ) : (
               <ArrowRight className="w-4 h-4" />
             )}
-            {confirmChecking ? 'Verifying...' : 'Continue to Request Slot'}
+            {confirmChecking
+              ? 'Verifying...'
+              : !timeConfirmed || isTimeInvalid
+                ? 'Invalid Time Slot'
+                : 'Continue to Request Slot'}
           </button>
         )}
         {confirmError && (
           <p className="text-[11px] font-medium text-red-400 mt-3 text-center">{confirmError}</p>
+        )}
+        {isTimeInvalid && (
+          <p className="text-[11px] font-medium text-red-400 mt-3 text-center">
+            End time of event must be after the start time
+          </p>
         )}
         <button
           onClick={onClose}
@@ -1098,9 +1115,17 @@ function RightPanel({
                   <Lock className="w-4 h-4" /> Overlaps with an existing event.
                 </div>
               )}
+              {isTimeInvalid && (
+                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-[12px] font-black flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4" /> End time of event must be after the start
+                  time.
+                </div>
+              )}
               <button
-                onClick={() => !hasOverlap && (setTimeConfirmed(true), setTimeModalOpen(false))}
-                disabled={hasOverlap}
+                onClick={() =>
+                  !hasOverlap && !isTimeInvalid && (setTimeConfirmed(true), setTimeModalOpen(false))
+                }
+                disabled={hasOverlap || isTimeInvalid}
                 className="w-full py-4 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-20 shadow-xl shadow-orange-600/20"
               >
                 Confirm Time Selection
