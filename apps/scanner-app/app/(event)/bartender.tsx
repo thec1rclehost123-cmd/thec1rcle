@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
+import Constants from 'expo-constants';
+import { randomUUID } from 'expo-crypto';
 import * as Haptics from 'expo-haptics';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
@@ -10,7 +12,6 @@ import {
   Dimensions,
   ActivityIndicator,
 } from 'react-native';
-import { randomUUID } from 'expo-crypto';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -20,10 +21,9 @@ import Animated, {
   FadeOut,
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Constants from 'expo-constants';
 
-import { useEvent } from '@/store/eventContext';
 import { verifyWalletQr, submitCustomDebit } from '@/lib/api/bartender';
+import { useEvent } from '@/store/eventContext';
 
 const { width } = Dimensions.get('window');
 const SCAN_AREA_SIZE = width * 0.7;
@@ -147,7 +147,6 @@ export default function BartenderScreen() {
     // 1-9 digits
     if (/^[1-9]$/.test(key)) {
       setAmountInput((prev) => prev + key);
-      return;
     }
   };
 

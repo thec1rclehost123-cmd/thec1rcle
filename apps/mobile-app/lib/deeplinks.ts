@@ -123,6 +123,7 @@ function requireSocialProfile(): boolean {
 // --- 🛡️ DEEP LINK PARAM SANITIZATION ---
 // Strips non-alphanumeric, dash, underscore, slash, colon, dot characters
 // and caps length at 200 to prevent injection / buffer-overflow attacks.
+// eslint-disable-next-line no-useless-escape
 const SANITIZE_RE = /[^a-zA-Z0-9\-_\/:.\s]/g;
 const MAX_PARAM_LENGTH = 200;
 
