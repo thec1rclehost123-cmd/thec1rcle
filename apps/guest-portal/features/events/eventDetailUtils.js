@@ -81,12 +81,36 @@ export function parseParagraphs(value) {
     .filter(Boolean);
 }
 
-export function formatTimeLabel(event) {
-  if (event?.startTime || event?.endTime) {
-    if (event.startTime && event.endTime) {
-      return `${event.startTime} - ${event.endTime}`;
+function formatTimeStr(timeValue) {
+  if (!timeValue) return '';
+  if (typeof timeValue === 'string' && (timeValue.includes('AM') || timeValue.includes('PM'))) {
+    return timeValue;
+  }
+  if (typeof timeValue === 'string' && /^\d{1,2}:\d{2}(?::\d{2})?$/.test(timeValue)) {
+    try {
+      const parts = timeValue.split(':');
+      const hours = Number(parts[0]);
+      const minutes = Number(parts[1]);
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      const hours12 = hours % 12 || 12;
+      const minutesStr = String(minutes).padStart(2, '0');
+      return `${hours12}:${minutesStr} ${ampm}`;
+    } catch {
+      return timeValue;
     }
-    return event.startTime || event.endTime || '';
+  }
+  return timeValue;
+}
+
+export function formatTimeLabel(event) {
+  const start = formatTimeStr(event?.startTime);
+  const end = formatTimeStr(event?.endTime);
+
+  if (start || end) {
+    if (start && end) {
+      return `${start} - ${end}`;
+    }
+    return start || end || '';
   }
 
   if (!event?.startDate) return '';
@@ -95,6 +119,7 @@ export function formatTimeLabel(event) {
     const formatter = new Intl.DateTimeFormat('en-IN', {
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
       timeZone: 'Asia/Kolkata',
     });
     const startLabel = formatter.format(new Date(event.startDate));
@@ -211,12 +236,13 @@ export function formatDateShort(event) {
 }
 
 export function formatTimeShort(event) {
-  if (event?.startTime) return event.startTime;
+  if (event?.startTime) return formatTimeStr(event.startTime);
   if (!event?.startDate) return '';
   try {
     return new Intl.DateTimeFormat('en-IN', {
       hour: 'numeric',
       minute: '2-digit',
+      hour12: true,
       timeZone: 'Asia/Kolkata',
     }).format(new Date(event.startDate));
   } catch {

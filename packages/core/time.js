@@ -102,10 +102,11 @@ export function formatEventDate(dateValue, fallback = 'Date TBA') {
  * Formats an event time (e.g., "9:00 PM") in IST.
  */
 export function formatEventTime(timeValue, startDate, fallback = 'Time TBA') {
-  // 1. If it's a simple HH:mm string (e.g. from a <input type="time">), format it
-  if (typeof timeValue === 'string' && /^\d{1,2}:\d{2}$/.test(timeValue)) {
+  if (typeof timeValue === 'string' && /^\d{1,2}:\d{2}(?::\d{2})?$/.test(timeValue)) {
     try {
-      const [hours, minutes] = timeValue.split(':').map(Number);
+      const parts = timeValue.split(':');
+      const hours = Number(parts[0]);
+      const minutes = Number(parts[1]);
       // Use a fixed date to avoid DST issues, though India doesn't have DST
       const date = new Date(2024, 0, 1, hours, minutes);
       return date.toLocaleTimeString(IN_LOCALE, {

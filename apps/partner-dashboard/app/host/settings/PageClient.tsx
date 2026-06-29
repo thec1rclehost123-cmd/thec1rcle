@@ -134,7 +134,7 @@ export default function HostSettingsPage() {
     if (!hostId) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/partners/hosts/settings?hostId=${hostId}`, {
+      const res = await fetch(`/api/host/settings?hostId=${hostId}`, {
         headers: await getAuthHeaders(),
       });
       if (res.ok) {
@@ -159,7 +159,7 @@ export default function HostSettingsPage() {
     if (!hostId || !profile?.uid) return;
     const writeSession = async () => {
       const ua = navigator.userAgent;
-      await fetch('/api/partners/hosts/settings', {
+      await fetch('/api/host/settings', {
         method: 'POST',
         headers: await getAuthHeaders(true),
         body: JSON.stringify({
@@ -181,7 +181,7 @@ export default function HostSettingsPage() {
     if (!hostId) return;
     setSessionsLoading(true);
     try {
-      const res = await fetch(`/api/partners/hosts/settings?hostId=${hostId}&include=sessions`, {
+      const res = await fetch(`/api/host/settings?hostId=${hostId}&include=sessions`, {
         headers: await getAuthHeaders(),
       });
       if (res.ok) setSessions((await res.json()).sessions ?? []);
@@ -222,7 +222,7 @@ export default function HostSettingsPage() {
       ? 'NOTIFICATIONS_UPDATED'
       : 'GENERAL_UPDATED';
     try {
-      const res = await fetch('/api/partners/hosts/settings', {
+      const res = await fetch('/api/host/settings', {
         method: 'PATCH',
         headers: await getAuthHeaders(true),
         body: JSON.stringify({ hostId, patch: diff, action, section: 'general' }),
@@ -245,7 +245,7 @@ export default function HostSettingsPage() {
   const handleRevoke = useCallback(
     async (sid: string) => {
       setIsRevoking(true);
-      await fetch('/api/partners/hosts/settings', {
+      await fetch('/api/host/settings', {
         method: 'POST',
         headers: await getAuthHeaders(true),
         body: JSON.stringify({ hostId, action: 'REVOKE_SESSION', sessionId: sid }),
@@ -258,7 +258,7 @@ export default function HostSettingsPage() {
 
   const handleRevokeAll = useCallback(async () => {
     setIsRevoking(true);
-    await fetch('/api/partners/hosts/settings/session/revoke', {
+    await fetch('/api/host/settings/session/revoke', {
       method: 'POST',
       headers: await getAuthHeaders(),
     });

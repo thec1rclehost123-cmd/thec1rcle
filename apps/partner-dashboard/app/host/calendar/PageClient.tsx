@@ -256,6 +256,7 @@ export default function HostCalendarPage() {
                 state: 'blocked',
                 startTime: d.block?.startTime,
                 endTime: d.block?.endTime,
+                eventTitle: d.block?.reason || 'Blocked',
               });
             }
           });
@@ -423,13 +424,18 @@ export default function HostCalendarPage() {
                         ? C.surfaceWeekend
                         : C.surface;
                     let border = `1px solid ${C.borderDefault}`;
-                    if (isSel) {
-                      bg = C.surfaceSelected;
-                      border = `2px solid ${C.borderSelected}`;
+
+                    if (hasEvents) {
+                      bg = C.surfaceEvent;
+                      border = `1px solid ${C.teal}`;
                     }
                     if (isBlocked) {
                       bg = C.surfaceBlocked;
                       border = `1px solid ${C.borderBlocked}`;
+                    }
+                    if (isSel) {
+                      bg = C.surfaceSelected;
+                      border = `2px solid ${C.borderSelected}`;
                     }
 
                     return (
@@ -531,7 +537,7 @@ function Inspector({
         </div>
       </div>
 
-      <div className="flex-1 p-5 overflow-y-auto space-y-5 no-scrollbar">
+      <div className="flex-1 p-5 overflow-y-auto space-y-5 custom-scrollbar">
         <div className="flex items-center gap-2">
           <Clock className="w-3 h-3 text-white/20" />
           <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">
@@ -541,69 +547,181 @@ function Inspector({
           <span className="text-[9px] font-black text-white/10">2 PM - 4 AM</span>
         </div>
 
-        <div
-          className="relative rounded-2xl bg-white/5 border border-white/5 overflow-hidden"
-          style={{ height: 320 }}
-        >
-          {TIMELINE_HOURS.map(({ label, mins }) => (
-            <div
-              key={label}
-              className="absolute inset-x-0 h-px bg-white/5"
-              style={{ top: pct(mins) }}
-            />
-          ))}
-          {slots.map((s, i) => {
-            const start = timeToMins(s.startTime || '21:00');
-            const end = timeToMins(s.endTime || '04:00');
-            const isConfirmed = s.state === 'approved_mine';
-            const isPending = s.state === 'pending_mine';
-            const isOccupied = s.state === 'occupied_other';
-            const isB = s.state === 'blocked';
-
-            return (
+        {/* Timeline with left gutter for hour labels */}
+        <div className="flex gap-3 flex-shrink-0">
+          {/* Left: hour labels */}
+          <div className="flex-shrink-0 w-10 relative" style={{ height: 320 }}>
+            {TIMELINE_HOURS.map(({ label, mins }) => (
               <div
-                key={i}
-                className="absolute left-2 right-2 rounded-xl border px-3 py-2 flex flex-col justify-center"
-                style={{
-                  top: pct(start),
-                  height: `${((end - start) / TOTAL_MINS) * 100}%`,
-                  background: isB
-                    ? 'rgba(239,68,68,0.15)'
-                    : isOccupied
-                      ? 'rgba(255,255,255,0.05)'
-                      : isPending
-                        ? 'rgba(251,191,36,0.15)'
-                        : 'rgba(52,211,153,0.15)',
-                  borderColor: isB
-                    ? 'rgba(239,68,68,0.3)'
-                    : isOccupied
-                      ? 'rgba(255,255,255,0.1)'
-                      : isPending
-                        ? 'rgba(251,191,36,0.3)'
-                        : 'rgba(52,211,153,0.3)',
-                }}
+                key={label}
+                className="absolute right-0 flex items-center justify-end"
+                style={{ top: pct(mins), transform: 'translateY(-50%)' }}
               >
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
+                <span
+                  className="text-[8px] font-black uppercase leading-none text-white/40"
                   style={{
-                    background: isB ? C.red : isOccupied ? C.slate : isPending ? C.amber : C.teal,
+                    letterSpacing: '0.04em',
                   }}
-                />
-                <p className="text-[10px] font-black text-white uppercase truncate">
-                  {s.eventTitle || (isB ? 'Blocked' : 'Occupied')}
-                </p>
-                <p className="text-[8px] font-bold text-white/40 tabular-nums">
-                  {fmt12(s.startTime || '21:00')} - {fmt12(s.endTime || '04:00')}
-                </p>
+                >
+                  {label}
+                </span>
               </div>
-            );
-          })}
+            ))}
+          </div>
+
+          {/* Right: timeline grid */}
+          <div
+            className="flex-1 relative rounded-2xl bg-white/5 border border-white/5 overflow-hidden"
+            style={{ height: 320 }}
+          >
+            {TIMELINE_HOURS.map(({ label, mins }) => (
+              <div
+                key={label}
+                className="absolute inset-x-0 h-px bg-white/5 pointer-events-none"
+                style={{ top: pct(mins) }}
+              />
+            ))}
+            {slots.map((s, i) => {
+              const start = timeToMins(s.startTime || '21:00');
+              const end = timeToMins(s.endTime || '04:00');
+              const isConfirmed = s.state === 'approved_mine';
+              const isPending = s.state === 'pending_mine';
+              const isOccupied = s.state === 'occupied_other';
+              const isB = s.state === 'blocked';
+
+              return (
+                <div
+                  key={i}
+                  className="absolute left-2 right-2 rounded-xl border px-3 py-2 flex flex-col justify-center"
+                  style={{
+                    top: pct(start),
+                    height: `${((end - start) / TOTAL_MINS) * 100}%`,
+                    background: isB
+                      ? 'rgba(239,68,68,0.15)'
+                      : isOccupied
+                        ? 'rgba(255,255,255,0.05)'
+                        : isPending
+                          ? 'rgba(251,191,36,0.15)'
+                          : 'rgba(52,211,153,0.15)',
+                    borderColor: isB
+                      ? 'rgba(239,68,68,0.3)'
+                      : isOccupied
+                        ? 'rgba(255,255,255,0.1)'
+                        : isPending
+                          ? 'rgba(251,191,36,0.3)'
+                          : 'rgba(52,211,153,0.3)',
+                  }}
+                >
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
+                    style={{
+                      background: isB ? C.red : isOccupied ? C.slate : isPending ? C.amber : C.teal,
+                    }}
+                  />
+                  <p className="text-[10px] font-black text-white uppercase truncate">
+                    {s.eventTitle || (isB ? 'Blocked' : 'Occupied')}
+                  </p>
+                  <p className="text-[8px] font-bold text-white/40 tabular-nums">
+                    {fmt12(s.startTime || '21:00')} - {fmt12(s.endTime || '04:00')}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
         </div>
+
+        {/* Detailed Events List */}
+        {slots.length > 0 && (
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black uppercase tracking-[0.2em] text-white/20">
+                Detailed Roster ({slots.length})
+              </span>
+              <div className="flex-1 h-px bg-white/5" />
+            </div>
+            <div className="space-y-3">
+              {slots.map((s, idx) => {
+                const isConfirmed = s.state === 'approved_mine';
+                const isPending = s.state === 'pending_mine';
+                const isOccupied = s.state === 'occupied_other';
+                const isB = s.state === 'blocked';
+
+                return (
+                  <div
+                    key={idx}
+                    className="relative rounded-xl border p-4 bg-white/2 border-white/5 flex flex-col gap-2"
+                  >
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-[3px] rounded-l-xl"
+                      style={{
+                        background: isB
+                          ? C.red
+                          : isOccupied
+                            ? C.slate
+                            : isPending
+                              ? C.amber
+                              : C.teal,
+                      }}
+                    />
+                    <div className="flex justify-between items-start gap-4">
+                      <h4 className="text-[12px] font-black text-white uppercase break-words pr-2">
+                        {s.eventTitle || (isB ? 'Blocked' : 'Occupied')}
+                      </h4>
+                      <span
+                        className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded border flex-shrink-0"
+                        style={{
+                          color: isB ? C.red : isOccupied ? C.slate : isPending ? C.amber : C.teal,
+                          borderColor: isB
+                            ? 'rgba(239,68,68,0.2)'
+                            : isOccupied
+                              ? 'rgba(255,255,255,0.1)'
+                              : isPending
+                                ? 'rgba(251,191,36,0.2)'
+                                : 'rgba(52,211,153,0.2)',
+                          background: isB
+                            ? 'rgba(239,68,68,0.05)'
+                            : isOccupied
+                              ? 'rgba(255,255,255,0.02)'
+                              : isPending
+                                ? 'rgba(251,191,36,0.05)'
+                                : 'rgba(52,211,153,0.05)',
+                        }}
+                      >
+                        {isB
+                          ? 'Blocked'
+                          : isOccupied
+                            ? 'Occupied'
+                            : isPending
+                              ? 'Pending'
+                              : 'Confirmed'}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-col gap-1 text-white/50 text-[10px]">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-white/30" />
+                        <span className="font-bold tabular-nums">
+                          {fmt12(s.startTime || '21:00')} - {fmt12(s.endTime || '04:00')}
+                        </span>
+                      </div>
+                      {s.venueName && (
+                        <div className="flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-white/30" />
+                          <span className="font-bold uppercase tracking-wider">{s.venueName}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!isBlocked && venueId !== HOST_SCOPE_ID && (
           <Link
             href={`/host/create/select-venue/calendar?venueId=${venueId}&date=${date}`}
-            className="w-full h-12 rounded-xl flex items-center justify-center gap-2 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-orange-950/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="w-full h-12 rounded-xl flex items-center justify-center gap-2 bg-orange-600 text-white text-[11px] font-black uppercase tracking-widest shadow-xl shadow-orange-950/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex-shrink-0"
           >
             <Plus className="w-4 h-4" />
             Request Slot

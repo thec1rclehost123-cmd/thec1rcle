@@ -138,7 +138,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   const financeService = new FinanceService(svcCtx);
 
   const hostProfileFields = [
+    'name',
     'displayName',
+    'hostType',
     'bio',
     'tagline',
     'profileImage',
@@ -247,13 +249,37 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       if (patch[key] !== undefined) safe[key] = patch[key];
     }
     // Normalize image fields so the discovery engine can find them
+    if (safe.photoURL) {
+      safe.profileImage = safe.photoURL;
+      safe.avatar = safe.photoURL;
+    }
     if (safe.profileImage) {
       safe.avatar = safe.profileImage;
       safe.photoURL = safe.profileImage;
     }
+    if (safe.avatar) {
+      safe.profileImage = safe.avatar;
+      safe.photoURL = safe.avatar;
+    }
+    if (safe.backdropURL) {
+      safe.coverURL = safe.backdropURL;
+      safe.coverImage = safe.backdropURL;
+      safe.cover = safe.backdropURL;
+    }
+    if (safe.coverURL) {
+      safe.coverImage = safe.coverURL;
+      safe.cover = safe.coverURL;
+      safe.backdropURL = safe.coverURL;
+    }
     if (safe.coverImage) {
       safe.coverURL = safe.coverImage;
       safe.cover = safe.coverImage;
+      safe.backdropURL = safe.coverImage;
+    }
+    if (safe.cover) {
+      safe.coverURL = safe.cover;
+      safe.coverImage = safe.cover;
+      safe.backdropURL = safe.cover;
     }
     safe.updatedAt = new Date().toISOString();
     await fastify.db.collection('hosts').doc(hostId).set(safe, { merge: true });
@@ -1699,8 +1725,39 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const sessions = ((snap as any).docs || []).map((d: any) => d.data() || {});
           return reply.send({ sessions });
         }
-        const settings = await hostService.getSettings(ctx);
-        return reply.header('Cache-Control', 'private, max-age=300').send(settings);
+        const doc = await fastify.db.collection('hosts').doc(ctx.partnerId).get();
+        const data = doc.exists ? doc.data() || {} : {};
+        const settings = {
+          hostId: ctx.partnerId,
+          orgName: data.orgName || data.displayName || data.name || '',
+          supportEmail: data.supportEmail || data.contactEmail || data.email || '',
+          legalPhone: data.legalPhone || data.contactPhone || data.phone || '',
+          website: data.website || '',
+          logoUrl: data.profileImage || data.photoURL || null,
+          defaultTimezone: data.defaultTimezone || 'Asia/Kolkata',
+          defaultCurrency: data.defaultCurrency || 'INR',
+          notificationPreferences: data.notificationPreferences || {
+            slotApproved_email: true,
+            slotApproved_push: true,
+            slotApproved_sms: false,
+            slotRejected_email: true,
+            slotRejected_push: true,
+            slotRejected_sms: false,
+            eventReminder_email: true,
+            eventReminder_push: true,
+            eventReminder_sms: false,
+            promoterRequest_email: true,
+            promoterRequest_push: true,
+            promoterRequest_sms: false,
+            newFollower_email: true,
+            newFollower_push: true,
+            newFollower_sms: false,
+            weeklyDigest_email: true,
+            weeklyDigest_push: false,
+            weeklyDigest_sms: false,
+          },
+        };
+        return reply.header('Cache-Control', 'private, max-age=300').send({ settings });
       } catch (err: any) {
         if (err.statusCode)
           return reply
@@ -1896,7 +1953,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (rest === 'profile' && request.method === 'GET')
           return reply.send(await getHostProfile(ctx.partnerId));
         if (rest === 'profile' && request.method === 'PATCH')
-          return reply.send(await updateHostProfile(ctx.partnerId, asRecord(body.patch)));
+          return reply.send(
+            await updateHostProfile(ctx.partnerId, asRecord(body.patch || body.updates)),
+          );
 
         if (rest === 'partnerships' && request.method === 'GET')
           return reply.send(await getHostPartnerships(ctx.partnerId));
@@ -2893,12 +2952,19 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         if (rest === 'settings' && request.method === 'PATCH') {
           const patch = asRecord(body.patch || body);
           const allowedFields = [
+            'orgName',
+            'supportEmail',
+            'legalPhone',
+            'website',
+            'logoUrl',
+            'defaultTimezone',
+            'defaultCurrency',
+            'notificationPreferences',
             'displayName',
             'bio',
             'contactEmail',
             'contactPhone',
             'socialLinks',
-            'notificationPreferences',
             'bookingPolicy',
             'coverCharge',
             'dressCode',
@@ -2914,7 +2980,18 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('hosts').doc(ctx.partnerId).set(safe, { merge: true });
           const doc = await fastify.db.collection('hosts').doc(ctx.partnerId).get();
-          const settings = doc.exists ? { id: doc.id, ...(doc.data() || {}) } : safe;
+          const data = doc.exists ? doc.data() || {} : {};
+          const settings = {
+            hostId: ctx.partnerId,
+            orgName: data.orgName || data.displayName || data.name || '',
+            supportEmail: data.supportEmail || data.contactEmail || data.email || '',
+            legalPhone: data.legalPhone || data.contactPhone || data.phone || '',
+            website: data.website || '',
+            logoUrl: data.profileImage || data.photoURL || null,
+            defaultTimezone: data.defaultTimezone || 'Asia/Kolkata',
+            defaultCurrency: data.defaultCurrency || 'INR',
+            notificationPreferences: data.notificationPreferences || {},
+          };
           return reply.send({ success: true, settings });
         }
 

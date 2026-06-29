@@ -116,24 +116,9 @@ const UploadSchema = z
   })
   .passthrough();
 
-const UpdateIdentitySchema = z
-  .object({
-    displayName: z.string().optional(),
-    bio: z.string().optional(),
-    instagramHandle: z.string().optional(),
-    twitterHandle: z.string().optional(),
-    website: z.string().optional(),
-    city: z.string().optional(),
-    genres: z.array(z.string()).optional(),
-  })
-  .passthrough();
+const UpdateIdentitySchema = z.object({}).passthrough();
 
-const UpdateNotificationsSchema = z
-  .object({
-    notificationsEnabled: z.boolean().optional(),
-    marketingEmails: z.boolean().optional(),
-  })
-  .passthrough();
+const UpdateNotificationsSchema = z.object({}).passthrough();
 
 const SettingsVerificationSchema = z
   .object({
@@ -744,7 +729,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
-    const [eventsSnap, linksSnap] = await Promise.all([
+    const [eventsSnap, linksSnap, assignmentsSnap] = await Promise.all([
       eventsQuery
         .limit(pageSize * 2)
         .get()
@@ -753,6 +738,12 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
         .collection('promoter_links')
         .where('promoterId', '==', promoterId)
         .limit(200)
+        .get()
+        .catch(() => ({ docs: [] as any[] })),
+      fastify.db
+        .collection('promoter_assignments')
+        .where('promoterId', '==', promoterId)
+        .limit(100)
         .get()
         .catch(() => ({ docs: [] as any[] })),
     ]);
@@ -769,13 +760,59 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
+    const assignedEventIds: string[] = Array.from(
+      new Set(
+        ((assignmentsSnap as any).docs || [])
+          .map((doc: any) => String(doc.data()?.eventId || ''))
+          .filter(Boolean),
+      ),
+    );
+
+    const existingSnapIds = new Set<string>(
+      ((eventsSnap as any).docs || []).map((doc: any) => String(doc?.id || '')),
+    );
+    const missingEventIds: string[] = assignedEventIds.filter(
+      (id: string) => !existingSnapIds.has(id),
+    );
+
+    let fetchedAssignedEvents: any[] = [];
+    if (!query.cursor && missingEventIds.length > 0) {
+      const docs = await Promise.all(
+        missingEventIds.map((eventId: string) =>
+          fastify.db
+            .collection('events')
+            .doc(eventId)
+            .get()
+            .catch(() => null),
+        ),
+      );
+      fetchedAssignedEvents = docs
+        .filter((doc) => doc && doc.exists)
+        .map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+    }
+
+    const publicEvents = (eventsSnap as any).docs.map((doc: any) => ({
+      id: doc.id,
+      ...(doc.data() || {}),
+    }));
+    const allEvents = [...fetchedAssignedEvents, ...publicEvents];
+    const seenEventIds = new Set<string>();
+    const uniqueEvents: any[] = [];
+    for (const event of allEvents) {
+      const evId = String(event.id);
+      if (!seenEventIds.has(evId)) {
+        seenEventIds.add(evId);
+        uniqueEvents.push(event);
+      }
+    }
+
     const validEvents: Record<string, any>[] = [];
     let nextCursor: string | null = null;
 
-    for (const doc of (eventsSnap as any).docs || []) {
-      const event = { id: doc.id, ...(doc.data() || {}) };
+    for (const event of uniqueEvents) {
+      const isAssigned = assignedEventIds.includes(String(event.id));
 
-      if (!isPromoterAllowedForEvent(event, promoterId)) continue;
+      if (!isAssigned && !isPromoterAllowedForEvent(event, promoterId)) continue;
 
       if (query.city) {
         const cityStr = pickString(event.city, event.cityName).toLowerCase();
@@ -783,7 +820,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
 
       validEvents.push(event);
-      nextCursor = doc.id;
+      nextCursor = event.id;
 
       if (validEvents.length >= pageSize) break;
     }
@@ -3344,6 +3381,24 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             language: data.language || 'en',
             timezone: data.timezone || 'Asia/Kolkata',
           },
+          identity: {
+            promoterId: ctx.partnerId,
+            legalName: data.legalName || '',
+            brandName: data.brandName || data.displayName || data.name || '',
+            phone: data.phone || data.contactPhone || '',
+            city: data.city || '',
+            logoUrl: data.profileImage || data.photoURL || null,
+          },
+          preferences: {
+            notifications: data.notifications || {
+              notifyNewSale: data.notifyNewSale ?? true,
+              notifyCheckIn: data.notifyCheckIn ?? true,
+              notifyPayout: data.notifyPayout ?? true,
+              notifyPartnership: data.notifyPartnership ?? true,
+              notifyWeeklyReport: data.notifyWeeklyReport ?? true,
+              emailDigest: data.emailDigest ?? false,
+            },
+          },
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -3373,21 +3428,39 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        const body = UpdateIdentitySchema.parse(asRecord(request.body));
+        const rawBody = asRecord(request.body);
+        const fields = asRecord(rawBody.fields || rawBody);
         const allowed = [
+          'legalName',
+          'brandName',
           'displayName',
+          'phone',
+          'city',
           'bio',
           'instagramHandle',
           'twitterHandle',
           'website',
-          'city',
           'genres',
         ];
         const patch: Record<string, any> = {};
-        for (const k of allowed) if (body[k] !== undefined) patch[k] = body[k];
+        for (const k of allowed) if (fields[k] !== undefined) patch[k] = fields[k];
+        if (patch.brandName) {
+          patch.displayName = patch.brandName;
+          patch.name = patch.brandName;
+        }
         patch.updatedAt = new Date().toISOString();
         await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
-        return reply.send({ success: true });
+        const doc = await fastify.db.collection('promoters').doc(ctx.partnerId).get();
+        const data = doc.data() || {};
+        return reply.send({
+          promoterId: ctx.partnerId,
+          legalName: data.legalName || '',
+          brandName: data.brandName || data.displayName || data.name || '',
+          phone: data.phone || data.contactPhone || '',
+          city: data.city || '',
+          logoUrl: data.profileImage || data.photoURL || null,
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        });
       } catch (err: any) {
         if (err instanceof z.ZodError)
           return reply.status(400).send(
@@ -3423,11 +3496,17 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       try {
         const ctx = await requirePromoterContext(request, reply);
         if (!ctx) return;
-        const body = UpdateNotificationsSchema.parse(asRecord(request.body));
+        const rawBody = asRecord(request.body);
+        const notifications = asRecord(rawBody.notifications || rawBody);
         const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
-        if (body.notificationsEnabled !== undefined)
-          patch.notificationsEnabled = body.notificationsEnabled;
-        if (body.marketingEmails !== undefined) patch.marketingEmails = body.marketingEmails;
+        patch.notifications = {
+          notifyNewSale: notifications.notifyNewSale ?? true,
+          notifyCheckIn: notifications.notifyCheckIn ?? true,
+          notifyPayout: notifications.notifyPayout ?? true,
+          notifyPartnership: notifications.notifyPartnership ?? true,
+          notifyWeeklyReport: notifications.notifyWeeklyReport ?? true,
+          emailDigest: notifications.emailDigest ?? false,
+        };
         await fastify.db.collection('promoters').doc(ctx.partnerId).set(patch, { merge: true });
         return reply.send({ success: true });
       } catch (err: any) {

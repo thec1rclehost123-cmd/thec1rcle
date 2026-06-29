@@ -1235,7 +1235,11 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          return reply.send({ venue: { id: doc.id, ...(doc.data() || {}) } });
+          const data = doc.data() || {};
+          return reply.send({
+            venue: { id: doc.id, ...data },
+            profile: { id: doc.id, ...data },
+          });
         }
 
         if (rest === 'finance/reports/pdf' && request.method === 'GET') {
@@ -1266,6 +1270,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'profile' && request.method === 'PATCH') {
           const allowedFields = [
             'name',
+            'displayName',
+            'venueType',
             'description',
             'bio',
             'tagline',
@@ -1280,6 +1286,8 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             'photoURL',
             'logo',
             'coverURL',
+            'backdropURL',
+            'website',
             'contactEmail',
             'contactPhone',
             'socialLinks',
@@ -1290,23 +1298,44 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             'youtubeHandle',
             'spotifyHandle',
           ];
-          const patch = asRecord(body.patch);
+          const patch = asRecord(body.patch || body.updates);
           const safe: PlainRecord = {};
           for (const key of allowedFields) if (patch[key] !== undefined) safe[key] = patch[key];
           // Normalize image fields so discovery engine reads them correctly
+          if (safe.photoURL) {
+            safe.profileImage = safe.photoURL;
+            safe.logo = safe.photoURL;
+          }
           if (safe.profileImage) {
             safe.photoURL = safe.profileImage;
             safe.logo = safe.profileImage;
           }
+          if (safe.logo) {
+            safe.photoURL = safe.logo;
+            safe.profileImage = safe.logo;
+          }
+          if (safe.backdropURL) {
+            safe.coverURL = safe.backdropURL;
+            safe.coverImage = safe.backdropURL;
+          }
+          if (safe.coverURL) {
+            safe.coverImage = safe.coverURL;
+            safe.backdropURL = safe.coverURL;
+          }
           if (safe.coverImage) {
             safe.coverURL = safe.coverImage;
+            safe.backdropURL = safe.coverImage;
           }
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});
           await fastify.invalidatePublicDiscovery('all').catch(() => {});
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
-          return reply.send({ venue: { id: doc.id, ...(doc.data() || {}) } });
+          const data = doc.data() || {};
+          return reply.send({
+            venue: { id: doc.id, ...data },
+            profile: { id: doc.id, ...data },
+          });
         }
 
         if (rest === 'notifications' && request.method === 'GET') {

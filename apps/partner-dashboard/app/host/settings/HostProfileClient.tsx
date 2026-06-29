@@ -378,6 +378,9 @@ export default function HostProfileClient({
 
       setHasChanges(false);
       toastSuccess('Profile updated', 'Your host profile has been saved.');
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
     } catch (err: any) {
       toastError('Save failed', err.message || 'Could not save profile.');
     } finally {

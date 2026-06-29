@@ -151,7 +151,7 @@ export default function VenueSettingsClient({
     setLoading(true);
     try {
       const token = user ? await user.getIdToken() : '';
-      const response = await fetch(`/api/partners/venues/settings?venueId=${venueId}`, {
+      const response = await fetch(`/api/venue/settings?venueId=${venueId}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!response.ok) throw new Error('Failed to load settings');
@@ -191,7 +191,7 @@ export default function VenueSettingsClient({
       }
 
       const token = user ? await user.getIdToken() : '';
-      const response = await fetch('/api/partners/venues/settings', {
+      const response = await fetch(`/api/venue/settings?venueId=${venueId}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
