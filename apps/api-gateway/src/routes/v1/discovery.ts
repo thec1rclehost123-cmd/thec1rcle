@@ -194,10 +194,27 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 fastify.log.error(`fetchFromCollection error for ${collectionName}: ${err}`);
                 return { docs: [] };
               });
+            let promoterIdMap = new Map();
+            if (roleType === 'promoter') {
+              try {
+                const promotersSnap = await fastify.db.collection('promoters').get();
+                for (const pDoc of promotersSnap.docs) {
+                  const pData = pDoc.data();
+                  if (pData.ownerUid) {
+                    promoterIdMap.set(pData.ownerUid, pDoc.id);
+                  }
+                }
+              } catch (err: any) {
+                fastify.log.error(`Failed to load promoter IDs in discovery: ${err.message}`);
+              }
+            }
+
             const results = snap.docs.map((doc: any) => {
               const data = doc.data();
+              const partnerId =
+                roleType === 'promoter' ? promoterIdMap.get(doc.id) || doc.id : doc.id;
               return {
-                id: doc.id,
+                id: partnerId,
                 name: data.displayName || data.name || 'Anonymous',
                 type: roleType,
                 city: data.city || 'Unknown',
@@ -358,13 +375,24 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           );
         }
         const conn = connDoc.data() as any;
-        const callerIsParty =
-          conn.hostId === partnerId || conn.venueId === partnerId || conn.promoterId === partnerId;
-        if (!callerIsParty) {
+        const isSender = conn.fromPartnerId === partnerId;
+        const isTarget = conn.toPartnerId === partnerId;
+
+        if (!isSender && !isTarget) {
           return reply.status(403).send(
             buildErrorResponse({
               code: 'FORBIDDEN',
               message: 'Not a party to this connection',
+              requestId: request.id,
+            }),
+          );
+        }
+
+        if (['approve', 'reject'].includes(action) && !isTarget) {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'FORBIDDEN',
+              message: 'Only the recipient can approve or reject this request',
               requestId: request.id,
             }),
           );
@@ -437,11 +465,32 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
 
         if (isPromoterConnection) {
           // Check for existing pending or active connection request
-          const promoterId = data.requesterType === 'promoter' ? data.requesterId : data.targetId;
+          let promoterId = data.requesterType === 'promoter' ? data.requesterId : data.targetId;
           const targetPartnerId =
             data.requesterType === 'promoter' ? data.targetId : data.requesterId;
           const targetField =
             data.targetType === 'host' || data.requesterType === 'host' ? 'hostId' : 'venueId';
+
+          // Resolve raw promoter UID to its promoterId if necessary
+          if (data.targetType === 'promoter' && !promoterId.startsWith('promoter_')) {
+            const promoterSnap = await fastify.db
+              .collection('promoters')
+              .where('ownerUid', '==', promoterId)
+              .limit(1)
+              .get();
+            if (!promoterSnap.empty) {
+              promoterId = promoterSnap.docs[0].id;
+            }
+          } else if (data.requesterType === 'promoter' && !promoterId.startsWith('promoter_')) {
+            const promoterSnap = await fastify.db
+              .collection('promoters')
+              .where('ownerUid', '==', promoterId)
+              .limit(1)
+              .get();
+            if (!promoterSnap.empty) {
+              promoterId = promoterSnap.docs[0].id;
+            }
+          }
 
           const existingConn = await fastify.db
             .collection(PROMOTER_CONNECTIONS_COL)
@@ -465,14 +514,14 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             ...data,
             status: 'pending',
             initiatedBy: data.requesterType,
-            fromPartnerId: data.requesterId,
-            toPartnerId: data.targetId,
+            fromPartnerId: data.requesterType === 'promoter' ? promoterId : data.requesterId,
+            toPartnerId: data.targetType === 'promoter' ? promoterId : data.targetId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
 
           if (data.requesterType === 'promoter') {
-            doc.promoterId = data.requesterId;
+            doc.promoterId = promoterId;
             doc.promoterName = data.requesterName;
             if (data.targetType === 'host') {
               doc.hostId = data.targetId;
@@ -482,7 +531,7 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
               doc.venueName = data.targetName;
             }
           } else {
-            doc.promoterId = data.targetId;
+            doc.promoterId = promoterId;
             doc.promoterName = data.targetName;
             if (data.requesterType === 'host') {
               doc.hostId = data.requesterId;

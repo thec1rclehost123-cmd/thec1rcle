@@ -3,7 +3,6 @@
 import { useState, useMemo } from 'react';
 import {
   Search,
-  SlidersHorizontal,
   Tag,
   Plus,
   Info,
@@ -54,6 +53,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
 
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'online' | 'walk-in'>('all');
 
   // ── Live data hook ──────────────────────────────────────────────────────
   const { attendees, totalCount, isLoading, isError, refresh } = useEventAttendees(
@@ -63,10 +63,16 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
 
   // ── Search filter ───────────────────────────────────────────────────────
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return attendees;
-    return attendees.filter((a) => a.name.toLowerCase().includes(q));
-  }, [search, attendees]);
+    return attendees.filter((a) => {
+      const q = search.trim().toLowerCase();
+      const matchesSearch = !q || a.name.toLowerCase().includes(q);
+      const matchesSource =
+        sourceFilter === 'all' ||
+        (sourceFilter === 'online' && a.source === 'online') ||
+        (sourceFilter === 'walk-in' && (a.source === 'door' || a.source === 'manual'));
+      return matchesSearch && matchesSource;
+    });
+  }, [search, sourceFilter, attendees]);
 
   const allSelected = filtered.length > 0 && filtered.every((a) => selected.has(a.id));
 
@@ -309,7 +315,7 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
       )}
 
       {/* Toolbar: Search + Filter + Tag */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search
             size={14}
@@ -333,12 +339,41 @@ export default function EventAttendeesClient({ eventId }: { eventId: string }) {
           />
         </div>
 
-        <Button variant="secondary" size="sm" icon={<SlidersHorizontal size={13} />}>
-          Filter
-        </Button>
-        <Button variant="secondary" size="sm" icon={<Tag size={13} />}>
-          Tag
-        </Button>
+        <div className="flex items-center gap-3">
+          <div
+            className="flex items-center p-1.5 rounded-2xl shrink-0"
+            style={{
+              background: 'rgba(255,255,255,0.04)',
+              border: '1px solid rgba(255,255,255,0.06)',
+            }}
+          >
+            {[
+              { label: 'All', value: 'all' },
+              { label: 'Online', value: 'online' },
+              { label: 'Walk-in', value: 'walk-in' },
+            ].map((t) => {
+              const isActive = sourceFilter === t.value;
+              return (
+                <button
+                  key={t.value}
+                  onClick={() => setSourceFilter(t.value as any)}
+                  className="px-4 py-2 rounded-xl text-[13px] font-semibold transition-all shrink-0 whitespace-nowrap"
+                  style={
+                    isActive
+                      ? { background: 'var(--v-elevated)', color: 'var(--v-text-primary)' }
+                      : { color: 'var(--v-text-tertiary)' }
+                  }
+                >
+                  {t.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <Button variant="secondary" size="sm" icon={<Tag size={13} />}>
+            Tag
+          </Button>
+        </div>
       </div>
 
       {/* Table */}

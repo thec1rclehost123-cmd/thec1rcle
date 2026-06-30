@@ -1095,15 +1095,20 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     }
     const current = doc.data() as Record<string, any>;
 
-    const isSender = String(current.promoterId || current.fromPartnerId || '') === promoterId;
-    const isTarget = String(current.targetId || current.toPartnerId || '') === promoterId;
+    const isParty =
+      String(current.promoterId || current.fromPartnerId || '') === promoterId ||
+      String(current.targetId || current.toPartnerId || '') === promoterId;
 
-    if (!isSender && !isTarget) {
+    if (!isParty) {
       const err: any = new Error('Forbidden');
       err.statusCode = 403;
       err.code = 'FORBIDDEN';
       throw err;
     }
+
+    const initiatedBy = current.initiatedBy || 'promoter';
+    const isSender = initiatedBy === 'promoter';
+    const isTarget = initiatedBy !== 'promoter';
 
     if (isSender && ['approve', 'reject'].includes(action)) {
       const err: any = new Error('Sender cannot approve or reject their own request');
