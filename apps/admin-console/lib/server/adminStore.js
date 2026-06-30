@@ -1374,23 +1374,59 @@ export const adminStore = {
   // --- 💰 9. Refund Request Management ---
   async getRefunds({ status = 'pending', limit = 25, cursor = null } = {}) {
     const db = getAdminDb();
-    // Firestore requires: where() BEFORE orderBy()
-    let query = db.collection('refund_requests');
-    if (status !== 'all') query = query.where('status', '==', status);
-    query = query.orderBy('createdAt', 'desc').limit(limit + 1); // fetch one extra to detect hasMore
-    if (cursor) {
-      const cursorDoc = await db.collection('refund_requests').doc(cursor).get();
-      if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+    try {
+      // Standard fast query using composite index
+      let query = db.collection('refund_requests');
+      if (status !== 'all') query = query.where('status', '==', status);
+      query = query.orderBy('createdAt', 'desc').limit(limit + 1); // fetch one extra to detect hasMore
+      if (cursor) {
+        const cursorDoc = await db.collection('refund_requests').doc(cursor).get();
+        if (cursorDoc.exists) query = query.startAfter(cursorDoc);
+      }
+      const snapshot = await query.get();
+      const docs = snapshot.docs.slice(0, limit);
+      const hasMore = snapshot.docs.length > limit;
+      const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+      return {
+        refunds: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
+        hasMore,
+        nextCursor,
+      };
+    } catch (err) {
+      // Fallback: If composite index is missing (e.g. FAILED_PRECONDITION), run in-memory fallback
+      if (err.message && err.message.includes('FAILED_PRECONDITION')) {
+        console.warn(
+          '⚠️ Firestore composite index missing. Falling back to in-memory filtering for refund requests.',
+        );
+        let query = db.collection('refund_requests').orderBy('createdAt', 'desc');
+        const snapshot = await query.get();
+
+        let allRefunds = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        if (status !== 'all') {
+          allRefunds = allRefunds.filter((r) => r.status === status);
+        }
+
+        let startIndex = 0;
+        if (cursor) {
+          const idx = allRefunds.findIndex((r) => r.id === cursor);
+          if (idx !== -1) {
+            startIndex = idx + 1;
+          }
+        }
+
+        const paginated = allRefunds.slice(startIndex, startIndex + limit + 1);
+        const docs = paginated.slice(0, limit);
+        const hasMore = paginated.length > limit;
+        const nextCursor = hasMore ? docs[docs.length - 1].id : null;
+
+        return {
+          refunds: docs,
+          hasMore,
+          nextCursor,
+        };
+      }
+      throw err;
     }
-    const snapshot = await query.get();
-    const docs = snapshot.docs.slice(0, limit);
-    const hasMore = snapshot.docs.length > limit;
-    const nextCursor = hasMore ? docs[docs.length - 1].id : null;
-    return {
-      refunds: docs.map((doc) => ({ id: doc.id, ...doc.data() })),
-      hasMore,
-      nextCursor,
-    };
   },
 
   async approveRefundRequest(refundId, admin) {

@@ -15,7 +15,8 @@ async function handler(request, { params }) {
       return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
     }
 
-    const refundId = params.id;
+    const { id } = await params;
+    const refundId = id;
     const admin = request.user;
 
     const result = await adminStore.approveRefundRequest(refundId, admin);

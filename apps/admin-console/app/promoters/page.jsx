@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   X,
   User,
+  RotateCw,
 } from 'lucide-react';
 import AdminConfirmModal from '@/components/admin/AdminConfirmModal';
 
@@ -32,6 +33,7 @@ export default function AdminPromoters() {
   const [selectedPromoter, setSelectedPromoter] = useState(null);
   const [modalConfig, setModalConfig] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [refreshedAt, setRefreshedAt] = useState(new Date());
 
   const fetchPromoters = async () => {
     try {
@@ -163,6 +165,31 @@ export default function AdminPromoters() {
             Export Network
           </button>
         </div>
+      </div>
+
+      {/* Refresh Bar */}
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[#A1A1AA]">
+          Last updated{' '}
+          {refreshedAt
+            ? refreshedAt.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+            : '—'}
+        </span>
+        <button
+          onClick={async () => {
+            await fetchPromoters();
+            setRefreshedAt(new Date());
+          }}
+          disabled={loading}
+          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-zinc-900 border border-white/5 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all text-[11px] font-bold uppercase tracking-widest disabled:opacity-50"
+        >
+          <RotateCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+          REFRESH
+        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

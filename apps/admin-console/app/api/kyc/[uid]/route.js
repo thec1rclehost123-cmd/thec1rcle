@@ -27,7 +27,7 @@ function deriveKycStatus(stepSequence, stepStatus) {
 // ── GET — admin reads full KYC state for a user ───────────────────────────────
 
 async function getHandler(req, { params }) {
-  const { uid } = params;
+  const { uid } = await params;
   const app = getAdminApp();
   const db = getFirestore(app);
 
@@ -74,7 +74,7 @@ async function patchHandler(req, { params }) {
     return NextResponse.json({ error: 'Too many requests. Please slow down.' }, { status: 429 });
   }
 
-  const { uid } = params;
+  const { uid } = await params;
   const body = await req.json();
   const { stepId, action, note, resubmitReason } = body;
 
