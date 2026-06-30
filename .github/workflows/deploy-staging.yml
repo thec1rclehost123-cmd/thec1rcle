@@ -53,8 +53,21 @@ jobs:
           service_account: ${{ secrets.GCP_SA_EMAIL }}
       - name: Build & push to GCR
         run: |
-          gcloud builds submit apps/api-gateway \
-            --tag gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }}
+          BUILD_ID=$(gcloud builds submit apps/api-gateway \
+            --tag gcr.io/${{ secrets.GCP_PROJECT_ID_STAGING }}/api-gateway:${{ github.sha }} \
+            --async --format='value(id)')
+          echo "Build submitted: $BUILD_ID"
+          while true; do
+            STATUS=$(gcloud builds describe "$BUILD_ID" --format='value(status)')
+            echo "Status: $STATUS"
+            case "$STATUS" in
+              SUCCESS) echo "Build succeeded."; break ;;
+              FAILURE|CANCELLED|TIMEOUT|INTERNAL_ERROR)
+                echo "::error::Build failed with status: $STATUS"
+                exit 1 ;;
+              *) sleep 15 ;;
+            esac
+          done
       - name: Deploy to Cloud Run
         id: deploy
         run: |
