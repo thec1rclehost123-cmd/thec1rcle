@@ -10,7 +10,6 @@ import {
 } from '../../lib/guest-csrf';
 import { buildGuestAuthBootstrap, buildGuestProfileCreatePayload } from '../../lib/guest-auth';
 import { sendGuestOtp, verifyGuestOtp } from '../../lib/guest-otp';
-import { hashPassword } from '../../lib/encryption';
 import {
   getPermissionsForRole,
   getDefaultTabVisibility,
@@ -687,22 +686,22 @@ export default async function authRoutes(fastify: FastifyInstance) {
           returnSecureToken: true,
         });
 
+        // Firebase Auth is the source of truth for the credential. Do NOT persist
+        // a password hash in Firestore — nothing verifies against it and storing
+        // credential material in these collections is an unnecessary exposure.
         await fastify.auth.updateUser(userId, { password: request.body.newPassword });
-
-        const hashedNewPassword = hashPassword(request.body.newPassword);
 
         await fastify.db
           .collection('users')
           .doc(userId)
           .update({
-            password: hashedNewPassword,
             mustChangePassword: false,
             updatedAt: new Date().toISOString(),
           })
           .catch((err: any) => {
             fastify.log.error(
               { err, userId },
-              'Failed to update users password and mustChangePassword flag in Firestore',
+              'Failed to clear mustChangePassword flag in Firestore',
             );
           });
 
@@ -717,7 +716,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
               const batch = fastify.db.batch();
               staffSnap.docs.forEach((doc) => {
                 batch.update(doc.ref, {
-                  password: hashedNewPassword,
+                  mustChangePassword: false,
                   updatedAt: new Date().toISOString(),
                 });
               });
@@ -726,7 +725,7 @@ export default async function authRoutes(fastify: FastifyInstance) {
           } catch (err: any) {
             fastify.log.error(
               { err, email: userRecord.email },
-              'Failed to update venue_staff password in Firestore',
+              'Failed to clear venue_staff mustChangePassword flag in Firestore',
             );
           }
         }
@@ -771,6 +770,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
         //    and can neither log in nor re-onboard.
         const cleanPhone = e164Phone;
         const userDocData: Record<string, any> = {
+          // Client-supplied onboarding fields first, so the server-controlled
+          // fields below always win. Never let the request set the authoritative
+          // `role`/`isApproved` — that would be a privilege-escalation vector.
+          ...details,
           uid: userRecord.uid,
           email,
           displayName: details.name || email.split('@')[0] || 'Member',
@@ -780,7 +783,6 @@ export default async function authRoutes(fastify: FastifyInstance) {
           onboardingComplete: false,
           createdAt: FieldValue.serverTimestamp(),
           updatedAt: FieldValue.serverTimestamp(),
-          ...details,
         };
 
         if (details.entityType) {
@@ -1112,7 +1114,10 @@ export default async function authRoutes(fastify: FastifyInstance) {
           }),
         );
       }
-      const { onboardingStep, entityType, ...details } = request.body;
+      // Pull `role` out of the spread — the authoritative role must never be
+      // settable from the request body (privilege escalation). We still record
+      // the requested role as `onboardingRole` for the approval flow.
+      const { onboardingStep, entityType, role, ...details } = request.body;
       const update: Record<string, any> = {
         onboardingStep,
         updatedAt: FieldValue.serverTimestamp(),
@@ -1122,8 +1127,8 @@ export default async function authRoutes(fastify: FastifyInstance) {
         update.entityType = entityType;
         update.onboardingEntityType = entityType; // keep both for compatibility with guards
       }
-      if (details.role) {
-        update.onboardingRole = details.role; // keep compatibility with gateway auth
+      if (role) {
+        update.onboardingRole = role; // keep compatibility with gateway auth
       }
       await fastify.db.collection('users').doc(userId).set(update, { merge: true });
       return { success: true };

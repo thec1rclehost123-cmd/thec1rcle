@@ -59,22 +59,18 @@ export class SchedulingService {
     const { startDate, endDate } = range;
     const startedAt = Date.now();
 
+    // Filter and order the date range in Firestore so we only read slots inside
+    // the requested window instead of scanning the venue's entire slot history.
+    // Requires the composite index (venueId ASC, date ASC) in
+    // firestore.indexes.json; the .catch below degrades gracefully while it builds.
     const snap = await this.db
       .collection(SLOTS_COLLECTION)
       .where('venueId', '==', venueId)
+      .where('date', '>=', startDate)
+      .where('date', '<=', endDate)
+      .orderBy('date', 'asc')
+      .limit(200)
       .get()
-      .then((snap) => {
-        const docs = snap.docs.filter((doc) => {
-          const d = String(doc.data()?.date || '');
-          return d >= startDate && d <= endDate;
-        });
-        docs.sort((a, b) => {
-          const da = String(a.data()?.date || '');
-          const db = String(b.data()?.date || '');
-          return da.localeCompare(db);
-        });
-        return { docs };
-      })
       .catch((err) => {
         this.log.error(
           {
