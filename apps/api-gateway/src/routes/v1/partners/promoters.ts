@@ -1095,9 +1095,11 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     }
     const current = doc.data() as Record<string, any>;
 
-    const isParty =
-      String(current.promoterId || current.fromPartnerId || '') === promoterId ||
-      String(current.targetId || current.toPartnerId || '') === promoterId;
+    // Guard against an empty promoterId matching a document that stored neither
+    // party field (the `|| ''` fallbacks would otherwise make '' === '' pass).
+    const partySender = String(current.promoterId || current.fromPartnerId || '');
+    const partyTarget = String(current.targetId || current.toPartnerId || '');
+    const isParty = !!promoterId && (partySender === promoterId || partyTarget === promoterId);
 
     if (!isParty) {
       const err: any = new Error('Forbidden');
@@ -1106,9 +1108,19 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       throw err;
     }
 
-    const initiatedBy = current.initiatedBy || 'promoter';
-    const isSender = initiatedBy === 'promoter';
-    const isTarget = initiatedBy !== 'promoter';
+    // Prefer party identity over the initiatedBy flag: legacy venue-initiated
+    // documents often lack `initiatedBy`, and defaulting them to 'promoter'
+    // wrongly blocks the promoter (the actual recipient) from approving.
+    let isSender: boolean;
+    let isTarget: boolean;
+    if (current.fromPartnerId || current.toPartnerId) {
+      isSender = String(current.fromPartnerId || '') === promoterId;
+      isTarget = String(current.toPartnerId || '') === promoterId;
+    } else {
+      const initiatedBy = current.initiatedBy || 'promoter';
+      isSender = initiatedBy === 'promoter';
+      isTarget = initiatedBy !== 'promoter';
+    }
 
     if (isSender && ['approve', 'reject'].includes(action)) {
       const err: any = new Error('Sender cannot approve or reject their own request');

@@ -194,14 +194,23 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
                 fastify.log.error(`fetchFromCollection error for ${collectionName}: ${err}`);
                 return { docs: [] };
               });
-            let promoterIdMap = new Map();
+            let promoterIdMap = new Map<string, string>();
             if (roleType === 'promoter') {
               try {
-                const promotersSnap = await fastify.db.collection('promoters').get();
-                for (const pDoc of promotersSnap.docs) {
-                  const pData = pDoc.data();
-                  if (pData.ownerUid) {
-                    promoterIdMap.set(pData.ownerUid, pDoc.id);
+                // Resolve only the UIDs on this result page instead of scanning
+                // the entire promoters collection. Firestore 'in' allows up to
+                // 30 values per query, so batch the lookups.
+                const uids = snap.docs.map((d: any) => d.id);
+                for (let i = 0; i < uids.length; i += 30) {
+                  const chunk = uids.slice(i, i + 30);
+                  if (chunk.length === 0) continue;
+                  const promotersSnap = await fastify.db
+                    .collection('promoters')
+                    .where('ownerUid', 'in', chunk)
+                    .get();
+                  for (const pDoc of promotersSnap.docs) {
+                    const ownerUid = pDoc.data().ownerUid;
+                    if (ownerUid) promoterIdMap.set(ownerUid, pDoc.id);
                   }
                 }
               } catch (err: any) {
@@ -374,6 +383,22 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             }),
           );
         }
+        // Verify the caller actually owns the partnerId they claim BEFORE
+        // inspecting the connection. Otherwise the distinct party-membership
+        // errors below let an attacker probe the partnership graph with IDs
+        // they don't control.
+        try {
+          await fastify.verifyPartnerAccess(request, partnerId);
+        } catch {
+          return reply.status(403).send(
+            buildErrorResponse({
+              code: 'FORBIDDEN',
+              message: 'Access denied to this partner',
+              requestId: request.id,
+            }),
+          );
+        }
+
         const conn = connDoc.data() as any;
         const isSender = conn.fromPartnerId === partnerId;
         const isTarget = conn.toPartnerId === partnerId;
@@ -393,18 +418,6 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             buildErrorResponse({
               code: 'FORBIDDEN',
               message: 'Only the recipient can approve or reject this request',
-              requestId: request.id,
-            }),
-          );
-        }
-        // Verify the authenticated user actually belongs to the partnerId they claim.
-        try {
-          await fastify.verifyPartnerAccess(request, partnerId);
-        } catch {
-          return reply.status(403).send(
-            buildErrorResponse({
-              code: 'FORBIDDEN',
-              message: 'Access denied to this partner',
               requestId: request.id,
             }),
           );
@@ -548,9 +561,11 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
           const isPromoterInitiated = doc.initiatedBy === 'promoter';
           const recipientId = isPromoterInitiated ? doc.targetId : doc.promoterId;
           const recipientType = isPromoterInitiated ? doc.targetType : 'promoter';
+          // When the venue/host initiated, the sender is the requester — not
+          // doc.targetName (which is the promoter recipient's own name).
           const senderName = isPromoterInitiated
             ? doc.promoterName || 'A promoter'
-            : doc.targetName || 'A partner';
+            : data.requesterName || 'A partner';
           const notifType = isPromoterInitiated ? 'promoter_request' : 'connection_request';
 
           await fastify.db.collection('notifications').add({
@@ -594,11 +609,15 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             return { success: true, id: doc?.id, alreadyExists: true };
           }
 
-          // Direct host-venue partnership
+          // Direct host-venue partnership.
+          // fromPartnerId/toPartnerId are REQUIRED by the PATCH authorization
+          // gate (approve/reject); without them every host-venue approval 403s.
           const partnershipDoc: any = {
             ...data,
             status: 'pending',
             initiatedBy: data.requesterType,
+            fromPartnerId: data.requesterId,
+            toPartnerId: data.targetId,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
