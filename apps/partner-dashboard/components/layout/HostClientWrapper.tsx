@@ -14,6 +14,7 @@ import {
   Inbox,
   UserCog,
   Users,
+  HelpCircle,
 } from 'lucide-react';
 import { AppleSidebar } from '@/components/shared/AppleSidebar';
 import { AppleTopBar } from '@/components/shared/AppleTopBar';
@@ -47,6 +48,7 @@ const MENU_SECTIONS = [
       },
       { icon: UserCog, label: 'Team', href: '/host/team' },
       { icon: Layout, label: 'Presence', href: '/host/presence' },
+      { icon: HelpCircle, label: 'Support', href: '/host/support' },
     ],
   },
 ];

@@ -26,6 +26,7 @@ const ALLOWED_COLLECTIONS = [
   'promotions',
   'media_reports',
   'tickets',
+  'platform_announcements',
 ];
 
 const ALLOWED_SORT_FIELDS = ['createdAt', 'updatedAt', 'status', 'amount', 'name', 'email'];
@@ -85,6 +86,7 @@ async function handler(req) {
       'app_config',
       'promotions',
       'tickets',
+      'platform_announcements',
     ],
     support: [
       'users',
@@ -95,6 +97,7 @@ async function handler(req) {
       'safety_reports',
       'support_tickets',
       'onboarding_requests',
+      'platform_announcements',
     ],
     content: ['venues', 'events', 'media_reports'],
     readonly: ['users', 'venues', 'hosts', 'promoters', 'events'],

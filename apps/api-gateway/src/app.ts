@@ -72,6 +72,7 @@ import partnersHostRoutes from './routes/v1/partners/hosts';
 import partnersVenueRoutes from './routes/v1/partners/venues';
 import partnersPromoterRoutes from './routes/v1/partners/promoters';
 import partnersFinanceRoutes from './routes/v1/partners/finance';
+import supportRoutes from './routes/v1/support';
 import { buildErrorResponse } from './lib/api-contracts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -354,6 +355,7 @@ async function main() {
   await server.register(partnersVenueRoutes, { prefix: '/api/v1' });
   await server.register(partnersPromoterRoutes, { prefix: '/api/v1' });
   await server.register(partnersFinanceRoutes, { prefix: '/api/v1' });
+  await server.register(supportRoutes, { prefix: '/api/v1/support' });
 
   // Enhanced Database-aware Health Check
   const healthHandler = async (request: any, reply: any) => {
