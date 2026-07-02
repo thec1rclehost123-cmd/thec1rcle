@@ -61,9 +61,13 @@ const TIMELINE_HOURS = [
 const TOTAL_MINS = 840;
 
 function filterVisibleEvents(events: any[]) {
-  return (events || []).filter(
-    (e: any) => !EXCLUDED_LIFECYCLE.includes(e.lifecycle || e.status || 'draft'),
-  );
+  return (events || []).filter((e: any) => {
+    const lifecycle = String(e.lifecycle || e.status || 'draft').toLowerCase();
+    const lastStep = String(e.draftMeta?.lastStep || '').toLowerCase();
+    const isPendingDraft = lifecycle === 'draft' && (lastStep === 'media' || lastStep === 'review');
+    if (isPendingDraft) return true;
+    return !EXCLUDED_LIFECYCLE.includes(lifecycle as any);
+  });
 }
 function timeToMins(t: string): number {
   if (!t) return 0;
@@ -146,7 +150,13 @@ export function OperatingCalendar() {
               ...d,
               state: normalizedState,
               events: ev,
-              stats: { ...d.stats, eventCount: ev.length },
+              stats: {
+                ...d.stats,
+                eventCount: ev.filter((e: any) => {
+                  const status = String(e.lifecycle || e.status || 'draft').toLowerCase();
+                  return status !== 'draft';
+                }).length,
+              },
             };
           }),
         );

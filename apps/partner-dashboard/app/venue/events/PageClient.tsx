@@ -118,6 +118,7 @@ const MemoizedVenueEventCard = memo(({ event, index, handleEventUpdate }: any) =
       secondaryActions={secondaryActions}
       showStats={true}
       height="h-full"
+      priority={index < 2}
     />
   );
 });

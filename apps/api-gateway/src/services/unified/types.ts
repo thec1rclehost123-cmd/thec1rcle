@@ -61,6 +61,11 @@ export interface EventSummary {
   ticketsSold: number;
   revenue: number;
   capacity: number;
+  host?: string;
+  hostName?: string;
+  hostId?: string;
+  creatorId?: string;
+  creatorRole?: string;
 }
 
 export interface TicketTier {

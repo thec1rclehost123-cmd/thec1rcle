@@ -436,6 +436,7 @@ export default function HostSlotRequestsPage() {
                   primaryAction={primaryAction}
                   secondaryActions={secondaryActions}
                   showStats={false}
+                  priority={index < 2}
                 />
               </div>
             );

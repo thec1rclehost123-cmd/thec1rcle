@@ -1255,11 +1255,29 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         ['approved', 'occupied'].includes(String(slot.status || '').toLowerCase()),
       );
 
+      // Filter for confirmed/booked events (exclude draft, deleted, cancelled, denied)
+      const bookedEvents = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        return (
+          lifecycle !== 'draft' &&
+          lifecycle !== 'deleted' &&
+          lifecycle !== 'cancelled' &&
+          lifecycle !== 'denied'
+        );
+      });
+
+      // Count drafts at the media or review creation steps as pending status
+      const pendingDraftsCount = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        const lastStep = String(event.draftMeta?.lastStep || '').toLowerCase();
+        return lifecycle === 'draft' && (lastStep === 'media' || lastStep === 'review');
+      }).length;
+
       dates.push({
         date: dateKey,
         state: block
           ? 'BLOCKED'
-          : dayEvents.length > 0 || confirmedSlots.length > 0
+          : bookedEvents.length > 0 || confirmedSlots.length > 0
             ? 'CONFIRMED'
             : 'OPEN',
         events: maskedEvents,
@@ -1274,10 +1292,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         })),
         block,
         stats: {
-          eventCount: dayEvents.length,
-          pendingSlots: visibleSlots.filter(
-            (slot) => String(slot.status || '').toLowerCase() === 'requested',
-          ).length,
+          eventCount: bookedEvents.length,
+          pendingSlots:
+            visibleSlots.filter((slot) => String(slot.status || '').toLowerCase() === 'requested')
+              .length + pendingDraftsCount,
         },
       });
 
@@ -2454,15 +2472,6 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           const evtId = hostEventPromotersMatch[1];
           await getHostEventAndVerify(ctx.partnerId, evtId);
 
-          // Read previous state so we can diff newly added promoters for push
-          const prevDoc = await fastify.db
-            .collection('event_promoter_settings')
-            .doc(evtId)
-            .get()
-            .catch(() => null);
-          const prevIds: string[] =
-            (prevDoc?.exists ? (prevDoc.data() as any)?.allowedPromoterIds : null) ?? [];
-
           await fastify.db
             .collection('event_promoter_settings')
             .doc(evtId)
@@ -2476,14 +2485,6 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               { merge: true },
             );
 
-          // Diff newly added / removed promoters
-          const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
-            ? body.allowedPromoterIds
-            : [];
-          const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
-          const removed = prevIds.filter((id: string) => !nextIds.includes(id));
-          const isEnabled: boolean = body?.enabled !== false;
-
           // Create / update promoter_assignments for all enabled promoters (fire-and-forget)
           (async () => {
             try {
@@ -2493,11 +2494,35 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
                 .get()
                 .catch(() => null);
               const eventData = (eventDoc?.exists ? (eventDoc.data() as any) : {}) ?? {};
+
+              // If event is a draft, do not assign or notify promoters
+              if (eventData.lifecycle === 'draft' || eventData.status === 'draft') {
+                return;
+              }
+
               const eventName: string = eventData.title ?? 'Untitled Event';
               const venueName: string = eventData.venueName ?? '';
               const commissionRate: number =
                 body?.defaultCommission ?? eventData.promoterSettings?.commissionRate ?? 10;
               const now = new Date().toISOString();
+
+              const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
+                ? body.allowedPromoterIds
+                : [];
+              const isEnabled: boolean = body?.enabled !== false;
+
+              // Query promoter_assignments for active assignments to find the previous state
+              const activeAssignmentsSnap = await fastify.db
+                .collection('promoter_assignments')
+                .where('eventId', '==', evtId)
+                .where('status', '==', 'active')
+                .get()
+                .catch(() => null);
+              const prevIds: string[] =
+                activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
+
+              const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+              const removed = prevIds.filter((id: string) => !nextIds.includes(id));
 
               // Encrypt event data to be stored securely
               const encryptedEventName = encrypt(eventName);

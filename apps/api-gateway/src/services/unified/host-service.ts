@@ -278,6 +278,8 @@ export class HostService {
     doc: FirebaseFirestore.QueryDocumentSnapshot | FirebaseFirestore.DocumentSnapshot,
   ): EventSummary {
     const d = (doc.data() ?? {}) as Record<string, any>;
+    const rawCoverImage = d.coverImage || d.image || d.poster || '';
+    const hasValidCover = rawCoverImage && !rawCoverImage.includes('placeholder.svg');
     return {
       eventId: doc.id,
       title: safeStr(d.title || d.name),
@@ -287,10 +289,15 @@ export class HostService {
       venueName: safeStr(d.venueName || d.venue?.name),
       status: (d.lifecycle ?? d.status ?? 'draft') as any,
       submissionStatus: (d.submissionStatus ?? 'not_submitted') as any,
-      coverImage: d.coverImage ?? d.image ?? null,
+      coverImage: hasValidCover ? rawCoverImage : null,
       ticketsSold: toNum(d.ticketsSold ?? d.totalTicketsSold),
       revenue: toNum(d.revenue ?? d.totalRevenue),
       capacity: toNum(d.capacity ?? d.totalCapacity),
+      host: safeStr(d.host),
+      hostName: safeStr(d.hostName),
+      hostId: safeStr(d.hostId),
+      creatorId: safeStr(d.creatorId),
+      creatorRole: safeStr(d.creatorRole),
     };
   }
 

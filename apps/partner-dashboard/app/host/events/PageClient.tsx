@@ -98,6 +98,7 @@ const MemoizedHostEventCard = memo(({ event, index }: any) => {
       primaryAction={getPrimaryAction(event)}
       secondaryActions={secondaryActions}
       showStats={true}
+      priority={index < 2}
     />
   );
 });

@@ -251,17 +251,9 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
         throw new Error(data.message || slotErrMsg || 'Failed to check slot availability');
       }
 
-      const day = (data.calendar || data.days || [])[0];
+      const calendarDays = Array.isArray(data) ? data : data.calendar || data.days || [];
+      const day = calendarDays[0];
       if (!day) return { available: true, reason: '' };
-      if (day.status === 'blocked') {
-        return { available: false, reason: 'This date is blocked on the venue calendar.' };
-      }
-      if (
-        day.status === 'booked' &&
-        (!day.slots || day.slots.some((slot: any) => !slot.startTime || !slot.endTime))
-      ) {
-        return { available: false, reason: 'This date is already occupied by another event.' };
-      }
 
       const toExtendedMinutes = (time: string) => {
         const [hour, minute] = time.split(':').map(Number);
@@ -273,25 +265,56 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
       const requestedStart = toExtendedMinutes(startTime);
       const requestedEnd = toExtendedMinutes(endTime);
 
-      const hasOverlap = (day.slots || []).some((slot: any) => {
-        if (!slot || slot.status === 'available') return false;
-        if (!slot.startTime || !slot.endTime) return true;
+      const isBlocked =
+        String(day.status || '').toLowerCase() === 'blocked' ||
+        String(day.state || '').toLowerCase() === 'blocked';
 
-        const slotStart = toExtendedMinutes(slot.startTime);
-        const slotEnd = toExtendedMinutes(slot.endTime);
-        return requestedStart < slotEnd && slotStart < requestedEnd;
-      });
+      if (isBlocked) {
+        return { available: false, reason: 'This date is blocked on the venue calendar.' };
+      }
 
-      if (hasOverlap) {
-        return {
-          available: false,
-          reason: 'The selected time overlaps with an existing blocked, pending, or booked slot.',
-        };
+      const isBooked =
+        String(day.status || '').toLowerCase() === 'booked' ||
+        String(day.state || '').toLowerCase() === 'confirmed';
+
+      if (isBooked) {
+        const slots = [
+          ...(Array.isArray(day.slots) ? day.slots : []),
+          ...(Array.isArray(day.events) ? day.events : []),
+        ];
+        if (slots.length === 0 && !Array.isArray(day.slots)) {
+          slots.push(day);
+        }
+
+        const hasOverlap = slots.some((slot: any) => {
+          if (!slot || slot.status === 'available') return false;
+
+          // If checking overlap with self, ignore
+          const targetId = searchParams.get('id');
+          if (targetId && (slot.id === targetId || slot.eventId === targetId)) {
+            return false;
+          }
+
+          const sStart = slot.startTime || slot.requestedStartTime;
+          const sEnd = slot.endTime || slot.requestedEndTime;
+          if (!sStart || !sEnd) return true;
+
+          const slotStart = toExtendedMinutes(sStart);
+          const slotEnd = toExtendedMinutes(sEnd);
+          return requestedStart < slotEnd && slotStart < requestedEnd;
+        });
+
+        if (hasOverlap) {
+          return {
+            available: false,
+            reason: 'The selected time overlaps with an existing blocked, pending, or booked slot.',
+          };
+        }
       }
 
       return { available: true, reason: '' };
     },
-    [authedFetch, profile?.activeMembership?.partnerId, profile?.uid, role],
+    [authedFetch, role, searchParams],
   );
 
   useEffect(() => {
@@ -956,6 +979,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
           formData.images?.[0] ||
           '',
         settings: { ...(formData.settings || {}), showGuestlist },
+        draftMeta: {
+          ...formData.draftMeta,
+          lastStep: currentStep,
+          clientUpdatedAt: Date.now(),
+          lastSavedAt: new Date().toISOString(),
+        },
       };
       console.log('payload', payload);
       const draftPayload = { ...payload, lifecycle: 'draft' };
@@ -1023,11 +1052,20 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
       if (res.ok) {
         const eventResult = await res.json();
+        const draftId = eventResult.id || eventResult.event?.id;
 
         if (profile?.uid) {
           const storageKey = `c1rcle_draft_event_v2_${profile.uid}_${savedDraftId || 'new'}`;
           localStorage.removeItem(storageKey);
         }
+
+        if (draftId && !savedDraftId) {
+          setSavedDraftId(draftId);
+          const params = new URLSearchParams(searchParams.toString());
+          params.set('id', draftId);
+          router.replace(`${window.location.pathname}?${params.toString()}`, { scroll: false });
+        }
+
         if (!isDraft) {
           setIsSuccess(true);
         } else {
@@ -1273,6 +1311,20 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
                     <div className="space-y-8">
                       {/* Balance Sheet - UNCHANGED */}
                       <DetailedBreakdown formData={formData} />
+
+                      {/* Show validation errors if any */}
+                      {stepValidation.review.issues.length > 0 && (
+                        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 space-y-2">
+                          <p className="font-bold text-sm">
+                            Please resolve the following issues before publishing:
+                          </p>
+                          <ul className="list-disc pl-5 text-xs space-y-1">
+                            {stepValidation.review.issues.map((issue, idx) => (
+                              <li key={idx}>{issue}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1295,8 +1347,12 @@ export function CreateEventWizardV2({ role }: { role: 'venue' | 'host' }) {
 
                     {currentStep === 'review' ? (
                       <button
-                        disabled={isSubmitting}
-                        onClick={() => setShowPublishModal(true)}
+                        disabled={isSubmitting || !stepValidation.review.isValid}
+                        onClick={() => {
+                          if (validateCurrentStep()) {
+                            setShowPublishModal(true);
+                          }
+                        }}
                         className="btn btn-primary btn-sm flex items-center gap-2 disabled:opacity-50"
                       >
                         Continue <ChevronRight className="w-4 h-4" />

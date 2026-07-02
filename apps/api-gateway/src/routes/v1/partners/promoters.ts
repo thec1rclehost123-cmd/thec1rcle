@@ -716,7 +716,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
     let eventsQuery = fastify.db
       .collection('events')
       .where('promotersEnabled', '==', true)
-      .where('status', 'in', ['published', 'active']);
+      .where('status', 'in', ['published', 'active', 'scheduled', 'live', 'submitted', 'upcoming']);
 
     if (query.cursor) {
       const cursorDoc = await fastify.db
@@ -1782,7 +1782,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           };
           return normalizePromoterLink(legacyFormat, unifiedById.get(String(link.linkId || '')));
         });
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           links,
           data: links,
           hasMore: Boolean(result.hasMore),
@@ -2021,7 +2021,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           getLegacyEvents(ctx.partnerId, request.query),
           buildLegacyAssignments(ctx.partnerId, request.query.status),
         ]);
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           ...legacyEventsBody,
           assignments: legacyAssignments,
           events: asArray(legacyEventsBody.events),
@@ -2085,7 +2085,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             }),
           );
         }
-        return reply.header('Cache-Control', 'private, max-age=60').send({
+        return reply.header('Cache-Control', 'no-store, no-cache, must-revalidate').send({
           assignment,
         });
       } catch (err: any) {

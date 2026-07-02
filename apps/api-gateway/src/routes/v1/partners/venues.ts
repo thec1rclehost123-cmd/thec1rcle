@@ -189,6 +189,11 @@ function mergeVenueEvents(legacyItems: PlainRecord[], unifiedItems: PlainRecord[
       ticketsSold: toNumber(unifiedItem.ticketsSold),
       revenue: toNumber(unifiedItem.revenue),
       capacity: toNumber(unifiedItem.capacity),
+      host: (unifiedItem as any).host ?? '',
+      hostName: (unifiedItem as any).hostName ?? '',
+      hostId: (unifiedItem as any).hostId ?? '',
+      creatorId: (unifiedItem as any).creatorId ?? '',
+      creatorRole: (unifiedItem as any).creatorRole ?? '',
     });
   }
 
@@ -411,11 +416,30 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       );
       const daySlots = allSlots.filter((slot: any) => String(slot.date || '') === dateKey);
       const block = daySlots.find((slot: any) => isVenueBlock(slot)) || null;
+
+      // Filter for confirmed/booked events (exclude draft, deleted, cancelled, denied)
+      const bookedEvents = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        return (
+          lifecycle !== 'draft' &&
+          lifecycle !== 'deleted' &&
+          lifecycle !== 'cancelled' &&
+          lifecycle !== 'denied'
+        );
+      });
+
+      // Count drafts at the media or review creation steps as pending status
+      const pendingDraftsCount = dayEvents.filter((event: any) => {
+        const lifecycle = String(event.lifecycle || event.status || 'draft').toLowerCase();
+        const lastStep = String(event.draftMeta?.lastStep || '').toLowerCase();
+        return lifecycle === 'draft' && (lastStep === 'media' || lastStep === 'review');
+      }).length;
+
       dates.push({
         date: dateKey,
         state: block
           ? 'blocked'
-          : dayEvents.length > 0
+          : bookedEvents.length > 0
             ? 'booked'
             : daySlots.length > 0
               ? 'available'
@@ -424,10 +448,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         slots: daySlots,
         block,
         stats: {
-          eventCount: dayEvents.length,
-          pendingSlots: daySlots.filter(
-            (slot: any) => String(slot.status || '').toLowerCase() === 'pending',
-          ).length,
+          eventCount: bookedEvents.length,
+          pendingSlots:
+            daySlots.filter((slot: any) => String(slot.status || '').toLowerCase() === 'pending')
+              .length + pendingDraftsCount,
         },
       });
       cur.setUTCDate(cur.getUTCDate() + 1);
@@ -3122,15 +3146,6 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }),
             );
 
-          // Read previous state so we can diff newly added promoters
-          const prevDoc = await fastify.db
-            .collection('event_promoter_settings')
-            .doc(evtId)
-            .get()
-            .catch(() => null);
-          const prevIds: string[] =
-            (prevDoc?.exists ? (prevDoc.data() as any)?.allowedPromoterIds : null) ?? [];
-
           await fastify.db
             .collection('event_promoter_settings')
             .doc(evtId)
@@ -3144,22 +3159,37 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               { merge: true },
             );
 
-          // Diff newly added / removed promoters
-          const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
-            ? body.allowedPromoterIds
-            : [];
-          const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
-          const removed = prevIds.filter((id: string) => !nextIds.includes(id));
-          const isEnabled: boolean = body?.enabled !== false;
-
           // Create / update promoter_assignments and notifications (fire-and-forget)
           (async () => {
             try {
+              // If event is a draft, do not assign or notify promoters
+              if (event.lifecycle === 'draft' || event.status === 'draft') {
+                return;
+              }
+
               const eventName: string = event.title ?? 'Untitled Event';
               const venueName: string = event.venueName ?? '';
               const commissionRate: number =
                 body?.defaultCommission ?? event.promoterSettings?.commissionRate ?? 10;
               const now = new Date().toISOString();
+
+              const nextIds: string[] = Array.isArray(body?.allowedPromoterIds)
+                ? body.allowedPromoterIds
+                : [];
+              const isEnabled: boolean = body?.enabled !== false;
+
+              // Query promoter_assignments for active assignments to find the previous state
+              const activeAssignmentsSnap = await fastify.db
+                .collection('promoter_assignments')
+                .where('eventId', '==', evtId)
+                .where('status', '==', 'active')
+                .get()
+                .catch(() => null);
+              const prevIds: string[] =
+                activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
+
+              const newlyAdded = nextIds.filter((id: string) => !prevIds.includes(id));
+              const removed = prevIds.filter((id: string) => !nextIds.includes(id));
 
               // Encrypt event data to be stored securely
               const encryptedEventName = encrypt(eventName);
@@ -3264,6 +3294,138 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           })();
 
           return reply.send({ success: true });
+        }
+
+        const eventMatch = rest.match(/^events\/([^/]+)$/);
+        if (eventMatch && request.method === 'GET') {
+          const evtId = eventMatch[1];
+          const eventDoc = await fastify.db.collection('events').doc(evtId).get();
+          if (!eventDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Event not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const event = eventDoc.data() as PlainRecord;
+          if (event.venueId !== ctx.partnerId) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'FORBIDDEN',
+                message: 'Not your event',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          const rawTiers = asArray(event.ticketTiers || event.tiers || event.tickets || []);
+          const tiers = rawTiers.map((t: any, index: number) => ({
+            tierId: String(t.tierId || t.id || index),
+            name: String(t.name || ''),
+            price: Number(t.price || 0),
+            capacity: Number(t.capacity || t.quantity || 0),
+            sold: Number(t.sold || 0),
+          }));
+
+          const attributions = Array.isArray(event.promoterAttributions)
+            ? event.promoterAttributions.map((a: any) => ({
+                promoterId: String(a.promoterId || ''),
+                linkId: String(a.linkId || ''),
+                commissionRate: Number(a.commissionRate || 0),
+              }))
+            : [];
+
+          const venueName = String(
+            event.venueName ||
+              (typeof event.venue === 'string' ? event.venue : event.venue?.name) ||
+              '',
+          );
+
+          const eventDetail = {
+            eventId: eventDoc.id,
+            title: String(event.title || event.name || ''),
+            startDate: event.startDate ? new Date(event.startDate).toISOString() : null,
+            endDate: event.endDate ? new Date(event.endDate).toISOString() : null,
+            venueId: String(event.venueId || ''),
+            venueName,
+            status: event.lifecycle ?? event.status ?? 'draft',
+            submissionStatus: event.submissionStatus ?? 'not_submitted',
+            coverImage: event.coverImage ?? event.image ?? null,
+            ticketsSold: Number(event.ticketsSold ?? event.totalTicketsSold ?? 0),
+            revenue: Number(event.revenue ?? event.totalRevenue ?? 0),
+            capacity: Number(event.capacity ?? event.totalCapacity ?? 0),
+            description: String(event.description || ''),
+            ticketTiers: tiers,
+            promoterAttributions: attributions,
+            ownerPartnerId: String(event.creatorId || event.hostId || event.ownerPartnerId || ''),
+            createdAt: event.createdAt ? new Date(event.createdAt).toISOString() : null,
+            updatedAt: event.updatedAt ? new Date(event.updatedAt).toISOString() : null,
+            id: eventDoc.id,
+            lifecycle: String(event.lifecycle || event.status || 'draft'),
+            venue: venueName,
+            slug: event.slug ?? null,
+            hostId: String(event.hostId || event.creatorId || ''),
+            hostName: String(event.hostName || ''),
+            venueAddress: String(event.venueAddress || ''),
+            city: String(event.city || ''),
+            eventUrl: String(event.eventUrl || event.url || ''),
+            shortDescription: String(event.shortDescription || ''),
+            tags: Array.isArray(event.tags) ? event.tags : [],
+            settings: event.settings ?? {},
+            promoterSettings: event.promoterSettings ?? { enabled: false, allowedPromoterIds: [] },
+            image: event.image ?? null,
+            stats: event.stats ?? {},
+          };
+
+          return reply.send({ event: eventDetail });
+        }
+
+        if (eventMatch && request.method === 'PATCH') {
+          const evtId = eventMatch[1];
+          const eventDoc = await fastify.db.collection('events').doc(evtId).get();
+          if (!eventDoc.exists) {
+            return reply.status(404).send(
+              buildErrorResponse({
+                code: 'NOT_FOUND',
+                message: 'Event not found',
+                requestId: request.id,
+              }),
+            );
+          }
+          const event = eventDoc.data() as PlainRecord;
+          if (event.venueId !== ctx.partnerId) {
+            return reply.status(403).send(
+              buildErrorResponse({
+                code: 'FORBIDDEN',
+                message: 'Not your event',
+                requestId: request.id,
+              }),
+            );
+          }
+
+          const patchFields =
+            body.updates && typeof body.updates === 'object' ? body.updates : body;
+
+          await fastify.db
+            .collection('events')
+            .doc(evtId)
+            .update({
+              ...patchFields,
+              updatedAt: new Date().toISOString(),
+            });
+
+          await fastify.cache.delete('events:detail', evtId).catch(() => {});
+          if (event.slug) {
+            await fastify.cache
+              .delete('events:detail', `${event.slug}:${ctx.partnerId}`)
+              .catch(() => {});
+          }
+
+          await fastify.publicDiscoveryService.syncEventReadModels(evtId).catch(() => {});
+
+          return reply.send({ success: true, id: evtId });
         }
 
         const orderActionVenueMatch = rest.match(/^orders\/([^/]+)\/(cancel|resend-receipt)$/);

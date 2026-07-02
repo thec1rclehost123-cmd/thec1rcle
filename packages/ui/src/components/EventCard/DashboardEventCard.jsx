@@ -57,6 +57,7 @@ const DashboardEventCard = ({
   secondaryActions = [],
   status: statusOverride = null,
   showStats = false,
+  priority = false,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
@@ -133,6 +134,7 @@ const DashboardEventCard = ({
           alt={event.title}
           fill
           className="object-cover transition-transform duration-[1.2s] ease-out group-hover:scale-[1.06]"
+          priority={priority}
         />
 
         {/* Vignette overlay — radial for cinematic feel */}

@@ -486,15 +486,11 @@ async function syncEventPromoters(
   creatorRole: string,
 ): Promise<void> {
   try {
-    const settingsRef = db.collection('event_promoter_settings').doc(eventId);
-    const settingsDoc = await settingsRef.get().catch(() => null);
-    const prevIds: string[] =
-      (settingsDoc?.exists ? (settingsDoc.data() as any)?.allowedPromoterIds : null) ?? [];
-
     const isEnabled = promotersEnabled !== false;
     const nextIds = isEnabled ? (Array.isArray(promoterIds) ? promoterIds : []) : [];
 
     // 1. Update event_promoter_settings
+    const settingsRef = db.collection('event_promoter_settings').doc(eventId);
     await settingsRef.set(
       {
         eventId,
@@ -505,6 +501,32 @@ async function syncEventPromoters(
       },
       { merge: true },
     );
+
+    // Fetch the event status/lifecycle to check if it's a draft
+    const eventDoc = await db
+      .collection('events')
+      .doc(eventId)
+      .get()
+      .catch(() => null);
+    const eventData = eventDoc?.exists ? eventDoc.data() : null;
+    const isDraft = eventData
+      ? eventData.lifecycle === 'draft' || eventData.status === 'draft'
+      : true;
+
+    // If the event is a draft, do not assign promoters or notify them yet
+    if (isDraft) {
+      return;
+    }
+
+    // Get currently active assignments in the database for this event
+    const activeAssignmentsSnap = await db
+      .collection('promoter_assignments')
+      .where('eventId', '==', eventId)
+      .where('status', '==', 'active')
+      .get()
+      .catch(() => null);
+    const prevIds: string[] =
+      activeAssignmentsSnap?.docs.map((d: any) => d.data().promoterId) ?? [];
 
     // 2. Diff newly added / removed promoters
     const newlyAdded = nextIds.filter((id) => !prevIds.includes(id));
@@ -654,10 +676,19 @@ export default async function eventRoutes(fastify: FastifyInstance) {
           }
 
           const limit = Math.min(Number(request.query.limit) || 20, 100);
-          q = q.orderBy('startDate', 'desc').limit(limit);
+          let snap;
+          let sortedInMemory = false;
+          try {
+            snap = await q.orderBy('startDate', 'desc').limit(limit).get();
+          } catch (err: any) {
+            fastify.log.warn(
+              `Firestore query with orderBy failed (likely missing index): ${err.message}. Retrying without orderBy and sorting in memory.`,
+            );
+            snap = await q.get();
+            sortedInMemory = true;
+          }
 
-          const snap = await q.get();
-          const events = snap.docs.map((doc: any) => {
+          let events = snap.docs.map((doc: any) => {
             const data = doc.data();
             return {
               ...data,
@@ -665,6 +696,15 @@ export default async function eventRoutes(fastify: FastifyInstance) {
               eventId: doc.id,
             };
           });
+
+          if (sortedInMemory) {
+            events.sort((a: any, b: any) => {
+              const dateA = a.startDate || '';
+              const dateB = b.startDate || '';
+              return dateB.localeCompare(dateA);
+            });
+            events = events.slice(0, limit);
+          }
 
           return { events, success: true };
         }
