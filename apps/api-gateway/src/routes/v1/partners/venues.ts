@@ -653,7 +653,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
   // ── Overview ───────────────────────────────────────────────────────────────
 
   fastify.get(
-    '/partners/venues/overview',
+    '/partners/venues/overview/summary',
     {
       preHandler: [fastify.requireAuth],
     },
@@ -702,7 +702,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           _meta: {
             ...asRecord((legacyBody as any)._meta),
             partnerId: ctx.partnerId,
-            source: 'partners/venues/overview',
+            source: 'partners/venues/overview/summary',
           },
         };
 
@@ -711,7 +711,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       } catch (err: any) {
         fastify.log.error(
           { err: err.message, partnerId: ctx.partnerId },
-          'partners/venues/overview error',
+          'partners/venues/overview/summary error',
         );
         if (err.statusCode)
           return reply
@@ -2898,7 +2898,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const paged = orderDocs.slice((page - 1) * limit, page * limit);
           const attendees = paged.map((doc: any) => {
             const o = doc.data() || {};
-            const rawName = o.buyerName || 'Guest';
+            const rawName = o.buyerName || o.customerName || o.name || 'Guest';
             return {
               id: doc.id,
               attendeeId: doc.id,
@@ -2908,8 +2908,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               instagram: o.instagram || '',
               ticketTier: o.tierName || '',
               tierId: o.tierId || '',
-              quantity: toNumber(o.ticketCount || 1),
-              totalSpend: toNumber(o.totalPaise || 0) / 100,
+              quantity: toNumber(o.ticketCount || o.quantity || 1),
+              totalSpend:
+                toNumber(o.totalPaise || Math.round((o.amount || o.totalAmount || 0) * 100)) / 100,
               source: o.source || 'online',
               status: o.checkedInAt ? 'checked_in' : 'paid',
               purchasedAt: o.createdAt || null,
@@ -2919,7 +2920,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               isVip: !!o.isVip,
               tags: o.tags || [],
               orderId: doc.id,
-              orderSummary: `${o.ticketCount || 1} ticket(s)`,
+              orderSummary: `${o.ticketCount || o.quantity || 1} ticket(s)`,
             };
           });
           const rawTiers = asArray(event.ticketTiers || event.tiers || []);
@@ -4305,43 +4306,64 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         if (rest === 'walk-ins' && request.method === 'GET') {
           const filterEventId = String(query.eventId || '');
           const pageSize = Math.min(parseInt(String(query.limit || '200'), 10) || 200, 500);
+          console.log(
+            `[API Gateway GET Walk-ins] Query Params: venueId=${ctx.partnerId}, eventId=${filterEventId}, limit=${pageSize}`,
+          );
           // Walk-in entries are stored in door_sales (created via door/sell POST)
           let q: any = fastify.db.collection('door_sales').where('venueId', '==', ctx.partnerId);
           if (filterEventId) q = q.where('eventId', '==', filterEventId);
           const snap = await q
             .limit(pageSize)
             .get()
-            .catch(() => ({ docs: [] as any[] }));
+            .catch((err: any) => {
+              console.error('[API Gateway GET Walk-ins] Firestore query error:', err);
+              return { docs: [] as any[] };
+            });
+
+          console.log(
+            `[API Gateway GET Walk-ins] Firestore returned ${snap.docs?.length ?? 0} total door_sales documents`,
+          );
+
           const entries = ((snap as any).docs || [])
             .map((doc: any) => {
               const d = doc.data() || {};
-              const purpose = String(d.purpose || 'party');
-              if (purpose === 'dinein') return null;
+              const category = String(d.category || 'walkin');
+              if (category === 'dinein') return null;
               return {
                 id: doc.id,
                 guestName: d.guestName || '',
                 phoneFull: d.contact || d.phone || '',
                 phoneHash: d.contact || d.phone || '',
                 gender: d.gender || null,
-                guestAge: d.age ?? null,
-                partySize: toNumber(d.partySize || 1),
+                guestAge: d.age ?? d.guestAge ?? null,
+                partySize: toNumber(d.totalGuests || d.partySize || 1),
                 eventId: d.eventId || filterEventId || '',
-                addedAt: d.soldAt || d.createdAt || d.addedAt || '',
+                addedAt: d.addedAt || d.soldAt || d.createdAt || '',
                 source: 'walkins',
               };
             })
             .filter(Boolean);
           entries.sort((a: any, b: any) => b.addedAt.localeCompare(a.addedAt));
-          return reply.send({ entries: entries.slice(0, 100) });
+          const page = entries.slice(0, 100);
+          const totals = {
+            count: page.length,
+            totalPaise: page.reduce((s: number, e: any) => s + (Number(e.amountPaise) || 0), 0),
+            totalGuests: page.reduce((s: number, e: any) => s + (Number(e.partySize) || 1), 0),
+          };
+          console.log(
+            `[API Gateway GET Walk-ins] Returning ${page.length} entries. Totals:`,
+            totals,
+          );
+          return reply.send({ entries: page, totals });
         }
 
         const walkInEventMatch = rest.match(/^walk-ins\/([^/]+)$/);
         if (walkInEventMatch && request.method === 'GET') {
           const evtId = walkInEventMatch[1];
           const snap = await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
+            .collection('door_sales')
+            .where('eventId', '==', evtId)
+            .where('category', '==', 'walkin')
             .limit(200)
             .get()
             .catch(() => ({ docs: [] as any[] }));
@@ -4351,24 +4373,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           }));
           logs.sort(
             (a: any, b: any) =>
-              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+              new Date(b.addedAt || b.createdAt || 0).getTime() -
+              new Date(a.addedAt || a.createdAt || 0).getTime(),
           );
           return reply.send({ logs: logs.slice(0, 100) });
         }
         if (walkInEventMatch && request.method === 'POST') {
           const evtId = walkInEventMatch[1];
           const now = new Date().toISOString();
-          const ref = await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
-            .add({
-              ...body,
-              eventId: evtId,
-              venueId: ctx.partnerId,
-              recordedBy: ctx.uid,
-              createdAt: now,
-            });
+          const ref = await fastify.db.collection('door_sales').add({
+            ...body,
+            eventId: evtId,
+            venueId: ctx.partnerId,
+            addedBy: ctx.uid,
+            addedByName: 'User',
+            addedAt: now,
+            category: 'walkin',
+            paymentMode: 'cash',
+            source: 'manual',
+            status: 'active',
+          });
           return reply.send({ success: true, id: ref.id });
         }
         if (walkInEventMatch && request.method === 'DELETE') {
@@ -4382,12 +4406,7 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
                 requestId: request.id,
               }),
             );
-          await fastify.db
-            .collection('walk_in_entries')
-            .doc(evtId)
-            .collection('logs')
-            .doc(logId)
-            .delete();
+          await fastify.db.collection('door_sales').doc(logId).delete();
           return reply.send({ success: true });
         }
 
@@ -4458,8 +4477,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           const pageSize = Math.min(toNumber(query.limit) || 50, 200);
           const filterEventId = String(query.eventId || '');
           let q: any = fastify.db
-            .collection('dinein_sessions')
+            .collection('door_sales')
             .where('venueId', '==', ctx.partnerId)
+            .where('category', '==', 'dinein')
             .where('status', '==', 'active');
           if (filterEventId && !filterEventId.startsWith('venue_'))
             q = q.where('eventId', '==', filterEventId);
@@ -4473,20 +4493,12 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             const d = doc.data() || {};
             return {
               id: doc.id,
-              eventId: d.eventId || '',
-              venueId: d.venueId || ctx.partnerId,
-              guestName: d.guestName || '',
-              partySize: toNumber(d.partySize) || 1,
-              gender: d.gender || null,
-              age: toNumber(d.age) || null,
-              addedBy: d.createdBy || '',
-              addedByName: d.addedByName || '',
-              addedAt: d.createdAt || d.addedAt || '',
+              ...d,
             };
           });
           const totals = {
             count: entries.length,
-            partySize: entries.reduce((s: number, e: any) => s + (e.partySize || 1), 0),
+            partySize: entries.reduce((s: number, e: any) => s + (e.totalGuests || 1), 0),
           };
           return reply.send({
             entries,
@@ -4497,23 +4509,41 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
         }
         if (rest === 'door/dinein' && request.method === 'POST') {
           const now = new Date().toISOString();
-          const ref = await fastify.db.collection('dinein_sessions').add({
+          const ref = await fastify.db.collection('door_sales').add({
             ...body,
             venueId: ctx.partnerId,
+            category: 'dinein',
+            paymentMode: 'cash',
+            source: 'manual',
             status: 'active',
-            createdAt: now,
-            createdBy: ctx.uid,
+            addedAt: now,
+            addedBy: ctx.uid,
+            addedByName: 'User',
           });
           return reply.send({ success: true, id: ref.id, entryId: ref.id });
         }
 
         if (rest === 'door/sell' && request.method === 'POST') {
+          console.log('[API Gateway POST door/sell] Received body payload:', body);
           const now = new Date().toISOString();
           const purpose = String(body.purpose || 'party');
+          const category = purpose === 'dinein' ? 'dinein' : 'walkin';
           const eventId = String(body.eventId || '');
-          const ref = await fastify.db
-            .collection('door_sales')
-            .add({ ...body, venueId: ctx.partnerId, soldAt: now, soldBy: ctx.uid });
+          const entry = {
+            ...body,
+            venueId: ctx.partnerId,
+            category,
+            status: 'active',
+            source: 'manual',
+            paymentMode: body.paymentMode || 'cash',
+            addedAt: now,
+            addedBy: ctx.uid,
+            addedByName: 'Venue Dashboard',
+          };
+          delete (entry as any).purpose;
+          console.log('[API Gateway POST door/sell] Mapped Firestore document payload:', entry);
+          const ref = await fastify.db.collection('door_sales').add(entry);
+          console.log('[API Gateway POST door/sell] Firestore record created with ID:', ref.id);
           // Compute remaining capacity after sale for real-time UI update
           let remainingCapacity: number | null = null;
           if (eventId) {
@@ -4544,6 +4574,9 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               );
               const doorWalkInCount = (walkInsSnap as any).size || 0;
               remainingCapacity = Math.max(0, total - soldCount - doorWalkInCount);
+              console.log(
+                `[API Gateway POST door/sell] Capacity computed: total=${total}, sold=${soldCount}, walkins=${doorWalkInCount}, remaining=${remainingCapacity}`,
+              );
             }
           }
           return reply.send({ success: true, entryId: ref.id, purpose, remainingCapacity });

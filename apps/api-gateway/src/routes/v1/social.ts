@@ -1854,7 +1854,7 @@ async function handleUpload(request: any, fastify: any) {
   const data = await request.file();
   if (!data) throw new Error('No file uploaded');
 
-  const bucket = fastify.firebase.storage().bucket();
+  const bucket = fastify.storage.bucket();
   const fileName = `uploads/${Date.now()}_${data.filename}`;
   const file = bucket.file(fileName);
 

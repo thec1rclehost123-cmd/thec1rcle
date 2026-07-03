@@ -97,15 +97,15 @@ export async function getNextEventIntelligence(
 
   // Walk-ins today
   const todayStr = now.slice(0, 10);
-  const walkInSnap = await db
-    .collection('walk_in_entries')
-    .doc(eventId)
-    .collection('logs')
-    .where('addedAt', '>=', todayStr)
-    .where('status', '==', 'active')
-    .get();
+  const walkInSnap = await db.collection('door_sales').where('eventId', '==', eventId).get();
 
-  const walkInsToday = walkInSnap.size;
+  let walkInsToday = 0;
+  walkInSnap.forEach((doc) => {
+    const data = doc.data();
+    if (data.category === 'walkin' && data.status === 'active' && data.addedAt >= todayStr) {
+      walkInsToday++;
+    }
+  });
 
   // Check-in rate
   const checkedIn = guests.filter((g: any) => g.checkedIn === true).length;

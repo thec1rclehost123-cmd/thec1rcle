@@ -64,6 +64,7 @@ export default function DoorPageClient() {
           );
           if (wiRes.ok) {
             const d = await wiRes.json();
+
             const fetched: DoorEntry[] = (d.entries ?? []).map((e: any) => ({
               id: e.id,
               guestName: e.guestName,
@@ -80,24 +81,24 @@ export default function DoorPageClient() {
           }
         }
 
-        // Dine-ins: use eventId if set, otherwise scope to venue
-        const diEventId = eventId || `venue_${venueId}`;
-        const diRes = await fetch(
-          `/api/partners/venues/door/dinein?eventId=${encodeURIComponent(diEventId)}&venueId=${venueId}&limit=200`,
-          { headers },
-        );
+        // Dine-ins: scope purely to venue
+        const diRes = await fetch(`/api/partners/venues/door/dinein?venueId=${venueId}&limit=200`, {
+          headers,
+        });
         if (diRes.ok) {
           const d = await diRes.json();
+
           const fetched: DoorEntry[] = (d.entries ?? []).map((e: any) => ({
             id: e.id,
             guestName: e.guestName,
-            contact: '',
-            gender: 'male' as const,
-            age: 0,
+            contact: e.contact || '',
+            email: e.email || '',
+            gender: (e.gender || 'male') as DoorEntry['gender'],
+            age: Number(e.age ?? 0),
             type: 'dinein' as const,
-            totalGuests: e.partySize,
+            totalGuests: Number(e.totalGuests || e.partySize || 1),
             eventId: e.eventId,
-            submittedAt: e.addedAt,
+            submittedAt: e.addedAt || e.createdAt || new Date().toISOString(),
           }));
           setDineInEntries(fetched);
         } else {
@@ -127,6 +128,20 @@ export default function DoorPageClient() {
     },
     [pathname, router, searchParams],
   );
+
+  // Auto-select the first or today's event if no eventId is in the URL
+  useEffect(() => {
+    if (events.length > 0 && !eventId) {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const todayEvent = events.find(
+        (e: any) => String(e.startDate || e.date || '').slice(0, 10) === todayStr,
+      );
+      const defaultEvent = todayEvent || events[0];
+      if (defaultEvent?.id) {
+        handleEventChange(defaultEvent.id);
+      }
+    }
+  }, [events, eventId, handleEventChange]);
 
   // Fetch events using a fresh Firebase ID token — same pattern as the Events page
   useEffect(() => {

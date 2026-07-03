@@ -7,11 +7,46 @@ import { useDoorHub } from '@/lib/context/DoorHubContext';
 export function DoorWalkInsView() {
   const hub = useDoorHub();
   const entries = hub?.walkInEntries ?? [];
+  const eventId = hub?.eventId ?? '';
+  const events = hub?.events ?? [];
 
   const totalGuests = entries.reduce((sum, e) => sum + 1, 0);
 
   return (
     <div className="space-y-4 max-w-4xl">
+      {/* Event Selector */}
+      {events.length > 0 && (
+        <div className="flex items-center gap-3">
+          <label className="text-[12px] font-bold uppercase tracking-widest text-[var(--v-text-muted)]">
+            Event:
+          </label>
+          <select
+            value={eventId}
+            onChange={(e) => hub?.setEventId(e.target.value)}
+            className="rounded-xl px-4 py-2.5 text-[13px] font-semibold border outline-none cursor-pointer"
+            style={{
+              background: 'var(--v-card)',
+              borderColor: 'var(--v-border)',
+              color: 'var(--v-text-primary)',
+            }}
+          >
+            <option value="" disabled>
+              Select event…
+            </option>
+            {events.map((ev) => (
+              <option key={ev.id} value={ev.id} style={{ background: 'var(--v-elevated)' }}>
+                {ev.title} (
+                {new Date(ev.startDate || 0).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                })}
+                )
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Totals strip */}
       <div
         className="rounded-2xl border px-5 py-4 flex items-center gap-6"

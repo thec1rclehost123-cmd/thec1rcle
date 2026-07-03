@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { GATEWAY_URL, proxyToGateway } from '@/lib/server/apiGateway';
 import { requireVenueAccess } from '@/lib/rbac/staffProfileEnforcer';
 
-const FORWARDED_HEADERS = ['authorization', 'content-type', 'x-request-id', 'x-forwarded-for'];
+const FORWARDED_HEADERS = [
+  'authorization',
+  'content-type',
+  'x-request-id',
+  'x-forwarded-for',
+  'x-scanner-code',
+];
 
 function errorResponse(req: NextRequest, status: number, message: string, code?: string) {
   return NextResponse.json(
@@ -170,6 +176,10 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
   const gatewayPath = segments.join('/');
   const targetUrl = `${GATEWAY_URL}/api/v1/partners/${gatewayPath}${search}`;
 
+  console.log(
+    `[BFF Proxy] Incoming Request: ${req.method} /api/partners/${gatewayPath}${search} -> Proxying to: ${targetUrl}`,
+  );
+
   try {
     const headers = new Headers();
     for (const h of FORWARDED_HEADERS) {
@@ -189,12 +199,17 @@ async function partnerProxy(req: NextRequest, segments: string[]): Promise<NextR
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
       const text = await req.text();
-      if (text) init.body = text;
+      if (text) {
+        init.body = text;
+        console.log(`[BFF Proxy] Request Body Payload:`, text);
+      }
     }
 
-    return proxyToGateway(req, targetUrl, init);
+    const response = await proxyToGateway(req, targetUrl, init);
+    console.log(`[BFF Proxy] Response Status: ${response.status} for target: ${targetUrl}`);
+    return response;
   } catch (err) {
-    console.error('[partners proxy] Gateway request failed', { targetUrl, err });
+    console.error('[BFF Proxy] Gateway request failed', { targetUrl, err });
     return errorResponse(req, 502, 'Failed to communicate with API gateway');
   }
 }

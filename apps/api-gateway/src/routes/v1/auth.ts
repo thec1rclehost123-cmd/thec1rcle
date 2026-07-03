@@ -1424,14 +1424,16 @@ export default async function authRoutes(fastify: FastifyInstance) {
           }),
         );
       }
-      const { partnerType, role } = membership;
+      const { partnerType, role, partnerId } = membership;
       const permissions = getPermissionsForRole(partnerType, role);
       const tabVisibility = getDefaultTabVisibility(partnerType, role);
       const context: Record<string, unknown> = {
+        partnerId,
         partnerType,
         role,
         permissions,
         tabVisibility,
+        activeMembership: membership,
         ...(partnerType === 'promoter' ? { commissionTiers: PROMOTER_COMMISSION_TIERS } : {}),
       };
       return buildSuccessResponse(context);

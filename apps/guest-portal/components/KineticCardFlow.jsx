@@ -12,6 +12,7 @@ import {
 import { resolvePoster } from '@c1rcle/core/events';
 import { formatEventDate } from '@c1rcle/core/time';
 import { useRouter } from 'next/navigation';
+import { cn } from '../lib/utils';
 
 const AUTO_SCROLL_PX_PER_SECOND = 42;
 const MIN_CARD_WIDTH = 168;

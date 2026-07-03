@@ -5,13 +5,15 @@ import {
   recordScanAttempt,
 } from '@c1rcle/core/scan-engine';
 import { randomBytes, createHmac } from 'node:crypto';
-import { FieldValue } from 'firebase-admin/firestore';
+import { FieldValue, Firestore } from 'firebase-admin/firestore';
+import { resolvePartnerContext, canManageVenue } from '../../lib/partner-context';
 import { z } from 'zod';
 import {
   createScannerSession,
   getQrSecret,
   validateScannerSession,
   touchScannerSession,
+  hashScannerSessionToken,
 } from '../../lib/scannerSessions';
 import {
   getScannerSummarySnapshot,
@@ -19,6 +21,7 @@ import {
   updateScannerSummary,
   upsertScannerDeviceState,
 } from '../../lib/scannerLiveState';
+import { verifyPassword } from '../../lib/encryption';
 
 const ScanBody = z
   .object({
@@ -63,8 +66,27 @@ const CodeIdParam = z.object({ id: z.string() }).strict();
 const DeleteCodesBody = z.object({ revokedBy: z.string().optional() }).strict();
 
 const AuthBody = z.object({ code: z.string() }).strict();
-const StatsQuery = z.object({ code: z.string() }).strict();
+const StatsQuery = z
+  .object({ code: z.string().optional(), eventId: z.string().optional() })
+  .strict();
 const GuestlistQuery = z.object({ eventId: z.string(), eventCode: z.string().optional() }).strict();
+
+const StaffLoginBody = z
+  .object({
+    idToken: z.string().optional(),
+    email: z.string().email().optional(),
+    password: z.string().optional(),
+  })
+  .strict();
+const StaffEventsQuery = z.object({ venueId: z.string(), date: z.string().optional() }).strict();
+const StaffSessionBody = z
+  .object({
+    eventId: z.string(),
+    venueId: z.string(),
+    userId: z.string(),
+    role: z.string(),
+  })
+  .strict();
 
 const DoorEntryBody = z
   .object({
@@ -92,13 +114,37 @@ const WalkInBody = z
     eventId: z.string(),
     venueId: z.string(),
     guestName: z.string(),
-    guestAge: z.number().int().min(0).max(120).optional(),
-    guestPhone: z.string().optional(),
+    age: z.number().int().min(0).max(120).optional().default(0),
+    contact: z.string().optional(),
+    gender: z.string().optional(),
+    totalGuests: z.number().int().min(1).max(100).optional().default(1),
     gate: z.string().optional(),
   })
   .strict();
 
 const WalkInQuery = z
+  .object({
+    eventId: z.string(),
+    eventCode: z.string(),
+    limit: z.string().optional(),
+  })
+  .strict();
+
+const DineInBody = z
+  .object({
+    eventCode: z.string(),
+    eventId: z.string(),
+    venueId: z.string(),
+    guestName: z.string(),
+    age: z.number().int().min(0).max(120).optional().default(0),
+    contact: z.string().optional(),
+    gender: z.string().optional().default('male'),
+    totalGuests: z.number().int().min(1).max(100).optional().default(1),
+    gate: z.string().optional(),
+  })
+  .strict();
+
+const DineInQuery = z
   .object({
     eventId: z.string(),
     eventCode: z.string(),
@@ -170,12 +216,15 @@ async function validateScannerAccess(
   fastify: FastifyInstance,
   request: any,
 ): Promise<ScannerAuthResult> {
-  const authHeader = (request.headers.authorization as string) || '';
+  const authHeader =
+    (request.headers.authorization as string) ||
+    (request.headers['x-scanner-code'] as string) ||
+    '';
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) return { authorized: false, usingFirebase: false };
 
   try {
-    const decoded = await (fastify as any).firebase.auth().verifyIdToken(token);
+    const decoded = await (fastify as any).auth.verifyIdToken(token);
     request.user = { ...(request.user || {}), ...decoded };
     return { authorized: true, usingFirebase: true };
   } catch {}
@@ -238,6 +287,12 @@ async function requireEventManagementAccess(
   }
 
   try {
+    const ctx = await resolvePartnerContext(fastify.db, request);
+    if (ctx && (ctx.partnerId === partnerId || ctx.venueIds.includes(partnerId))) {
+      return { allowed: true, event };
+    }
+
+    // Fallback to strict dashboard admin check if resolvePartnerContext didn't match
     await (fastify as any).verifyPartnerAccess(request, partnerId);
     return { allowed: true, event };
   } catch {
@@ -1005,35 +1060,46 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ querystring: StatsQuery })],
     },
     async (request: any, reply) => {
-      const { code } = request.query as any;
-      if (!code) return reply.status(400).send({ error: 'code required' });
+      const { code, eventId } = request.query as any;
+      if (!code && !eventId) {
+        return reply.status(400).send({ error: 'code or eventId required' });
+      }
 
       const auth = await validateScannerAccess(fastify, request);
       if (!auth.authorized) return scannerSessionError(reply);
 
-      const normalizedCode = code.toUpperCase().trim();
-      if (!matchesScannerContext(auth, { eventCode: normalizedCode })) {
-        return scannerSessionError(reply);
-      }
-      const cacheKey = `scan:stats:${normalizedCode}`;
-      const cached = await fastify.cache.get('scan:stats', cacheKey);
-      if (cached) return cached;
+      let targetEventId = eventId;
+      let normalizedCode = code?.toUpperCase().trim();
 
-      const codeSnap = await fastify.db
-        .collection('event_codes')
-        .where('code', '==', normalizedCode)
-        .limit(1)
-        .get();
-      if (codeSnap.empty) return reply.status(404).send({ error: 'Invalid event code' });
-      const codeData = codeSnap.docs[0].data();
-      if (codeData.isRevoked) return reply.status(403).send({ error: 'Code revoked' });
+      if (!targetEventId && normalizedCode) {
+        if (!matchesScannerContext(auth, { eventCode: normalizedCode })) {
+          return scannerSessionError(reply);
+        }
+        const codeSnap = await fastify.db
+          .collection('event_codes')
+          .where('code', '==', normalizedCode)
+          .limit(1)
+          .get();
+        if (codeSnap.empty) return reply.status(404).send({ error: 'Invalid event code' });
+        const codeData = codeSnap.docs[0].data();
+        if (codeData.isRevoked) return reply.status(403).send({ error: 'Code revoked' });
+        targetEventId = codeData.eventId;
+      }
+
+      if (!targetEventId) {
+        return reply.status(400).send({ error: 'Unable to resolve event context' });
+      }
 
       if (auth.usingFirebase) {
-        const access = await requireEventManagementAccess(fastify, request, codeData.eventId);
+        const access = await requireEventManagementAccess(fastify, request, targetEventId);
         if (!access.allowed) return reply.status(access.status).send({ error: access.error });
       }
 
-      const summary = await getScannerSummarySnapshot(fastify.db, codeData.eventId);
+      const cacheKey = `scan:stats:${targetEventId}`;
+      const cached = await fastify.cache.get('scan:stats', cacheKey);
+      if (cached) return cached;
+
+      const summary = await getScannerSummarySnapshot(fastify.db, targetEventId);
       const result = {
         totalEntered: summary.totalEntered,
         prebooked: summary.checkedIn,
@@ -1042,7 +1108,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         walkIns: summary.walkIns,
         byEntryType: summary.entryTypeCounts,
       };
-      await fastify.cache.set('scan:stats', cacheKey, result, 20); // 20s TTL — fresh enough for scanner UI
+      await fastify.cache.set('scan:stats', cacheKey, result, 20); // 20s TTL
       if (auth.sessionRef) {
         void touchScannerSession(auth.sessionRef);
       }
@@ -1358,7 +1424,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       preHandler: [fastify.validate({ body: WalkInBody })],
     },
     async (request: any, reply) => {
-      const { eventCode, eventId, venueId, guestName, guestAge, guestPhone, gate } =
+      const { eventCode, eventId, venueId, guestName, age, contact, gender, totalGuests, gate } =
         request.body as any;
       if (!eventCode || !eventId || !venueId || !guestName?.trim())
         return reply.status(400).send({ success: false, error: 'Missing required fields' });
@@ -1374,50 +1440,33 @@ export default async function scanRoutes(fastify: FastifyInstance) {
           return reply.status(access.status).send({ success: false, error: access.error });
       }
 
-      const codeSnap = await fastify.db
-        .collection('event_codes')
-        .where('code', '==', eventCode.toUpperCase())
-        .limit(1)
-        .get();
-      if (codeSnap.empty || codeSnap.docs[0].data().isRevoked)
-        return reply.status(403).send({ success: false, error: 'Invalid or revoked event code' });
+      // Security check is already handled by validateScannerAccess and matchesScannerContext
 
       const { randomUUID } = await import('node:crypto');
       const id = randomUUID();
       const now = new Date().toISOString();
-      const phone = guestPhone?.trim() || '';
+      const phone = contact?.trim() || '';
 
       const entry = {
         id,
+        idempotencyKey: id,
         eventId,
         venueId,
         guestName: guestName.trim(),
-        guestAge: guestAge ?? null,
-        phoneFull: phone || null,
-        phoneHash: phone ? phone.slice(-4) : '',
-        gate: gate || null,
-        eventCode: eventCode.toUpperCase(),
-        partySize: 1,
-        category: 'general',
-        paymentMode: 'complimentary',
-        amountPaise: 0,
-        status: 'active',
+        age: age ?? null,
+        gender: gender || null,
+        totalGuests: totalGuests || 1,
+        contact: phone || '',
+        category: 'walkin',
+        paymentMode: 'cash',
         source: 'scanner',
-        note: '',
-        idempotencyKey: id,
+        status: 'active',
+        addedAt: now,
         addedBy: `scanner_${eventCode.toUpperCase()}`,
         addedByName: 'Scanner App',
-        addedAt: now,
-        lastEditedBy: null,
-        updatedAt: now,
       };
 
-      await fastify.db
-        .collection('walk_in_entries')
-        .doc(eventId)
-        .collection('logs')
-        .doc(id)
-        .set(entry);
+      await fastify.db.collection('door_sales').doc(id).set(entry);
 
       const liveWhen = new Date().toISOString();
       await Promise.allSettled([
@@ -1472,18 +1521,12 @@ export default async function scanRoutes(fastify: FastifyInstance) {
         if (!access.allowed) return reply.status(access.status).send({ error: access.error });
       }
 
-      const codeSnap = await fastify.db
-        .collection('event_codes')
-        .where('code', '==', eventCode.toUpperCase())
-        .limit(1)
-        .get();
-      if (codeSnap.empty || codeSnap.docs[0].data().isRevoked)
-        return reply.status(403).send({ error: 'Invalid or revoked event code' });
+      // Security check is already handled by validateScannerAccess and matchesScannerContext
 
       const snap = await fastify.db
-        .collection('walk_in_entries')
-        .doc(eventId)
-        .collection('logs')
+        .collection('door_sales')
+        .where('eventId', '==', eventId)
+        .where('category', '==', 'walkin')
         .where('status', '==', 'active')
         .orderBy('addedAt', 'desc')
         .limit(Number(limit))
@@ -1491,6 +1534,109 @@ export default async function scanRoutes(fastify: FastifyInstance) {
 
       return {
         walkIns: snap.docs.map((d: any) => ({ id: d.id, ...d.data(), phoneFull: undefined })),
+      };
+    },
+  );
+
+  /**
+   * POST /api/v1/scan/dine-in
+   * Log a dine-in guest (adds to active dinein_sessions)
+   */
+  fastify.post(
+    '/dine-in',
+    {
+      preHandler: [fastify.validate({ body: DineInBody })],
+    },
+    async (request: any, reply) => {
+      const { eventCode, eventId, venueId, guestName, totalGuests, contact, gender, age, gate } =
+        request.body as any;
+      if (!eventCode || !eventId || !venueId || !guestName?.trim())
+        return reply.status(400).send({ success: false, error: 'Missing required fields' });
+
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized) return scannerSessionError(reply);
+      if (!matchesScannerContext(auth, { eventId, eventCode, venueId })) {
+        return scannerSessionError(reply);
+      }
+      if (auth.usingFirebase) {
+        const access = await requireEventManagementAccess(fastify, request, eventId);
+        if (!access.allowed)
+          return reply.status(access.status).send({ success: false, error: access.error });
+      }
+
+      // Security check is already handled by validateScannerAccess and matchesScannerContext
+
+      const { randomUUID } = await import('node:crypto');
+      const id = randomUUID();
+      const now = new Date().toISOString();
+
+      const entry = {
+        id,
+        idempotencyKey: id,
+        eventId,
+        venueId,
+        guestName: guestName.trim(),
+        age: age || 0,
+        gender: gender || 'male',
+        totalGuests: totalGuests || 1,
+        contact: contact?.trim() || '',
+        category: 'dinein',
+        paymentMode: 'cash',
+        source: 'scanner',
+        status: 'active',
+        addedAt: now,
+        addedBy: `scanner_${eventCode.toUpperCase()}`,
+        addedByName: 'Scanner App',
+      };
+
+      await fastify.db.collection('door_sales').doc(id).set(entry);
+
+      const liveWhen = new Date().toISOString();
+      if (auth.sessionRef) {
+        await touchScannerSession(auth.sessionRef, liveWhen).catch(() => {});
+      }
+
+      return { success: true, dineInId: id };
+    },
+  );
+
+  /**
+   * GET /api/v1/scan/dine-in?eventId=&eventCode=
+   * List recent active dine-ins for the event (scanner app pull-to-refresh)
+   */
+  fastify.get(
+    '/dine-in',
+    {
+      preHandler: [fastify.validate({ querystring: DineInQuery })],
+    },
+    async (request: any, reply) => {
+      const { eventId, eventCode, limit = '50' } = request.query as any;
+      if (!eventId || !eventCode)
+        return reply.status(400).send({ error: 'eventId and eventCode are required' });
+
+      const auth = await validateScannerAccess(fastify, request);
+      if (!auth.authorized) return scannerSessionError(reply);
+      if (!matchesScannerContext(auth, { eventId, eventCode })) {
+        return scannerSessionError(reply);
+      }
+      if (auth.usingFirebase) {
+        const access = await requireEventManagementAccess(fastify, request, eventId);
+        if (!access.allowed) return reply.status(access.status).send({ error: access.error });
+      }
+
+      // Security check is already handled by validateScannerAccess and matchesScannerContext
+
+      const snap = await fastify.db
+        .collection('door_sales')
+        .where('eventId', '==', eventId)
+        .where('category', '==', 'dinein')
+        .where('status', '==', 'active')
+        .orderBy('addedAt', 'desc')
+        .limit(Number(limit))
+        .get();
+
+      return {
+        entries: snap.docs.map((d: any) => ({ id: d.id, ...d.data() })),
       };
     },
   );
@@ -1823,6 +1969,218 @@ export default async function scanRoutes(fastify: FastifyInstance) {
       const { generateEntitlementQR } = await import('@c1rcle/core/entitlement-engine');
       const qr = generateEntitlementQR(id);
       return { ...qr, rawData: JSON.stringify(qr) };
+    },
+  );
+
+  /**
+   * POST /api/v1/scan/staff-login
+   * Authenticate staff using email and password
+   */
+  fastify.post(
+    '/staff-login',
+    {
+      preHandler: [fastify.validate({ body: StaffLoginBody })],
+    },
+    async (request: any, reply) => {
+      const { idToken, email, password } = request.body as any;
+
+      if (!idToken && (!email || !password)) {
+        return reply.status(400).send({ error: 'Either idToken or email/password is required' });
+      }
+
+      let normalizedEmail = '';
+      let verifiedUid = '';
+
+      if (idToken) {
+        try {
+          const decodedToken = await fastify.auth.verifyIdToken(idToken);
+          normalizedEmail = decodedToken.email?.toLowerCase().trim() || '';
+          verifiedUid = decodedToken.uid;
+        } catch (error) {
+          fastify.log.error({ error }, 'Invalid Firebase ID token in staff-login');
+          return reply.status(401).send({ error: 'Invalid or expired authentication token' });
+        }
+      } else {
+        normalizedEmail = email.toLowerCase().trim();
+      }
+
+      if (!normalizedEmail) {
+        return reply.status(401).send({ error: 'Invalid email' });
+      }
+
+      const staffSnap = await fastify.db
+        .collection('venue_staff')
+        .where('email', '==', normalizedEmail)
+        .get();
+
+      if (staffSnap.empty) {
+        return reply.status(401).send({ error: 'Invalid email or password' });
+      }
+
+      // Check for active and verified staff doc
+      const validDocs = staffSnap.docs.filter((doc: any) => {
+        const data = doc.data();
+        return data.status !== 'removed' && data.verified === true && data.isActive === true;
+      });
+
+      if (validDocs.length === 0) {
+        return reply.status(401).send({ error: 'Account is inactive, removed, or not verified.' });
+      }
+
+      const staffDoc = validDocs[0];
+      const staffData = staffDoc.data();
+
+      // Check if password matches if not using idToken
+      if (!idToken) {
+        let isMatch = false;
+        if (staffData.password) {
+          isMatch = verifyPassword(password, staffData.password);
+        } else if (staffData.tempPassword) {
+          isMatch = password === staffData.tempPassword;
+        }
+
+        if (!isMatch) {
+          return reply.status(401).send({ error: 'Invalid email or password' });
+        }
+      }
+
+      return {
+        success: true,
+        userId: staffData.userId || staffDoc.id,
+        venueId: staffData.venueId,
+        role: staffData.role || 'DOOR',
+      };
+    },
+  );
+
+  /**
+   * GET /api/v1/scan/events
+   * Fetch today's events for a venueId
+   */
+  fastify.get(
+    '/events',
+    {
+      preHandler: [fastify.validate({ querystring: StaffEventsQuery })],
+    },
+    async (request: any, reply) => {
+      const { venueId, date } = request.query as any;
+
+      let targetDateStr = date;
+      if (date === 'today') {
+        const now = new Date();
+        const kolkataTime = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+        targetDateStr = kolkataTime.toISOString().split('T')[0];
+      }
+
+      let query = fastify.db.collection('events').where('venueId', '==', venueId);
+      if (targetDateStr) {
+        query = query.where('startDate', '==', targetDateStr);
+      }
+
+      const snap = await query.get();
+      const events = snap.docs
+        .map((d: any) => ({ id: d.id, ...d.data() }))
+        .filter((e: any) => !e.isDeleted && e.status !== 'draft');
+
+      return { events };
+    },
+  );
+
+  /**
+   * POST /api/v1/scan/staff/session
+   * Establish a scanner session for the selected event
+   */
+  fastify.post(
+    '/staff/session',
+    {
+      preHandler: [fastify.validate({ body: StaffSessionBody })],
+    },
+    async (request: any, reply) => {
+      const { eventId, venueId, userId, role } = request.body as any;
+
+      const eventDoc = await fastify.db.collection('events').doc(eventId).get();
+      if (!eventDoc.exists || eventDoc.data()?.isDeleted) {
+        return reply.status(404).send({ error: 'Event not found' });
+      }
+
+      const event = eventDoc.data();
+
+      const sessionToken = randomBytes(24).toString('hex');
+      const sessionId = hashScannerSessionToken(sessionToken);
+      const sessionExpiresAt = new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+
+      await fastify.db
+        .collection('scanner_auth_sessions')
+        .doc(sessionId)
+        .set({
+          codeId: 'staff_' + userId,
+          code: 'STAFF',
+          codeType: 'full',
+          eventId,
+          venueId,
+          createdAt: new Date().toISOString(),
+          lastUsedAt: new Date().toISOString(),
+          expiresAt: sessionExpiresAt,
+          revokedAt: null,
+          isStaffSession: true,
+          userId,
+          role,
+        });
+
+      const stats = await getScannerSummarySnapshot(fastify.db, eventId);
+
+      let tiers: any[] = [];
+      const tierSnap = await fastify.db
+        .collection('events')
+        .doc(eventId)
+        .collection('ticketing')
+        .get();
+
+      if (!tierSnap.empty) {
+        tiers = tierSnap.docs.map((d: any) => {
+          const t = d.data();
+          return {
+            id: d.id,
+            name: t.name,
+            price: t.price || 0,
+            entryType: t.entryType || 'general',
+            available: (t.remaining ?? t.quantity ?? 0) > 0,
+          };
+        });
+      } else {
+        tiers = (event?.tickets || []).map((t: any) => ({
+          id: t.id || t.ticketId,
+          name: t.name,
+          price: t.price || 0,
+          entryType: t.entryType || 'general',
+          available: (t.remaining || t.quantity || 0) > 0,
+        }));
+      }
+
+      return {
+        valid: true,
+        code: 'STAFF',
+        sessionToken,
+        sessionExpiresAt,
+        event: {
+          id: eventDoc.id,
+          title: event?.title,
+          venue: event?.venueName || event?.venue,
+          venueId: event?.venueId,
+          date: event?.startDate,
+          startTime: event?.startTime,
+          endTime: event?.endTime,
+          capacity: event?.capacity || 500,
+          imageUrl: event?.image || event?.coverImage,
+        },
+        permissions: {
+          canScan: true,
+          canDoorEntry: true,
+        },
+        tiers,
+        gate: 'Main Gate',
+        stats,
+      };
     },
   );
 }
