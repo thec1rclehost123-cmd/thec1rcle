@@ -354,13 +354,34 @@ export async function getPartnerProfileSummary(db: any, id: string) {
 
   const resolvedUserData = userSnap?.exists ? userSnap.data() || {} : {};
   const onboardingData = (onboarding?.data || onboarding || {}) as Record<string, any>;
+
+  const resolvedEmail =
+    pickString(
+      doc.email,
+      doc.supportEmail,
+      doc.contactEmail,
+      doc.promoterEmail,
+      resolvedUserData.email,
+      onboardingData.email,
+    ) || null;
+
+  const resolvedPhone =
+    pickString(
+      doc.phone,
+      doc.contactPhone,
+      doc.legalPhone,
+      doc.phoneNumber,
+      onboardingData.phone,
+      resolvedUserData.phoneNumber,
+    ) || null;
+
   const socialLinks = normalizeSocialLinks(onboardingData.socialLinks, doc.socialLinks, {
     instagram: pickString(doc.instagram, doc.instagramHandle, onboardingData.instagram),
     x: pickString(doc.x, doc.twitter, doc.twitterHandle, onboardingData.twitter),
     website: pickString(doc.website, onboardingData.website),
     spotify: pickString(doc.spotify, onboardingData.spotify),
-    phone: pickString(doc.phone, onboardingData.phone),
-    email: pickString(doc.email, resolvedUserData.email, onboardingData.email),
+    phone: resolvedPhone || '',
+    email: resolvedEmail || '',
   });
 
   const normalizedEvents = eventDocs
@@ -402,8 +423,8 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     doc.createdAt || doc.submittedAt || resolvedUserData.createdAt || onboarding?.submittedAt,
   );
   const contactPoints = [
-    pickString(doc.email, resolvedUserData.email, onboardingData.email),
-    pickString(doc.phone, doc.contactPhone, onboardingData.phone, resolvedUserData.phoneNumber),
+    resolvedEmail,
+    resolvedPhone,
     pickString(doc.website, onboardingData.website),
     ...Object.values(socialLinks || {}),
   ].filter(Boolean).length;
@@ -437,6 +458,10 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     ),
     // SEC-8 fix: phone and email are PII — omitted from the public profile response.
     // Expose them only after verifying an active mutual connection at the call site.
+    _pii: {
+      email: resolvedEmail,
+      phone: resolvedPhone,
+    },
     avatarUrl: pickString(
       doc.profileImage,
       doc.avatar,
@@ -510,16 +535,25 @@ export async function getConnectionForViewer(
 
   const promoterId =
     viewerRole === 'promoter' ? viewerId : partnerType === 'promoter' ? partnerId : '';
-  const targetId = viewerRole === 'promoter' ? partnerId : viewerId;
+  const otherId = viewerRole === 'promoter' ? partnerId : viewerId;
+  const otherType = viewerRole === 'promoter' ? partnerType : viewerRole;
 
-  if (promoterId && targetId) {
-    const snapshot = await db
-      .collection('promoter_connections')
-      .where('promoterId', '==', promoterId)
-      .where('targetId', '==', targetId)
+  if (promoterId && otherId) {
+    let query = db.collection('promoter_connections').where('promoterId', '==', promoterId);
+
+    if (otherType === 'venue') {
+      query = query.where('venueId', '==', otherId);
+    } else if (otherType === 'host') {
+      query = query.where('hostId', '==', otherId);
+    } else {
+      query = query.where('targetId', '==', otherId);
+    }
+
+    const snapshot = await query
       .limit(1)
       .get()
       .catch(() => null);
+
     if (snapshot && !snapshot.empty) {
       const data = snapshot.docs[0].data();
       return {

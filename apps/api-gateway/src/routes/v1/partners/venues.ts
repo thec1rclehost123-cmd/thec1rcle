@@ -1369,6 +1369,50 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           });
         }
 
+        if (rest === 'promoters/connections' && request.method === 'GET') {
+          const status = (query.status as string) || 'approved';
+          const snap = await fastify.db
+            .collection('promoter_connections')
+            .where('venueId', '==', ctx.partnerId)
+            .get();
+
+          const connections = snap.docs
+            .map((doc: any) => ({ id: doc.id, ...doc.data() }))
+            .filter((c: any) => !status || c.status === status);
+
+          const promoterIds = [
+            ...new Set(connections.map((c: any) => c.promoterId).filter(Boolean)),
+          ];
+          const promoterProfiles = new Map();
+          if (promoterIds.length > 0) {
+            for (let i = 0; i < promoterIds.length; i += 30) {
+              const batch = promoterIds.slice(i, i + 30);
+              const profileSnap = await fastify.db
+                .collection('promoters')
+                .where('__name__', 'in', batch)
+                .get();
+              profileSnap.docs.forEach((d: any) => promoterProfiles.set(d.id, d.data()));
+            }
+          }
+
+          const result = connections.map((c: any) => {
+            const profile = promoterProfiles.get(c.promoterId);
+            return {
+              id: c.id,
+              promoterId: c.promoterId,
+              promoterName:
+                profile?.displayName || profile?.name || c.promoterName || 'Unknown Promoter',
+              promoterEmail: profile?.email || c.promoterEmail || '',
+              promoterPhone: profile?.phone || c.promoterPhone || '',
+              promoterInstagram: profile?.instagram || c.promoterInstagram || '',
+              status: c.status,
+              createdAt: c.createdAt || null,
+            };
+          });
+
+          return reply.send({ connections: result });
+        }
+
         if (rest === 'finance/reports/pdf' && request.method === 'GET') {
           const from = (query.from as string) || 'All Time';
           const to = (query.to as string) || 'All Time';
@@ -5609,6 +5653,13 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             partnerId,
             partnerType: profile.type,
           });
+          if (connection && (connection.status === 'active' || connection.status === 'approved')) {
+            if ((profile as any)._pii) {
+              (profile as any).email = (profile as any)._pii.email;
+              (profile as any).phone = (profile as any)._pii.phone;
+            }
+          }
+          delete (profile as any)._pii;
           return reply.send({ profile, connection });
         }
 

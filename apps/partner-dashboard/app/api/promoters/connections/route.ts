@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from 'firebase-admin/firestore';
 import { verifyAuth } from '@/lib/server/auth';
-import { getAdminApp, isFirebaseConfigured } from '@/lib/firebase/admin';
+import { GATEWAY_URL } from '@/lib/server/apiGateway';
 
 export async function GET(req: NextRequest) {
-  if (!isFirebaseConfigured()) {
-    return NextResponse.json({ error: 'Firebase not configured' }, { status: 503 });
-  }
-
   const decoded = await verifyAuth(req);
   if (!decoded) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,46 +18,39 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const db = getFirestore(getAdminApp());
+    const token = req.headers.get('authorization') || '';
 
-    let q: any = db.collection('promoter_connections');
-    if (entityType === 'promoter') {
-      q = q.where('promoterId', '==', entityId);
+    // Construct the gateway URL based on entityType
+    let gatewayPath = '';
+    const headers: Record<string, string> = {
+      Authorization: token,
+      'Content-Type': 'application/json',
+    };
+
+    if (entityType === 'venue') {
+      gatewayPath = `/api/v1/partners/venues/promoters/connections?status=${status}`;
+      headers['x-venue-id'] = entityId;
+    } else if (entityType === 'host') {
+      gatewayPath = `/api/v1/partners/hosts/promoters/connections?status=${status}`;
+      headers['x-host-id'] = entityId;
     } else {
-      q = q.where('targetId', '==', entityId);
-    }
-    if (status) q = q.where('status', '==', status);
-
-    const snap = await q.get();
-    const connections = snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-
-    const promoterIds = [...new Set(connections.map((c: any) => c.promoterId).filter(Boolean))];
-    const promoterProfiles = new Map<string, any>();
-    if (promoterIds.length > 0) {
-      for (let i = 0; i < promoterIds.length; i += 30) {
-        const batch = promoterIds.slice(i, i + 30);
-        const profileSnap = await db.collection('promoters').where('__name__', 'in', batch).get();
-        profileSnap.docs.forEach((d: any) => promoterProfiles.set(d.id, d.data()));
-      }
+      gatewayPath = `/api/v1/partners/promoters/connections?status=${status}`;
+      headers['x-partner-id'] = entityId;
     }
 
-    const result = connections.map((c: any) => {
-      const profile = promoterProfiles.get(c.promoterId);
-      return {
-        id: c.id,
-        promoterId: c.promoterId,
-        promoterName: profile?.displayName || profile?.name || c.promoterName || 'Unknown Promoter',
-        promoterEmail: profile?.email || c.promoterEmail || '',
-        promoterPhone: profile?.phone || c.promoterPhone || '',
-        promoterInstagram: profile?.instagram || c.promoterInstagram || '',
-        status: c.status,
-        createdAt: c.createdAt || null,
-      };
-    });
+    const gatewayRes = await fetch(`${GATEWAY_URL}${gatewayPath}`, { headers });
+    const payload = await gatewayRes.json();
 
-    return NextResponse.json({ connections: result });
+    if (!gatewayRes.ok) {
+      return NextResponse.json(
+        { error: payload.error?.message || 'Gateway error' },
+        { status: gatewayRes.status },
+      );
+    }
+
+    return NextResponse.json(payload);
   } catch (err: any) {
-    console.error('[promoters/connections] Error:', err);
+    console.error('[promoters/connections] Proxy Error:', err);
     return NextResponse.json({ error: err.message || 'Internal server error' }, { status: 500 });
   }
 }

@@ -806,6 +806,14 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
       }
     }
 
+    uniqueEvents.sort((a, b) => {
+      const aAssigned = assignedEventIds.includes(String(a.id));
+      const bAssigned = assignedEventIds.includes(String(b.id));
+      if (aAssigned && !bAssigned) return -1;
+      if (!aAssigned && bAssigned) return 1;
+      return 0;
+    });
+
     const validEvents: Record<string, any>[] = [];
     let nextCursor: string | null = null;
 
@@ -3356,6 +3364,13 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
           partnerId,
           partnerType: profile.type,
         });
+        if (connection && (connection.status === 'active' || connection.status === 'approved')) {
+          if ((profile as any)._pii) {
+            (profile as any).email = (profile as any)._pii.email;
+            (profile as any).phone = (profile as any)._pii.phone;
+          }
+        }
+        delete (profile as any)._pii;
         return reply.send({ profile, connection });
       } catch (err: any) {
         if (err.statusCode)
