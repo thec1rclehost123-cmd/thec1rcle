@@ -16,7 +16,7 @@ if (!secret && process.env.NODE_ENV === 'production') {
   throw new Error('ENCRYPTION_KEY environment variable is required in production');
 }
 // Keep the derivation salt stable so previously-encrypted values still decrypt.
-const key = scryptSync(secret || 'c1rcle-dev-only-insecure-key', 'salt', 32);
+const key = scryptSync(secret || 'c1rcle-super-secret-key-1234567890', 'salt', 32);
 
 /**
  * Encrypts a plaintext string to AES-256-CBC hex representation with IV prefix

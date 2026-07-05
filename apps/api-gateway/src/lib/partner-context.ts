@@ -75,6 +75,7 @@ export async function resolvePartnerContext(
   const user = request.user;
   if (!user?.uid) return null;
   const uid = String(user.uid);
+  const email = user.email ? String(user.email).toLowerCase().trim() : null;
 
   // 1. activeMembership already on request.user (fastest — no extra DB read)
   const active = user.activeMembership;
@@ -177,6 +178,34 @@ export async function resolvePartnerContext(
       venueIds: [],
       displayName: pickDisplayName(user),
     };
+  }
+
+  // 5. Staff access fallback for Scanner App/Venue Staff
+  if (email) {
+    const staffSnap = await db
+      .collection('venue_staff')
+      .where('email', '==', email)
+      .where('isActive', '==', true)
+      .limit(1)
+      .get()
+      .catch(() => null);
+
+    if (staffSnap && !staffSnap.empty) {
+      const doc = staffSnap.docs[0];
+      const data = doc.data();
+
+      // Ensure the staff member is fully verified and not removed
+      if (data.status !== 'removed' && data.verified === true) {
+        return {
+          partnerId: data.venueId,
+          uid,
+          type: 'venue',
+          roles: ['venue_staff'],
+          venueIds: [data.venueId],
+          displayName: pickDisplayName(user),
+        };
+      }
+    }
   }
 
   return null;

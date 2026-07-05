@@ -26,6 +26,7 @@ const FORWARDED_HEADERS = [
   'x-workspace-id',
   'x-request-id',
   'x-forwarded-for',
+  'x-scanner-code',
 ];
 
 function errorResponse(req: NextRequest, status: number, message: string, code?: string) {

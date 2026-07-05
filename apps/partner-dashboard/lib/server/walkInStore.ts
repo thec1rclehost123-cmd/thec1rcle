@@ -22,17 +22,12 @@ import type {
 
 const _entries = new Map<string, WalkInEntry>();
 
-function logsRef(eventId: string) {
-  return getAdminDb().collection('walk_in_entries').doc(eventId).collection('logs');
-}
-
 function maskEntry(entry: WalkInEntry, showPhone: boolean): WalkInEntry {
   if (showPhone) return entry;
-  const { phoneFull, ...rest } = entry;
   return {
-    ...rest,
+    ...entry,
     // Keep last-4 visible as a display stub
-    phoneHash: entry.phoneHash ? `****${entry.phoneHash.slice(-4)}` : '',
+    contact: entry.contact ? `****${entry.contact.slice(-4)}` : '',
   };
 }
 
@@ -51,7 +46,7 @@ export async function createWalkIn(
 
   const id = randomUUID();
   const now = new Date().toISOString();
-  const phone = payload.phone ?? '';
+  const phone = payload.contact ?? '';
   const phoneHash = phone ? phone.replace(/\s/g, '').slice(-4) : '';
 
   const entry: WalkInEntry = {
@@ -59,9 +54,8 @@ export async function createWalkIn(
     eventId,
     venueId,
     guestName: payload.guestName.trim(),
-    phoneHash,
-    phoneFull: phone || undefined,
-    partySize: Math.max(1, payload.partySize),
+    contact: phone,
+    totalGuests: Math.max(1, payload.totalGuests || 1),
     category: payload.category,
     paymentMode: payload.paymentMode,
     amountPaise: Math.round((payload.amount ?? 0) * 100),
@@ -76,7 +70,7 @@ export async function createWalkIn(
     source: 'manual',
     ...(payload.gender ? { gender: payload.gender } : {}),
     ...(payload.purpose ? { purpose: payload.purpose } : {}),
-    ...(payload.guestAge != null && payload.guestAge > 0 ? { guestAge: payload.guestAge } : {}),
+    ...(payload.age != null && payload.age > 0 ? { age: payload.age } : {}),
   };
 
   if (!isFirebaseConfigured()) {
@@ -84,7 +78,7 @@ export async function createWalkIn(
     return maskEntry(entry, piiShowPhone);
   }
 
-  await logsRef(eventId).doc(id).set(entry);
+  await getAdminDb().collection('door_sales').doc(id).set(entry);
   return maskEntry(entry, piiShowPhone);
 }
 
@@ -124,7 +118,7 @@ export async function listWalkIns(
     const totals = {
       count: page.length,
       totalPaise: page.reduce((s, e) => s + e.amountPaise, 0),
-      partySize: page.reduce((s, e) => s + e.partySize, 0),
+      totalGuests: page.reduce((s, e) => s + e.totalGuests, 0),
     };
 
     return {
@@ -138,15 +132,11 @@ export async function listWalkIns(
   const db = getAdminDb();
   // Avoid composite index requirement by using single-field filter only;
   // sort by addedAt is applied client-side after fetching.
-  let q: FirebaseFirestore.Query = logsRef(params.eventId ?? '_no_event').where(
-    'status',
-    '==',
-    'active',
-  );
-
-  if (!params.eventId) {
-    // Cross-event query — need collection group
-    // Fall through to collection group below
+  let q: FirebaseFirestore.Query = getAdminDb()
+    .collection('door_sales')
+    .where('status', '==', 'active');
+  if (params.eventId) {
+    q = q.where('eventId', '==', params.eventId);
   }
 
   if (params.fromDate) {
@@ -162,9 +152,7 @@ export async function listWalkIns(
     q = q.where('paymentMode', '==', params.paymentMode);
   }
   if (params.cursor) {
-    const cursorDoc = await logsRef(params.eventId ?? '_no_event')
-      .doc(params.cursor)
-      .get();
+    const cursorDoc = await getAdminDb().collection('door_sales').doc(params.cursor).get();
     if (cursorDoc.exists) {
       q = q.startAfter(cursorDoc);
     }
@@ -185,7 +173,7 @@ export async function listWalkIns(
         e.guestName.toLowerCase().includes(ql) ||
         e.note.toLowerCase().includes(ql) ||
         e.addedByName.toLowerCase().includes(ql) ||
-        (piiShowPhone && e.phoneFull?.includes(ql)),
+        (piiShowPhone && e.contact?.includes(ql)),
     );
   }
 
@@ -196,7 +184,7 @@ export async function listWalkIns(
   const totals = {
     count: page.length,
     totalPaise: page.reduce((s, e) => s + e.amountPaise, 0),
-    partySize: page.reduce((s, e) => s + e.partySize, 0),
+    totalGuests: page.reduce((s, e) => s + e.totalGuests, 0),
   };
 
   return {
@@ -215,7 +203,7 @@ export async function updateWalkIn(
   updates: Partial<
     Pick<
       WalkInEntry,
-      'guestName' | 'partySize' | 'category' | 'paymentMode' | 'amountPaise' | 'note'
+      'guestName' | 'totalGuests' | 'category' | 'paymentMode' | 'amountPaise' | 'note'
     >
   >,
   actor: { uid: string },
@@ -231,7 +219,8 @@ export async function updateWalkIn(
     return maskEntry(merged, piiShowPhone);
   }
 
-  await logsRef(eventId)
+  await getAdminDb()
+    .collection('door_sales')
     .doc(logId)
     .update({
       ...updates,
@@ -239,7 +228,7 @@ export async function updateWalkIn(
       updatedAt: now,
     });
 
-  const doc = await logsRef(eventId).doc(logId).get();
+  const doc = await getAdminDb().collection('door_sales').doc(logId).get();
   return maskEntry({ id: doc.id, ...doc.data() } as WalkInEntry, piiShowPhone);
 }
 
@@ -258,7 +247,7 @@ export async function voidWalkIn(
     return;
   }
 
-  await logsRef(eventId).doc(logId).update({
+  await getAdminDb().collection('door_sales').doc(logId).update({
     status: 'void',
     lastEditedBy: actor.uid,
     updatedAt: now,
@@ -275,7 +264,12 @@ async function getByIdempotencyKey(eventId: string, key: string): Promise<WalkIn
     return null;
   }
 
-  const snap = await logsRef(eventId).where('idempotencyKey', '==', key).limit(1).get();
+  const snap = await getAdminDb()
+    .collection('door_sales')
+    .where('eventId', '==', eventId)
+    .where('idempotencyKey', '==', key)
+    .limit(1)
+    .get();
 
   if (snap.empty) return null;
   return { id: snap.docs[0].id, ...snap.docs[0].data() } as WalkInEntry;
@@ -291,7 +285,11 @@ export async function getWalkInEventSummary(eventId: string): Promise<{
     return { totalEntries: 0, totalPaise: 0, totalPartySize: 0, byPaymentMode: {} };
   }
 
-  const snap = await logsRef(eventId).where('status', '==', 'active').get();
+  const snap = await getAdminDb()
+    .collection('door_sales')
+    .where('eventId', '==', eventId)
+    .where('status', '==', 'active')
+    .get();
 
   const entries = snap.docs.map((d: any) => d.data() as WalkInEntry);
 
@@ -303,7 +301,7 @@ export async function getWalkInEventSummary(eventId: string): Promise<{
   return {
     totalEntries: entries.length,
     totalPaise: entries.reduce((s: number, e: WalkInEntry) => s + e.amountPaise, 0),
-    totalPartySize: entries.reduce((s: number, e: WalkInEntry) => s + e.partySize, 0),
+    totalPartySize: entries.reduce((s: number, e: WalkInEntry) => s + (e.totalGuests || 1), 0),
     byPaymentMode,
   };
 }

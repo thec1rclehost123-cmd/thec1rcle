@@ -2,8 +2,8 @@
  * useEventAttendees
  *
  * Aggregates attendees from two live sources:
- *   1. Guest list  — /api/partners/venues/guest-ops/[id]/guests        (online purchases + manual adds)
- *   2. Scanner stream — /api/partners/venues/guest-ops/[id]/scanner/stream  (door / offline scans)
+ *   1. Online orders — /api/partners/venues/events/[id]/attendees  (online purchases + manual adds)
+ *   2. Walk-ins      — /api/partners/venues/walk-ins/[id]          (door / scanner walk-in entries)
  *
  * Both are polled every 30 s. When the backend fails, the hook exposes an
  * explicit error state and clears rendered attendee data.
@@ -20,7 +20,7 @@ export interface Attendee {
   id: string;
   name: string;
   avatarUrl?: string;
-  /** Total tickets held (online qty + door scans) */
+  /** Total tickets held (online qty + door walk-ins) */
   tickets: number;
   /** Total amount paid in ₹ */
   totalSpend: number;
@@ -49,6 +49,7 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
   const { user } = useDashboardAuth();
 
   const [attendees, setAttendees] = useState<Attendee[]>([]);
+  const [totalCount, setTotalCount] = useState<number>(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isError, setIsError] = useState(false);
 
@@ -74,7 +75,7 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
   );
 
   // ── Normalise a record from /api/partners/venues/events/[id]/attendees → Attendee ───
-  function normaliseRow(raw: any): Attendee {
+  function normaliseOrderRow(raw: any): Attendee {
     const contact: ContactChannel[] = [];
     if (raw.instagram) contact.push('instagram');
     if (raw.phone) contact.push('phone');
@@ -100,23 +101,65 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
     };
   }
 
+  // ── Normalise a walk-in record from /api/partners/venues/walk-ins/[id] → Attendee ──
+  function normaliseWalkInRow(raw: any): Attendee {
+    const contact: ContactChannel[] = [];
+    if (raw.contact) contact.push('phone');
+
+    const tags: string[] = [];
+    if (raw.category && raw.category !== 'general') {
+      tags.push(String(raw.category).toUpperCase());
+    }
+
+    return {
+      id: `walkin_${raw.id || raw.addedAt}`,
+      name: raw.guestName || 'Guest',
+      avatarUrl: undefined,
+      tickets: Number(raw.totalGuests ?? 1),
+      totalSpend: Number(raw.amountPaise ?? 0) / 100,
+      contact,
+      tags,
+      lastPurchase: raw.addedAt || raw.createdAt || new Date().toISOString(),
+      source: 'door',
+    };
+  }
+
   // ── Core fetch ──────────────────────────────────────────────────────────
   const fetchAll = useCallback(async () => {
     if (!eventId || !mountedRef.current) return;
 
     try {
-      const res = await authedFetch(`/api/partners/venues/events/${eventId}/attendees?limit=100`);
+      // Fetch both sources in parallel
+      const [attendeesRes, walkInsRes] = await Promise.all([
+        authedFetch(`/api/partners/venues/events/${eventId}/attendees?limit=100`),
+        authedFetch(`/api/partners/venues/walk-ins/${eventId}`),
+      ]);
 
       if (!mountedRef.current) return;
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
+      if (!attendeesRes.ok && !walkInsRes.ok) {
+        throw new Error(`HTTP ${attendeesRes.status}`);
       }
 
-      const data = await res.json();
-      const rows: Attendee[] = (data.attendees ?? []).map(normaliseRow);
+      // Parse online attendees
+      let orderRows: Attendee[] = [];
+      if (attendeesRes.ok) {
+        const data = await attendeesRes.json();
+        orderRows = (data.attendees ?? []).map(normaliseOrderRow);
+      }
 
-      setAttendees(rows);
+      // Parse walk-in entries
+      let walkInRows: Attendee[] = [];
+      if (walkInsRes.ok) {
+        const walkInData = await walkInsRes.json();
+        // Walk-ins endpoint returns { logs: [...] } when queried by eventId
+        const logs: any[] = walkInData.logs ?? walkInData.entries ?? [];
+        walkInRows = logs.filter((r: any) => r.status !== 'void').map(normaliseWalkInRow);
+      }
+
+      const merged = [...orderRows, ...walkInRows];
+      setAttendees(merged);
+      setTotalCount(merged.length);
       setIsError(false);
     } catch (err: any) {
       if (!mountedRef.current) return;
@@ -136,6 +179,7 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
     }
     setIsLoading(true);
     setAttendees([]);
+    setTotalCount(0);
     fetchAll();
   }, [eventId, fetchAll]);
 
@@ -148,7 +192,7 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
 
   return {
     attendees,
-    totalCount: attendees.length,
+    totalCount,
     isLoading,
     isError,
     refresh: fetchAll,

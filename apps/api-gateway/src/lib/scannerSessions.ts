@@ -115,6 +115,28 @@ export async function validateScannerSession(
     return { authorized: false };
   }
 
+  if (sessionData?.isStaffSession) {
+    const virtualData = {
+      code: sessionData.code || 'STAFF',
+      eventId: sessionData.eventId,
+      venueId: sessionData.venueId,
+      type: 'full',
+      isStaffSession: true,
+    };
+    return {
+      authorized: true,
+      sessionId,
+      sessionRef,
+      sessionData,
+      codeDoc: {
+        id: sessionData.codeId || 'staff_' + sessionData.userId,
+        exists: true,
+        data: () => virtualData,
+      } as any,
+      codeData: virtualData,
+    };
+  }
+
   const codeDoc = await db.collection('event_codes').doc(sessionData.codeId).get();
   if (!codeDoc.exists) return { authorized: false };
 

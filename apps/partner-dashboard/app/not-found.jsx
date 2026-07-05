@@ -58,7 +58,7 @@ export default function NotFound() {
             </Link>
 
             <Link
-              href="/explore"
+              href={`${process.env.NEXT_PUBLIC_GUEST_PORTAL_URL || ''}/explore`}
               className="group inline-flex items-center justify-center gap-2 rounded-full border border-white/20 bg-white/5 px-8 py-3 text-sm font-bold text-white backdrop-blur-md transition-all hover:bg-white/10 hover:border-white/40"
             >
               <Search className="h-4 w-4" />
