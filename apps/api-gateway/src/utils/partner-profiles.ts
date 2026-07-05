@@ -1,3 +1,5 @@
+import { signStorageUrl } from '../lib/signed-urls.js';
+
 export type PartnerEntityType = 'venue' | 'host' | 'promoter';
 
 function toIso(value: any): string | null {
@@ -437,17 +439,19 @@ export async function getPartnerProfileSummary(db: any, id: string) {
     ),
     // SEC-8 fix: phone and email are PII — omitted from the public profile response.
     // Expose them only after verifying an active mutual connection at the call site.
-    avatarUrl: pickString(
-      doc.profileImage,
-      doc.avatar,
-      doc.avatarUrl,
-      doc.photoURL,
-      doc.photoUrl,
-      doc.logoUrl,
-      doc.logoImage,
-      doc.logo,
+    avatarUrl: await signStorageUrl(
+      pickString(
+        doc.profileImage,
+        doc.avatar,
+        doc.avatarUrl,
+        doc.photoURL,
+        doc.photoUrl,
+        doc.logoUrl,
+        doc.logoImage,
+        doc.logo,
+      ),
     ),
-    coverImageUrl: pickString(doc.coverImage, doc.bannerImage, doc.heroImage),
+    coverImageUrl: await signStorageUrl(pickString(doc.coverImage, doc.bannerImage, doc.heroImage)),
     website: pickString(doc.website, onboardingData.website),
     socialLinks,
     isVerified: Boolean(

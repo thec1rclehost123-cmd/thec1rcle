@@ -6,6 +6,14 @@ import {
   buildGuestProfileUpdates,
   normalizeGuestProfile,
 } from '../../lib/guest-auth';
+import {
+  enrichHostProfileWithSignedUrls,
+  cleanHostProfilePatch,
+  enrichPromoterProfileWithSignedUrls,
+  cleanPromoterProfilePatch,
+  enrichVenueProfileWithSignedUrls,
+  cleanVenueProfilePatch,
+} from '../../lib/signed-urls.js';
 
 const ProfileIdParam = z.object({ id: z.string() }).strict();
 const ProfileTypeQuery = z.object({ type: z.string().optional() }).strict();
@@ -83,6 +91,10 @@ export default async function profileRoutes(fastify: FastifyInstance) {
     'socialLinks',
     'website',
     'username',
+    'coverImage',
+    'coverURL',
+    'backdropURL',
+    'email',
   ];
 
   const ALLOWED_HOST_PROFILE_FIELDS = [
@@ -158,7 +170,8 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           if (!doc.exists) {
             return { profile: { id: profileId } };
           }
-          return { profile: { id: doc.id, ...doc.data() } };
+          const enriched = await enrichPromoterProfileWithSignedUrls({ id: doc.id, ...doc.data() });
+          return { profile: enriched };
         }
 
         if (type === 'host') {
@@ -167,6 +180,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Host not found' });
           }
           const profile = { id: doc.id, ...doc.data() };
+          const enriched = await enrichHostProfileWithSignedUrls(profile);
 
           let statsObj = { followersCount: 0, postsCount: 0, totalLikes: 0, totalViews: 0 };
           if (stats === 'true') {
@@ -192,7 +206,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           ]);
 
           return {
-            profile,
+            profile: enriched,
             stats: statsObj,
             posts,
             highlights,
@@ -205,6 +219,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
             return reply.status(404).send({ error: 'Venue not found' });
           }
           const profile = { id: doc.id, ...doc.data() };
+          const enriched = await enrichVenueProfileWithSignedUrls(profile);
 
           let statsObj = { followersCount: 0, postsCount: 0, totalLikes: 0, totalViews: 0 };
           if (stats === 'true') {
@@ -230,7 +245,7 @@ export default async function profileRoutes(fastify: FastifyInstance) {
           ]);
 
           return {
-            profile,
+            profile: enriched,
             stats: statsObj,
             posts,
             highlights,
@@ -268,21 +283,24 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         if (action === 'updateProfile') {
           const patch: Record<string, any> = { updatedAt: new Date().toISOString() };
           if (type === 'promoter') {
+            const cleanedData = cleanPromoterProfilePatch(data);
             for (const field of ALLOWED_PROMOTER_PROFILE_FIELDS) {
-              if (data[field] !== undefined) patch[field] = data[field];
+              if (cleanedData[field] !== undefined) patch[field] = cleanedData[field];
             }
             if (patch.displayName && patch.name === undefined) patch.name = patch.displayName;
             await fastify.db.collection('promoters').doc(profileId).set(patch, { merge: true });
           } else if (type === 'host') {
+            const cleanedData = cleanHostProfilePatch(data);
             for (const field of ALLOWED_HOST_PROFILE_FIELDS) {
-              if (data[field] !== undefined) patch[field] = data[field];
+              if (cleanedData[field] !== undefined) patch[field] = cleanedData[field];
             }
             await fastify.db.collection('hosts').doc(profileId).update(patch);
             await fastify.publicDiscoveryService.syncHostReadModels(profileId).catch(() => {});
             await fastify.invalidatePublicDiscovery('all').catch(() => {});
           } else if (type === 'venue') {
+            const cleanedData = cleanVenueProfilePatch(data);
             for (const field of ALLOWED_VENUE_PROFILE_FIELDS) {
-              if (data[field] !== undefined) patch[field] = data[field];
+              if (cleanedData[field] !== undefined) patch[field] = cleanedData[field];
             }
             await fastify.db.collection('venues').doc(profileId).update(patch);
             await fastify.publicDiscoveryService.syncVenueReadModels(profileId).catch(() => {});
@@ -512,6 +530,13 @@ export default async function profileRoutes(fastify: FastifyInstance) {
         } else {
           // Partner/Venue updates bypass guest-specific logic but should still be filtered
           safeUpdates = updates || {};
+          if (type === 'host') {
+            safeUpdates = cleanHostProfilePatch(safeUpdates);
+          } else if (type === 'promoter') {
+            safeUpdates = cleanPromoterProfilePatch(safeUpdates);
+          } else if (type === 'venue') {
+            safeUpdates = cleanVenueProfilePatch(safeUpdates);
+          }
         }
 
         await fastify.profileService.updateProfile(actualId, type as any, safeUpdates);

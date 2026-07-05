@@ -288,7 +288,14 @@ export default function SupportClient({ type }: SupportClientProps) {
 
   // File Attachment Uploads
   const [uploadedFiles, setUploadedFiles] = useState<
-    Array<{ name: string; size: string; progress: number; type: 'image' | 'doc' }>
+    Array<{
+      name: string;
+      size: string;
+      progress: number;
+      type: 'image' | 'doc';
+      url?: string | null;
+      error?: boolean;
+    }>
   >([]);
   const [uploadingFile, setUploadingFile] = useState(false);
 
@@ -413,7 +420,10 @@ export default function SupportClient({ type }: SupportClientProps) {
     await loadData(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fileType: 'image' | 'doc') => {
+  const handleFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    fileType: 'image' | 'doc',
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -423,25 +433,63 @@ export default function SupportClient({ type }: SupportClientProps) {
 
     setUploadedFiles((prev) => [
       ...prev,
-      { name: file.name, size: sizeStr, progress: 0, type: fileType },
+      { name: file.name, size: sizeStr, progress: 5, type: fileType, url: null },
     ]);
 
-    let progress = 0;
+    let progress = 5;
     const interval = setInterval(() => {
-      progress += 15;
+      progress = Math.min(progress + 15, 90);
       setUploadedFiles((prev) => {
         const updated = [...prev];
         if (updated[newFileIdx]) {
-          updated[newFileIdx].progress = Math.min(progress, 100);
+          updated[newFileIdx].progress = progress;
         }
         return updated;
       });
+    }, 100);
 
-      if (progress >= 100) {
-        clearInterval(interval);
-        setUploadingFile(false);
+    try {
+      const token = await user?.getIdToken();
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('/api/support/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
       }
-    }, 150);
+
+      const json = await response.json();
+      clearInterval(interval);
+
+      setUploadedFiles((prev) => {
+        const updated = [...prev];
+        if (updated[newFileIdx]) {
+          updated[newFileIdx].progress = 100;
+          updated[newFileIdx].url = json.url;
+        }
+        return updated;
+      });
+    } catch (err) {
+      clearInterval(interval);
+      setUploadedFiles((prev) => {
+        const updated = [...prev];
+        if (updated[newFileIdx]) {
+          updated[newFileIdx].progress = 0;
+          updated[newFileIdx].error = true;
+        }
+        return updated;
+      });
+      setFormError('Failed to upload file.');
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   // Submit standard support ticket
@@ -459,11 +507,11 @@ export default function SupportClient({ type }: SupportClientProps) {
     try {
       const token = await user.getIdToken();
       const imagesList = uploadedFiles
-        .filter((f) => f.type === 'image' && f.progress >= 100)
-        .map(() => 'https://storage.googleapis.com/c1rcle/mock-ticket-attachment.png');
+        .filter((f) => f.type === 'image' && f.progress >= 100 && f.url)
+        .map((f) => f.url);
       const docsList = uploadedFiles
-        .filter((f) => f.type === 'doc' && f.progress >= 100)
-        .map(() => 'https://storage.googleapis.com/c1rcle/mock-ticket-document.pdf');
+        .filter((f) => f.type === 'doc' && f.progress >= 100 && f.url)
+        .map((f) => f.url);
 
       // Smart Context Harvesting
       const ctx = getSmartContextPayload();
@@ -532,11 +580,8 @@ export default function SupportClient({ type }: SupportClientProps) {
     try {
       const token = await user.getIdToken();
       const screenshotsList = uploadedFiles
-        .filter((f) => f.type === 'image' && f.progress >= 100)
-        .map(() => 'https://storage.googleapis.com/c1rcle/mock-screenshot.png');
-      const recordingsList = uploadedFiles
-        .filter((f) => f.type === 'doc' && f.progress >= 100)
-        .map(() => 'https://storage.googleapis.com/c1rcle/mock-screenrecord.mp4');
+        .filter((f) => f.type === 'image' && f.progress >= 100 && f.url)
+        .map((f) => f.url);
 
       const ctx = getSmartContextPayload();
 
@@ -556,7 +601,7 @@ export default function SupportClient({ type }: SupportClientProps) {
           deviceInfo: bugDevice,
           appVersion: bugVersion,
           screenshots: screenshotsList,
-          screenRecordings: recordingsList,
+          screenRecordings: [],
           partnerId: ctx.partnerId,
           currentModule: ctx.currentModule,
           errorLogs: ctx.errorLogs,
@@ -1378,38 +1423,24 @@ export default function SupportClient({ type }: SupportClientProps) {
                   </div>
                 </div>
 
-                {/* Screenshot & Recording selectors */}
+                {/* Screenshot selector */}
                 <div className="space-y-3 col-span-2">
                   <label className="text-[11px] font-black uppercase tracking-widest text-[var(--v-text-secondary)] block font-mono">
-                    Attachment Upload
+                    Screenshot Upload
                   </label>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="relative border border-[var(--v-divider)] border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleFileUpload(e, 'image')}
-                        disabled={uploadingFile}
-                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <FileImage className="h-5 w-5 text-orange-500" />
-                      <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                        Screenshot Upload
-                      </span>
-                    </div>
-                    <div className="relative border border-[var(--v-divider)] border-dashed rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer">
-                      <input
-                        type="file"
-                        accept="video/*"
-                        onChange={(e) => handleFileUpload(e, 'doc')}
-                        disabled={uploadingFile}
-                        className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
-                      />
-                      <FileText className="h-5 w-5 text-blue-500" />
-                      <span className="text-[11px] font-bold text-white uppercase tracking-wider">
-                        Recording Upload
-                      </span>
-                    </div>
+                  <div className="relative border border-[var(--v-divider)] border-dashed rounded-xl p-5 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-orange-500/40 hover:bg-white/[0.01] transition-all">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, 'image')}
+                      disabled={uploadingFile}
+                      className="absolute inset-0 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                    />
+                    <FileImage className="h-6 w-6 text-orange-500" />
+                    <span className="text-[11px] font-bold text-white uppercase tracking-wider">
+                      Upload Screenshot (PNG, JPG, or WEBP)
+                    </span>
+                    <span className="text-[9px] text-zinc-500">Max size: 5MB</span>
                   </div>
 
                   {uploadedFiles.length > 0 && (

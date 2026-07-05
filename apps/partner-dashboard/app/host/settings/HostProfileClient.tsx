@@ -315,16 +315,23 @@ export default function HostProfileClient({
       formData.append('hostId', hostId);
       formData.append('type', type);
 
-      const res = await fetch(`/api/partners/hosts/upload?hostId=${hostId}`, {
+      const res = await fetch(`/api/partners/hosts/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      const data = await res.json().catch(() => null);
+      // Log response for debugging upload issues
+      // eslint-disable-next-line no-console
+      console.debug('host upload response', { ok: res.ok, status: res.status, data });
+      if (!res.ok) throw new Error(data?.error || data?.message || 'Upload failed');
 
-      if (isLogo) setPhotoUrl(data.url);
-      else setBackdropUrl(data.url);
+      const url =
+        data?.url || data?.signedUrl || data?.data?.url || data?.path || data?.storagePath || null;
+      if (!url) throw new Error('Upload succeeded without returning a file URL');
+
+      if (isLogo) setPhotoUrl(url);
+      else setBackdropUrl(url);
       setHasChanges(true);
     } catch (err: any) {
       toastError('Upload failed', err.message || 'Could not upload photo.');
@@ -359,12 +366,18 @@ export default function HostProfileClient({
           twitter: form.twitter,
         },
       };
+      // Debug log payload so we can inspect if photoURL/backdropURL are present
+      // eslint-disable-next-line no-console
+      console.debug('HostProfile save updates (before photo fields)', updates, {
+        photoUrl,
+        backdropUrl,
+      });
       if (photoUrl) updates.photoURL = photoUrl;
       if (backdropUrl) {
         updates.backdropURL = backdropUrl;
         updates.coverURL = backdropUrl;
       }
-
+      console.log('updates host: ', updates);
       const res = await fetch(`/api/partners/hosts/profile?hostId=${hostId}`, {
         method: 'PATCH',
         headers: {

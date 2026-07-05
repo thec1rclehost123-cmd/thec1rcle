@@ -68,8 +68,16 @@ async function gatewayProxy(req: NextRequest, pathSegments: string[]): Promise<N
     const init: RequestInit = { method: req.method, headers };
 
     if (req.method !== 'GET' && req.method !== 'HEAD') {
-      const text = await req.text();
-      if (text) init.body = text;
+      const contentType = req.headers.get('content-type') || '';
+      if (contentType.includes('multipart/form-data')) {
+        const arrayBuffer = await req.arrayBuffer();
+        if (arrayBuffer.byteLength > 0) {
+          init.body = Buffer.from(arrayBuffer);
+        }
+      } else {
+        const text = await req.text();
+        if (text) init.body = text;
+      }
     }
 
     return proxyToGateway(req, targetUrl, init);

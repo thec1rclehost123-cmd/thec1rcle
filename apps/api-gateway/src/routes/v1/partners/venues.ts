@@ -14,6 +14,13 @@ import { buildErrorResponse } from '../../../lib/api-contracts.js';
 import { buildPayoutAccountRecord } from '../../../lib/partner-hardening.js';
 import { generateFinanceReportPDF } from '@c1rcle/core/ticket-pdf-engine';
 
+import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
+import {
+  signStorageUrl,
+  enrichVenueProfileWithSignedUrls,
+  cleanVenueProfilePatch,
+} from '../../../lib/signed-urls.js';
+
 const EventFiltersSchema = z
   .object({
     status: z
@@ -1308,22 +1315,26 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
       const ctx = await requireVenueContext(request, reply);
       if (!ctx) return;
 
-      const data = await request.file();
-      if (!data) {
-        return reply.status(400).send(
+      try {
+        const uploadResult = await uploadPartnerAsset(request, {
+          partnerId: ctx.partnerId,
+          partnerType: 'venue',
+        });
+        const signedUrl = await signStorageUrl(uploadResult.url);
+        return {
+          success: true,
+          url: signedUrl,
+          filename: uploadResult.filename,
+        };
+      } catch (err: any) {
+        return reply.status(err.statusCode || 500).send(
           buildErrorResponse({
-            code: 'BAD_REQUEST',
-            message: 'No file uploaded',
+            code: err.code || 'UPLOAD_FAILED',
+            message: err.message || 'Failed to upload file',
             requestId: request.id,
           }),
         );
       }
-
-      return {
-        success: true,
-        url: `https://storage.googleapis.com/c1rcle-assets/venues/${ctx.partnerId}/${data.filename}`,
-        filename: data.filename,
-      };
     },
   );
 
@@ -1363,9 +1374,10 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
               }),
             );
           const data = doc.data() || {};
+          const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...data });
           return reply.send({
-            venue: { id: doc.id, ...data },
-            profile: { id: doc.id, ...data },
+            venue: enriched,
+            profile: enriched,
           });
         }
 
@@ -1453,15 +1465,20 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
             safe.coverURL = safe.coverImage;
             safe.backdropURL = safe.coverImage;
           }
+
+          // Clean signed parameters before saving
+          cleanVenueProfilePatch(safe);
+
           safe.updatedAt = new Date().toISOString();
           await fastify.db.collection('venues').doc(ctx.partnerId).set(safe, { merge: true });
           await fastify.publicDiscoveryService.syncVenueReadModels(ctx.partnerId).catch(() => {});
           await fastify.invalidatePublicDiscovery('all').catch(() => {});
           const doc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
           const data = doc.data() || {};
+          const enriched = await enrichVenueProfileWithSignedUrls({ id: doc.id, ...data });
           return reply.send({
-            venue: { id: doc.id, ...data },
-            profile: { id: doc.id, ...data },
+            venue: enriched,
+            profile: enriched,
           });
         }
 

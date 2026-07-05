@@ -1,6 +1,13 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { FieldValue } from 'firebase-admin/firestore';
+import { randomUUID } from 'node:crypto';
+import { getAdminStorage } from '@c1rcle/core/admin';
+import {
+  enrichSupportTicketWithSignedUrls,
+  cleanSupportTicketBeforeSave,
+  signStorageUrl,
+} from '../../lib/signed-urls.js';
 
 const TicketCreateSchema = z.object({
   subject: z.string().min(1, 'Subject is required'),
@@ -98,6 +105,53 @@ export default async function supportRoutes(fastify: FastifyInstance) {
   const authHandler = [fastify.requireAuth];
 
   /**
+   * POST /api/v1/support/upload
+   * Upload an attachment for a support ticket or bug report
+   */
+  fastify.post(
+    '/upload',
+    {
+      preHandler: [...authHandler],
+    },
+    async (request: any, reply: any) => {
+      const data = await request.file();
+      if (!data) return reply.status(400).send({ error: 'No file uploaded' });
+
+      const buffer = await data.toBuffer();
+      const maxBytes = 5 * 1024 * 1024; // 5MB
+      if (buffer.length > maxBytes) {
+        return reply.status(400).send({ error: 'File must be 5MB or smaller' });
+      }
+
+      const ext = (data.filename || 'file').split('.').pop() || 'bin';
+      const userId = request.user.uid;
+      const storagePath = `support-attachments/${userId}/${Date.now()}-${randomUUID().slice(0, 8)}.${ext}`;
+
+      const bucket = getAdminStorage().bucket();
+      const file = bucket.file(storagePath);
+
+      await file.save(buffer, {
+        metadata: {
+          contentType: data.mimetype || 'application/octet-stream',
+          metadata: {
+            originalName: data.filename || 'file',
+            userId,
+          },
+        },
+      });
+
+      const url = `https://storage.googleapis.com/${bucket.name}/${storagePath}`;
+      const signedUrl = await signStorageUrl(url);
+
+      return {
+        success: true,
+        url: signedUrl,
+        filename: data.filename,
+      };
+    },
+  );
+
+  /**
    * POST /api/v1/support/tickets
    * Create a new support ticket (with smart context and initialized timeline)
    */
@@ -174,6 +228,9 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           updatedAt: FieldValue.serverTimestamp(),
         };
 
+        // Clean signed parameters before saving
+        cleanSupportTicketBeforeSave(ticketData);
+
         await docRef.set(ticketData);
 
         const snapshot = await docRef.get();
@@ -184,7 +241,8 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           updatedAt: new Date().toISOString(),
         };
 
-        return { success: true, ticket: responseData };
+        const enriched = await enrichSupportTicketWithSignedUrls(responseData);
+        return { success: true, ticket: enriched };
       } catch (error: any) {
         fastify.log.error(`Error in POST /support/tickets: ${error.message}`);
         return reply.status(500).send({ error: 'Internal Server Error' });
@@ -233,7 +291,11 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           return bTime - aTime;
         });
 
-        return { success: true, tickets };
+        const enrichedTickets = await Promise.all(
+          tickets.map((ticket: any) => enrichSupportTicketWithSignedUrls(ticket)),
+        );
+
+        return { success: true, tickets: enrichedTickets };
       } catch (error: any) {
         fastify.log.error(`Error in GET /support/tickets: ${error.message}`);
         return reply.status(500).send({ error: 'Internal Server Error' });
@@ -485,6 +547,9 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           updatedAt: FieldValue.serverTimestamp(),
         };
 
+        // Clean signed parameters before saving
+        cleanSupportTicketBeforeSave(ticketData);
+
         await docRef.set(ticketData);
 
         const snapshot = await docRef.get();
@@ -495,7 +560,8 @@ export default async function supportRoutes(fastify: FastifyInstance) {
           updatedAt: new Date().toISOString(),
         };
 
-        return { success: true, ticket: responseData };
+        const enriched = await enrichSupportTicketWithSignedUrls(responseData);
+        return { success: true, ticket: enriched };
       } catch (error: any) {
         fastify.log.error(`Error in POST /support/bugs: ${error.message}`);
         return reply.status(500).send({ error: 'Internal Server Error' });

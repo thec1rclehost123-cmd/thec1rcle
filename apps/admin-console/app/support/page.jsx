@@ -1274,61 +1274,47 @@ export default function AdminSupport() {
                   )}
                 </div>
 
-                {/* Videos & Documents */}
+                {/* Documents */}
                 <div className="space-y-3 pt-4 border-t border-white/5">
                   <span className="text-[9px] font-black uppercase text-zinc-500 block">
-                    Screen Recordings / Videos
+                    Attached Documents
                   </span>
                   {selectedTicket.documents && selectedTicket.documents.length > 0 ? (
                     <div className="space-y-3">
-                      {selectedTicket.documents.map((docUrl, idx) => {
-                        const isVideo =
-                          docUrl.match(/\.(mp4|webm|ogg|mov)(\?.*)?$/i) || docUrl.includes('video');
-                        return (
-                          <div
-                            key={idx}
-                            className="bg-zinc-900 border border-white/[0.04] p-3 rounded-lg flex flex-col gap-2"
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="text-white font-bold text-[10px]">
-                                Record / Doc #{idx + 1}
-                              </span>
-                              <a
-                                href={docUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-orange-400 hover:text-orange-300 font-bold uppercase tracking-wider text-[9px]"
-                              >
-                                Open File
-                              </a>
-                            </div>
-                            {isVideo ? (
-                              <video
-                                src={docUrl}
-                                controls
-                                className="w-full rounded-md border border-white/10 bg-black max-h-[200px]"
-                              />
-                            ) : (
-                              <a
-                                href={docUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-2 p-2 bg-zinc-950 rounded border border-white/5 text-zinc-400 hover:text-white"
-                              >
-                                <FileText className="h-4.5 w-4.5 text-zinc-500" />
-                                <span className="truncate">
-                                  {docUrl.split('/').pop() || 'Attached Document'}
-                                </span>
-                              </a>
-                            )}
+                      {selectedTicket.documents.map((docUrl, idx) => (
+                        <div
+                          key={idx}
+                          className="bg-zinc-900 border border-white/[0.04] p-3 rounded-lg flex flex-col gap-2"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-white font-bold text-[10px]">
+                              Document #{idx + 1}
+                            </span>
+                            <a
+                              href={docUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-orange-400 hover:text-orange-300 font-bold uppercase tracking-wider text-[9px]"
+                            >
+                              Open File
+                            </a>
                           </div>
-                        );
-                      })}
+                          <a
+                            href={docUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 p-2 bg-zinc-950 rounded border border-white/5 text-zinc-400 hover:text-white"
+                          >
+                            <FileText className="h-4.5 w-4.5 text-zinc-500" />
+                            <span className="truncate">
+                              {docUrl.split('/').pop() || 'Attached Document'}
+                            </span>
+                          </a>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <div className="text-zinc-600 italic">
-                      No screen recordings or documents attached.
-                    </div>
+                    <div className="text-zinc-600 italic">No documents attached.</div>
                   )}
                 </div>
               </div>

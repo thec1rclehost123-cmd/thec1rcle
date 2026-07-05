@@ -66,7 +66,7 @@ export function IdentityPanel({ identity, promoterId, userEmail, token, onUpdate
     setSaving(true);
     try {
       const res = await fetch('/api/partners/promoters/settings/identity', {
-        method: 'POST',
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,

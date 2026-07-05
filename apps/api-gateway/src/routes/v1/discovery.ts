@@ -1,6 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { buildErrorResponse } from '../../lib/api-contracts';
+import { signStorageUrl } from '../../lib/signed-urls.js';
 
 const DiscoveryQuerySchema = z.object({
   action: z.enum(['list', 'search', 'get', 'discover']),
@@ -172,6 +173,12 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
             }
           }
 
+          for (const conn of connections) {
+            if (conn.photoURL) {
+              conn.photoURL = await signStorageUrl(conn.photoURL);
+            }
+          }
+
           return { connections };
         }
 
@@ -334,6 +341,15 @@ export default async function discoveryRoutes(fastify: FastifyInstance) {
               const conn = userConns.get(partner.id);
               partner.connectionStatus = conn ? conn.status : null;
               partner.connectionId = conn ? conn.id : null;
+            }
+          }
+
+          for (const partner of paginatedResults) {
+            if (partner.avatar) {
+              partner.avatar = await signStorageUrl(partner.avatar);
+            }
+            if (partner.coverImage) {
+              partner.coverImage = await signStorageUrl(partner.coverImage);
             }
           }
 

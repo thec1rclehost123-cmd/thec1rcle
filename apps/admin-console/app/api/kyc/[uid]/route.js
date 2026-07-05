@@ -2,7 +2,96 @@ import { NextResponse } from 'next/server';
 import { withAdminAuth } from '@/lib/server/adminMiddleware';
 import { getAdminApp } from '@/lib/firebase/admin';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { getStorage } from 'firebase-admin/storage';
 import { rateLimit } from '@/lib/server/rateLimit';
+
+function parseStorageUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+
+  if (url.startsWith('gs://')) {
+    const parts = url.substring(5).split('/');
+    const bucketName = parts[0];
+    const objectPath = parts.slice(1).join('/');
+    return { bucketName, objectPath };
+  }
+
+  if (url.startsWith('https://storage.googleapis.com/')) {
+    const parts = url.substring(31).split('/');
+    const bucketName = parts[0];
+    const objectPath = parts.slice(1).join('/').split('?')[0];
+    return { bucketName, objectPath };
+  }
+
+  if (url.startsWith('https://firebasestorage.googleapis.com/')) {
+    const match = url.match(
+      /https:\/\/firebasestorage\.googleapis\.com\/v0\/b\/([^/]+)\/o\/([^?#]+)/,
+    );
+    if (match) {
+      const bucketName = match[1];
+      const objectPath = decodeURIComponent(match[2]);
+      return { bucketName, objectPath };
+    }
+  }
+
+  return null;
+}
+
+async function signStorageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  const parsed = parseStorageUrl(url);
+  if (!parsed) return url;
+
+  try {
+    const app = getAdminApp();
+    const storage = getStorage(app);
+    const bucket = storage.bucket();
+
+    if (
+      parsed.bucketName === bucket.name &&
+      (parsed.objectPath.startsWith('venues/') ||
+        parsed.objectPath.startsWith('support-attachments/') ||
+        parsed.objectPath.startsWith('hosts/') ||
+        parsed.objectPath.startsWith('promoters/') ||
+        parsed.objectPath.startsWith('kyc/') ||
+        parsed.objectPath.startsWith('kyc-documents/'))
+    ) {
+      const file = bucket.file(parsed.objectPath);
+      const [signedUrl] = await file.getSignedUrl({
+        action: 'read',
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000,
+      });
+      return signedUrl;
+    }
+  } catch (err) {
+    console.error('Failed to sign KYC storage URL:', err);
+  }
+  return url;
+}
+
+async function signObjectGcsUrls(obj) {
+  if (!obj) return obj;
+  if (typeof obj === 'string') {
+    if (
+      obj.startsWith('gs://') ||
+      obj.startsWith('https://storage.googleapis.com/') ||
+      obj.startsWith('https://firebasestorage.googleapis.com/')
+    ) {
+      return await signStorageUrl(obj);
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return await Promise.all(obj.map((item) => signObjectGcsUrls(item)));
+  }
+  if (typeof obj === 'object') {
+    const res = {};
+    for (const [k, v] of Object.entries(obj)) {
+      res[k] = await signObjectGcsUrls(v);
+    }
+    return res;
+  }
+  return obj;
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -57,6 +146,8 @@ async function getHandler(req, { params }) {
 
   const stepSequence = STEP_SEQUENCES[entityType] ?? STEP_SEQUENCES.individual;
 
+  const enrichedKycStepData = await signObjectGcsUrls(onboardingData?.kycStepData || {});
+
   return NextResponse.json({
     uid,
     email: userData.email,
@@ -65,7 +156,7 @@ async function getHandler(req, { params }) {
     kycStatus: userData.kycStatus || 'not_started',
     stepSequence,
     kycStepStatus: onboardingData?.kycStepStatus || {},
-    kycStepData: onboardingData?.kycStepData || {},
+    kycStepData: enrichedKycStepData || {},
     kycStepAdminNotes: onboardingData?.kycStepAdminNotes || {},
     kycStepResubmissionReason: onboardingData?.kycStepResubmissionReason || {},
     onboardingDocId,

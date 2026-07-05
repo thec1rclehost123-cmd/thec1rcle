@@ -15,6 +15,14 @@ import {
   sanitizeEventResubmissionPatch,
 } from '../../../lib/partner-hardening.js';
 import { encrypt, decrypt } from '../../../lib/encryption.js';
+import {
+  enrichHostProfileWithSignedUrls,
+  cleanHostProfilePatch,
+  signStorageUrl,
+} from '../../../lib/signed-urls.js';
+import { uploadPartnerAsset } from '../../../lib/partner-upload.js';
+import { getAdminStorage } from '@c1rcle/core/admin';
+import { randomUUID } from 'node:crypto';
 
 const OverviewQuerySchema = z
   .object({
@@ -240,13 +248,15 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       throw err;
     }
     const data = { id: doc.id, ...(doc.data() || {}) };
-    return { host: data, profile: data };
+    const enriched = await enrichHostProfileWithSignedUrls(data);
+    return { host: enriched, profile: enriched };
   };
 
   const updateHostProfile = async (hostId: string, patch: PlainRecord) => {
+    const cleanedPatch = cleanHostProfilePatch(patch);
     const safe: PlainRecord = {};
     for (const key of hostProfileFields) {
-      if (patch[key] !== undefined) safe[key] = patch[key];
+      if (cleanedPatch[key] !== undefined) safe[key] = cleanedPatch[key];
     }
     // Normalize image fields so the discovery engine can find them
     if (safe.photoURL) {
@@ -1906,6 +1916,51 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           buildErrorResponse({
             code: 'INTERNAL_ERROR',
             message: 'Internal server error',
+            requestId: request.id,
+          }),
+        );
+      }
+    },
+  );
+
+  fastify.post(
+    '/partners/hosts/upload',
+    {
+      preHandler: [fastify.requireAuth],
+    },
+    async (request: any, reply: any) => {
+      try {
+        const ctx = await resolvePartnerContext(fastify.db, request);
+        // Debug: log partner context resolution
+        // eslint-disable-next-line no-console
+        console.debug('[hosts.upload] resolvePartnerContext', {
+          requestId: request.id,
+          hasCtx: !!ctx,
+        });
+        if (!ctx) return;
+        await requireType(ctx, 'host');
+
+        // Use shared upload helper so host upload has same behavior as venue
+        const uploadResult = await uploadPartnerAsset(request, {
+          partnerId: ctx.partnerId,
+          partnerType: 'host',
+          maxBytes: 5 * 1024 * 1024,
+        });
+
+        const signedUrl = await signStorageUrl(uploadResult.url);
+
+        return reply.send({
+          success: true,
+          url: signedUrl,
+          filename: uploadResult.filename,
+          storagePath: uploadResult.storagePath,
+        });
+      } catch (err: any) {
+        fastify.log.error(`Error in host upload: ${err.message}`);
+        return reply.status(500).send(
+          buildErrorResponse({
+            code: 'INTERNAL_ERROR',
+            message: err.message || 'Failed to upload file',
             requestId: request.id,
           }),
         );
