@@ -27,6 +27,8 @@ const FORWARDED_HEADERS = [
   'x-request-id',
   'x-forwarded-for',
   'x-scanner-code',
+  'referer',
+  'origin',
 ];
 
 function errorResponse(req: NextRequest, status: number, message: string, code?: string) {

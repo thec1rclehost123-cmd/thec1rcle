@@ -23,7 +23,10 @@ function StaffInviteContent() {
 
   const code = searchParams.get('code') || '';
   const venueId = searchParams.get('venue') || '';
+  const hostId = searchParams.get('host') || '';
   const tempPasswordParam = searchParams.get('temp') || '';
+
+  const isHost = !!hostId;
 
   const [step, setStep] = useState<'loading' | 'form' | 'success' | 'error'>('loading');
   const [inviteInfo, setInviteInfo] = useState<{
@@ -31,28 +34,34 @@ function StaffInviteContent() {
     email: string;
     role: string;
     venueName: string;
+    partnerName?: string;
   } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (!code || !venueId) {
+    if (!code || (!venueId && !hostId)) {
       setErrorMsg('Invalid invite link. Please check your email for the correct link.');
       setStep('error');
       return;
     }
 
+    const fetchUrl = isHost
+      ? `/api/partners/hosts/team/accept?code=${code}&hostId=${hostId}`
+      : `/api/venue/staff/accept?code=${code}&venue=${venueId}`;
+
     // Fetch invite info to show the user what they're accepting
-    fetch(`/api/venue/staff/accept?code=${code}&venue=${venueId}`)
+    fetch(fetchUrl)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) {
           setErrorMsg(data.error);
           setStep('error');
-        } else if (data.status === 'active') {
-          router.replace(
-            `/auth/change-password?code=${code}&venue=${venueId}&status=accepted&temp=${tempPasswordParam}`,
-          );
+        } else if (data.status === 'active' || data.status === 'accepted') {
+          const redirectUrl = isHost
+            ? `/auth/change-password?code=${code}&host=${hostId}&status=accepted&temp=${tempPasswordParam}`
+            : `/auth/change-password?code=${code}&venue=${venueId}&status=accepted&temp=${tempPasswordParam}`;
+          router.replace(redirectUrl);
         } else {
           setInviteInfo(data);
           setStep('form');
@@ -62,7 +71,7 @@ function StaffInviteContent() {
         setErrorMsg('Failed to load invite details. Please try again.');
         setStep('error');
       });
-  }, [code, venueId, router, tempPasswordParam]);
+  }, [code, venueId, hostId, isHost, router, tempPasswordParam]);
 
   const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,10 +79,14 @@ function StaffInviteContent() {
     setErrorMsg('');
 
     try {
-      const res = await fetch('/api/venue/staff/accept', {
+      const fetchUrl = isHost ? '/api/partners/hosts/team/accept' : '/api/venue/staff/accept';
+
+      const body = isHost ? { inviteCode: code, hostId } : { inviteCode: code, venueId };
+
+      const res = await fetch(fetchUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ inviteCode: code, venueId }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
 
@@ -132,7 +145,7 @@ function StaffInviteContent() {
             <h2 className="text-[16px] font-bold text-white">Invite Error</h2>
             <p className="text-[13px] text-red-400">{errorMsg}</p>
             <p className="text-[12px] text-white/40">
-              Contact your venue owner to get a new invite link.
+              Contact your partner owner to get a new invite link.
             </p>
           </div>
         )}
@@ -148,7 +161,7 @@ function StaffInviteContent() {
                 Invitation
               </p>
               <h2 className="text-[18px] font-black text-white leading-tight">
-                Join {inviteInfo.venueName}
+                Join {inviteInfo.venueName || inviteInfo.partnerName}
               </h2>
               <div className="flex items-center gap-2 mt-2">
                 <span

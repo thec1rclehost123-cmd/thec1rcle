@@ -1,4 +1,5 @@
 import type { FastifyInstance } from 'fastify';
+import { sendHostInvitationEmail, generateTemporaryPassword } from '../../../lib/email.js';
 import { getHostAnalytics } from '@c1rcle/core/analytics-engine';
 import { z } from 'zod';
 import { resolvePartnerContext, requireType } from '../../../lib/partner-context.js';
@@ -211,24 +212,37 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
   };
 
   const removeTeamMember = async (hostId: string, memberId: string) => {
-    const ref = fastify.db.collection('partner_memberships').doc(memberId);
-    const doc = await ref.get();
-    if (!doc.exists) {
-      const err: any = new Error('Member not found');
-      err.statusCode = 404;
-      err.code = 'NOT_FOUND';
-      throw err;
+    let ref = fastify.db.collection('partner_memberships').doc(memberId);
+    let doc = await ref.get();
+
+    if (doc.exists) {
+      const membership = doc.data() as PlainRecord;
+      if (String(membership.partnerId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ isActive: false, removedAt: new Date().toISOString() });
+    } else {
+      ref = fastify.db.collection('host_team_invitations').doc(memberId);
+      doc = await ref.get();
+      if (!doc.exists) {
+        const err: any = new Error('Member or Invitation not found');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
+        throw err;
+      }
+      const invitation = doc.data() as PlainRecord;
+      if (String(invitation.hostId || '') !== hostId) {
+        const err: any = new Error('Forbidden');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+      await ref.update({ status: 'revoked', revokedAt: new Date().toISOString() });
     }
 
-    const membership = doc.data() as PlainRecord;
-    if (String(membership.partnerId || '') !== hostId) {
-      const err: any = new Error('Forbidden');
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
-    }
-
-    await ref.update({ isActive: false, removedAt: new Date().toISOString() });
     await fastify
       .writeAuditLog({
         action: 'TEAM_MEMBER_REMOVED',
@@ -1806,6 +1820,171 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
 
   // ── Team ───────────────────────────────────────────────────────────────────
 
+  fastify.get('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { code, hostId } = request.query as any;
+    if (!code || !hostId) {
+      return reply.status(400).send({ error: 'code and hostId required' });
+    }
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', code)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      return reply.send({
+        name:
+          invData.firstName && invData.lastName
+            ? `${invData.firstName} ${invData.lastName}`
+            : 'Team Member',
+        email: invData.email,
+        role: invData.role,
+        partnerName: invData.partnerName || 'Host Partner',
+        status: invData.status,
+      });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'GET /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to retrieve invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
+  fastify.post('/partners/hosts/team/accept', async (request: any, reply: any) => {
+    const { inviteCode, hostId } = request.body as any;
+    if (!inviteCode || !hostId) {
+      return reply.status(400).send({ error: 'inviteCode and hostId required' });
+    }
+
+    try {
+      const snap = await fastify.db
+        .collection('host_team_invitations')
+        .where('hostId', '==', hostId)
+        .where('inviteToken', '==', inviteCode)
+        .limit(1)
+        .get();
+
+      if (snap.empty) {
+        return reply.status(404).send({ error: 'Invitation not found or invalid' });
+      }
+
+      const invDoc = snap.docs[0];
+      const invData = invDoc.data();
+
+      if (invData.inviteExpires && new Date() > new Date(invData.inviteExpires)) {
+        return reply.status(400).send({ error: 'Invitation has expired' });
+      }
+
+      if (invData.status === 'accepted' || invData.status === 'active') {
+        return reply.send({
+          success: true,
+          email: invData.email,
+          tempPassword: invData.tempPassword,
+          alreadyAccepted: true,
+        });
+      }
+
+      const email = invData.email;
+      const name =
+        invData.firstName && invData.lastName
+          ? `${invData.firstName} ${invData.lastName}`
+          : 'Team Member';
+      const role = invData.role;
+      const tempPassword = invData.tempPassword;
+
+      // 1. Create/update the Firebase user
+      let userRecord;
+      try {
+        userRecord = await fastify.auth.getUserByEmail(email);
+        await fastify.auth.updateUser(userRecord.uid, { password: tempPassword });
+        await fastify.db.collection('users').doc(userRecord.uid).update({
+          mustChangePassword: true,
+          updatedAt: new Date().toISOString(),
+        });
+      } catch (e: any) {
+        if (e.code === 'auth/user-not-found') {
+          userRecord = await fastify.auth.createUser({
+            email,
+            password: tempPassword,
+            displayName: name,
+          });
+
+          await fastify.db.collection('users').doc(userRecord.uid).set({
+            uid: userRecord.uid,
+            email,
+            displayName: name,
+            role: 'host',
+            isApproved: true,
+            onboardingComplete: true,
+            mustChangePassword: true,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+        } else {
+          throw e;
+        }
+      }
+
+      const uid = userRecord.uid;
+      const partnerName = invData.partnerName || 'Host Partner';
+
+      // 2. Create the partner_memberships document
+      const membershipSnap = await fastify.db
+        .collection('partner_memberships')
+        .where('partnerId', '==', hostId)
+        .where('uid', '==', uid)
+        .limit(1)
+        .get();
+
+      if (membershipSnap.empty) {
+        await fastify.db.collection('partner_memberships').add({
+          uid,
+          partnerId: hostId,
+          partnerName,
+          partnerType: 'host',
+          role,
+          isActive: true,
+          joinedAt: Date.now(),
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      // 3. Update the host_team_invitations record status to active
+      await invDoc.ref.update({
+        status: 'accepted',
+        userId: uid,
+        updatedAt: new Date().toISOString(),
+      });
+
+      return reply.send({ success: true, email, tempPassword });
+    } catch (err: any) {
+      fastify.log.error({ err }, 'POST /partners/hosts/team/accept failed');
+      return reply.status(500).send(
+        buildErrorResponse({
+          code: 'INTERNAL_ERROR',
+          message: err.message || 'Failed to accept invitation',
+          requestId: request.id,
+        }),
+      );
+    }
+  });
+
   fastify.get(
     '/partners/hosts/team',
     {
@@ -1825,9 +2004,56 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       try {
         requireType(ctx, 'host');
         const members = await hostService.getTeam(ctx);
+
+        const invitesSnap = await fastify.db
+          .collection('host_team_invitations')
+          .where('hostId', '==', ctx.partnerId)
+          .where('status', '==', 'pending')
+          .get()
+          .catch(() => ({ docs: [] }));
+
+        const invitedMembers = invitesSnap.docs.map((doc: any) => {
+          const d = doc.data();
+          const displayName =
+            d.firstName && d.lastName
+              ? `${d.firstName} ${d.lastName}`
+              : d.email || d.phone || 'Invited Member';
+          return {
+            membershipId: doc.id,
+            uid: null,
+            displayName,
+            email: d.email || null,
+            phone: d.phone || null,
+            role: d.role || 'STAFF',
+            status: 'invited',
+            isActive: false,
+            joinedAt: d.createdAt || null,
+            lastActive: null,
+            photoUrl: null,
+            granularPermissions: d.granularPermissions || null,
+            verified: false,
+          };
+        });
+
+        const mappedMembers = asArray(members).map((m: any) => ({
+          membershipId: m.memberId || m.membershipId || '',
+          uid: m.uid || null,
+          displayName: m.displayName || '',
+          email: m.email || null,
+          phone: m.phone || null,
+          role: m.role || 'STAFF',
+          status: m.isActive ? 'active' : 'suspended',
+          isActive: m.isActive,
+          joinedAt: m.joinedAt || null,
+          lastActive: m.lastActive || null,
+          photoUrl: m.photoUrl || null,
+          granularPermissions: m.granularPermissions || null,
+          verified: m.verified || false,
+        }));
+
         return reply.header('Cache-Control', 'private, max-age=120').send({
           success: true,
-          members: asArray(members),
+          members: [...mappedMembers, ...invitedMembers],
         });
       } catch (err: any) {
         if (err.statusCode)
@@ -2885,6 +3111,10 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
               }),
             );
           const now = new Date().toISOString();
+          const tempPassword = generateTemporaryPassword();
+          const inviteToken = randomUUID();
+          const inviteExpires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
           const ref = await fastify.db.collection('host_team_invitations').add({
             hostId: ctx.partnerId,
             email: email || null,
@@ -2895,8 +3125,45 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
             granularPermissions: granularPermissions || {},
             partnerName: partnerName || null,
             status: 'pending',
+            tempPassword,
+            inviteToken,
+            inviteExpires,
             createdAt: now,
           });
+
+          // Dispatch invitation email if email is provided
+          if (email) {
+            let origin = 'http://localhost:3001';
+            if (request.headers.referer) {
+              try {
+                origin = new URL(request.headers.referer).origin;
+              } catch {
+                if (request.headers.origin) origin = request.headers.origin;
+              }
+            } else if (request.headers.origin) {
+              origin = request.headers.origin;
+            }
+
+            const acceptLink = `${origin}/auth/staff-invite?code=${inviteToken}&host=${ctx.partnerId}`;
+            const pName = partnerName || ctx.displayName || 'Host Partner';
+            const roleLabels: Record<string, string> = {
+              COHOST: 'Co-Host',
+              MANAGER: 'Manager',
+              STAFF: 'Staff',
+            };
+            const roleLabel = roleLabels[role] || role || 'Member';
+
+            await sendHostInvitationEmail({
+              recipient: email.toLowerCase().trim(),
+              name: firstName && lastName ? `${firstName} ${lastName}` : 'Team Member',
+              roleLabel,
+              partnerName: pName,
+              acceptLink,
+            }).catch((err: any) => {
+              fastify.log.error({ err }, 'Failed to send host invitation email');
+            });
+          }
+
           return reply.status(201).send({ success: true, invitationId: ref.id });
         }
 

@@ -467,14 +467,19 @@ export default function HostTeamPageClient() {
 
   const handleRemove = async (membershipId: string) => {
     try {
-      const response = await fetch(`/api/partners/hosts/team?membershipId=${membershipId}`, {
+      const response = await fetch(`/api/partners/hosts/team/${membershipId}`, {
         method: 'DELETE',
         headers: await getHeaders(),
       });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? 'Failed to remove team member');
+        console.error('DELETE error payload:', payload);
+        const errMsg =
+          payload?.error?.message ||
+          (typeof payload?.error === 'string' ? payload.error : null) ||
+          'Failed to remove team member';
+        throw new Error(errMsg);
       }
 
       setMembers((previous) => previous.filter((member) => member.membershipId !== membershipId));
@@ -487,18 +492,20 @@ export default function HostTeamPageClient() {
   const handleSavePermissions = async (role: EditableHostRole) => {
     if (!editTarget) return;
     try {
-      const response = await fetch(
-        `/api/partners/hosts/team?membershipId=${editTarget.membershipId}`,
-        {
-          method: 'PATCH',
-          headers: await getHeaders(),
-          body: JSON.stringify({ role, granularPermissions: null }),
-        },
-      );
+      const response = await fetch(`/api/partners/hosts/team/${editTarget.membershipId}`, {
+        method: 'PATCH',
+        headers: await getHeaders(),
+        body: JSON.stringify({ role, granularPermissions: null }),
+      });
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? 'Failed to update permissions');
+        console.error('PATCH error payload:', payload);
+        const errMsg =
+          payload?.error?.message ||
+          (typeof payload?.error === 'string' ? payload.error : null) ||
+          'Failed to update permissions';
+        throw new Error(errMsg);
       }
 
       setMembers((previous) =>
