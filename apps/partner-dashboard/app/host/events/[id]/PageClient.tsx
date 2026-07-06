@@ -726,7 +726,7 @@ export default function HostEventWorkspacePage() {
     queryKey: ['host-event', eventId],
     queryFn: async () => {
       const payload = await authedJson(`/api/partners/hosts/events/${eventId}`);
-      return payload.event as EventDetail;
+      return (payload.event || payload) as EventDetail;
     },
     enabled: Boolean(eventId && user && partnerId),
   });
