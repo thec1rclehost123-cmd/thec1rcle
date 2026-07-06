@@ -367,37 +367,6 @@ export default function HostSettingsPage() {
           <Label>Organisation</Label>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Field label="Name">
-              <Input
-                value={local?.orgName ?? ''}
-                onChange={(v) => patch({ orgName: v })}
-                placeholder="Your brand name"
-              />
-            </Field>
-            <Field label="Support Email">
-              <Input
-                value={local?.supportEmail ?? ''}
-                onChange={(v) => patch({ supportEmail: v })}
-                placeholder="support@org.com"
-                type="email"
-              />
-            </Field>
-            <Field label="Phone">
-              <Input
-                value={local?.legalPhone ?? ''}
-                onChange={(v) => patch({ legalPhone: v })}
-                placeholder="+91 98000 00000"
-                type="tel"
-              />
-            </Field>
-            <Field label="Website">
-              <Input
-                value={local?.website ?? ''}
-                onChange={(v) => patch({ website: v })}
-                placeholder="https://org.com"
-                type="url"
-              />
-            </Field>
             <Field label="Timezone">
               <Select
                 value={local?.defaultTimezone ?? 'Asia/Kolkata'}

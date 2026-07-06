@@ -97,6 +97,8 @@ interface Form {
   hostType: string;
   city: string;
   website: string;
+  contactEmail: string;
+  contactPhone: string;
   instagram: string;
   twitter: string;
 }
@@ -151,6 +153,8 @@ export default function HostProfileClient({
     hostType: '',
     city: '',
     website: '',
+    contactEmail: '',
+    contactPhone: '',
     instagram: '',
     twitter: '',
   });
@@ -178,6 +182,8 @@ export default function HostProfileClient({
           hostType: v.hostType || '',
           city: v.city || '',
           website: v.website || '',
+          contactEmail: v.contactEmail || v.email || '',
+          contactPhone: v.contactPhone || v.phone || '',
           instagram: v.socialLinks?.instagram || '',
           twitter: v.socialLinks?.twitter || '',
         });
@@ -361,6 +367,8 @@ export default function HostProfileClient({
         hostType: form.hostType,
         city: form.city,
         website: form.website,
+        contactEmail: form.contactEmail,
+        contactPhone: form.contactPhone,
         socialLinks: {
           instagram: form.instagram,
           twitter: form.twitter,
@@ -756,6 +764,28 @@ export default function HostProfileClient({
                         className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
                       />
                     </div>
+                  </FormGroup>
+
+                  <FormGroup label="Support Email" description="Public contact email for support">
+                    <input
+                      type="email"
+                      value={form.contactEmail}
+                      placeholder="support@org.com"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactEmail', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
+                  </FormGroup>
+
+                  <FormGroup label="Phone" description="Public phone number">
+                    <input
+                      type="tel"
+                      value={form.contactPhone}
+                      placeholder="+91 98000 00000"
+                      style={inputStyle}
+                      onChange={(e) => handleFieldChange('contactPhone', e.target.value)}
+                      className="focus:border-accent-primary focus:ring-4 focus:ring-accent-primary/10"
+                    />
                   </FormGroup>
                 </div>
 
