@@ -96,15 +96,9 @@ export default function DoorPageClient() {
             email: e.email || '',
             gender: (e.gender || 'male') as DoorEntry['gender'],
             age: Number(e.age ?? 0),
-            contact: e.contact || '',
-            email: e.email || '',
-            gender: (e.gender || 'male') as DoorEntry['gender'],
-            age: Number(e.age ?? 0),
             type: 'dinein' as const,
             totalGuests: Number(e.totalGuests || e.partySize || 1),
-            totalGuests: Number(e.totalGuests || e.partySize || 1),
             eventId: e.eventId,
-            submittedAt: e.addedAt || e.createdAt || new Date().toISOString(),
             submittedAt: e.addedAt || e.createdAt || new Date().toISOString(),
           }));
           setDineInEntries(fetched);
