@@ -36,17 +36,13 @@ export async function processQRScan(request: ScanRequest): Promise<ScanResponse>
   const code = (await getActiveCode()) || request.eventCode;
 
   try {
-    const data = await scannerFetch(
-      '/api/scanner/scan',
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          qrData: request.qrData,
-          eventId: request.eventId,
-        }),
-      },
-      code,
-    );
+    const data = await scannerFetch('/scan', {
+      method: 'POST',
+      body: JSON.stringify({
+        qrData: request.qrData,
+        eventId: request.eventId,
+      }),
+    });
 
     if (data.status === 'approved') {
       return {
@@ -139,5 +135,21 @@ function simulateScan(qrData: string): ScanResponse {
     }
   } catch {
     return { success: false, result: 'invalid', error: 'Could not parse QR code' };
+  }
+}
+
+/**
+ * Refresh event stats.
+ */
+export async function refreshEventStats(eventId: string, code?: string): Promise<any> {
+  try {
+    const data = await scannerFetch(
+      `/scan/stats?eventId=${encodeURIComponent(eventId)}${code ? `&code=${encodeURIComponent(code)}` : ''}`,
+      {},
+    );
+    return data.stats || data;
+  } catch (error) {
+    console.error('[refreshEventStats] Error:', error);
+    return null;
   }
 }

@@ -1,11 +1,30 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs, Redirect } from 'expo-router';
-import { View, Text } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 
 import { useEvent } from '@/store/eventContext';
 
 export default function EventLayout() {
-  const { isAuthenticated, eventData } = useEvent();
+  const { isAuthenticated, eventData, isRestoring, clearEvent } = useEvent();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      await clearEvent();
+    } catch (e) {
+      console.error('Failed to log out from event layout', e);
+    }
+  };
+
+  if (isRestoring) {
+    return (
+      <View className="flex-1 bg-background-primary items-center justify-center">
+        <ActivityIndicator size="large" color="#6366F1" />
+      </View>
+    );
+  }
 
   // Redirect to login if not authenticated
   if (!isAuthenticated) {
@@ -16,7 +35,7 @@ export default function EventLayout() {
     <View className="flex-1 bg-background-primary">
       {/* Event Header */}
       <View className="px-4 py-3 bg-background-secondary border-b border-border flex-row items-center justify-between">
-        <View className="flex-1">
+        <View className="flex-1 pr-2">
           <Text className="text-text-primary font-bold text-lg" numberOfLines={1}>
             {eventData?.event.title}
           </Text>
@@ -24,8 +43,17 @@ export default function EventLayout() {
             {eventData?.event.venue} • {eventData?.gate || 'All Gates'}
           </Text>
         </View>
-        <View className="bg-success/20 px-3 py-1 rounded-full">
-          <Text className="text-success text-xs font-bold">LIVE</Text>
+        <View className="flex-row items-center" style={{ gap: 12 }}>
+          <View className="bg-success/20 px-3 py-1 rounded-full">
+            <Text className="text-success text-xs font-bold">LIVE</Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleLogout}
+            className="w-10 h-10 rounded-xl bg-background-primary items-center justify-center border border-border"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#F87171" />
+          </TouchableOpacity>
         </View>
       </View>
 

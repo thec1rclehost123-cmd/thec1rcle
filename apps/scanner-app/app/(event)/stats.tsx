@@ -3,7 +3,7 @@ import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { refreshEventStats } from '@/lib/api/eventCode';
+import { refreshEventStats } from '@/lib/api/scan';
 import { useEvent } from '@/store/eventContext';
 
 interface StatsData {

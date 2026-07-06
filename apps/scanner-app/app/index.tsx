@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import {
   View,
   Text,
@@ -14,14 +16,41 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { validateEventCode } from '@/lib/api/eventCode';
-import { useEvent } from '@/store/eventContext';
+import { loginStaff, verifyStaffSession } from '@/lib/api/eventCode';
 
-export default function EventCodeScreen() {
-  const [code, setCode] = useState('');
+export default function StaffLoginScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { setEventData } = useEvent();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setIsLoading(true);
+        try {
+          const idToken = await user.getIdToken(true);
+          const result = await verifyStaffSession(idToken);
+          if (result.success) {
+            router.replace({
+              pathname: '/select-event' as any,
+              params: {
+                userId: result.userId,
+                venueId: result.venueId,
+                role: result.role,
+              },
+            });
+          }
+        } catch (err) {
+          // Silent failure on auto-login, let them login manually
+          console.error('Auto-login failed', err);
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
@@ -35,8 +64,8 @@ export default function EventCodeScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!code.trim()) {
-      setError('Please enter an event code');
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter both email and password');
       shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
@@ -46,19 +75,25 @@ export default function EventCodeScreen() {
     setError(null);
 
     try {
-      const result = await validateEventCode(code.trim().toUpperCase());
+      const result = await loginStaff(email.trim(), password);
 
-      if (result.valid) {
+      if (result.success) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        setEventData(result);
-        router.replace('/(event)/scan');
+        router.push({
+          pathname: '/select-event' as any,
+          params: {
+            userId: result.userId,
+            venueId: result.venueId,
+            role: result.role,
+          },
+        });
       } else {
-        setError(result.error || 'Invalid or expired code');
+        setError(result.error || 'Invalid email or password');
         shake();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to validate code');
+      setError(err.message || 'Failed to log in');
       shake();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
@@ -74,38 +109,62 @@ export default function EventCodeScreen() {
       >
         <View className="flex-1 justify-center px-6">
           {/* Logo Section */}
-          <View className="items-center mb-12">
+          <View className="items-center mb-10">
             <View className="w-20 h-20 rounded-2xl bg-accent items-center justify-center mb-4">
               <Ionicons name="scan" size={40} color="#FFFFFF" />
             </View>
             <Text className="text-3xl font-bold text-text-primary">C1RCLE Scanner</Text>
-            <Text className="text-base text-text-secondary mt-2">
-              Enter event code to start scanning
-            </Text>
+            <Text className="text-base text-text-secondary mt-2">Staff Portal Authentication</Text>
           </View>
 
-          {/* Code Input */}
+          {/* Login Fields */}
           <Animated.View style={{ transform: [{ translateX: shakeAnim }] }} className="mb-6">
-            <Text className="text-sm text-text-secondary mb-2 font-medium">EVENT CODE</Text>
-            <TextInput
-              value={code}
-              onChangeText={(text) => {
-                setCode(text.toUpperCase());
-                setError(null);
-              }}
-              placeholder="e.g. TONIGHT-7X4K"
-              placeholderTextColor="#71717A"
-              autoCapitalize="characters"
-              autoCorrect={false}
-              className={`
-                bg-background-secondary border-2 rounded-xl px-4 py-4
-                text-xl text-text-primary font-bold text-center tracking-widest
-                ${error ? 'border-error' : 'border-border'}
-              `}
-              editable={!isLoading}
-            />
+            <View className="mb-4">
+              <Text className="text-sm text-text-secondary mb-2 font-medium">EMAIL</Text>
+              <TextInput
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setError(null);
+                }}
+                placeholder="Enter staff email"
+                placeholderTextColor="#71717A"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                className={`
+                  bg-background-secondary border-2 rounded-xl px-4 py-4
+                  text-lg text-text-primary font-semibold
+                  ${error ? 'border-error' : 'border-border'}
+                `}
+                editable={!isLoading}
+              />
+            </View>
+
+            <View>
+              <Text className="text-sm text-text-secondary mb-2 font-medium">PASSWORD</Text>
+              <TextInput
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setError(null);
+                }}
+                placeholder="Enter password"
+                placeholderTextColor="#71717A"
+                secureTextEntry
+                autoCapitalize="none"
+                autoCorrect={false}
+                className={`
+                  bg-background-secondary border-2 rounded-xl px-4 py-4
+                  text-lg text-text-primary font-semibold
+                  ${error ? 'border-error' : 'border-border'}
+                `}
+                editable={!isLoading}
+              />
+            </View>
+
             {error && (
-              <View className="flex-row items-center mt-2">
+              <View className="flex-row items-center mt-3">
                 <Ionicons name="alert-circle" size={16} color="#EF4444" />
                 <Text className="text-error text-sm ml-2">{error}</Text>
               </View>
@@ -115,10 +174,10 @@ export default function EventCodeScreen() {
           {/* Submit Button */}
           <TouchableOpacity
             onPress={handleSubmit}
-            disabled={isLoading || !code.trim()}
+            disabled={isLoading || !email.trim() || !password.trim()}
             className={`
-              rounded-xl py-4 flex-row items-center justify-center
-              ${isLoading || !code.trim() ? 'bg-accent/50' : 'bg-accent'}
+              rounded-xl py-4 flex-row items-center justify-center mt-2
+              ${isLoading || !email.trim() || !password.trim() ? 'bg-accent/50' : 'bg-accent'}
             `}
             activeOpacity={0.8}
           >
@@ -126,8 +185,8 @@ export default function EventCodeScreen() {
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
-                <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
-                <Text className="text-white font-bold text-lg ml-2">Enter Event</Text>
+                <Ionicons name="log-in-outline" size={22} color="#FFFFFF" />
+                <Text className="text-white font-bold text-lg ml-2">Log In</Text>
               </>
             )}
           </TouchableOpacity>
@@ -135,8 +194,8 @@ export default function EventCodeScreen() {
           {/* Help Text */}
           <View className="mt-8 items-center">
             <Text className="text-text-muted text-sm text-center">
-              Get your event code from the event organizer{'\n'}
-              or venue manager
+              Authenticate using your venue staff credentials.{'\n'}
+              Contact your venue manager if you need an invitation.
             </Text>
           </View>
         </View>

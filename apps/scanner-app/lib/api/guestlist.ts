@@ -19,11 +19,7 @@ export async function fetchGuestList(eventId: string, eventCode: string): Promis
   const code = (await getActiveCode()) || eventCode;
 
   try {
-    const data = await scannerFetch(
-      `/api/scanner/guestlist?eventId=${encodeURIComponent(eventId)}`,
-      {},
-      code,
-    );
+    const data = await scannerFetch(`/scan/guestlist?eventId=${encodeURIComponent(eventId)}`, {});
     return data.guests || [];
   } catch (error: any) {
     console.error('[fetchGuestList] Error:', error);

@@ -141,25 +141,11 @@ export function useEventAttendees(eventId: string, venueId?: string): UseEventAt
         throw new Error(`HTTP ${attendeesRes.status}`);
       }
 
-      // Parse online attendees
-      let orderRows: Attendee[] = [];
-      if (attendeesRes.ok) {
-        const data = await attendeesRes.json();
-        orderRows = (data.attendees ?? []).map(normaliseOrderRow);
-      }
+      const data = await res.json();
+      const rows: Attendee[] = (data.attendees ?? []).map(normaliseRow);
 
-      // Parse walk-in entries
-      let walkInRows: Attendee[] = [];
-      if (walkInsRes.ok) {
-        const walkInData = await walkInsRes.json();
-        // Walk-ins endpoint returns { logs: [...] } when queried by eventId
-        const logs: any[] = walkInData.logs ?? walkInData.entries ?? [];
-        walkInRows = logs.filter((r: any) => r.status !== 'void').map(normaliseWalkInRow);
-      }
-
-      const merged = [...orderRows, ...walkInRows];
-      setAttendees(merged);
-      setTotalCount(merged.length);
+      setAttendees(rows);
+      setTotalCount(data.pagination?.total ?? rows.length);
       setIsError(false);
     } catch (err: any) {
       if (!mountedRef.current) return;

@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Types
 export interface EventTier {
@@ -39,18 +40,51 @@ export interface EventData {
 
 interface EventContextType {
   eventData: EventData | null;
-  setEventData: (data: EventData | null) => void;
-  clearEvent: () => void;
+  setEventData: (data: EventData | null) => Promise<void>;
+  clearEvent: () => Promise<void>;
   isAuthenticated: boolean;
+  isRestoring: boolean;
 }
 
+const EVENT_STORAGE_KEY = '@scanner_event_data';
 const EventContext = createContext<EventContextType | undefined>(undefined);
 
 export function EventProvider({ children }: { children: ReactNode }) {
-  const [eventData, setEventData] = useState<EventData | null>(null);
+  const [eventData, setEventState] = useState<EventData | null>(null);
+  const [isRestoring, setIsRestoring] = useState(true);
 
-  const clearEvent = () => {
-    setEventData(null);
+  useEffect(() => {
+    // Restore event data on mount
+    const restoreEvent = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(EVENT_STORAGE_KEY);
+        if (stored) {
+          setEventState(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.error('Failed to restore event from storage', e);
+      } finally {
+        setIsRestoring(false);
+      }
+    };
+    restoreEvent();
+  }, []);
+
+  const setEventData = async (data: EventData | null) => {
+    setEventState(data);
+    try {
+      if (data) {
+        await AsyncStorage.setItem(EVENT_STORAGE_KEY, JSON.stringify(data));
+      } else {
+        await AsyncStorage.removeItem(EVENT_STORAGE_KEY);
+      }
+    } catch (e) {
+      console.error('Failed to save event to storage', e);
+    }
+  };
+
+  const clearEvent = async () => {
+    await setEventData(null);
   };
 
   return (
@@ -60,6 +94,7 @@ export function EventProvider({ children }: { children: ReactNode }) {
         setEventData,
         clearEvent,
         isAuthenticated: !!eventData?.valid,
+        isRestoring,
       }}
     >
       {children}
