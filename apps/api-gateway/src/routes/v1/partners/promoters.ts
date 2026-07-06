@@ -307,6 +307,8 @@ function normalizePromoterConnection(
       false,
     photoURL:
       legacyConnection.photoURL ?? rawConnection.photoURL ?? unifiedConnection.photoURL ?? null,
+    otherCity:
+      legacyConnection.otherCity ?? rawConnection.otherCity ?? unifiedConnection.otherCity ?? null,
     initiatedBy:
       legacyConnection.initiatedBy ??
       rawConnection.initiatedBy ??
@@ -2195,6 +2197,7 @@ export default async function partnersPromoterRoutes(fastify: FastifyInstance) {
             otherType: targetProfile?.type || 'venue',
             otherIsVerified: targetProfile?.isVerified ?? false,
             photoURL: targetProfile?.avatarUrl || null,
+            otherCity: targetProfile?.city || null,
             initiatedBy:
               conn.initiatedBy || (isSender ? 'promoter' : targetProfile?.type || 'venue'),
             createdAt: conn.createdAt || null,
