@@ -113,6 +113,7 @@ export function getDefaultTabVisibility(
         analytics: true,
         finance: false,
         settings: false,
+        team: true,
       };
     if (r === 'MANAGER')
       return {
@@ -124,6 +125,7 @@ export function getDefaultTabVisibility(
         analytics: true,
         finance: false,
         settings: false,
+        team: true,
       };
     return {
       overview: false,
@@ -134,6 +136,7 @@ export function getDefaultTabVisibility(
       analytics: false,
       finance: false,
       settings: false,
+      team: true,
     };
   }
   if (type === 'promoter') {
@@ -150,7 +153,95 @@ export function getDefaultTabVisibility(
       settings: false,
     };
   }
-  // venue: tab visibility controlled by server-side staff profiles
+  if (type === 'venue') {
+    if (r === 'OWNER') return null;
+    if (r === 'MANAGER') {
+      return {
+        overview: true,
+        analytics: true,
+        events: true,
+        calendar: true,
+        walk_ins: true,
+        partnerships: true,
+        staff: true,
+        registers: true,
+        guest_ops: true,
+        page_management: true,
+        door: true,
+        partners: true,
+        presence: true,
+        crm: true,
+        settings: false,
+        finance: false,
+      };
+    }
+    if (r === 'STAFF') {
+      return {
+        walk_ins: true,
+        guest_ops: true,
+        registers: true,
+        door: true,
+        overview: false,
+        events: false,
+        analytics: false,
+        finance: false,
+        calendar: false,
+        staff: false,
+        partners: false,
+        presence: false,
+        crm: false,
+        settings: false,
+      };
+    }
+    if (r === 'SECURITY') {
+      return {
+        guest_ops: true,
+        walk_ins: true,
+        door: true,
+        overview: false,
+        analytics: false,
+        events: false,
+        finance: false,
+        calendar: false,
+        staff: false,
+        partners: false,
+        presence: false,
+        crm: false,
+        settings: false,
+      };
+    }
+    if (r === 'FINANCE_ADMIN') {
+      return {
+        finance: true,
+        analytics: true,
+        overview: true,
+        events: false,
+        calendar: false,
+        walk_ins: false,
+        staff: false,
+        guest_ops: false,
+        door: false,
+        partners: false,
+        presence: false,
+        crm: false,
+        settings: false,
+      };
+    }
+    // Default fallback
+    return {
+      overview: false,
+      events: false,
+      door: true,
+      calendar: false,
+      partners: false,
+      analytics: false,
+      finance: false,
+      presence: false,
+      crm: false,
+      staff: false,
+      settings: false,
+    };
+  }
   return null;
 }
 

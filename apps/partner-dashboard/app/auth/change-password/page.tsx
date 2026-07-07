@@ -71,7 +71,11 @@ function ChangePasswordContent() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMsg(data.error || 'Failed to update password. Verify your temporary password.');
+        const message =
+          typeof data.error === 'object' && data.error !== null
+            ? data.error.message || 'Failed to update password.'
+            : data.error || 'Failed to update password. Verify your temporary password.';
+        setErrorMsg(message);
         setSubmitting(false);
         return;
       }

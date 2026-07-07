@@ -2058,9 +2058,65 @@ export default async function partnersVenueRoutes(fastify: FastifyInstance) {
           if (query.isActive === 'true') q = q.where('isActive', '==', true);
           else if (query.isActive === 'false') q = q.where('isActive', '==', false);
           const snap = await q.get();
-          return reply.send({
-            staff: snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) })),
+
+          const members = snap.docs.map((doc: any) => ({ id: doc.id, ...(doc.data() || {}) }));
+          const userIds = members.map((m: any) => m.userId || m.uid).filter(Boolean);
+
+          // Get Venue Owner Info
+          const venueDoc = await fastify.db.collection('venues').doc(ctx.partnerId).get();
+          const ownerId = venueDoc.exists
+            ? venueDoc.data()?.ownerId || venueDoc.data()?.ownerUid
+            : null;
+          if (ownerId && !userIds.includes(ownerId)) {
+            userIds.push(ownerId);
+          }
+
+          const userProfiles = new Map();
+          if (userIds.length > 0) {
+            for (let i = 0; i < userIds.length; i += 30) {
+              const batch = userIds.slice(i, i + 30);
+              const userSnap = await fastify.db.collection('users').where('uid', 'in', batch).get();
+              userSnap.docs.forEach((d: any) => userProfiles.set(d.id, d.data()));
+            }
+          }
+
+          const enriched = members.map((m: any) => {
+            const userId = m.userId || m.uid;
+            const profile = userId ? userProfiles.get(userId) : null;
+            const computedName = profile?.displayName || m.name || m.email || 'Team Member';
+            return {
+              ...m,
+              name: computedName,
+              displayName: computedName,
+              email: profile?.email || m.email || '',
+              phone: profile?.phoneNumber || profile?.phone || m.phone || '',
+              photoUrl: profile?.photoURL || profile?.photoUrl || m.photoUrl || '',
+              verified: m.verified || false,
+            };
           });
+
+          // Add Venue Owner Card to the top of the list if active
+          if (ownerId && query.isActive !== 'false') {
+            const ownerProfile = userProfiles.get(ownerId);
+            const ownerName = ownerProfile?.displayName || 'Venue Owner';
+            const ownerCard = {
+              id: `owner-${ownerId}`,
+              userId: ownerId,
+              uid: ownerId,
+              name: ownerName,
+              displayName: ownerName,
+              email: ownerProfile?.email || '',
+              phone: ownerProfile?.phoneNumber || ownerProfile?.phone || '',
+              photoUrl: ownerProfile?.photoURL || ownerProfile?.photoUrl || '',
+              role: 'OWNER',
+              status: 'active',
+              isActive: true,
+              verified: true,
+            };
+            enriched.unshift(ownerCard);
+          }
+
+          return reply.send({ staff: enriched });
         }
 
         if (rest === 'staff' && request.method === 'POST') {

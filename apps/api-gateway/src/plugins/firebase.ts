@@ -517,9 +517,17 @@ export default fp(async (fastify) => {
     const membershipMatch = request.authContext?.memberships?.find((membership: any) => {
       if (membership.partnerId !== partnerId) return false;
       if (!membership.isActive) return false;
-      return ['manager', 'ops', 'owner', 'promoter'].includes(
-        String(membership.role || '').toLowerCase(),
-      );
+      return [
+        'manager',
+        'ops',
+        'owner',
+        'promoter',
+        'cohost',
+        'staff',
+        'finance_admin',
+        'security',
+        'door',
+      ].includes(String(membership.role || '').toLowerCase());
     });
     if (membershipMatch) {
       request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via cached memberships');
@@ -603,7 +611,17 @@ export default fp(async (fastify) => {
       const membership = membershipSnapshot.docs[0].data();
       const isActive = membership?.isActive === true || membership?.status === 'active';
       const role = (membership?.role || '').toLowerCase();
-      const managementRoles = ['manager', 'ops', 'owner', 'promoter'];
+      const managementRoles = [
+        'manager',
+        'ops',
+        'owner',
+        'promoter',
+        'cohost',
+        'staff',
+        'finance_admin',
+        'security',
+        'door',
+      ];
 
       if (isActive && managementRoles.includes(role)) {
         request.log.info({ partnerId, uid }, 'verifyPartnerAccess matches via staff membership');

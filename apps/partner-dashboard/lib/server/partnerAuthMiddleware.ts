@@ -112,7 +112,26 @@ export async function requirePartnerAccess(
   const claims = decoded as any;
   const { type, explicitPartnerId } = opts;
 
-  const partnerId = explicitPartnerId || extractPartnerId(req, claims, type);
+  let partnerId = explicitPartnerId || extractPartnerId(req, claims, type);
+
+  if (!partnerId) {
+    const db = getAdminDb();
+    const defaultSnap = await db
+      .collection('partner_memberships')
+      .where('uid', '==', uid)
+      .where('partnerType', '==', type)
+      .limit(10)
+      .get();
+
+    const activeDoc = defaultSnap.docs.find((doc) => {
+      const d = doc.data();
+      return d.isActive === true || d.status === 'active';
+    });
+
+    if (activeDoc) {
+      partnerId = activeDoc.data().partnerId;
+    }
+  }
 
   if (!partnerId || partnerId === 'null' || partnerId === 'undefined') {
     const idName = type === 'venue' ? 'venueId' : type === 'host' ? 'hostId' : 'promoterId';

@@ -362,10 +362,48 @@ async function ensureProfile(fastify: FastifyInstance, user: any) {
   const userId = user.uid;
   const profileRef = fastify.db.collection('users').doc(userId);
 
+  const doc = await profileRef.get();
+  if (doc.exists) {
+    const data = doc.data() || {};
+    // Self-heal: if user has active memberships but isApproved or onboardingComplete is false, update them!
+    const memberships = await fastify.db
+      .collection('partner_memberships')
+      .where('uid', '==', userId)
+      .get()
+      .catch(() => null);
+    const hasActiveMembership =
+      memberships &&
+      !memberships.empty &&
+      memberships.docs.some((d: any) => d.data()?.isActive === true);
+
+    if (
+      hasActiveMembership &&
+      (!data.isApproved || !data.onboardingComplete || data.role === 'user')
+    ) {
+      const isVenueStaff = memberships.docs.some(
+        (d: any) => d.data()?.partnerType === 'venue' && d.data()?.isActive === true,
+      );
+      const isHostMember = memberships.docs.some(
+        (d: any) => d.data()?.partnerType === 'host' && d.data()?.isActive === true,
+      );
+      const updatedRole = isVenueStaff ? 'staff' : isHostMember ? 'host' : data.role || 'user';
+
+      const updates = {
+        isApproved: true,
+        onboardingComplete: true,
+        role: updatedRole,
+        updatedAt: new Date().toISOString(),
+      };
+      await profileRef.update(updates);
+      return { ...data, ...updates, uid: doc.id };
+    }
+    return { ...data, uid: doc.id };
+  }
+
   return await fastify.db.runTransaction(async (transaction) => {
-    const doc = await transaction.get(profileRef);
-    if (doc.exists) {
-      return { ...doc.data(), uid: doc.id };
+    const freshDoc = await transaction.get(profileRef);
+    if (freshDoc.exists) {
+      return { ...freshDoc.data(), uid: freshDoc.id };
     }
 
     // Create a skeleton profile

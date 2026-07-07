@@ -1914,6 +1914,9 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
         userRecord = await fastify.auth.getUserByEmail(email);
         await fastify.auth.updateUser(userRecord.uid, { password: tempPassword });
         await fastify.db.collection('users').doc(userRecord.uid).update({
+          role: 'host',
+          isApproved: true,
+          onboardingComplete: true,
           mustChangePassword: true,
           updatedAt: new Date().toISOString(),
         });
@@ -1944,7 +1947,7 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
       const uid = userRecord.uid;
       const partnerName = invData.partnerName || 'Host Partner';
 
-      // 2. Create the partner_memberships document
+      // 2. Create or update the partner_memberships document
       const membershipSnap = await fastify.db
         .collection('partner_memberships')
         .where('partnerId', '==', hostId)
@@ -1962,6 +1965,12 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           isActive: true,
           joinedAt: Date.now(),
           createdAt: new Date().toISOString(),
+        });
+      } else {
+        await membershipSnap.docs[0].ref.update({
+          isActive: true,
+          role,
+          updatedAt: new Date().toISOString(),
         });
       }
 
@@ -2035,21 +2044,54 @@ export default async function partnersHostRoutes(fastify: FastifyInstance) {
           };
         });
 
-        const mappedMembers = asArray(members).map((m: any) => ({
-          membershipId: m.memberId || m.membershipId || '',
-          uid: m.uid || null,
-          displayName: m.displayName || '',
-          email: m.email || null,
-          phone: m.phone || null,
-          role: m.role || 'STAFF',
-          status: m.isActive ? 'active' : 'suspended',
-          isActive: m.isActive,
-          joinedAt: m.joinedAt || null,
-          lastActive: m.lastActive || null,
-          photoUrl: m.photoUrl || null,
-          granularPermissions: m.granularPermissions || null,
-          verified: m.verified || false,
-        }));
+        const uids = asArray(members)
+          .map((m: any) => m.uid)
+          .filter(Boolean);
+        const userMap = new Map<string, any>();
+        if (uids.length > 0) {
+          for (let i = 0; i < uids.length; i += 30) {
+            const batch = uids.slice(i, i + 30);
+            const userSnap = await fastify.db
+              .collection('users')
+              .where('__name__', 'in', batch)
+              .get()
+              .catch(() => ({ docs: [] }));
+            userSnap.docs.forEach((doc: any) => {
+              userMap.set(doc.id, doc.data());
+            });
+          }
+        }
+
+        const mappedMembers = asArray(members).map((m: any) => {
+          const uProfile = m.uid ? userMap.get(m.uid) : null;
+          const email = m.email || uProfile?.email || null;
+          const phone = m.phone || uProfile?.phone || uProfile?.phoneNumber || null;
+          const displayName =
+            m.displayName ||
+            uProfile?.displayName ||
+            (uProfile?.firstName && uProfile?.lastName
+              ? `${uProfile.firstName} ${uProfile.lastName}`
+              : null) ||
+            email ||
+            phone ||
+            'Team Member';
+
+          return {
+            membershipId: m.memberId || m.membershipId || '',
+            uid: m.uid || null,
+            displayName,
+            email,
+            phone,
+            role: m.role || 'STAFF',
+            status: m.isActive ? 'active' : 'suspended',
+            isActive: m.isActive,
+            joinedAt: m.joinedAt || null,
+            lastActive: m.lastActive || null,
+            photoUrl: m.photoUrl || uProfile?.photoUrl || uProfile?.photoURL || null,
+            granularPermissions: m.granularPermissions || null,
+            verified: m.verified || uProfile?.verified || false,
+          };
+        });
 
         return reply.header('Cache-Control', 'private, max-age=120').send({
           success: true,

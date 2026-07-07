@@ -1909,8 +1909,11 @@ export default async function venueRoutes(fastify: FastifyInstance) {
         await fastify.auth.updateUser(userRecord.uid, {
           password: tempPassword,
         });
-        // Reset mustChangePassword to true in Firestore user record
+        // Reset mustChangePassword to true in Firestore user record and update role/approval
         await fastify.db.collection('users').doc(userRecord.uid).update({
+          role: 'staff',
+          isApproved: true,
+          onboardingComplete: true,
           mustChangePassword: true,
           updatedAt: new Date().toISOString(),
         });
@@ -1945,7 +1948,7 @@ export default async function venueRoutes(fastify: FastifyInstance) {
       const venueDoc = await fastify.db.collection('venues').doc(venueId).get();
       const venueName = venueDoc.exists ? venueDoc.data()?.name || 'Venue' : 'Venue';
 
-      // 2. Create the partner_memberships document
+      // 2. Create or update the partner_memberships document
       const membershipSnap = await fastify.db
         .collection('partner_memberships')
         .where('partnerId', '==', venueId)
@@ -1963,6 +1966,12 @@ export default async function venueRoutes(fastify: FastifyInstance) {
           isActive: true,
           joinedAt: Date.now(),
           createdAt: new Date().toISOString(),
+        });
+      } else {
+        await membershipSnap.docs[0].ref.update({
+          isActive: true,
+          role,
+          updatedAt: new Date().toISOString(),
         });
       }
 
