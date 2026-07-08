@@ -3,7 +3,11 @@ import { View, ActivityIndicator } from 'react-native';
 import { Redirect } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useProfileStore } from '@/store/profileStore';
-import { hasRequestedPermissions, hasViewedOnboarding, hasCompletedContactLinking } from '@/lib/onboardingFlow';
+import {
+  hasRequestedPermissions,
+  hasViewedOnboarding,
+  hasCompletedContactLinking,
+} from '@/lib/onboardingFlow';
 import { hasCompletedProfileSetup } from './profile-setup';
 import { colors } from '@/lib/design/theme';
 
@@ -50,19 +54,28 @@ export default function Index() {
         console.log('[Index] loadProfile error:', err);
         return undefined;
       }),
-    ]).then(([basicProfileComplete, onboardingViewed, permissionsRequested, contactLinkingComplete]) => {
-      console.log('[Index] Async checks complete! Cancelled:', cancelled);
-      if (cancelled) return;
-      setFlowState({
-        checked: true,
-        basicProfileComplete,
-        hasViewedOnboarding: onboardingViewed,
-        hasCompletedContactLinking: contactLinkingComplete,
-        permissionsRequested,
+    ])
+      .then(
+        ([
+          basicProfileComplete,
+          onboardingViewed,
+          permissionsRequested,
+          contactLinkingComplete,
+        ]) => {
+          console.log('[Index] Async checks complete! Cancelled:', cancelled);
+          if (cancelled) return;
+          setFlowState({
+            checked: true,
+            basicProfileComplete,
+            hasViewedOnboarding: onboardingViewed,
+            hasCompletedContactLinking: contactLinkingComplete,
+            permissionsRequested,
+          });
+        },
+      )
+      .catch((err) => {
+        console.error('[Index] Promise.all failed:', err);
       });
-    }).catch(err => {
-      console.error('[Index] Promise.all failed:', err);
-    });
 
     return () => {
       cancelled = true;
@@ -75,7 +88,7 @@ export default function Index() {
     profile?.profileComplete ||
     flowState.basicProfileComplete,
   );
-  
+
   const waitingForAuthSync = authSyncInProgress || Boolean(user && !serverSynced);
 
   if (!initialized || waitingForAuthSync || !flowState.checked) {
@@ -97,9 +110,9 @@ export default function Index() {
     if (isGuest) return <Redirect href="/(tabs)/explore" />;
     return <Redirect href="/(auth)/login" />;
   }
-  if (!flowState.hasCompletedContactLinking) return <Redirect href="/add-contact" />;
+  if (!flowState.hasCompletedContactLinking) return <Redirect href={'/add-contact' as any} />;
   if (!basicSetupComplete) return <Redirect href="/profile-setup" />;
   if (!flowState.hasViewedOnboarding) return <Redirect href="/onboarding" />;
-  if (!flowState.permissionsRequested) return <Redirect href="/permission" />;
+  if (!flowState.permissionsRequested) return <Redirect href={'/permission' as any} />;
   return <Redirect href="/(tabs)/explore" />;
 }

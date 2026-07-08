@@ -1,13 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { ComponentType } from 'react';
-import {
-  View,
-  Text,
-  Pressable,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-} from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useVideoPlayer, VideoView } from 'expo-video';
@@ -134,10 +127,38 @@ function ParallaxCircle({
 function ParallaxCircles({ scrollX }: { scrollX: { value: number } }) {
   return (
     <>
-      <ParallaxCircle size={120} color="rgba(167, 139, 250, 0.06)" top="12%" left="10%" depth={0.3} scrollX={scrollX} />
-      <ParallaxCircle size={180} color="rgba(251, 191, 36, 0.04)" top="55%" left="70%" depth={0.5} scrollX={scrollX} />
-      <ParallaxCircle size={80} color="rgba(251, 113, 133, 0.05)" top="30%" left="80%" depth={0.7} scrollX={scrollX} />
-      <ParallaxCircle size={140} color="rgba(255, 255, 255, 0.02)" top="70%" left="15%" depth={0.4} scrollX={scrollX} />
+      <ParallaxCircle
+        size={120}
+        color="rgba(167, 139, 250, 0.06)"
+        top="12%"
+        left="10%"
+        depth={0.3}
+        scrollX={scrollX}
+      />
+      <ParallaxCircle
+        size={180}
+        color="rgba(251, 191, 36, 0.04)"
+        top="55%"
+        left="70%"
+        depth={0.5}
+        scrollX={scrollX}
+      />
+      <ParallaxCircle
+        size={80}
+        color="rgba(251, 113, 133, 0.05)"
+        top="30%"
+        left="80%"
+        depth={0.7}
+        scrollX={scrollX}
+      />
+      <ParallaxCircle
+        size={140}
+        color="rgba(255, 255, 255, 0.02)"
+        top="70%"
+        left="15%"
+        depth={0.4}
+        scrollX={scrollX}
+      />
     </>
   );
 }
@@ -261,11 +282,11 @@ function Dot({ index, scrollX }: { index: number; scrollX: { value: number } }) 
       (index + 1) * SCREEN_WIDTH,
     ];
     const w = interpolate(scrollX.value, inputRange, [8, 28, 8], 'clamp');
-    const bg = interpolateColor(
-      scrollX.value,
-      inputRange,
-      ['rgba(255,255,255,0.15)', colors.iris, 'rgba(255,255,255,0.15)'],
-    );
+    const bg = interpolateColor(scrollX.value, inputRange, [
+      'rgba(255,255,255,0.15)',
+      colors.iris,
+      'rgba(255,255,255,0.15)',
+    ]);
     return { width: w, backgroundColor: bg };
   });
 
@@ -288,7 +309,7 @@ export default function OnboardingScreen() {
     (index: number) => {
       try {
         player.currentTime = (index * SEGMENT_MS) / 1000;
-      } catch { }
+      } catch {}
     },
     [player],
   );
@@ -324,7 +345,7 @@ export default function OnboardingScreen() {
           .catch(console.error);
       }
       setOnboardingJustCompleted(true);
-      router.replace('/permission');
+      router.replace('/permission' as any);
     } else {
       const nextIndex = currentIndex + 1;
       scrollX.value = nextIndex * SCREEN_WIDTH;
@@ -342,7 +363,7 @@ export default function OnboardingScreen() {
         .catch(console.error);
     }
     setOnboardingJustCompleted(true);
-    router.replace('/permission');
+    router.replace('/permission' as any);
   }, [setOnboardingJustCompleted, user?.uid]);
 
   return (
@@ -360,12 +381,7 @@ export default function OnboardingScreen() {
 
       {/* Dark vignette overlay */}
       <LinearGradient
-        colors={[
-          'rgba(0,0,0,0.2)',
-          'rgba(0,0,0,0.4)',
-          'rgba(0,0,0,0.75)',
-          colors.base.DEFAULT,
-        ]}
+        colors={['rgba(0,0,0,0.2)', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.75)', colors.base.DEFAULT]}
         locations={[0, 0.25, 0.65, 1]}
         style={StyleSheet.absoluteFillObject}
         pointerEvents="none"
@@ -424,9 +440,7 @@ export default function OnboardingScreen() {
               end={{ x: 1, y: 0 }}
               style={styles.ctaGradient}
             >
-              <Text style={styles.ctaText}>
-                {isLastSlide ? 'Get Started' : 'Next'}
-              </Text>
+              <Text style={styles.ctaText}>{isLastSlide ? 'Get Started' : 'Next'}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
