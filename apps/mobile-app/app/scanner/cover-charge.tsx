@@ -203,7 +203,7 @@ export default function CoverChargeScreen() {
 
     const newBalance =
       result.balanceAfterPaise ?? wallet.currentBalancePaise - selectedItem.amountPaise;
-    if (mountedRef.current && wallet) {
+    if (mountedRef.current) {
       setWallet({ ...wallet, currentBalancePaise: newBalance });
     }
     if (mountedRef.current) {

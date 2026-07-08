@@ -135,7 +135,7 @@ export default function DirectMessageScreen() {
       if (dateStr !== lastDateStr) {
         const today = new Date().toLocaleDateString();
         const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
-        let text = dateStr;
+        let text: string;
         if (dateStr === today) text = 'Today';
         else if (dateStr === yesterday) text = 'Yesterday';
         else {
@@ -540,7 +540,7 @@ export default function DirectMessageScreen() {
     );
   }
 
-  if (!loading && !conversation && conversationError) {
+  if (!conversation && conversationError) {
     return (
       <BrightChatSurface theme={theme}>
         <View style={styles.conversation}>

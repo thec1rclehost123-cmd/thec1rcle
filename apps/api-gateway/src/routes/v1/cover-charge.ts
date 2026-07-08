@@ -140,8 +140,10 @@ async function validateScannerToken(fastify: FastifyInstance, request: any): Pro
   // Try Firebase ID token first (staff also logged in as guest user)
   if (token) {
     try {
-      await (fastify as any).firebase.auth().verifyIdToken(token);
-      return true;
+      const decoded = await (fastify as any).firebase.auth().verifyIdToken(token);
+      if (decoded && ['admin', 'manager', 'door_staff', 'bartender'].includes(decoded.role as string)) {
+        return true;
+      }
     } catch {}
   }
 

@@ -1685,9 +1685,9 @@ export default function EventDetailScreen() {
             styles.floatingPill,
             isPremiumGated && !isPremium ? styles.floatingPillPremium : { backgroundColor: accent },
             ticketButtonAnimatedStyle,
-            (loading || isSoldOut) && { opacity: 0.5 },
+            isSoldOut && { opacity: 0.5 },
           ]}
-          pointerEvents={loading || isSoldOut ? 'none' : 'auto'}
+          pointerEvents={isSoldOut ? 'none' : 'auto'}
         >
           {isPremiumGated && !isPremium ? (
             <LinearGradient

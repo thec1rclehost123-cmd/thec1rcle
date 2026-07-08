@@ -1090,6 +1090,7 @@ export default async function scanRoutes(fastify: FastifyInstance) {
   fastify.post(
     '/',
     {
+      config: { rateLimit: { max: 100, timeWindow: '1 minute' } },
       preHandler: [fastify.validate({ body: ScanBody })],
     },
     async (request: any, reply) => {
