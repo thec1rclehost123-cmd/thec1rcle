@@ -715,7 +715,7 @@ export default function ExploreScreen() {
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={false}
-        onScroll={handleScroll}
+        onScroll={handleScroll as any}
         scrollEventThrottle={16}
         contentContainerStyle={{ paddingBottom: insets.bottom + 76 }}
         data={exploreSections}

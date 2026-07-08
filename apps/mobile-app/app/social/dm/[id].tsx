@@ -619,7 +619,7 @@ export default function DirectMessageScreen() {
             style={styles.messagesFlipped}
             contentContainerStyle={styles.messagesContent}
             showsVerticalScrollIndicator={false}
-            onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
+            onScroll={(e: any) => {
               const y = e.nativeEvent.contentOffset.y;
               if (y > 40 && !isScrolled) setIsScrolled(true);
               else if (y <= 40 && isScrolled) setIsScrolled(false);

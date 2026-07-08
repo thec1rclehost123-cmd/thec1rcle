@@ -791,7 +791,7 @@ function QRModal({
                   snapToInterval={cardPageWidth}
                   decelerationRate="fast"
                   style={{ width: cardPageWidth, alignSelf: 'center' }}
-                  onMomentumScrollEnd={(event: NativeSyntheticEvent<NativeScrollEvent>) => {
+                  onMomentumScrollEnd={(event: any) => {
                     const nextIndex = Math.round(event.nativeEvent.contentOffset.x / cardPageWidth);
                     setActiveTicketIndex(nextIndex);
                     setShowQR(false);

@@ -651,7 +651,7 @@ export default function ImmersiveFeedScreen() {
         snapToInterval={ITEM_HEIGHT}
         snapToAlignment="start"
         decelerationRate="fast"
-        onScroll={scrollHandler}
+        onScroll={scrollHandler as any}
         scrollEventThrottle={16}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
